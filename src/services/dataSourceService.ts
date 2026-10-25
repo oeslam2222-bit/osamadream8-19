@@ -10,6 +10,7 @@ export type PublishedDataSource = {
 
 export type PublishedDataSources = {
   customers: PublishedDataSource;
+  customerSales: PublishedDataSource;
   products: PublishedDataSource;
   targets: PublishedDataSource;
   offers: PublishedDataSource;
@@ -20,7 +21,14 @@ const STORAGE_KEY = 'dream_dist_published_data_sources_v1';
 const defaultSources: PublishedDataSources = {
   customers: {
     kind: 'google_sheets',
-    label: 'شيت العملاء والمديونيات والتارجت (Google Sheets)',
+    label: 'شيت العملاء والمديونيات (Google Sheets)',
+    url: '',
+    enabled: false,
+    updatedAt: '',
+  },
+  customerSales: {
+    kind: 'google_sheets',
+    label: 'شيت مبيعات العملاء والتارجت (Google Sheets)',
     url: '',
     enabled: false,
     updatedAt: '',
@@ -60,6 +68,11 @@ export function getPublishedDataSources(): PublishedDataSources {
         ...(parsed.customers || {}),
         kind: 'google_sheets',
       },
+      customerSales: {
+        ...defaultSources.customerSales,
+        ...(parsed.customerSales || {}),
+        kind: 'google_sheets',
+      },
       products: {
         ...defaultSources.products,
         ...(parsed.products || {}),
@@ -86,6 +99,7 @@ export function savePublishedDataSources(sources: PublishedDataSources): void {
   // Ensure all sources are strictly google_sheets
   const sanitized: PublishedDataSources = {
     customers: { ...sources.customers, kind: 'google_sheets' },
+    customerSales: { ...(sources.customerSales || defaultSources.customerSales), kind: 'google_sheets' },
     products: { ...sources.products, kind: 'google_sheets' },
     targets: { ...sources.targets, kind: 'google_sheets' },
     offers: { ...(sources.offers || defaultSources.offers), kind: 'google_sheets' },

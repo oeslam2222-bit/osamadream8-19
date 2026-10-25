@@ -1340,7 +1340,81 @@ export function exportCustomerAnalyticsToExcel(
   ws['!views'] = [{ RTL: true }];
   ws['!sheetView'] = [{ rightToLeft: true }];
 
+  // Sheet 2: "مبيعات العملاء" (Dedicated Customer Sales Sheet requested by user)
+  const salesHeaders = [
+    'كود العميل',
+    'اسم العميل / المتجر',
+    'الفرع',
+    'المندوب المسؤول',
+    'المشرف',
+    'المنطقة',
+    'رقم الهاتف',
+    'إجمالي مبيعات 2026 (ج.م)',
+    'مبيعات 2025 (ج.م)',
+    'نسبة النمو %',
+    'إجمالي التحصيل 2026 (ج.م)',
+    'نسبة التحصيل %',
+    'المديونية الحالية (ج.م)',
+    'الحد الائتماني (ج.م)',
+    'حالة التعامل 2026',
+    'يناير 2026',
+    'فبراير 2026',
+    'مارس 2026',
+    'إبريل 2026',
+    'مايو 2026',
+    'يونيو 2026',
+    'يوليو 2026',
+    'أغسطس 2026',
+    'سبتمبر 2026',
+    'أكتوبر 2026',
+    'نوفمبر 2026',
+    'ديسمبر 2026',
+  ];
+
+  const salesRows = customers.map((c) => {
+    const s25 = c.sales2025 || 0;
+    const s26 = c.sales2026 || 0;
+    const growth = s25 > 0 ? Math.round(((s26 - s25) / s25) * 100) : (s26 > 0 ? 100 : 0);
+    const col26 = c.collections2026 || 0;
+    const colRate = s26 > 0 ? Math.round((col26 / s26) * 100) : (col26 > 0 ? 100 : 0);
+    const mSales = c.monthlySales2026 || {};
+    return [
+      c.code || '---',
+      c.name,
+      c.branchName || '',
+      c.salesRepName || c.repName || '',
+      c.supervisorName || '',
+      c.region || '',
+      c.phone || '',
+      s26,
+      s25,
+      `${growth}%`,
+      col26,
+      `${colRate}%`,
+      c.currentBalance ?? c.balance ?? 0,
+      c.creditLimit || 0,
+      c.hasDealtIn2026 ? 'متعامل' : 'غير متعامل',
+      mSales[1] || 0,
+      mSales[2] || 0,
+      mSales[3] || 0,
+      mSales[4] || 0,
+      mSales[5] || 0,
+      mSales[6] || 0,
+      mSales[7] || 0,
+      mSales[8] || 0,
+      mSales[9] || 0,
+      mSales[10] || 0,
+      mSales[11] || 0,
+      mSales[12] || 0,
+    ];
+  });
+
+  const wsSales = XLSX.utils.aoa_to_sheet([salesHeaders, ...salesRows]);
+  wsSales['!views'] = [{ RTL: true }];
+  wsSales['!sheetView'] = [{ rightToLeft: true }];
+
   XLSX.utils.book_append_sheet(wb, ws, 'تحليل_كافة_العملاء');
+  XLSX.utils.book_append_sheet(wb, wsSales, 'مبيعات العملاء');
   XLSX.writeFile(wb, `${fileName}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 

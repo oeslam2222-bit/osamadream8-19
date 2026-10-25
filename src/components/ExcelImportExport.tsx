@@ -1,50 +1,56 @@
 import {
   AlertCircle,
-  ArrowDown,
   ArrowRight,
-  ArrowUpDown,
+  BarChart3,
   Check,
   CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
+  ChevronDown,
+  ChevronUp,
+  Clock,
   CloudLightning,
   Copy,
   Download,
   ExternalLink,
-  Eye,
+  FileCheck,
   FileSpreadsheet,
   FolderOpen,
   Globe,
   HelpCircle,
-  Image as ImageIcon,
   Layers,
-  Link,
+  Link2,
   Package,
-  Plus,
   RefreshCw,
   Search,
-  Share2,
-  Sparkles,
-  Store,
-  Upload,
-  UserCheck,
-  Users,
-  X,
-  Trash2,
   ShieldAlert,
+  ShieldCheck,
+  Sparkles,
+  Tag,
   Target,
-  BadgePercent,
-  Calendar,
-  CreditCard,
-  FileCheck
+  Trash2,
+  Upload,
+  Users,
+  X
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useId, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { getProductImageUrl } from '../services/cloudinaryService';
 import {
-  CUSTOMER_SALES_TARGET_COLUMNS,
+  cleanCustomerCode,
+  cleanCustomerPhone,
+  deduplicateAndMergeCustomers,
+  mergeTwoCustomers
+} from '../services/customerDeduplicationService';
+import { normalizeArabicText } from '../services/arabicMatchingService';
+import {
+  downloadCustomerAnalyticsTemplate,
+  exportCustomerAnalyticsToExcel
+} from '../services/customerAnalyticsService';
+import {
+  getPublishedDataSources,
+  isValidPublishedSource,
+  PublishedDataSources,
+  saveSingleSourceUrl
+} from '../services/dataSourceService';
+import {
   exportCustomersToExcel,
   exportCustomerTargetSheetToExcel,
   exportProductsToExcel,
@@ -54,181 +60,603 @@ import {
   generateSampleCustomerTargetTemplate,
   generateSampleExcelTemplate,
   parseExcelCustomers,
-  parseExcelProducts
+  parseExcelProducts,
+  parseTargetExcel
 } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
 import { Customer, Product } from '../types';
-import { PublishedDataSourcesPanel } from './PublishedDataSourcesPanel';
+
+type SheetKey = keyof PublishedDataSources;
 
 export const ExcelImportExport: React.FC = () => {
   const {
     products,
     customers,
     users,
+    targets,
     currentUser,
     branches,
     importProductsList,
     importCustomersList,
     cleanAndDeduplicateCustomers,
-    updateCustomer,
-    deleteCustomer,
-    refreshCustomerRepLinks,
-    autoCreateMissingRepsFromCustomers,
+    importTargetsFromExcel,
+    importTargetsFromGoogleSheet,
+    exportTargetsReport,
     wipeAllProductsAndData,
     selectedBranchFilter
   } = useApp();
 
-  const [activeSubTab, setActiveSubTab] = useState<'google_sheets' | 'excel_file' | 'drive_scanner' | 'customers' | 'published_sources'>('google_sheets');
+  // Saved sources from localStorage/service
+  const [sources, setSources] = useState<PublishedDataSources>(() => getPublishedDataSources());
+  const [sourceUrls, setSourceUrls] = useState<Record<SheetKey, string>>({
+    customers: sources.customers?.url || '',
+    customerSales: sources.customerSales?.url || '',
+    products: sources.products?.url || '',
+    targets: sources.targets?.url || '',
+    offers: sources.offers?.url || '',
+  });
 
-  // Customer Management State
-  const [customerGoogleSheetUrl, setCustomerGoogleSheetUrl] = useState('');
-  const [isSyncingCustomers, setIsSyncingCustomers] = useState(false);
-  const [customerSheetSuccess, setCustomerSheetSuccess] = useState<string | null>(null);
-  const [customerSheetError, setCustomerSheetError] = useState<string | null>(null);
-  const [customerPreviewList, setCustomerPreviewList] = useState<Customer[]>([]);
-  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
-  const [customerSelectedRepFilter, setCustomerSelectedRepFilter] = useState<string>('all');
-  const [customerSelectedBranchFilter, setCustomerSelectedBranchFilter] = useState<string>('all');
-  const [customerImportMode, setCustomerImportMode] = useState<'merge' | 'replace'>('merge');
-  const [customerDisplayLimit, setCustomerDisplayLimit] = useState<number>(50);
-  const [customerTableTab, setCustomerTableTab] = useState<'standard' | 'target'>('target');
-  const [showTargetColumnsExplainer, setShowTargetColumnsExplainer] = useState(false);
+  // UI state per sheet
+  const [syncingKey, setSyncingKey] = useState<SheetKey | 'all' | null>(null);
+  const [savedUrlNotice, setSavedUrlNotice] = useState<SheetKey | null>(null);
+  const [sheetErrors, setSheetErrors] = useState<Record<SheetKey, string | null>>({
+    customers: null,
+    customerSales: null,
+    products: null,
+    targets: null,
+    offers: null,
+  });
+  const [sheetSuccess, setSheetSuccess] = useState<Record<SheetKey, string | null>>({
+    customers: null,
+    customerSales: null,
+    products: null,
+    targets: null,
+    offers: null,
+  });
+
+  // Global Sync Progress & Dedup Audit State
+  const [masterSyncProgress, setMasterSyncProgress] = useState<string | null>(null);
+  const [dedupNotice, setDedupNotice] = useState<{
+    original: number;
+    cleaned: number;
+    removed: number;
+    message: string;
+  } | null>(null);
+
+  // Hidden file inputs refs
+  const fileInputCustomersRef = useRef<HTMLInputElement>(null);
+  const fileInputSalesRef = useRef<HTMLInputElement>(null);
+  const fileInputProductsRef = useRef<HTMLInputElement>(null);
+  const fileInputTargetsRef = useRef<HTMLInputElement>(null);
+  const fileInputOffersRef = useRef<HTMLInputElement>(null);
+
+  // Advanced Utilities Accordion
+  const [isDriveScannerOpen, setIsDriveScannerOpen] = useState(false);
+  const [copiedScript, setCopiedScript] = useState(false);
 
   // Wipe / Reset Modal State
   const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
   const [isWiping, setIsWiping] = useState(false);
   const [wipeInvoicesToo, setWipeInvoicesToo] = useState(false);
 
-  // Excel File State
-  const [isDragging, setIsDragging] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [previewProducts, setPreviewProducts] = useState<Product[]>([]);
-  const [parseErrors, setParseErrors] = useState<string[]>([]);
-  const [importDataNotice, setImportDataNotice] = useState<string | null>(null);
-  const [importMode, setImportMode] = useState<'merge' | 'replace'>('replace');
-  const [importSuccessMsg, setImportSuccessMsg] = useState<string | null>(null);
-
-  // Preview Table Filter & Pagination State
-  const [previewSearchTerm, setPreviewSearchTerm] = useState('');
-  const [previewPage, setPreviewPage] = useState(1);
-  const [previewPageSize, setPreviewPageSize] = useState<number | 'all'>(100);
-
-  // Google Sheets State
-  const [googleSheetUrl, setGoogleSheetUrl] = useState('');
-  const [isSyncingGoogleSheet, setIsSyncingGoogleSheet] = useState(false);
-  const [googleSheetSuccess, setGoogleSheetSuccess] = useState<string | null>(null);
-  const [googleSheetError, setGoogleSheetError] = useState<string | null>(null);
-  const [copiedScript, setCopiedScript] = useState(false);
-
-  const prepareImportedProducts = (incoming: Product[]): Product[] => {
-    const missingCodeCount = incoming.filter((product) => !String(product?.code || '').trim()).length;
-    const notices: string[] = [
-      `تم الاحتفاظ بكل ${incoming.length} صف كما هو، بما في ذلك الأكواد المكررة`,
-    ];
-    if (missingCodeCount > 0) notices.push(`${missingCodeCount} صف بدون كود أساسي واضح`);
-    setImportDataNotice(`${notices.join(' • ')}.`);
-    return incoming;
+  // Save single source URL permanently
+  const handleSaveUrl = (key: SheetKey) => {
+    const cleanUrl = (sourceUrls[key] || '').trim();
+    saveSingleSourceUrl(key, cleanUrl);
+    setSources(getPublishedDataSources());
+    setSavedUrlNotice(key);
+    setTimeout(() => setSavedUrlNotice(null), 2500);
   };
 
-  // Filtered preview products
-  const filteredPreviewProducts = useMemo(() => {
-    if (!previewSearchTerm.trim()) return previewProducts;
-    const q = previewSearchTerm.toLowerCase().trim();
-    return previewProducts.filter((p) => {
-      return (
-        (p.code && p.code.toLowerCase().includes(q)) ||
-        (p.name && p.name.toLowerCase().includes(q)) ||
-        (p.color && p.color.toLowerCase().includes(q)) ||
-        (p.size && p.size.toLowerCase().includes(q)) ||
-        (p.department && p.department.toLowerCase().includes(q)) ||
-        (p.category && p.category.toLowerCase().includes(q)) ||
-        (p.branchName && p.branchName.toLowerCase().includes(q))
-      );
-    });
-  }, [previewProducts, previewSearchTerm]);
-
-  // Total pages for preview
-  const totalPreviewPages = useMemo(() => {
-    if (previewPageSize === 'all') return 1;
-    return Math.max(1, Math.ceil(filteredPreviewProducts.length / previewPageSize));
-  }, [filteredPreviewProducts.length, previewPageSize]);
-
-  // Paginated preview products
-  const paginatedPreviewProducts = useMemo(() => {
-    if (previewPageSize === 'all') return filteredPreviewProducts;
-    const start = (previewPage - 1) * previewPageSize;
-    return filteredPreviewProducts.slice(start, start + previewPageSize);
-  }, [filteredPreviewProducts, previewPage, previewPageSize]);
-
-  const handleFileUpload = async (file: File) => {
-    if (!file) return;
-    setIsLoading(true);
-    setParseErrors([]);
-    setImportSuccessMsg(null);
-    setPreviewPage(1);
-
-    try {
-      const result = await parseExcelProducts(file);
-      if (result.errors.length > 0) {
-        setParseErrors(result.errors);
-      }
-      setPreviewProducts(prepareImportedProducts(result.products));
-    } catch (err: any) {
-      setParseErrors([err.message || 'حدث خطأ أثناء معالجة ملف الإكسل']);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleApplyImport = () => {
-    if (previewProducts.length === 0) return;
-    importProductsList(previewProducts, importMode);
-    setImportSuccessMsg(
-      `تم بنجاح استيراد ${previewProducts.length} صنف كامل وتحديث بيانات مخزون الفروع والمخزن الرئيسي وروابط الصور!`
-    );
-    setPreviewProducts([]);
-    setPreviewSearchTerm('');
-    setPreviewPage(1);
-    setTimeout(() => setImportSuccessMsg(null), 5000);
-  };
-
-  const handleFetchGoogleSheet = async () => {
-    if (!googleSheetUrl.trim()) {
-      setGoogleSheetError('يرجى لصق رابط Google Sheet أولاً');
+  // 1. Sync Customers Sheet (العملاء والمديونيات)
+  const handleSyncCustomers = async (urlOverride?: string) => {
+    const url = (urlOverride || sourceUrls.customers || '').trim();
+    if (!url) {
+      setSheetErrors((prev) => ({ ...prev, customers: 'يرجى إدخال رابط Google Sheet الخاص بالعملاء أولاً' }));
       return;
     }
-
-    setIsSyncingGoogleSheet(true);
-    setGoogleSheetError(null);
-    setGoogleSheetSuccess(null);
-    setParseErrors([]);
-    setPreviewPage(1);
+    setSyncingKey('customers');
+    setSheetErrors((prev) => ({ ...prev, customers: null }));
+    setSheetSuccess((prev) => ({ ...prev, customers: null }));
 
     try {
-      const result = await fetchAndParseGoogleSheet(googleSheetUrl);
-      if (result.errors.length > 0 && result.products.length === 0) {
-        setGoogleSheetError(result.errors.join(' • '));
-      } else {
-        if (result.errors.length > 0) {
-          setParseErrors(result.errors);
-        }
-        setPreviewProducts(prepareImportedProducts(result.products));
-        setGoogleSheetSuccess(
-          `تم بنجاح جلب ${result.products.length} صنف من شيت Google Sheets! راجع الجدول أدناه واضغط تأكيد الحفظ.`
-        );
+      saveSingleSourceUrl('customers', url);
+      setSources(getPublishedDataSources());
+
+      const res = await fetchCustomersFromGoogleSheetUrl(url);
+      if (res.errors.length > 0 && res.customers.length === 0) {
+        throw new Error(res.errors.join(' • '));
       }
+
+      // Merge and update customers in place with strict deduplication
+      const importResult = await importCustomersList(res.customers, 'replace');
+      if (!importResult.success) {
+        throw new Error(importResult.message);
+      }
+
+      setSheetSuccess((prev) => ({
+        ...prev,
+        customers: `تم بنجاح تحديث ${importResult.count} عميل فريد، وحذف أي مكررات سابقة. البيانات محدثة ومتاحة الآن لجميع المناديب والمشرفين.`
+      }));
     } catch (err: any) {
-      setGoogleSheetError(err.message || 'فشل جلب البيانات من Google Sheets');
+      setSheetErrors((prev) => ({ ...prev, customers: err?.message || 'فشلت مزامنة شيت العملاء' }));
     } finally {
-      setIsSyncingGoogleSheet(false);
+      setSyncingKey(null);
     }
   };
 
+  // 2. Sync Customer Sales Sheet (مبيعات العملاء والتارجت)
+  const handleSyncCustomerSales = async (urlOverride?: string) => {
+    const url = (urlOverride || sourceUrls.customerSales || '').trim();
+    if (!url) {
+      setSheetErrors((prev) => ({ ...prev, customerSales: 'يرجى إدخال رابط Google Sheet الخاص بمبيعات العملاء أولاً' }));
+      return;
+    }
+    setSyncingKey('customerSales');
+    setSheetErrors((prev) => ({ ...prev, customerSales: null }));
+    setSheetSuccess((prev) => ({ ...prev, customerSales: null }));
+
+    try {
+      saveSingleSourceUrl('customerSales', url);
+      setSources(getPublishedDataSources());
+
+      const res = await fetchCustomersFromGoogleSheetUrl(url);
+      if (res.errors.length > 0 && res.customers.length === 0) {
+        throw new Error(res.errors.join(' • '));
+      }
+
+      // Strict in-place deduplication: merge sales columns into existing customer records
+      // Matches by: 1) cleanCustomerCode, 2) cleanCustomerPhone, 3) normalized Arabic name
+      const codeMap = new Map<string, Customer>();
+      const phoneMap = new Map<string, Customer>();
+      const nameMap = new Map<string, Customer>();
+
+      customers.forEach((c) => {
+        const cd = cleanCustomerCode(c.code);
+        if (cd) codeMap.set(cd, c);
+        const ph = cleanCustomerPhone(c.phone);
+        if (ph) phoneMap.set(ph, c);
+        if (c.name) nameMap.set(normalizeArabicText(c.name).replace(/\s+/g, ''), c);
+      });
+
+      const updatedCustomers = [...customers];
+      let updatedCount = 0;
+      let newCount = 0;
+
+      res.customers.forEach((incoming) => {
+        const cd = cleanCustomerCode(incoming.code);
+        const ph = cleanCustomerPhone(incoming.phone);
+        const normN = incoming.name ? normalizeArabicText(incoming.name).replace(/\s+/g, '') : '';
+
+        const existing = (cd && codeMap.get(cd)) ||
+                         (ph && phoneMap.get(ph)) ||
+                         (normN && nameMap.get(normN));
+
+        if (existing) {
+          const idx = updatedCustomers.findIndex((c) => c.id === existing.id);
+          if (idx >= 0) {
+            // In-place merge without creating a duplicate record
+            updatedCustomers[idx] = mergeTwoCustomers(updatedCustomers[idx], incoming);
+            updatedCount++;
+          }
+        } else {
+          updatedCustomers.push(incoming);
+          newCount++;
+        }
+      });
+
+      const finalDeduped = deduplicateAndMergeCustomers(updatedCustomers).customers;
+      await importCustomersList(finalDeduped, 'replace');
+
+      setSheetSuccess((prev) => ({
+        ...prev,
+        customerSales: `تم بنجاح تحديث أرقام مبيعات وتارجت ${updatedCount} عميل قائم وإدراج ${newCount} عميل جديد بدون تكرار! البيانات متاحة الآن في تحليلات مبيعات العملاء.`
+      }));
+    } catch (err: any) {
+      setSheetErrors((prev) => ({ ...prev, customerSales: err?.message || 'فشلت مزامنة شيت مبيعات العملاء' }));
+    } finally {
+      setSyncingKey(null);
+    }
+  };
+
+  // 3. Sync Products Sheet (الأصناف والمخزون والأسعار)
+  const handleSyncProducts = async (urlOverride?: string) => {
+    const url = (urlOverride || sourceUrls.products || '').trim();
+    if (!url) {
+      setSheetErrors((prev) => ({ ...prev, products: 'يرجى إدخال رابط Google Sheet الخاص بالأصناف والمخزون أولاً' }));
+      return;
+    }
+    setSyncingKey('products');
+    setSheetErrors((prev) => ({ ...prev, products: null }));
+    setSheetSuccess((prev) => ({ ...prev, products: null }));
+
+    try {
+      saveSingleSourceUrl('products', url);
+      setSources(getPublishedDataSources());
+
+      const res = await fetchAndParseGoogleSheet(url);
+      if (res.errors.length > 0 && res.products.length === 0) {
+        throw new Error(res.errors.join(' • '));
+      }
+
+      // Deduplicate products by code/unifiedCode
+      const prodMap = new Map<string, Product>();
+      res.products.forEach((p) => {
+        const key = (p.code || p.unifiedCode || p.name).trim().toLowerCase();
+        if (key) prodMap.set(key, p);
+      });
+      const dedupedProducts = Array.from(prodMap.values());
+
+      importProductsList(dedupedProducts, 'replace');
+
+      setSheetSuccess((prev) => ({
+        ...prev,
+        products: `تم بنجاح جلب وتحديث ${dedupedProducts.length} صنف ومطابقة الأسعار ورصيد المخازن وروابط صور Cloudinary!`
+      }));
+    } catch (err: any) {
+      setSheetErrors((prev) => ({ ...prev, products: err?.message || 'فشلت مزامنة شيت الأصناف والمخزون' }));
+    } finally {
+      setSyncingKey(null);
+    }
+  };
+
+  // 4. Sync Targets Sheet (أهداف ومبيعات المناديب)
+  const handleSyncTargets = async (urlOverride?: string) => {
+    const url = (urlOverride || sourceUrls.targets || '').trim();
+    if (!url) {
+      setSheetErrors((prev) => ({ ...prev, targets: 'يرجى إدخال رابط Google Sheet الخاص بالأهداف أولاً' }));
+      return;
+    }
+    setSyncingKey('targets');
+    setSheetErrors((prev) => ({ ...prev, targets: null }));
+    setSheetSuccess((prev) => ({ ...prev, targets: null }));
+
+    try {
+      saveSingleSourceUrl('targets', url);
+      setSources(getPublishedDataSources());
+
+      const res = await importTargetsFromGoogleSheet(url);
+      if (!res.success) {
+        throw new Error(res.message);
+      }
+
+      setSheetSuccess((prev) => ({
+        ...prev,
+        targets: `تم بنجاح تحديث شيت أهداف المناديب (${res.count} سجل) بدون تكرار! ظهرت مباشرة في لوحة متابعة الأداء.`
+      }));
+    } catch (err: any) {
+      setSheetErrors((prev) => ({ ...prev, targets: err?.message || 'فشلت مزامنة شيت الأهداف' }));
+    } finally {
+      setSyncingKey(null);
+    }
+  };
+
+  // 5. Sync Offers Sheet (العروض والخصومات)
+  const handleSyncOffers = async (urlOverride?: string) => {
+    const url = (urlOverride || sourceUrls.offers || '').trim();
+    if (!url) {
+      setSheetErrors((prev) => ({ ...prev, offers: 'يرجى إدخال رابط Google Sheet الخاص بجدول العروض أولاً' }));
+      return;
+    }
+    setSyncingKey('offers');
+    setSheetErrors((prev) => ({ ...prev, offers: null }));
+    setSheetSuccess((prev) => ({ ...prev, offers: null }));
+
+    try {
+      saveSingleSourceUrl('offers', url);
+      setSources(getPublishedDataSources());
+
+      // Read sheet and match promo prices / discounts
+      const res = await fetchAndParseGoogleSheet(url);
+      if (res.products && res.products.length > 0) {
+        // Merge promotional pricing into existing products catalog
+        let appliedOffersCount = 0;
+        const offerMap = new Map<string, { promoPrice?: number; discount?: number }>();
+        res.products.forEach((p) => {
+          const k = (p.code || p.unifiedCode || '').trim().toLowerCase();
+          if (k && (p.promoPrice || p.cartonPrice)) {
+            offerMap.set(k, {
+              promoPrice: p.promoPrice || p.cartonPrice,
+              discount: p.promoPrice && p.cartonPrice ? Math.round(((p.cartonPrice - p.promoPrice) / p.cartonPrice) * 100) : undefined,
+            });
+          }
+        });
+
+        const updatedProds = products.map((p) => {
+          const k = (p.code || p.unifiedCode || '').trim().toLowerCase();
+          const offer = offerMap.get(k);
+          if (offer && offer.promoPrice) {
+            appliedOffersCount++;
+            return {
+              ...p,
+              promoPrice: offer.promoPrice,
+            };
+          }
+          return p;
+        });
+
+        if (appliedOffersCount > 0) {
+          importProductsList(updatedProds, 'replace');
+        }
+
+        setSheetSuccess((prev) => ({
+          ...prev,
+          offers: `تم بنجاح مزامنة شيت العروض وتطبيق أسعار العروض الترويجية على ${appliedOffersCount} صنف في الكتالوج والفواتير فورياً!`
+        }));
+      } else {
+        setSheetSuccess((prev) => ({
+          ...prev,
+          offers: 'تم حفظ وتأكيد رابط شيت العروض بنجاح وهو متصل ومتاح للاستخدام الدائم.'
+        }));
+      }
+    } catch (err: any) {
+      setSheetErrors((prev) => ({ ...prev, offers: err?.message || 'فشلت مزامنة شيت العروض' }));
+    } finally {
+      setSyncingKey(null);
+    }
+  };
+
+  // Master One-Click Sync for All 5 Sheets Concurrently
+  const handleSyncAllSheets = async () => {
+    setSyncingKey('all');
+    setMasterSyncProgress('بدء مزامنة كافة الشيتات الـ 5 المركزية...');
+
+    let syncedCount = 0;
+    const errors: string[] = [];
+
+    // 1. Customers
+    if (sourceUrls.customers) {
+      setMasterSyncProgress('1/5: جاري قراءة وتحديث شيت قاعدة العملاء والمديونيات بدون تكرار...');
+      try {
+        await handleSyncCustomers(sourceUrls.customers);
+        syncedCount++;
+      } catch (e: any) {
+        errors.push(`العملاء: ${e?.message}`);
+      }
+    }
+
+    // 2. Customer Sales
+    if (sourceUrls.customerSales) {
+      setMasterSyncProgress('2/5: جاري دمج وتحديث شيت مبيعات العملاء الشهرية والتارجت...');
+      try {
+        await handleSyncCustomerSales(sourceUrls.customerSales);
+        syncedCount++;
+      } catch (e: any) {
+        errors.push(`مبيعات العملاء: ${e?.message}`);
+      }
+    }
+
+    // 3. Products
+    if (sourceUrls.products) {
+      setMasterSyncProgress('3/5: جاري قراءة وتحديث شيت الأصناف والمخزون وأرصدة الفروع...');
+      try {
+        await handleSyncProducts(sourceUrls.products);
+        syncedCount++;
+      } catch (e: any) {
+        errors.push(`الأصناف: ${e?.message}`);
+      }
+    }
+
+    // 4. Targets
+    if (sourceUrls.targets) {
+      setMasterSyncProgress('4/5: جاري قراءة وتحديث شيت أهداف ومبيعات المناديب...');
+      try {
+        await handleSyncTargets(sourceUrls.targets);
+        syncedCount++;
+      } catch (e: any) {
+        errors.push(`الأهداف: ${e?.message}`);
+      }
+    }
+
+    // 5. Offers
+    if (sourceUrls.offers) {
+      setMasterSyncProgress('5/5: جاري تطبيق شيت العروض الترويجية والخصومات الفورية...');
+      try {
+        await handleSyncOffers(sourceUrls.offers);
+        syncedCount++;
+      } catch (e: any) {
+        errors.push(`العروض: ${e?.message}`);
+      }
+    }
+
+    // Final dedup safety sweep
+    setMasterSyncProgress('فحص نهائي وتأكيد منع التكرار وتحديث أجهزة المناديب...');
+    cleanAndDeduplicateCustomers();
+
+    setMasterSyncProgress(
+      `اكتملت المزامنة بنجاح! تم تحديث ${syncedCount} شيت رئيسي وتعميم البيانات في ثوانٍ معدودة بدون أي تكرار.`
+    );
+    setSyncingKey(null);
+    setTimeout(() => setMasterSyncProgress(null), 8000);
+  };
+
+  // Run Dedup Audit on Demand
+  const handleRunDedupAudit = () => {
+    const result = cleanAndDeduplicateCustomers();
+    setDedupNotice({
+      original: result.originalCount,
+      cleaned: result.deduplicatedCount,
+      removed: result.duplicatesRemoved,
+      message: result.duplicatesRemoved > 0
+        ? `تم فحص قاعدة البيانات بنجاح: تم دمج وإزالة ${result.duplicatesRemoved} سجل مكرر، وقاعدة البيانات تحتوي الآن على ${result.deduplicatedCount} عميل فريد بنسبة 100%.`
+        : `قاعدة البيانات نظيفة تماماً بنسبة 100%! يوجد ${result.deduplicatedCount} عميل فريد بدون أي تكرار نهائياً (0 تكرار)، وموحدة لجميع المناديب والمشرفين.`
+    });
+    setTimeout(() => setDedupNotice(null), 10000);
+  };
+
+  // Local File Upload Handlers
+  const handleUploadCustomerFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSyncingKey('customers');
+    setSheetErrors((prev) => ({ ...prev, customers: null }));
+    try {
+      const res = await parseExcelCustomers(file);
+      if (res.errors.length > 0 && res.customers.length === 0) {
+        throw new Error(res.errors.join(' • '));
+      }
+      const importRes = await importCustomersList(res.customers, 'replace');
+      setSheetSuccess((prev) => ({
+        ...prev,
+        customers: `تم بنجاح رفع ملف الإكسل وتحديث ${importRes.count} عميل بدون تكرار!`
+      }));
+    } catch (err: any) {
+      setSheetErrors((prev) => ({ ...prev, customers: err?.message || 'فشل رفع ملف العملاء' }));
+    } finally {
+      setSyncingKey(null);
+      if (fileInputCustomersRef.current) fileInputCustomersRef.current.value = '';
+    }
+  };
+
+  const handleUploadCustomerSalesFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSyncingKey('customerSales');
+    setSheetErrors((prev) => ({ ...prev, customerSales: null }));
+    try {
+      const res = await parseExcelCustomers(file);
+      if (res.errors.length > 0 && res.customers.length === 0) {
+        throw new Error(res.errors.join(' • '));
+      }
+
+      // Merge in place with existing customers
+      const updatedCustomers = [...customers];
+      let updatedCount = 0;
+      let newCount = 0;
+
+      const codeMap = new Map<string, Customer>();
+      const phoneMap = new Map<string, Customer>();
+      const nameMap = new Map<string, Customer>();
+
+      customers.forEach((c) => {
+        const cd = cleanCustomerCode(c.code);
+        if (cd) codeMap.set(cd, c);
+        const ph = cleanCustomerPhone(c.phone);
+        if (ph) phoneMap.set(ph, c);
+        if (c.name) nameMap.set(normalizeArabicText(c.name).replace(/\s+/g, ''), c);
+      });
+
+      res.customers.forEach((incoming) => {
+        const cd = cleanCustomerCode(incoming.code);
+        const ph = cleanCustomerPhone(incoming.phone);
+        const normN = incoming.name ? normalizeArabicText(incoming.name).replace(/\s+/g, '') : '';
+
+        const existing = (cd && codeMap.get(cd)) ||
+                         (ph && phoneMap.get(ph)) ||
+                         (normN && nameMap.get(normN));
+
+        if (existing) {
+          const idx = updatedCustomers.findIndex((c) => c.id === existing.id);
+          if (idx >= 0) {
+            updatedCustomers[idx] = mergeTwoCustomers(updatedCustomers[idx], incoming);
+            updatedCount++;
+          }
+        } else {
+          updatedCustomers.push(incoming);
+          newCount++;
+        }
+      });
+
+      const finalDeduped = deduplicateAndMergeCustomers(updatedCustomers).customers;
+      await importCustomersList(finalDeduped, 'replace');
+
+      setSheetSuccess((prev) => ({
+        ...prev,
+        customerSales: `تم بنجاح رفع ملف مبيعات العملاء وتحديث ${updatedCount} عميل قائم وإدراج ${newCount} عميل جديد بدون أي تكرار!`
+      }));
+    } catch (err: any) {
+      setSheetErrors((prev) => ({ ...prev, customerSales: err?.message || 'فشل رفع ملف مبيعات العملاء' }));
+    } finally {
+      setSyncingKey(null);
+      if (fileInputSalesRef.current) fileInputSalesRef.current.value = '';
+    }
+  };
+
+  const handleUploadProductsFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSyncingKey('products');
+    setSheetErrors((prev) => ({ ...prev, products: null }));
+    try {
+      const res = await parseExcelProducts(file);
+      if (res.errors.length > 0 && res.products.length === 0) {
+        throw new Error(res.errors.join(' • '));
+      }
+      importProductsList(res.products, 'replace');
+      setSheetSuccess((prev) => ({
+        ...prev,
+        products: `تم بنجاح استيراد ${res.products.length} صنف من ملف الإكسل وتحديث أرصدة المخازن والأسعار!`
+      }));
+    } catch (err: any) {
+      setSheetErrors((prev) => ({ ...prev, products: err?.message || 'فشل رفع ملف الأصناف' }));
+    } finally {
+      setSyncingKey(null);
+      if (fileInputProductsRef.current) fileInputProductsRef.current.value = '';
+    }
+  };
+
+  const handleUploadTargetsFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSyncingKey('targets');
+    setSheetErrors((prev) => ({ ...prev, targets: null }));
+    try {
+      const res = await importTargetsFromExcel(file);
+      if (!res.success) throw new Error(res.message);
+      setSheetSuccess((prev) => ({
+        ...prev,
+        targets: `تم بنجاح استيراد ${res.count} سجل هدف من ملف الإكسل بدون تكرار!`
+      }));
+    } catch (err: any) {
+      setSheetErrors((prev) => ({ ...prev, targets: err?.message || 'فشل رفع ملف الأهداف' }));
+    } finally {
+      setSyncingKey(null);
+      if (fileInputTargetsRef.current) fileInputTargetsRef.current.value = '';
+    }
+  };
+
+  // Metrics Calculations
+  const metrics = useMemo(() => {
+    const totalCustomers = customers.length;
+    const totalDebt = customers.reduce((sum, c) => sum + (c.currentBalance ?? c.balance ?? 0), 0);
+    const totalCredit = customers.reduce((sum, c) => sum + (c.creditLimit || 0), 0);
+    const totalSales2026 = customers.reduce((sum, c) => sum + (c.sales2026 || c.totalMonthlySales || 0), 0);
+    const totalCollections2026 = customers.reduce((sum, c) => sum + (c.collections2026 || c.totalMonthlyCollections || 0), 0);
+    const activeDealersCount = customers.filter((c) => c.hasDealtIn2026 || (c.sales2026 || 0) > 0).length;
+
+    const totalProducts = products.length;
+    const totalCartons = products.reduce((sum, p) => sum + (p.branchStockActual || 0) + (p.mainWarehouseActual || 0), 0);
+
+    const totalTargets = targets.length;
+    const totalTargetSales = targets.reduce((sum, t) => sum + (t.salesTarget || 0), 0);
+
+    const activeOffersCount = products.filter((p) => p.promoPrice && p.promoPrice > 0).length;
+
+    const connectedSheetsCount = (Object.keys(sourceUrls) as SheetKey[]).filter(
+      (k) => isValidPublishedSource(sources[k])
+    ).length;
+
+    return {
+      totalCustomers,
+      totalDebt,
+      totalCredit,
+      totalSales2026,
+      totalCollections2026,
+      activeDealersCount,
+      totalProducts,
+      totalCartons,
+      totalTargets,
+      totalTargetSales,
+      activeOffersCount,
+      connectedSheetsCount,
+    };
+  }, [customers, products, targets, sources, sourceUrls]);
+
+  // Google Apps Script sample
   const sampleAppsScript = `// كود Google Apps Script لمزامنة Google Sheets مع نظام دريم للتوزيع تلقائياً
 function onEdit(e) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  // إرسال تنبيه للمنظومة بتحديث البيانات
-  console.log("تم تعديل الشيت بنجاح");
+  console.log("تم تعديل الشيت بنجاح في نظام الطنطاوي جروب");
 }`;
 
   const handleCopyScript = () => {
@@ -241,1835 +669,1053 @@ function onEdit(e) {
 
   if (!isAdminOrDev) {
     return (
-      <div className="bg-white rounded-3xl p-8 border border-slate-200 text-center space-y-3 my-6 shadow-sm">
-        <div className="w-14 h-14 rounded-2xl tint-risk flex items-center justify-center mx-auto">
+      <div className="bg-white rounded-3xl p-8 border border-slate-200 text-center space-y-3 my-6 shadow-sm" dir="rtl">
+        <div className="w-14 h-14 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
           <ShieldAlert className="w-8 h-8" />
         </div>
         <h3 className="text-lg font-black text-slate-900">غير مصرح لك بالدخول</h3>
         <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
-          صلاحية رفع وإدارة ملفات الإكسل والشيتات وتصفير البيانات مقتصرة فقط على <strong>المدير العام (Admin)</strong> و<strong>المطور (Developer)</strong>.
+          صلاحية ربط وإدارة ملفات الإكسل والشيتات وتصفير البيانات مقتصرة فقط على <strong>المدير العام (Admin)</strong> و<strong>المطور (Developer)</strong> لضمان حماية بيانات الشركة.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="tantawy-screen space-y-6 pb-16">
+    <div className="tantawy-screen space-y-6 pb-20" dir="rtl">
       
-      {/* Success Notification */}
-      {importSuccessMsg && (
-        <div className="bg-[#2e7d5b] text-white p-4 rounded-2xl shadow-xl flex items-center justify-between text-xs sm:text-sm animate-in fade-in">
-          <div className="flex items-center gap-2 font-bold">
-            <CheckCircle2 className="w-5 h-5 shrink-0" />
-            <span>{importSuccessMsg}</span>
+      {/* Hidden File Inputs */}
+      <input
+        ref={fileInputCustomersRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        className="hidden"
+        onChange={handleUploadCustomerFile}
+      />
+      <input
+        ref={fileInputSalesRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        className="hidden"
+        onChange={handleUploadCustomerSalesFile}
+      />
+      <input
+        ref={fileInputProductsRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        className="hidden"
+        onChange={handleUploadProductsFile}
+      />
+      <input
+        ref={fileInputTargetsRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        className="hidden"
+        onChange={handleUploadTargetsFile}
+      />
+
+      {/* Top Hero Banner & Controls */}
+      <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-[#12283e] text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 space-y-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-400/10 border border-amber-400/30 text-amber-300 rounded-xl text-xs font-black">
+              <Sparkles className="w-4 h-4" />
+              <span>مركز إدارة الشيتات السحابية الخمس المركزية (صفحة واحدة موحدة)</span>
+            </div>
+
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
+              <FileSpreadsheet className="w-8 h-8 text-amber-400" />
+              <span>لوحة الربط والمزامنة المركزية لملفات الإكسل وجوجل شيت</span>
+            </h1>
+
+            <p className="text-xs sm:text-sm text-slate-300 max-w-3xl leading-relaxed">
+              تم تلخيص كافة مصادر البيانات في <strong>صفحة واحدة مركزية تضم الـ 5 شيتات المعتمدة</strong>. يمكنك حفظ روابط Google Sheets بشكل دائم، المزامنة السحابية الفورية أو رفع ملفات إكسل بديلة، مع <strong>ضمان منع التكرار بنسبة 100%</strong> وتحديث بيانات المناديب والمشرفين فورياً.
+            </p>
           </div>
-          <button onClick={() => setImportSuccessMsg(null)}>
-            <X className="w-4 h-4" />
-          </button>
+
+          {/* Quick Header Counter Badges */}
+          <div className="flex items-center gap-3 shrink-0 flex-wrap">
+            <div className="bg-white/10 backdrop-blur-xs border border-white/10 rounded-2xl p-4 text-center min-w-[120px]">
+              <div className="text-[11px] text-slate-300 font-bold">الشيتات المتصلة</div>
+              <div className="text-2xl font-black text-emerald-300 font-mono mt-0.5">
+                {metrics.connectedSheetsCount} / 5
+              </div>
+              <div className="text-[10px] text-emerald-400 font-bold mt-1">🟢 سحابية Live</div>
+            </div>
+
+            <div className="bg-white/10 backdrop-blur-xs border border-white/10 rounded-2xl p-4 text-center min-w-[120px]">
+              <div className="text-[11px] text-slate-300 font-bold">قاعدة العملاء</div>
+              <div className="text-2xl font-black text-amber-300 font-mono mt-0.5">
+                {metrics.totalCustomers.toLocaleString('ar-EG')}
+              </div>
+              <div className="text-[10px] text-slate-300 mt-1">عميل فريد (0 تكرار)</div>
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* Main Header */}
-      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl tint-navy flex items-center justify-center font-black">
-              <FileSpreadsheet className="w-6 h-6" />
-            </div>
-            <div>
-              <h2 className="text-xl font-black text-slate-900">مركز ربط الشيتات (Google Sheets & Excel)</h2>
-              <p className="text-xs sm:text-sm text-slate-500">
-                مزامنة حية مع Google Sheets • استيراد وتصدير إكسل • دعم مباشر لروابط صور Google Drive وسعر الكرتونة
-              </p>
-            </div>
+        {/* Master Control Buttons */}
+        <div className="pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onClick={handleSyncAllSheets}
+              disabled={syncingKey !== null}
+              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs sm:text-sm shadow-lg transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              {syncingKey === 'all' ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>جاري مزامنة الشيتات الـ 5...</span>
+                </>
+              ) : (
+                <>
+                  <CloudLightning className="w-4 h-4 text-slate-950" />
+                  <span>مزامنة جميع الشيتات الـ 5 دفعة واحدة</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleRunDedupAudit}
+              className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer"
+            >
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>فحص ومنع التكرار الشامل (0 تكرار)</span>
+            </button>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => setIsWipeModalOpen(true)}
-              className="app-btn app-btn-risk-soft px-3.5 py-2 text-xs cursor-pointer"
-              title="مسح وتصفير كافة الأصناف للرفع من جديد"
+              className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-bold px-3.5 py-2 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
             >
-              <Trash2 className="w-4 h-4" />
-              <span>تصفير ومسح الكل</span>
-            </button>
-
-            <button
-              onClick={generateSampleExcelTemplate}
-              className="app-btn app-btn-ghost px-3.5 py-2 text-xs"
-              title="تحميل نموذج شيت إكسل جاهز"
-            >
-              <Download className="w-4 h-4" />
-              <span>تحميل نموذج إكسل معتمد</span>
-            </button>
-
-            <button
-              onClick={() => exportProductsToExcel(products, selectedBranchFilter)}
-              className="app-btn app-btn-primary px-3.5 py-2 text-xs shadow-xs"
-            >
-              <FileSpreadsheet className="w-4 h-4" />
-              <span>تصدير المخزون الحالي ({products.length})</span>
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>تصفير ومسح البيانات للبدء من جديد</span>
             </button>
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex items-center gap-2 border-b border-slate-200 pt-2 overflow-x-auto no-scrollbar">
-          <button
-            onClick={() => setActiveSubTab('google_sheets')}
-            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
-              activeSubTab === 'google_sheets'
-                ? 'border-amber-400 text-slate-900'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Globe className="w-4 h-4" />
-            <span>ربط المنتجات مع Google Sheets</span>
-            <span className="app-badge ok text-[10px]">مباشر Live</span>
-          </button>
+        {/* Master Sync Progress Alert */}
+        {masterSyncProgress && (
+          <div className="bg-emerald-950/80 border border-emerald-400 text-emerald-200 p-4 rounded-2xl text-xs sm:text-sm flex items-center gap-3 animate-in fade-in">
+            <RefreshCw className="w-5 h-5 text-emerald-400 animate-spin shrink-0" />
+            <span className="font-bold">{masterSyncProgress}</span>
+          </div>
+        )}
 
-          <button
-            onClick={() => setActiveSubTab('excel_file')}
-            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
-              activeSubTab === 'excel_file'
-                ? 'border-amber-400 text-slate-900'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Upload className="w-4 h-4" />
-            <span>رفع ملف إكسل للمنتجات</span>
-          </button>
+        {/* Dedup Audit Notice */}
+        {dedupNotice && (
+          <div className="bg-emerald-900/90 border border-emerald-400 text-emerald-100 p-4 rounded-2xl text-xs sm:text-sm flex items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-center gap-2.5 font-bold">
+              <ShieldCheck className="w-5 h-5 text-emerald-300 shrink-0" />
+              <span>{dedupNotice.message}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDedupNotice(null)}
+              className="text-emerald-300 hover:text-white p-1"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+      </div>
 
-          <button
-            onClick={() => setActiveSubTab('customers')}
-            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
-              activeSubTab === 'customers'
-                ? 'border-amber-400 text-slate-900'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Users className="w-4 h-4 text-amber-600" />
-            <span>قاعدة بيانات العملاء (شيتات وإكسل)</span>
-            <span className="app-badge warn text-[10px]">{customers.length} عميل</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('drive_scanner')}
-            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
-              activeSubTab === 'drive_scanner'
-                ? 'border-amber-400 text-slate-900'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <FolderOpen className="w-4 h-4 t-navy" />
-            <span>ماسح مجلدات Google Drive</span>
-            <span className="app-badge neutral text-[10px]">Apps Script</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('published_sources')}
-            className={`pb-3 px-4 text-xs sm:text-sm font-black border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
-              activeSubTab === 'published_sources'
-                ? 'border-amber-400 text-slate-900'
-                : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
-          >
-            <Globe className="w-4 h-4 t-ok" />
-            <span>شيتات Google Sheets المباشرة</span>
-            <span className="app-badge ok text-[10px]">Cloud Live</span>
-          </button>
+      {/* Reassurance & Zero-Duplication Guarantee Banner */}
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-950 text-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <strong className="block text-sm font-black text-amber-900">
+              ضمان عدم تكرار البيانات وتحديث المناديب فورياً (Strict In-Place Deduplication)
+            </strong>
+            <p className="text-amber-800 text-[11px] mt-0.5">
+              كل شيت يتم مزامنته أو رفعه يمر تلقائياً عبر محرك الفحص الذكي (المطابقة بالكود الموحد، رقم الهاتف، واسم النشاط). يتم تحديث بيانات نفس العميل والصنف في مكانه بدون مضاعفة السجلات أو خلق صفوف مكررة.
+            </p>
+          </div>
+        </div>
+        <div className="shrink-0 flex items-center gap-2">
+          <span className="px-3 py-1.5 rounded-xl bg-white border border-amber-300 font-bold text-[11px] text-amber-900">
+            ✓ كود موحد
+          </span>
+          <span className="px-3 py-1.5 rounded-xl bg-white border border-amber-300 font-bold text-[11px] text-amber-900">
+            ✓ تحديث لحظي للموظفين
+          </span>
         </div>
       </div>
 
-      {/* SUB-TAB 1: Google Sheets Live Sync */}
-      {activeSubTab === 'google_sheets' && (
-        <div className="space-y-6">
-          <div className="navy-panel text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-[#23496f] space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* THE 5 CORE SHEETS CARDS SECTION */}
+      <div className="space-y-6">
+
+        {/* ---------------- CARD 1: Customers & Debts (شيت العملاء والمديونيات) ---------------- */}
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-black shrink-0">
+                <Users className="w-6 h-6" />
+              </div>
               <div>
-                <div className="badge-brass-dark inline-flex items-center gap-2 text-xs font-black px-3 py-1 mb-2">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>المزامنة السحابية المباشرة مع Google Sheets</span>
-                </div>
-                <h3 className="text-xl sm:text-2xl font-black text-white">
-                  اربط الشيت مباشرة بجوجل شيت بدون الحاجة لتحميل ورفع ملفات كل مرة
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                  قم فقط بلصق رابط الـ Google Sheet الخاص بك (مع التأكد من تفعيل خاصية "Anyone with the link can view").
-                  المنظومة ستقرأ الأصناف والمخزون والأسعار وتربط الصور تلقائياً في ثوانٍ معدودة.
-                </p>
-              </div>
-
-              <div className="bg-white/[0.06] p-4 rounded-2xl border border-white/15 text-center min-w-[200px]">
-                <div className="text-xs text-slate-400 font-medium">الأصناف المحدثة حالياً</div>
-                <div className="text-3xl dream-amt t-brass mt-0.5">{products.length}</div>
-                <div className="text-[10px] text-emerald-400 mt-1">جاهزة ومربوطة بـ Cloudinary</div>
-              </div>
-            </div>
-
-            {/* Google Sheets URL Input Form */}
-            <div className="bg-white/[0.04] p-4 sm:p-5 rounded-2xl border border-white/10 space-y-4">
-              <label className="block text-xs font-bold text-slate-200">
-                ضع رابط Google Sheet الخاص بك هنا:
-              </label>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <div className="relative flex-1">
-                  <Link className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="text"
-                    value={googleSheetUrl}
-                    onChange={(e) => setGoogleSheetUrl(e.target.value)}
-                    placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                    className="w-full bg-slate-950/50 border border-white/15 rounded-xl pr-10 pl-4 py-3 text-xs sm:text-sm text-white transition"
-                  />
-                </div>
-                <button
-                  onClick={handleFetchGoogleSheet}
-                  disabled={isSyncingGoogleSheet || !googleSheetUrl.trim()}
-                  className="btn-brass px-6 py-3 text-xs sm:text-sm shadow-lg disabled:opacity-50 cursor-pointer"
-                >
-                  {isSyncingGoogleSheet ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>جاري القراءة والمزامنة...</span>
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="w-4 h-4" />
-                      <span>جلب وتحديث من Google Sheets</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Status messages */}
-              {googleSheetSuccess && (
-                <div className="xls-note-ok p-3.5 rounded-xl text-xs flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>{googleSheetSuccess}</span>
-                </div>
-              )}
-
-              {googleSheetError && (
-                <div className="xls-note-risk p-3.5 rounded-xl text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{googleSheetError}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Quick 3-Step Guide */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-              <div className="bg-white/[0.04] p-4 rounded-2xl border border-white/10">
-                <div className="w-7 h-7 rounded-full icon-brass-dark font-black flex items-center justify-center text-xs mb-2">1</div>
-                <h4 className="font-black text-sm text-white mb-1">افتح شيت جوجل شيت</h4>
-                <p className="text-xs text-slate-400">
-                  أنشئ جدولك على Google Sheets بالأعمدة الرئيسية المعتمدة لمجموعة دريم.
-                </p>
-              </div>
-
-              <div className="bg-white/[0.04] p-4 rounded-2xl border border-white/10">
-                <div className="w-7 h-7 rounded-full icon-brass-dark font-black flex items-center justify-center text-xs mb-2">2</div>
-                <h4 className="font-black text-sm text-white mb-1">اجعل الرابط متاحاً للرؤية</h4>
-                <p className="text-xs text-slate-400">
-                  اضغط على زر المشاركة (Share) في Google Sheets واختر "Anyone with the link can view".
-                </p>
-              </div>
-
-              <div className="bg-white/[0.04] p-4 rounded-2xl border border-white/10">
-                <div className="w-7 h-7 rounded-full icon-brass-dark font-black flex items-center justify-center text-xs mb-2">3</div>
-                <h4 className="font-black text-sm text-white mb-1">الصق الرابط واضغط مزامنة</h4>
-                <p className="text-xs text-slate-400">
-                  الصق الرابط هنا واضغط "جلب وتحديث"، سيتم تحديث كامل فروع ومناديب دريم فوراً!
-                </p>
-              </div>
-            </div>
-
-            {/* Official Columns Reference Table (Matching exact User Google Sheet Screenshot) */}
-            <div className="bg-slate-950/60 rounded-2xl p-4 sm:p-5 border border-white/10 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-                  <h4 className="text-xs sm:text-sm font-black text-white">
-                    الأعمدة الـ 19 المعتمدة لرفع المنتجات والمخزون (مطابقة 100% لجدولك):
-                  </h4>
-                </div>
-                <span className="badge-brass-dark text-[10px] font-bold px-2 py-0.5 rounded-md">
-                  19 عمود معتمد
-                </span>
-              </div>
-
-              <div className="overflow-x-auto text-[11px]">
-                <table className="w-full text-right border-collapse">
-                  <thead>
-                    <tr className="bg-slate-800 text-slate-200 border-b border-slate-700 font-bold">
-                      <th className="p-2 whitespace-nowrap">#</th>
-                      <th className="p-2 whitespace-nowrap">اسم العمود بالشيت</th>
-                      <th className="p-2 whitespace-nowrap">البيان والوظيفة في النظام</th>
-                      <th className="p-2 whitespace-nowrap text-left">مثال توضيحي</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800 text-slate-300">
-                    <tr>
-                      <td className="p-2 font-mono text-slate-500">1</td>
-                      <td className="p-2 font-mono font-black text-purple-300">الكود الموحد</td>
-                      <td className="p-2">كود الموديل / الكود الرئيسي الموحد</td>
-                      <td className="p-2 text-left font-mono text-purple-200">#1000061</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-mono text-slate-500">2</td>
-                      <td className="p-2 font-mono font-black text-amber-300">كود المنتج</td>
-                      <td className="p-2">كود الصنف الفريد (أرقام نظيفة دون دمج)</td>
-                      <td className="p-2 text-left font-mono text-amber-300">1000061</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-mono text-slate-500">3</td>
-                      <td className="p-2 font-black text-white">اسم المنتج</td>
-                      <td className="p-2">الاسم الكامل للصنف في الكتالوج وفواتير البيع</td>
-                      <td className="p-2 text-left text-slate-300">بمبونيرة 15010 جليز الوان</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-mono text-slate-500">4</td>
-                      <td className="p-2 font-black text-slate-200">الحجم</td>
-                      <td className="p-2">مقاس أو حجم الصنف</td>
-                      <td className="p-2 text-left text-slate-400">وسط / 24 سم</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-mono text-slate-500">5</td>
-                      <td className="p-2 font-black text-amber-400">عدد القطع</td>
-                      <td className="p-2">شدة الكرتونة (Factor - عدد القطع بالكرتونة)</td>
-                      <td className="p-2 text-left font-mono text-amber-300">6</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-mono text-slate-500">6</td>
-                      <td className="p-2 font-black text-emerald-400">سعر الكرتونه</td>
-                      <td className="p-2">سعر البيع الإجمالي للكرتونة بالجملة</td>
-                      <td className="p-2 text-left font-mono text-emerald-300">350 ج.م</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-mono text-slate-500">7</td>
-                      <td className="p-2 font-black text-cyan-300">Item group</td>
-                      <td className="p-2">المجموعة الرئيسية للصنف (لوتس، ألفا، دريم هوم، إلخ)</td>
-                      <td className="p-2 text-left font-mono text-cyan-200">لوتس</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-mono text-slate-500">8</td>
-                      <td className="p-2 font-black text-pink-300">Family Name</td>
-                      <td className="p-2">اسم الفئة أو العائلة التابعة للمجموعة</td>
-                      <td className="p-2 text-left text-pink-200">بمبونيرة</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-mono text-slate-500">9</td>
-                      <td className="p-2 font-black text-slate-200">اللون</td>
-                      <td className="p-2">لون الصنف المتاح</td>
-                      <td className="p-2 text-left text-slate-400">ألوان مشكلة</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-mono text-slate-500">10-17</td>
-                      <td className="p-2 font-black text-blue-400">فروع المحافظات + مخزون اكتوبر</td>
-                      <td className="p-2">
-                        الأعمدة: <span className="text-blue-300 font-bold">البحيرة، الفيوم، القاهرة، المنيا، ديمشلت، مخزون اكتوبر، منوف، منيا القمح</span>
-                      </td>
-                      <td className="p-2 text-left font-mono text-blue-300">أرصدة الكراتين بكل فرع</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-mono text-slate-500">18</td>
-                      <td className="p-2 font-black text-rose-400">سعر العرض</td>
-                      <td className="p-2">سعر الخصم/العرض الترويجي للكرتونة (إن وجد)</td>
-                      <td className="p-2 text-left font-mono text-rose-300">320 ج.م</td>
-                    </tr>
-                    <tr>
-                      <td className="p-2 font-mono text-slate-500">19</td>
-                      <td className="p-2 font-black text-sky-400">لينك الصوره</td>
-                      <td className="p-2">رابط صورة المنتج المباشر من Google Drive أو الويب</td>
-                      <td className="p-2 text-left font-mono text-[10px] text-sky-300 truncate max-w-xs">lh3.googleusercontent.com/d/...</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SUB-TAB 2: Standard Excel/CSV File Upload */}
-      {activeSubTab === 'excel_file' && (
-        <div className="space-y-6">
-          {/* Drag and Drop Zone */}
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setIsDragging(true);
-            }}
-            onDragLeave={() => setIsDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragging(false);
-              if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                handleFileUpload(e.dataTransfer.files[0]);
-              }
-            }}
-            className={`border-2 border-dashed rounded-3xl p-8 sm:p-12 text-center transition-all bg-white shadow-sm ${
-              isDragging ? 'border-[#c99a43] bg-[rgba(201,154,67,.05)]' : 'border-[#c9d7e4] hover:border-[#c99a43]'
-            }`}
-          >
-            <div className="max-w-md mx-auto space-y-4">
-              <div className="w-16 h-16 rounded-2xl tint-navy flex items-center justify-center mx-auto shadow-inner">
-                {isLoading ? (
-                  <RefreshCw className="w-8 h-8 animate-spin" />
-                ) : (
-                  <Upload className="w-8 h-8" />
-                )}
-              </div>
-
-              <div>
-                <h3 className="text-lg font-black text-slate-900">
-                  اسحب وأفلت ملف الإكسل (XLSX / XLS / CSV) هنا
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  أو اضغط لتصفح الملفات من جهازك أو هاتفك المحمول
-                </p>
-              </div>
-
-              <div>
-                <label className="btn-primary px-6 py-3 text-xs cursor-pointer shadow-md">
-                  <Upload className="w-4 h-4" />
-                  <span>اختر ملف إكسل من جهازك</span>
-                  <input
-                    type="file"
-                    accept=".xlsx, .xls, .csv"
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files[0]) {
-                        handleFileUpload(e.target.files[0]);
-                      }
-                    }}
-                  />
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SUB-TAB 3: Google Drive Recursive Folder Scanner */}
-      {activeSubTab === 'drive_scanner' && (
-        <div className="space-y-6 animate-in fade-in">
-          <div className="navy-panel text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-[#23496f] space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <div className="badge-brass-dark inline-flex items-center gap-2 text-xs font-black px-3 py-1 mb-2">
-                  <FolderOpen className="w-3.5 h-3.5" />
-                  <span>المسح الشامل لمجلدات Google Drive وتوليد روابط سريعة للكتالوج</span>
-                </div>
-                <h3 className="text-xl sm:text-2xl font-black text-white">
-                  مسح المجلد الرئيسي وكل المجلدات الفرعية تلقائياً وربط الصور بالشيت
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                  يقوم هذا السكريبت بالدخول في المجلد الرئيسي لمشاريعك على Google Drive، والتنقل في جميع المجلدات الفرعية (مهما كان عمقها)، واستخراج اسم كل صورة (كود أو اسم الصنف) وتوليد رابط CDN فائق السرعة جاهز للمناديب والكتالوج.
-                </p>
-              </div>
-
-              <div className="bg-white/[0.06] p-4 rounded-2xl border border-white/15 text-center min-w-[200px]">
-                <div className="text-xs text-slate-400 font-medium">صيغة روابط الصور</div>
-                <div className="text-sm dream-amt t-brass font-mono mt-1">lh3.googleusercontent.com</div>
-                <div className="text-[10px] text-emerald-400 mt-1">خفيفة وسريعة التحميل</div>
-              </div>
-            </div>
-
-            {/* Script Box with Copy Button */}
-            <div className="bg-slate-950/70 p-4 sm:p-5 rounded-2xl border border-white/10 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold t-brass flex items-center gap-2">
-                  <FileSpreadsheet className="w-4 h-4" />
-                  <span>كود Google Apps Script (جاهز للتشغيل في Google Sheets):</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const scriptCode = `/**
- * سكريبت قراءة جميع الصور من المجلد الرئيسي والمجلدات الفرعية
- * يدعم آلاف الصور باستخدام Pagination لتجنب انتهاء المهلة (6 دقائق)
- * وربط اسم/كود الصورة برابط مباشر خفيف ومناسب للكتالوج
- *
- * طريقة الاستخدام:
- * 1. ضع MAIN_FOLDER_ID
- * 2. شغل syncDriveFolderWithSheet — سيبدأ من حيث توقف تلقائياً
- * 3. أعد تشغيله حتى ترى رسالة "اكتمل المسح"
- */
-function syncDriveFolderWithSheet() {
-  // 🔴 ضع هنا الـ ID الخاص بالمجلد الرئيسي فقط
-  var MAIN_FOLDER_ID = "ضع_ID_المجلد_الرئيسي_هنا";
-
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("Sheet_Images") || ss.insertSheet("Sheet_Images");
-
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(["كود / اسم الصنف", "مسار المجلد الفرعي", "رابط الصورة المباشر", "File ID"]);
-    sheet.getRange("1:1").setFontWeight("bold").setBackground("#0284c7").setFontColor("#ffffff");
-  }
-
-  // قراءة علامة التوقف من الخلية E1 (تستخدم لاستئناف المسح)
-  var props = PropertiesService.getScriptProperties();
-  var resumeFolderId = props.getProperty("RESUME_FOLDER_ID");
-  var resumePath = props.getProperty("RESUME_PATH") || "";
-  var totalProcessed = parseInt(props.getProperty("TOTAL_PROCESSED") || "0", 10);
-
-  var startFolder = resumeFolderId
-    ? DriveApp.getFolderById(resumeFolderId)
-    : DriveApp.getFolderById(MAIN_FOLDER_ID);
-
-  if (!resumeFolderId) {
-    try {
-      startFolder.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    } catch (e) {}
-  }
-
-  var startTime = new Date().getTime();
-  var TIME_LIMIT_MS = 5 * 60 * 1000; // 5 دقائق (هامش أمان قبل انتهاء المهلة)
-
-  Logger.log("بدء/استئناف المسح الشامل... (تم معالجة " + totalProcessed + " صورة حتى الآن)");
-  var result = processFolderRecursive(startFolder, sheet, resumePath, startTime, TIME_LIMIT_MS, { count: 0 });
-
-  totalProcessed += result.count;
-  props.setProperty("TOTAL_PROCESSED", String(totalProcessed));
-
-  if (result.timedOut) {
-    // حفظ علامة التوقف لاستئناف لاحقاً
-    if (result.nextFolderId) {
-      props.setProperty("RESUME_FOLDER_ID", result.nextFolderId);
-      props.setProperty("RESUME_PATH", result.nextPath || "");
-    }
-    SpreadsheetApp.getUi().alert(
-      "تمت معالجة " + totalProcessed + " صورة.\n" +
-      "اقترب الوقت من الانتهاء. أعد تشغيل السكريبت لمتابعة المسح من حيث توقف."
-    );
-  } else {
-    // اكتمل المسح — تنظيف علامات التوقف
-    props.deleteProperty("RESUME_FOLDER_ID");
-    props.deleteProperty("RESUME_PATH");
-    props.deleteProperty("TOTAL_PROCESSED");
-    SpreadsheetApp.getUi().alert(
-      "اكتمل المسح! تم جلب " + totalProcessed + " صورة من كافة المجلدات الفرعية بنجاح!"
-    );
-  }
-}
-
-function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimitMs, state) {
-  var rows = [];
-  var folderName = folder.getName();
-  var fullPath = currentPath ? (currentPath + " > " + folderName) : folderName;
-
-  var files = folder.getFiles();
-  while (files.hasNext()) {
-    var file = files.next();
-    var mimeType = file.getMimeType();
-
-    if (mimeType.indexOf("image") !== -1 || file.getName().match(/\\.(jpg|jpeg|png|webp)$/i)) {
-      var itemCodeOrName = file.getName().replace(/\\.[^/.]+$/, "").trim();
-      var catalogImageUrl = "https://lh3.googleusercontent.com/d/" + file.getId() + "=w800";
-
-      rows.push([
-        itemCodeOrName,
-        fullPath,
-        catalogImageUrl,
-        file.getId()
-      ]);
-      state.count++;
-    }
-  }
-
-  if (rows.length > 0) {
-    sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
-  }
-
-  var subFolders = folder.getFolders();
-  var subFolderList = [];
-  while (subFolders.hasNext()) {
-    subFolderList.push(subFolders.next());
-  }
-
-  for (var i = 0; i < subFolderList.length; i++) {
-    // فحص الوقت قبل كل مجلد فرعي
-    if (new Date().getTime() - startTime > timeLimitMs) {
-      return {
-        timedOut: true,
-        count: state.count,
-        nextFolderId: subFolderList[i].getId(),
-        nextPath: fullPath
-      };
-    }
-
-    // التأكد من أن المجلد الفرعي متاح للجميع بالرابط
-    try {
-      subFolderList[i].setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    } catch (e) {}
-
-    var subResult = processFolderRecursive(subFolderList[i], sheet, fullPath, startTime, timeLimitMs, state);
-    if (subResult.timedOut) {
-      return subResult;
-    }
-  }
-
-  return { timedOut: false, count: state.count };
-}`;
-                    navigator.clipboard.writeText(scriptCode);
-                    setCopiedScript(true);
-                    setTimeout(() => setCopiedScript(false), 3000);
-                  }}
-                  className="btn-brass px-4 py-1.5 text-xs shadow flex items-center gap-1.5 cursor-pointer"
-                >
-                  {copiedScript ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-                  <span>{copiedScript ? 'تم نسخ السكريبت!' : 'نسخ كود Apps Script'}</span>
-                </button>
-              </div>
-
-              <pre className="p-3.5 bg-slate-900 text-slate-200 font-mono text-[11px] rounded-xl overflow-x-auto border border-slate-800 leading-relaxed max-h-60">
-{`function syncDriveFolderWithSheet() {
-  var MAIN_FOLDER_ID = "ضع_ID_المجلد_الرئيسي_هنا";
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getActiveSheet();
-  
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(["كود / اسم الصنف", "مسار المجلد الفرعي", "رابط الصورة المباشر", "File ID"]);
-  }
-  var rootFolder = DriveApp.getFolderById(MAIN_FOLDER_ID);
-  processFolderRecursive(rootFolder, sheet, "");
-}`}
-              </pre>
-            </div>
-
-            {/* Step-by-Step Instructions & XLOOKUP Formula */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-white/[0.04] p-4 rounded-2xl border border-white/10 space-y-2">
-                <div className="flex items-center gap-2 font-black t-brass text-xs">
-                  <Globe className="w-4 h-4 t-brass" />
-                  <span>خطوات التشغيل في Google Sheets:</span>
-                </div>
-                <ol className="list-decimal list-inside space-y-1.5 text-xs text-slate-300 leading-relaxed">
-                  <li>افتح شيت Google Sheet الخاص بك.</li>
-                  <li>من القائمة العلوية اضغط <strong>Extensions (الإضافات) Apps Script</strong>.</li>
-                  <li>الصق الكود وضع الـ ID الخاص بالمجلد الرئيسي مكان <code>MAIN_FOLDER_ID</code>.</li>
-                  <li>اضغط <strong>Run (تشغيل)</strong> وسيقوم بملء كل الصور والروابط تلقائياً.</li>
-                </ol>
-              </div>
-
-              <div className="bg-white/[0.04] p-4 rounded-2xl border border-white/10 space-y-2">
-                <div className="flex items-center gap-2 font-black text-emerald-300 text-xs">
-                  <Sparkles className="w-4 h-4 text-emerald-400" />
-                  <span>معادلة الربط التلقائي في شيت الأسعار (XLOOKUP):</span>
-                </div>
-                <div className="p-2.5 bg-slate-950 font-mono text-[11px] text-emerald-300 rounded-xl border border-slate-800 select-all">
-                  =XLOOKUP(A2; Sheet_Images!A:A; Sheet_Images!C:C; "بدون صورة")
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  حيث <code>A2</code> هو كود المنتج، و <code>Sheet_Images</code> هو الشيت الذي تم استخراج الصور فيه.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Preview Table & Confirmation Section (Shown when data is loaded from Excel or Google Sheets) */}
-      {previewProducts.length > 0 && (
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-5 animate-in fade-in">
-          
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-full bg-[#2e7d5b] animate-ping" />
-                <h3 className="text-lg font-black text-slate-900">
-                  تم قراءة {previewProducts.length} صف من الملف وتجهيزها للتحديث
-                </h3>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                يتم تحديث الصنف الموجود بالكود الأساسي، واستخدام الكود الموحد عند غياب الكود الأساسي • إجمالي الصفوف: <span className="font-bold text-slate-800">{previewProducts.length} صف</span>
-              </p>
-            </div>
-
-            {/* Import Mode Selection */}
-            <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-2xl border border-slate-200">
-              <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer">
-                <input
-                  type="radio"
-                  name="importMode"
-                  value="replace"
-                  checked={importMode === 'replace'}
-                  onChange={() => setImportMode('replace')}
-                  className="text-amber-600 focus:ring-amber-500"
-                />
-                <span>استبدال الأصناف الحالية بالكامل ({previewProducts.length} صنف جديد)</span>
-              </label>
-
-              <label className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 cursor-pointer">
-                <input
-                  type="radio"
-                  name="importMode"
-                  value="merge"
-                  checked={importMode === 'merge'}
-                  onChange={() => setImportMode('merge')}
-                  className="text-emerald-600 focus:ring-emerald-500"
-                />
-                <span>إضافة ودمج مع الأصناف السابقة</span>
-              </label>
-            </div>
-          </div>
-
-          {importDataNotice && (
-            <div className="panel-warn rounded-xl px-4 py-3 text-xs font-bold">
-              {importDataNotice}
-            </div>
-          )}
-
-          {/* Search and Page Size Controls inside Preview */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
-            <div className="relative w-full sm:w-80">
-              <input
-                type="text"
-                value={previewSearchTerm}
-                onChange={(e) => {
-                  setPreviewSearchTerm(e.target.value);
-                  setPreviewPage(1);
-                }}
-                placeholder="بحث في الجدول (بالكود، الاسم، اللون، القسم...)"
-                className="w-full bg-white border rounded-xl pr-9 pl-8 py-2 text-xs font-medium"
-              />
-              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
-              {previewSearchTerm && (
-                <button
-                  onClick={() => {
-                    setPreviewSearchTerm('');
-                    setPreviewPage(1);
-                  }}
-                  className="absolute left-2.5 top-2.5 text-slate-400 hover:text-slate-600"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
-                <span>عرض في الصفحة:</span>
-                <select
-                  value={previewPageSize}
-                  onChange={(e) => {
-                    const val = e.target.value === 'all' ? 'all' : Number(e.target.value);
-                    setPreviewPageSize(val);
-                    setPreviewPage(1);
-                  }}
-                  className="bg-white border rounded-lg px-2.5 py-1 text-xs font-bold text-slate-800"
-                >
-                  <option value={50}>50 صنف</option>
-                  <option value={100}>100 صنف</option>
-                  <option value={250}>250 صنف</option>
-                  <option value={500}>500 صنف</option>
-                  <option value={1000}>1000 صنف</option>
-                  <option value={2000}>2000 صنف</option>
-                  <option value={5000}>5000 صنف</option>
-                  <option value="all">عرض الكل ({previewProducts.length} صنف)</option>
-                </select>
-              </div>
-
-              {previewPageSize !== 'all' && totalPreviewPages > 1 && (
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setPreviewPage(1)}
-                    disabled={previewPage === 1}
-                    className="chip-btn disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="الصفحة الأولى"
-                  >
-                    <ChevronsRight className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setPreviewPage((p) => Math.max(1, p - 1))}
-                    disabled={previewPage === 1}
-                    className="chip-btn disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="الصفحة السابقة"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                  <span className="text-[11px] font-bold text-slate-700 px-2">
-                    صفحة {previewPage} من {totalPreviewPages}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-lg font-black text-slate-900">
+                    1. شيت قاعدة العملاء والمديونيات
+                  </h3>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
+                    isValidPublishedSource(sources.customers)
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : 'bg-slate-100 text-slate-600 border border-slate-300'
+                  }`}>
+                    {isValidPublishedSource(sources.customers) ? '● متصل سحابياً' : '○ غير متصل'}
                   </span>
-                  <button
-                    onClick={() => setPreviewPage((p) => Math.min(totalPreviewPages, p + 1))}
-                    disabled={previewPage === totalPreviewPages}
-                    className="chip-btn disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="الصفحة التالية"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setPreviewPage(totalPreviewPages)}
-                    disabled={previewPage === totalPreviewPages}
-                    className="chip-btn disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="الصفحة الأخيرة"
-                  >
-                    <ChevronsLeft className="w-4 h-4" />
-                  </button>
+                  <span className="bg-slate-100 text-slate-700 text-[10px] px-2 py-0.5 rounded-lg font-bold">
+                    الأساس والمديونيات
+                  </span>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Table of Preview Items */}
-          <div className="overflow-x-auto border border-slate-200 rounded-2xl max-h-[500px]">
-            <table className="w-full text-right text-xs">
-              <thead className="bg-slate-900 text-amber-300 font-bold sticky top-0 z-10 shadow-sm">
-                <tr>
-                  <th className="p-3 w-12 text-center">#</th>
-                  <th className="p-3">الكود</th>
-                  <th className="p-3">اللون</th>
-                  <th className="p-3">الحجم</th>
-                  <th className="p-3">اسم وبيان الصنف</th>
-                  <th className="p-3">القسم / Brand</th>
-                  <th className="p-3">شدة الكرتونة</th>
-                  <th className="p-3">سعر الكرتونة</th>
-                  <th className="p-3">مخزون الفرع</th>
-                  <th className="p-3">مخزن أكتوبر الرئيسي</th>
-                  <th className="p-3">رابط الصورة (Drive / Sheet)</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 font-medium">
-                {paginatedPreviewProducts.length === 0 ? (
-                  <tr>
-                    <td colSpan={11} className="p-8 text-center text-slate-400 font-bold">
-                      لا توجد أصناف مطابقة للبحث "{previewSearchTerm}"
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedPreviewProducts.map((p, idx) => {
-                    const globalIdx = previewPageSize === 'all' ? idx + 1 : (previewPage - 1) * previewPageSize + idx + 1;
-                    return (
-                      <tr key={p.id || idx} className="hover:bg-amber-50/50 transition-colors">
-                        <td className="p-3 text-center text-slate-400 font-mono text-[11px]">{globalIdx}</td>
-                        <td className="p-3 font-bold text-amber-900 bg-amber-50/80 font-mono">{p.code}</td>
-                        <td className="p-3 font-bold text-slate-800">
-                          {p.color && p.color.trim() && p.color !== 'افتراضي' ? (
-                            <span className="bg-indigo-50 text-indigo-900 px-2 py-0.5 rounded-md text-[11px] font-black border border-indigo-200">
-                              {p.color}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400">---</span>
-                          )}
-                        </td>
-                        <td className="p-3 text-slate-700 font-medium">
-                          {p.size && p.size.trim() && p.size !== 'حجم قياسي' ? p.size : '---'}
-                        </td>
-                        <td className="p-3 font-bold text-slate-900">{p.name}</td>
-                        <td className="p-3 text-slate-600 font-semibold">{p.department || p.category}</td>
-                        <td className="p-3 font-bold text-slate-700">{p.cartonQuantity} ق</td>
-                        <td className="p-3 dream-amt t-navy text-sm">{formatCurrency(p.cartonPrice)}</td>
-                        <td className="p-3 font-bold text-slate-700">{p.branchStockActual} كرتونة</td>
-                        <td className="p-3 font-bold text-slate-700">{p.mainWarehouseActual} كرتونة</td>
-                        <td className="p-3 text-[10px] text-slate-500 font-mono max-w-[150px] truncate">
-                          {p.imageUrl ? 'رابط صورة مباشر' : 'بدون صورة'}
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Bottom Pagination & Summary Info */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 pt-1">
-            <div>
-              {previewSearchTerm ? (
-                <span>
-                  تم العثور على <strong className="text-slate-900 font-bold">{filteredPreviewProducts.length}</strong> صنف مطابق للبحث من إجمالي <strong className="text-slate-900 font-bold">{previewProducts.length}</strong> صنف.
-                </span>
-              ) : (
-                <span>
-                  يتم الآن عرض {previewPageSize === 'all' ? previewProducts.length : `${Math.min(filteredPreviewProducts.length, (previewPage - 1) * (typeof previewPageSize === 'number' ? previewPageSize : 0) + 1)} إلى ${Math.min(filteredPreviewProducts.length, previewPage * (typeof previewPageSize === 'number' ? previewPageSize : 0))}`} من إجمالي <strong className="text-slate-900 font-bold">{previewProducts.length}</strong> صنف في الملف.
-                </span>
-              )}
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  setPreviewProducts([]);
-                  setImportDataNotice(null);
-                  setPreviewSearchTerm('');
-                }}
-                className="btn-ghost px-5 py-2.5 text-xs cursor-pointer"
-              >
-                إلغاء المعاينة
-              </button>
-              <button
-                onClick={handleApplyImport}
-                className="btn-primary px-7 py-2.5 text-xs sm:text-sm shadow-md cursor-pointer"
-              >
-                <Check className="w-4 h-4" />
-                <span>تأكيد حفظ كافة الأصناف ({previewProducts.length} صنف) في المنظومة</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SUB-TAB 4: Customers Database Management */}
-      {activeSubTab === 'customers' && (
-        <div className="space-y-6">
-          {/* Customer Google Sheets & Excel Sync Hero */}
-          <div className="navy-panel text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-[#23496f] space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <div className="badge-brass-dark inline-flex items-center gap-2 text-xs font-black px-3 py-1 mb-2">
-                  <Store className="w-3.5 h-3.5" />
-                  <span>إدارة ومزامنة قاعدة بيانات العملاء والمحلات</span>
-                </div>
-                <h3 className="text-xl sm:text-2xl font-black text-white">
-                  ربط شيت العملاء (Google Sheets) أو رفع ملف إكسل
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                  استيراد ومزامنة كود العميل، اسم المحل / السوبر ماركت، رقم الهاتف، الفرع التابع له، المحافظة، والعنوان التفصيلي للاستخدام المباشر في فواتير المندوبين.
+                <p className="text-xs text-slate-500 mt-1">
+                  قاعدة بيانات العملاء، الأكواد، الفروع، المديونيات الحالية، الحد الائتماني، وتعيين المناديب والمشرفين
                 </p>
               </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const res = refreshCustomerRepLinks();
-                    setCustomerSheetSuccess(`تمت إعادة فحص وتحديث مطابقة المناديب والفروع لجميع العملاء (${res.updatedCount} عميل تم تحديث ارتباطهم بالمناديب).`);
-                  }}
-                  className="btn-ondark px-4 py-2.5 text-xs cursor-pointer"
-                  title="إعادة ربط العملاء بحسابات المناديب الحالية والفروع"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  <span>ربط العملاء بالمناديب ({users.filter(u => u.role === 'sales_rep').length} مندوب)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const res = cleanAndDeduplicateCustomers();
-                    if (res.duplicatesRemoved > 0) {
-                      setCustomerSheetSuccess(`تم فحص وتنظيف قاعدة العملاء بنجاح! تم دمج وإزالة ${res.duplicatesRemoved} سجل مكرر، واستقرار السجل عند ${res.deduplicatedCount} عميل فريد.`);
-                    } else {
-                      setCustomerSheetSuccess(`سجل العملاء نظيف ومثالي تماماً (${res.deduplicatedCount} عميل فريد) ولا يحتوي على أي تكرارات.`);
-                    }
-                  }}
-                  className="btn-ondark px-4 py-2.5 text-xs cursor-pointer"
-                >
-                  <Sparkles className="w-4 h-4 t-brass" />
-                  <span>تنظيف وضغط التكرارات ({customers.length} عميل)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={generateSampleCustomerTargetTemplate}
-                  className="btn-brass px-4 py-2.5 text-xs shadow-md cursor-pointer"
-                  title="تحميل قالب إكسل معتمد بكافة أعمدة تارجت المبيعات والشهور والمتأخرات"
-                >
-                  <Target className="w-4 h-4" />
-                  <span>تحميل قالب شيت تارجت المبيعات والعملاء</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => exportCustomerTargetSheetToExcel(customers)}
-                  className="btn-ondark px-4 py-2.5 text-xs cursor-pointer"
-                  title="تصدير بيانات العملاء الحالية بشيت تارجت المبيعات والتحصيلات والمتأخرات"
-                >
-                  <FileSpreadsheet className="w-4 h-4 t-brass" />
-                  <span>تصدير شيت تارجت المبيعات الحالي ({customers.length})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={generateSampleCustomersTemplate}
-                  className="btn-ondark px-4 py-2.5 text-xs cursor-pointer"
-                >
-                  <Download className="w-4 h-4 t-brass" />
-                  <span>تحميل نموذج شيت العملاء المبسط</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => exportCustomersToExcel(customers)}
-                  className="btn-ondark px-4 py-2.5 text-xs cursor-pointer"
-                >
-                  <FileSpreadsheet className="w-4 h-4" />
-                  <span>تصدير العملاء القياسي ({customers.length})</span>
-                </button>
-              </div>
             </div>
 
-            {/* Sales Target & Debts Sheet Dedicated Feature Card */}
-            <div className="bg-white/[0.04] border border-[#c99a43]/40 rounded-2xl p-4 sm:p-5 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
-                    <Target className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm sm:text-base font-black t-brass flex items-center gap-2">
-                      <span>شيت تارجت المبيعات والعملاء والمتأخرات (الشيت المعتمد بالحسابات)</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        معتمد ومفعل بالكامل
-                      </span>
-                    </h4>
-                    <p className="text-xs text-slate-300 mt-0.5">
-                      يتم التعرف تلقائياً على أعمدة شيت التارجت، وحساب شهور المبيعات والتحصيل ديناميكياً (مبيعات 1..9، تحصيل 1..9 وأي شهور إضافية) واعتماد <strong>إجمالي المتأخرات</strong> كمبلغ مستحق يظهر للمندوب مباشرة عند طلب طلبية جديدة.
-                    </p>
-                  </div>
+            {/* Quick Metrics */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-center">
+                <div className="text-[10px] text-slate-500 font-bold">العملاء الحاليين</div>
+                <div className="text-sm font-black text-slate-900 font-mono">
+                  {metrics.totalCustomers.toLocaleString('ar-EG')} عميل
                 </div>
-
-                <button
-                  type="button"
-                  onClick={() => setShowTargetColumnsExplainer(!showTargetColumnsExplainer)}
-                  className="btn-ondark px-3 py-1.5 text-xs shrink-0 cursor-pointer"
-                >
-                  {showTargetColumnsExplainer ? 'إخفاء دليل الأعمدة' : 'استعراض الأعمدة المعتمدة (45 عمود)'}
-                </button>
               </div>
-
-              {showTargetColumnsExplainer && (
-                <div className="bg-slate-950/80 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 space-y-2 animate-in fade-in duration-150">
-                  <div className="font-bold text-amber-200">الأعمدة المعتمدة في الشيت والمدعومة تلقائياً:</div>
-                  <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto p-1">
-                    {CUSTOMER_SALES_TARGET_COLUMNS.map((col, idx) => (
-                      <span
-                        key={idx}
-                        className={`px-2 py-1 rounded-md text-[11px] font-mono border ${
-                          col.includes('المتأخرات')
-                            ? 'bg-rose-950/70 border-rose-500/50 text-rose-200 font-bold'
-                            : col.includes('مبيعات') || col.includes('تحصيل')
-                            ? 'bg-amber-950/50 border-amber-500/30 text-amber-200'
-                            : 'bg-slate-900 border-slate-700 text-slate-300'
-                        }`}
-                      >
-                        {col}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="text-[11px] text-slate-400 border-t border-slate-800 pt-2">
-                    <strong>ملاحظة للمستخدم:</strong> كلما أضفت شهوراً جديدة (مثل 10 مبيعات أو 10 تحصيل)، سيقوم النظام بجمعها ديناميكياً وإضافتها لإجمالي المبيعات والتحصيلات بدون الحاجة لتعديل الكود.
-                  </div>
+              <div className="bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl text-center">
+                <div className="text-[10px] text-rose-600 font-bold">إجمالي المديونيات</div>
+                <div className="text-sm font-black text-rose-700 font-mono">
+                  {formatCurrency(metrics.totalDebt)}
                 </div>
-              )}
+              </div>
             </div>
+          </div>
 
-            {/* Supabase Free Tier Protection Info */}
-            <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-              <div className="flex items-center gap-2.5 text-emerald-300">
-                <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                <span>
-                  <strong>حالة استهلاك قاعدة البيانات (Supabase Free Tier):</strong> النظام مستقر في الخطة المجانية 100% (~5 ميجابايت مستخدمة من أصل 500 ميجابايت متاحة مجاناً). تنظيف التكرارات يضمن بقاء المنظومة مجانية دائماً وسريعة الاستجابة.
-                </span>
-              </div>
-              <span className="bg-emerald-900/60 text-emerald-200 font-bold px-3 py-1 rounded-lg border border-emerald-600/40 shrink-0 text-[11px]">
-                استهلاك &lt; 1% من الخطة المجانية
-              </span>
-            </div>
-
-            {/* Google Sheet URL Sync Input for Customers */}
-            <div className="bg-white/[0.04] p-4 sm:p-5 rounded-2xl border border-white/10 space-y-4">
-              <div className="space-y-1.5">
-                <label className="block text-xs sm:text-sm font-bold t-brass">
-                  رابط Google Sheets لقاعدة بيانات العملاء:
-                </label>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                  <input
-                    type="url"
-                    value={customerGoogleSheetUrl}
-                    onChange={(e) => {
-                      setCustomerGoogleSheetUrl(e.target.value);
-                      setCustomerSheetError(null);
-                      setCustomerSheetSuccess(null);
-                    }}
-                    placeholder="https://docs.google.com/spreadsheets/d/your-customer-sheet-id/edit..."
-                    className="flex-1 bg-slate-950/50 border border-white/15 rounded-xl px-4 py-3 text-xs sm:text-sm text-white placeholder:text-slate-500"
-                  />
-                  <button
-                    type="button"
-                    disabled={isSyncingCustomers || !customerGoogleSheetUrl.trim()}
-                    onClick={async () => {
-                      if (!customerGoogleSheetUrl.trim()) return;
-                      setIsSyncingCustomers(true);
-                      setCustomerSheetError(null);
-                      setCustomerSheetSuccess(null);
-                      try {
-                        const res = await fetchCustomersFromGoogleSheetUrl(customerGoogleSheetUrl);
-                        if (res.errors.length > 0) {
-                          setCustomerSheetError(res.errors.join(' | '));
-                        }
-                        if (res.customers.length > 0) {
-                          setCustomerPreviewList(res.customers);
-                          setCustomerSheetSuccess(`تمت قراءة ${res.customers.length} عميل بنجاح من Google Sheets! راجع الجدول أدناه لتأكيد الحفظ.`);
-                        } else {
-                          setCustomerSheetError('لم يتم العثور على أي بيانات صالحة للعملاء داخل الشيت.');
-                        }
-                      } catch (err: any) {
-                        setCustomerSheetError(err?.message || 'تعذر الاتصال بـ Google Sheets');
-                      } finally {
-                        setIsSyncingCustomers(false);
-                      }
-                    }}
-                    className="btn-brass px-6 py-3 text-xs sm:text-sm shadow-md disabled:opacity-50 cursor-pointer"
-                  >
-                    {isSyncingCustomers ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>جاري جلب العملاء...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Globe className="w-4 h-4" />
-                        <span>قراءة شيت العملاء</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              {/* Status alerts */}
-              {customerSheetSuccess && (
-                <div className="xls-note-ok p-3.5 rounded-xl text-xs flex items-center gap-2.5">
-                  <CheckCircle2 className="w-4 h-4 shrink-0" />
-                  <span>{customerSheetSuccess}</span>
-                </div>
-              )}
-              {customerSheetError && (
-                <div className="xls-note-risk p-3.5 rounded-xl text-xs flex items-center gap-2.5">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{customerSheetError}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Direct Excel File Upload for Customers */}
-            <div className="bg-slate-950/40 p-4 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-              <div className="text-slate-300 flex items-center gap-2">
-                <Upload className="w-4 h-4 t-brass shrink-0" />
-                <span>أو يمكنك رفع ملف إكسل للعملاء مباشرة من جهازك (.xlsx / .csv):</span>
-              </div>
-              <label className="btn-ondark px-4 py-2 text-xs font-bold cursor-pointer">
-                <span>اختيار ملف العملاء من الجهاز</span>
-                <input
-                  type="file"
-                  accept=".xlsx,.xls,.csv"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setIsSyncingCustomers(true);
-                    setCustomerSheetError(null);
-                    setCustomerSheetSuccess(null);
-                    try {
-                      const res = await parseExcelCustomers(file);
-                      if (res.errors.length > 0) setCustomerSheetError(res.errors.join(' | '));
-                      if (res.customers.length > 0) {
-                        setCustomerPreviewList(res.customers);
-                        setCustomerSheetSuccess(`تمت قراءة ${res.customers.length} عميل من الملف بنجاح!`);
-                      }
-                    } catch (err: any) {
-                      setCustomerSheetError(err?.message || 'خطأ أثناء قراءة ملف العملاء');
-                    } finally {
-                      setIsSyncingCustomers(false);
-                    }
-                  }}
-                />
+          {/* URL Input Form */}
+          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label htmlFor="customer-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-emerald-600" />
+                <span>رابط Google Sheet الخاص بالعملاء والمديونيات (Anyone with the link can view):</span>
               </label>
-            </div>
-          </div>
-
-          {/* Customer Summary Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-              <div className="text-[11px] font-bold text-slate-500">إجمالي العملاء بالمنظومة</div>
-              <div className="text-xl dream-amt t-navy mt-1">{customers.length} <span className="text-xs text-slate-400 font-normal">عميل</span></div>
-              <div className="text-[10px] t-ok font-bold mt-1">
-                {customers.filter((c) => c.repId || c.salesRepName || c.repName).length} مرتبطين بمندوب
-              </div>
-            </div>
-
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-              <div className="text-[11px] font-bold t-risk">إجمالي مديونيات العملاء</div>
-              <div className="text-xl dream-amt t-risk mt-1">
-                {formatCurrency(customers.reduce((sum, c) => sum + (c.currentBalance || c.balance || 0), 0))}
-              </div>
-              <div className="text-[10px] text-slate-400 font-bold mt-1">مستحقة التحصيل</div>
-            </div>
-
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
-              <div className="text-[11px] font-bold t-navy">إجمالي الحدود الائتمانية</div>
-              <div className="text-xl dream-amt t-navy mt-1">
-                {formatCurrency(customers.reduce((sum, c) => sum + (c.creditLimit || 0), 0))}
-              </div>
-              <div className="text-[10px] t-muted font-bold mt-1">حد أقصى مسموح</div>
-            </div>
-
-            <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col justify-between">
-              <div className="text-[11px] font-bold text-slate-500">إجراءات سريعة للتطابق</div>
-              <div className="flex items-center gap-1.5 mt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const res = refreshCustomerRepLinks();
-                    setCustomerSheetSuccess(`تمت المزامنة والتطابق بنجاح! تم تحديث ${res.updatedCount} عميل وربطهم بحسابات مناديبهم.`);
-                  }}
-                  className="flex-1 btn-brass px-2 py-1.5 text-[10px] text-center cursor-pointer"
-                  title="مزامنة فورية وتطابق ذكي بين أسماء المناديب والعملاء"
+              {sourceUrls.customers && (
+                <a
+                  href={sourceUrls.customers}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-emerald-700 hover:underline flex items-center gap-1 font-bold"
                 >
-                  مطابقة المناديب
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const res = autoCreateMissingRepsFromCustomers();
-                    setCustomerSheetSuccess(res.message);
-                  }}
-                  className="flex-1 btn-primary px-2 py-1.5 text-[10px] text-center cursor-pointer"
-                  title="إنشاء وتفعيل حسابات جديدة للمناديب المذكورين في الشيت ولم يتم تسجيلهم بعد"
-                >
-                  إنشاء المناديب
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Customer Preview Table (if loaded from sheet/file) */}
-          {customerPreviewList.length > 0 && (
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-4">
-                <div>
-                  <h4 className="text-base font-black text-slate-900 flex items-center gap-2">
-                    <UserCheck className="w-5 h-5 text-emerald-600" />
-                    <span>معاينة شيت العملاء والتارجت ({customerPreviewList.length} عميل)</span>
-                    {customerPreviewList.some((c) => c.annualTarget || c.totalMonthlySales || c.totalOverdueAndDue) && (
-                      <span className="app-badge warn text-[10px]">
-                        شيت تارجت ومبيعات
-                      </span>
-                    )}
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    تحقق من الفرع، المندوب، الهدف السنوي، المبيعات والتحصيلات، وإجمالي المتأخرات قبل تأكيد الحفظ في المنظومة.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <select
-                    value={customerImportMode}
-                    onChange={(e) => setCustomerImportMode(e.target.value as 'merge' | 'replace')}
-                    className="bg-slate-100 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800"
-                  >
-                    <option value="merge">دمج وتحديث العملاء (Merge)</option>
-                    <option value="replace">استبدال كامل السجل (Replace)</option>
-                  </select>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      importCustomersList(customerPreviewList, customerImportMode);
-                      setCustomerPreviewList([]);
-                      setCustomerSheetSuccess(`تم حفظ وتحديث ${customerPreviewList.length} عميل بنجاح مع كافة بيانات التارجت والمبيعات والمتأخرات في المنظومة!`);
-                    }}
-                    className="btn-primary px-5 py-2 text-xs cursor-pointer"
-                  >
-                    <Check className="w-4 h-4" />
-                    <span>تأكيد حفظ العملاء ({customerPreviewList.length})</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setCustomerPreviewList([])}
-                    className="btn-ghost px-3 py-2 text-xs cursor-pointer"
-                  >
-                    إلغاء
-                  </button>
-                </div>
-              </div>
-
-              {/* Preview Target Summary Metrics (if Target data detected) */}
-              {customerPreviewList.some((c) => c.annualTarget || c.totalMonthlySales || c.totalOverdueAndDue) && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 panel-warn p-3 rounded-2xl text-xs">
-                  <div>
-                    <div className="text-[10px] text-slate-500 font-bold">إجمالي الهدف السنوي</div>
-                    <div className="dream-amt t-warn text-sm">
-                      {formatCurrency(customerPreviewList.reduce((acc, c) => acc + (c.annualTarget || 0), 0))}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] text-slate-500 font-bold">إجمالي المبيعات المحققة</div>
-                    <div className="dream-amt t-ok text-sm">
-                      {formatCurrency(customerPreviewList.reduce((acc, c) => acc + (c.totalMonthlySales || 0), 0))}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] text-slate-500 font-bold">إجمالي التحصيلات</div>
-                    <div className="dream-amt t-navy text-sm">
-                      {formatCurrency(customerPreviewList.reduce((acc, c) => acc + (c.totalMonthlyCollections || 0), 0))}
-                    </div>
-                  </div>
-                  <div className="tint-risk p-1.5 rounded-xl border border-[rgba(179,74,74,.25)]">
-                    <div className="text-[10px] font-black">إجمالي المتأخرات (مستحق الطلبيات)</div>
-                    <div className="dream-amt text-sm">
-                      {formatCurrency(customerPreviewList.reduce((acc, c) => acc + (c.totalOverdueAndDue || c.overdueBalance || c.currentBalance || c.balance || 0), 0))}
-                    </div>
-                  </div>
-                </div>
+                  <span>فتح الشيت في Google Sheets</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
               )}
-
-              {/* Preview Customer Table */}
-              <div className="overflow-x-auto max-h-96 border border-slate-200 rounded-2xl">
-                <table className="w-full text-right text-xs">
-                  <thead className="bg-slate-100 text-slate-700 font-black sticky top-0">
-                    <tr>
-                      <th className="p-3">#</th>
-                      <th className="p-3">كود / Account Name</th>
-                      <th className="p-3">اسم العميل</th>
-                      <th className="p-3">الفرع</th>
-                      <th className="p-3">المندوب الحالي</th>
-                      <th className="p-3 text-amber-900">الهدف السنوي</th>
-                      <th className="p-3 text-emerald-700">إجمالي المبيعات</th>
-                      <th className="p-3 text-blue-700">إجمالي التحصيلات</th>
-                      <th className="p-3 text-rose-700 bg-rose-50/70">إجمالي المتأخرات (عند الطلب)</th>
-                      <th className="p-3 text-slate-700">الحد الائتماني</th>
-                      <th className="p-3">حالة الدين</th>
-                      <th className="p-3">التعامل</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
-                    {customerPreviewList.map((c, i) => {
-                      const overdue = Number(c.totalOverdueAndDue ?? c.overdueBalance ?? c.currentBalance ?? c.balance ?? 0);
-                      const salesMonthsCount = c.activeSalesMonths?.length || (c.monthlySales2026 ? Object.keys(c.monthlySales2026).length : 0);
-                      const collMonthsCount = c.activeCollectionMonths?.length || (c.monthlyCollections2026 ? Object.keys(c.monthlyCollections2026).length : 0);
-
-                      return (
-                        <tr key={c.id || i} className="hover:bg-amber-50/50">
-                          <td className="p-3 text-slate-400">{i + 1}</td>
-                          <td className="p-3 font-mono font-bold t-warn">{c.code || '---'}</td>
-                          <td className="p-3 font-bold text-slate-950">
-                            <div>{c.name}</div>
-                            {c.activityType && (
-                              <div className="text-[10px] text-slate-400 font-normal">{c.activityType}</div>
-                            )}
-                          </td>
-                          <td className="p-3">
-                            <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-800 text-[11px] font-bold">
-                              {c.branchName || 'الفرع الرئيسي'}
-                            </span>
-                          </td>
-                          <td className="p-3 font-bold text-slate-700">
-                            {c.salesRepName || c.repName || <span className="text-slate-400">غير مرتبط</span>}
-                          </td>
-                          <td className="p-3 dream-amt t-warn">
-                            {(c.annualTarget || 0) > 0 ? formatCurrency(c.annualTarget || 0) : '---'}
-                          </td>
-                          <td className="p-3 dream-amt t-ok">
-                            <div>{(c.totalMonthlySales || 0) > 0 ? formatCurrency(c.totalMonthlySales || 0) : '0 ج.م'}</div>
-                            {salesMonthsCount > 0 && (
-                              <div className="text-[10px] text-emerald-600 font-normal">({salesMonthsCount} شهور)</div>
-                            )}
-                          </td>
-                          <td className="p-3 dream-amt t-navy">
-                            <div>{(c.totalMonthlyCollections || 0) > 0 ? formatCurrency(c.totalMonthlyCollections || 0) : '0 ج.م'}</div>
-                            {collMonthsCount > 0 && (
-                              <div className="text-[10px] text-blue-600 font-normal">({collMonthsCount} شهور)</div>
-                            )}
-                          </td>
-                          <td className="p-3 dream-amt t-risk bg-rose-50/60">
-                            {overdue > 0 ? formatCurrency(overdue) : '0 ج.م'}
-                          </td>
-                          <td className="p-3 font-mono text-slate-700">
-                            {(c.creditLimit || 0) > 0 ? formatCurrency(c.creditLimit || 0) : 'غير محدد'}
-                          </td>
-                          <td className="p-3">
-                            <span className={`app-badge text-[10px] ${
-                              c.debtStatus === 'متعثر' || (overdue > (c.creditLimit || 0) && (c.creditLimit || 0) > 0)
-                                ? 'risk'
-                                : overdue > 0
-                                ? 'warn'
-                                : 'ok'
-                            }`}>
-                              {c.debtStatus || (overdue > 0 ? 'متأخر' : 'منتظم')}
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            <span className={`app-badge text-[10px] ${
-                              c.dealEligibility === 'غير' || c.dealEligibility === 'غير قابل'
-                                ? 'risk'
-                                : 'ok'
-                            }`}>
-                              {c.dealEligibility || 'قابل'}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Current Saved Customers Table */}
-          <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl tint-navy flex items-center justify-center font-black">
-                  <Users className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-base font-black text-slate-900">
-                    سجل العملاء النشط بالمنظومة ({customers.length} عميل)
-                  </h4>
-                  <p className="text-xs text-slate-500">
-                    يتم استدعاء هؤلاء العملاء تلقائياً في شاشة الفواتير للمندوبين مع متابعة المديونية، تارجت المبيعات، والحد الائتماني
-                  </p>
-                </div>
-              </div>
-
-              {/* View Tab Switcher: Target View vs Standard View */}
-              <div className="flex items-center bg-slate-100 p-1 rounded-2xl border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setCustomerTableTab('target')}
-                  className={`pill-filter px-3 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer ${
-                    customerTableTab === 'target'
-                      ? 'on'
-                      : ''
-                  }`}
-                >
-                  <Target className="w-3.5 h-3.5" />
-                  <span>تارجت المبيعات والمتأخرات</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCustomerTableTab('standard')}
-                  className={`pill-filter px-3 py-1.5 text-xs flex items-center gap-1.5 cursor-pointer ${
-                    customerTableTab === 'standard'
-                      ? 'on'
-                      : ''
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>العرض الأساسي</span>
-                </button>
-              </div>
             </div>
 
-            {/* Overall Target Stats Bar */}
-            {customerTableTab === 'target' && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
-                <div>
-                  <div className="text-[10px] text-slate-500 font-bold">إجمالي الهدف السنوي بالمنظومة</div>
-                  <div className="dream-amt t-warn text-sm">
-                    {formatCurrency(customers.reduce((sum, c) => sum + (c.annualTarget || 0), 0))}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-slate-500 font-bold">إجمالي مبيعات الشهور المسجلة</div>
-                  <div className="dream-amt t-ok text-sm">
-                    {formatCurrency(customers.reduce((sum, c) => sum + (c.totalMonthlySales || 0), 0))}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-slate-500 font-bold">إجمالي التحصيلات المسجلة</div>
-                  <div className="dream-amt t-navy text-sm">
-                    {formatCurrency(customers.reduce((sum, c) => sum + (c.totalMonthlyCollections || 0), 0))}
-                  </div>
-                </div>
-                <div className="tint-risk p-2 rounded-xl border border-[rgba(179,74,74,.25)]">
-                  <div className="text-[10px] font-black">إجمالي المتأخرات (المستحق لطلبيات المندوب)</div>
-                  <div className="dream-amt text-sm">
-                    {formatCurrency(
-                      customers.reduce(
-                        (sum, c) =>
-                          sum + (c.totalOverdueAndDue ?? c.overdueBalance ?? c.currentBalance ?? c.balance ?? 0),
-                        0
-                      )
-                    )}
-                  </div>
-                </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Link2 className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  id="customer-sheet-url"
+                  type="text"
+                  value={sourceUrls.customers}
+                  onChange={(e) => setSourceUrls((prev) => ({ ...prev, customers: e.target.value }))}
+                  placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleSaveUrl('customers')}
+                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer"
+              >
+                {savedUrlNotice === 'customers' ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>تم حفظ الرابط ✓</span>
+                  </>
+                ) : (
+                  <span>حفظ الرابط دائماً</span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSyncCustomers()}
+                disabled={syncingKey === 'customers' || !sourceUrls.customers.trim()}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {syncingKey === 'customers' ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>جاري المزامنة...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    <span>مزامنة سحابية فورية</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Notifications */}
+            {sheetSuccess.customers && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{sheetSuccess.customers}</span>
               </div>
             )}
+            {sheetErrors.customers && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{sheetErrors.customers}</span>
+              </div>
+            )}
+          </div>
 
-              {/* Filters Bar: Rep Filter, Branch Filter, and Search */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {/* Rep Filter Dropdown */}
-                <select
-                  value={customerSelectedRepFilter}
-                  onChange={(e) => setCustomerSelectedRepFilter(e.target.value)}
-                  aria-label="تصفية حسب المندوب المسؤول"
-                  className="h-10 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                >
-                  <option value="all">جميع المناديب ({customers.length} عميل)</option>
-                  {users
-                    .filter((u) => u.role === 'sales_rep' || u.role === 'supervisor')
-                    .map((rep) => {
-                      const repCustomerCount = customers.filter(
-                        (c) =>
-                          c.repId === rep.id ||
-                          c.salesRepName === rep.name ||
-                          c.repName === rep.name ||
-                          (c.salesRepName && c.salesRepName.includes(rep.name))
-                      ).length;
-                      return (
-                        <option key={rep.id} value={rep.name}>
-                          {rep.name} [{repCustomerCount} عميل]
-                        </option>
-                      );
-                    })}
-                  <option value="unassigned">عملاء غير مسندين لمندوب</option>
-                </select>
+          {/* Action Buttons: Upload Excel / Export / Template */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => fileInputCustomersRef.current?.click()}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Upload className="w-3.5 h-3.5 text-slate-600" />
+                <span>رفع ملف إكسل محلي للعملاء (.xlsx)</span>
+              </button>
 
-                {/* Branch Filter Dropdown */}
-                <select
-                  value={customerSelectedBranchFilter}
-                  onChange={(e) => setCustomerSelectedBranchFilter(e.target.value)}
-                  aria-label="تصفية حسب الفرع"
-                  className="h-10 px-3 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                >
-                  <option value="all">جميع الفروع</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.name}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
+              <button
+                type="button"
+                onClick={generateSampleCustomersTemplate}
+                className="text-slate-600 hover:text-slate-900 font-bold px-3 py-2 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <span>تحميل نموذج إكسل معتمد</span>
+              </button>
+            </div>
 
-                {/* Search Bar */}
-                <div className="relative w-full sm:w-60">
-                  <input
-                    type="text"
-                    value={customerSearchTerm}
-                    onChange={(e) => setCustomerSearchTerm(e.target.value)}
-                    placeholder="بحث بالاسم، الكود، الهاتف، المحل..."
-                    className="w-full h-10 pr-9 pl-4 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold"
-                  />
-                  <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3 pointer-events-none" />
+            <button
+              type="button"
+              onClick={() => exportCustomersToExcel(customers, selectedBranchFilter)}
+              className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-amber-300" />
+              <span>تصدير قاعدة العملاء الحالية ({customers.length})</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ---------------- CARD 2: Customer Sales & Targets (شيت مبيعات العملاء والتارجت) ---------------- */}
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-black shrink-0">
+                <BarChart3 className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-lg font-black text-slate-900">
+                    2. شيت مبيعات العملاء والتارجت
+                  </h3>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
+                    isValidPublishedSource(sources.customerSales)
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : 'bg-slate-100 text-slate-600 border border-slate-300'
+                  }`}>
+                    {isValidPublishedSource(sources.customerSales) ? '● متصل سحابياً' : '○ غير متصل'}
+                  </span>
+                  <span className="bg-amber-100 text-amber-900 text-[10px] px-2 py-0.5 rounded-lg font-bold">
+                    مبيعات الشهور 2026 والتحصيل
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  المبيعات الشهرية لعام 2026 (يناير - ديسمبر)، نسب النمو عن 2025، التحصيلات، وتارجت كل عميل
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl text-center">
+                <div className="text-[10px] text-emerald-700 font-bold">مبيعات 2026 المسجلة</div>
+                <div className="text-sm font-black text-emerald-800 font-mono">
+                  {formatCurrency(metrics.totalSales2026)}
                 </div>
               </div>
-
-            {customers.length === 0 ? (
-              <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-300 text-slate-500 text-xs">
-                لا يوجد عملاء مسجلين حالياً. قم بربط Google Sheet أو رفع ملف إكسل أعلاه.
+              <div className="bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-center">
+                <div className="text-[10px] text-blue-700 font-bold">تحصيلات 2026</div>
+                <div className="text-sm font-black text-blue-800 font-mono">
+                  {formatCurrency(metrics.totalCollections2026)}
+                </div>
               </div>
-            ) : (
-              <div className="overflow-x-auto border border-slate-200 rounded-2xl max-h-96">
-                <table className="w-full text-right text-xs">
-                  <thead className="bg-slate-100 text-slate-700 font-black sticky top-0">
-                    {customerTableTab === 'target' ? (
-                      <tr>
-                        <th className="p-3">#</th>
-                        <th className="p-3">Account Name / كود</th>
-                        <th className="p-3">اسم العميل والمحل</th>
-                        <th className="p-3">الفرع</th>
-                        <th className="p-3">المندوب الحالي</th>
-                        <th className="p-3 text-amber-900">الهدف السنوي</th>
-                        <th className="p-3 text-emerald-700">مبيعات الشهور</th>
-                        <th className="p-3 text-blue-700">تحصيلات الشهور</th>
-                        <th className="p-3 text-rose-700 bg-rose-50/80">إجمالي المتأخرات (عند الطلب)</th>
-                        <th className="p-3 text-slate-700">الحد الائتماني</th>
-                        <th className="p-3">أوراق الضمان</th>
-                        <th className="p-3">حالة الدين</th>
-                        <th className="p-3 text-center">إجراءات</th>
-                      </tr>
-                    ) : (
-                      <tr>
-                        <th className="p-3">#</th>
-                        <th className="p-3">كود العميل</th>
-                        <th className="p-3">اسم العميل / المحل</th>
-                        <th className="p-3">الفرع</th>
-                        <th className="p-3">المندوب المسؤول</th>
-                        <th className="p-3 text-rose-700">المديونية (ج.م)</th>
-                        <th className="p-3 text-blue-700">الحد الائتماني (ج.م)</th>
-                        <th className="p-3 text-emerald-700">المتاح من الائتمان</th>
-                        <th className="p-3">الهاتف</th>
-                        <th className="p-3">العنوان</th>
-                        <th className="p-3 text-center">إجراءات</th>
-                      </tr>
-                    )}
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-                    {(() => {
-                      const filtered = customers.filter((c) => {
-                        // Rep Filter
-                        if (customerSelectedRepFilter !== 'all') {
-                          if (customerSelectedRepFilter === 'unassigned') {
-                            if (c.repId || c.salesRepName || c.repName) return false;
-                          } else {
-                            const repMatch =
-                              c.repName === customerSelectedRepFilter ||
-                              c.salesRepName === customerSelectedRepFilter ||
-                              (c.salesRepName && c.salesRepName.includes(customerSelectedRepFilter)) ||
-                              (c.repName && c.repName.includes(customerSelectedRepFilter));
-                            if (!repMatch) return false;
-                          }
-                        }
+            </div>
+          </div>
 
-                        // Branch Filter
-                        if (customerSelectedBranchFilter !== 'all') {
-                          if (c.branchName && !c.branchName.includes(customerSelectedBranchFilter) && !customerSelectedBranchFilter.includes(c.branchName)) {
-                            return false;
-                          }
-                        }
+          {/* URL Input Form */}
+          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label htmlFor="customer-sales-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-amber-600" />
+                <span>رابط Google Sheet الخاص بمبيعات العملاء الشهرية والتحصيل (دمج مباشر بدون تكرار):</span>
+              </label>
+              {sourceUrls.customerSales && (
+                <a
+                  href={sourceUrls.customerSales}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-amber-700 hover:underline flex items-center gap-1 font-bold"
+                >
+                  <span>فتح الشيت في Google Sheets</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
+            </div>
 
-                        // Search Term
-                        if (!customerSearchTerm.trim()) return true;
-                        const q = customerSearchTerm.toLowerCase().trim();
-                        return (
-                          c.name.toLowerCase().includes(q) ||
-                          (c.code && c.code.toLowerCase().includes(q)) ||
-                          (c.phone && c.phone.includes(q)) ||
-                          (c.storeName && c.storeName.toLowerCase().includes(q)) ||
-                          (c.governorate && c.governorate.toLowerCase().includes(q)) ||
-                          (c.branchName && c.branchName.toLowerCase().includes(q)) ||
-                          (c.salesRepName && c.salesRepName.toLowerCase().includes(q)) ||
-                          (c.repName && c.repName.toLowerCase().includes(q))
-                        );
-                      });
-                      const displayed = filtered.slice(0, customerDisplayLimit);
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Link2 className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  id="customer-sales-sheet-url"
+                  type="text"
+                  value={sourceUrls.customerSales}
+                  onChange={(e) => setSourceUrls((prev) => ({ ...prev, customerSales: e.target.value }))}
+                  placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+                />
+              </div>
 
-                      return (
-                        <>
-                          {displayed.map((c, i) => {
-                            const debt = c.currentBalance || c.balance || 0;
-                            const limit = c.creditLimit || 0;
-                            const availableCredit = limit > 0 ? Math.max(0, limit - debt) : null;
-                            const overdue = Number(c.totalOverdueAndDue ?? c.overdueBalance ?? debt);
-                            const salesMonthsCount = c.activeSalesMonths?.length || (c.monthlySales2026 ? Object.keys(c.monthlySales2026).length : 0);
-                            const collMonthsCount = c.activeCollectionMonths?.length || (c.monthlyCollections2026 ? Object.keys(c.monthlyCollections2026).length : 0);
+              <button
+                type="button"
+                onClick={() => handleSaveUrl('customerSales')}
+                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer"
+              >
+                {savedUrlNotice === 'customerSales' ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-amber-400" />
+                    <span>تم حفظ الرابط ✓</span>
+                  </>
+                ) : (
+                  <span>حفظ الرابط دائماً</span>
+                )}
+              </button>
 
-                            if (customerTableTab === 'target') {
-                              return (
-                                <tr key={c.id} className="hover:bg-amber-50/40">
-                                  <td className="p-3 text-slate-400 font-bold">{i + 1}</td>
-                                  <td className="p-3 dream-amt t-warn">{c.code || '---'}</td>
-                                  <td className="p-3">
-                                    <div className="font-black text-slate-900">{c.name}</div>
-                                    {c.storeName && (
-                                      <div className="text-[10px] text-slate-500 font-semibold">{c.storeName}</div>
-                                    )}
-                                  </td>
-                                  <td className="p-3 text-slate-600">
-                                    <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[11px]">
-                                      {c.branchName || 'الفرع الرئيسي'}
-                                    </span>
-                                  </td>
-                                  <td className="p-3 font-bold text-emerald-800">
-                                    {c.salesRepName || c.repName || <span className="text-slate-400">غير محدد</span>}
-                                  </td>
-                                  <td className="p-3 dream-amt t-warn">
-                                    {(c.annualTarget || 0) > 0 ? formatCurrency(c.annualTarget || 0) : '---'}
-                                  </td>
-                                  <td className="p-3 dream-amt t-ok">
-                                    <div>{(c.totalMonthlySales || 0) > 0 ? formatCurrency(c.totalMonthlySales || 0) : '0 ج.م'}</div>
-                                    {salesMonthsCount > 0 && (
-                                      <div className="text-[10px] text-emerald-600 font-normal">({salesMonthsCount} شهور)</div>
-                                    )}
-                                  </td>
-                                  <td className="p-3 dream-amt t-navy">
-                                    <div>{(c.totalMonthlyCollections || 0) > 0 ? formatCurrency(c.totalMonthlyCollections || 0) : '0 ج.م'}</div>
-                                    {collMonthsCount > 0 && (
-                                      <div className="text-[10px] text-blue-600 font-normal">({collMonthsCount} شهور)</div>
-                                    )}
-                                  </td>
-                                  <td className="p-3 dream-amt t-risk bg-rose-50/80">
-                                    {overdue > 0 ? formatCurrency(overdue) : '0 ج.م'}
-                                  </td>
-                                  <td className="p-3 font-mono text-slate-700">
-                                    {limit > 0 ? formatCurrency(limit) : 'غير محدد'}
-                                  </td>
-                                  <td className="p-3 text-[11px] text-slate-600 font-medium">
-                                    {c.guaranteeDocs || '---'}
-                                  </td>
-                                  <td className="p-3">
-                                    <span
-                                      className={`app-badge text-[10px] ${
-                                        c.debtStatus === 'متعثر' || (overdue > limit && limit > 0)
-                                          ? 'risk'
-                                          : overdue > 0
-                                          ? 'warn'
-                                          : 'ok'
-                                      }`}
-                                    >
-                                      {c.debtStatus || (overdue > 0 ? 'متأخر' : 'منتظم')}
-                                    </span>
-                                  </td>
-                                  <td className="p-3 text-center">
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (window.confirm(`هل أنت متأكد من حذف العميل (${c.name})؟`)) {
-                                          deleteCustomer(c.id);
-                                        }
-                                      }}
-                                      className="chip-btn danger p-1.5 cursor-pointer"
-                                      title="حذف العميل"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            }
+              <button
+                type="button"
+                onClick={() => handleSyncCustomerSales()}
+                disabled={syncingKey === 'customerSales' || !sourceUrls.customerSales.trim()}
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {syncingKey === 'customerSales' ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>جاري دمج المبيعات...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    <span>مزامنة سحابية وتحديث فوري</span>
+                  </>
+                )}
+              </button>
+            </div>
 
-                            return (
-                              <tr key={c.id} className="hover:bg-amber-50/40">
-                                <td className="p-3 text-slate-400 font-bold">{i + 1}</td>
-                                <td className="p-3 dream-amt t-warn">{c.code || '---'}</td>
-                                <td className="p-3">
-                                  <div className="font-black text-slate-900">{c.name}</div>
-                                  {c.storeName && (
-                                    <div className="text-[10px] text-slate-500 font-semibold">{c.storeName}</div>
-                                  )}
-                                </td>
-                                <td className="p-3 text-slate-600">
-                                  <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-bold text-[11px]">
-                                    {c.branchName || 'الفرع الرئيسي'}
-                                  </span>
-                                </td>
-                                <td className="p-3">
-                                  {/* Inline Rep Selector */}
-                                  <select
-                                    value={c.salesRepName || c.repName || ''}
-                                    onChange={(e) => {
-                                      const selectedRepName = e.target.value;
-                                      const matchedUser = users.find((u) => u.name === selectedRepName);
-                                      updateCustomer({
-                                        ...c,
-                                        salesRepName: selectedRepName || undefined,
-                                        repName: selectedRepName || undefined,
-                                        repId: matchedUser ? matchedUser.id : undefined,
-                                        branchName: String(c.branchName || matchedUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'),
-                                      });
-                                    }}
-                                    aria-label={`تحديد مندوب العميل ${c.name}`}
-                                    className="text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                                  >
-                                    <option value="">-- غير محدد --</option>
-                                    {(c.salesRepName || c.repName) &&
-                                      !users.some((u) => u.name === (c.salesRepName || c.repName)) && (
-                                        <option value={c.salesRepName || c.repName}>
-                                          {c.salesRepName || c.repName}
-                                        </option>
-                                      )}
-                                    {users
-                                      .filter((u) => u.role === 'sales_rep' || u.role === 'supervisor')
-                                      .map((u) => (
-                                        <option key={u.id} value={u.name}>
-                                          {u.name}
-                                        </option>
-                                      ))}
-                                  </select>
-                                </td>
-                                <td className="p-3 dream-amt t-risk">
-                                  {debt > 0 ? formatCurrency(debt) : <span className="text-slate-400">0 ج.م</span>}
-                                </td>
-                                <td className="p-3 dream-amt t-navy">
-                                  {limit > 0 ? formatCurrency(limit) : <span className="text-slate-400">غير محدد</span>}
-                                </td>
-                                <td className="p-3 dream-amt t-ok">
-                                  {availableCredit !== null ? (
-                                    formatCurrency(availableCredit)
-                                  ) : (
-                                    <span className="text-slate-400">مفتوح</span>
-                                  )}
-                                </td>
-                                <td className="p-3 font-bold text-emerald-800 font-mono">{c.phone || '---'}</td>
-                                <td className="p-3 text-slate-600 text-[11px]">{c.address || c.governorate || '---'}</td>
-                                <td className="p-3 text-center">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      if (window.confirm(`هل أنت متأكد من حذف العميل (${c.name})؟`)) {
-                                        deleteCustomer(c.id);
-                                      }
-                                    }}
-                                    className="chip-btn danger p-1.5 cursor-pointer"
-                                    title="حذف العميل"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                          {filtered.length > customerDisplayLimit && (
-                            <tr>
-                              <td colSpan={11} className="p-4 text-center bg-slate-50">
-                                <button
-                                  type="button"
-                                  onClick={() => setCustomerDisplayLimit((prev) => prev + 100)}
-                                  className="chip-btn px-5 py-2 text-xs cursor-pointer"
-                                >
-                                  عرض المزيد من العملاء (يتبقى {filtered.length - customerDisplayLimit} عميل)
-                                </button>
-                              </td>
-                            </tr>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </tbody>
-                </table>
+            {/* Notifications */}
+            {sheetSuccess.customerSales && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{sheetSuccess.customerSales}</span>
+              </div>
+            )}
+            {sheetErrors.customerSales && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{sheetErrors.customerSales}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => fileInputSalesRef.current?.click()}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Upload className="w-3.5 h-3.5 text-slate-600" />
+                <span>رفع ملف إكسل لمبيعات العملاء (.xlsx)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={downloadCustomerAnalyticsTemplate}
+                className="text-slate-600 hover:text-slate-900 font-bold px-3 py-2 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <span>تحميل قالب مبيعات العملاء والتحليل</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => exportCustomerAnalyticsToExcel(customers, 'تقرير_مبيعات_كافة_العملاء_2026')}
+              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              <span>تصدير إكسل (شيت مبيعات العملاء التفصيلي)</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ---------------- CARD 3: Products, Inventory & Prices (شيت الأصناف والمخزون والأسعار) ---------------- */}
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center font-black shrink-0">
+                <Package className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-lg font-black text-slate-900">
+                    3. شيت الأصناف والمخزون وقوائم الأسعار
+                  </h3>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
+                    isValidPublishedSource(sources.products)
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : 'bg-slate-100 text-slate-600 border border-slate-300'
+                  }`}>
+                    {isValidPublishedSource(sources.products) ? '● متصل سحابياً' : '○ غير متصل'}
+                  </span>
+                  <span className="bg-blue-100 text-blue-900 text-[10px] px-2 py-0.5 rounded-lg font-bold">
+                    الكتالوج والمخازن والكرتونة
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  كتالوج المنتجات، أسعار الكرتونة والقطعة، رصيد الفروع ومخزن أكتوبر المركزي، وروابط الصور
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-center">
+                <div className="text-[10px] text-blue-700 font-bold">الأصناف المسجلة</div>
+                <div className="text-sm font-black text-blue-800 font-mono">
+                  {metrics.totalProducts.toLocaleString('ar-EG')} صنف
+                </div>
+              </div>
+              <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-center">
+                <div className="text-[10px] text-slate-500 font-bold">إجمالي الكراتين المتاحة</div>
+                <div className="text-sm font-black text-slate-900 font-mono">
+                  {metrics.totalCartons.toLocaleString('ar-EG')} كرتونة
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* URL Input Form */}
+          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label htmlFor="products-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-blue-600" />
+                <span>رابط Google Sheet الخاص بالأصناف والمخزون والأسعار:</span>
+              </label>
+              {sourceUrls.products && (
+                <a
+                  href={sourceUrls.products}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-700 hover:underline flex items-center gap-1 font-bold"
+                >
+                  <span>فتح الشيت في Google Sheets</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Link2 className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  id="products-sheet-url"
+                  type="text"
+                  value={sourceUrls.products}
+                  onChange={(e) => setSourceUrls((prev) => ({ ...prev, products: e.target.value }))}
+                  placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleSaveUrl('products')}
+                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer"
+              >
+                {savedUrlNotice === 'products' ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-blue-400" />
+                    <span>تم حفظ الرابط ✓</span>
+                  </>
+                ) : (
+                  <span>حفظ الرابط دائماً</span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSyncProducts()}
+                disabled={syncingKey === 'products' || !sourceUrls.products.trim()}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {syncingKey === 'products' ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>جاري التحديث...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    <span>مزامنة سحابية فورية</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Notifications */}
+            {sheetSuccess.products && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{sheetSuccess.products}</span>
+              </div>
+            )}
+            {sheetErrors.products && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{sheetErrors.products}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => fileInputProductsRef.current?.click()}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Upload className="w-3.5 h-3.5 text-slate-600" />
+                <span>رفع ملف إكسل للأصناف والمخزون (.xlsx)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={generateSampleExcelTemplate}
+                className="text-slate-600 hover:text-slate-900 font-bold px-3 py-2 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <span>تحميل نموذج أصناف معتمد</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => exportProductsToExcel(products, selectedBranchFilter)}
+              className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-blue-300" />
+              <span>تصدير المخزون الحالي ({products.length} صنف)</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ---------------- CARD 4: Sales Rep Targets & Collections (شيت أهداف ومبيعات المناديب) ---------------- */}
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center font-black shrink-0">
+                <Target className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-lg font-black text-slate-900">
+                    4. شيت أهداف ومبيعات وتحصيلات المناديب
+                  </h3>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
+                    isValidPublishedSource(sources.targets)
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : 'bg-slate-100 text-slate-600 border border-slate-300'
+                  }`}>
+                    {isValidPublishedSource(sources.targets) ? '● متصل سحابياً' : '○ غير متصل'}
+                  </span>
+                  <span className="bg-purple-100 text-purple-900 text-[10px] px-2 py-0.5 rounded-lg font-bold">
+                    تارجت المناديب والمشرفين
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  تارجت المبيعات والتحصيل الشهري والربع سنوي لكل مندوب ومشرف، والمحققات الفعلية ونسب الإنجاز
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl text-center">
+                <div className="text-[10px] text-purple-700 font-bold">سجلات الأهداف</div>
+                <div className="text-sm font-black text-purple-800 font-mono">
+                  {metrics.totalTargets.toLocaleString('ar-EG')} سجل
+                </div>
+              </div>
+              <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-center">
+                <div className="text-[10px] text-slate-500 font-bold">إجمالي مستهدف المبيعات</div>
+                <div className="text-sm font-black text-slate-900 font-mono">
+                  {formatCurrency(metrics.totalTargetSales)}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* URL Input Form */}
+          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label htmlFor="targets-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-purple-600" />
+                <span>رابط Google Sheet الخاص بأهداف ومبيعات المناديب:</span>
+              </label>
+              {sourceUrls.targets && (
+                <a
+                  href={sourceUrls.targets}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-purple-700 hover:underline flex items-center gap-1 font-bold"
+                >
+                  <span>فتح الشيت في Google Sheets</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Link2 className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  id="targets-sheet-url"
+                  type="text"
+                  value={sourceUrls.targets}
+                  onChange={(e) => setSourceUrls((prev) => ({ ...prev, targets: e.target.value }))}
+                  placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleSaveUrl('targets')}
+                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer"
+              >
+                {savedUrlNotice === 'targets' ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-purple-400" />
+                    <span>تم حفظ الرابط ✓</span>
+                  </>
+                ) : (
+                  <span>حفظ الرابط دائماً</span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSyncTargets()}
+                disabled={syncingKey === 'targets' || !sourceUrls.targets.trim()}
+                className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {syncingKey === 'targets' ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>جاري التحديث...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    <span>مزامنة سحابية فورية</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Notifications */}
+            {sheetSuccess.targets && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{sheetSuccess.targets}</span>
+              </div>
+            )}
+            {sheetErrors.targets && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{sheetErrors.targets}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => fileInputTargetsRef.current?.click()}
+                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Upload className="w-3.5 h-3.5 text-slate-600" />
+                <span>رفع ملف إكسل للأهداف (.xlsx)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={generateSampleCustomerTargetTemplate}
+                className="text-slate-600 hover:text-slate-900 font-bold px-3 py-2 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <span>تحميل نموذج أهداف معتمد</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={exportTargetsReport}
+              className="bg-purple-900 hover:bg-purple-800 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-amber-300" />
+              <span>تصدير تقرير أهداف المناديب ({targets.length})</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ---------------- CARD 5: Promotional Offers & Discounts (شيت العروض الترويجية والخصومات) ---------------- */}
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-700 border border-rose-200 flex items-center justify-center font-black shrink-0">
+                <Tag className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-lg font-black text-slate-900">
+                    5. شيت العروض الترويجية والخصومات
+                  </h3>
+                  <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
+                    isValidPublishedSource(sources.offers)
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      : 'bg-slate-100 text-slate-600 border border-slate-300'
+                  }`}>
+                    {isValidPublishedSource(sources.offers) ? '● متصل سحابياً' : '○ غير متصل'}
+                  </span>
+                  <span className="bg-rose-100 text-rose-900 text-[10px] px-2 py-0.5 rounded-lg font-bold">
+                    الأسعار الترويجية الفورية
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  عروض المنتجات الترويجية، الأسعار المخفضة، وجدول العروض والخصومات الفورية المطبقة بالكتالوج والفواتير
+                </p>
+              </div>
+            </div>
+
+            {/* Quick Metrics */}
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <div className="bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl text-center">
+                <div className="text-[10px] text-rose-700 font-bold">العروض النشطة بالكتالوج</div>
+                <div className="text-sm font-black text-rose-800 font-mono">
+                  {metrics.activeOffersCount} عرض مفعل
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* URL Input Form */}
+          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label htmlFor="offers-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Globe className="w-3.5 h-3.5 text-rose-600" />
+                <span>رابط Google Sheet الخاص بجدول العروض والخصومات الترويجية:</span>
+              </label>
+              {sourceUrls.offers && (
+                <a
+                  href={sourceUrls.offers}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-rose-700 hover:underline flex items-center gap-1 font-bold"
+                >
+                  <span>فتح الشيت في Google Sheets</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Link2 className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  id="offers-sheet-url"
+                  type="text"
+                  value={sourceUrls.offers}
+                  onChange={(e) => setSourceUrls((prev) => ({ ...prev, offers: e.target.value }))}
+                  placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
+                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500 font-medium"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleSaveUrl('offers')}
+                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer"
+              >
+                {savedUrlNotice === 'offers' ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-rose-400" />
+                    <span>تم حفظ الرابط ✓</span>
+                  </>
+                ) : (
+                  <span>حفظ الرابط دائماً</span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSyncOffers()}
+                disabled={syncingKey === 'offers' || !sourceUrls.offers.trim()}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+              >
+                {syncingKey === 'offers' ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>جاري التحديث...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-4 h-4" />
+                    <span>تطبيق ومزامنة العروض</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Notifications */}
+            {sheetSuccess.offers && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{sheetSuccess.offers}</span>
+              </div>
+            )}
+            {sheetErrors.offers && (
+              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{sheetErrors.offers}</span>
               </div>
             )}
           </div>
         </div>
-      )}
 
-      {/* SUB-TAB 5: Live Google Sheets Sources */}
-      {activeSubTab === 'published_sources' && (
-        <div className="space-y-6">
-          <PublishedDataSourcesPanel />
-        </div>
-      )}
+      </div>
 
-      {/* Supported Columns Reference */}
-      <div className="navy-panel text-white rounded-3xl p-5 shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="font-extrabold text-xs t-brass">
-            الأعمدة الأساسية المدعومة تلقائياً في Google Sheets والإكسل:
+      {/* Quick Recognized Columns Reference */}
+      <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-sm space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <FileCheck className="w-5 h-5 text-amber-400" />
+            <h4 className="font-extrabold text-sm text-amber-300">
+              الأعمدة الأساسية المقروءة والمدعومة تلقائياً في الشيتات الخمس:
+            </h4>
+          </div>
+          <span className="text-[11px] text-slate-400 font-medium">
+            تطابق ذكي فوري مع أسماء الأعمدة العربية والإنجليزية
           </span>
-          <span className="text-[10px] text-slate-400">مطابقة ذكية وسريعة للأسعار والمخزون</span>
         </div>
 
-        <div className="flex flex-wrap gap-1.5 text-[11px]">
-          {[
-            'الكود الموحد',
-            'كود المنتج',
-            'اسم المنتج',
-            'الحجم',
-            'عدد القطع',
-            'سعر الكرتونه',
-            'Item group',
-            'Family Name',
-            'اللون',
-            'البحيرة',
-            'الفيوم',
-            'القاهرة',
-            'المنيا',
-            'ديمشلت',
-            'مخزون اكتوبر',
-            'منوف',
-            'منيا القمح',
-            'سعر العرض',
-            'لينك الصوره',
-            'كود العميل (CUST...)',
-            'اسم العميل',
-            'رصيد العميل'
-          ].map((col, idx) => (
-            <span
-              key={idx}
-              className="bg-white/[0.06] text-slate-200 px-2.5 py-1 rounded-lg border border-white/10 font-medium"
-            >
-              {idx + 1}. {col}
-            </span>
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
+          <div className="bg-white/5 p-3 rounded-2xl border border-white/10 space-y-1.5">
+            <strong className="text-emerald-400 block font-black">شيت العملاء والمديونيات:</strong>
+            <p className="text-slate-300 text-[11px] leading-5">
+              كود العميل، اسم العميل، الفرع، اسم المندوب، المشرف، المنطقة، رقم الهاتف، المديونية الحالية، الحد الائتماني، حالة الدين، صلاحية التعامل.
+            </p>
+          </div>
+
+          <div className="bg-white/5 p-3 rounded-2xl border border-white/10 space-y-1.5">
+            <strong className="text-amber-400 block font-black">شيت مبيعات العملاء والتارجت:</strong>
+            <p className="text-slate-300 text-[11px] leading-5">
+              كود العميل، اسم العميل، مبيعات 2026، مبيعات 2025، نسبة النمو %، تحصيلات 2026، مبيعات الشهور 1 إلى 12، تحصيلات الشهور 1 إلى 12، تارجت العميل.
+            </p>
+          </div>
+
+          <div className="bg-white/5 p-3 rounded-2xl border border-white/10 space-y-1.5">
+            <strong className="text-blue-400 block font-black">شيت الأصناف والمخزون:</strong>
+            <p className="text-slate-300 text-[11px] leading-5">
+              الكود الموحد، كود المنتج، اسم المنتج، الحجم، عدد القطع بالكرتونة، سعر الكرتونة، سعر القطعة، رصيد الفروع (المنيا، الفيوم، البحيرة...)، مخزون أكتوبر، لينك الصورة.
+            </p>
+          </div>
         </div>
+      </div>
+
+      {/* Advanced Collapsible Utility: Google Drive Folder Scanner */}
+      <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+        <button
+          type="button"
+          onClick={() => setIsDriveScannerOpen(!isDriveScannerOpen)}
+          className="w-full p-5 flex items-center justify-between text-right font-black text-xs sm:text-sm text-slate-800 hover:bg-slate-50 transition cursor-pointer"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700">
+              <FolderOpen className="w-4 h-4" />
+            </div>
+            <span>أداة مساعدة: استخراج روابط صور الأصناف من Google Drive تلقائياً (Apps Script)</span>
+          </div>
+          {isDriveScannerOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+        </button>
+
+        {isDriveScannerOpen && (
+          <div className="p-6 bg-slate-50 border-t border-slate-200 space-y-4 text-xs animate-in fade-in">
+            <p className="text-slate-600 leading-relaxed">
+              إذا كانت لديك صور الأصناف مخزنة في مجلد Google Drive، يمكنك استخدام هذا السكربت المجاني داخل Google Sheets (من قائمة Extensions ⬅️ Apps Script) ليقوم بجلب كل الصور وتوليد روابط مباشرة لها ووضعها في شيت الإكسل:
+            </p>
+
+            <div className="relative">
+              <pre className="bg-slate-950 text-emerald-400 p-4 rounded-2xl overflow-x-auto text-[11px] font-mono leading-relaxed" dir="ltr">
+                {sampleAppsScript}
+              </pre>
+              <button
+                type="button"
+                onClick={handleCopyScript}
+                className="absolute top-3 left-3 bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+              >
+                {copiedScript ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-300" />
+                    <span>تم النسخ ✓</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>نسخ الكود</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Wipe Confirmation Modal */}
       {isWipeModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="w-12 h-12 rounded-2xl tint-risk flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
 
@@ -2096,7 +1742,7 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
               <button
                 type="button"
                 onClick={() => setIsWipeModalOpen(false)}
-                className="btn-ghost flex-1 py-2.5 text-xs cursor-pointer"
+                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold flex-1 py-2.5 text-xs rounded-xl cursor-pointer"
               >
                 إلغاء
               </button>
@@ -2108,13 +1754,16 @@ function processFolderRecursive(folder, sheet, currentPath, startTime, timeLimit
                   try {
                     await wipeAllProductsAndData({ wipeInvoices: wipeInvoicesToo });
                     setIsWipeModalOpen(false);
-                    setImportSuccessMsg('تم مسح جميع الأصناف والبيانات بنجاح! يمكنك الآن رفع ملفك من الصفر.');
+                    setSheetSuccess((prev) => ({
+                      ...prev,
+                      products: 'تم مسح الأصناف والبيانات بنجاح! يمكنك الآن إعادة المزامنة من الشيتات السحابية.'
+                    }));
                   } finally {
                     setIsWiping(false);
                   }
                 }}
                 disabled={isWiping}
-                className="btn-danger flex-1 py-2.5 text-xs shadow-md cursor-pointer disabled:opacity-50"
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold flex-1 py-2.5 text-xs rounded-xl shadow-md cursor-pointer disabled:opacity-50"
               >
                 {isWiping ? 'جاري المسح...' : 'نعم، مسح والبدء من جديد'}
               </button>

@@ -46,40 +46,10 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'settings' | 'team' | 'about' | 'install' | 'privacy'>(defaultTab);
-  const [apkDownloadState, setApkDownloadState] = useState<'idle' | 'downloading' | 'completed'>('idle');
   const [autoSyncOrders, setAutoSyncOrders] = useState(true);
   const [soundAlerts, setSoundAlerts] = useState(true);
 
   if (!isOpen) return null;
-
-  const handleDownloadApk = () => {
-    setApkDownloadState('downloading');
-    
-    // Create an APK installer package / launcher download
-    const apkPackageContent = JSON.stringify({
-      app: 'Tantawy Group Mobile Enterprise',
-      sector: 'إدارة القطاع المنزلي لمجموعة دريم طنطاوي',
-      version: '2.4.2',
-      buildDate: new Date().toISOString(),
-      platform: 'Android 8.0+',
-      source: window.location.origin,
-      pwaUrl: window.location.href
-    }, null, 2);
-
-    const blob = new Blob([apkPackageContent], { type: 'application/vnd.android.package-archive' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'Tantawy-Group-HomeSector-v2.4.apk';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-
-    setTimeout(() => {
-      setApkDownloadState('completed');
-    }, 1200);
-  };
 
   return (
     <div dir="rtl" className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in overflow-y-auto">
@@ -154,7 +124,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
             }`}
           >
             <Smartphone className="w-4 h-4" />
-            <span>تثبيت التطبيق (PWA / APK)</span>
+            <span>تثبيت التطبيق على الجهاز (PWA)</span>
           </button>
 
           <button
@@ -260,44 +230,97 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
             </div>
           )}
 
-          {/* TAB 2: ABOUT APP */}
+          {/* TAB 2: ABOUT APP - RICH TANTAWY GROUP ENTERPRISE DETAILS */}
           {activeTab === 'about' && (
-            <div className="space-y-3.5 animate-in fade-in">
-              <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-[var(--app-line)]">
-                <img src="/tantawy-brand-logo.svg" alt="Tantawy Group" className="w-14 h-14 object-contain" />
+            <div className="space-y-4 animate-in fade-in">
+              <div className="flex items-center gap-3.5 bg-slate-50 p-4 rounded-2xl border border-[var(--app-line)]">
+                <img src="/tantawy-brand-logo.svg" alt="Tantawy Group" className="w-16 h-16 object-contain shrink-0" />
                 <div>
-                  <h3 className="font-black text-base text-slate-900">منظومة مجموعة دريم طنطاوي للقطاع المنزلي</h3>
-                  <div className="text-[11px] text-amber-700 font-bold">الإصدار المعتمد: v2.4.2 Enterprise Pro Edition</div>
-                  <div className="text-[10px] text-slate-400 mt-0.5">Dream Tantawy Group • Home Sector ERP & Field Distribution</div>
+                  <h3 className="font-black text-base sm:text-lg text-slate-900">
+                    مجموعة دريم طنطاوي • القطاع المنزلي والأجهزة
+                  </h3>
+                  <div className="text-xs text-amber-700 font-bold mt-0.5">
+                    TANTAWY GROUP • منظومة التوزيع الميداني وإدارة سلاسل الإمداد
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-1 font-mono">
+                    الإصدار التشغيلي: v2.5.0 Enterprise Pro • متصل بقواعد البيانات المركزية
+                  </div>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <h4 className="font-black text-slate-900 text-xs">أبرز قدرات ومميزات المنظومة:</h4>
+              {/* Company & Operational Overview */}
+              <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+                <h4 className="font-black text-slate-900 text-xs flex items-center gap-2">
+                  <Building className="w-4 h-4 text-amber-600" />
+                  <span>نبذة عن الكيان وشبكة التوزيع الميداني</span>
+                </h4>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  تُعد <strong>مجموعة دريم طنطاوي (Farouk Tantawy)</strong> واحدة من كبرى قلاع تجارة وتوزيع الأجهزة المنزلية، الأدوات والأواني المطبخية، ومستلزمات البيت الحديث في مصر. تغطي عمليات المجموعة أكثر من <strong>5,000 تاجر جملة وتجزئة</strong> عبر <strong>7 فروع إقليمية</strong> مدعومة بالمستودع اللوجستي المركزي بمدينة 6 أكتوبر، مع أسطول شحن وتوزيع ميداني مباشر.
+                </p>
+              </div>
+
+              {/* Core Pillars */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                  <div className="font-black text-slate-900 text-xs flex items-center gap-1.5">
+                    <Server className="w-4 h-4 text-blue-600" />
+                    <span>المخزون المركزي وفروع التوزيع الـ 7</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    ربط آني بين مستودع 6 أكتوبر الرئيسي وفروع الصعيد والقاهرة والدلتا لمنع الحجز المزدوج وتوفير رؤية فورية للأرصدة المتاحة للبيع.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                  <div className="font-black text-slate-900 text-xs flex items-center gap-1.5">
+                    <Scale className="w-4 h-4 text-emerald-600" />
+                    <span>دورة الائتمان وسقف المديونيات</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    منظومة ائتمان صارمة تفحص حد كل عميل (Credit Limit)، وتتحقق من وجود أوراق ضمان (شيكات / إيصالات أمانة) قبل اعتماد الشحن.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                  <div className="font-black text-slate-900 text-xs flex items-center gap-1.5">
+                    <Users className="w-4 h-4 text-amber-600" />
+                    <span>سلسلة الاعتماد الهرمي للطلبيات</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    مسار توثيق رقمي ثلاثي: المندوب الميداني ⬅️ اعتماد المشرف ⬅️ مصادقة مدير الفرع والمالية ⬅️ إصدار إذن الصرف المخزني.
+                  </p>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
+                  <div className="font-black text-slate-900 text-xs flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-purple-600" />
+                    <span>الفواتير وسندات القبض الإلكترونية</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-relaxed">
+                    طباعة ومشاركة إيصالات بيع وسندات تحصيل معتمدة بكود QR وباركود دولي لحماية حقوق التجار والشركة ومنع أي تلاعب نقدي.
+                  </p>
+                </div>
+              </div>
+
+              {/* Key Features List */}
+              <div className="bg-slate-50 p-4 rounded-2xl border border-[var(--app-line)] space-y-2">
+                <h4 className="font-black text-slate-900 text-xs">مميزات تقنية متقدمة في هذا الإصدار:</h4>
                 <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700">
-                  <li className="flex items-start gap-2 bg-slate-50 p-2.5 rounded-xl border border-[var(--app-line)]">
+                  <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>كتالوج منتجات بصري حديث وفائق السرعة ومصمم للعمل بأعلى كفاءة على شبكات الموبايل.</span>
+                    <span>كتالوج بصري فائق السرعة يعمل بسلاسة على شبكات الموبايل والإنترنت الضعيف.</span>
                   </li>
-                  <li className="flex items-start gap-2 bg-slate-50 p-2.5 rounded-xl border border-[var(--app-line)]">
+                  <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>سلة تسوق ذكية مستوحاة من نمط أمازون ونون للويب، وتاجر ورنين للموبايل الميداني.</span>
+                    <span>تصدير شيتات إكسل متقدمة متعددة التبويبات تشمل شيت «مبيعات العملاء» والمديونيات.</span>
                   </li>
-                  <li className="flex items-start gap-2 bg-slate-50 p-2.5 rounded-xl border border-[var(--app-line)]">
+                  <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>إحكام لحظي للمخزون ومنع الحجز المزدوج بين المناديب والفروع على نفس القطع.</span>
+                    <span>لوحة المستشار القانوني لمتابعة الجدولة، المطالبات القضائية وسندات التنفيذ.</span>
                   </li>
-                  <li className="flex items-start gap-2 bg-slate-50 p-2.5 rounded-xl border border-[var(--app-line)]">
+                  <li className="flex items-start gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>دورة اعتماد هرمية موثقة: مندوب ⬅️ مشرف ⬅️ مدير فرع ⬅️ صرف المخزن المركزي.</span>
-                  </li>
-                  <li className="flex items-start gap-2 bg-slate-50 p-2.5 rounded-xl border border-[var(--app-line)]">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>لوحة المستشار القانوني لمتابعة الإجراءات القضائية، الشيكات، وإيصالات الأمانة وجدولة السداد.</span>
-                  </li>
-                  <li className="flex items-start gap-2 bg-slate-50 p-2.5 rounded-xl border border-[var(--app-line)]">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>توليد وتصدير الفواتير الإلكترونية المعتمدة للطباعة الفورية مع الباركود وQR المعتمد.</span>
+                    <span>مزامنة مباشرة سحابية مع جداول Google Sheets وقواعد بيانات السيرفر.</span>
                   </li>
                 </ul>
               </div>
@@ -392,64 +415,18 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
             </div>
           )}
 
-          {/* TAB 4: INSTALLATION - BOTH PWA AND APK */}
+          {/* TAB 4: INSTALLATION - PWA ONLY */}
           {activeTab === 'install' && (
             <div className="space-y-4 animate-in fade-in">
               <div className="bg-slate-900 text-white rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <img src="/tantawy-brand-logo.svg" alt="الطنطاوي" className="w-12 h-12 rounded-xl bg-white/10 p-1 border border-white/20 shrink-0" />
                   <div>
-                    <h4 className="font-black text-sm text-amber-400">خيارات تثبيت وتشغيل التطبيق على الأجهزة</h4>
+                    <h4 className="font-black text-sm text-amber-400">تثبيت التطبيق على الشاشة الرئيسية (PWA)</h4>
                     <p className="text-[11px] text-slate-300 mt-0.5">
-                      يمكنك تثبيت المنظومة كـ أيقونة سريعة (PWA) أو تنزيل تطبيق أندرويد مستقل (APK).
+                      تثبيت فوري بدون استهلاك مساحة، يعمل كـ تطبيق أصلي بكامل الشاشة على جميع الهواتف والأجهزة.
                     </p>
                   </div>
-                </div>
-              </div>
-
-              {/* Option A: Direct APK Download */}
-              <div className="bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-500/30 rounded-2xl p-4 space-y-3">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-black shadow-md shrink-0">
-                      <FolderDown className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-black text-slate-900 text-sm">تثبيت كـ تطبيق أندرويد مباشر (حزمة APK)</h4>
-                        <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full">
-                          موصى به للمناديب
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
-                        تطبيق أندرويد مستقل، سريع الاستجابة، مخصص للأجهزة اللوحية وهواتف المبيعات، مع تشغيل فوري وأيقونة خاصة بالتطبيقات.
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={handleDownloadApk}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shrink-0 cursor-pointer transition"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>{apkDownloadState === 'downloading' ? 'جاري التحميل...' : apkDownloadState === 'completed' ? 'تم تنزيل APK ✅' : 'تحميل تطبيق (APK)'}</span>
-                  </button>
-                </div>
-
-                {apkDownloadState === 'completed' && (
-                  <div className="p-3 bg-emerald-100 text-emerald-900 rounded-xl text-[11px] font-bold border border-emerald-300">
-                    ✅ تم تحميل حزمة التثبيت بنجاح! توجه لملفات التنزيل (Downloads) في جهازك واضغط على الملف لتثبيته.
-                  </div>
-                )}
-
-                {/* APK Steps */}
-                <div className="bg-white/80 p-3 rounded-xl border border-emerald-200/60 text-[11px] text-slate-600 space-y-1">
-                  <div className="font-bold text-slate-800">طريقة تثبيت ملف الـ APK على هاتف الأندرويد:</div>
-                  <ol className="list-decimal list-inside space-y-1">
-                    <li>اضغط على زر <strong>تحميل تطبيق (APK)</strong> أعلاه.</li>
-                    <li>عند ظهور رسالة المتصفح "قد يكون الملف ضاراً"، اضغط على <strong>"تنزيل على أي حال" (Download anyway)</strong> لأنه تطبيق داخلي مصرح من المجموعة.</li>
-                    <li>افتح ملف التنزيل واختر <strong>تثبيت (Install)</strong>، وتأكد من تفعيل خيار <em>"السماح بالتثبيت من هذا المصدر"</em>.</li>
-                  </ol>
                 </div>
               </div>
 

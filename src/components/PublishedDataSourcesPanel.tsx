@@ -16,8 +16,14 @@ const sourceMeta: Record<SourceKey, { icon: React.ReactNode; title: string; desc
   customers: {
     icon: <Users className="w-5 h-5" />,
     title: 'شيت العملاء (Google Sheets)',
-    description: 'قاعدة العملاء، المديونيات، الحد الائتماني، وتارجت العملاء',
-    help: 'ضع رابط Google Sheet الخاص بالعملاء. تأكد من تفعيل خاصية "أي شخص لديه الرابط يمكنه العرض" (Anyone with link can view).',
+    description: 'قاعدة العملاء، المديونيات، الحد الائتماني، وتعيين المناديب والمشرفين',
+    help: 'ضع رابط Google Sheet الخاص بقاعدة العملاء. تأكد من تفعيل خاصية "أي شخص لديه الرابط يمكنه العرض" (Anyone with link can view).',
+  },
+  customerSales: {
+    icon: <BarChart3 className="w-5 h-5" />,
+    title: 'شيت مبيعات العملاء (Google Sheets)',
+    description: 'المبيعات الشهرية 2026، التحصيلات، نسب النمو، وتارجت كل عميل',
+    help: 'ضع رابط Google Sheet الخاص بمبيعات العملاء الشهرية والتحصيلات. يتم تحديث مبيعات العملاء في مكانها بدون تكرار السجلات.',
   },
   products: {
     icon: <FileSpreadsheet className="w-5 h-5" />,
@@ -118,14 +124,14 @@ export const PublishedDataSourcesPanel: React.FC = () => {
             </p>
           </div>
           <div className="bg-white/10 border border-white/10 rounded-2xl px-4 py-3 text-center shrink-0">
-            <strong className="text-2xl font-mono text-emerald-300">{connectedCount} / 3</strong>
+            <strong className="text-2xl font-mono text-emerald-300">{connectedCount} / 5</strong>
             <span className="block text-[11px] text-slate-300">شيتات متصلة</span>
           </div>
         </div>
       </div>
 
       <div className="grid lg:grid-cols-[260px_1fr] gap-0">
-        {/* Navigation for the 3 Google Sheets */}
+        {/* Navigation for the 5 Google Sheets */}
         <nav className="bg-slate-50 p-3 border-l border-slate-200 space-y-2">
           {(Object.keys(sourceMeta) as SourceKey[]).map((key) => {
             const item = sourceMeta[key];

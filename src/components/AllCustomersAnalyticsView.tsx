@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Users,
   Search,
@@ -74,6 +74,7 @@ import {
   filterCustomersByRBAC,
   fetchDetailedCustomersFromGoogleSheet,
   parseDetailedCustomersExcel,
+  exportCustomerAnalyticsToExcel,
   downloadCustomerAnalyticsTemplate
 } from '../services/customerAnalyticsService';
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
@@ -1223,30 +1224,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-          {!isRep && !isSupervisor && (
-          <button
-            id="analytics-privacy-mode-btn"
-            type="button"
-            onClick={togglePrivacyMode}
-            className={`app-btn min-h-[40px] px-3 py-2 text-xs whitespace-nowrap ${
-              isPrivacyMode ? 'app-btn-warn-soft' : 'app-btn-ghost'
-            }`}
-            title={isPrivacyMode ? 'وضع سرية البيانات نشط (المبيعات والأرصدة مخفية). اضغط للإظهار.' : 'تفعيل وضع سرية البيانات لإخفاء الأرقام المالية الحساسة أثناء العرض'}
-          >
-            {isPrivacyMode ? (
-              <>
-                <EyeOff className="w-4 h-4 t-warn animate-pulse" />
-                <span className="font-extrabold t-warn">سرية البيانات: نشطة</span>
-              </>
-            ) : (
-              <>
-                <Eye className="w-4 h-4 text-slate-500" />
-                <span>سرية البيانات</span>
-              </>
-            )}
-          </button>
-          )}
-
           {/* تخصيص أعمدة الجدول */}
           <button
             type="button"
@@ -1302,6 +1279,18 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </button>
           )}
 
+          {!isRep && (
+            <button
+              id="analytics-export-excel-btn"
+              type="button"
+              onClick={() => exportCustomerAnalyticsToExcel(filteredCustomers, 'مبيعات_وعملاء_طنطاوي_2026')}
+              className="app-btn app-btn-ok px-3 py-2 text-xs whitespace-nowrap"
+              title="تصدير كشف شامل يتضمن شيت 'مبيعات العملاء' وشيت 'المديونيات' كملف Excel"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>تصدير إكسل (مبيعات العملاء)</span>
+            </button>
+          )}
         </div>
       </div>
 
