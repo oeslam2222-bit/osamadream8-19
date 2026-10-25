@@ -762,7 +762,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={salesCollectionsChart} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" reversed tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                  <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                   <YAxis orientation="right" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => compact(Number(v))} />
                   <Tooltip
                     formatter={(val: any, name: any) => [money(Number(val)), name === 'sales' ? 'المبيعات' : 'التحصيلات']}
@@ -778,7 +778,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           {/* Donut Chart: توزيع العملاء */}
           <div className="col-span-4 bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
             <div>
-              <h3 className="font-black text-slate-900 text-sm">توزيع العملاء</h3>
+              <h3 className="font-black text-slate-900 text-sm">��وزيع العملاء</h3>
               <p className="text-[11px] text-slate-400">تصنيف التعامل للعملاء المسجلين</p>
             </div>
 

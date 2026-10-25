@@ -776,7 +776,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       { name: 'كاش / فوري', value: cashCount, color: '#10B981' },
       { name: 'على دفعات', value: installmentsCount, color: '#F59E0B' },
       { name: 'شيكات بنكية', value: chequesCount, color: '#6366F1' },
-      { name: 'آجل تجا��ي', value: creditCount, color: '#0EA5E9' },
+      { name: 'آجل تجا����ي', value: creditCount, color: '#0EA5E9' },
     ].filter((d) => d.value > 0);
   }, [filteredCustomers]);
 
@@ -1255,7 +1255,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <span className="font-bold">مقارنة حركة المبيعات والتحصيلات على مدار 12 شهراً لعام 2026:</span>
                 {isPrivacyMode && <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md">وضع السرية مفعل</span>}
               </div>
-              <div className="h-64 sm:h-72 w-full">
+<div className="h-64 sm:h-72 w-full" dir="ltr">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={kpiStats.monthlyChartData}
@@ -2904,7 +2904,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                             لا توجد حركات بيع أو تحصيل مسجلة لهذا العميل خلال أشهر 2026
                           </div>
                           <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                            ا��عميل مسجل حالياً بدون فواتير أو سدادات خلال العام الحالي، يمكنك إنشاء طلبية جديدة أو تسجيل زيارة ميدانية لتنشيط التعامل.
+                            ا��عميل مسجل حالياً بدون فواتير أو سدادات خلال العام الحالي، يمكنك إنشاء طلبية جديدة أو تسجيل زيارة ميدانية لتنش��ط التعامل.
                           </p>
                         </div>
                         <button
