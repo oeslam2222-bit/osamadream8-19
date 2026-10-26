@@ -15,7 +15,7 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
-import React, { Component, ErrorInfo, Suspense, useEffect, useState } from 'react';
+import React, { Component, ErrorInfo, Suspense, useEffect, useMemo, useState } from 'react';
 import { DashboardHome } from './components/DashboardHome';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
