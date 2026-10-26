@@ -275,7 +275,6 @@ export const ReturnsWarehouseView: React.FC = () => {
                   </div>
                   <div className="text-left shrink-0">
                     <div className="text-lg font-black" style={{ color: 'var(--app-navy)' }}>{(Number(v.returnValue) || 0).toLocaleString()} ج.م</div>
-                    <div className={`text-[11px] font-black mt-1 ${overdue ? 'text-rose-600' : 'text-slate-500'}`}>مدة المرحلة: {formatElapsed(age)}</div>
                     {v.returnHandledBy ? <div className="text-[11px] font-bold text-slate-400 mt-0.5">المسؤول: {v.returnHandledBy}</div> : null}
                   </div>
                 </div>

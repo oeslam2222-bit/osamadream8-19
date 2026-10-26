@@ -123,7 +123,6 @@ export const ReturnsCustomersView: React.FC = () => {
     { icon: MapPin, label: 'المرتجع عند العميل', value: stats.atCustomer, sub: 'يحتاج تنسيق سيارة' },
     { icon: PackageCheck, label: 'المرتجع بالمخزن', value: stats.atWarehouse, sub: 'في دوره الاستلام' },
     { icon: AlertTriangle, label: 'عملاء متأخرين', value: stats.overdue, sub: 'تجاوزوا المدة المستهدفة' },
-    { icon: Clock3, label: 'أطول مدة انتظار', value: formatElapsed(Math.max(0, ...filtered.map((g) => g.longestElapsed))), sub: 'من آخر تحويل' },
   ];
 
   return (
