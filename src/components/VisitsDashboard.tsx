@@ -1,291 +1,359 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarCheck, CheckCircle2, Clock3, MapPin, Plus, Save, Users } from 'lucide-react';
+import { AlertTriangle, CalendarCheck, CheckCircle2, Clock3, Plus, Save, Users } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { StatGrid } from './ui/StatGrid';
 import type { CustomerVisit } from '../types';
 
+const VISIT_TYPES: CustomerVisit['type'][] = ['زيارة دورية', 'تحصيل', 'تسليم بضاعة', 'حل مشكلة', 'فتح حساب جديد', 'زيارة بيع وطلبية', 'متابعة حساب', 'زيارة مجدولة', 'زيارة مباشرة', 'مرتجع', 'أخرى'];
+const OUTCOMES: CustomerVisit['outcome'][] = ['تم عمل طلبية', 'تم التحصيل', 'تأجيل سداد', 'المحل مغلق', 'متابعة فقط', 'مرتجع لدي العميل', 'أخرى'];
+
 export const VisitsDashboard: React.FC = () => {
-  const { currentUser, customers, users, getVisibleVisits, addVisit, updateVisit, getCustomerVisitSummary } = useApp();
+  const { currentUser, customers, users, getVisibleVisits, addVisit, updateVisit, deleteVisit } = useApp();
   const visible = getVisibleVisits();
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [branch, setBranch] = useState('الكل');
   const [rep, setRep] = useState('الكل');
+  const [typeFilter, setTypeFilter] = useState('الكل');
+  const [statusFilter, setStatusFilter] = useState('الكل');
+  const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
-  const [selectedVisit, setSelectedVisit] = useState<any>(null);
-  const [form, setForm] = useState({ customerId: '', repId: currentUser?.role === 'sales_rep' ? currentUser.id : '', date: new Date().toISOString().slice(0, 10), time: '09:00', type: 'زيارة دورية' as CustomerVisit['type'], notes: '' });
-  
-  // تحديد الفروع والمناديب المتاحة حسب الدور
-  const branches = currentUser?.role === 'branch_manager' ? [currentUser.branchName || ''] : 
+  const [selectedVisit, setSelectedVisit] = useState<CustomerVisit | null>(null);
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({ customerId: '', repId: currentUser?.role === 'sales_rep' ? currentUser.id : '', date: todayStr, time: '09:00', type: 'زيارة دورية' as CustomerVisit['type'], outcome: 'متابعة فقط' as CustomerVisit['outcome'], collectedAmount: 0, orderAmount: 0, returnValue: 0, returnReason: '', returnItems: '', notes: '' });
+
+  const branches = currentUser?.role === 'branch_manager' ? [currentUser.branchName || ''] :
     currentUser?.role === 'supervisor' ? Array.from(new Set(users.filter((u) => u.supervisorId === currentUser.id).map((u) => u.branchName).filter(Boolean))) :
     Array.from(new Set(users.map((u) => u.branchName).filter(Boolean))) as string[];
-  
-  const reps = users.filter((u) => u.role === 'sales_rep' && 
-    (currentUser?.role !== 'supervisor' || u.supervisorId === currentUser.id) && 
+
+  const reps = users.filter((u) => u.role === 'sales_rep' &&
+    (currentUser?.role !== 'supervisor' || u.supervisorId === currentUser.id) &&
     (currentUser?.role !== 'branch_manager' || u.branchName === currentUser.branchName) &&
     (branch === 'الكل' || u.branchName === branch));
-  
-  const filtered = useMemo(() => visible.filter((v) => v.date.startsWith(month) && (branch === 'الكل' || v.branchName === branch) && (rep === 'الكل' || v.repId === rep)), [visible, month, branch, rep]);
-  const stats = { total: filtered.length, completed: filtered.filter((v) => v.status === 'منفذة').length, scheduled: filtered.filter((v) => v.status === 'مجدولة').length, customers: new Set(filtered.map((v) => v.customerId)).size };
-  
-  // للمندوب: عملاء الزيارات فقط
-  // للمشرف والمدير: جميع عملائهم
-  const myCustomers = currentUser?.role === 'sales_rep' 
+
+  const filtered = useMemo(() => visible.filter((v) => v.date.startsWith(month) && (branch === 'الكل' || v.branchName === branch) && (rep === 'الكل' || v.repId === rep) && (typeFilter === 'الكل' || v.type === typeFilter) && (statusFilter === 'الكل' || v.status === statusFilter) && (!search || (v.customerName || '').includes(search) || (v.customerCode || '').includes(search))).sort((a, b) => `${b.date}${b.time || ''}`.localeCompare(`${a.date}${a.time || ''}`)), [visible, month, branch, rep, typeFilter, statusFilter, search]);
+
+  const myCustomers = currentUser?.role === 'sales_rep'
     ? customers.filter((c) => c.repId === currentUser.id || c.repName === currentUser.name)
     : currentUser?.role === 'branch_manager'
     ? customers.filter((c) => c.branchName === currentUser.branchName)
     : currentUser?.role === 'supervisor'
     ? customers.filter((c) => users.find((u) => (u.id === c.repId || u.name === c.repName) && u.supervisorId === currentUser.id))
     : customers;
-  
-  const submit = (e: React.FormEvent) => { 
-    e.preventDefault(); 
-    const r = reps.find((u) => u.id === form.repId); 
-    const c = customers.find((x) => x.id === form.customerId); 
-    const result = addVisit({ ...form, repName: r?.name || currentUser?.name || '', branchName: r?.branchName || c?.branchName, supervisorId: r?.supervisorId, status: 'مجدولة' }); 
-    if (result.success) { 
-      setShowForm(false); 
-      setForm({ ...form, customerId: '', notes: '' }); 
-    } else alert(result.message); 
+
+  const stats = useMemo(() => {
+    const late = filtered.filter((v) => v.date < todayStr && v.status !== 'منفذة' && v.status !== 'ملغاة');
+    const visitedIds = new Set(filtered.map((v) => v.customerId).filter(Boolean));
+    const unVisited = myCustomers.filter((c) => c.id && !visitedIds.has(c.id)).length;
+    return {
+      total: filtered.length,
+      completed: filtered.filter((v) => v.status === 'منفذة').length,
+      scheduled: filtered.filter((v) => v.status === 'مجدولة').length,
+      upcoming: filtered.filter((v) => v.status === 'مجدولة' && v.date >= todayStr).length,
+      late: late.length,
+      returns: filtered.filter((v) => v.isReturn).length,
+      unVisited,
+    };
+  }, [filtered, myCustomers, todayStr]);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const r = reps.find((u) => u.id === form.repId);
+    const c = myCustomers.find((x) => x.id === form.customerId);
+    const isReturn = form.type === 'مرتجع';
+    const result = addVisit({
+      customerId: form.customerId,
+      customerName: c?.name || '',
+      customerCode: c?.code || '',
+      date: form.date,
+      time: form.time,
+      repId: r?.id || currentUser.id,
+      repName: r?.name || currentUser?.name || '',
+      branchName: r?.branchName || c?.branchName || '',
+      supervisorId: r?.supervisorId,
+      supervisorName: r?.supervisorName || '',
+      status: 'مجدولة',
+      type: form.type,
+      outcome: isReturn ? 'مرتجع لدي العميل' : form.outcome,
+      collectedAmount: isReturn ? 0 : form.collectedAmount,
+      orderAmount: form.orderAmount,
+      notes: form.notes,
+      isReturn,
+      returnValue: isReturn ? form.returnValue : 0,
+      returnReason: isReturn ? form.returnReason : '',
+      returnItems: isReturn ? form.returnItems : '',
+    });
+    if (result.success) { setShowForm(false); setForm((f) => ({ ...f, customerId: '', notes: '' })); }
   };
-  const statCards: { icon: React.ElementType; label: string; value: number }[] = [
-    { icon: CalendarCheck, label: 'إجمالي الزيارات', value: stats.total },
-    { icon: CheckCircle2, label: 'زيارات منفذة', value: stats.completed },
-    { icon: Clock3, label: 'زيارات مجدولة', value: stats.scheduled },
-    { icon: Users, label: 'عملاء تمت زيارتهم', value: stats.customers },
+
+  const statCards: { icon: React.ElementType; label: string; value: number; sub?: string }[] = [
+    { icon: CalendarCheck, label: 'إجمالي الزيارات', value: stats.total, sub: 'شهر ' + month },
+    { icon: CheckCircle2, label: 'زيارات منفذة', value: stats.completed, sub: stats.scheduled + ' مجدولة' },
+    { icon: CalendarCheck, label: 'زيارات مرتجعة', value: stats.returns, sub: 'بتعرض على مرحلة المتابعة' },
+    { icon: Clock3, label: 'زيارات قادمة', value: stats.upcoming, sub: 'مجدولة ولم تنفذ' },
+    { icon: AlertTriangle, label: 'زيارات متأخرة', value: stats.late, sub: 'تجاوز تاريخها بدون تنفيذ' },
+    { icon: Users, label: 'عملاء لم تتم زيارتهم', value: stats.unVisited, sub: 'من عملائي لهذا الشهر' },
   ];
 
-  return <div className="tantawy-screen space-y-5" dir="rtl">
-    <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5"><div><h1 className="text-2xl font-black text-slate-900">لوحة زيارات العملاء</h1><p className="text-sm text-slate-500 mt-1">تخطيط الزيارات وقياس التغطية مع خصوصية كاملة لكل دور</p></div><button onClick={() => setShowForm(true)} className="bg-[#173b63] hover:bg-[#214f7e] text-white font-bold px-4 py-2.5 rounded-xl flex items-center gap-2"><Plus className="w-4 h-4" /> جدولة زيارة</button></header>
-    <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      {statCards.map(({ icon: Icon, label, value }) => (
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm" key={label}>
-          <Icon className="w-5 h-5 text-blue-700 mb-2" />
-          <p className="text-xs text-slate-500">{label}</p>
-          <strong className="text-2xl text-slate-900">{value}</strong>
+  return (
+    <div className="tantawy-screen space-y-5" dir="rtl">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-black" style={{ color: 'var(--app-navy)' }}>لوحة الزيارات</h1>
+          <p className="text-sm text-slate-500 font-bold mt-1">متابعة الزيارات والتحصيلات والمرتجعات والمتابعات</p>
         </div>
-      ))}
-    </section>
-    {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager') && (
-      <section className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-wrap gap-3">
-        <label className="text-sm font-bold">الشهر<input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="block mt-1 border rounded-lg px-3 py-2" /></label>
-        {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') && (
-          <label className="text-sm font-bold">الفرع<select value={branch} onChange={(e) => setBranch(e.target.value)} className="block mt-1 border rounded-lg px-3 py-2"><option>الكل</option>{branches.map((b) => <option key={b}>{b}</option>)}</select></label>
-        )}
-        {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager') && (
-          <label className="text-sm font-bold">المندوب<select value={rep} onChange={(e) => setRep(e.target.value)} className="block mt-1 border rounded-lg px-3 py-2"><option value="الكل">الكل</option>{reps.map((u) => <option value={u.id} key={u.id}>{u.name}</option>)}</select></label>
-        )}
-      </section>
-    )}
-      <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
-        <div className="p-4 border-b border-slate-200 font-black text-slate-900 flex items-center justify-between">
-          <span>تفاصيل الزيارات ({filtered.length})</span>
-          <span className="text-xs text-slate-400 font-normal">تخطيط ومتابعة الزيارات الميدانية</span>
-        </div>
+        <button type="button" onClick={() => setShowForm(true)} className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black text-white shadow-lg" style={{ background: 'var(--app-navy)' }}>
+          <Plus className="w-4 h-4" /> تسجيل زيارة جديدة
+        </button>
+      </header>
 
-        {/* Mobile Visits Cards View */}
-        <div className="md:hidden p-3 flex flex-col gap-3">
-          {filtered.map((v) => {
-            const c = customers.find((x) => x.id === v.customerId);
-            const summary = getCustomerVisitSummary(v.customerId || '');
-            const isCompleted = v.status === 'منفذة';
-            const isScheduled = v.status === 'مجدولة';
-
-            return (
-              <div
-                key={v.id}
-                onClick={() => setSelectedVisit(v)}
-                className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-3.5 space-y-3 hover:border-teal-500/40 transition cursor-pointer"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <div className="font-black text-slate-900 text-sm">{c?.name || 'عميل غير معروف'}</div>
-                    <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                      <span className="font-mono text-slate-700 bg-slate-100 px-1.5 py-0.2 rounded font-bold">{v.date}</span>
-                      <span>·</span>
-                      <span className="font-mono">{v.time}</span>
-                      {v.branchName && (
-                        <>
-                          <span>·</span>
-                          <span>{v.branchName}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                    isCompleted
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : isScheduled
-                      ? 'bg-teal-50 text-teal-700 border border-teal-200'
-                      : 'bg-rose-50 text-rose-700 border border-rose-200'
-                  }`}>
-                    {v.status}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
-                  <div className="text-slate-500 text-[11px]">
-                    المندوب: <strong className="text-slate-800">{v.repName}</strong> ({summary.total} زيارة سابقة)
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={v.status}
-                      onClick={(e) => e.stopPropagation()}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        updateVisit({ ...v, status: e.target.value as CustomerVisit['status'] });
-                      }}
-                      className="border border-slate-200 rounded-lg px-2 py-1 text-xs bg-slate-50 font-bold text-slate-700"
-                    >
-                      <option>مجدولة</option>
-                      <option>منفذة</option>
-                      <option>لم تتم</option>
-                      <option>ملغاة</option>
-                    </select>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedVisit(v);
-                      }}
-                      className="p-1.5 rounded-lg bg-teal-50 text-teal-700 hover:bg-teal-100 transition"
-                      title="عرض الموقع والتفاصيل"
-                    >
-                      <MapPin className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
+      <StatGrid visible={6} tone="dark" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {statCards.map((c) => (
+          <div key={c.label} className="bg-white p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[11px] text-slate-500 font-bold">{c.label}</span>
+              <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: 'var(--app-navy)' }}>
+                <c.icon className="w-3.5 h-3.5 text-white" />
               </div>
-            );
-          })}
-          {!filtered.length && <p className="p-8 text-center text-slate-400 text-xs">لا توجد زيارات مسجلة في هذه الفلترة</p>}
-        </div>
+            </div>
+            <div className="text-base sm:text-lg font-black" style={{ color: 'var(--app-navy)' }}>{c.value}</div>
+            {c.sub ? <div className="text-[10px] text-slate-500 font-semibold">{c.sub}</div> : null}
+          </div>
+        ))}
+      </StatGrid>
 
-        {/* Desktop Visits Table */}
-        <div className="hidden md:block overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-700 font-bold">
-              <tr>
-                <th className="p-3 text-right">العميل</th>
-                <th className="p-3 text-right">التاريخ</th>
-                {(currentUser?.role !== 'sales_rep') && <th className="p-3 text-right">المندوب</th>}
-                {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && <th className="p-3 text-right">الفرع</th>}
-                <th className="p-3 text-right">الحالة</th>
-                <th className="p-3 text-right">التفاصيل</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((v) => { 
-                const c = customers.find((x) => x.id === v.customerId); 
-                const summary = getCustomerVisitSummary(v.customerId || '');
-                return <tr className="border-t hover:bg-slate-50 cursor-pointer" key={v.id} onClick={() => setSelectedVisit(v)}>
-                  <td className="p-3 font-bold">{c?.name || 'عميل غير معروف'}<div className="text-xs text-slate-400">{summary.total} زيارة</div></td>
-                  <td className="p-3">{v.date}<div className="text-xs text-slate-400">{v.time}</div></td>
-                  {(currentUser?.role !== 'sales_rep') && <td className="p-3 text-sm">{v.repName}</td>}
-                  {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && <td className="p-3 text-sm">{v.branchName || '-'}</td>}
-                  <td className="p-3">
-                    <select value={v.status} onChange={(e) => { e.stopPropagation(); updateVisit({ ...v, status: e.target.value as CustomerVisit['status'] }); }} className="border rounded-lg px-2 py-1 text-xs">
-                      <option>مجدولة</option>
-                      <option>منفذة</option>
-                      <option>لم تتم</option>
-                      <option>ملغاة</option>
-                    </select>
-                  </td>
-                  <td className="p-3"><button onClick={(e) => { e.stopPropagation(); setSelectedVisit(v); }} className="text-teal-600 hover:text-teal-700"><MapPin className="w-4 h-4" /></button></td>
-                </tr>
-              })}
-            </tbody>
-          </table>
-          {!filtered.length && <p className="p-10 text-center text-slate-500">لا توجد زيارات في الفلترة الحالية</p>}
-        </div>
-      </section>
-    {showForm && (
-      <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50">
-        <form onSubmit={submit} className="bg-white rounded-2xl p-5 w-full max-w-lg space-y-4" dir="rtl">
-          <h2 className="text-xl font-black">جدولة زيارة جديدة</h2>
-          <select required value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })} className="w-full border rounded-lg p-2">
-            <option value="">اختر العميل</option>
-            {myCustomers.map((c) => <option value={c.id} key={c.id}>{c.name} — {getCustomerVisitSummary(c.id, month).total} زيارة هذا الشهر</option>)}
-          </select>
-          <select required value={form.repId} onChange={(e) => setForm({ ...form, repId: e.target.value })} className="w-full border rounded-lg p-2">
-            <option value="">اختر المندوب</option>
-            {reps.map((u) => <option value={u.id} key={u.id}>{u.name}</option>)}
-          </select>
-          <div className="grid grid-cols-2 gap-3">
-            <input required type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="border rounded-lg p-2" />
-            <input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} className="border rounded-lg p-2" />
-          </div>
-          <textarea placeholder="تفاصيل الزيارة وملاحظات المشرف" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="w-full border rounded-lg p-2 min-h-24" />
-          <div className="flex justify-end gap-2">
-            <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg border">إلغاء</button>
-            <button className="bg-amber-500 px-4 py-2 rounded-lg font-bold flex items-center gap-2"><Save className="w-4 h-4" /> حفظ الزيارة</button>
-          </div>
-        </form>
-      </div>
-    )}
-    
-    {selectedVisit && (
-      <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) setSelectedVisit(null); }}>
-        <div className="relative z-[60] bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-black">تفاصيل الزيارة</h2>
-            <button onClick={() => setSelectedVisit(null)} className="text-slate-400 hover:text-slate-600" aria-label="إغلاق التفاصيل">إغلاق</button>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-4 mb-4">
-            <div className="bg-slate-50 p-3 rounded-lg">
-              <p className="text-xs text-slate-500 mb-1">العميل</p>
-              <p className="font-bold">{customers.find((x) => x.id === selectedVisit.customerId)?.name || 'غير معروف'}</p>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-lg">
-              <p className="text-xs text-slate-500 mb-1">المندوب</p>
-              <p className="font-bold">{selectedVisit.repName}</p>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-lg">
-              <p className="text-xs text-slate-500 mb-1">التاريخ والوقت</p>
-              <p className="font-bold">{selectedVisit.date} - {selectedVisit.time}</p>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-lg">
-              <p className="text-xs text-slate-500 mb-1">الفرع</p>
-              <p className="font-bold">{selectedVisit.branchName || '-'}</p>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-lg">
-              <p className="text-xs text-slate-500 mb-1">الحالة</p>
-              <p className="font-bold text-amber-600">{selectedVisit.status}</p>
-            </div>
-            <div className="bg-slate-50 p-3 rounded-lg">
-              <p className="text-xs text-slate-500 mb-1">نوع الزيارة</p>
-              <p className="font-bold">{selectedVisit.type || '-'}</p>
-            </div>
-          </div>
-          
-          {selectedVisit.notes && (
-            <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg mb-4">
-              <p className="text-xs text-blue-600 mb-1 font-bold">الملاحظات والتفاصيل</p>
-              <p className="text-sm text-slate-700">{selectedVisit.notes}</p>
-            </div>
-          )}
-          
-          {selectedVisit.status === 'منفذة' && selectedVisit.outcome && (
-            <div className="bg-green-50 border border-green-200 p-3 rounded-lg mb-4">
-              <p className="text-xs text-green-600 mb-1 font-bold">نتيجة الزيارة</p>
-              <p className="text-sm text-slate-700">{selectedVisit.outcome}</p>
-            </div>
-          )}
-          
-          {selectedVisit.collectedAmount && (
-            <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg mb-4">
-              <p className="text-xs text-emerald-600 mb-1 font-bold">المبلغ المحصل</p>
-              <p className="text-lg font-bold text-emerald-600">{selectedVisit.collectedAmount?.toLocaleString()} ج.م</p>
-            </div>
-          )}
-          
-          <div className="flex justify-end gap-2 mt-6">
-            <button onClick={() => setSelectedVisit(null)} className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200">إغلاق</button>
-          </div>
+      <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-3 items-end">
+          <label className="block">
+            <span className="text-[11px] text-slate-500 font-bold">الشهر</span>
+            <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+          </label>
+          <label className="block">
+            <span className="text-[11px] text-slate-500 font-bold">الفرع</span>
+            <select value={branch} onChange={(e) => setBranch(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
+              <option value="الكل">الكل</option>
+              {branches.map((b) => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[11px] text-slate-500 font-bold">المندوب</span>
+            <select value={rep} onChange={(e) => setRep(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
+              <option value="الكل">الكل</option>
+              {reps.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[11px] text-slate-500 font-bold">نوع الزيارة</span>
+            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
+              <option value="الكل">الكل</option>
+              {VISIT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[11px] text-slate-500 font-bold">الحالة</span>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
+              <option value="الكل">الكل</option>
+              <option value="مجدولة">مجدولة</option>
+              <option value="منفذة">منفذة</option>
+              <option value="ملغاة">ملغاة</option>
+              <option value="لم تتم">لم تتم</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[11px] text-slate-500 font-bold">بحث</span>
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="اسم العميل / الكود" className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+          </label>
         </div>
       </div>
-    )}
-  </div>;
+
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {filtered.length === 0 ? (
+          <div className="p-10 text-center text-slate-500 font-bold">لا توجد زيارات مسجلة حالياً</div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {filtered.map((v) => (
+              <button key={v.id} type="button" onClick={() => setSelectedVisit(v)} className="w-full text-start p-4 hover:bg-slate-50 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black" style={{ color: 'var(--app-navy)' }}>{v.date}</span>
+                    <span className="text-xs font-bold text-slate-600">{v.time}</span>
+                  </div>
+                  <span className="text-[11px] font-black px-2 py-1 rounded-full" style={{ background: v.status === 'منفذة' ? '#d1fae5' : v.status === 'مجدولة' ? '#fef3c7' : v.status === 'ملغاة' ? '#e2e8f0' : '#fee2e2', color: v.status === 'منفذة' ? '#065f46' : v.status === 'مجدولة' ? '#92400e' : v.status === 'ملغاة' ? '#475569' : '#991b1b' }}>{v.status}</span>
+                </div>
+                <div className="text-sm font-black text-slate-800">{v.customerName || customers.find((x) => x.id === v.customerId)?.name || 'عميل غير معروف'}</div>
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 font-bold">
+                  <span>المندوب: {v.repName}</span>
+                  <span>الفرع: {v.branchName || '-'}</span>
+                  <span>النوع: {v.type}</span>
+                  {v.outcome ? <span>النتيجة: {v.outcome}</span> : null}
+                </div>
+                {v.isReturn ? (
+                  <div className="rounded-lg bg-amber-50 border border-amber-200 px-2 py-1 text-[11px] font-black text-amber-700">مرتجع: {v.returnValue} ج.م — {v.returnReason || '-'}</div>
+                ) : null}
+                {v.collectedAmount ? (
+                  <div className="text-[11px] font-black text-emerald-600">المبلغ المحصل: {v.collectedAmount}</div>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {showForm ? (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowForm(false); }}>
+          <form onSubmit={submit} className="relative z-[60] bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-black">تسجيل زيارة جديدة</h2>
+              <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600" aria-label="إغلاق">إغلاق</button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="text-[11px] text-slate-500 font-bold">العميل</span>
+                <select value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
+                  <option value="">اختر العميل</option>
+                  {myCustomers.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-[11px] text-slate-500 font-bold">المندوب</span>
+                <select value={form.repId} onChange={(e) => setForm({ ...form, repId: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
+                  <option value="">اختر المندوب</option>
+                  {reps.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-[11px] text-slate-500 font-bold">التاريخ</span>
+                <input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+              </label>
+              <label className="block">
+                <span className="text-[11px] text-slate-500 font-bold">الوقت</span>
+                <input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+              </label>
+              <label className="block">
+                <span className="text-[11px] text-slate-500 font-bold">نوع الزيارة</span>
+                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as CustomerVisit['type'], outcome: e.target.value === 'تحصيل' ? 'تم التحصيل' : e.target.value === 'زيارة بيع وطلبية' ? 'تم عمل طلبية' : e.target.value === 'متابعة حساب' ? 'متابعة فقط' : e.target.value === 'مرتجع' ? 'مرتجع لدي العميل' : 'أخرى' })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
+                  {VISIT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-[11px] text-slate-500 font-bold">النتيجة</span>
+                <select value={form.outcome} onChange={(e) => setForm({ ...form, outcome: e.target.value as CustomerVisit['outcome'] })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
+                  {OUTCOMES.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </label>
+            </div>
+
+            {form.type === 'مرتجع' ? (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+                <div className="text-xs font-black text-amber-700">بيانات المرتجع</div>
+                <label className="block">
+                  <span className="text-[11px] text-slate-500 font-bold">قيمة المرتجع (ج.م)</span>
+                  <input type="number" value={form.returnValue} onChange={(e) => setForm({ ...form, returnValue: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] text-slate-500 font-bold">سبب المرتجع</span>
+                  <input value={form.returnReason} onChange={(e) => setForm({ ...form, returnReason: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] text-slate-500 font-bold">تفاصيل الأصناف المرتجعة</span>
+                  <input value={form.returnItems} onChange={(e) => setForm({ ...form, returnItems: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+                </label>
+              </div>
+            ) : null}
+
+            <label className="block mt-3">
+              <span className="text-[11px] text-slate-500 font-bold">المبلغ المحصل (ج.م)</span>
+              <input type="number" value={form.collectedAmount} onChange={(e) => setForm({ ...form, collectedAmount: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+            </label>
+            <label className="block mt-3">
+              <span className="text-[11px] text-slate-500 font-bold">قيمة الطلبية (ج.م)</span>
+              <input type="number" value={form.orderAmount} onChange={(e) => setForm({ ...form, orderAmount: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+            </label>
+            <label className="block mt-3">
+              <span className="text-[11px] text-slate-500 font-bold">ملاحظات الزيارة</span>
+              <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+            </label>
+            <div className="flex justify-end gap-2 mt-6">
+              <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200">إلغاء</button>
+              <button type="submit" className="px-4 py-2 rounded-lg text-white font-black flex items-center gap-2" style={{ background: 'var(--app-navy)' }}>
+                <Save className="w-4 h-4" /> حفظ الزيارة
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
+
+      {selectedVisit ? (
+        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) setSelectedVisit(null); }}>
+          <div className="relative z-[60] bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-black">تفاصيل الزيارة</h2>
+              <button onClick={() => setSelectedVisit(null)} className="text-slate-400 hover:text-slate-600" aria-label="إغلاق التفاصيل">إغلاق</button>
+            </div>
+            <div className="grid grid-cols-2 gap-4 mb-4">
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-xs text-slate-500 mb-1">العميل</p>
+                <p className="font-bold">{selectedVisit.customerName || customers.find((x) => x.id === selectedVisit.customerId)?.name || 'غير معروف'}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-xs text-slate-500 mb-1">المندوب</p>
+                <p className="font-bold">{selectedVisit.repName}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-xs text-slate-500 mb-1">التاريخ والوقت</p>
+                <p className="font-bold">{selectedVisit.date} - {selectedVisit.time}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-xs text-slate-500 mb-1">الفرع</p>
+                <p className="font-bold">{selectedVisit.branchName || '-'}</p>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-xs text-slate-500 mb-1">الحالة</p>
+                <select value={selectedVisit.status || 'مجدولة'} onChange={(e) => updateVisit({ ...selectedVisit, status: e.target.value as CustomerVisit['status'] })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
+                  <option value="مجدولة">مجدولة</option>
+                  <option value="منفذة">منفذة</option>
+                  <option value="ملغاة">ملغاة</option>
+                  <option value="لم تتم">لم تتم</option>
+                </select>
+              </div>
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <p className="text-xs text-slate-500 mb-1">نوع الزيارة</p>
+                <p className="font-bold">{selectedVisit.type || '-'}</p>
+              </div>
+            </div>
+            {selectedVisit.notes ? (
+              <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg mb-4">
+                <p className="text-xs text-blue-600 mb-1 font-bold">الملاحظات والتفاصيل</p>
+                <p className="text-sm text-slate-700">{selectedVisit.notes}</p>
+              </div>
+            ) : null}
+            {selectedVisit.status === 'منفذة' && selectedVisit.outcome ? (
+              <div className="bg-green-50 border border-green-200 p-3 rounded-lg mb-4">
+                <p className="text-xs text-green-600 mb-1 font-bold">نتيجة الزيارة</p>
+                <p className="text-sm text-slate-700">{selectedVisit.outcome}</p>
+              </div>
+            ) : null}
+            {selectedVisit.collectedAmount ? (
+              <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg mb-4">
+                <p className="text-xs text-emerald-600 mb-1 font-bold">المبلغ المحصل</p>
+                <p className="text-lg font-bold text-emerald-600">{selectedVisit.collectedAmount?.toLocaleString()} ج.م</p>
+              </div>
+            ) : null}
+            {selectedVisit.isReturn ? (
+              <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg mb-4">
+                <p className="text-xs text-amber-700 mb-1 font-bold">بيانات المرتجع</p>
+                <p className="text-sm text-slate-700">قيمة المرتجع: {selectedVisit.returnValue} ج.م</p>
+                <p className="text-sm text-slate-700">سبب المرتجع: {selectedVisit.returnReason}</p>
+                <p className="text-sm text-slate-700">الأصناف: {selectedVisit.returnItems}</p>
+                <p className="text-sm text-slate-700">حالة المرتجع: {selectedVisit.returnStatus}</p>
+              </div>
+            ) : null}
+            <div className="flex justify-end gap-2 mt-6">
+              <button onClick={() => { deleteVisit(selectedVisit.id).then((r) => { if (r.success) setSelectedVisit(null); }); }} className="px-4 py-2 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 font-bold">حذف</button>
+              <button onClick={() => setSelectedVisit(null)} className="px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200">إغلاق</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 };
