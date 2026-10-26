@@ -20,11 +20,30 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
   const [allowedTabs, setAllowedTabs] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [branchFilter, setBranchFilter] = useState('ALL');
+  const [roleFilter, setRoleFilter] = useState('ALL');
 
-  const nonAdminUsers = useMemo(
-    () => users.filter((u) => u.role !== 'developer' && u.role !== 'admin'),
-    [users]
-  );
+  const availableBranches = useMemo(() => {
+    const s = new Set<string>();
+    users.forEach((u) => { if (u.branchName) s.add(u.branchName); });
+    return Array.from(s);
+  }, [users]);
+
+  const nonAdminUsers = useMemo(() => {
+    let list = users.filter((u) => u.role !== 'developer');
+    if (searchTerm.trim()) {
+      const q = searchTerm.trim().toLowerCase();
+      list = list.filter((u) => u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q));
+    }
+    if (branchFilter !== 'ALL') {
+      list = list.filter((u) => u.branchName === branchFilter);
+    }
+    if (roleFilter !== 'ALL') {
+      list = list.filter((u) => u.role === roleFilter);
+    }
+    return list;
+  }, [users, searchTerm, branchFilter, roleFilter]);
 
   const selectedUser = useMemo(
     () => users.find((u) => u.id === selectedUserId),
@@ -92,9 +111,45 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
           </button>
         </div>
 
+        {/* Filters */}
+        <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="بحث بالاسم أو اسم المستخدم..."
+              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold"
+            />
+            <select
+              value={branchFilter}
+              onChange={(e) => setBranchFilter(e.target.value)}
+              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold"
+            >
+              <option value="ALL">جميع الفروع</option>
+              {availableBranches.map((b) => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold"
+            >
+              <option value="ALL">جميع الأدوار</option>
+              <option value="admin">مسؤول (Admin)</option>
+              <option value="branch_manager">مدير فرع</option>
+              <option value="supervisor">مشرف</option>
+              <option value="sales_rep">مندوب</option>
+              <option value="warehouse_keeper">أمين مخزن</option>
+              <option value="legal_advisor">مستشار قانوني</option>
+            </select>
+          </div>
+        </div>
+
         {/* User selector */}
         <div className="px-5 py-3 border-b border-slate-100">
-          <label className="text-xs font-bold text-slate-600 block mb-1">اختر المستخدم</label>
+          <label className="text-xs font-bold text-slate-600 block mb-1">اختر المستخدم ({nonAdminUsers.length})</label>
           <select
             value={selectedUserId}
             onChange={(e) => setSelectedUserId(e.target.value)}
@@ -102,8 +157,8 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
           >
             <option value="">-- اختر مستخدم --</option>
             {nonAdminUsers.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name} ({u.role}) — {u.branchName || 'بدون فرع'}
+              <option value={u.id}>
+                {u.name} ({u.role === 'developer' ? 'مسؤول (Admin)' : u.role === 'admin' ? 'مسؤول (Admin)' : u.role === 'branch_manager' ? 'مدير فرع' : u.role === 'supervisor' ? 'مشرف' : u.role === 'sales_rep' ? 'مندوب' : u.role === 'warehouse_keeper' ? 'أمين مخزن' : u.role === 'legal_advisor' ? 'مستشار قانوني' : u.role}) — {u.branchName || 'بدون فرع'}
               </option>
             ))}
           </select>

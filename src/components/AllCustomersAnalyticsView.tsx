@@ -148,6 +148,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     branches,
     importCustomersList,
     updateCustomer,
+    getVisibleVisits,
     invoices = [],
     isPrivacyMode,
     togglePrivacyMode,
@@ -401,6 +402,21 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const userVisibleCustomers = useMemo(() => {
     return filterCustomersByRBAC(customers, currentUser, users);
   }, [customers, currentUser, users]);
+
+  // Customers with pending returns (for red badge in table)
+  const customersWithReturns = useMemo(() => {
+    const set = new Set<string>();
+    try {
+      const visits = getVisibleVisits ? getVisibleVisits() : [];
+      visits.forEach((v: any) => {
+        if (v.isReturn && v.returnStatus && v.returnStatus !== 'مكتمل' && v.returnStatus !== 'completed') {
+          if (v.customerId) set.add(v.customerId);
+          if (v.customerAccount) set.add(v.customerAccount);
+        }
+      });
+    } catch {}
+    return set;
+  }, [getVisibleVisits]);
 
   // Distinct branches & reps for dropdowns
   const availableBranches = useMemo(() => {
@@ -1043,8 +1059,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       case 'name':
         return (
           <div className="min-w-[175px]">
-            <div className="font-black text-slate-900 group-hover:text-[var(--app-accent)] transition">
+            <div className="font-black text-slate-900 group-hover:text-[var(--app-accent)] transition flex items-center gap-1.5">
               {c.name}
+              {customersWithReturns.has(c.id) || customersWithReturns.has(c.code) ? (
+                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-red-100 text-red-700 font-bold border border-red-200 whitespace-nowrap">
+                  ⚠️ لديه مرتجع
+                </span>
+              ) : null}
             </div>
             <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-400">
               {c.phone ? (
