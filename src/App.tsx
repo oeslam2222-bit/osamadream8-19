@@ -108,11 +108,6 @@ const MainLayout: React.FC = () => {
     }
   }, [currentUser?.id, currentUser?.role, activeTab]);
 
-  // If user is not logged in, show dedicated Login / Registration Page
-  if (!isAuthenticated || !currentUser) {
-    return <LoginPage />;
-  }
-
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem('tantawy_sidebar_collapsed') === 'true';
@@ -130,6 +125,11 @@ const MainLayout: React.FC = () => {
       return next;
     });
   };
+
+  // If user is not logged in, show dedicated Login / Registration Page
+  if (!isAuthenticated || !currentUser) {
+    return <LoginPage />;
+  }
 
   const cartSummary = getCartSummary();
 
