@@ -266,7 +266,7 @@ export interface CustomerVisit {
   returnValue?: number;               // قيمة المرتجع بالجنيه
   returnReason?: string;              // سبب المرتجع
   returnItems?: string;               // تفاصيل الأصناف المرتجعة
-  returnStatus?: 'بانتظار المشرف' | 'تم الإرسال لأمين المخزن' | 'تم التحويل لأمين المخزن' | 'تم الاستلام من أمين المخزن' | 'تم الاستلام بالمخزن';
+  returnStatus?: 'بانتظار المشرف' | 'تم الإرسال لأمين المخزن' | 'تم التحويل لأمين المخزن' | 'تم الاستلام من أمين المخزن' | 'تم الاستلام بالمخزن' | 'مرفوض';
   returnHandledBy?: string;           // اسم المشرف أو مدير الفرع أو المسؤول الذي أكّد التحويل
   returnHandledAt?: string;           // وقت تأكيد التحويل
   returnHandledRole?: string;         // وظيفة/دور من قام بالتحويل
@@ -415,8 +415,15 @@ export interface ReturnedItem {
 export interface ReturnRecord {
   id: string;
   returnVoucherNumber: string;       // رقم إذن المرتجع مثل: RET-2026-0014
-  invoiceId: string;
-  invoiceNumber: string;
+  /**
+   * الفاتورة المرتبطة بالإذن.
+   *
+   * المرتجع ممكن يفتح كإذن مستقل من غير فاتورة (المُنشئ بيكتب الأصناف
+   * يدوياً)، والربط بالفاتورة بيتم لاحقاً لما يتم تحميل مبيعات العملاء
+   * بالأصناف. فالحقلين اختياريين لحد ما الربط يتفعّل.
+   */
+  invoiceId?: string;
+  invoiceNumber?: string;
   customerName: string;
   customerCode?: string;
   branchName: string;

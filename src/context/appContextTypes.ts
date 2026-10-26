@@ -160,6 +160,20 @@ export interface AppContextType {
     reason: string,
     restockToInventory?: boolean
   ) => { success: boolean; message: string; returnRecord?: ReturnRecord };
+  // إذن مرتجع مستقل (بدون فاتورة) — الأصناف تُكتب يدوياً والربط بالفاتورة لاحقاً
+  createStandaloneReturn: (payload: {
+    customerName: string;
+    customerCode?: string;
+    branchName: string;
+    repName: string;
+    date: string;
+    time: string;
+    returnedItems: ReturnedItem[];
+    totalRefundAmount: number;
+    reason: string;
+    handledBy: string;
+    notes?: string;
+  }) => { success: boolean; message: string; returnRecord?: ReturnRecord };
   deleteInvoice: (invoiceId: string) => Promise<void>;
   syncToAccounting: (invoiceId: string) => Promise<boolean>;
   dispatchOrderToMicrosoft: (invoiceId: string) => Promise<{ success: boolean; message: string }>;

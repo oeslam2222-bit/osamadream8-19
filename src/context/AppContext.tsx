@@ -5489,6 +5489,77 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     };
   };
 
+  /**
+   * إذن مرتجع مستقل (من غير فاتورة).
+   *
+   * المندوب بيفتح الإذن أثناء الزيارة وبيكتب الأصناف بنفسه، والسجل بيتسجل
+   * بحالة "بانتظار المشرف". المخزون بيتحدّث بعد ما أمين المخزن يستلم
+   * المرتجع فعلياً (مش وقت الفتح) عشان ما يحصلش تضخيم في الرصيد.
+   */
+  const createStandaloneReturn = (
+    payload: {
+      customerName: string;
+      customerCode?: string;
+      branchName: string;
+      repName: string;
+      date: string;
+      time: string;
+      returnedItems: ReturnedItem[];
+      totalRefundAmount: number;
+      reason: string;
+      handledBy: string;
+      notes?: string;
+    }
+  ): { success: boolean; message: string; returnRecord?: ReturnRecord } => {
+    const items = payload.returnedItems || [];
+    if (items.length === 0) {
+      return { success: false, message: 'يرجى تحديد صنف واحد على الأقل مع الكمية المرتجعة' };
+    }
+
+    const totalReturnedCartons = items.reduce((sum, item) => sum + (item.cartonCount || 0), 0);
+    const totalReturnedPieces = items.reduce((sum, item) => sum + (item.totalPieces || (item.pieceCount || 0)), 0);
+    const returnVoucherNumber = `RET-${new Date().getFullYear()}-${String(Math.floor(1000 + Math.random() * 9000))}`;
+
+    const newReturnRecord: ReturnRecord = {
+      id: `ret_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      returnVoucherNumber,
+      customerName: payload.customerName,
+      customerCode: payload.customerCode,
+      branchName: payload.branchName,
+      repName: payload.repName,
+      date: payload.date,
+      time: payload.time,
+      returnedItems: items,
+      totalRefundAmount: payload.totalRefundAmount,
+      totalReturnedCartons,
+      totalReturnedPieces,
+      reason: payload.reason || 'مرتجع مبيعات',
+      handledBy: payload.handledBy || currentUser?.name || 'مسؤول النظام',
+      restockedToInventory: false,
+      notes: payload.notes || `إذن مرتجع #${returnVoucherNumber} (مستقل - بانتظار الموافقة ثم الاستلام من المخزن)`,
+    };
+
+    // المبلغ المرتجع يُخصم من رصيد العميل فور فتح الإذن. أما المخزون فيتحدّث
+    // بعد استلام أمين المخزن للكمميات فعلياً.
+    if (payload.totalRefundAmount > 0 && payload.customerName) {
+      setCustomers((prev) =>
+        prev.map((c) => {
+          const match = (payload.customerCode && c.code === payload.customerCode) || c.name === payload.customerName;
+          if (!match) return c;
+          const currentBal = c.currentBalance ?? c.balance ?? 0;
+          const updatedBal = Math.max(0, currentBal - payload.totalRefundAmount);
+          return { ...c, currentBalance: updatedBal, balance: updatedBal };
+        })
+      );
+    }
+
+    return {
+      success: true,
+      message: `تم فتح إذن المرتجع #${returnVoucherNumber} بقيمة ${payload.totalRefundAmount.toLocaleString()} ج.م وهو الآن بانتظار موافقة المشرف`,
+      returnRecord: newReturnRecord,
+    };
+  };
+
   const deleteInvoice = async (invoiceId: string): Promise<void> => {
     const target = invoices.find((inv) => inv.id === invoiceId || inv.invoiceNumber === invoiceId);
     const targetId = target?.id || invoiceId;
@@ -6556,6 +6627,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         dispatchOctoberSupplyForInvoice,
         bulkDispatchOctoberSupply,
         processOrderReturn,
+        createStandaloneReturn,
         deleteInvoice,
         syncToAccounting,
         dispatchOrderToMicrosoft,

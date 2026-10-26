@@ -2,13 +2,13 @@ import React, { useMemo, useState } from 'react';
 import { AlertTriangle, CalendarCheck, CheckCircle2, Clock3, Plus, Save, Users } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StatGrid } from './ui/StatGrid';
-import type { CustomerVisit } from '../types';
+import type { CustomerVisit, ReturnedItem } from '../types';
 
 const VISIT_TYPES: CustomerVisit['type'][] = ['زيارة دورية', 'تحصيل', 'تسليم بضاعة', 'حل مشكلة', 'فتح حساب جديد', 'زيارة بيع وطلبية', 'متابعة حساب', 'زيارة مجدولة', 'زيارة مباشرة', 'مرتجع', 'أخرى'];
 const OUTCOMES: CustomerVisit['outcome'][] = ['تم عمل طلبية', 'تم التحصيل', 'تأجيل سداد', 'المحل مغلق', 'متابعة فقط', 'مرتجع لدي العميل', 'أخرى'];
 
 export const VisitsDashboard: React.FC = () => {
-  const { currentUser, customers, users, getVisibleVisits, addVisit, updateVisit, deleteVisit } = useApp();
+  const { currentUser, customers, users, getVisibleVisits, addVisit, updateVisit, deleteVisit, createStandaloneReturn } = useApp();
   const visible = getVisibleVisits();
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
   const [branch, setBranch] = useState('الكل');
@@ -18,7 +18,10 @@ export const VisitsDashboard: React.FC = () => {
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<CustomerVisit | null>(null);
+  const [flash, setFlash] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const todayStr = new Date().toISOString().slice(0, 10);
+  // المشرف ومدير الفرع والإدارة هم اللي بيحوّلوا المرتجع لأمين المخزن
+  const canApproveReturns = currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer';
   const [form, setForm] = useState({ customerId: '', repId: currentUser?.role === 'sales_rep' ? currentUser.id : '', date: todayStr, time: '09:00', type: 'زيارة دورية' as CustomerVisit['type'], outcome: 'متابعة فقط' as CustomerVisit['outcome'], collectedAmount: 0, orderAmount: 0, returnValue: 0, returnReason: '', returnItems: '', notes: '' });
 
   const branches = currentUser?.role === 'branch_manager' ? [currentUser.branchName || ''] :
@@ -71,7 +74,7 @@ export const VisitsDashboard: React.FC = () => {
       branchName: r?.branchName || c?.branchName || '',
       supervisorId: r?.supervisorId,
       supervisorName: r?.supervisorName || '',
-      status: 'مجدولة',
+      status: isReturn ? 'منفذة' : 'مجدولة',
       type: form.type,
       outcome: isReturn ? 'مرتجع لدي العميل' : form.outcome,
       collectedAmount: isReturn ? 0 : form.collectedAmount,
@@ -81,8 +84,57 @@ export const VisitsDashboard: React.FC = () => {
       returnValue: isReturn ? form.returnValue : 0,
       returnReason: isReturn ? form.returnReason : '',
       returnItems: isReturn ? form.returnItems : '',
+      // المرتجع يبدأ دورته فور تسجيله: بانتظار المشرف.
+      returnStatus: isReturn ? 'بانتظار المشرف' : undefined,
+      // المرتجع ممكن يتسجل في يوم فيه زيارة سابقة لنفس العميل.
+      allowSameDaySecondVisit: isReturn ? true : undefined,
     });
-    if (result.success) { setShowForm(false); setForm((f) => ({ ...f, customerId: '', notes: '' })); }
+
+    if (!result.success) {
+      setFlash({ tone: 'error', text: result.message });
+      return;
+    }
+
+    if (isReturn) {
+      // الأصناف تُكتب يدوياً لحد ما يتم تحميل مبيعات العملاء بالأصناف والربط
+      // بالفاتورة، فبنفتح إذن مستقل من غير فاتورة.
+      const manualItems: ReturnedItem[] = [{
+        productId: '',
+        productCode: '',
+        productName: form.returnItems || 'أصناف مرتجعة',
+        cartonCount: 0,
+        pieceCount: 0,
+        cartonQuantity: 0,
+        totalPieces: 0,
+        pricePerCarton: 0,
+        pricePerPiece: 0,
+        refundAmount: form.returnValue || 0,
+        returnReason: form.returnReason || '',
+      }];
+      const created = createStandaloneReturn({
+        customerName: c?.name || '',
+        customerCode: c?.code,
+        branchName: r?.branchName || c?.branchName || '',
+        repName: r?.name || currentUser?.name || '',
+        date: form.date,
+        time: form.time,
+        returnedItems: manualItems,
+        totalRefundAmount: form.returnValue || 0,
+        reason: form.returnReason || 'مرتجع مبيعات',
+        handledBy: currentUser?.name || 'مسؤول النظام',
+        notes: `إذن مرتجع مستقل من زيارة ${form.date} — الأصناف يدوية لحد ما يتم ربط مبيعات العملاء بالأصناف`,
+      });
+      if (!created.success) {
+        setFlash({ tone: 'error', text: created.message });
+        return;
+      }
+      setFlash({ tone: 'success', text: `${created.message} — تم إشعار الإدارة للمراجعة.` });
+    } else {
+      setFlash({ tone: 'success', text: 'تم حفظ الزيارة بنجاح ✅' });
+    }
+
+    setShowForm(false);
+    setForm((f) => ({ ...f, customerId: '', notes: '' }));
   };
 
   const statCards: { icon: React.ElementType; label: string; value: number; sub?: string }[] = [
@@ -105,6 +157,12 @@ export const VisitsDashboard: React.FC = () => {
           <Plus className="w-4 h-4" /> تسجيل زيارة جديدة
         </button>
       </header>
+
+      {flash ? (
+        <div className={`rounded-xl border px-4 py-3 text-sm font-bold flex items-start gap-2 ${flash.tone === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+          <span>{flash.text}</span>
+        </div>
+      ) : null}
 
       <StatGrid visible={6} tone="dark" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {statCards.map((c) => (
@@ -345,6 +403,51 @@ export const VisitsDashboard: React.FC = () => {
                 <p className="text-sm text-slate-700">سبب المرتجع: {selectedVisit.returnReason}</p>
                 <p className="text-sm text-slate-700">الأصناف: {selectedVisit.returnItems}</p>
                 <p className="text-sm text-slate-700">حالة المرتجع: {selectedVisit.returnStatus}</p>
+                {selectedVisit.returnHandledBy ? (
+                  <p className="text-xs text-slate-500 mt-1">آخر قرار: {selectedVisit.returnHandledBy} — {selectedVisit.returnHandledAt}</p>
+                ) : null}
+                {selectedVisit.returnStatus === 'بانتظار المشرف' && canApproveReturns ? (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated: CustomerVisit = {
+                          ...selectedVisit,
+                          returnStatus: 'تم التحويل لأمين المخزن',
+                          returnHandledBy: currentUser?.name,
+                          returnHandledAt: new Date().toISOString(),
+                          returnHandledRole: currentUser?.role,
+                          returnNote: 'تمت الموافقة وتحويل المرتجع لأمين المخزن للتنسيق والاستلام',
+                        };
+                        const res = updateVisit(updated);
+                        if (res.success) { setSelectedVisit(updated); setFlash({ tone: 'success', text: 'تمت الموافقة — المرتجع اتحوّل لأمين المخزن للتنسيق والاستلام ✅' }); }
+                        else setFlash({ tone: 'error', text: res.message });
+                      }}
+                      className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black"
+                    >
+                      اعتماد وتحويل لأمين المخزن
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated: CustomerVisit = {
+                          ...selectedVisit,
+                          returnStatus: 'مرفوض',
+                          returnHandledBy: currentUser?.name,
+                          returnHandledAt: new Date().toISOString(),
+                          returnHandledRole: currentUser?.role,
+                          returnNote: 'تم رفض المرتجع من المشرف',
+                        };
+                        const res = updateVisit(updated);
+                        if (res.success) { setSelectedVisit(updated); setFlash({ tone: 'error', text: 'تم رفض المرتجع' }); }
+                        else setFlash({ tone: 'error', text: res.message });
+                      }}
+                      className="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-black"
+                    >
+                      رفض المرتجع
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : null}
             <div className="flex justify-end gap-2 mt-6">
