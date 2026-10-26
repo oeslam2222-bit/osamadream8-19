@@ -3,6 +3,7 @@ import { AlertTriangle, CalendarCheck, CheckCircle2, Clock3, Plus, Save, Users }
 import { useApp } from '../context/AppContext';
 import { StatGrid } from './ui/StatGrid';
 import type { CustomerVisit, ReturnedItem } from '../types';
+import { buildReturnNote, ReturnLocation, RETURN_LOCATIONS } from '../services/returnsWorkflowService';
 
 const VISIT_TYPES: CustomerVisit['type'][] = ['زيارة دورية', 'تحصيل', 'تسليم بضاعة', 'حل مشكلة', 'فتح حساب جديد', 'زيارة بيع وطلبية', 'متابعة حساب', 'زيارة مجدولة', 'زيارة مباشرة', 'مرتجع', 'أخرى'];
 const OUTCOMES: CustomerVisit['outcome'][] = ['تم عمل طلبية', 'تم التحصيل', 'تأجيل سداد', 'المحل مغلق', 'متابعة فقط', 'مرتجع لدي العميل', 'أخرى'];
@@ -22,7 +23,7 @@ export const VisitsDashboard: React.FC = () => {
   const todayStr = new Date().toISOString().slice(0, 10);
   // المشرف ومدير الفرع والإدارة هم اللي بيحوّلوا المرتجع لأمين المخزن
   const canApproveReturns = currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer';
-  const [form, setForm] = useState({ customerId: '', repId: currentUser?.role === 'sales_rep' ? currentUser.id : '', date: todayStr, time: '09:00', type: 'زيارة دورية' as CustomerVisit['type'], outcome: 'متابعة فقط' as CustomerVisit['outcome'], collectedAmount: 0, orderAmount: 0, returnValue: 0, returnReason: '', returnItems: '', notes: '' });
+  const [form, setForm] = useState({ customerId: '', repId: currentUser?.role === 'sales_rep' ? currentUser.id : '', date: todayStr, time: '09:00', type: 'زيارة دورية' as CustomerVisit['type'], outcome: 'متابعة فقط' as CustomerVisit['outcome'], collectedAmount: 0, orderAmount: 0, returnValue: 0, returnReason: '', returnItems: '', returnLocation: 'عند العميل' as ReturnLocation, notes: '' });
 
   const branches = currentUser?.role === 'branch_manager' ? [currentUser.branchName || ''] :
     currentUser?.role === 'supervisor' ? Array.from(new Set(users.filter((u) => u.supervisorId === currentUser.id).map((u) => u.branchName).filter(Boolean))) :
@@ -86,6 +87,9 @@ export const VisitsDashboard: React.FC = () => {
       returnItems: isReturn ? form.returnItems : '',
       // المرتجع يبدأ دورته فور تسجيله: بانتظار المشرف.
       returnStatus: isReturn ? 'بانتظار المشرف' : undefined,
+      // مكان المرتجع (عند العميل / بالمخزن) بيتسجل جوّه returnNote عشان
+      // أمين المخزن ينسّق على أساسه.
+      returnNote: isReturn ? buildReturnNote('', { location: form.returnLocation }) : undefined,
       // المرتجع ممكن يتسجل في يوم فيه زيارة سابقة لنفس العميل.
       allowSameDaySecondVisit: isReturn ? true : undefined,
     });
@@ -314,6 +318,12 @@ export const VisitsDashboard: React.FC = () => {
                 <label className="block">
                   <span className="text-[11px] text-slate-500 font-bold">تفاصيل الأصناف المرتجعة</span>
                   <input value={form.returnItems} onChange={(e) => setForm({ ...form, returnItems: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] text-slate-500 font-bold">مكان المرتجع</span>
+                  <select value={form.returnLocation} onChange={(e) => setForm({ ...form, returnLocation: e.target.value as ReturnLocation })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
+                    {RETURN_LOCATIONS.map((l) => <option key={l} value={l}>{l}</option>)}
+                  </select>
                 </label>
               </div>
             ) : null}
