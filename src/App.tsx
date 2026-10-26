@@ -32,6 +32,7 @@ import { TargetPerformanceDashboard } from './components/TargetPerformanceDashbo
 import { VisitsDashboard } from './components/VisitsDashboard';
 import { ReturnsWarehouseView } from './components/ReturnsWarehouseView';
 import { ReturnsCustomersView } from './components/ReturnsCustomersView';
+import { LegalAdvisorDashboard } from './components/LegalAdvisorDashboard';
 import { PermissionManagerModal } from './components/PermissionManagerModal';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
@@ -62,7 +63,7 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   ],
   supervisor: [
     'home', 'catalog', 'all_customers', 'customers',
-    'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns_customers', 'invoices',
+    'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'users'
   ],
   sales_rep: [
