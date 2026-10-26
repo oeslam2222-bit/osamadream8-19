@@ -203,7 +203,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   /** توزيع كل عميل على شهور السنة كاملة — مستقل عن فلتر الشهر عشان الشبكة تفضل قابلة للتنقل. */
   const yearlySummaries = useMemo(() => {
     const grouped = aggregateCustomerItemSales(baseSales);
-    return new Map(grouped.map((summary) => [summary.customerAccount, summary]));
+    return new Map(
+      grouped.map((summary) => [summary.customerAccount || summary.customerName, summary])
+    );
   }, [baseSales]);
 
   const alerts = useMemo(() => buildFollowUpAlerts(customerInsights), [customerInsights]);
@@ -235,15 +237,35 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const selectedCustomerMonthlySales = useMemo(() => {
     const monthly: Record<number, number> = {};
     if (!selectedCustomer) return monthly;
+    const selectedAccount = selectedCustomer.customerAccount.trim().toLowerCase();
     baseSales.forEach((record) => {
-      const account = record.customerAccount || record.invoicingName;
-      if (account !== selectedCustomer.customerAccount) return;
+      const account = (record.customerAccount || record.invoicingName || '').trim().toLowerCase();
+      if (account !== selectedAccount) return;
       const month = Number(record.month);
       if (!Number.isFinite(month)) return;
       monthly[month] = (monthly[month] || 0) + (Number(record.amount) || 0);
     });
     return monthly;
   }, [baseSales, selectedCustomer]);
+
+  const selectedCustomerFinancials = useMemo(() => {
+    if (!selectedCustomer) return null;
+    const matched = customers.find(
+      (customer) =>
+        customer.code === selectedCustomer.customerAccount ||
+        customer.name === selectedCustomer.customerAccount ||
+        customer.name === selectedCustomer.customerName
+    );
+    if (!matched) return null;
+    return {
+      currentBalance: matched.currentBalance ?? matched.balance ?? 0,
+      overdue: matched.totalOverdueAndDue ?? matched.overdueBalance ?? 0,
+      collections: matched.collections2026 ?? matched.totalOverallCollections ?? 0,
+      creditLimit: matched.creditLimit ?? 0,
+      lastCollectionDate: matched.lastCollectionDate,
+      lastCollectionAmount: matched.lastCollectionAmount ?? 0
+    };
+  }, [customers, selectedCustomer]);
 
   useEffect(() => {
     if (customerInsights.length === 0) {
@@ -667,6 +689,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 recentOrders={recentOrders}
                 selectedMonth={selectedMonth}
                 monthlyAmounts={selectedCustomerMonthlySales}
+                financial={selectedCustomerFinancials}
                 onSelectCustomer={setSelectedCustomerAccount}
                 onStartOrder={onOpenNewOrderForCustomer ? handleStartOrderForCustomer : undefined}
                 onOpenDetails={openCustomerDetails}

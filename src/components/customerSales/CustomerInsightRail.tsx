@@ -8,6 +8,7 @@ import {
   TrendingDown,
   TrendingUp,
   UserRound,
+  Wallet,
   X
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
@@ -19,6 +20,15 @@ import {
 } from '../../services/customerItemSalesInsights';
 import { formatCurrency } from '../../services/invoiceService';
 
+interface CustomerFinancialSnapshot {
+  currentBalance: number;
+  overdue: number;
+  collections: number;
+  creditLimit: number;
+  lastCollectionDate?: string;
+  lastCollectionAmount: number;
+}
+
 interface CustomerInsightRailProps {
   customers: CustomerSalesInsight[];
   selected: CustomerSalesInsight | null;
@@ -26,6 +36,7 @@ interface CustomerInsightRailProps {
   recentOrders: CustomerOrderInsight[];
   selectedMonth: number | 'all';
   monthlyAmounts: Record<number, number>;
+  financial: CustomerFinancialSnapshot | null;
   onSelectCustomer: (account: string) => void;
   onStartOrder?: (account: string) => void;
   onOpenDetails: (account: string) => void;
@@ -149,6 +160,7 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
   recentOrders,
   selectedMonth,
   monthlyAmounts,
+  financial,
   onSelectCustomer,
   onStartOrder,
   onOpenDetails
@@ -247,6 +259,61 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
             onStartOrder={onStartOrder}
             onOpenDetails={onOpenDetails}
           />
+
+          {financial && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4">
+              <div className="flex items-center justify-between mb-2.5">
+                <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                  <Wallet className="w-3.5 h-3.5 text-emerald-500" />
+                  الموقف المالي
+                </h3>
+                {financial.overdue > 0 && (
+                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+                    متأخرات
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                <div className="rounded-xl bg-slate-50 border border-slate-100 px-2 py-1.5">
+                  <div className="text-[9px] text-slate-400 font-bold">المديونية الحالية</div>
+                  <div className="text-[11px] font-black text-slate-900 font-mono mt-0.5">
+                    {formatCurrency(financial.currentBalance)}
+                  </div>
+                </div>
+                <div className="rounded-xl bg-slate-50 border border-slate-100 px-2 py-1.5">
+                  <div className="text-[9px] text-slate-400 font-bold">المتأخرات والمستحق</div>
+                  <div
+                    className={`text-[11px] font-black font-mono mt-0.5 ${
+                      financial.overdue > 0 ? 'text-rose-600' : 'text-slate-900'
+                    }`}
+                  >
+                    {formatCurrency(financial.overdue)}
+                  </div>
+                </div>
+                <div className="rounded-xl bg-slate-50 border border-slate-100 px-2 py-1.5">
+                  <div className="text-[9px] text-slate-400 font-bold">تحصيلات 2026</div>
+                  <div className="text-[11px] font-black text-emerald-700 font-mono mt-0.5">
+                    {formatCurrency(financial.collections)}
+                  </div>
+                </div>
+                <div className="rounded-xl bg-slate-50 border border-slate-100 px-2 py-1.5">
+                  <div className="text-[9px] text-slate-400 font-bold">الحد الائتماني</div>
+                  <div className="text-[11px] font-black text-slate-900 font-mono mt-0.5">
+                    {financial.creditLimit > 0 ? formatCurrency(financial.creditLimit) : '—'}
+                  </div>
+                </div>
+              </div>
+              {(financial.lastCollectionDate || financial.lastCollectionAmount > 0) && (
+                <div className="mt-2 pt-2 border-t border-dashed border-slate-100 flex items-center justify-between text-[10px]">
+                  <span className="text-slate-400 font-bold">آخر تحصيل</span>
+                  <span className="font-mono font-black text-slate-800">
+                    {formatCurrency(financial.lastCollectionAmount)}
+                    {financial.lastCollectionDate ? ` • ${financial.lastCollectionDate}` : ''}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4">
             <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5 mb-3">

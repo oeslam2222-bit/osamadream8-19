@@ -90,7 +90,10 @@ export const CustomerDossiers: React.FC<CustomerDossiersProps> = ({
 
       {visible.map((summary, index) => {
         const isExpanded = expandedAccounts.has(summary.customerAccount);
-        const yearly = yearlySummaries.get(summary.customerAccount) || summary;
+        const yearly =
+          yearlySummaries.get(summary.customerAccount) ||
+          yearlySummaries.get(summary.customerName) ||
+          summary;
         return (
           <div
             key={summary.customerAccount || index}

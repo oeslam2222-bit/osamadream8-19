@@ -54,6 +54,14 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({
   totalQuantity,
   topItem
 }) => {
+  const growthValue = comparison.growthPct ?? comparison.latestMonthGrowthPct;
+  const growthCaption =
+    comparison.growthPct !== null
+      ? comparison.comparisonLabel
+      : comparison.latestMonthGrowthPct !== null
+        ? 'نمو آخر شهر متاح'
+        : comparison.comparisonLabel;
+
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
       <CardShell
@@ -66,8 +74,8 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({
             {formatCurrency(comparison.currentAmount)}
           </div>
           <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <GrowthBadge growth={comparison.growthPct} />
-            <span className="text-[10px] text-slate-400 font-medium">{comparison.comparisonLabel}</span>
+            <GrowthBadge growth={growthValue} />
+            <span className="text-[10px] text-slate-400 font-medium">{growthCaption}</span>
           </div>
         </div>
       </CardShell>

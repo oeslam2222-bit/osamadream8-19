@@ -79,6 +79,9 @@ export interface PeriodComparison {
   currentAmount: number;
   previousAmount: number;
   growthPct: number | null;
+  /** نمو أحدث شهر متاح — بيُعرض عند اختيار «كل الشهور» */
+  latestMonthGrowthPct: number | null;
+  latestMonthLabel: string;
   scopeLabel: string;
   comparisonLabel: string;
 }
@@ -92,14 +95,31 @@ export function buildPeriodComparison(
   const currentAmount = sumSalesAmount(periodRecords);
 
   if (selectedMonth === 'all') {
+    const latestAmount = latestMonth
+      ? sumSalesAmount(baseRecords.filter((record) => Number(record.month) === latestMonth))
+      : 0;
+    const beforeLatest =
+      latestMonth && latestMonth > 1
+        ? sumSalesAmount(baseRecords.filter((record) => Number(record.month) === latestMonth - 1))
+        : 0;
+    const latestMonthGrowthPct =
+      latestMonth && latestMonth > 1 && beforeLatest > 0
+        ? ((latestAmount - beforeLatest) / beforeLatest) * 100
+        : null;
+
     return {
       month: latestMonth,
-      previousMonth: null,
+      previousMonth: latestMonth && latestMonth > 1 ? latestMonth - 1 : null,
       currentAmount,
       previousAmount: 0,
       growthPct: null,
+      latestMonthGrowthPct,
+      latestMonthLabel: latestMonth ? MONTH_LABELS[latestMonth] : '',
       scopeLabel: 'إجمالي كل الشهور',
-      comparisonLabel: 'لا توجد مقارنة عند عرض كل الشهور'
+      comparisonLabel:
+        latestMonth && latestMonth > 1
+          ? `نمو ${MONTH_LABELS[latestMonth]} مقابل ${MONTH_LABELS[latestMonth - 1]}`
+          : 'لا توجد فترة سابقة متاحة للمقارنة'
     };
   }
 
@@ -118,6 +138,8 @@ export function buildPeriodComparison(
     currentAmount,
     previousAmount,
     growthPct,
+    latestMonthGrowthPct: null,
+    latestMonthLabel: '',
     scopeLabel: `شهر ${MONTH_LABELS[selectedMonth] || ''}`,
     comparisonLabel: previousMonth
       ? `مقارنة بشهر ${MONTH_LABELS[previousMonth]}`
@@ -387,11 +409,12 @@ export function buildCustomerInsights(
   });
 
   return summaries.map((summary) => {
-    const growth = growthMap.get(summary.customerAccount);
-    const invoices = invoiceMap.get(summary.customerAccount)?.size || 0;
+    const account = summary.customerAccount || summary.customerName;
+    const growth = growthMap.get(account);
+    const invoices = invoiceMap.get(account)?.size || 0;
 
     return {
-      customerAccount: summary.customerAccount,
+      customerAccount: account,
       customerName: summary.customerName,
       repName: summary.repName,
       warehouse: summary.warehouse,
