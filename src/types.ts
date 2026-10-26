@@ -279,6 +279,7 @@ export interface Customer {
   name: string;                      // اسم العميل / المحل (الاسم)
   storeName?: string;                // اسم المحل / السوبر ماركت / المعرض
   tier?: CustomerTier;               // فئة وتصنيف العميل (مميز / راقي / متوسط / عادي)
+  isKeyAccount?: boolean;            // حساب رئيسي / عميل استراتيجي
   phone: string;                     // رقم الهاتف
   address?: string;                  // العنوان التفصيلي
   governorate?: string;              // المحافظة

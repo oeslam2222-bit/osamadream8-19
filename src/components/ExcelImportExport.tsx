@@ -65,6 +65,11 @@ import {
 } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
 import { Customer, Product } from '../types';
+import {
+  fetchCustomerItemSalesFromGoogleSheet,
+  parseExcelCustomerItemSales,
+  saveCustomerItemSales
+} from '../services/customerItemSalesService';
 
 type SheetKey = keyof PublishedDataSources;
 
@@ -189,11 +194,11 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
     }
   };
 
-  // 2. Sync Customer Sales Sheet (مبيعات العملاء والتارجت)
+  // 2. Sync Customer Item Sales Sheet (شيت مبيعات العملاء بالصنف)
   const handleSyncCustomerSales = async (urlOverride?: string) => {
     const url = (urlOverride || sourceUrls.customerSales || '').trim();
     if (!url) {
-      setSheetErrors((prev) => ({ ...prev, customerSales: 'يرجى إدخال رابط Google Sheet الخاص بمبيعات العملاء أولاً' }));
+      setSheetErrors((prev) => ({ ...prev, customerSales: 'يرجى إدخال رابط Google Sheet الخاص بمبيعات العملاء بالصنف أولاً' }));
       return;
     }
     setSyncingKey('customerSales');
@@ -204,13 +209,94 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       saveSingleSourceUrl('customerSales', url);
       setSources(getPublishedDataSources());
 
+      // Attempt parsing Customer Item Sales first
+      const itemSalesRes = await fetchCustomerItemSalesFromGoogleSheet(url);
+      if (itemSalesRes.sales && itemSalesRes.sales.length > 0) {
+        saveCustomerItemSales(itemSalesRes.sales);
+
+        // Extract and deduplicate customer profiles from sales records
+        const codeMap = new Map<string, Customer>();
+        const phoneMap = new Map<string, Customer>();
+        const nameMap = new Map<string, Customer>();
+
+        customers.forEach((c) => {
+          const cd = cleanCustomerCode(c.code);
+          if (cd) codeMap.set(cd, c);
+          const ph = cleanCustomerPhone(c.phone);
+          if (ph) phoneMap.set(ph, c);
+          if (c.name) nameMap.set(normalizeArabicText(c.name).replace(/\s+/g, ''), c);
+        });
+
+        // Group total sales by customer
+        const custTotals = new Map<string, { totalAmount: number; repName: string; warehouse: string }>();
+        itemSalesRes.sales.forEach((s) => {
+          const k = (s.customerAccount || s.invoicingName).trim().toLowerCase();
+          const prev = custTotals.get(k) || { totalAmount: 0, repName: s.repName, warehouse: s.warehouse };
+          prev.totalAmount += s.amount;
+          if (s.repName && s.repName !== 'غير محدد') prev.repName = s.repName;
+          if (s.warehouse) prev.warehouse = s.warehouse;
+          custTotals.set(k, prev);
+        });
+
+        const updatedCustomers = [...customers];
+        let updatedCount = 0;
+        let newCount = 0;
+
+        itemSalesRes.sales.forEach((s) => {
+          const cd = cleanCustomerCode(s.customerAccount);
+          const normN = s.invoicingName ? normalizeArabicText(s.invoicingName).replace(/\s+/g, '') : '';
+          const existing = (cd && codeMap.get(cd)) || (normN && nameMap.get(normN));
+          const summary = custTotals.get((s.customerAccount || s.invoicingName).trim().toLowerCase());
+
+          if (existing) {
+            const idx = updatedCustomers.findIndex((c) => c.id === existing.id);
+            if (idx >= 0) {
+              updatedCustomers[idx] = {
+                ...updatedCustomers[idx],
+                sales2026: Math.max(updatedCustomers[idx].sales2026 || 0, summary?.totalAmount || 0),
+                salesRepName: updatedCustomers[idx].salesRepName || summary?.repName || s.repName,
+                branchName: updatedCustomers[idx].branchName || summary?.warehouse || s.warehouse,
+              };
+              updatedCount++;
+            }
+          } else if (normN && !nameMap.has(normN)) {
+            const newCust: Customer = {
+              id: `cust-sync-${s.customerAccount}-${Date.now().toString(36)}`,
+              code: s.customerAccount,
+              name: s.invoicingName || s.customerAccount,
+              salesRepName: s.repName,
+              branchName: s.warehouse,
+              sales2026: summary?.totalAmount || s.amount,
+              currentBalance: 0,
+              creditLimit: 0,
+              tier: 'عادي',
+              isKeyAccount: false,
+              phone: '',
+              address: s.warehouse || ''
+            };
+            updatedCustomers.push(newCust);
+            nameMap.set(normN, newCust);
+            if (cd) codeMap.set(cd, newCust);
+            newCount++;
+          }
+        });
+
+        const finalDeduped = deduplicateAndMergeCustomers(updatedCustomers).customers;
+        await importCustomersList(finalDeduped, 'replace');
+
+        setSheetSuccess((prev) => ({
+          ...prev,
+          customerSales: `تم بنجاح تحديث ${itemSalesRes.sales.length} حركة مبيعات صنف وتحديث بيانات ${custTotals.size} عميل بدون تكرار! أرقامك الحقيقية متاحة الآن في قسم "مبيعات الأصناف".`
+        }));
+        return;
+      }
+
+      // Fallback: regular customer target sheet parser
       const res = await fetchCustomersFromGoogleSheetUrl(url);
       if (res.errors.length > 0 && res.customers.length === 0) {
         throw new Error(res.errors.join(' • '));
       }
 
-      // Strict in-place deduplication: merge sales columns into existing customer records
-      // Matches by: 1) cleanCustomerCode, 2) cleanCustomerPhone, 3) normalized Arabic name
       const codeMap = new Map<string, Customer>();
       const phoneMap = new Map<string, Customer>();
       const nameMap = new Map<string, Customer>();
@@ -239,7 +325,6 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         if (existing) {
           const idx = updatedCustomers.findIndex((c) => c.id === existing.id);
           if (idx >= 0) {
-            // In-place merge without creating a duplicate record
             updatedCustomers[idx] = mergeTwoCustomers(updatedCustomers[idx], incoming);
             updatedCount++;
           }
@@ -254,7 +339,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
       setSheetSuccess((prev) => ({
         ...prev,
-        customerSales: `تم بنجاح تحديث أرقام مبيعات وتارجت ${updatedCount} عميل قائم وإدراج ${newCount} عميل جديد بدون تكرار! البيانات متاحة الآن في تحليلات مبيعات العملاء.`
+        customerSales: `تم بنجاح تحديث أرقام مبيعات وتارجت ${updatedCount} عميل قائم وإدراج ${newCount} عميل جديد بدون تكرار!`
       }));
     } catch (err: any) {
       setSheetErrors((prev) => ({ ...prev, customerSales: err?.message || 'فشلت مزامنة شيت مبيعات العملاء' }));
@@ -518,6 +603,89 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
     setSyncingKey('customerSales');
     setSheetErrors((prev) => ({ ...prev, customerSales: null }));
     try {
+      // 1. Try parsing customer item sales format first
+      const itemSalesRes = await parseExcelCustomerItemSales(file);
+      if (itemSalesRes.sales && itemSalesRes.sales.length > 0) {
+        saveCustomerItemSales(itemSalesRes.sales);
+
+        // Deduplicate and merge customer profiles from item sales rows
+        const codeMap = new Map<string, Customer>();
+        const phoneMap = new Map<string, Customer>();
+        const nameMap = new Map<string, Customer>();
+
+        customers.forEach((c) => {
+          const cd = cleanCustomerCode(c.code);
+          if (cd) codeMap.set(cd, c);
+          const ph = cleanCustomerPhone(c.phone);
+          if (ph) phoneMap.set(ph, c);
+          if (c.name) nameMap.set(normalizeArabicText(c.name).replace(/\s+/g, ''), c);
+        });
+
+        // Group total sales by customer
+        const custTotals = new Map<string, { totalAmount: number; repName: string; warehouse: string }>();
+        itemSalesRes.sales.forEach((s) => {
+          const k = (s.customerAccount || s.invoicingName).trim().toLowerCase();
+          const prev = custTotals.get(k) || { totalAmount: 0, repName: s.repName, warehouse: s.warehouse };
+          prev.totalAmount += s.amount;
+          if (s.repName && s.repName !== 'غير محدد') prev.repName = s.repName;
+          if (s.warehouse) prev.warehouse = s.warehouse;
+          custTotals.set(k, prev);
+        });
+
+        const updatedCustomers = [...customers];
+        let updatedCount = 0;
+        let newCount = 0;
+
+        itemSalesRes.sales.forEach((s) => {
+          const cd = cleanCustomerCode(s.customerAccount);
+          const normN = s.invoicingName ? normalizeArabicText(s.invoicingName).replace(/\s+/g, '') : '';
+          const existing = (cd && codeMap.get(cd)) || (normN && nameMap.get(normN));
+          const summary = custTotals.get((s.customerAccount || s.invoicingName).trim().toLowerCase());
+
+          if (existing) {
+            const idx = updatedCustomers.findIndex((c) => c.id === existing.id);
+            if (idx >= 0) {
+              updatedCustomers[idx] = {
+                ...updatedCustomers[idx],
+                sales2026: Math.max(updatedCustomers[idx].sales2026 || 0, summary?.totalAmount || 0),
+                salesRepName: updatedCustomers[idx].salesRepName || summary?.repName || s.repName,
+                branchName: updatedCustomers[idx].branchName || summary?.warehouse || s.warehouse,
+              };
+              updatedCount++;
+            }
+          } else if (normN && !nameMap.has(normN)) {
+            const newCust: Customer = {
+              id: `cust-file-${s.customerAccount}-${Date.now().toString(36)}`,
+              code: s.customerAccount,
+              name: s.invoicingName || s.customerAccount,
+              salesRepName: s.repName,
+              branchName: s.warehouse,
+              sales2026: summary?.totalAmount || s.amount,
+              currentBalance: 0,
+              creditLimit: 0,
+              tier: 'عادي',
+              isKeyAccount: false,
+              phone: '',
+              address: s.warehouse || ''
+            };
+            updatedCustomers.push(newCust);
+            nameMap.set(normN, newCust);
+            if (cd) codeMap.set(cd, newCust);
+            newCount++;
+          }
+        });
+
+        const finalDeduped = deduplicateAndMergeCustomers(updatedCustomers).customers;
+        await importCustomersList(finalDeduped, 'replace');
+
+        setSheetSuccess((prev) => ({
+          ...prev,
+          customerSales: `تم بنجاح رفع ملف مبيعات الأصناف وتحديث ${itemSalesRes.sales.length} حركة صنف وتحديث ${custTotals.size} عميل بدون تكرار! البيانات متاحة الآن في قسم "مبيعات الأصناف".`
+        }));
+        return;
+      }
+
+      // 2. Fallback to classic customer target format
       const res = await parseExcelCustomers(file);
       if (res.errors.length > 0 && res.customers.length === 0) {
         throw new Error(res.errors.join(' • '));

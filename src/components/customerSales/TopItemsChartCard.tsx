@@ -65,6 +65,8 @@ export const TopItemsChartCard: React.FC<TopItemsChartCardProps> = ({
     growthPct: item.growthPct
   }));
 
+  const hasPrevious = Boolean(previousLabel && chartData.some((d) => (d.previousAmount || 0) > 0));
+
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -75,7 +77,7 @@ export const TopItemsChartCard: React.FC<TopItemsChartCardProps> = ({
           </h3>
           <p className="text-[11px] text-slate-500 mt-1">
             {currentLabel}
-            {previousLabel ? ` • مقارنة بـ ${previousLabel}` : ' • لا توجد فترة سابقة للمقارنة'}
+            {hasPrevious ? ` • مقارنة بـ ${previousLabel}` : ' • لا توجد فترة سابقة للمقارنة'}
           </p>
         </div>
 
@@ -84,7 +86,7 @@ export const TopItemsChartCard: React.FC<TopItemsChartCardProps> = ({
             <span className="w-2.5 h-2.5 rounded-sm bg-[#102b4e]" />
             الفترة الحالية
           </span>
-          {previousLabel && (
+          {hasPrevious && (
             <span className="inline-flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-sm bg-[#c99a43]" />
               الفترة السابقة
@@ -100,7 +102,12 @@ export const TopItemsChartCard: React.FC<TopItemsChartCardProps> = ({
       ) : (
         <div className="h-[280px] mt-4" dir="ltr">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 8, right: 4, left: 4, bottom: 0 }} barGap={4}>
+            <BarChart
+              data={chartData}
+              margin={{ top: 8, right: 8, left: 4, bottom: 0 }}
+              barGap={4}
+              barCategoryGap="25%"
+            >
               <CartesianGrid stroke="#e8eef5" strokeDasharray="4 4" vertical={false} />
               <XAxis
                 dataKey="name"
@@ -118,18 +125,24 @@ export const TopItemsChartCard: React.FC<TopItemsChartCardProps> = ({
                 width={62}
               />
               <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(16,43,78,0.04)' }} />
-              <Bar dataKey="previousAmount" fill="#c99a43" radius={[6, 6, 0, 0]} maxBarSize={28} />
               <Bar
                 dataKey="amount"
-                radius={[6, 6, 0, 0]}
-                maxBarSize={28}
+                name="الفترة الحالية"
+                fill="#102b4e"
+                radius={[5, 5, 0, 0]}
+                barSize={hasPrevious ? 18 : 28}
                 onClick={(data: any) => onSelectItem?.(data?.itemCode || '')}
                 style={{ cursor: onSelectItem ? 'pointer' : 'default' }}
-              >
-                {chartData.map((entry, index) => (
-                  <Cell key={`item-${index}`} fill="#102b4e" />
-                ))}
-              </Bar>
+              />
+              {hasPrevious && (
+                <Bar
+                  dataKey="previousAmount"
+                  name="الفترة السابقة"
+                  fill="#c99a43"
+                  radius={[5, 5, 0, 0]}
+                  barSize={18}
+                />
+              )}
             </BarChart>
           </ResponsiveContainer>
         </div>

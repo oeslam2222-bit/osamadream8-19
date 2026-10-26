@@ -760,16 +760,21 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
 
             <div className="h-56 w-full" dir="ltr">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={salesCollectionsChart} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                <BarChart
+                  data={salesCollectionsChart}
+                  margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
+                  barGap={4}
+                  barCategoryGap="20%"
+                >
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" reversed tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
+                  <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
                   <YAxis orientation="right" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => compact(Number(v))} />
                   <Tooltip
                     formatter={(val: any, name: any) => [money(Number(val)), name === 'sales' ? 'المبيعات' : 'التحصيلات']}
                     labelFormatter={(_, payload) => payload?.[0]?.payload?.full || ''}
                   />
-                  <Bar dataKey="sales" name="المبيعات" fill="#009488" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="collections" name="التحصيلات" fill="#3882f6" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="sales" name="المبيعات" fill="#009488" radius={[4, 4, 0, 0]} barSize={14} />
+                  <Bar dataKey="collections" name="التحصيلات" fill="#3882f6" radius={[4, 4, 0, 0]} barSize={14} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

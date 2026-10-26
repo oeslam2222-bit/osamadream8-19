@@ -1,27 +1,22 @@
 import {
   AlertCircle,
   BarChart3,
-  CalendarDays,
-  Check,
   CheckCircle2,
   ClipboardList,
-  Copy,
-  Database,
   Download,
+  FileSpreadsheet,
   LayoutDashboard,
   Loader2,
-  RefreshCw,
   RotateCcw,
   Search,
-  ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Trash2,
   Users,
   X
 } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { getSavedSourceUrl } from '../services/dataSourceService';
 import {
   buildBranchInsights,
   buildCustomerGrowthMap,
@@ -38,11 +33,9 @@ import {
 } from '../services/customerItemSalesInsights';
 import {
   aggregateCustomerItemSales,
+  clearCustomerItemSales,
   exportCustomerItemSalesToExcel,
-  fetchCustomerItemSalesFromGoogleSheet,
   filterCustomerItemSalesByRBAC,
-  generateDemoCustomerItemSales,
-  getCustomerItemSalesSQLSchema,
   getSavedCustomerItemSales,
   MONTH_NAMES_MAP,
   saveCustomerItemSales
@@ -71,9 +64,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
   const [salesRecords, setSalesRecords] = useState<CustomerItemSaleRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [isDemoData, setIsDemoData] = useState(false);
-  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const [lastSyncAt] = useState<string | null>(null);
   const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
   const [syncErrorMsg, setSyncErrorMsg] = useState<string | null>(null);
 
@@ -88,24 +79,27 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const [selectedCustomerAccount, setSelectedCustomerAccount] = useState<string | null>(null);
   const [expandedCustomerAccounts, setExpandedCustomerAccounts] = useState<Set<string>>(new Set());
 
-  const [isSQLModalOpen, setIsSQLModalOpen] = useState(false);
-  const [copiedSQL, setCopiedSQL] = useState(false);
   const initialExpandDone = useRef(false);
 
   useEffect(() => {
     const saved = getSavedCustomerItemSales();
+    // Strictly purge any legacy demo-generated records
     const realSaved = saved.filter((record) => !String(record.id || '').startsWith('cis-demo-'));
-    if (realSaved.length > 0) {
-      setSalesRecords(realSaved);
-      setIsDemoData(false);
-    } else {
-      // بيانات تجريبية للمعاينة فقط — لا يتم حفظها حتى لا تختلط ببيانات الشيت الحقيقية.
-      if (saved.length > 0) saveCustomerItemSales([]);
-      setSalesRecords(generateDemoCustomerItemSales(customers, users));
-      setIsDemoData(true);
+    if (realSaved.length !== saved.length) {
+      saveCustomerItemSales(realSaved);
     }
+    setSalesRecords(realSaved);
     setIsLoading(false);
-  }, [customers, users]);
+  }, []);
+
+  const handleClearSales = () => {
+    if (window.confirm('هل أنت متأكد من رغبتك في مسح كافة سجلات مبيعات الأصناف نهائياً؟')) {
+      clearCustomerItemSales();
+      setSalesRecords([]);
+      setSyncSuccessMsg('تم مسح وتصفير كافة سجلات مبيعات الأصناف بنجاح. يتم تحديث البيانات من صفحة الإكسل.');
+      setSyncErrorMsg(null);
+    }
+  };
 
   const rbacSales = useMemo(
     () => filterCustomerItemSalesByRBAC(salesRecords, currentUser, users, customers),
@@ -295,16 +289,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     );
   }, [customerSummaries]);
 
-  const scopeLabel =
-    currentUser?.role === 'sales_rep'
-      ? `مندوب المبيعات (${currentUser.name})`
-      : currentUser?.role === 'supervisor'
-        ? `مشرف المناديب (${currentUser.name})`
-        : currentUser?.role === 'branch_manager'
-          ? `مدير الفرع (${currentUser.branchName})`
-          : 'الإدارة العامة (كامل الصلاحيات)';
-
-
   const toggleCustomerExpand = (account: string) => {
     setExpandedCustomerAccounts((previous) => {
       const next = new Set(previous);
@@ -328,56 +312,12 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     setSelectedWarehouse('all');
   };
 
-  const sqlSchemaText = useMemo(() => getCustomerItemSalesSQLSchema(), []);
-
-  const handleCopySQL = async () => {
-    try {
-      await navigator.clipboard.writeText(sqlSchemaText);
-      setCopiedSQL(true);
-      setTimeout(() => setCopiedSQL(false), 2500);
-    } catch {
-      setCopiedSQL(false);
-    }
-  };
-
   const handleExportExcel = () => {
     exportCustomerItemSalesToExcel(
       filteredSales,
       customerSummaries,
       `تحليل_مبيعات_الأصناف_${currentUser?.name || 'الطنطاوي'}`
     );
-  };
-
-  const handleSyncFromSheet = async () => {
-    const sheetUrl = getSavedSourceUrl('customerSales');
-    if (!sheetUrl) {
-      setSyncErrorMsg(
-        'لم يتم حفظ رابط Google Sheet لمبيعات العملاء بالصنف بعد. أدخل الرابط من صفحة الإكسل أولاً.'
-      );
-      return;
-    }
-
-    setIsSyncing(true);
-    setSyncErrorMsg(null);
-    setSyncSuccessMsg(null);
-
-    try {
-      const result = await fetchCustomerItemSalesFromGoogleSheet(sheetUrl);
-      if (result.sales.length === 0) {
-        throw new Error(result.errors[0] || 'لم يتم العثور على صفوف مبيعات صالحة في الشيت');
-      }
-      setSalesRecords(result.sales);
-      saveCustomerItemSales(result.sales);
-      setIsDemoData(false);
-      setLastSyncAt(new Date().toLocaleString('ar-EG'));
-      setSyncSuccessMsg(
-        `تم تحديث ${result.sales.length.toLocaleString('ar-EG')} سطر مبيعات من ${result.totalRows.toLocaleString('ar-EG')} صف في الشيت.`
-      );
-    } catch (error: any) {
-      setSyncErrorMsg(error?.message || 'فشلت مزامنة شيت مبيعات العملاء بالصنف');
-    } finally {
-      setIsSyncing(false);
-    }
   };
 
   const handleStartOrderForCustomer = (account: string, itemCode?: string) => {
@@ -402,7 +342,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     );
   }
 
-
   return (
     <div className="space-y-4 pb-20" dir="rtl">
       {/* Page header */}
@@ -411,80 +350,67 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           <div className="space-y-2 min-w-0">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-[11px] font-black">
               <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-              لوحة تحليل مبيعات الأصناف
+              لوحة تحليل مبيعات الأصناف الحقيقية
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-[#c99a43]" />
               مبيعات العملاء بالصنف
             </h1>
             <p className="text-[11px] sm:text-xs text-slate-500 max-w-3xl leading-relaxed">
-              صورة موحّدة للمبيعات حسب الفرع والمندوب والعميل والصنف، مع مقارنة بالفترة السابقة
-              ومؤشرات نمو وتنبيهات متابعة تساعد الإدارة ومدير الفرع ومشرف المناديب على القرار السريع.
+              تحليل شامل لحركات البيع الفعلية لكل عميل حسب الصنف والمجموعة والشهر، مع إمكانية البحث الفوري لكل مندوب
+              باسم العميل المربوط به، وتصدير إكسل نظيف وسريع.
             </p>
 
             <div className="pt-1 flex items-center gap-2 flex-wrap text-[10px]">
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-lg text-slate-600 font-bold border border-slate-200">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                نطاق الصلاحية: {scopeLabel}
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 rounded-lg text-slate-600 font-bold border border-slate-200">
-                <CalendarDays className="w-3.5 h-3.5 text-sky-600" />
-                {comparison.scopeLabel}
-              </span>
+              {salesRecords.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-lg text-amber-800 font-bold border border-amber-200">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" />
+                  {salesRecords.length.toLocaleString('ar-EG')} حركة بيع معتمدة
+                </span>
+              )}
               {lastSyncAt && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 rounded-lg text-emerald-700 font-bold border border-emerald-200">
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  آخر مزامنة: {lastSyncAt}
+                  آخر تحديث: {lastSyncAt}
                 </span>
               )}
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap shrink-0">
-            <button
-              type="button"
-              onClick={handleSyncFromSheet}
-              disabled={isSyncing}
-              className="inline-flex items-center gap-2 h-10 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] shadow-sm transition cursor-pointer disabled:opacity-50"
-            >
-              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-              {isSyncing ? 'جاري المزامنة...' : 'مزامنة الشيت'}
-            </button>
-            <button
-              type="button"
-              onClick={handleExportExcel}
-              className="inline-flex items-center gap-2 h-10 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition cursor-pointer"
-            >
-              <Download className="w-4 h-4 text-emerald-600" />
-              تصدير Excel
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsSQLModalOpen(true)}
-              className="inline-flex items-center gap-2 h-10 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition cursor-pointer"
-            >
-              <Database className="w-4 h-4 text-sky-600" />
-              SQL
-            </button>
-          </div>
-        </div>
-
-        {isDemoData && (
-          <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <p className="text-[11px] font-bold text-amber-900 leading-relaxed">
-              البيانات المعروضة تجريبية للمعاينة فقط (غير محفوظة). اربط شيت مبيعات الأصناف لعرض أرقامك الحقيقية.
-            </p>
+            {salesRecords.length > 0 && (
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="inline-flex items-center gap-2 h-10 px-3.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition cursor-pointer"
+              >
+                <Download className="w-4 h-4 text-emerald-600" />
+                تصدير Excel
+              </button>
+            )}
+            {salesRecords.length > 0 && (
+              <button
+                type="button"
+                onClick={handleClearSales}
+                title="تصفير ومسح مبيعات الأصناف"
+                className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-700 font-bold text-[11px] transition cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4 text-rose-500" />
+                <span className="hidden sm:inline">مسح الداتا</span>
+              </button>
+            )}
             {onNavigateToExcel && (
               <button
                 type="button"
                 onClick={onNavigateToExcel}
-                className="shrink-0 h-8 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-black transition cursor-pointer"
+                className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] shadow-sm transition cursor-pointer"
               >
-                ربط الشيت من صفحة الإكسل
+                <FileSpreadsheet className="w-4 h-4" />
+                <span>صفحة الإكسل</span>
               </button>
             )}
           </div>
-        )}
+        </div>
 
         {syncSuccessMsg && (
           <div className="mt-3 bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl text-[11px] flex items-center gap-2">
@@ -500,23 +426,65 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         )}
       </section>
 
-
-      {/* Filters */}
-      <section className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-3.5 sm:p-4 space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-[11px] font-black text-slate-700 flex items-center gap-1.5">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-amber-500" />
-            تصفية النتائج
+      {salesRecords.length === 0 ? (
+        <section className="bg-white rounded-3xl border border-slate-200 p-8 sm:p-12 text-center shadow-xs">
+          <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-700 mx-auto flex items-center justify-center mb-4 shadow-xs">
+            <FileSpreadsheet className="w-8 h-8" />
+          </div>
+          <h2 className="text-base sm:text-lg font-black text-slate-900">
+            لا توجد بيانات مبيعات مسجلة حالياً
           </h2>
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer"
-          >
-            <RotateCcw className="w-3 h-3" />
-            إعادة تعيين
-          </button>
-        </div>
+          <p className="text-xs text-slate-500 max-w-xl mx-auto mt-2 leading-relaxed">
+            تم مسح البيانات التجريبية نهائياً. صفحة الإكسل هي المصدر المركزي لرفع وتحديث جميع ملفات وشيتات البيانات.
+          </p>
+
+          {onNavigateToExcel && (
+            <div className="flex items-center justify-center gap-3 mt-6 flex-wrap">
+              <button
+                type="button"
+                onClick={onNavigateToExcel}
+                className="inline-flex items-center gap-2 h-11 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition cursor-pointer"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                الانتقال إلى صفحة الإكسل لرفع الشيت
+              </button>
+            </div>
+          )}
+
+          <div className="mt-8 pt-6 border-t border-slate-100 max-w-2xl mx-auto text-right">
+            <h4 className="text-[11px] font-black text-slate-700 mb-2">الأعمدة المدعومة في الملف (Excel / Google Sheet):</h4>
+            <div className="flex flex-wrap gap-1.5 text-[10px] text-slate-600 font-mono">
+              {[
+                'Customer account', 'Invoicing name', 'Sales order', 'Date',
+                'المندوب', 'الشهر', 'Warehouse', 'Item', 'Name', 'Unit',
+                'factor', 'Unit price', 'Discount', 'Quantity', 'Amount',
+                'Item group', 'التعريفات', 'Family Dimension'
+              ].map((col) => (
+                <span key={col} className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                  {col}
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : (
+        <>
+          {/* Filters */}
+          <section className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-3.5 sm:p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-[11px] font-black text-slate-700 flex items-center gap-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-amber-500" />
+                تصفية النتائج
+              </h2>
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer"
+              >
+                <RotateCcw className="w-3 h-3" />
+                إعادة تعيين
+              </button>
+            </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
           <div className="relative col-span-2 md:col-span-3 xl:col-span-2">
@@ -721,74 +689,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           onStartOrder={onOpenNewOrderForCustomer ? handleStartOrderForCustomer : undefined}
         />
       )}
-
-      {/* SQL schema modal */}
-      {isSQLModalOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in"
-          dir="rtl"
-        >
-          <div className="bg-slate-900 text-white rounded-3xl max-w-3xl w-full p-5 shadow-2xl border border-slate-700 space-y-4 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <Database className="w-5 h-5 text-amber-400" />
-                <h3 className="text-sm font-black text-white">
-                  كود SQL لجدول مبيعات العملاء بالصنف (PostgreSQL / Supabase)
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSQLModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              نفّذ الكود في <strong>Supabase SQL Editor</strong> لإنشاء الجدول والفهارس وسياسات
-              الأمان RLS، ثم اربط المزامنة بالجدول بدل التخزين المحلي.
-            </p>
-
-            <div className="relative flex-1 overflow-hidden rounded-2xl border border-slate-700 bg-slate-950">
-              <pre className="p-4 text-[10px] font-mono text-emerald-400 leading-relaxed overflow-y-auto max-h-[50vh]" dir="ltr">
-                {sqlSchemaText}
-              </pre>
-              <button
-                type="button"
-                onClick={handleCopySQL}
-                className="absolute top-3 left-3 bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-lg text-[10px] font-bold transition flex items-center gap-1.5 cursor-pointer"
-              >
-                {copiedSQL ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-300" />
-                    تم النسخ
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-3.5 h-3.5" />
-                    نسخ SQL
-                  </>
-                )}
-              </button>
-            </div>
-
-            <div className="flex items-center justify-between gap-2 pt-1">
-              <span className="text-[10px] text-slate-400">
-                يشمل الحقول: Customer account, Invoicing name, Item, Quantity, Amount…
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsSQLModalOpen(false)}
-                className="h-9 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black transition cursor-pointer"
-              >
-                إغلاق
-              </button>
-            </div>
-          </div>
-        </div>
+        </>
       )}
     </div>
   );
-
 };

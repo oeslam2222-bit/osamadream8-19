@@ -35,7 +35,8 @@ import {
   Scale,
   Settings,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Menu
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
@@ -89,6 +90,29 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStandalone, setIsStandalone] = useState(true);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+
+  const [internalSidebarCollapsed, setInternalSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('tantawy_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const effectiveSidebarCollapsed = isSidebarCollapsed !== undefined ? isSidebarCollapsed : internalSidebarCollapsed;
+
+  const handleToggleSidebar = () => {
+    if (onToggleSidebar) {
+      onToggleSidebar();
+    } else {
+      setInternalSidebarCollapsed((prev) => {
+        const next = !prev;
+        try { localStorage.setItem('tantawy_sidebar_collapsed', String(next)); } catch {}
+        return next;
+      });
+    }
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -217,22 +241,29 @@ export const Navbar: React.FC<NavbarProps> = ({
             {todayLabel}
           </div>
 
-          {/* Brand & Logo (mobile / tablet) */}
+          {/* Brand & Logo + Mobile Menu Trigger (mobile / tablet) */}
           <div className="flex items-center gap-2 sm:gap-3 lg:hidden">
-            <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-2xl bg-[#0f2b38] p-1 border-2 border-teal-500 shadow-md shadow-teal-500/20 flex items-center justify-center shrink-0 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setIsMobileDrawerOpen(true)}
+              aria-label="القائمة الرئيسية"
+              title="القائمة الرئيسية"
+              className="h-10 px-2.5 rounded-xl bg-[#0f2b38] hover:bg-[#1a3f52] text-amber-300 flex items-center gap-1.5 font-black text-xs shadow-xs cursor-pointer border border-teal-500/30"
+            >
+              <Menu className="w-4 h-4 text-amber-400 shrink-0" />
+              <span className="text-[11px]">القائمة</span>
+            </button>
+            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-[#0f2b38] p-1 border-2 border-teal-500 shadow-md shadow-teal-500/20 flex items-center justify-center shrink-0 overflow-hidden">
               <img src="/icon.svg" alt="طنطاوي جروب - Tantawy Group" className="h-full w-full object-contain" />
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h1 className="font-black text-sm sm:text-lg tracking-tight text-slate-900 flex items-center gap-1">
+                <h1 className="font-black text-sm sm:text-base tracking-tight text-slate-900 flex items-center gap-1">
                   <span>طنطاوي جروب</span>
                 </h1>
-                <span className="hidden md:inline-block px-2 py-0.5 text-[10px] font-extrabold bg-teal-50 text-teal-800 rounded-md border border-teal-300">
-                  TANTAWY GROUP
-                </span>
               </div>
-              <p className="text-[10px] sm:text-[11px] text-slate-500 hidden sm:block">
-                تطبيق مبيعات والتحصيلات • لوحة بسيطة لإدارة أقوى
+              <p className="text-[10px] text-slate-500 hidden sm:block">
+                تطبيق المبيعات
               </p>
             </div>
           </div>
@@ -498,15 +529,15 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </header>
 
-      <aside className={`tantawy-sidebar print:hidden ${isSidebarCollapsed ? 'is-collapsed' : ''}`} aria-label="التنقل الرئيسي">
-        {isSidebarCollapsed ? (
+      <aside className={`tantawy-sidebar print:hidden ${effectiveSidebarCollapsed ? 'is-collapsed' : ''}`} aria-label="التنقل الرئيسي">
+        {effectiveSidebarCollapsed ? (
           /* Collapsed Smart Mini Rail (Allows maximum screen space for Catalog) */
           <div className="flex flex-col items-center h-full">
             {/* Expand Toggle Button & Logo */}
             <div className="pb-4 border-b border-white/10 w-full flex flex-col items-center gap-3">
               <button
                 type="button"
-                onClick={onToggleSidebar}
+                onClick={handleToggleSidebar}
                 title="توسيع القائمة الجانبية"
                 className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-amber-300 flex items-center justify-center transition cursor-pointer active:scale-95 shadow-2xs"
               >
@@ -566,7 +597,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
               <button
                 type="button"
-                onClick={onToggleSidebar}
+                onClick={handleToggleSidebar}
                 title="تصغير القائمة لتوسيع مساحة عرض المنتجات"
                 className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-amber-300 flex items-center justify-center transition cursor-pointer shrink-0"
               >
@@ -578,7 +609,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>القائمة الرئيسية</span>
               <button
                 type="button"
-                onClick={onToggleSidebar}
+                onClick={handleToggleSidebar}
                 className="text-[10px] text-amber-300 hover:text-white font-medium flex items-center gap-0.5 cursor-pointer"
               >
                 <span>تصغير</span>
@@ -620,7 +651,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
       </aside>
 
-      <nav className="tantawy-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center justify-around py-2 px-1 shadow-xl safe-area-inset-bottom print:hidden" aria-label="التنقل">
+      <nav className="tantawy-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center justify-around py-1.5 px-1 shadow-xl safe-area-inset-bottom print:hidden" aria-label="التنقل">
         {currentUser.role === 'legal_advisor' ? (
           <button
             onClick={() => setActiveTab('legal_advisor')}
@@ -630,42 +661,169 @@ export const Navbar: React.FC<NavbarProps> = ({
             <span>لوحة الشؤون القانونية</span>
           </button>
         ) : (
-          [
-            { id: 'home', label: 'الرئيسية', icon: Home },
-            { id: 'all_customers', label: 'العملاء', icon: Users },
-            { id: 'invoices', label: 'الفواتير', icon: Receipt },
-            { id: 'visits', label: 'الزيارات', icon: CalendarCheck },
-            { id: 'catalog', label: 'الكتالوج', icon: Boxes, badge: cartSummary.itemCount },
-          ].map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id || (item.id === 'all_customers' && activeTab === 'customers');
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setActiveTab(item.id)}
-                aria-current={isActive ? 'page' : undefined}
-                className={`relative flex flex-col items-center justify-center flex-1 py-1 px-1 transition cursor-pointer min-h-[44px] ${
-                  isActive ? 'text-[color:var(--brand-teal)] font-black' : 'text-slate-400 hover:text-slate-600 font-bold'
-                }`}
-              >
-                <div className="relative">
-                  <Icon className={`w-5 h-5 mb-1 transition-transform ${isActive ? 'scale-110 text-[color:var(--brand-teal)] stroke-[2.5]' : 'stroke-[1.8]'}`} />
-                  {item.badge && item.badge > 0 ? (
-                    <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-[color:var(--brand-amber)] text-slate-950 font-black text-[9px] flex items-center justify-center px-1">
-                      {item.badge}
-                    </span>
-                  ) : null}
-                </div>
-                <span className="text-[10px] tracking-tight truncate">{item.label}</span>
-                {isActive && (
-                  <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--brand-teal)] mt-0.5" />
+          <>
+            {[
+              { id: 'home', label: 'الرئيسية', icon: Home },
+              { id: 'customer_item_sales', label: 'الأصناف', icon: BarChart3 },
+              { id: 'all_customers', label: 'العملاء', icon: Users },
+              { id: 'invoices', label: 'الفواتير', icon: Receipt },
+              { id: 'catalog', label: 'الكتالوج', icon: Boxes, badge: cartSummary.itemCount },
+            ].map((item) => {
+              const Icon = item.icon;
+              const isActive = activeTab === item.id || (item.id === 'all_customers' && activeTab === 'customers');
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setActiveTab(item.id)}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`relative flex flex-col items-center justify-center flex-1 py-1 px-1 transition cursor-pointer min-h-[44px] ${
+                    isActive ? 'text-[color:var(--brand-teal)] font-black' : 'text-slate-400 hover:text-slate-600 font-bold'
+                  }`}
+                >
+                  <div className="relative">
+                    <Icon className={`w-5 h-5 mb-0.5 transition-transform ${isActive ? 'scale-110 text-[color:var(--brand-teal)] stroke-[2.5]' : 'stroke-[1.8]'}`} />
+                    {item.badge && item.badge > 0 ? (
+                      <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-[color:var(--brand-amber)] text-slate-950 font-black text-[9px] flex items-center justify-center px-1">
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </div>
+                  <span className="text-[10px] tracking-tight truncate">{item.label}</span>
+                  {isActive && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--brand-teal)] mt-0.5" />
+                  )}
+                </button>
+              );
+            })}
+
+            {/* Mobile Drawer Open Button */}
+            <button
+              type="button"
+              onClick={() => setIsMobileDrawerOpen(true)}
+              aria-label="القائمة الكاملة"
+              className="relative flex flex-col items-center justify-center flex-1 py-1 px-1 transition cursor-pointer min-h-[44px] text-amber-700 hover:text-amber-800 font-bold"
+            >
+              <div className="relative">
+                <Menu className="w-5 h-5 mb-0.5 stroke-[2.2]" />
+                {pendingApprovalsCount > 0 && (
+                  <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-rose-500 text-white font-black text-[9px] flex items-center justify-center px-1">
+                    {pendingApprovalsCount}
+                  </span>
                 )}
-              </button>
-            );
-          })
+              </div>
+              <span className="text-[10px] tracking-tight truncate font-black">القائمة</span>
+            </button>
+          </>
         )}
       </nav>
+
+      {/* Complete Mobile Navigation Slide-Over Drawer */}
+      {isMobileDrawerOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex justify-end" dir="rtl">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity animate-in fade-in"
+            onClick={() => setIsMobileDrawerOpen(false)}
+          />
+
+          {/* Drawer Content */}
+          <div className="relative w-full max-w-xs sm:max-w-sm bg-[#0f2b38] text-white h-full shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-200">
+            {/* Drawer Header */}
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <img src="/icon.svg" alt="طنطاوي جروب" className="w-9 h-9 rounded-xl object-contain border border-teal-500/40 shadow-xs" />
+                <div>
+                  <div className="font-black text-sm text-white">طنطاوي جروب</div>
+                  <div className="text-[10px] text-teal-300 font-semibold">القائمة الرئيسية والتطبيقات</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobileDrawerOpen(false)}
+                className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+                title="إغلاق القائمة"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* User Profile Summary */}
+            <div className="px-4 py-3 bg-black/20 border-b border-white/5 flex items-center justify-between">
+              <div>
+                <div className="font-black text-xs text-white">{currentUser.name}</div>
+                <div className="text-[10px] text-amber-300 font-bold">{roleNames[currentUser.role]?.label || currentUser.role}</div>
+                <div className="text-[10px] text-slate-300">{currentUser.branchName}</div>
+              </div>
+              <div className="w-10 h-10 rounded-full bg-amber-500 text-slate-950 font-black text-sm flex items-center justify-center shadow-xs">
+                {(currentUser.name || '').trim().charAt(0)}
+              </div>
+            </div>
+
+            {/* Nav Items List */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-1">
+              <div className="text-[10px] font-bold text-teal-300/80 px-2 pb-1">أقسام النظام المتاحة لحسابك:</div>
+              {filteredNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setIsMobileDrawerOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-2xl text-right text-xs font-bold transition cursor-pointer ${
+                      isActive
+                        ? 'bg-amber-500 text-slate-950 font-black shadow-md'
+                        : 'text-slate-200 hover:bg-white/10 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-slate-950' : 'text-teal-400'}`} />
+                      <span className="text-[13px]">{item.label}</span>
+                    </div>
+                    {item.badge && item.badge > 0 ? (
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                        isActive ? 'bg-slate-950 text-amber-300' : 'bg-rose-500 text-white'
+                      }`}>
+                        {item.badge}
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Drawer Footer Actions */}
+            <div className="p-4 border-t border-white/10 space-y-2 bg-[#0a1e27]">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSettingsModalOpen(true);
+                  setIsMobileDrawerOpen(false);
+                }}
+                className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-bold transition cursor-pointer"
+              >
+                <Settings className="w-4 h-4 text-amber-300" />
+                <span>إعدادات النظام والخصوصية</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMobileDrawerOpen(false);
+                  logout();
+                }}
+                className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-xs font-bold border border-rose-500/30 transition cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>تسجيل الخروج</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* PWA Install Modal */}
       <InstallAppModal

@@ -74,6 +74,24 @@ const MainLayout: React.FC = () => {
     return <LoginPage />;
   }
 
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('tantawy_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleSidebar = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('tantawy_sidebar_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   const cartSummary = getCartSummary();
 
   const handleOpenOrderForCustomer = (cust: Customer) => {
@@ -110,6 +128,8 @@ const MainLayout: React.FC = () => {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenCart={() => setIsOrderModalOpen(true)}
+        isSidebarCollapsed={isSidebarCollapsed}
+        onToggleSidebar={handleToggleSidebar}
       />
 
       {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}
