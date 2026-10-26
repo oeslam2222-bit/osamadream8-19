@@ -11,6 +11,7 @@ import {
 } from './arabicMatchingService';
 import { buildGoogleSheetsPublicCsvUrl } from './excelService';
 import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
+import { idbGet, idbSet, idbDelete } from './storageService';
 
 export const ITEM_SALES_STORAGE_KEY = 'tantawy_customer_item_sales_v1';
 
@@ -54,6 +55,7 @@ function mapHeaderIndices(headerRow: any[]): Record<string, number> {
     warehouse: -1,
     itemCode: -1,
     itemName: -1,
+    unifiedCode: -1,
     unit: -1,
     factor: -1,
     unitPrice: -1,
@@ -174,7 +176,20 @@ function mapHeaderIndices(headerRow: any[]): Record<string, number> {
     ) {
       if (map.itemName === -1) map.itemName = idx;
     }
-    // 10. Unit (الوحدة)
+    // 9b. Unified code (الكود الموحد #) — يربط ألوان وموديلات الصنف
+    else if (
+      h === 'unifiedcode' ||
+      h === 'unified' ||
+      h === 'كودموحد' ||
+      h === 'كودموحد#' ||
+      h === '#' ||
+      h === 'كود#' ||
+      h === 'كودالموحد' ||
+      h.includes('unifiedcode') ||
+      h.includes('كودموحد')
+    ) {
+      if (map.unifiedCode === -1) map.unifiedCode = idx;
+    }
     else if (
       h === 'unit' ||
       h === 'الوحدة' ||
@@ -333,6 +348,7 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
     const invoicingName = getVal(colMap.invoicingName);
     const itemCode = getVal(colMap.itemCode);
     const itemName = getVal(colMap.itemName);
+    const unifiedCode = getVal(colMap.unifiedCode);
 
     // Skip empty summary/footer rows
     if (!customerAccount && !invoicingName && !itemCode && !itemName) continue;
@@ -381,6 +397,7 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
       warehouse,
       itemCode: itemCode || `ITEM-${i}`,
       itemName: itemName || itemCode || `صنف #${i}`,
+      unifiedCode: unifiedCode || undefined,
       unit,
       factor,
       unitPrice,
@@ -717,11 +734,17 @@ export function generateDemoCustomerItemSales(customers: Customer[], allUsers: U
 }
 
 /**
- * Load Customer Item Sales from storage (IndexedDB or localStorage)
+ * Load Customer Item Sales from storage (IndexedDB primary, localStorage fallback)
  */
-export function getSavedCustomerItemSales(): CustomerItemSaleRecord[] {
+export async function getSavedCustomerItemSales(): Promise<CustomerItemSaleRecord[]> {
   if (typeof window === 'undefined') return [];
   try {
+    // Try IndexedDB first (high capacity, ~50MB+)
+    const idbData = await idbGet<CustomerItemSaleRecord[]>(ITEM_SALES_STORAGE_KEY);
+    if (Array.isArray(idbData) && idbData.length > 0) {
+      return idbData;
+    }
+    // Fallback to localStorage (legacy / small datasets)
     const raw = window.localStorage.getItem(ITEM_SALES_STORAGE_KEY);
     if (!raw) return [];
     const list = JSON.parse(raw);
@@ -732,26 +755,35 @@ export function getSavedCustomerItemSales(): CustomerItemSaleRecord[] {
 }
 
 /**
- * Clear Customer Item Sales from storage
+ * Clear Customer Item Sales from storage (IndexedDB + localStorage)
  */
-export function clearCustomerItemSales(): void {
+export async function clearCustomerItemSales(): Promise<void> {
   if (typeof window === 'undefined') return;
   try {
+    await idbDelete(ITEM_SALES_STORAGE_KEY);
+  } catch {}
+  try {
     window.localStorage.removeItem(ITEM_SALES_STORAGE_KEY);
-  } catch (err) {
-    console.warn('Customer item sales storage clear note:', err);
-  }
+  } catch {}
 }
 
 /**
- * Save Customer Item Sales to storage
+ * Save Customer Item Sales to storage (IndexedDB primary, localStorage cache)
  */
-export function saveCustomerItemSales(sales: CustomerItemSaleRecord[]): void {
+export async function saveCustomerItemSales(sales: CustomerItemSaleRecord[]): Promise<void> {
   if (typeof window === 'undefined') return;
+  // Primary: IndexedDB (high capacity)
+  try {
+    await idbSet(ITEM_SALES_STORAGE_KEY, sales);
+  } catch (err) {
+    console.warn('Customer item sales IndexedDB save note:', err);
+  }
+  // Cache: localStorage (best-effort, may fail for large datasets)
   try {
     window.localStorage.setItem(ITEM_SALES_STORAGE_KEY, JSON.stringify(sales));
-  } catch (err) {
-    console.warn('Customer item sales storage note:', err);
+  } catch {
+    // Quota exceeded - data is safely in IndexedDB
+    try { window.localStorage.removeItem(ITEM_SALES_STORAGE_KEY); } catch {}
   }
 }
 
