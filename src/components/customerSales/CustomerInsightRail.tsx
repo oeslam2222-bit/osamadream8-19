@@ -291,7 +291,7 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
                   </div>
                 </div>
                 <div className="rounded-xl bg-slate-50 border border-slate-100 px-2 py-1.5">
-                  <div className="text-[9px] text-slate-400 font-bold">تحصيلات 2026</div>
+                  <div className="text-[9px] text-slate-400 font-bold">إجمالي التحصيلات</div>
                   <div className="text-[11px] font-black text-emerald-700 font-mono mt-0.5">
                     {formatCurrency(financial.collections)}
                   </div>
