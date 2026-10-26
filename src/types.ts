@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'branch_manager' | 'supervisor' | 'sales_rep' | 'developer' | 'legal_advisor';
+export type UserRole = 'admin' | 'branch_manager' | 'supervisor' | 'sales_rep' | 'developer' | 'legal_advisor' | 'warehouse_keeper';
 
 export type UserApprovalStatus = 'active' | 'pending_approval' | 'rejected';
 
@@ -768,6 +768,7 @@ export interface CustomerItemSaleRecord {
   warehouse: string;            // Warehouse (الفرع / المخزن)
   itemCode: string;             // Item (كود الصنف)
   itemName: string;             // Name (اسم الصنف)
+  unifiedCode?: string;         // الكود الموحد (#) الذي يربط ألوان وموديلات الصنف معاً
   unit: string;                 // Unit (الوحدة - كرتونة / قطعة)
   factor: number;               // factor (معامل التحويل / القطع بالكرتونة)
   unitPrice: number;            // Unit price (سعر الوحدة)

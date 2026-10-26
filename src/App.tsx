@@ -32,10 +32,10 @@ import { TargetPerformanceDashboard } from './components/TargetPerformanceDashbo
 import { VisitsDashboard } from './components/VisitsDashboard';
 import { ReturnsWarehouseView } from './components/ReturnsWarehouseView';
 import { ReturnsCustomersView } from './components/ReturnsCustomersView';
-import { LegalAdvisorDashboard } from './components/LegalAdvisorDashboard';
+import { PermissionManagerModal } from './components/PermissionManagerModal';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
-import { AppProvider, useApp } from './context/AppContext';
+import { getUserAllowedTabs, getCustomPermissions, UserPermissionOverride } from './services/permissionService';
 import { AuthProvider } from './context/authContext';
 import { InvoiceProvider } from './context/invoiceContext';
 import { CustomerProvider } from './context/customerContext';
@@ -47,12 +47,12 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
     'home', 'legal_advisor', 'catalog', 'all_customers', 'customers',
     'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'excel', 'users', 'guide'
+    'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   admin: [
     'home', 'legal_advisor', 'catalog', 'all_customers', 'customers',
     'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'excel', 'users', 'guide'
+    'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   branch_manager: [
     'home', 'catalog', 'all_customers', 'customers',
@@ -68,6 +68,9 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
     'home', 'catalog', 'all_customers', 'customers',
     'customer_item_sales', 'targets', 'visits', 'returns_customers', 'invoices',
     'inventory'
+  ],
+  warehouse_keeper: [
+    'home', 'returns', 'inventory', 'catalog', 'guide'
   ],
   legal_advisor: [
     'legal_advisor', 'home'
@@ -95,20 +98,34 @@ const MainLayout: React.FC = () => {
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 
+  const [customPermissionOverrides, setCustomPermissionOverrides] = useState<UserPermissionOverride[]>([]);
+
+  // Load custom permission overrides (admin-customized per user)
+  useEffect(() => {
+    let active = true;
+    getCustomPermissions().then((overrides) => {
+      if (active) setCustomPermissionOverrides(overrides);
+    }).catch(() => {});
+    return () => { active = false; };
+  }, []);
+
   const allowedTabs = useMemo(() => {
     if (!currentUser) return ['home'];
+    const override = customPermissionOverrides.find((o) => o.userId === currentUser.id);
+    if (override) return override.allowedTabs;
     return ROLE_ALLOWED_TABS[currentUser.role] || ['home'];
-  }, [currentUser]);
+  }, [currentUser, customPermissionOverrides]);
 
   // Land on authorized tab and strictly guard unauthorized tabs
   useEffect(() => {
     if (currentUser) {
-      const allowed = ROLE_ALLOWED_TABS[currentUser.role] || ['home'];
+      const override = customPermissionOverrides.find((o) => o.userId === currentUser.id);
+      const allowed = override ? override.allowedTabs : (ROLE_ALLOWED_TABS[currentUser.role] || ['home']);
       if (!allowed.includes(activeTab)) {
         setActiveTab(currentUser.role === 'legal_advisor' ? 'legal_advisor' : 'home');
       }
     }
-  }, [currentUser?.id, currentUser?.role, activeTab]);
+  }, [currentUser?.id, currentUser?.role, activeTab, customPermissionOverrides]);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     try {
@@ -240,6 +257,10 @@ const MainLayout: React.FC = () => {
 
           {activeTab === 'guide' && allowedTabs.includes('guide') && (
             <SystemWorkflowGuide onNavigateToTab={(tab) => setActiveTab(tab)} />
+          )}
+
+          {activeTab === 'permissions' && allowedTabs.includes('permissions') && (
+            <PermissionManagerModal isOpen={true} onClose={() => setActiveTab('home')} />
           )}
 
         </Suspense>
