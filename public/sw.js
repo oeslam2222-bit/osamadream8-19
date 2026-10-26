@@ -92,9 +92,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Supabase API calls: Preserve network failures so callers can keep local data
+  // 2. Supabase API calls: Catch network failures safely so console isn't polluted and offline flow proceeds cleanly
   if (url.hostname.includes('supabase.co')) {
-    event.respondWith(fetch(request));
+    event.respondWith(
+      fetch(request).catch(() => {
+        return new Response(JSON.stringify({ error: 'network_offline', data: null }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      })
+    );
     return;
   }
 

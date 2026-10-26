@@ -732,6 +732,18 @@ export function getSavedCustomerItemSales(): CustomerItemSaleRecord[] {
 }
 
 /**
+ * Clear Customer Item Sales from storage
+ */
+export function clearCustomerItemSales(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(ITEM_SALES_STORAGE_KEY);
+  } catch (err) {
+    console.warn('Customer item sales storage clear note:', err);
+  }
+}
+
+/**
  * Save Customer Item Sales to storage
  */
 export function saveCustomerItemSales(sales: CustomerItemSaleRecord[]): void {
