@@ -20,7 +20,14 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUserState] = useState<User | null>(null);
+  const [currentUser, setCurrentUserState] = useState<User | null>(() => {
+    try {
+      const raw = localStorage.getItem('tantawy_current_user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
   const [users, setUsersState] = useState<User[]>([]);
   const [branches, setBranchesState] = useState<Branch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const user = users.find(u => u.username === username);
       if (!user) throw new Error('اسم المستخدم غير صحيح');
       setCurrentUserState(user);
+      try { localStorage.setItem('tantawy_current_user', JSON.stringify(user)); } catch {}
     } finally {
       setIsLoading(false);
     }
@@ -40,6 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(() => {
     setCurrentUserState(null);
+    try { localStorage.removeItem('tantawy_current_user'); } catch {}
   }, []);
 
   const registerUser = useCallback(async (userData: Omit<User, 'id'>) => {
@@ -57,7 +66,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const setUsers = useCallback((users: User[]) => setUsersState(users), []);
   const setBranches = useCallback((branches: Branch[]) => setBranchesState(branches), []);
-  const setCurrentUser = useCallback((user: User | null) => setCurrentUserState(user), []);
+  const setCurrentUser = useCallback((user: User | null) => {
+    setCurrentUserState(user);
+    try {
+      if (user) localStorage.setItem('tantawy_current_user', JSON.stringify(user));
+      else localStorage.removeItem('tantawy_current_user');
+    } catch {}
+  }, []);
 
   const value = useMemo(() => ({
     currentUser, users, branches, isAuthenticated, isLoading,
