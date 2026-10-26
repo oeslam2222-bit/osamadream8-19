@@ -19,11 +19,13 @@ import {
   FileCheck,
   Send,
   HelpCircle,
-  FolderOpen
+  FolderOpen,
+  Trash2
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Customer, Invoice } from '../types';
 import { formatCurrency } from '../services/invoiceService';
+import { filterCustomersByRBAC } from '../services/customerAnalyticsService';
 
 interface LegalNotice {
   id: string;
@@ -58,81 +60,54 @@ export const LegalAdvisorDashboard: React.FC = () => {
   const [selectedBranch, setSelectedBranch] = useState('الكل');
   const [minDebtFilter, setMinDebtFilter] = useState<number>(5000);
 
-  // Legal Notices State (persisted locally)
+  // Legal Notices State (persisted locally, strictly purged of fake mock records)
   const [notices, setNotices] = useState<LegalNotice[]>(() => {
     const saved = localStorage.getItem('tantawy_legal_notices');
     if (saved) {
-      try { return JSON.parse(saved); } catch {}
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (n) =>
+              !String(n.id || '').startsWith('NOT-2026-001') &&
+              !String(n.id || '').startsWith('NOT-2026-002') &&
+              !String(n.customerName || '').includes('مكتبة ومستلزمات النجاح') &&
+              !String(n.customerName || '').includes('شركة الإيمان للتوريدات')
+          );
+        }
+      } catch {}
     }
-    return [
-      {
-        id: 'NOT-2026-001',
-        customerName: 'مكتبة ومستلزمات النجاح',
-        customerCode: 'C-1092',
-        branch: 'فرع طنطا',
-        repName: 'أحمد محمود',
-        totalDebt: 34500,
-        issueDate: '2026-02-10',
-        deadlineDate: '2026-02-24',
-        status: 'تم الإرسال على يد محضر',
-        legalType: 'إنذار رسمي على يد محضر',
-        notes: 'تجاوز فترة الائتمان بأكثر من 90 يوماً مع عدم الرد على اتصالات مندوب ومحاسب الفرع.'
-      },
-      {
-        id: 'NOT-2026-002',
-        customerName: 'شركة الإيمان للتوريدات',
-        customerCode: 'C-2401',
-        branch: 'فرع المنصورة',
-        repName: 'إسلام فاروق',
-        totalDebt: 78000,
-        issueDate: '2026-03-01',
-        deadlineDate: '2026-03-15',
-        status: 'مرفوع دعوى قضائية',
-        legalType: 'أمر أداء تجاري',
-        notes: 'تم استصدار أمر أداء بناءً على فواتير إلكترونية موقعة وإيصال أمانة ضامن.'
-      }
-    ];
+    return [];
   });
 
-  // Guarantee Checks state
+  // Guarantee Checks state (strictly purged of fake mock records)
   const [checks, setChecks] = useState<GuaranteeCheck[]>(() => {
     const saved = localStorage.getItem('tantawy_legal_checks');
     if (saved) {
-      try { return JSON.parse(saved); } catch {}
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter(
+            (c) =>
+              !['CHK-8921', 'CHK-5512', 'CHK-3319'].includes(String(c.id || '')) &&
+              !String(c.customerName || '').includes('مكتبة ومستلزمات النجاح') &&
+              !String(c.customerName || '').includes('شركة الإيمان للتوريدات') &&
+              !String(c.customerName || '').includes('مؤسسة الشروق للأدوات')
+          );
+        }
+      } catch {}
     }
-    return [
-      {
-        id: 'CHK-8921',
-        customerName: 'مكتبة ومستلزمات النجاح',
-        bankName: 'البنك الأهلي المصري',
-        checkNumber: '00984210',
-        amount: 34500,
-        dueDate: '2026-01-30',
-        type: 'شيك بنكي',
-        status: 'مرتد بدون رصيد'
-      },
-      {
-        id: 'CHK-5512',
-        customerName: 'شركة الإيمان للتوريدات',
-        bankName: 'بنك مصر',
-        checkNumber: '44109281',
-        amount: 50000,
-        dueDate: '2026-02-15',
-        type: 'إيصال أمانة',
-        status: 'قيد التحصيل القضائي'
-      },
-      {
-        id: 'CHK-3319',
-        customerName: 'مؤسسة الشروق للأدوات',
-        bankName: 'بنك القاهرة',
-        checkNumber: '77210984',
-        amount: 22000,
-        dueDate: '2026-05-01',
-        type: 'شيك بنكي',
-        status: 'ساري ومودع بالخزينة'
-      }
-    ];
+    return [];
   });
+
+  const handleClearAllLegalMockData = () => {
+    if (window.confirm('هل تريد مسح وتصفير كافة الإنذارات والشيكات التجريبية نهائياً؟')) {
+      localStorage.removeItem('tantawy_legal_notices');
+      localStorage.removeItem('tantawy_legal_checks');
+      setNotices([]);
+      setChecks([]);
+    }
+  };
 
   // Modals
   const [selectedCustomerForNotice, setSelectedCustomerForNotice] = useState<Customer | null>(null);
@@ -160,9 +135,14 @@ export const LegalAdvisorDashboard: React.FC = () => {
     try { localStorage.setItem('tantawy_legal_checks', JSON.stringify(updated)); } catch {}
   };
 
+  // Filter customers by RBAC permissions (strict role & branch isolation)
+  const accessibleCustomers = useMemo(() => {
+    return filterCustomersByRBAC(customers, currentUser, users);
+  }, [customers, currentUser, users]);
+
   // Filter delinquent customers (debt > minDebtFilter)
   const delinquentCustomers = useMemo(() => {
-    return customers
+    return accessibleCustomers
       .filter((c) => {
         const debt = c.currentBalance ?? c.balance ?? 0;
         const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
@@ -174,7 +154,8 @@ export const LegalAdvisorDashboard: React.FC = () => {
             (c.name && c.name.toLowerCase().includes(q)) ||
             (c.code && String(c.code).toLowerCase().includes(q)) ||
             (c.phone && String(c.phone).includes(q)) ||
-            (c.salesRepName && c.salesRepName.toLowerCase().includes(q));
+            (c.salesRepName && c.salesRepName.toLowerCase().includes(q)) ||
+            (c.repName && c.repName.toLowerCase().includes(q));
           if (!matches) return false;
         }
         return true;
@@ -184,13 +165,13 @@ export const LegalAdvisorDashboard: React.FC = () => {
         const debtB = b.currentBalance ?? b.balance ?? 0;
         return debtB - debtA;
       });
-  }, [customers, minDebtFilter, selectedBranch, searchTerm]);
+  }, [accessibleCustomers, minDebtFilter, selectedBranch, searchTerm]);
 
   // Overall Legal Stats
   const stats = useMemo(() => {
     let totalDelinquentDebt = 0;
     let highRiskCount = 0;
-    customers.forEach((c) => {
+    accessibleCustomers.forEach((c) => {
       const debt = c.currentBalance ?? c.balance ?? 0;
       const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
       if (debt > 10000 || overdue > 5000) {
@@ -210,7 +191,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
       totalNotices: notices.length,
       totalChecks: checks.length
     };
-  }, [customers, notices, checks]);
+  }, [accessibleCustomers, notices, checks]);
 
   const handleCreateNotice = () => {
     if (!selectedCustomerForNotice) return;
@@ -284,7 +265,15 @@ export const LegalAdvisorDashboard: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            <button
+              onClick={handleClearAllLegalMockData}
+              title="مسح وتصفير كافة الإنذارات والشيكات التجريبية"
+              className="bg-white/10 hover:bg-white/20 text-rose-300 border border-rose-400/30 font-bold px-3 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+              <span>مسح الداتا التجريبية</span>
+            </button>
             <button
               onClick={() => setIsCheckModalOpen(true)}
               className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-md transition cursor-pointer active:scale-95"
@@ -535,61 +524,71 @@ export const LegalAdvisorDashboard: React.FC = () => {
             </h3>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-[var(--app-line)]">
-            <table className="w-full text-right text-xs">
-              <thead className="bg-slate-50 text-slate-700 border-b border-[var(--app-line)] font-black">
-                <tr>
-                  <th className="p-3">رقم الإنذار</th>
-                  <th className="p-3">العميل</th>
-                  <th className="p-3">نوع الإجراء</th>
-                  <th className="p-3">المبلغ المطالب به</th>
-                  <th className="p-3">تاريخ الإرسال والمهلة</th>
-                  <th className="p-3">الحالة القانونية</th>
-                  <th className="p-3">معاينة وطباعة</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--app-line)]">
-                {notices.map((n) => (
-                  <tr key={n.id} className="hover:bg-slate-50/80 transition">
-                    <td className="p-3 font-mono font-bold text-slate-900">{n.id}</td>
-                    <td className="p-3 font-black text-slate-900">{n.customerName}</td>
-                    <td className="p-3">
-                      <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[11px] font-bold">
-                        {n.legalType}
-                      </span>
-                    </td>
-                    <td className="p-3 font-black text-rose-600 tabular-nums">
-                      {formatCurrency(n.totalDebt)} ج
-                    </td>
-                    <td className="p-3 text-[11px] text-slate-600">
-                      <div>إصدار: {n.issueDate}</div>
-                      <div className="font-bold text-rose-600">انتهاء المهلة: {n.deadlineDate}</div>
-                    </td>
-                    <td className="p-3">
-                      <span className={`px-2 py-0.5 rounded-full font-black text-[10px] ${
-                        n.status === 'مرفوع دعوى قضائية'
-                          ? 'bg-rose-100 text-rose-800'
-                          : n.status === 'تم الإرسال على يد محضر'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}>
-                        {n.status}
-                      </span>
-                    </td>
-                    <td className="p-3">
-                      <button
-                        onClick={() => setViewingNotice(n)}
-                        className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-2.5 py-1 rounded text-xs flex items-center gap-1 cursor-pointer"
-                      >
-                        <Printer className="w-3.5 h-3.5" />
-                        <span>طباعة</span>
-                      </button>
-                    </td>
+          {notices.length === 0 ? (
+            <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/50">
+              <FileText className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+              <h4 className="font-bold text-slate-700 text-sm">لا توجد إنذارات أو دعاوى مسجلة حالياً</h4>
+              <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                تم مسح وتصفير كافة السجلات التجريبية. يمكنك الآن إصدار إنذار قانوني حقيقي لأي عميل متعثر من تبويب "كشف العملاء المتعثرين والمطالبات".
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-[var(--app-line)]">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-slate-50 text-slate-700 border-b border-[var(--app-line)] font-black">
+                  <tr>
+                    <th className="p-3">رقم الإنذار</th>
+                    <th className="p-3">العميل</th>
+                    <th className="p-3">نوع الإجراء</th>
+                    <th className="p-3">المبلغ المطالب به</th>
+                    <th className="p-3">تاريخ الإرسال والمهلة</th>
+                    <th className="p-3">الحالة القانونية</th>
+                    <th className="p-3">معاينة وطباعة</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-[var(--app-line)]">
+                  {notices.map((n) => (
+                    <tr key={n.id} className="hover:bg-slate-50/80 transition">
+                      <td className="p-3 font-mono font-bold text-slate-900">{n.id}</td>
+                      <td className="p-3 font-black text-slate-900">{n.customerName}</td>
+                      <td className="p-3">
+                        <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[11px] font-bold">
+                          {n.legalType}
+                        </span>
+                      </td>
+                      <td className="p-3 font-black text-rose-600 tabular-nums">
+                        {formatCurrency(n.totalDebt)} ج
+                      </td>
+                      <td className="p-3 text-[11px] text-slate-600">
+                        <div>إصدار: {n.issueDate}</div>
+                        <div className="font-bold text-rose-600">انتهاء المهلة: {n.deadlineDate}</div>
+                      </td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded-full font-black text-[10px] ${
+                          n.status === 'مرفوع دعوى قضائية'
+                            ? 'bg-rose-100 text-rose-800'
+                            : n.status === 'تم الإرسال على يد محضر'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}>
+                          {n.status}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <button
+                          onClick={() => setViewingNotice(n)}
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-2.5 py-1 rounded text-xs flex items-center gap-1 cursor-pointer"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>طباعة</span>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -609,51 +608,61 @@ export const LegalAdvisorDashboard: React.FC = () => {
             </button>
           </div>
 
-          <div className="overflow-x-auto rounded-xl border border-[var(--app-line)]">
-            <table className="w-full text-right text-xs">
-              <thead className="bg-slate-50 text-slate-700 border-b border-[var(--app-line)] font-black">
-                <tr>
-                  <th className="p-3">النوع</th>
-                  <th className="p-3">العميل / الساحب</th>
-                  <th className="p-3">البنك ورقم الشيك</th>
-                  <th className="p-3">قيمة الشيك</th>
-                  <th className="p-3">تاريخ الاستحقاق</th>
-                  <th className="p-3">الحالة بالخزينة</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--app-line)]">
-                {checks.map((c) => (
-                  <tr key={c.id} className="hover:bg-slate-50/80 transition">
-                    <td className="p-3">
-                      <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-bold text-[11px]">
-                        {c.type}
-                      </span>
-                    </td>
-                    <td className="p-3 font-black text-slate-900">{c.customerName}</td>
-                    <td className="p-3">
-                      <div className="font-bold text-slate-700">{c.bankName}</div>
-                      <div className="text-[11px] text-slate-400 font-mono">#{c.checkNumber}</div>
-                    </td>
-                    <td className="p-3 font-black text-slate-900 tabular-nums">
-                      {formatCurrency(c.amount)} ج
-                    </td>
-                    <td className="p-3 font-bold text-slate-700 tabular-nums">{c.dueDate}</td>
-                    <td className="p-3">
-                      <span className={`px-2 py-0.5 rounded-full font-black text-[10px] ${
-                        c.status === 'مرتد بدون رصيد'
-                          ? 'bg-rose-100 text-rose-800'
-                          : c.status === 'قيد التحصيل القضائي'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}>
-                        {c.status}
-                      </span>
-                    </td>
+          {checks.length === 0 ? (
+            <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/50">
+              <FileCheck className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+              <h4 className="font-bold text-slate-700 text-sm">لا توجد شيكات أو إيصالات مسجلة حالياً</h4>
+              <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+                تم مسح وتصفير كافة السجلات التجريبية. يمكنك تسجيل شيكات بنكية وإيصالات أمانة حقيقية لعملاء الشركة عبر زر الإضافة أعلاه.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-[var(--app-line)]">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-slate-50 text-slate-700 border-b border-[var(--app-line)] font-black">
+                  <tr>
+                    <th className="p-3">النوع</th>
+                    <th className="p-3">العميل / الساحب</th>
+                    <th className="p-3">البنك ورقم الشيك</th>
+                    <th className="p-3">قيمة الشيك</th>
+                    <th className="p-3">تاريخ الاستحقاق</th>
+                    <th className="p-3">الحالة بالخزينة</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-[var(--app-line)]">
+                  {checks.map((c) => (
+                    <tr key={c.id} className="hover:bg-slate-50/80 transition">
+                      <td className="p-3">
+                        <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-bold text-[11px]">
+                          {c.type}
+                        </span>
+                      </td>
+                      <td className="p-3 font-black text-slate-900">{c.customerName}</td>
+                      <td className="p-3">
+                        <div className="font-bold text-slate-700">{c.bankName}</div>
+                        <div className="text-[11px] text-slate-400 font-mono">#{c.checkNumber}</div>
+                      </td>
+                      <td className="p-3 font-black text-slate-900 tabular-nums">
+                        {formatCurrency(c.amount)} ج
+                      </td>
+                      <td className="p-3 font-bold text-slate-700 tabular-nums">{c.dueDate}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded-full font-black text-[10px] ${
+                          c.status === 'مرتد بدون رصيد'
+                            ? 'bg-rose-100 text-rose-800'
+                            : c.status === 'قيد التحصيل القضائي'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-emerald-100 text-emerald-800'
+                        }`}>
+                          {c.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

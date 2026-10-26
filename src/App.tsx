@@ -39,7 +39,38 @@ import { InvoiceProvider } from './context/invoiceContext';
 import { CustomerProvider } from './context/customerContext';
 import { InventoryProvider } from './context/inventoryContext';
 import { SyncProvider } from './context/syncContext';
-import { Customer, Invoice } from './types';
+import { Customer, Invoice, UserRole } from './types';
+
+export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
+  developer: [
+    'home', 'legal_advisor', 'catalog', 'all_customers', 'customers',
+    'customer_item_sales', 'dashboard', 'targets', 'visits', 'invoices',
+    'inventory', 'excel', 'users', 'guide'
+  ],
+  admin: [
+    'home', 'legal_advisor', 'catalog', 'all_customers', 'customers',
+    'customer_item_sales', 'dashboard', 'targets', 'visits', 'invoices',
+    'inventory', 'excel', 'users', 'guide'
+  ],
+  branch_manager: [
+    'home', 'catalog', 'all_customers', 'customers',
+    'customer_item_sales', 'dashboard', 'targets', 'visits', 'invoices',
+    'inventory', 'users', 'guide'
+  ],
+  supervisor: [
+    'home', 'catalog', 'all_customers', 'customers',
+    'customer_item_sales', 'dashboard', 'targets', 'visits', 'invoices',
+    'inventory', 'users'
+  ],
+  sales_rep: [
+    'home', 'catalog', 'all_customers', 'customers',
+    'customer_item_sales', 'targets', 'visits', 'invoices',
+    'inventory'
+  ],
+  legal_advisor: [
+    'legal_advisor', 'home'
+  ],
+};
 
 // Lightweight Skeleton for tab transitions
 const TabLoadingSkeleton = () => (
@@ -57,17 +88,25 @@ const TabLoadingSkeleton = () => (
 const MainLayout: React.FC = () => {
   const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
 
-  const [activeTab, setActiveTab] = useState<string>('catalog');
+  const [activeTab, setActiveTab] = useState<string>('home');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
 
-  // Everyone lands on the numbers command center after login.
+  const allowedTabs = useMemo(() => {
+    if (!currentUser) return ['home'];
+    return ROLE_ALLOWED_TABS[currentUser.role] || ['home'];
+  }, [currentUser]);
+
+  // Land on authorized tab and strictly guard unauthorized tabs
   useEffect(() => {
     if (currentUser) {
-      setActiveTab((prev) => (prev === 'catalog' ? 'home' : prev));
+      const allowed = ROLE_ALLOWED_TABS[currentUser.role] || ['home'];
+      if (!allowed.includes(activeTab)) {
+        setActiveTab(currentUser.role === 'legal_advisor' ? 'legal_advisor' : 'home');
+      }
     }
-  }, [currentUser?.id]);
+  }, [currentUser?.id, currentUser?.role, activeTab]);
 
   // If user is not logged in, show dedicated Login / Registration Page
   if (!isAuthenticated || !currentUser) {
@@ -135,14 +174,14 @@ const MainLayout: React.FC = () => {
       {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}
       <main className="flex-1 max-w-none w-full mx-auto px-2 sm:px-4 md:px-6 py-3 sm:py-6 pb-24 md:pb-8">
         <Suspense fallback={<TabLoadingSkeleton />}>
-          {activeTab === 'home' && (
+          {activeTab === 'home' && allowedTabs.includes('home') && (
             <DashboardHome
               onNavigateToTab={(tab) => setActiveTab(tab)}
               onViewInvoice={(inv) => setViewingInvoice(inv)}
             />
           )}
 
-          {activeTab === 'catalog' && (
+          {activeTab === 'catalog' && allowedTabs.includes('catalog') && (
             <ProductCatalog
               onOpenCart={() => setIsOrderModalOpen(true)}
               selectedCustomer={orderInitialCustomer}
@@ -153,33 +192,33 @@ const MainLayout: React.FC = () => {
             />
           )}
 
-          {(activeTab === 'all_customers' || activeTab === 'customers') && (
+          {(activeTab === 'all_customers' || activeTab === 'customers') && allowedTabs.includes('all_customers') && (
             <AllCustomersAnalyticsView
               onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
             />
           )}
 
-          {activeTab === 'customer_item_sales' && (
+          {activeTab === 'customer_item_sales' && allowedTabs.includes('customer_item_sales') && (
             <CustomerItemSalesView
               onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
               onNavigateToExcel={() => setActiveTab('excel')}
             />
           )}
 
-          {activeTab === 'dashboard' && (
+          {activeTab === 'dashboard' && allowedTabs.includes('dashboard') && (
             <SupervisorDashboard
               onOpenNewOrder={() => setIsOrderModalOpen(true)}
               onViewInvoice={(inv) => setViewingInvoice(inv)}
             />
           )}
 
-          {activeTab === 'legal_advisor' && <LegalAdvisorDashboard />}
+          {activeTab === 'legal_advisor' && allowedTabs.includes('legal_advisor') && <LegalAdvisorDashboard />}
 
-          {activeTab === 'targets' && <TargetPerformanceDashboard />}
+          {activeTab === 'targets' && allowedTabs.includes('targets') && <TargetPerformanceDashboard />}
 
-          {activeTab === 'visits' && <VisitsDashboard />}
+          {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
 
-          {activeTab === 'invoices' && (
+          {activeTab === 'invoices' && allowedTabs.includes('invoices') && (
             <InvoicesManager
               onOpenNewOrder={() => setIsOrderModalOpen(true)}
               onViewInvoice={(inv) => setViewingInvoice(inv)}
@@ -187,15 +226,15 @@ const MainLayout: React.FC = () => {
             />
           )}
 
-          {activeTab === 'inventory' && <InventoryStockView />}
+          {activeTab === 'inventory' && allowedTabs.includes('inventory') && <InventoryStockView />}
 
-          {activeTab === 'excel' && (
+          {activeTab === 'excel' && allowedTabs.includes('excel') && (
             <ExcelImportExport onNavigateToItemSales={() => setActiveTab('customer_item_sales')} />
           )}
 
-          {activeTab === 'users' && <UserManager />}
+          {activeTab === 'users' && allowedTabs.includes('users') && <UserManager />}
 
-          {activeTab === 'guide' && (
+          {activeTab === 'guide' && allowedTabs.includes('guide') && (
             <SystemWorkflowGuide onNavigateToTab={(tab) => setActiveTab(tab)} />
           )}
 

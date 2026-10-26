@@ -61,6 +61,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   onNavigateToExcel
 }) => {
   const { currentUser, users, customers } = useApp();
+  const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   const [salesRecords, setSalesRecords] = useState<CustomerItemSaleRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -399,7 +400,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 <span className="hidden sm:inline">مسح الداتا</span>
               </button>
             )}
-            {onNavigateToExcel && (
+            {isAdminOrDev && onNavigateToExcel && (
               <button
                 type="button"
                 onClick={onNavigateToExcel}
@@ -438,7 +439,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             تم مسح البيانات التجريبية نهائياً. صفحة الإكسل هي المصدر المركزي لرفع وتحديث جميع ملفات وشيتات البيانات.
           </p>
 
-          {onNavigateToExcel && (
+          {isAdminOrDev && onNavigateToExcel && (
             <div className="flex items-center justify-center gap-3 mt-6 flex-wrap">
               <button
                 type="button"
