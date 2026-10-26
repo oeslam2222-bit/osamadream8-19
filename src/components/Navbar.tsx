@@ -36,7 +36,9 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Menu
+  Menu,
+  RotateCcw,
+  PackageSearch
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
@@ -182,6 +184,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'dashboard', label: 'المتابعة', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'developer'] },
     { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'visits', label: 'الزيارات', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'returns', label: 'المرتجعات والمخزن', icon: RotateCcw, roles: ['admin', 'branch_manager', 'developer'] },
+    { id: 'returns_customers', label: 'عملاء المرتجعات', icon: PackageSearch, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'invoices', label: 'الفواتير', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'inventory', label: 'المخزون', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'excel', label: 'الإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },

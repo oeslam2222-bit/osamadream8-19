@@ -30,6 +30,8 @@ import { UserManager } from './components/UserManager';
 import { SystemWorkflowGuide } from './components/SystemWorkflowGuide';
 import { TargetPerformanceDashboard } from './components/TargetPerformanceDashboard';
 import { VisitsDashboard } from './components/VisitsDashboard';
+import { ReturnsWarehouseView } from './components/ReturnsWarehouseView';
+import { ReturnsCustomersView } from './components/ReturnsCustomersView';
 import { LegalAdvisorDashboard } from './components/LegalAdvisorDashboard';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
@@ -44,27 +46,27 @@ import { Customer, Invoice, UserRole } from './types';
 export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
     'home', 'legal_advisor', 'catalog', 'all_customers', 'customers',
-    'customer_item_sales', 'dashboard', 'targets', 'visits', 'invoices',
+    'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'excel', 'users', 'guide'
   ],
   admin: [
     'home', 'legal_advisor', 'catalog', 'all_customers', 'customers',
-    'customer_item_sales', 'dashboard', 'targets', 'visits', 'invoices',
+    'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'excel', 'users', 'guide'
   ],
   branch_manager: [
     'home', 'catalog', 'all_customers', 'customers',
-    'customer_item_sales', 'dashboard', 'targets', 'visits', 'invoices',
+    'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'users', 'guide'
   ],
   supervisor: [
     'home', 'catalog', 'all_customers', 'customers',
-    'customer_item_sales', 'dashboard', 'targets', 'visits', 'invoices',
+    'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns_customers', 'invoices',
     'inventory', 'users'
   ],
   sales_rep: [
     'home', 'catalog', 'all_customers', 'customers',
-    'customer_item_sales', 'targets', 'visits', 'invoices',
+    'customer_item_sales', 'targets', 'visits', 'returns_customers', 'invoices',
     'inventory'
   ],
   legal_advisor: [
@@ -217,6 +219,8 @@ const MainLayout: React.FC = () => {
           {activeTab === 'targets' && allowedTabs.includes('targets') && <TargetPerformanceDashboard />}
 
           {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
+          {activeTab === 'returns' && allowedTabs.includes('returns') && <ReturnsWarehouseView />}
+          {activeTab === 'returns_customers' && allowedTabs.includes('returns_customers') && <ReturnsCustomersView />}
 
           {activeTab === 'invoices' && allowedTabs.includes('invoices') && (
             <InvoicesManager

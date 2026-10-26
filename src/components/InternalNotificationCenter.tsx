@@ -201,6 +201,29 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
       currentUser?.role === 'developer';
 
     if (isSupervisorOrManager) {
+      // ===== مرتجعات بانتظار موافقة المشرف — تنبيه فوري للإدارة والمشرف =====
+      const pendingReturns = visibleVisits.filter(
+        (v) => v.isReturn && v.returnStatus === 'بانتظار المشرف'
+      );
+      if (pendingReturns.length > 0) {
+        const pendingReturnValue = pendingReturns.reduce(
+          (sum, v) => sum + (Number(v.returnValue) || 0),
+          0
+        );
+        list.push({
+          id: `pending-returns-${today}`,
+          kind: 'visit',
+          priority: 'high',
+          title: `${pendingReturns.length} مرتجع بانتظار الموافقة`,
+          detail: `إجمالي قيمة المرتجعات ${formatCurrency(pendingReturnValue)} — بعد الموافقة تتحوّل لأمين المخزن للتنسيق والاستلام`,
+          icon: Package,
+          accent: 'text-amber-700',
+          iconBg: 'bg-amber-100 text-amber-700',
+          actionTab: 'visits',
+          actionLabel: 'الزيارات والمرتجعات',
+        });
+      }
+
       const completedTodayVisits = visibleVisits.filter(
         (v) => (v.status === 'منفذة' || v.status === 'لم تتم') && v.date === today
       );
