@@ -83,14 +83,16 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const initialExpandDone = useRef(false);
 
   useEffect(() => {
-    const saved = getSavedCustomerItemSales();
-    // Strictly purge any legacy demo-generated records
-    const realSaved = saved.filter((record) => !String(record.id || '').startsWith('cis-demo-'));
-    if (realSaved.length !== saved.length) {
-      saveCustomerItemSales(realSaved);
-    }
-    setSalesRecords(realSaved);
-    setIsLoading(false);
+    (async () => {
+      const saved = await getSavedCustomerItemSales();
+      // Strictly purge any legacy demo-generated records
+      const realSaved = saved.filter((record) => !String(record.id || '').startsWith('cis-demo-'));
+      if (realSaved.length !== saved.length) {
+        await saveCustomerItemSales(realSaved);
+      }
+      setSalesRecords(realSaved);
+      setIsLoading(false);
+    })();
   }, []);
 
   const handleClearSales = () => {

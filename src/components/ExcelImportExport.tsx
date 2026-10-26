@@ -212,7 +212,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       // Attempt parsing Customer Item Sales first
       const itemSalesRes = await fetchCustomerItemSalesFromGoogleSheet(url);
       if (itemSalesRes.sales && itemSalesRes.sales.length > 0) {
-        saveCustomerItemSales(itemSalesRes.sales);
+        await saveCustomerItemSales(itemSalesRes.sales);
 
         // Extract and deduplicate customer profiles from sales records
         const codeMap = new Map<string, Customer>();
@@ -606,7 +606,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       // 1. Try parsing customer item sales format first
       const itemSalesRes = await parseExcelCustomerItemSales(file);
       if (itemSalesRes.sales && itemSalesRes.sales.length > 0) {
-        saveCustomerItemSales(itemSalesRes.sales);
+        await saveCustomerItemSales(itemSalesRes.sales);
 
         // Deduplicate and merge customer profiles from item sales rows
         const codeMap = new Map<string, Customer>();

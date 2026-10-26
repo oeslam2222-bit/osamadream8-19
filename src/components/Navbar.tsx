@@ -176,21 +176,22 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isFieldRole = currentUser.role === 'sales_rep' || currentUser.role === 'supervisor';
 
   const navItems = [
-    { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'legal_advisor'] },
+    { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'legal_advisor', 'warehouse_keeper'] },
     { id: 'legal_advisor', label: 'الشؤون القانونية', icon: Scale, roles: ['admin', 'developer', 'legal_advisor'] },
-    { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'all_customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'customer_item_sales', label: 'مبيعات الأصناف', icon: BarChart3, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'dashboard', label: 'المتابعة', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'developer'] },
     { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'visits', label: 'الزيارات', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'returns', label: 'المرتجعات والمخزن', icon: RotateCcw, roles: ['admin', 'branch_manager', 'developer'] },
+    { id: 'returns', label: 'المرتجعات والمخزن', icon: RotateCcw, roles: ['admin', 'branch_manager', 'developer', 'warehouse_keeper'] },
     { id: 'returns_customers', label: 'عملاء المرتجعات', icon: PackageSearch, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'invoices', label: 'الفواتير', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
-    { id: 'inventory', label: 'المخزون', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'inventory', label: 'المخزون', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'excel', label: 'الإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
-    { id: 'guide', label: 'الدليل', icon: BookOpen, roles: isFieldRole ? [] : ['admin', 'branch_manager', 'developer'] },
+    { id: 'guide', label: 'الدليل', icon: BookOpen, roles: isFieldRole ? [] : ['admin', 'branch_manager', 'developer', 'warehouse_keeper'] },
     { id: 'users', label: 'الفريق', icon: UserCheck, roles: ['admin', 'developer', 'branch_manager', 'supervisor'], badge: pendingApprovalsCount },
+    { id: 'permissions', label: 'الصلاحيات', icon: ShieldCheck, roles: ['admin', 'developer'] },
   ];
 
   const filteredNavItems = currentUser.role === 'legal_advisor'

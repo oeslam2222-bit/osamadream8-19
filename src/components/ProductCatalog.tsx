@@ -1,4 +1,4 @@
-import {
+﻿import {
   AlertCircle,
   AlertTriangle,
   ArrowUpDown,
@@ -676,7 +676,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
   const priorityBadges: Record<SalesPriority, { bg: string; text: string; icon?: any }> = {
     'مرتفع': { bg: 'bg-rose-500 text-white', text: 'الأكثر طلباً', icon: Flame },
-    'متوسط': { bg: 'bg-amber-500 text-slate-950', text: 'طلب متكرر', icon: Zap },
+    'متوسط': { bg: 'bg-[var(--app-accent)] text-slate-950', text: 'طلب متكرر', icon: Zap },
     'عادي': { bg: 'bg-slate-700 text-slate-200', text: 'منتج معتمد' },
     'منخفض': { bg: 'bg-zinc-600 text-zinc-200', text: 'عادي' },
   };
@@ -694,12 +694,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* Clean Modern Catalog Header (Amazon / Dream Distribution Ops Console style) */}
       <section className="bg-white rounded-2xl border border-[color:var(--app-line)] p-3.5 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-[#0f233d] text-amber-400 flex items-center justify-center font-black shadow-sm shrink-0">
+          <div className="w-11 h-11 rounded-2xl bg-[#0f233d] text-[var(--app-accent)] flex items-center justify-center font-black shadow-sm shrink-0">
             <Boxes className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black tracking-wider uppercase text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+              <span className="text-[10px] font-black tracking-wider uppercase text-[#8a6420] bg-[#fffdf7] px-2 py-0.5 rounded border border-amber-200">
                 OPS CONSOLE / CATALOG
               </span>
               <span className="text-[11px] font-bold text-slate-400">
@@ -719,7 +719,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <button
             type="button"
             onClick={() => setIsCartDrawerOpen(true)}
-            className="flex-1 sm:flex-initial h-10 px-4 rounded-xl bg-[#0f233d] hover:bg-[#1a3861] text-amber-300 font-black text-xs flex items-center justify-center gap-2 shadow-xs transition active:scale-95 cursor-pointer"
+            className="flex-1 sm:flex-initial h-10 px-4 rounded-xl bg-[#0f233d] hover:bg-[#1a3861] text-[var(--app-accent)] font-black text-xs flex items-center justify-center gap-2 shadow-xs transition active:scale-95 cursor-pointer"
           >
             <ShoppingCart className="w-4 h-4" />
             <span>سلة الطلبية</span>
@@ -823,11 +823,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs text-rose-200 font-black">تنبيه نفاذ / حجز المخزون</div>
+              <div className="text-xs text-[#f5a5a5] font-black">تنبيه نفاذ / حجز المخزون</div>
               <div className="text-xs text-white font-bold leading-tight">{stockErrorToast}</div>
             </div>
           </div>
-          <button onClick={() => setStockErrorToast(null)} className="text-rose-200 hover:text-white p-1">
+          <button onClick={() => setStockErrorToast(null)} className="text-[#f5a5a5] hover:text-white p-1">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -934,7 +934,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     <span className="font-bold text-slate-900 block truncate">{p.name}</span>
                     <span className="text-[10px] text-slate-500 font-mono">{p.code} {p.unifiedCode ? `(#${p.unifiedCode.replace('#', '')})` : ''}</span>
                   </div>
-                  <span className="text-emerald-700 font-bold text-[11px] shrink-0">{getProductBranchStock(p)} ك بالفرع</span>
+                  <span className="text-[var(--app-ok)] font-bold text-[11px] shrink-0">{getProductBranchStock(p)} ك بالفرع</span>
                 </button>
               ))}
             </div>
@@ -961,7 +961,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             onClick={toggleConfidentialMode}
             className={`h-10 sm:h-11 px-2.5 sm:px-3 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
               isConfidentialMode
-                ? 'bg-amber-50 text-amber-800 border-amber-300'
+                ? 'bg-[#fffdf7] text-[#8a6420] border-[var(--app-accent)]'
                 : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-[color:var(--app-line)]'
             }`}
             title={isConfidentialMode ? 'وضع السرية مفعّل (الأسعار محجوبة أمام العميل) - انقر للإظهار' : 'إخفاء الأسعار أمام العميل (وضع السرية)'}
@@ -1069,7 +1069,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               type="button"
               onClick={() => setStockAvailabilityFilter('in_branch')}
               className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
-                stockAvailabilityFilter === 'in_branch' ? 'bg-emerald-100 text-emerald-800' : 'text-slate-600 hover:text-emerald-700'
+                stockAvailabilityFilter === 'in_branch' ? 'bg-[#e8f5ef] text-[var(--app-ok)]' : 'text-slate-600 hover:text-[var(--app-ok)]'
               }`}
             >
               متوفر بالفرع ({stockCounts.inBranch})
@@ -1078,7 +1078,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               type="button"
               onClick={() => setStockAvailabilityFilter('in_warehouse')}
               className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
-                stockAvailabilityFilter === 'in_warehouse' ? 'bg-blue-100 text-blue-800' : 'text-slate-600 hover:text-blue-700'
+                stockAvailabilityFilter === 'in_warehouse' ? 'bg-[#e8f0f8] text-[var(--app-navy)]' : 'text-slate-600 hover:text-blue-700'
               }`}
             >
               مخزن أكتوبر ({stockCounts.inWarehouse})
@@ -1087,7 +1087,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               type="button"
               onClick={() => setStockAvailabilityFilter('offers')}
               className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
-                stockAvailabilityFilter === 'offers' ? 'bg-amber-100 text-amber-800' : 'text-slate-600 hover:text-amber-700'
+                stockAvailabilityFilter === 'offers' ? 'bg-[#fff8e8] text-[#8a6420]' : 'text-slate-600 hover:text-[#8a6420]'
               }`}
             >
               عروض خاصة 🔥 ({stockCounts.offers})
@@ -1102,7 +1102,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <button
                 type="button"
                 onClick={resetAllFilters}
-                className="text-rose-600 hover:text-rose-700 text-[11px] font-bold whitespace-nowrap flex items-center gap-1 cursor-pointer"
+                className="text-[var(--app-risk)] hover:text-[var(--app-risk)] text-[11px] font-bold whitespace-nowrap flex items-center gap-1 cursor-pointer"
               >
                 <X className="w-3 h-3" />
                 <span>إلغاء التصفية</span>
@@ -1161,7 +1161,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         <span>عرض</span>
                       </div>
                     ) : product.salesPriority === 'مرتفع' ? (
-                      <div className="absolute top-2 left-2 z-10 bg-amber-500 text-slate-950 text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-xs">
+                      <div className="absolute top-2 left-2 z-10 bg-[var(--app-accent)] text-slate-950 text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-xs">
                         <Star className="w-2.5 h-2.5 fill-slate-950" />
                         <span>مميز</span>
                       </div>
@@ -1169,7 +1169,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
                     {/* Pack size indicator */}
                     <div className="absolute bottom-2 right-2 bg-white/90 text-slate-600 border border-slate-200 text-[9px] font-bold px-1.5 py-0.5 rounded backdrop-blur-xs">
-                      الشدة: <span className="font-mono text-amber-700">{product.cartonQuantity || 1} ق</span>
+                      الشدة: <span className="font-mono text-[#8a6420]">{product.cartonQuantity || 1} ق</span>
                     </div>
                   </div>
 
@@ -1194,12 +1194,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       {/* Stock availability */}
                       <div className="flex items-center justify-between text-[11px]">
                         {totalCartonsAvailable <= 0 ? (
-                          <span className="text-rose-600 font-bold flex items-center gap-1">
+                          <span className="text-[var(--app-risk)] font-bold flex items-center gap-1">
                             <AlertTriangle className="w-3 h-3" />
                             غير متوفر
                           </span>
                         ) : dynamicBranchStock > 0 ? (
-                          <span className="text-emerald-700 font-bold flex items-center gap-1">
+                          <span className="text-[var(--app-ok)] font-bold flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3" />
                             متوفر: {dynamicBranchStock} ك
                           </span>
@@ -1627,14 +1627,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               onClick={() => setIsCartDrawerOpen(true)}
               className="flex-1 min-w-0 flex items-center gap-2.5 text-right cursor-pointer"
             >
-              <span className="relative w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-sm">
+              <span className="relative w-10 h-10 rounded-xl bg-[var(--app-accent)] text-slate-950 flex items-center justify-center font-black shrink-0 shadow-sm">
                 <ShoppingCart className="w-5 h-5" />
                 <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-rose-600 text-white text-[10px] font-black flex items-center justify-center px-1 tabular-nums">
                   {cart.length}
                 </span>
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-xs font-black text-amber-300 truncate">
+                <span className="block text-xs font-black text-[var(--app-accent)] truncate">
                   {selectedCustomer ? selectedCustomer.name : 'سلة الطلبية الحالية'}
                 </span>
                 <span className="block text-[11px] font-bold text-slate-200 truncate tabular-nums">
@@ -1645,7 +1645,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <button
               type="button"
               onClick={() => setIsCartDrawerOpen(true)}
-              className="shrink-0 bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2.5 rounded-xl font-black text-xs shadow-md transition active:scale-95 cursor-pointer"
+              className="shrink-0 bg-[var(--app-accent)] hover:bg-amber-400 text-slate-950 px-4 py-2.5 rounded-xl font-black text-xs shadow-md transition active:scale-95 cursor-pointer"
             >
               إتمام الطلب
             </button>
@@ -1660,11 +1660,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           onClick={() => setIsCartDrawerOpen(true)}
           className="fixed bottom-6 left-6 z-40 hidden lg:flex items-center gap-3 bg-[#0f233d] hover:bg-[#1a3861] text-white px-5 py-3 rounded-2xl shadow-2xl border-2 border-amber-400 cursor-pointer active:scale-95 transition"
         >
-          <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-sm">
+          <div className="w-10 h-10 rounded-xl bg-[var(--app-accent)] text-slate-950 flex items-center justify-center font-black shadow-sm">
             <ShoppingCart className="w-5 h-5" />
           </div>
           <div className="text-right">
-            <div className="text-xs text-amber-300 font-bold">السلة ({cart.length} أصناف)</div>
+            <div className="text-xs text-[var(--app-accent)] font-bold">السلة ({cart.length} أصناف)</div>
             <div className="text-sm font-black tabular-nums">{formatCurrency(cartSummary.grandTotal)} ج.م • مراجعة الشراء</div>
           </div>
         </button>
@@ -1674,7 +1674,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {isAdminOrDev && isWipeModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-[var(--app-risk)] flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
 
@@ -2086,11 +2086,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             {/* Panel Header */}
             <div className="bg-white p-4 sm:p-5 border-b border-[color:var(--app-line)] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-2xl bg-[#0f233d] text-amber-400 flex items-center justify-center font-black shadow-sm shrink-0">
+                <div className="w-9 h-9 rounded-2xl bg-[#0f233d] text-[var(--app-accent)] flex items-center justify-center font-black shadow-sm shrink-0">
                   {rightPanelType === 'product' ? <Package /> : rightPanelType === 'cart' ? <ShoppingCart /> : <User />}
                 </div>
                 <div>
-                  <span className="text-[10px] font-black tracking-wider uppercase text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                  <span className="text-[10px] font-black tracking-wider uppercase text-[#8a6420] bg-[#fffdf7] px-2 py-0.5 rounded border border-amber-200">
                     {rightPanelType === 'product' ? 'تفاصيل الصنف' : rightPanelType === 'cart' ? 'سلة الطلبية' : 'معلومات العميل'}
                   </span>
                   <h3 className="text-sm font-black text-slate-900 leading-tight">
