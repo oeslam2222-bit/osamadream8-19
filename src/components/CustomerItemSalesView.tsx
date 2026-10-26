@@ -19,7 +19,7 @@ import {
   Users,
   X
 } from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { getSavedSourceUrl } from '../services/dataSourceService';
 import {
@@ -90,6 +90,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
   const [isSQLModalOpen, setIsSQLModalOpen] = useState(false);
   const [copiedSQL, setCopiedSQL] = useState(false);
+  const initialExpandDone = useRef(false);
 
   useEffect(() => {
     const saved = getSavedCustomerItemSales();
@@ -282,9 +283,17 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     const initial = new Set<string>();
     customerSummaries.slice(0, 2).forEach((summary) => initial.add(summary.customerAccount));
     setExpandedCustomerAccounts(initial);
-    // إعادة الضبط فقط عند تغيير الفلاتر — وليس مع كل كتابة في البحث.
+    // إعادة الضبط فقط عند تغيير فلاتر النطاق — وليس مع كل كتابة في البحث أو تغيير الشهر.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, selectedGroup, selectedRep, selectedWarehouse]);
+  }, [selectedGroup, selectedRep, selectedWarehouse]);
+
+  useEffect(() => {
+    if (initialExpandDone.current || customerSummaries.length === 0) return;
+    initialExpandDone.current = true;
+    setExpandedCustomerAccounts(
+      new Set(customerSummaries.slice(0, 2).map((summary) => summary.customerAccount))
+    );
+  }, [customerSummaries]);
 
   const scopeLabel =
     currentUser?.role === 'sales_rep'
