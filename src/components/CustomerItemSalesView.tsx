@@ -2,6 +2,7 @@ import {
   AlertCircle,
   AlertTriangle,
   BarChart3,
+  Building2,
   Check,
   CheckCircle2,
   ClipboardList,
@@ -11,17 +12,21 @@ import {
   LayoutDashboard,
   Link2,
   Loader2,
+  Phone,
+  Plus,
   RefreshCw,
   RotateCcw,
   Search,
   SlidersHorizontal,
   Sparkles,
   Trash2,
+  UserRound,
   Users,
   X
 } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { formatCurrency } from '../services/invoiceService';
 import {
   buildCustomerGrowthMap,
   buildCustomerInsights,
@@ -74,6 +79,12 @@ interface CustomerItemSalesViewProps {
 
 type SalesViewMode = 'overview' | 'customers';
 
+const initials = (name: string): string => {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '؟';
+  return parts.length === 1 ? parts[0].slice(0, 2) : `${parts[0][0] || ''}${parts[1][0] || ''}`;
+};
+
 export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   onOpenNewOrderForCustomer,
   onNavigateToExcel
@@ -94,6 +105,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const [isSupabaseFetching, setIsSupabaseFetching] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [selectedSearchCustomer, setSelectedSearchCustomer] = useState<CustomerItemSalesSummary | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | 'all'>('all');
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [selectedRep, setSelectedRep] = useState<string>('all');
@@ -105,34 +118,71 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const [expandedCustomerAccounts, setExpandedCustomerAccounts] = useState<Set<string>>(new Set());
 
   const initialExpandDone = useRef(false);
+  const loadSalesInProgress = useRef(false);
 
   const loadSalesData = async () => {
+    // منع تكرار التحميل بسبب حدث الحفظ (save event) الذي يُطلق عند المزامنة/الجلب من Supabase
+    if (loadSalesInProgress.current) return;
+    loadSalesInProgress.current = true;
+
     setIsLoading(true);
+    setSyncErrorMsg(null);
     try {
+      // 1. قراءة الكاش المحلي كبيانات احتياطية
       const saved = await getSavedCustomerItemSales();
-      // Strictly purge any legacy demo-generated records
-      let realSaved = saved.filter((record) => !String(record.id || '').startsWith('cis-demo-'));
-      if (realSaved.length !== saved.length) {
-        await saveCustomerItemSales(realSaved);
+      let localBackup = saved.filter((record) => !String(record.id || '').startsWith('cis-demo-'));
+      if (localBackup.length !== saved.length) {
+        await saveCustomerItemSales(localBackup);
       }
 
-      // Check remote Supabase record count
-      const remoteCount = await getSupabaseCustomerItemSalesCount();
-      if (remoteCount >= 0) {
-        setSupabaseCount(remoteCount);
-      }
+      // 2. جلب أحدث السجلات من Supabase عند نجاح الاتصال
+      let supabaseSales: CustomerItemSaleRecord[] = [];
+      let supabaseError: string | null = null;
+      let remoteCount = 0;
 
-      // If local cache is empty, but Supabase already contains records, auto-fetch from Supabase
-      if (realSaved.length === 0 && remoteCount > 0) {
-        const fetchRes = await fetchCustomerItemSalesFromSupabase();
-        if (fetchRes.sales && fetchRes.sales.length > 0) {
-          realSaved = fetchRes.sales;
+      try {
+        const countRes = await getSupabaseCustomerItemSalesCount();
+        remoteCount = countRes >= 0 ? countRes : 0;
+        if (remoteCount >= 0) {
+          setSupabaseCount(remoteCount);
         }
+
+        const fetchRes = await fetchCustomerItemSalesFromSupabase();
+        if (fetchRes.error) {
+          supabaseError = fetchRes.error;
+        } else if (fetchRes.sales && fetchRes.sales.length > 0) {
+          supabaseSales = fetchRes.sales;
+        }
+      } catch (err: any) {
+        supabaseError = err?.message || 'فشل الاتصال بـ Supabase';
       }
 
-      setSalesRecords(realSaved);
+      // 3. الاعتماد على بيانات Supabase حتى لو الكاش المحلي مش فاضي (عند نجاح الاتصال)
+      // 4. لو الاتصال فشل، استخدم الكاش المحلي واعرض تنبيه واضح
+      let finalSales: CustomerItemSaleRecord[] = [];
+      if (supabaseSales.length > 0 && !supabaseError) {
+        finalSales = supabaseSales;
+        setSyncSuccessMsg(
+          `تم جلب ${supabaseSales.length.toLocaleString('ar-EG')} حركة من Supabase واعتمادها كبيانات أساسية.`
+        );
+      } else if (supabaseError) {
+        finalSales = localBackup;
+        setSyncErrorMsg(
+          `فشل الاتصال بـ Supabase: ${supabaseError}. يتم عرض البيانات المخزنة محلياً (${localBackup.length.toLocaleString('ar-EG')} حركة) كنسخة احتياطية.`
+        );
+      } else if (remoteCount > 0 && supabaseSales.length === 0) {
+        finalSales = localBackup;
+        setSyncErrorMsg(
+          `قاعدة Supabase تحتوي على ${remoteCount.toLocaleString('ar-EG')} سجل لكنها لم تُجلب بنجاح. يتم عرض البيانات المخزنة محلياً.`
+        );
+      } else {
+        finalSales = localBackup;
+      }
+
+      setSalesRecords(finalSales);
     } finally {
       setIsLoading(false);
+      loadSalesInProgress.current = false;
     }
   };
 
@@ -294,10 +344,35 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     [baseSales, selectedMonth]
   );
 
+  const computedDiagnostics = useMemo(() => {
+    const numericValuesCount = salesRecords.filter(
+      (r) => Number(r.quantity || 0) > 0 || Number(r.amount || 0) > 0
+    ).length;
+    return {
+      supabaseCount: supabaseCount ?? 0,
+      loadedCount: salesRecords.length,
+      numericValuesCount,
+      afterRbacCount: rbacSales.length,
+      afterFiltersCount: filteredSales.length
+    };
+  }, [salesRecords, rbacSales, filteredSales, supabaseCount]);
+
   const customerSummaries = useMemo(
     () => aggregateCustomerItemSales(filteredSales, customers),
     [filteredSales, customers]
   );
+
+  const searchedCustomers = useMemo(() => {
+    if (!customerSearchTerm.trim()) return [];
+    const query = customerSearchTerm.toLowerCase().trim();
+    return customerSummaries
+      .filter(
+        (s) =>
+          s.customerName.toLowerCase().includes(query) ||
+          s.customerAccount.toLowerCase().includes(query)
+      )
+      .slice(0, 5);
+  }, [customerSearchTerm, customerSummaries]);
 
   const latestMonth = useMemo(() => resolveLatestSalesMonth(baseSales), [baseSales]);
   const growthMonth = selectedMonth === 'all' ? latestMonth : selectedMonth;
@@ -672,6 +747,64 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         )}
       </section>
 
+      {/* تشخيص عدد السجلات في كل مرحلة (لتعقب مصدر المشكلة) */}
+      {salesRecords.length > 0 && (
+        <section className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-[10px]">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-black text-slate-700 flex items-center gap-1.5">
+              <AlertTriangle className="w-3 h-3 text-amber-500" />
+              تشخيص أعداد السجلات حسب المرحلة
+            </h3>
+            <span className="text-slate-400 font-bold">يساعد في تحديد ما إذا كانت المشكلة في التحميل أو التحويل أو الصلاحيات أو الفلاتر</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Supabase (السحابة)</div>
+              <div className="text-lg font-black text-sky-700">{computedDiagnostics.supabaseCount.toLocaleString('ar-EG')}</div>
+              <div className="text-[9px] text-slate-400 mt-0.5">سجلات موجودة على السحابة</div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">بعد التحميل (الصفحة)</div>
+              <div className="text-lg font-black text-amber-700">{computedDiagnostics.loadedCount.toLocaleString('ar-EG')}</div>
+              <div className="text-[9px] text-slate-400 mt-0.5">سجلات وصلت للعرض</div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">قيم رقمية أكبر من صفر</div>
+              <div className="text-lg font-black text-emerald-700">{computedDiagnostics.numericValuesCount.toLocaleString('ar-EG')}</div>
+              <div className="text-[9px] text-slate-400 mt-0.5">سجلات فيها كمية أو مبلغ &gt; 0</div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">بعد الصلاحيات (RBAC)</div>
+              <div className="text-lg font-black text-teal-700">{computedDiagnostics.afterRbacCount.toLocaleString('ar-EG')}</div>
+              <div className="text-[9px] text-slate-400 mt-0.5">سجلات مسموح للمستخدم رؤيتها</div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">بعد الفلاتر</div>
+              <div className="text-lg font-black text-rose-700">{computedDiagnostics.afterFiltersCount.toLocaleString('ar-EG')}</div>
+              <div className="text-[9px] text-slate-400 mt-0.5">سجلات داخل الشهر والفئة المحددين</div>
+            </div>
+          </div>
+          {computedDiagnostics.loadedCount > 0 && computedDiagnostics.afterFiltersCount === 0 && (
+            <div className="mt-2.5 bg-amber-50 border border-amber-200 rounded-lg p-2 text-amber-800 text-[10px]">
+              <AlertTriangle className="w-3.5 h-3.5 inline mr-1.5" />
+              كل السجلات المحملة ({computedDiagnostics.loadedCount.toLocaleString('ar-EG')}) تُستبعد بواسطة الفلاتر الحالية — راجع الشهر والفئة والمندوب والفرع المختارين.
+            </div>
+          )}
+          {computedDiagnostics.loadedCount > 0 && computedDiagnostics.numericValuesCount === 0 && (
+            <div className="mt-2.5 bg-rose-50 border border-rose-200 rounded-lg p-2 text-rose-800 text-[10px]">
+              <AlertCircle className="w-3.5 h-3.5 inline mr-1.5" />
+              لا توجد سجلات فيها كمية أو مبلغ أكبر من صفر — قد تكون المشكلة في تحويل الأرقام من الملف المرفوع.
+            </div>
+          )}
+          {computedDiagnostics.supabaseCount > 0 && computedDiagnostics.loadedCount === 0 && (
+            <div className="mt-2.5 bg-sky-50 border border-sky-200 rounded-lg p-2 text-sky-800 text-[10px]">
+              <CloudDownload className="w-3.5 h-3.5 inline mr-1.5" />
+              يوجد سجلات في Supabase ({computedDiagnostics.supabaseCount.toLocaleString('ar-EG')}) لكن لم تصل لأي سجل للصفحة — تأكد من الاتصال بالسحابة أو اضغط «تحديث».
+            </div>
+          )}
+        </section>
+      )}
+
       {/* RBAC Filter Warning Banner when sales exist but user role filters them out */}
       {salesRecords.length > 0 && rbacSales.length === 0 && (
         <div className="bg-amber-50 border-2 border-amber-300 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-amber-950 shadow-sm animate-in fade-in">
@@ -881,6 +1014,48 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             )}
           </div>
 
+          <div className="relative col-span-2 md:col-span-3 xl:col-span-2">
+            <UserRound className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={customerSearchTerm}
+              onChange={(event) => setCustomerSearchTerm(event.target.value)}
+              placeholder="بحث عن عميل بالاسم أو الكود..."
+              className="w-full h-10 pr-9 pl-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+            {customerSearchTerm && (
+              <button
+                type="button"
+                onClick={() => setCustomerSearchTerm('')}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+            {searchedCustomers.length > 0 && (
+              <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto text-right">
+                {searchedCustomers.map((customer) => (
+                  <button
+                    key={customer.customerAccount}
+                    type="button"
+                    onClick={() => {
+                      setSelectedSearchCustomer(customer);
+                      setCustomerSearchTerm(customer.customerName);
+                    }}
+                    className="w-full text-right px-3 py-2 text-[11px] hover:bg-slate-50 border-b border-slate-50 last:border-0 transition"
+                  >
+                    <div className="font-black text-slate-800">{customer.customerName}</div>
+                    <div className="text-[9.5px] text-slate-400 font-mono">
+                      كود: {customer.customerAccount || '—'} •
+                      {formatCurrency(customer.totalAmount)} •
+                      {customer.totalQuantity.toLocaleString('ar-EG')} كرتونة
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <select
             value={selectedMonth}
             onChange={(event) =>
@@ -1025,10 +1200,183 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             previousQuantity={kpiPreviousQuantity}
             itemsCount={periodTotals.itemsCount}
             previousItemsCount={kpiPreviousItemsCount}
+            customersCount={periodTotals.customersCount}
             idleCount={idleItems.totalIdle}
             idleCaption={idleCaption}
             comparisonCaption={kpiGrowthCaption}
           />
+
+          {/* بطاقة تفاصيل العميل المختار من بحث العملاء */}
+          {selectedSearchCustomer && (
+            <section className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-sm shrink-0">
+                    {initials(selectedSearchCustomer.customerName)}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-black text-slate-900 truncate flex-1">
+                        {selectedSearchCustomer.customerName}
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSearchCustomer(null)}
+                        className="w-6 h-6 rounded-full bg-slate-100 text-slate-500 hover:text-slate-700 hover:bg-slate-200 transition flex items-center justify-center"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="text-[9.5px] text-slate-400 font-bold font-mono">
+                      كود العميل: {selectedSearchCustomer.customerAccount || '—'}
+                    </div>
+                    <div className="text-[9.5px] text-slate-500 font-bold flex items-center gap-1 mt-0.5">
+                      <Building2 className="w-3 h-3 shrink-0" />
+                      {selectedSearchCustomer.linkedBranch || selectedSearchCustomer.warehouse || 'الفرع الرئيسي'}
+                    </div>
+                    <div className="text-[9.5px] text-slate-500 font-bold flex items-center gap-1 mt-0.5">
+                      <UserRound className="w-3 h-3 shrink-0" />
+                      {selectedSearchCustomer.linkedRepName || selectedSearchCustomer.repName || 'غير محدد'}
+                    </div>
+                    {selectedSearchCustomer.linkedPhone && (
+                      <div className="text-[9.5px] text-slate-500 font-bold flex items-center gap-1 mt-0.5">
+                        <Phone className="w-3 h-3 shrink-0" />
+                        {selectedSearchCustomer.linkedPhone}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="text-left">
+                  <div className="text-[9.5px] font-bold text-slate-400">إجمالي المشتريات</div>
+                  <div className="text-xl font-black text-emerald-700 font-mono">
+                    {formatCurrency(selectedSearchCustomer.totalAmount)}
+                  </div>
+                  <div className="text-[9px] text-slate-400">
+                    {selectedSearchCustomer.totalQuantity.toLocaleString('ar-EG')} كرتونة •
+                    {selectedSearchCustomer.distinctItemsCount} صنف
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* أكثر صنف اشتراه */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    أكثر صنف اشتراه
+                  </div>
+                  {selectedSearchCustomer.items.length > 0 ? (
+                    <div className="space-y-2">
+                      <div>
+                        <div className="text-sm font-black text-slate-900 truncate">
+                          {selectedSearchCustomer.items[0].itemName}
+                        </div>
+                        <div className="text-[9px] text-slate-500 font-mono">
+                          {selectedSearchCustomer.items[0].itemCode || '—'}
+                        </div>
+                        <div className="text-[10px] font-bold text-emerald-700 mt-1">
+                          {formatCurrency(selectedSearchCustomer.items[0].totalAmount)}
+                        </div>
+                        <div className="text-[9px] text-slate-600">
+                          {selectedSearchCustomer.items[0].totalQuantity.toLocaleString('ar-EG')} كرتونة
+                        </div>
+                      </div>
+                      {selectedSearchCustomer.totalAmount > 0 && (
+                        <div className="text-[9px] text-slate-400 mt-1">
+                          تمثل {Math.round((selectedSearchCustomer.items[0].totalAmount / selectedSearchCustomer.totalAmount) * 100)}% من مشتريات العميل
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-slate-400 font-bold">لا توجد أصناف</div>
+                  )}
+                </div>
+
+                {/* توزيع الأصناف بالنسبة المئوية */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    نسبة كل صنف من مشتريات العميل
+                  </div>
+                  <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                    {selectedSearchCustomer.items.slice(0, 6).map((item, idx) => {
+                      const pct =
+                        selectedSearchCustomer.totalAmount > 0
+                          ? (item.totalAmount / selectedSearchCustomer.totalAmount) * 100
+                          : 0;
+                      return (
+                        <div
+                          key={item.itemCode || idx}
+                          className="text-[9.5px] font-bold text-slate-700"
+                        >
+                          <div className="flex justify-between mb-0.5">
+                            <span className="truncate max-w-[120px]">{item.itemName}</span>
+                            <span className="font-mono text-indigo-700">{Math.round(pct)}%</span>
+                          </div>
+                          <div className="w-full bg-slate-200 rounded-full h-1.5">
+                            <div
+                              className="bg-indigo-600 h-1.5 rounded-full"
+                              style={{ width: `${Math.min(pct, 100)}%` }}
+                            ></div>
+                          </div>
+                          <div className="flex justify-between text-[8.5px] text-slate-400 mt-0.5">
+                            <span>{formatCurrency(item.totalAmount)}</span>
+                            <span>{item.totalQuantity.toLocaleString('ar-EG')} كرتونة</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {selectedSearchCustomer.items.length === 0 && (
+                      <div className="text-[10px] text-slate-400 font-bold">لا توجد بيانات</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* المشتريات الشهرية */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    المشتريات الشهرية (السنة كاملة)
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => {
+                      const amount = selectedSearchCustomer.monthlySales[month] || 0;
+                      const qty = selectedSearchCustomer.monthlyQuantities[month] || 0;
+                      const hasSales = amount > 0;
+                      return (
+                        <div
+                          key={month}
+                          className="text-center p-1.5 rounded-lg border text-[9px] font-bold transition ${
+                            hasSales
+                              ? 'bg-amber-50 border-amber-200 text-amber-900'
+                              : 'bg-slate-100/50 border-transparent text-slate-400'
+                          }"
+                        >
+                          <div className="text-[8px] uppercase tracking-wider mb-0.5">
+                            {MONTH_NAMES_MAP[month].slice(0, 3)}
+                          </div>
+                          <div className="font-mono font-black">
+                            {hasSales ? formatCurrency(amount) : '—'}
+                          </div>
+                          <div className="text-[8px]">{hasSales ? qty.toLocaleString('ar-EG') : '0'} ك</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {onOpenNewOrderForCustomer && (
+                <div className="mt-4 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => onOpenNewOrderForCustomer(customers.find((c) => c.code === selectedSearchCustomer!.customerAccount || c.name === selectedSearchCustomer!.customerName) as Customer, undefined)}
+                    className="w-full inline-flex items-center justify-center gap-1.5 h-9 rounded-xl bg-[#102b4e] hover:bg-[#0b1f39] text-white text-[11px] font-black transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    طلبية جديدة لهذا العميل
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
             <div className="xl:col-span-5">

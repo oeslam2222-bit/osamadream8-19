@@ -1,4 +1,4 @@
-import { Banknote, Boxes, PackageX, Tags } from 'lucide-react';
+import { Banknote, Boxes, PackageX, Tags, Users } from 'lucide-react';
 import React from 'react';
 import { formatCurrency } from '../../services/invoiceService';
 import { PeriodComparison } from '../../services/customerItemSalesInsights';
@@ -10,6 +10,7 @@ interface ItemSalesKpiCardsProps {
   previousQuantity: number;
   itemsCount: number;
   previousItemsCount: number;
+  customersCount: number;
   idleCount: number;
   idleCaption: string;
   comparisonCaption: string;
@@ -39,6 +40,7 @@ export const ItemSalesKpiCards: React.FC<ItemSalesKpiCardsProps> = ({
   previousQuantity,
   itemsCount,
   previousItemsCount,
+  customersCount,
   idleCount,
   idleCaption,
   comparisonCaption,
@@ -54,7 +56,7 @@ export const ItemSalesKpiCards: React.FC<ItemSalesKpiCardsProps> = ({
     previousItemsCount > 0 ? ((itemsCount - previousItemsCount) / previousItemsCount) * 100 : null;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
       <KpiCard
         title="إجمالي المبيعات"
         icon={<Banknote className="w-5 h-5" />}
@@ -101,6 +103,24 @@ export const ItemSalesKpiCards: React.FC<ItemSalesKpiCardsProps> = ({
           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
             <GrowthPill growth={itemsGrowth} emptyLabel="لا توجد فترة سابقة" />
             <span className="text-[9.5px] text-slate-400 font-bold">{comparisonCaption}</span>
+          </div>
+        </div>
+      </KpiCard>
+
+      <KpiCard
+        title="عدد العملاء"
+        icon={<Users className="w-5 h-5" />}
+        iconClass="bg-indigo-50 text-indigo-600"
+      >
+        <div className="mt-2.5">
+          <div className="text-[21px] leading-tight font-black text-slate-900 font-mono">
+            {customersCount.toLocaleString('en-US')}
+            <span className="text-[11px] font-bold text-slate-400 ms-1">عميل</span>
+          </div>
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-indigo-200 bg-indigo-50 text-[10px] font-black text-indigo-700">
+              ضمن النطاق المحدد
+            </span>
           </div>
         </div>
       </KpiCard>
