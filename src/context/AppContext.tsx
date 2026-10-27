@@ -2164,6 +2164,20 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
    */
   useEffect(() => {
     let lastRestoreAt = 0;
+    /**
+     * قبل ما المتصفح يجمّد الصفحة في الـBFCache بنقفل الـWebSocket بنفسنا.
+     * لو سِبناه مفتوح، المتصفح بيجمّده في نص الـhandshake ويطبع
+     * «WebSocket opening handshake timed out» في الكونسول — ضوضاء ملهاش لازمة
+     * لأننا أصلاً بنعيد الاتصال والاشتراك في pageshow.
+     */
+    const handlePageHide = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      try {
+        supabase.realtime.disconnect();
+      } catch {
+        // تجاهل: السوكيت ممكن يكون مقفول بالفعل
+      }
+    };
     const handlePageShow = (event: PageTransitionEvent) => {
       if (!event.persisted) return;
       // سبام زِرار الرجوع ممكن يطلّع pageshow كذا مرة ورا بعض، وكل مرة بتعمل
@@ -2171,15 +2185,23 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const now = Date.now();
       if (now - lastRestoreAt < 3000) return;
       lastRestoreAt = now;
-      try {
-        supabase.realtime.connect();
-      } catch (error) {
-        console.warn('Realtime reconnect notice:', error);
+      // لو الجهاز أوفلاين، connect هيفضل يحاول ويرمي timeout في الكونسول.
+      // أول ما الشبكة ترجع حدث online بيتكفّل بإعادة المزامنة.
+      if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+        try {
+          supabase.realtime.connect();
+        } catch (error) {
+          console.warn('Realtime reconnect notice:', error);
+        }
       }
       setDataEpoch((n) => n + 1);
     };
+    window.addEventListener('pagehide', handlePageHide);
     window.addEventListener('pageshow', handlePageShow);
-    return () => window.removeEventListener('pageshow', handlePageShow);
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
   }, []);
 
   // Re-check on focus, tab visibility, realtime version broadcasts, and as a short heartbeat.
@@ -3352,7 +3374,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
   // Online / Offline tracking
   useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
+    const handleOnline = () => {
+      setIsOffline(false);
+      // رجوع الشبكة = السوكيت غالبًا مات وهو أوفلاين؛ connect() آمن لو متوصّل.
+      try {
+        supabase.realtime.connect();
+      } catch {
+        // تجاهل: إعادة المحاولة بتحصل تلقائيًا
+      }
+    };
     const handleOffline = () => setIsOffline(true);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);

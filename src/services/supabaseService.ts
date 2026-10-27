@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { Branch, Customer, Invoice, Product, User, UserRole, CustomerVisit } from '../types';
 import { withHashedCredential } from './passwordService';
+import { pickUserColumns, sanitizeSupervisorId } from './userRowPayload';
 import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from './customerDues';
 import { normalizeArabicText } from './arabicMatchingService';
 
@@ -1027,49 +1028,86 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
 export async function saveUsersToSupabase(users: User[]): Promise<{ success: boolean; error?: string }> {
   try {
     invalidateUsersCache();
+    if (users.length === 0) return { success: true };
+
     let firstError = '';
     const securedUsers = await Promise.all(users.map((u) => withHashedCredential(u)));
-    const usersPayload = securedUsers.map((u) => ({
-      id: u.id,
-      name: u.name,
-      username: u.username,
-      email: u.email,
-      password: u.password || '',
-      role: u.role,
-      branch_name: u.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
-      supervisor_id: u.supervisorId || null,
-      phone: u.phone || '',
-      commission_rate: u.commissionRate || 2.5,
-      is_active: u.isActive ?? true,
-      approval_status: u.approvalStatus || 'active',
-      created_at: u.registrationDate || new Date().toISOString(),
-    }));
+    const knownIds = new Set(securedUsers.map((u) => u.id));
 
-    // 1. Upsert into 'users' table directly
-    for (let i = 0; i < usersPayload.length; i += 50) {
-      const chunk = usersPayload.slice(i, i + 50);
-      try {
-        const { error: uErr } = await supabase.from('users').upsert(chunk);
-        if (uErr) {
-          const minChunk = chunk.map((c) => ({
-            id: c.id,
-            name: c.name,
-            username: c.username,
-            email: c.email,
-            password: c.password,
-            role: c.role,
-            branch_name: c.branch_name,
-          }));
-          const { error: fallbackError } = await supabase.from('users').upsert(minChunk);
-          if (fallbackError && !firstError) firstError = fallbackError.message;
+    const usersPayload = securedUsers.map((u) =>
+      sanitizeSupervisorId(
+        {
+          id: u.id,
+          name: u.name,
+          username: u.username,
+          email: u.email,
+          password: u.password || '',
+          role: u.role,
+          branch_name: u.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+          supervisor_id: u.supervisorId || null,
+          phone: u.phone || '',
+          commission_rate: u.commissionRate || 2.5,
+          is_active: u.isActive ?? true,
+          approval_status: u.approvalStatus || 'active',
+          created_at: u.registrationDate || new Date().toISOString(),
+        },
+        knownIds
+      )
+    );
+
+    // 1) الجدول الأساسي: بدون ON CONFLICT نهائيًا — بنفصل الموجود عن الجديد
+    //    ونعمل update / insert مباشر، فمفيش أي 409 مهما كان شكل قيود الجدول.
+    const dedupedPayloads = Array.from(
+      new Map(usersPayload.map((payload) => [String(payload.id), payload])).values()
+    );
+
+    const { data: existingRows } = await supabase.from('users').select('id');
+    const existingIds = new Set((existingRows || []).map((row: any) => String(row.id)));
+
+    const rowsToUpdate = dedupedPayloads.filter((payload) => existingIds.has(String(payload.id)));
+    const rowsToInsert = dedupedPayloads.filter((payload) => !existingIds.has(String(payload.id)));
+
+    for (let i = 0; i < rowsToUpdate.length; i += 20) {
+      const batch = rowsToUpdate.slice(i, i + 20);
+      const results = await Promise.allSettled(
+        batch.map(async (payload) => {
+          const { id, ...changes } = pickUserColumns('users', payload);
+          if (!id || Object.keys(changes).length === 0) return null;
+          return supabase.from('users').update(changes).eq('id', id);
+        })
+      );
+      results.forEach((result) => {
+        if (result.status === 'fulfilled' && result.value?.error && !firstError) {
+          firstError = result.value.error.message;
         }
-      } catch (err) {
-        if (!firstError) firstError = err instanceof Error ? err.message : 'تعذر حفظ المستخدمين';
-        console.warn('Upsert chunk into users note:', err);
+      });
+    }
+
+    for (let i = 0; i < rowsToInsert.length; i += 50) {
+      const chunk = rowsToInsert
+        .slice(i, i + 50)
+        .map((payload) => pickUserColumns('users', payload));
+
+      const { error } = await supabase.from('users').insert(chunk);
+      if (!error) continue;
+
+      // لو الإدخال اتضرب بقيد فريد/خارجي، بنحاول صف صف بمسار آمن.
+      for (const row of chunk) {
+        const result = await writeUserRowSafely('users', row, 'upsert');
+        if (result.error && !firstError) firstError = result.error;
       }
     }
 
-    // 2. Also update snapshot in orders table
+    // 2) المرايا القديمة: تحديث الموجود فقط (بدون إدخال → بدون 409)
+    await Promise.allSettled([
+      syncMirrorRows('app_users', usersPayload),
+      syncMirrorRows(
+        'profiles',
+        usersPayload.map((payload) => ({ ...payload, full_name: payload.name }))
+      ),
+    ]);
+
+    // 3) Snapshot سحابي لاسترجاع الحسابات لو الجداول ناقصة
     try {
       await supabase.from('orders').upsert({
         id: USER_SYNC_STORE_ID,
@@ -1087,6 +1125,115 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
   }
 }
 
+type UserMirrorTable = import('./userRowPayload').UserTableName;
+
+/** معرفات المستخدمين المعروفة — أساس التحقق من صلاحية المشرف قبل الكتابة. */
+function collectKnownUserIds(usersList?: User[]): Set<string> {
+  const source = usersList && usersList.length > 0 ? usersList : cachedUsersResponse?.data || [];
+  return new Set(source.map((user) => user.id));
+}
+
+/**
+ * كتابة صف مستخدم بدون أي طلب متوقع فشله:
+ * بنسأل الأول هل الصف موجود، وبناءً عليه update أو insert.
+ * ده بيمنع 409 نهائيًا لأن مفيش ON CONFLICT في المسار العادي.
+ */
+async function writeUserRowSafely(
+  table: UserMirrorTable,
+  payload: Record<string, any>,
+  mode: 'upsert' | 'update-only'
+): Promise<{ error: string | null; skipped?: boolean }> {
+  const row = pickUserColumns(table, payload);
+  if (!row.id) return { error: 'معرّف المستخدم مطلوب' };
+
+  const { data: existingRows, error: readError } = await supabase
+    .from(table)
+    .select('id')
+    .eq('id', row.id)
+    .limit(1);
+
+  if (readError) return { error: readError.message };
+
+  const exists = Boolean(existingRows && existingRows.length > 0);
+  if (!exists && mode === 'update-only') return { error: null, skipped: true };
+
+  const { id, ...changes } = row;
+  if (Object.keys(changes).length === 0) return { error: null, skipped: true };
+
+  const write = exists
+    ? await supabase.from(table).update(changes).eq('id', id)
+    : await supabase.from(table).insert(row);
+
+  if (!write.error) return { error: null };
+
+  // صف اتعمل بين القراءة والكتابة (سباق نادر) → نعيدها كتحديث.
+  if (!exists && (write.error.code === '23505' || write.error.code === '409')) {
+    const retry = await supabase.from(table).update(changes).eq('id', id);
+    if (!retry.error) return { error: null };
+
+    // قيد فريد على الإيميل/اسم المستخدم مش على الـid (زي profiles.username)
+    // → بنحدّث الصف الموجود بنفس الهوية بدل ما نضرب 409 كل مرة.
+    const existingId = await findRowIdByIdentity(table, row);
+    if (existingId && existingId !== id) {
+      const identityUpdate = await supabase.from(table).update(changes).eq('id', existingId);
+      if (!identityUpdate.error) return { error: null };
+    }
+    return { error: write.error.message };
+  }
+
+  return { error: write.error.message };
+}
+
+/** البحث عن صف بنفس الإيميل أو اسم المستخدم (بدون حساسية لحالة الأحرف). */
+async function findRowIdByIdentity(
+  table: UserMirrorTable,
+  row: Record<string, any>
+): Promise<string | null> {
+  const candidates: Array<[string, string]> = [];
+  if (row.email) candidates.push(['email', String(row.email)]);
+  if (row.username) candidates.push(['username', String(row.username)]);
+  if (table === 'profiles' && row.full_name) {
+    candidates.push(['full_name', String(row.full_name)]);
+  }
+
+  for (const [column, value] of candidates) {
+    const { data } = await supabase
+      .from(table)
+      .select('id')
+      .ilike(column, value.replace(/[%_]/g, (match) => `\\${match}`))
+      .limit(1);
+    if (data && data.length > 0) return String(data[0].id);
+  }
+  return null;
+}
+
+/**
+ * تحديث صفوف النسخ الاحتياطية (app_users / profiles) للمستخدمين الموجودين فقط.
+ * الجداول دي مرايا قديمة، و`profiles.id` ممكن يكون مربوط بـ auth.users،
+ * فمحاولة إدخال مستخدم جديد فيها بتضرب foreign key (409) من غير أي فايدة.
+ */
+async function syncMirrorRows(
+  table: Exclude<UserMirrorTable, 'users'>,
+  payloads: Record<string, any>[]
+): Promise<number> {
+  if (payloads.length === 0) return 0;
+  const { data, error } = await supabase.from(table).select('id');
+  if (error || !data) return 0;
+
+  const existingIds = new Set(data.map((row: any) => String(row.id)));
+  const targets = payloads.filter((payload) => existingIds.has(String(payload.id)));
+
+  const results = await Promise.allSettled(
+    targets.map(async (payload) => {
+      const { id, ...changes } = pickUserColumns(table, payload);
+      if (!id || Object.keys(changes).length === 0) return;
+      await supabase.from(table).update(changes).eq('id', id);
+    })
+  );
+
+  return results.filter((result) => result.status === 'fulfilled').length;
+}
+
 /**
  * Upsert / Save single user into Supabase directly
  */
@@ -1094,7 +1241,8 @@ export async function saveUserToSupabase(user: User, currentUsersList?: User[]):
   try {
     invalidateUsersCache();
     const securedUser = await withHashedCredential(user);
-    const userPayload = {
+    const knownIds = collectKnownUserIds(currentUsersList);
+    const basePayload = {
       id: securedUser.id,
       name: securedUser.name,
       username: securedUser.username,
@@ -1102,54 +1250,41 @@ export async function saveUserToSupabase(user: User, currentUsersList?: User[]):
       password: securedUser.password || '',
       role: securedUser.role,
       branch_name: securedUser.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
-      supervisor_id: user.supervisorId || null,
       phone: user.phone || '',
-      commission_rate: user.commissionRate || 2.5,
       is_active: user.isActive ?? true,
       approval_status: user.approvalStatus || 'active',
       created_at: user.registrationDate || new Date().toISOString(),
     };
 
-    // 1. Parallel fast upsert to tables (users, app_users, profiles)
-    const tablePromises: Promise<any>[] = [
-      (async () => {
-        try {
-          await supabase.from('users').upsert(userPayload);
-        } catch (e) {
-          console.warn('users upsert notice:', e);
+    // 1) الجدول الأساسي users — هو مصدر الحقيقة، وفشله هو اللي يهم الـ offline queue.
+    const usersPayload = sanitizeSupervisorId(
+      {
+        ...basePayload,
+        supervisor_id: user.supervisorId || null,
+        commission_rate: user.commissionRate || 2.5,
+      },
+      knownIds
+    );
+
+    const primary = await writeUserRowSafely('users', usersPayload, 'upsert');
+
+    // 2) المرايا القديمة: تحديث صف موجود فقط، بدون إدخال → مفيش 409 خالص.
+    const mirrorWrites: Promise<unknown>[] = [
+      syncMirrorRows('app_users', [usersPayload]),
+      syncMirrorRows('profiles', [
+        {
+          ...basePayload,
+          full_name: securedUser.name,
         }
-      })(),
-      (async () => {
-        try {
-          await supabase.from('app_users').upsert(userPayload);
-        } catch (e) {
-          console.warn('app_users upsert notice:', e);
-        }
-      })(),
-      (async () => {
-        try {
-          await supabase.from('profiles').upsert({
-            id: user.id,
-            full_name: user.name,
-            username: user.username,
-            email: user.email,
-            role: user.role,
-            branch_name: user.branchName,
-            phone: user.phone,
-          });
-        } catch (e) {
-          console.warn('profiles upsert notice:', e);
-        }
-      })(),
+      ])
     ];
 
-    // 2. Snapshot store update without blocking
     if (currentUsersList && currentUsersList.length > 0) {
       const map = new Map<string, User>();
       currentUsersList.forEach((u) => map.set(u.id, u));
       map.set(user.id, user);
       const updatedList = Array.from(map.values());
-      tablePromises.push(
+      mirrorWrites.push(
         Promise.resolve(
           supabase.from('orders').upsert({
             id: USER_SYNC_STORE_ID,
@@ -1161,8 +1296,9 @@ export async function saveUserToSupabase(user: User, currentUsersList?: User[]):
       );
     }
 
-    await Promise.allSettled(tablePromises);
-    return { success: true };
+    await Promise.allSettled(mirrorWrites);
+
+    return primary.error ? { success: false, error: primary.error } : { success: true };
   } catch (e: any) {
     return { success: false, error: e?.message };
   }
