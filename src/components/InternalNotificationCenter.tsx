@@ -13,6 +13,8 @@ import {
   Flame,
   Package,
   RefreshCw,
+  RotateCcw,
+  Scale,
   ShieldAlert,
   Target,
   Trash2,
@@ -388,6 +390,40 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
         iconBg: 'bg-slate-100 text-slate-600',
         actionTab: 'catalog',
         actionLabel: 'الكتالوج',
+      });
+    }
+
+    // ===== مرتجعات معلقة (pending returns) =====
+    const pendingReturns = visibleVisits.filter((v) => v.isReturn && v.returnStatus && v.returnStatus !== 'مغلق' && v.returnStatus !== 'مكتمل');
+    if (pendingReturns.length > 0) {
+      list.push({
+        id: 'pending-returns',
+        kind: 'visit',
+        priority: pendingReturns.length > 5 ? 'high' : 'medium',
+        title: `${pendingReturns.length} مرتجع معلق`,
+        detail: 'مرتجعات بانتظار المعالجة — أمين المخزن',
+        icon: RotateCcw,
+        accent: 'text-rose-600',
+        iconBg: 'bg-rose-50 text-rose-600',
+        actionTab: 'returns',
+        actionLabel: 'المرتجعات',
+      });
+    }
+
+    // ===== شؤون قانونية (legal cases) =====
+    const legalCustomers = visibleCustomers.filter((c) => c.isLegalPending || c.legalStatus);
+    if (legalCustomers.length > 0) {
+      list.push({
+        id: 'legal-cases',
+        kind: 'customer',
+        priority: 'medium',
+        title: `${legalCustomers.length} قضية قانونية`,
+        detail: 'عملاء محولون للشؤون القانونية',
+        icon: Scale,
+        accent: 'text-indigo-600',
+        iconBg: 'bg-indigo-50 text-indigo-600',
+        actionTab: 'legal_advisor',
+        actionLabel: 'الشؤون القانونية',
       });
     }
 

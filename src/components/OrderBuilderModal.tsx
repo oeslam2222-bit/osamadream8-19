@@ -1028,6 +1028,24 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     </button>
                   </div>
 
+                  {/* Credit/Overdue Warning Banner */}
+                  {(isCreditExceeded || overdueBal > 0) && (
+                    <div className={`rounded-xl border px-3 py-2.5 text-xs font-bold flex items-start gap-2 ${
+                      isCreditExceeded ? 'bg-rose-50 border-rose-200 text-rose-800' : 'bg-amber-50 border-amber-200 text-amber-800'
+                    }`}>
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <div className="space-y-0.5">
+                        {overdueBal > 0 && (
+                          <div>⚠️ العميل لديه مستحقات متأخرة: <strong>{formatCurrency(overdueBal)}</strong> — يُرجى تحصيلها</div>
+                        )}
+                        {isCreditExceeded && (
+                          <div>⚠️ الفاتورة تتجاوز الحد الائتماني! رصيد بعد الفاتورة: <strong>{formatCurrency(balAfter)}</strong> &gt; حد: <strong>{formatCurrency(creditLimitVal)}</strong></div>
+                        )}
+                        <div className="text-[10px] opacity-80">المديونية الحالية: {formatCurrency(balBefore)} | قيمة الفاتورة: {formatCurrency(summary.grandTotal)} | بعد الفاتورة: {formatCurrency(balAfter)}</div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* 4 Financial KPIs Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                     {/* KPI 1: Current Debt */}

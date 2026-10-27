@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+﻿import React, { useMemo, useState } from 'react';
 import { AlertTriangle, CalendarCheck, CheckCircle2, Clock3, Plus, Save, Users } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StatGrid } from './ui/StatGrid';
@@ -163,7 +163,7 @@ export const VisitsDashboard: React.FC = () => {
       </header>
 
       {flash ? (
-        <div className={`rounded-xl border px-4 py-3 text-sm font-bold flex items-start gap-2 ${flash.tone === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+        <div className={`rounded-xl border px-4 py-3 text-sm font-bold flex items-start gap-2 ${flash.tone === 'success' ? 'bg-[#e8f5ef] border-[var(--app-ok)] text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
           <span>{flash.text}</span>
         </div>
       ) : null}
@@ -249,10 +249,10 @@ export const VisitsDashboard: React.FC = () => {
                   {v.outcome ? <span>النتيجة: {v.outcome}</span> : null}
                 </div>
                 {v.isReturn ? (
-                  <div className="rounded-lg bg-amber-50 border border-amber-200 px-2 py-1 text-[11px] font-black text-amber-700">مرتجع: {v.returnValue} ج.م — {v.returnReason || '-'}</div>
+                  <div className="rounded-lg bg-[#fffdf7] border border-[var(--app-accent)] px-2 py-1 text-[11px] font-black text-[#8a6420]">مرتجع: {v.returnValue} ج.م — {v.returnReason || '-'}</div>
                 ) : null}
                 {v.collectedAmount ? (
-                  <div className="text-[11px] font-black text-emerald-600">المبلغ المحصل: {v.collectedAmount}</div>
+                  <div className="text-[11px] font-black text-[var(--app-ok)]">المبلغ المحصل: {v.collectedAmount}</div>
                 ) : null}
               </button>
             ))}
@@ -305,8 +305,8 @@ export const VisitsDashboard: React.FC = () => {
             </div>
 
             {form.type === 'مرتجع' ? (
-              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
-                <div className="text-xs font-black text-amber-700">بيانات المرتجع</div>
+              <div className="mt-3 rounded-xl border border-[var(--app-accent)] bg-[#fffdf7] p-3 space-y-2">
+                <div className="text-xs font-black text-[#8a6420]">بيانات المرتجع</div>
                 <label className="block">
                   <span className="text-[11px] text-slate-500 font-bold">قيمة المرتجع (ج.م)</span>
                   <input type="number" value={form.returnValue} onChange={(e) => setForm({ ...form, returnValue: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
@@ -389,8 +389,8 @@ export const VisitsDashboard: React.FC = () => {
               </div>
             </div>
             {selectedVisit.notes ? (
-              <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg mb-4">
-                <p className="text-xs text-blue-600 mb-1 font-bold">الملاحظات والتفاصيل</p>
+              <div className="bg-[var(--app-blue-soft)] border border-[var(--app-navy)] p-3 rounded-lg mb-4">
+                <p className="text-xs text-[var(--app-navy)] mb-1 font-bold">الملاحظات والتفاصيل</p>
                 <p className="text-sm text-slate-700">{selectedVisit.notes}</p>
               </div>
             ) : null}
@@ -401,14 +401,14 @@ export const VisitsDashboard: React.FC = () => {
               </div>
             ) : null}
             {selectedVisit.collectedAmount ? (
-              <div className="bg-emerald-50 border border-emerald-200 p-3 rounded-lg mb-4">
-                <p className="text-xs text-emerald-600 mb-1 font-bold">المبلغ المحصل</p>
-                <p className="text-lg font-bold text-emerald-600">{selectedVisit.collectedAmount?.toLocaleString()} ج.م</p>
+              <div className="bg-[#e8f5ef] border border-[var(--app-ok)] p-3 rounded-lg mb-4">
+                <p className="text-xs text-[var(--app-ok)] mb-1 font-bold">المبلغ المحصل</p>
+                <p className="text-lg font-bold text-[var(--app-ok)]">{selectedVisit.collectedAmount?.toLocaleString()} ج.م</p>
               </div>
             ) : null}
             {selectedVisit.isReturn ? (
-              <div className="bg-amber-50 border border-amber-200 p-3 rounded-lg mb-4">
-                <p className="text-xs text-amber-700 mb-1 font-bold">بيانات المرتجع</p>
+              <div className="bg-[#fffdf7] border border-[var(--app-accent)] p-3 rounded-lg mb-4">
+                <p className="text-xs text-[#8a6420] mb-1 font-bold">بيانات المرتجع</p>
                 <p className="text-sm text-slate-700">قيمة المرتجع: {selectedVisit.returnValue} ج.م</p>
                 <p className="text-sm text-slate-700">سبب المرتجع: {selectedVisit.returnReason}</p>
                 <p className="text-sm text-slate-700">الأصناف: {selectedVisit.returnItems}</p>
@@ -433,7 +433,7 @@ export const VisitsDashboard: React.FC = () => {
                         if (res.success) { setSelectedVisit(updated); setFlash({ tone: 'success', text: 'تمت الموافقة — المرتجع اتحوّل لأمين المخزن للتنسيق والاستلام ✅' }); }
                         else setFlash({ tone: 'error', text: res.message });
                       }}
-                      className="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black"
+                      className="px-3 py-2 rounded-lg bg-[var(--app-ok)] hover:bg-[#256b4a] text-white text-xs font-black"
                     >
                       اعتماد وتحويل لأمين المخزن
                     </button>
@@ -452,7 +452,7 @@ export const VisitsDashboard: React.FC = () => {
                         if (res.success) { setSelectedVisit(updated); setFlash({ tone: 'error', text: 'تم رفض المرتجع' }); }
                         else setFlash({ tone: 'error', text: res.message });
                       }}
-                      className="px-3 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-black"
+                      className="px-3 py-2 rounded-lg bg-[var(--app-risk)] hover:bg-[#9b3a3a] text-white text-xs font-black"
                     >
                       رفض المرتجع
                     </button>

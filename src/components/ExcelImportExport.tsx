@@ -220,7 +220,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         // Automatically link customer codes with master customer directory to resolve branch and sales rep
         const enrichedRes = enrichCustomerItemSalesWithDirectory(itemSalesRes.sales, customers);
         const finalSales = enrichedRes.enriched;
-        await saveCustomerItemSales(finalSales);
+        await saveCustomerItemSales(finalSales, 'merge');
 
         // Auto sync to Supabase so data is immediately saved in cloud customer_item_sales table
         pushCustomerItemSalesToSupabase(finalSales).catch((err) => {
@@ -622,7 +622,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         // Automatically link customer codes with master customer directory to resolve branch and sales rep
         const enrichedRes = enrichCustomerItemSalesWithDirectory(itemSalesRes.sales, customers);
         const finalSales = enrichedRes.enriched;
-        await saveCustomerItemSales(finalSales);
+        await saveCustomerItemSales(finalSales, 'merge');
 
         // Auto sync to Supabase so data is immediately saved in cloud customer_item_sales table
         pushCustomerItemSalesToSupabase(finalSales).catch((err) => {

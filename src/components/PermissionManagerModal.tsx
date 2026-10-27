@@ -23,6 +23,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('ALL');
   const [roleFilter, setRoleFilter] = useState('ALL');
+  const [sectorFilter, setSectorFilter] = useState('ALL');
 
   const availableBranches = useMemo(() => {
     const s = new Set<string>();
@@ -41,6 +42,9 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
     }
     if (roleFilter !== 'ALL') {
       list = list.filter((u) => u.role === roleFilter);
+    }
+    if (sectorFilter !== 'ALL') {
+      list = list.filter((u) => (u.sector || 'all') === sectorFilter);
     }
     return list;
   }, [users, searchTerm, branchFilter, roleFilter]);
@@ -113,7 +117,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
 
         {/* Filters */}
         <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
             <input
               type="text"
               value={searchTerm}
@@ -144,6 +148,17 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
               <option value="warehouse_keeper">أمين مخزن</option>
               <option value="legal_advisor">مستشار قانوني</option>
             </select>
+            <select
+              value={sectorFilter}
+              onChange={(e) => setSectorFilter(e.target.value)}
+              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold"
+            >
+              <option value="ALL">جميع القطاعات</option>
+              <option value="home">منزلي</option>
+              <option value="electrical">كهربائي</option>
+              <option value="both">كلاهما</option>
+              <option value="all">الكل (Admin)</option>
+            </select>
           </div>
         </div>
 
@@ -158,7 +173,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
             <option value="">-- اختر مستخدم --</option>
             {nonAdminUsers.map((u) => (
               <option value={u.id}>
-                {u.name} ({u.role === 'developer' ? 'مسؤول (Admin)' : u.role === 'admin' ? 'مسؤول (Admin)' : u.role === 'branch_manager' ? 'مدير فرع' : u.role === 'supervisor' ? 'مشرف' : u.role === 'sales_rep' ? 'مندوب' : u.role === 'warehouse_keeper' ? 'أمين مخزن' : u.role === 'legal_advisor' ? 'مستشار قانوني' : u.role}) — {u.branchName || 'بدون فرع'}
+                {u.name} ({u.role === 'developer' ? 'مسؤول (Admin)' : u.role === 'admin' ? 'مسؤول (Admin)' : u.role === 'branch_manager' ? 'مدير فرع' : u.role === 'supervisor' ? 'مشرف' : u.role === 'sales_rep' ? 'مندوب' : u.role === 'warehouse_keeper' ? 'أمين مخزن' : u.role === 'legal_advisor' ? 'مستشار قانوني' : u.role}) — {u.branchName || 'بدون فرع'} [{u.sector === 'home' ? 'منزلي' : u.sector === 'electrical' ? 'كهربائي' : u.sector === 'both' ? 'كلاهما' : 'الكل'}]
               </option>
             ))}
           </select>
@@ -170,7 +185,10 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
             <div className="px-5 py-2 border-b border-slate-100 bg-slate-50">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-600">
-                  الدور الافتراضي: <span className="t-navy">{selectedUser.role}</span>
+                  الدور الافتراضي: <span className="t-navy">{selectedUser.role === 'developer' ? 'مسؤول (Admin)' : selectedUser.role}</span>
+            </span>
+            <span className="text-xs font-bold text-slate-600">
+              القطاع: <span className="t-navy">{selectedUser.sector === 'home' ? 'منزلي' : selectedUser.sector === 'electrical' ? 'كهربائي' : selectedUser.sector === 'both' ? 'كلاهما' : 'الكل (Admin)'}</span>
                 </span>
                 <span className="text-xs text-slate-400">
                   {allowedTabs.length} / {ALL_AVAILABLE_TABS.length} شاشة

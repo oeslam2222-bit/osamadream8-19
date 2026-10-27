@@ -49,7 +49,7 @@
   Clock,
   Maximize2
 } from 'lucide-react';
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { ProductImage } from './ProductImage';
 import {
@@ -143,8 +143,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [selectedPriority, setSelectedPriority] = useState<string>('الكل');
   const [selectedStatus, setSelectedStatus] = useState<string>('الكل');
   const [stockAvailabilityFilter, setStockAvailabilityFilter] = useState<
-    'all' | 'offers' | 'in_branch' | 'in_warehouse' | 'low_stock' | 'out_of_stock' | 'out_of_branch_only' | 'high_stock'
-  >('all');
+    'all' | 'has_stock' | 'offers' | 'in_branch' | 'in_warehouse' | 'low_stock' | 'out_of_stock' | 'out_of_branch_only' | 'high_stock'
+  >('has_stock');
   const [sortBy, setSortBy] = useState<
     'default' | 'branch_stock_desc' | 'branch_stock_asc' | 'october_stock_desc' | 'october_stock_asc' | 'total_stock_desc' | 'priority' | 'price_asc' | 'price_desc' | 'name_asc'
   >('default');
@@ -499,6 +499,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           (p.salesPriority && p.salesPriority.includes('عرض'))
         );
         if (!isOffer) return false;
+      } else if (stockAvailabilityFilter === 'has_stock') {
+        // فقط المنتجات المتوفرة (رصيد فرع > 0 أو رصيد مخزن رئيسي > 0)
+        if (bStock <= 0 && oStock <= 0) return false;
       } else if (stockAvailabilityFilter === 'out_of_stock') {
         // بدون مخزون: الصنف منتهي تماماً (رصيد الفرع 0 ورصيد أكتوبر 0)
         if (bStock > 0 || oStock > 0) return false;
@@ -592,6 +595,36 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setSortBy('default');
     setShowAllExplicitly(true);
   };
+
+  const handleDownloadCatalogPDF = useCallback(async () => {
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      let y = 15;
+      doc.setFontSize(16);
+      doc.text('كتالوج المنتجات - Dream Distribution', pageWidth / 2, y, { align: 'center' });
+      y += 10;
+      doc.setFontSize(10);
+      doc.text(`عدد المنتجات: ${filteredProducts.length}`, pageWidth / 2, y, { align: 'center' });
+      y += 8;
+      doc.setLineWidth(0.5);
+      doc.line(10, y, pageWidth - 10, y);
+      y += 6;
+      filteredProducts.forEach((p, i) => {
+        if (y > 270) { doc.addPage(); y = 15; }
+        doc.setFontSize(11);
+        doc.text(`${i + 1}. ${p.name}`, 12, y);
+        doc.setFontSize(9);
+        doc.text(`كود: ${p.code || '---'}`, 12, y + 5);
+        y += 12;
+      });
+      doc.save('catalog-products.pdf');
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+    }
+  }, [filteredProducts]);
+
 
   const cartSummary = useMemo(() => {
     return getCartSummary ? getCartSummary() : { totalCartons: 0, totalPieces: 0, grandTotal: 0, subtotal: 0, discountAmount: 0 };
@@ -1085,7 +1118,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setStockAvailabilityFilter('offers')}
+              onClick={() => setStockAvailabilityFilter('has_stock')}
+               className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
+                 stockAvailabilityFilter === 'has_stock' ? 'bg-[#e8f5ef] text-[var(--app-ok)]' : 'text-slate-600 hover:text-[var(--app-ok)]'
+               }`}
+             >
+               متوفر فقط ✓
+             </button>
+             <button
+               type="button"
+               onClick={() => setStockAvailabilityFilter('offers')}
               className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
                 stockAvailabilityFilter === 'offers' ? 'bg-[#fff8e8] text-[#8a6420]' : 'text-slate-600 hover:text-[#8a6420]'
               }`}
@@ -1095,8 +1137,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-slate-500 text-[11px] font-medium hidden sm:inline">
-              مطابق: <strong className="text-slate-900 font-bold">{filteredProducts.length}</strong> صنف
+            <button
+               type="button"
+               onClick={handleDownloadCatalogPDF}
+               className="px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer bg-[var(--app-navy)] text-white hover:opacity-90 flex items-center gap-1"
+               title="تحميل كتالوج PDF (اسم + كود)"
+             >
+               📄 PDF
+             </button>
+             <span className="text-slate-500 text-[11px] font-medium hidden sm:inline">
+               مطابق: <strong className="text-slate-900 font-bold">{filteredProducts.length}</strong> صنف
             </span>
             {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || stockAvailabilityFilter !== 'all' || sortBy !== 'default') && (
               <button
@@ -1322,7 +1372,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           </div>
       ) : (
         /* Amazon Dense Table View for Fast Order Entry */
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+        <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-[var(--app-line)] overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-right text-xs">
               <thead>
@@ -1340,7 +1390,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   <th className="p-3 text-center">إضافة كرتونة للطلبية</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[var(--app-line)]">
                 {displayedProducts.map((product) => {
                   const branchCartons = getProductBranchStock(product);
                   const mainWhCartons = typeof product.mainWarehouseReserved === 'number'
@@ -1356,18 +1406,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                             cloudinaryConfig={cloudinaryConfig}
                             targetSize={120}
                             sizeVariant="thumbnail"
-                            containerClassName="w-11 h-11 rounded-[8px] bg-[#f2f6fa] overflow-hidden shrink-0 border border-[color:var(--app-line)] cursor-pointer"
+                            containerClassName="w-11 h-11 rounded-[8px] bg-[#f2f6fa] dark:bg-slate-700 overflow-hidden shrink-0 border border-[color:var(--app-line)] cursor-pointer"
                             className="w-full h-full object-cover"
                             showBadgeOnFallback={false}
                             onClick={() => setSelectedProductForModal(product)}
                           />
                           <div className="flex flex-col gap-1 items-start">
-                            <span className="font-mono font-bold text-[#657b93] bg-[#f3f6fa] px-2 py-0.5 rounded-[6px] text-[11px] border border-[#e3ebf3]">
+                            <span className="font-mono font-bold text-[var(--app-muted)] bg-[var(--app-blue-soft)] px-2 py-0.5 rounded-[6px] text-[11px] border border-[var(--app-line)]">
                               {product.code}
                             </span>
                             {product.unifiedCode && (
-                              <span className="font-mono font-bold text-[#1e5f9d] bg-white border border-[color:var(--app-line)] px-1.5 py-0.2 rounded text-[10px] flex items-center gap-0.5" title="الكود الموحد">
-                                <span className="text-[#8a6420] font-bold">#</span>
+                              <span className="font-mono font-bold text-[var(--app-navy)] bg-white border border-[color:var(--app-line)] px-1.5 py-0.2 rounded text-[10px] flex items-center gap-0.5" title="الكود الموحد">
+                                <span className="text-[#8a6420] dark:text-[var(--app-accent)] font-bold">#</span>
                                 <span>{product.unifiedCode.replace('#', '')}</span>
                               </span>
                             )}
@@ -1375,10 +1425,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         </div>
                       </td>
                       <td className="p-2.5">
-                        <div className="font-black text-slate-900 hover:text-[#8a6420] cursor-pointer" onClick={() => setSelectedProductForModal(product)}>
+                        <div className="font-black text-slate-900 hover:text-[#8a6420] dark:text-[var(--app-accent)] cursor-pointer" onClick={() => setSelectedProductForModal(product)}>
                           {product.name}
                         </div>
-                        <div className="text-[10px] text-[#6d7e91] flex items-center gap-2">
+                        <div className="text-[10px] text-[var(--app-muted)] flex items-center gap-2">
                           <span>اللون: {product.color || '---'}</span>
                           <span>الحجم: {product.size || '---'}</span>
                         </div>
@@ -1410,14 +1460,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       </td>
                       <td className="p-2.5 text-left font-extrabold text-slate-900 text-sm tabular-nums">
                         {isConfidentialMode ? (
-                          <span className="font-mono text-slate-400 text-xs tracking-widest bg-[#f2f6fa] px-1.5 py-0.5 rounded">••••••</span>
+                          <span className="font-mono text-slate-400 text-xs tracking-widest bg-[#f2f6fa] dark:bg-slate-700 px-1.5 py-0.5 rounded">••••••</span>
                         ) : (
                           formatCurrency(product.cartonPrice)
                         )}
                       </td>
                       <td className="p-2.5 text-center">
                         {isConfidentialMode ? (
-                          <span className="font-mono text-slate-400 text-xs tracking-widest bg-[#f2f6fa] px-1.5 py-0.5 rounded">••••••</span>
+                          <span className="font-mono text-slate-400 text-xs tracking-widest bg-[#f2f6fa] dark:bg-slate-700 px-1.5 py-0.5 rounded">••••••</span>
                         ) : product.promoPrice ? (
                           <div className="inline-flex flex-col items-center bg-[#fdf5f5] border border-[rgba(179,74,74,.25)] px-2 py-0.5 rounded-[8px]">
                             <span className="text-[color:var(--app-risk)] font-black text-xs tabular-nums">{formatCurrency(product.promoPrice)}</span>

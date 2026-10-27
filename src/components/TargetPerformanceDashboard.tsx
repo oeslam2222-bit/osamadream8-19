@@ -1,4 +1,4 @@
-import {
+﻿import {
   AlertCircle,
   ArrowDownRight,
   ArrowUpRight,
@@ -921,7 +921,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                 className="bg-white/10 hover:bg-white/20 text-white border border-white/20 font-bold px-3 py-2 rounded-[10px] text-xs transition flex items-center gap-1.5 cursor-pointer min-h-[44px]"
                 title="تصدير الأهداف والتقارير إلى إكسل"
               >
-                <Download className="w-4 h-4 text-emerald-300" />
+                <Download className="w-4 h-4 text-[var(--app-ok)]" />
                 <span>تصدير Excel</span>
               </button>
 
@@ -1766,7 +1766,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                   <tfoot className="bg-slate-900 text-white font-black text-xs border-t-2 border-slate-700">
                     <tr>
                       <td className="px-4 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5 text-amber-400 text-sm">
+                        <div className="flex items-center gap-1.5 text-[var(--app-accent)] text-sm">
                           <Target className="w-4 h-4" />
                           <span>الإجمالي الشامل (12 شهراً)</span>
                         </div>
@@ -1774,46 +1774,46 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       <td className="px-4 py-4 whitespace-nowrap text-slate-200">
                         {formatEGP(monthlyMatrixTotals.totSalesTarget)}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-emerald-400 text-sm">
+                      <td className="px-4 py-4 whitespace-nowrap text-[var(--app-ok)] text-sm">
                         {formatEGP(monthlyMatrixTotals.totSalesAchieved)}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-center">
-                        <span className="inline-block bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-3 py-1 rounded-full text-xs font-black">
+                        <span className="inline-block bg-[rgba(46,125,91,.12)] text-[var(--app-ok)] border border-[rgba(46,125,91,.35)] px-3 py-1 rounded-full text-xs font-black">
                           {monthlyMatrixTotals.totSalesPerc}%
                         </span>
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-amber-400">
+                      <td className="px-4 py-4 whitespace-nowrap text-[var(--app-accent)]">
                         {formatEGP(monthlyMatrixTotals.totRemSales)}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-slate-200">
                         {formatEGP(monthlyMatrixTotals.totColTarget)}
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-blue-400 text-sm">
+                      <td className="px-4 py-4 whitespace-nowrap text-[var(--app-navy)] text-sm">
                         {formatEGP(monthlyMatrixTotals.totColAchieved)}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-center">
-                        <span className="inline-block bg-blue-500/20 text-blue-300 border border-blue-500/40 px-3 py-1 rounded-full text-xs font-black">
+                        <span className="inline-block bg-[rgba(16,43,78,.10)] text-[var(--app-navy)] border border-[rgba(16,43,78,.25)] px-3 py-1 rounded-full text-xs font-black">
                           {monthlyMatrixTotals.totColPerc}%
                         </span>
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-blue-300">
+                      <td className="px-4 py-4 whitespace-nowrap text-[var(--app-navy)]">
                         {formatEGP(monthlyMatrixTotals.totRemCol)}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-center">
                         <span className="inline-flex flex-col items-center">
-                          <span className="inline-block bg-teal-500/20 text-teal-300 border border-teal-500/40 px-3 py-1 rounded-full text-xs font-black">
+                          <span className="inline-block bg-[rgba(201,154,67,.15)] text-[var(--app-accent)] border border-[rgba(201,154,67,.35)] px-3 py-1 rounded-full text-xs font-black">
                             {monthlyMatrixTotals.totActiveCustomers}
                           </span>
                           <span className="text-[10px] text-slate-400 mt-0.5">من {monthlyMatrixTotals.totTotalCustomers}</span>
                         </span>
                       </td>
-                      <td className="px-4 py-4 whitespace-nowrap text-center text-amber-300 text-[11px]">
+                      <td className="px-4 py-4 whitespace-nowrap text-center text-[var(--app-accent)] text-[11px]">
                         ملخص الأداء السنوي
                       </td>
                       <td className="px-3 py-4 whitespace-nowrap text-center">
                         <button
                           onClick={() => setSelectedMonth('ALL')}
-                          className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-2.5 py-1 rounded-lg text-[11px] transition cursor-pointer"
+                          className="bg-[var(--app-accent)] hover:bg-[#b98a35] text-slate-950 font-black px-2.5 py-1 rounded-lg text-[11px] transition cursor-pointer"
                         >
                           الكل
                         </button>
@@ -1831,7 +1831,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
               {/* Chart Mode Toggle: Timeline vs Monthly Comparison vs Reps Ranking */}
               <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs">
                 <div className="flex items-center gap-2">
-                  <BarChart3 className="w-5 h-5 text-amber-500" />
+                  <BarChart3 className="w-5 h-5 text-[var(--app-accent)]" />
                   <span className="text-sm font-black text-slate-900">الرسم البياني والتحليل الإحصائي:</span>
                 </div>
                 <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl">
@@ -1839,7 +1839,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     onClick={() => setChartViewMode('timeline')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
                       chartViewMode === 'timeline'
-                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                        ? 'bg-[var(--app-accent)] text-slate-950 shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -1850,7 +1850,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     onClick={() => setChartViewMode('monthly_comparison')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
                       chartViewMode === 'monthly_comparison'
-                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                        ? 'bg-[var(--app-accent)] text-slate-950 shadow-xs'
                         : 'text-slate-600 hover:text-slate-900'
                     }`}
                   >
@@ -1862,7 +1862,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       onClick={() => setChartViewMode('reps_ranking')}
                       className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1.5 ${
                         chartViewMode === 'reps_ranking'
-                          ? 'bg-amber-500 text-slate-950 shadow-xs'
+                          ? 'bg-[var(--app-accent)] text-slate-950 shadow-xs'
                           : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
@@ -1880,7 +1880,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
                       <div>
                         <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
-                          <BarChart3 className="w-5 h-5 text-amber-500" />
+                          <BarChart3 className="w-5 h-5 text-[var(--app-accent)]" />
                           <span>مقارنة أداء الشهور في البيع والتحصيل (Power BI Monthly Comparison)</span>
                         </h3>
                         <p className="text-xs text-slate-500 mt-0.5 font-bold">
@@ -1977,7 +1977,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                                 if (!row) return null;
                                 return (
                                   <div className="bg-slate-900 text-white p-3.5 rounded-2xl shadow-xl text-xs space-y-1.5 border border-slate-800 font-sans min-w-[220px]">
-                                    <div className="font-black text-amber-400 text-sm border-b border-slate-700 pb-1 flex justify-between">
+                                    <div className="font-black text-[var(--app-accent)] text-sm border-b border-slate-700 pb-1 flex justify-between">
                                       <span>شهر {label}</span>
                                       <span className="text-slate-400 text-xs font-normal">{row.quarter}</span>
                                     </div>
@@ -1986,11 +1986,11 @@ export const TargetPerformanceDashboard: React.FC = () => {
                                         <span>هدف البيع:</span>
                                         <strong className="text-white">{formatEGP(row.salesTarget)}</strong>
                                       </div>
-                                      <div className="text-emerald-400 flex justify-between">
+                                      <div className="text-[var(--app-ok)] flex justify-between">
                                         <span>المحقق بيع:</span>
                                         <strong className="font-black">{formatEGP(row.salesAchieved)} ({row.salesPerc}%)</strong>
                                       </div>
-                                      <div className="text-amber-300 flex justify-between text-[11px]">
+                                      <div className="text-[var(--app-accent)] flex justify-between text-[11px]">
                                         <span>المتبقي للـ 100%:</span>
                                         <span>{formatEGP(row.remainingSales)}</span>
                                       </div>
@@ -2000,7 +2000,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                                         <span>هدف التحصيل:</span>
                                         <strong className="text-white">{formatEGP(row.colTarget)}</strong>
                                       </div>
-                                      <div className="text-blue-400 flex justify-between">
+                                      <div className="text-[var(--app-navy)] flex justify-between">
                                         <span>المحقق تحصيل:</span>
                                         <strong className="font-black">{formatEGP(row.colAchieved)} ({row.colPerc}%)</strong>
                                       </div>
@@ -2010,7 +2010,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                                       </div>
                                     </div>
                                     {row.highestMilestone !== 'none' && (
-                                      <div className="border-t border-slate-800 pt-1 text-[11px] text-emerald-300 font-bold text-center">
+                                      <div className="border-t border-slate-800 pt-1 text-[11px] text-[var(--app-ok)] font-bold text-center">
                                         المحطة المنجزة: {row.highestMilestone}
                                       </div>
                                     )}
@@ -2086,7 +2086,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                         <div className="bg-white rounded-2xl p-3.5 border border-slate-200 shadow-xs">
                           <div className="text-xs font-bold text-slate-500 mb-1 flex items-center justify-between">
                             <span>أعلى نسبة إنجاز بيع</span>
-                            <TrendingUp className="w-4 h-4 text-amber-500" />
+                            <TrendingUp className="w-4 h-4 text-[var(--app-accent)]" />
                           </div>
                           <div className="text-base font-black text-slate-900">
                             {topSalesPerc ? `${topSalesPerc.monthName}` : 'لا توجد بيانات'}
@@ -2128,7 +2128,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                       <div>
                         <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
-                          <Award className="w-5 h-5 text-amber-500" />
+                          <Award className="w-5 h-5 text-[var(--app-accent)]" />
                           <span>رسم بياني لمقارنة نسب إنجاز مناديب الفرع</span>
                         </h3>
                         <p className="text-xs text-slate-500 mt-0.5 font-bold">
@@ -2172,20 +2172,20 @@ export const TargetPerformanceDashboard: React.FC = () => {
                                 if (!item) return null;
                                 return (
                                   <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-xs space-y-1.5 border border-slate-800 font-sans">
-                                    <div className="font-black text-amber-400 text-sm border-b border-slate-700 pb-1">
+                                    <div className="font-black text-[var(--app-accent)] text-sm border-b border-slate-700 pb-1">
                                       {label}
                                     </div>
                                     <div className="text-slate-300">
                                       هدف البيع: <strong className="text-white">{formatEGP(item.salesTarget)}</strong>
                                     </div>
                                     <div className="text-slate-300">
-                                      المحقق بيع: <strong className="text-emerald-400">{formatEGP(item.salesAchieved)}</strong> ({item.salesPerc}%)
+                                      المحقق بيع: <strong className="text-[var(--app-ok)]">{formatEGP(item.salesAchieved)}</strong> ({item.salesPerc}%)
                                     </div>
                                     <div className="text-slate-300">
                                       هدف التحصيل: <strong className="text-white">{formatEGP(item.colTarget)}</strong>
                                     </div>
                                     <div className="text-slate-300">
-                                      المحقق تحصيل: <strong className="text-blue-400">{formatEGP(item.colAchieved)}</strong> ({item.colPerc}%)
+                                      المحقق تحصيل: <strong className="text-[var(--app-navy)]">{formatEGP(item.colAchieved)}</strong> ({item.colPerc}%)
                                     </div>
                                   </div>
                                 );
@@ -2249,7 +2249,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                                     rep.salesPerc >= 100
                                       ? 'bg-emerald-500'
                                       : rep.salesPerc >= 75
-                                      ? 'bg-amber-500'
+                                      ? 'bg-[var(--app-accent)]'
                                       : 'bg-rose-500'
                                   }`}
                                   style={{ width: `${Math.min(100, rep.salesPerc)}%` }}
@@ -2292,7 +2292,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                       <div>
                         <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
-                          <BarChart3 className="w-5 h-5 text-amber-500" />
+                          <BarChart3 className="w-5 h-5 text-[var(--app-accent)]" />
                           <span>
                             الرسم البياني للأداء: مقارنة هدف البيع مع المحقق{' '}
                             {periodMode === 'monthly' ? '(شهرياً)' : '(بالكوارتر)'}
@@ -2337,15 +2337,15 @@ export const TargetPerformanceDashboard: React.FC = () => {
                                 const perc = target > 0 ? ((achieved / target) * 100).toFixed(1) : '0';
                                 return (
                                   <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-xs space-y-1 border border-slate-800 font-sans">
-                                    <div className="font-black text-amber-400 text-sm">{label}</div>
+                                    <div className="font-black text-[var(--app-accent)] text-sm">{label}</div>
                                     <div className="text-slate-300">
                                       هدف البيع: <strong className="text-white">{formatEGP(target)}</strong>
                                     </div>
                                     <div className="text-slate-300">
-                                      المحقق بيع: <strong className="text-emerald-400">{formatEGP(achieved)}</strong>
+                                      المحقق بيع: <strong className="text-[var(--app-ok)]">{formatEGP(achieved)}</strong>
                                     </div>
                                     <div className="text-slate-300">
-                                      نسبة الإنجاز: <strong className="text-amber-300">{perc}%</strong>
+                                      نسبة الإنجاز: <strong className="text-[var(--app-accent)]">{perc}%</strong>
                                     </div>
                                   </div>
                                 );
@@ -2410,15 +2410,15 @@ export const TargetPerformanceDashboard: React.FC = () => {
                                 const perc = target > 0 ? ((achieved / target) * 100).toFixed(1) : '0';
                                 return (
                                   <div className="bg-slate-900 text-white p-3 rounded-xl shadow-xl text-xs space-y-1 border border-slate-800 font-sans">
-                                    <div className="font-black text-blue-400 text-sm">{label}</div>
+                                    <div className="font-black text-[var(--app-navy)] text-sm">{label}</div>
                                     <div className="text-slate-300">
                                       هدف التحصيل: <strong className="text-white">{formatEGP(target)}</strong>
                                     </div>
                                     <div className="text-slate-300">
-                                      المحقق تحصيل: <strong className="text-blue-400">{formatEGP(achieved)}</strong>
+                                      المحقق تحصيل: <strong className="text-[var(--app-navy)]">{formatEGP(achieved)}</strong>
                                     </div>
                                     <div className="text-slate-300">
-                                      نسبة التحصيل: <strong className="text-amber-300">{perc}%</strong>
+                                      نسبة التحصيل: <strong className="text-[var(--app-accent)]">{perc}%</strong>
                                     </div>
                                   </div>
                                 );
@@ -2595,7 +2595,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
             </button>
 
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
+              <div className="w-10 h-10 rounded-xl bg-[var(--app-accent)] text-slate-950 flex items-center justify-center font-black">
                 <Upload className="w-5 h-5" />
               </div>
               <div>
@@ -2657,7 +2657,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                 disabled={isUploading}
                 className="hidden"
               />
-              <FileSpreadsheet className="w-10 h-10 text-slate-400 group-hover:text-amber-500" />
+              <FileSpreadsheet className="w-10 h-10 text-slate-400 group-hover:text-[var(--app-accent)]" />
               <div className="text-xs font-bold text-slate-700">
                 {isUploading ? (
                   <span className="text-amber-600 font-black animate-pulse">

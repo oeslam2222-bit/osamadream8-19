@@ -47,6 +47,7 @@ import { UserRole } from '../types';
 import { CompanySettingsModal } from './CompanySettingsModal';
 import { InstallAppModal } from './InstallAppModal';
 import { SystemSettingsAndAboutModal } from './SystemSettingsAndAboutModal';
+import { InternalNotificationCenter } from './InternalNotificationCenter';
 
 interface NavbarProps {
   activeTab: string;
@@ -88,6 +89,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   } = useApp();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    try { return localStorage.getItem('tantawy_dark_mode') === 'true'; } catch { return false; }
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (isDark) root.classList.add('dark');
+    else root.classList.remove('dark');
+    try { localStorage.setItem('tantawy_dark_mode', String(isDark)); } catch {}
+  }, [isDark]);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStandalone, setIsStandalone] = useState(true);
@@ -467,6 +478,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Dark mode toggle */}
+            <button
+              type="button"
+              onClick={() => setIsDark((d) => !d)}
+              title={isDark ? 'الوضع الفاتح' : 'الوضع الداكن'}
+              aria-label={isDark ? 'التبديل للوضع الفاتح' : 'التبديل للوضع الداكن'}
+              className="flex items-center justify-center w-11 h-11 shrink-0 rounded-xl border border-[var(--app-line)] bg-white text-[var(--app-navy)] hover:bg-slate-50 active:scale-95 transition cursor-pointer"
+            >
+              {isDark ? '☀️' : '🌙'}
+            </button>
+
+            {/* Notification Center */}
+            <InternalNotificationCenter onNavigateToTab={setActiveTab} />
 
             {/* Mobile-only quick logout — visible affordance for phone users */}
             <button
