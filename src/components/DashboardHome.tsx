@@ -271,6 +271,23 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
     const visitSumFromMonths = monthlyVisits.reduce((a, b) => a + b, 0);
     if (visitSumFromMonths > visitsTotal) visitsTotal = visitSumFromMonths;
 
+    // Fallback: distribute annual totals across months when monthly breakdown fields are missing
+    const hasMonthlySales = monthlySales.some((v) => v > 0);
+    if (!hasMonthlySales && sales > 0) {
+      const perMonth = sales / 12;
+      for (let m = 0; m < 12; m++) monthlySales[m] = perMonth;
+    }
+    const hasMonthlyCollections = monthlyCollections.some((v) => v > 0);
+    if (!hasMonthlyCollections && collections > 0) {
+      const perMonth = collections / 12;
+      for (let m = 0; m < 12; m++) monthlyCollections[m] = perMonth;
+    }
+    const hasMonthlyVisits = monthlyVisits.some((v) => v > 0);
+    if (!hasMonthlyVisits && visitsTotal > 0) {
+      const perMonth = visitsTotal / 12;
+      for (let m = 0; m < 12; m++) monthlyVisits[m] = perMonth;
+    }
+
     scopedTargets.forEach((t) => {
       const idx = Math.min(11, Math.max(0, (t.month || 1) - 1));
       monthlyTargetSales[idx] += Number(t.salesTarget) || 0;
@@ -443,10 +460,28 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
       ['قابل للتعامل', 0],
       ['غير قابل للتعامل', 0]
     ]);
+    let hasCategorizedData = false;
     scopedCustomers.forEach((c) => {
       const category = customerDealCategory(c);
-      if (category) counts.set(category, (counts.get(category) || 0) + 1);
+      if (category) {
+        counts.set(category, (counts.get(category) || 0) + 1);
+        hasCategorizedData = true;
+      }
     });
+    // Fallback: use status2026 / balance when deal category fields are not populated
+    if (!hasCategorizedData && scopedCustomers.length > 0) {
+      scopedCustomers.forEach((c) => {
+        const status = c.status2026;
+        const balance = c.currentBalance ?? c.balance ?? 0;
+        if (status === 'active' || balance > 0) {
+          counts.set('متعامل', (counts.get('متعامل') || 0) + 1);
+        } else if (status === 'new_customer') {
+          counts.set('قابل للتعامل', (counts.get('قابل للتعامل') || 0) + 1);
+        } else {
+          counts.set('غير قابل للتعامل', (counts.get('غير قابل للتعامل') || 0) + 1);
+        }
+      });
+    }
     return [
       { name: 'متعامل', value: counts.get('متعامل') || 0, color: '#009488', count: counts.get('متعامل') || 0 },
       { name: 'قابل للتعامل', value: counts.get('قابل للتعامل') || 0, color: '#f59e0b', count: counts.get('قابل للتعامل') || 0 },
