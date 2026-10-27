@@ -3010,9 +3010,16 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const sanitizedIncoming = sanitizeCustomers(newCustomers);
     const linked = linkCustomersToUsers(sanitizedIncoming, users);
     const incomingDeduped = deduplicateCustomersArray(linked);
+
+    // فلترة الوارد حسب قطاع المستخدم الحالي لمنع خلط بيانات المنزلي مع الكهرباء
+    const userSector = currentUser?.sector;
+    const sectorFilteredIncoming = incomingDeduped.filter((c) => {
+      if (!userSector || userSector === 'all' || userSector === 'both') return true;
+      return !c.sector || c.sector === userSector || c.sector === 'both' || c.sector === 'all';
+    });
+
     // 'replace' is the admin's authoritative sheet: drop the local list entirely
-    // so a previously duplicated cache can never re-seed the server.
-    const finalCustomers = mode === 'replace' ? incomingDeduped : deduplicateCustomersArray([...customers, ...incomingDeduped]);
+    const finalCustomers = mode === 'replace' ? sectorFilteredIncoming : deduplicateCustomersArray([...customers, ...sectorFilteredIncoming]);
     idbSet(STORAGE_KEYS.CUSTOMERS, finalCustomers).catch(() => {});
     setCustomers(finalCustomers);
     authoritativeWriteAtRef.current = Date.now();
@@ -4029,12 +4036,19 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const importProductsList = (newProducts: Product[], mode: 'merge' | 'replace' = 'replace') => {
+    // فلترة الوارد حسب قطاع المستخدم الحالي لمنع خلط بيانات المنزلي مع الكهرباء
+    const userSector = currentUser?.sector;
+    const sectorFilteredIncoming = newProducts.filter((p) => {
+      if (!userSector || userSector === 'all' || userSector === 'both') return true;
+      return !p.sector || p.sector === userSector || p.sector === 'both' || p.sector === 'all';
+    });
+
     // Automatically register any newly encountered branch names dynamically
     setBranches((prevBranches) => {
       const existingNames = new Set(prevBranches.map((b) => b.name));
       const newBranchesToAdd: Branch[] = [];
 
-      newProducts.forEach((p) => {
+      sectorFilteredIncoming.forEach((p) => {
         const bName = p.branchName ? normalizeBranchName(p.branchName) : '';
         if (bName && !existingNames.has(bName)) {
           existingNames.add(bName);
@@ -4114,7 +4128,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     });
 
     // Update existing products from incoming sheet data or insert new items
-    const processedIncoming = newProducts.map((incoming) => {
+    const processedIncoming = sectorFilteredIncoming.map((incoming) => {
       const existing = (incoming.id && existingById.get(incoming.id)) || existingByKey.get(getProductMatchKey(incoming));
       if (existing) {
         // UPDATE existing record with fresh sheet stock, prices, factor, and unified model code
@@ -4165,8 +4179,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       userRole: currentUser?.role || 'admin',
       branchName: currentUser?.branchName || 'الفرع الرئيسي',
       action: 'import_products',
-      actionTitle: `استيراد ومزامنة ${newProducts.length} صنف من شيت الإكسل (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'})`,
-      details: `تم تحديث بيانات وشدات وأسعار ${newProducts.length} صنف مع الحفاظ على حجوزات المناديب النشطة ومزامنتها مع قاعدة البيانات المركزية.`,
+      actionTitle: `استيراد ومزامنة ${sectorFilteredIncoming.length} صنف من شيت الإكسل (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'})`,
+      details: `تم تحديث بيانات وشدات وأسعار ${sectorFilteredIncoming.length} صنف مع الحفاظ على حجوزات المناديب النشطة ومزامنتها مع قاعدة البيانات المركزية.`,
       badgeType: 'info',
     });
   };
