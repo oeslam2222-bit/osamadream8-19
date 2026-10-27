@@ -37,6 +37,7 @@ import { PermissionManagerModal } from './components/PermissionManagerModal';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
 import { AppProvider, useApp } from './context/AppContext';
+import { ThemeProvider } from './context/themeContext';
 import { getUserAllowedTabs, getCustomPermissions, UserPermissionOverride } from './services/permissionService';
 import { AuthProvider } from './context/authContext';
 import { InvoiceProvider } from './context/invoiceContext';
@@ -408,7 +409,9 @@ export function App() {
             <InventoryProvider>
               <SyncProvider>
                 <AppProvider>
-                  <MainLayout />
+                  <ThemeProvider>
+                    <MainLayout />
+                  </ThemeProvider>
                 </AppProvider>
               </SyncProvider>
             </InventoryProvider>

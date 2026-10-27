@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/themeContext';
 import { formatCurrency } from '../services/invoiceService';
 import { UserRole } from '../types';
 import { CompanySettingsModal } from './CompanySettingsModal';
@@ -89,16 +90,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   } = useApp();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [isDark, setIsDark] = useState(() => {
-    try { return localStorage.getItem('tantawy_dark_mode') === 'true'; } catch { return false; }
-  });
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (isDark) root.classList.add('dark');
-    else root.classList.remove('dark');
-    try { localStorage.setItem('tantawy_dark_mode', String(isDark)); } catch {}
-  }, [isDark]);
+  const { isDark, toggleTheme } = useTheme();
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStandalone, setIsStandalone] = useState(true);
@@ -482,7 +474,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Dark mode toggle */}
             <button
               type="button"
-              onClick={() => setIsDark((d) => !d)}
+              onClick={() => toggleTheme}
               title={isDark ? 'الوضع الفاتح' : 'الوضع الداكن'}
               aria-label={isDark ? 'التبديل للوضع الفاتح' : 'التبديل للوضع الداكن'}
               className="flex items-center justify-center w-11 h-11 shrink-0 rounded-xl border border-[var(--app-line)] bg-white text-[var(--app-navy)] hover:bg-slate-50 active:scale-95 transition cursor-pointer"

@@ -51,6 +51,7 @@
 } from 'lucide-react';
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/themeContext';
 import { ProductImage } from './ProductImage';
 import {
   generateProductPlaceholderSvg,
@@ -98,6 +99,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     toggleDataSaverMode,
     setIsInstallModalOpen
   } = useApp();
+
+  const { isDark, toggleTheme } = useTheme();
 
   // Smart Search Suggestions & Right Flexible Panel States
   const [searchSuggestions, setSearchSuggestions] = useState<Product[]>([]);
@@ -157,6 +160,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
   // Modals & UI States
   const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string } | null>(null);
   const [addedItemToast, setAddedItemToast] = useState<{ name: string; count: string } | null>(null);
   const [stockErrorToast, setStockErrorToast] = useState<string | null>(null);
   const [isWipeModalOpen, setIsWipeModalOpen] = useState(false);
@@ -601,29 +605,106 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       const { jsPDF } = await import('jspdf');
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
-      let y = 15;
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 10;
+      const contentWidth = pageWidth - margin * 2;
+      const imageSize = 30; // mm
+      let y = 12;
+
+      // Header
       doc.setFontSize(16);
+      doc.setTextColor(30, 58, 95); // navy
       doc.text('كتالوج المنتجات - Dream Distribution', pageWidth / 2, y, { align: 'center' });
-      y += 10;
+      y += 7;
       doc.setFontSize(10);
-      doc.text(`عدد المنتجات: ${filteredProducts.length}`, pageWidth / 2, y, { align: 'center' });
-      y += 8;
-      doc.setLineWidth(0.5);
-      doc.line(10, y, pageWidth - 10, y);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`عدد المنتجات المعروضة: ${filteredProducts.length}`, pageWidth / 2, y, { align: 'center' });
       y += 6;
-      filteredProducts.forEach((p, i) => {
-        if (y > 270) { doc.addPage(); y = 15; }
-        doc.setFontSize(11);
-        doc.text(`${i + 1}. ${p.name}`, 12, y);
-        doc.setFontSize(9);
-        doc.text(`كود: ${p.code || '---'}`, 12, y + 5);
-        y += 12;
-      });
+      doc.setLineWidth(0.5);
+      doc.setDrawColor(30, 58, 95);
+      doc.line(margin, y, pageWidth - margin, y);
+      y += 8;
+
+      // Helper to load image as data URL
+      const loadImageAsDataUrl = async (url: string | undefined | null): Promise<string | null> => {
+        if (!url) return null;
+        try {
+          const resp = await fetch(url);
+          if (!resp.ok) return null;
+          const blob = await resp.blob();
+          return await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          return null;
+        }
+      };
+
+      for (let i = 0; i < filteredProducts.length; i++) {
+        const p = filteredProducts[i];
+        const rowStartY = y;
+
+        // Check page break
+        if (y + imageSize + 18 > pageHeight - margin) {
+          doc.addPage();
+          y = margin;
+        }
+
+        // Product image (left)
+        const imgUrl = getProductImageUrl(p, cloudinaryConfig);
+        const dataUrl = await loadImageAsDataUrl(imgUrl);
+        if (dataUrl) {
+          doc.addImage(dataUrl, 'JPEG', margin, y, imageSize, imageSize);
+        } else {
+          // Fallback placeholder box
+          doc.setFillColor(241, 245, 249);
+          doc.roundedRect(margin, y, imageSize, imageSize, 2, 2, 'F');
+          doc.setDrawColor(156, 163, 175);
+          doc.setLineWidth(0.3);
+          doc.roundedRect(margin, y, imageSize, imageSize, 2, 2, 'S');
+          doc.setFontSize(8);
+          doc.setTextColor(100, 116, 139);
+          doc.text('لا توجد صورة', margin + imageSize / 2, y + imageSize / 2, { align: 'center' });
+        }
+
+        // Product name & code (right of image)
+        const textX = margin + imageSize + 6;
+        const textMaxWidth = contentWidth - imageSize - 6;
+
+        doc.setFontSize(10.5);
+        doc.setTextColor(15, 23, 42);
+        doc.setFont('helvetica', 'bold');
+        doc.text(p.name || 'بلا اسم', textX, y + 5, { maxWidth: textMaxWidth });
+
+        doc.setFontSize(8.5);
+        doc.setTextColor(56, 189, 248);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`كود المنتج: ${p.code || '---'}`, textX, y + 11, { maxWidth: textMaxWidth });
+
+        // Stock info line
+        const bStock = getProductBranchStock(p);
+        const oStock = p.mainWarehouseActual || 0;
+        const totalStock = bStock + oStock;
+        doc.setFontSize(7.5);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(totalStock > 0 ? 45 : 248, totalStock > 0 ? 212 : 113, totalStock > 0 ? 191 : 113);
+        doc.text(`الرصيد: ${totalStock} كرتونة`, textX, y + 17, { maxWidth: textMaxWidth });
+
+        // Divider line between products
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.3);
+        doc.line(margin, y + imageSize + 4, pageWidth - margin, y + imageSize + 4);
+
+        y = rowStartY + imageSize + 12;
+      }
+
       doc.save('catalog-products.pdf');
     } catch (err) {
       console.error('PDF generation failed:', err);
     }
-  }, [filteredProducts]);
+  }, [filteredProducts, cloudinaryConfig]);
 
 
   const cartSummary = useMemo(() => {
@@ -903,6 +984,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               </select>
             </div>
           )}
+          {/* Dark Mode Toggle */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            title={isDark ? 'الوضع الفاتح' : 'الوضع الليلي'}
+            aria-label={isDark ? 'التبديل للوضع الفاتح' : 'التبديل للوضع الليلي'}
+            className="flex items-center justify-center w-10 h-10 shrink-0 rounded-xl border border-[var(--app-line)] bg-white text-[var(--app-navy)] hover:bg-slate-50 active:scale-95 transition cursor-pointer"
+          >
+            {isDark ? '☀️' : '🌙'}
+          </button>
         </div>
       </div>
 
@@ -1185,7 +1276,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   {/* 1:1 Aspect-Square Image Box with object-contain (No distorted or cropped cookware) */}
                   <div
                     className="relative aspect-square bg-white overflow-hidden cursor-pointer flex items-center justify-center p-2.5 border-b border-slate-100"
-                    onClick={() => setSelectedProductForModal(product)}
+                    onClick={() => {
+                      const img = getProductImageUrl(product, cloudinaryConfig);
+                      setLightboxImage({ src: img, alt: product.name });
+                    }}
                   >
                     <ProductImage
                       product={product}
@@ -1409,7 +1503,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                             containerClassName="w-11 h-11 rounded-[8px] bg-[#f2f6fa] dark:bg-slate-700 overflow-hidden shrink-0 border border-[color:var(--app-line)] cursor-pointer"
                             className="w-full h-full object-cover"
                             showBadgeOnFallback={false}
-                            onClick={() => setSelectedProductForModal(product)}
+                            onClick={() => {
+                              const img = getProductImageUrl(product, cloudinaryConfig);
+                              setLightboxImage({ src: img, alt: product.name });
+                            }}
                           />
                           <div className="flex flex-col gap-1 items-start">
                             <span className="font-mono font-bold text-[var(--app-muted)] bg-[var(--app-blue-soft)] px-2 py-0.5 rounded-[6px] text-[11px] border border-[var(--app-line)]">
@@ -2450,6 +2547,45 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Lightbox / Zoom (اضغط على صورة أي منتج لتكبيرها) */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLightboxImage(null);
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="تكبير صورة المنتج"
+        >
+          {/* Close button */}
+          <button
+            type="button"
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 left-4 z-20 w-10 h-10 rounded-full bg-white/10 text-white backdrop-blur-md hover:bg-white/20 transition cursor-pointer flex items-center justify-center"
+            aria-label="إغلاق التكبير"
+          >
+            <X className="w-5 h-5" />
+          </button>
+
+          {/* Image */}
+          <div className="relative flex items-center justify-center max-w-[90vh] max-h-[90vh]">
+            <img
+              src={lightboxImage.src}
+              alt={lightboxImage.alt}
+              className="max-w-[85vw] max-h-[85vh] rounded-2xl shadow-2xl object-contain bg-white p-2 border border-white/20"
+              loading="lazy"
+              decoding="async"
+            />
+
+            {/* Zoom hint for mobile */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full backdrop-blur-md animate-pulse opacity-80">
+              اضغط على الصورة أو في أي مكان خارجها للإغلاق
             </div>
           </div>
         </div>
