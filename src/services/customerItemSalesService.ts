@@ -1049,29 +1049,36 @@ export async function pushCustomerItemSalesToSupabase(
 
     for (let i = 0; i < sales.length; i += batchSize) {
       const slice = sales.slice(i, i + batchSize);
-      const batch = slice.map((s, idx) => ({
-        id: s.id || `cis-${i + idx}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-        customer_account: String(s.customerAccount || 'CUST-UNKNOWN').trim(),
-        invoicing_name: String(s.invoicingName || s.customerAccount || 'عميل غير محدد').trim(),
-        sales_order: s.salesOrder ? String(s.salesOrder).trim() : null,
-        sale_date: s.date ? String(s.date).trim().slice(0, 10) : null,
-        rep_name: String(s.repName || 'غير محدد').trim(),
-        month: Math.max(1, Math.min(12, Number(s.month) || 1)),
-        warehouse: String(s.warehouse || 'الفرع الرئيسي').trim(),
-        item_code: String(s.itemCode || 'ITM-UNKNOWN').trim(),
-        item_name: String(s.itemName || s.itemCode || 'صنف غير محدد').trim(),
-        unified_code: s.unifiedCode ? String(s.unifiedCode).trim() : null,
-        unit: String(s.unit || 'كرتونة').trim(),
-        factor: parseNumericValue(s.factor) > 0 ? parseNumericValue(s.factor) : 1,
-        unit_price: parseNumericValue(s.unitPrice),
-        discount: parseNumericValue(s.discount),
-        quantity: parseNumericValue(s.quantity),
-        amount: parseNumericValue(s.amount),
-        item_group: String(s.itemGroup || 'عام').trim(),
-        definitions: s.definitions ? String(s.definitions).trim() : null,
-        family_dimension: String(s.familyDimension || s.itemGroup || 'عام').trim(),
-        created_at: s.createdAt || new Date().toISOString()
-      }));
+      const batch = slice.map((s, idx) => {
+        // ID ثابت determinada بناءً على البيانات الطبيعية
+        // عشان ما يحصلش تكرار عند كل مزامنة، upsert होताحدث السجل اللي موجود
+        const naturalKey = `${String(s.customerAccount || 'UNK')}|${String(s.itemCode || 'UNK')}|${String(s.month || '0')}|${String(s.salesOrder || '0')}`;
+        const deterministicId = `cis-${naturalKey.replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+        return {
+          id: s.id || deterministicId,
+          customer_account: String(s.customerAccount || 'CUST-UNKNOWN').trim(),
+          invoicing_name: String(s.invoicingName || s.customerAccount || 'عميل غير محدد').trim(),
+          sales_order: s.salesOrder ? String(s.salesOrder).trim() : null,
+          sale_date: s.date ? String(s.date).trim().slice(0, 10) : null,
+          rep_name: String(s.repName || 'غير محدد').trim(),
+          month: Math.max(1, Math.min(12, Number(s.month) || 1)),
+          warehouse: String(s.warehouse || 'الفرع الرئيسي').trim(),
+          item_code: String(s.itemCode || 'ITM-UNKNOWN').trim(),
+          item_name: String(s.itemName || s.itemCode || 'صنف غير محدد').trim(),
+          unified_code: s.unifiedCode ? String(s.unifiedCode).trim() : null,
+          unit: String(s.unit || 'كرتونة').trim(),
+          factor: parseNumericValue(s.factor) > 0 ? parseNumericValue(s.factor) : 1,
+          unit_price: parseNumericValue(s.unitPrice),
+          discount: parseNumericValue(s.discount),
+          quantity: parseNumericValue(s.quantity),
+          amount: parseNumericValue(s.amount),
+          item_group: String(s.itemGroup || 'عام').trim(),
+          definitions: s.definitions ? String(s.definitions).trim() : null,
+          family_dimension: String(s.familyDimension || s.itemGroup || 'عام').trim(),
+          created_at: s.createdAt || new Date().toISOString()
+        };
+      });
 
       const { error } = await supabase
         .from('customer_item_sales')
