@@ -1,12 +1,17 @@
 import {
   AlertCircle,
+  AlertTriangle,
   BarChart3,
+  Check,
   CheckCircle2,
   ClipboardList,
+  CloudDownload,
+  CloudUpload,
   Download,
-  FileSpreadsheet,
   LayoutDashboard,
+  Link2,
   Loader2,
+  RefreshCw,
   RotateCcw,
   Search,
   SlidersHorizontal,
@@ -34,10 +39,13 @@ import {
 import {
   aggregateCustomerItemSales,
   clearCustomerItemSales,
+  enrichCustomerItemSalesWithDirectory,
   exportCustomerItemSalesToExcel,
+  fetchCustomerItemSalesFromSupabase,
   filterCustomerItemSalesByRBAC,
   getSavedCustomerItemSales,
   MONTH_NAMES_MAP,
+  pushCustomerItemSalesToSupabase,
   saveCustomerItemSales
 } from '../services/customerItemSalesService';
 import { Customer, CustomerItemSaleRecord, CustomerItemSalesSummary } from '../types';
@@ -69,6 +77,11 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
   const [syncErrorMsg, setSyncErrorMsg] = useState<string | null>(null);
 
+  const [showAllSalesOverride, setShowAllSalesOverride] = useState(false);
+  const [isSupabasePushing, setIsSupabasePushing] = useState(false);
+  const [supabasePushProgress, setSupabasePushProgress] = useState<{ synced: number; total: number } | null>(null);
+  const [isSupabaseFetching, setIsSupabaseFetching] = useState(false);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMonth, setSelectedMonth] = useState<number | 'all'>('all');
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
@@ -82,8 +95,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
   const initialExpandDone = useRef(false);
 
-  useEffect(() => {
-    (async () => {
+  const loadSalesData = async () => {
+    setIsLoading(true);
+    try {
       const saved = await getSavedCustomerItemSales();
       // Strictly purge any legacy demo-generated records
       const realSaved = saved.filter((record) => !String(record.id || '').startsWith('cis-demo-'));
@@ -91,9 +105,61 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         await saveCustomerItemSales(realSaved);
       }
       setSalesRecords(realSaved);
+    } finally {
       setIsLoading(false);
-    })();
+    }
+  };
+
+  useEffect(() => {
+    loadSalesData();
+
+    // Auto-refresh when an Excel file is uploaded from the Excel tab or background
+    const handleUpdate = () => {
+      loadSalesData();
+    };
+    window.addEventListener('tantawy-customer-item-sales-updated', handleUpdate);
+    return () => window.removeEventListener('tantawy-customer-item-sales-updated', handleUpdate);
   }, []);
+
+  const handlePushToSupabase = async () => {
+    if (salesRecords.length === 0) {
+      setSyncErrorMsg('لا توجد سجلات مبيعات لرفعها إلى Supabase');
+      return;
+    }
+    setIsSupabasePushing(true);
+    setSyncErrorMsg(null);
+    setSyncSuccessMsg(null);
+    try {
+      const res = await pushCustomerItemSalesToSupabase(salesRecords, (synced, total) => {
+        setSupabasePushProgress({ synced, total });
+      });
+      if (res.success) {
+        setSyncSuccessMsg(`تم بنجاح رفع ومزامنة ${res.syncedCount.toLocaleString('ar-EG')} حركة إلى جدول customer_item_sales في Supabase!`);
+      } else {
+        setSyncErrorMsg(res.error || 'فشلت المزامنة مع Supabase');
+      }
+    } finally {
+      setIsSupabasePushing(false);
+      setSupabasePushProgress(null);
+    }
+  };
+
+  const handleFetchFromSupabase = async () => {
+    setIsSupabaseFetching(true);
+    setSyncErrorMsg(null);
+    setSyncSuccessMsg(null);
+    try {
+      const res = await fetchCustomerItemSalesFromSupabase();
+      if (res.error) {
+        setSyncErrorMsg(res.error);
+      } else {
+        setSalesRecords(res.sales);
+        setSyncSuccessMsg(`تم بنجاح جلب ${res.sales.length.toLocaleString('ar-EG')} حركة من جدول customer_item_sales في Supabase!`);
+      }
+    } finally {
+      setIsSupabaseFetching(false);
+    }
+  };
 
   const handleClearSales = () => {
     if (window.confirm('هل أنت متأكد من رغبتك في مسح كافة سجلات مبيعات الأصناف نهائياً؟')) {
@@ -104,10 +170,39 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     }
   };
 
-  const rbacSales = useMemo(
-    () => filterCustomerItemSalesByRBAC(salesRecords, currentUser, users, customers),
-    [salesRecords, currentUser, users, customers]
-  );
+  // Automatically link customer codes with master Customer directory to extract authoritative branch and rep
+  const enrichedSalesRecords = useMemo(() => {
+    if (customers.length === 0 || salesRecords.length === 0) return salesRecords;
+    return enrichCustomerItemSalesWithDirectory(salesRecords, customers).enriched;
+  }, [salesRecords, customers]);
+
+  const customerLinkStats = useMemo(() => {
+    if (customers.length === 0 || salesRecords.length === 0) {
+      return { linkedRecords: 0, linkedCustomers: 0, totalSales: salesRecords.length };
+    }
+    const res = enrichCustomerItemSalesWithDirectory(salesRecords, customers);
+    return {
+      linkedRecords: res.matchedRecordsCount,
+      linkedCustomers: res.distinctCustomersMatched,
+      totalSales: salesRecords.length
+    };
+  }, [salesRecords, customers]);
+
+  const handleEnrichAndPersistSales = async () => {
+    if (salesRecords.length === 0) return;
+    const res = enrichCustomerItemSalesWithDirectory(salesRecords, customers, { forceOverwrite: true });
+    await saveCustomerItemSales(res.enriched);
+    setSalesRecords(res.enriched);
+    setSyncSuccessMsg(
+      `تم بنجاح مطابقة كود العميل بقاعدة العملاء لـ (${res.distinctCustomersMatched.toLocaleString('ar-EG')} عميل) وتثبيت فروعهم ومناديبهم في (${res.matchedRecordsCount.toLocaleString('ar-EG')} حركة مبيعات)!`
+    );
+    setSyncErrorMsg(null);
+  };
+
+  const rbacSales = useMemo(() => {
+    if (showAllSalesOverride) return enrichedSalesRecords;
+    return filterCustomerItemSalesByRBAC(enrichedSalesRecords, currentUser, users, customers);
+  }, [enrichedSalesRecords, currentUser, users, customers, showAllSalesOverride]);
 
   const distinctGroups = useMemo(() => {
     const set = new Set<string>();
@@ -163,8 +258,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   );
 
   const customerSummaries = useMemo(
-    () => aggregateCustomerItemSales(filteredSales),
-    [filteredSales]
+    () => aggregateCustomerItemSales(filteredSales, customers),
+    [filteredSales, customers]
   );
 
   const latestMonth = useMemo(() => resolveLatestSalesMonth(baseSales), [baseSales]);
@@ -381,6 +476,45 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <button
+              type="button"
+              onClick={loadSalesData}
+              title="تحديث البيانات من الذاكرة وقاعدة البيانات"
+              className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isLoading ? 'animate-spin' : ''}`} />
+              <span>تحديث</span>
+            </button>
+
+            {salesRecords.length > 0 && customers.length > 0 && (
+              <button
+                type="button"
+                onClick={handleEnrichAndPersistSales}
+                title="مطابقة كود العميل بقاعدة العملاء المركزية وتحديد الفرع والمندوب لكل حركة"
+                className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-900 font-black text-[11px] shadow-2xs transition cursor-pointer"
+              >
+                <Link2 className="w-4 h-4 text-teal-700" />
+                <span>ربط الفروع والمناديب</span>
+              </button>
+            )}
+
+            {salesRecords.length > 0 && (
+              <button
+                type="button"
+                onClick={handlePushToSupabase}
+                disabled={isSupabasePushing}
+                title="مزامنة حركات الأصناف مع جدول customer_item_sales في Supabase"
+                className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-900 font-black text-[11px] shadow-2xs transition cursor-pointer disabled:opacity-50"
+              >
+                <CloudUpload className={`w-4 h-4 text-sky-600 ${isSupabasePushing ? 'animate-bounce' : ''}`} />
+                <span>
+                  {isSupabasePushing
+                    ? `جاري المزامنة (${supabasePushProgress ? `${supabasePushProgress.synced}/${supabasePushProgress.total}` : '...'})`
+                    : 'مزامنة Supabase'}
+                </span>
+              </button>
+            )}
+
             {salesRecords.length > 0 && (
               <button
                 type="button"
@@ -391,6 +525,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 تصدير Excel
               </button>
             )}
+
             {salesRecords.length > 0 && (
               <button
                 type="button"
@@ -402,18 +537,38 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 <span className="hidden sm:inline">مسح الداتا</span>
               </button>
             )}
-            {isAdminOrDev && onNavigateToExcel && (
-              <button
-                type="button"
-                onClick={onNavigateToExcel}
-                className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] shadow-sm transition cursor-pointer"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                <span>صفحة الإكسل</span>
-              </button>
-            )}
           </div>
         </div>
+
+        {/* Directory linking info banner */}
+        {salesRecords.length > 0 && customerLinkStats.linkedCustomers > 0 && (
+          <div className="mt-4 bg-gradient-to-l from-emerald-50 via-teal-50 to-sky-50 border border-teal-200 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-teal-700 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                <Link2 className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="font-black text-slate-900 flex items-center gap-2">
+                  <span>ربط كود العميل بقاعدة العملاء المركزية</span>
+                  <span className="bg-emerald-100 text-emerald-900 text-[10px] px-2 py-0.5 rounded-md font-black border border-emerald-300">
+                    مفعّل وتلقائي ✓
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  تم ربط <strong>{customerLinkStats.linkedCustomers.toLocaleString('ar-EG')}</strong> عميل وتحديد فروعهم (المخزن) ومناديبهم المعتمدين تلقائياً عبر مطابقة كود العميل (Customer Account).
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleEnrichAndPersistSales}
+              className="inline-flex items-center justify-center gap-1.5 h-8 px-3 bg-teal-800 hover:bg-teal-900 text-white font-black rounded-xl text-[11px] shadow-2xs transition cursor-pointer shrink-0"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>تثبيت الربط ببيانات العملاء</span>
+            </button>
+          </div>
+        )}
 
         {syncSuccessMsg && (
           <div className="mt-3 bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl text-[11px] flex items-center gap-2">
@@ -429,30 +584,58 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         )}
       </section>
 
+      {/* RBAC Filter Warning Banner when sales exist but user role filters them out */}
+      {salesRecords.length > 0 && rbacSales.length === 0 && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-amber-950 shadow-sm animate-in fade-in">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-black text-sm sm:text-base">
+                تم حفظ {salesRecords.length.toLocaleString('ar-EG')} حركة بيع في النظام بنجاح!
+              </h3>
+              <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                الحركات الحالية لا تطابق اسم المندوب أو الفرع الخاص بالحساب المسجل به حالياً ({currentUser?.name || 'مستخدم غير محدد'} - {currentUser?.role || 'sales_rep'}).
+                اضغط على الزر المقابل لعرض كافة مبيعات الشركة والجمهورية مباشرة بدون قيود.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAllSalesOverride(true)}
+            className="bg-amber-600 hover:bg-amber-700 text-white font-black px-5 py-2.5 rounded-xl text-xs shrink-0 cursor-pointer shadow-md transition whitespace-nowrap"
+          >
+            عرض كافة مبيعات الشركة (تجاوز الفلتر)
+          </button>
+        </div>
+      )}
+
+      {showAllSalesOverride && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center justify-between gap-2 text-blue-900 text-xs">
+          <span className="font-bold flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+            يتم حالياً عرض كافة مبيعات الجمهورية والشركة ({salesRecords.length.toLocaleString('ar-EG')} حركة) متجاوزاً قيود المندوب.
+          </span>
+          <button
+            type="button"
+            onClick={() => setShowAllSalesOverride(false)}
+            className="underline hover:text-blue-700 font-black cursor-pointer text-[11px]"
+          >
+            العودة للفلترة حسب نطاق صلاحيتي
+          </button>
+        </div>
+      )}
+
       {salesRecords.length === 0 ? (
         <section className="bg-white rounded-3xl border border-slate-200 p-8 sm:p-12 text-center shadow-xs">
           <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-700 mx-auto flex items-center justify-center mb-4 shadow-xs">
-            <FileSpreadsheet className="w-8 h-8" />
+            <BarChart3 className="w-8 h-8" />
           </div>
           <h2 className="text-base sm:text-lg font-black text-slate-900">
             لا توجد بيانات مبيعات مسجلة حالياً
           </h2>
           <p className="text-xs text-slate-500 max-w-xl mx-auto mt-2 leading-relaxed">
-            تم مسح البيانات التجريبية نهائياً. صفحة الإكسل هي المصدر المركزي لرفع وتحديث جميع ملفات وشيتات البيانات.
+            تم مسح البيانات التجريبية نهائياً. يتم قراءة وتحليل بيانات المبيعات الحقيقية فور رفع الملفات المعتمدة.
           </p>
-
-          {isAdminOrDev && onNavigateToExcel && (
-            <div className="flex items-center justify-center gap-3 mt-6 flex-wrap">
-              <button
-                type="button"
-                onClick={onNavigateToExcel}
-                className="inline-flex items-center gap-2 h-11 px-6 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition cursor-pointer"
-              >
-                <FileSpreadsheet className="w-4 h-4" />
-                الانتقال إلى صفحة الإكسل لرفع الشيت
-              </button>
-            </div>
-          )}
 
           <div className="mt-8 pt-6 border-t border-slate-100 max-w-2xl mx-auto text-right">
             <h4 className="text-[11px] font-black text-slate-700 mb-2">الأعمدة المدعومة في الملف (Excel / Google Sheet):</h4>

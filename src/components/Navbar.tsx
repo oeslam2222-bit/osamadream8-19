@@ -146,6 +146,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     branch_manager: { label: 'مدير الفرع', bg: 'bg-purple-500/20 border-purple-500/40', text: 'text-purple-300' },
     supervisor: { label: 'مشرف المناديب', bg: 'bg-blue-500/20 border-blue-500/40', text: 'text-blue-300' },
     sales_rep: { label: 'المندوب', bg: 'bg-emerald-500/20 border-emerald-500/40', text: 'text-emerald-300' },
+    warehouse_keeper: { label: 'أمين المخزن', bg: 'bg-teal-500/20 border-teal-500/40', text: 'text-teal-300' },
     legal_advisor: { label: 'المستشار القانوني', bg: 'bg-indigo-500/20 border-indigo-500/40', text: 'text-indigo-300' },
   };
 

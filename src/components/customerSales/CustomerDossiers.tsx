@@ -1,4 +1,14 @@
-import { ChevronDown, ChevronUp, Plus, Tag, Users } from 'lucide-react';
+import {
+  Building2,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Phone,
+  Plus,
+  Tag,
+  UserRound,
+  Users
+} from 'lucide-react';
 import React from 'react';
 import { MONTH_NAMES_MAP } from '../../services/customerItemSalesService';
 import { formatCurrency } from '../../services/invoiceService';
@@ -108,21 +118,56 @@ export const CustomerDossiers: React.FC<CustomerDossiersProps> = ({
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-base font-black text-slate-900">{summary.customerName}</h3>
-                      <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-300">
-                        {summary.customerAccount || '---'}
+                      <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-300" title="كود العميل">
+                        كود: {summary.customerAccount || '---'}
                       </span>
-                      <span className="text-[10px] px-2 py-0.5 rounded-lg bg-slate-200 text-slate-800 font-bold">
-                        {summary.warehouse || 'الفرع الرئيسي'}
+                      <span className="text-[10px] px-2 py-0.5 rounded-lg bg-blue-50 text-blue-900 border border-blue-200 font-bold inline-flex items-center gap-1" title="الفرع المعتمد">
+                        <Building2 className="w-3 h-3 text-blue-700 shrink-0" />
+                        {summary.linkedBranch || summary.warehouse || 'الفرع الرئيسي'}
                       </span>
+                      {summary.isCustomerLinked ? (
+                        <span className="text-[9px] px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold inline-flex items-center gap-1">
+                          <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600 shrink-0" />
+                          مربوط بقاعدة العملاء
+                        </span>
+                      ) : (
+                        <span className="text-[9px] px-2 py-0.5 rounded-lg bg-slate-100 text-slate-500 font-medium border border-slate-200">
+                          غير مسجل بقاعدة العملاء
+                        </span>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-1 flex-wrap font-medium">
-                      <span>
-                        المندوب: <strong className="text-slate-800">{summary.repName || 'غير محدد'}</strong>
+                    <div className="flex items-center gap-2.5 text-[11px] text-slate-500 mt-1 flex-wrap font-medium">
+                      <span className="inline-flex items-center gap-1">
+                        <UserRound className="w-3 h-3 text-slate-500 shrink-0" />
+                        المندوب المعتمد: <strong className="text-slate-900">{summary.linkedRepName || summary.repName || 'غير محدد'}</strong>
                       </span>
+                      {summary.linkedSupervisorName && (
+                        <>
+                          <span>•</span>
+                          <span>المشرف: <strong className="text-slate-700">{summary.linkedSupervisorName}</strong></span>
+                        </>
+                      )}
+                      {summary.linkedPhone && (
+                        <>
+                          <span>•</span>
+                          <span className="inline-flex items-center gap-1 font-mono text-slate-600">
+                            <Phone className="w-2.5 h-2.5 text-slate-400" />
+                            {summary.linkedPhone}
+                          </span>
+                        </>
+                      )}
                       <span>•</span>
                       <span>
                         الأصناف: <strong className="text-slate-800">{summary.distinctItemsCount}</strong>
                       </span>
+                      {summary.linkedBalance !== undefined && summary.linkedBalance !== 0 && (
+                        <>
+                          <span>•</span>
+                          <span className="text-amber-800 font-bold">
+                            المديونية: <span className="font-mono">{formatCurrency(summary.linkedBalance)}</span>
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>

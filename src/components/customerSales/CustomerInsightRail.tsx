@@ -75,17 +75,24 @@ const CustomerCard: React.FC<{
           <div className="text-sm font-black text-slate-900 truncate" title={customer.customerName}>
             {customer.customerName}
           </div>
-          <div className="text-[10px] text-slate-400 font-mono mt-0.5 flex items-center gap-1.5 flex-wrap">
-            <span>{customer.customerAccount || '---'}</span>
-            <span>•</span>
-            <span className="font-sans inline-flex items-center gap-1">
-              <Building2 className="w-2.5 h-2.5" />
-              {customer.warehouse}
+          <div className="text-[10px] text-slate-500 font-mono mt-0.5 flex items-center gap-1.5 flex-wrap">
+            <span className="font-bold text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+              {customer.customerAccount || '---'}
             </span>
+            <span>•</span>
+            <span className="font-sans inline-flex items-center gap-1 font-bold text-blue-900">
+              <Building2 className="w-2.5 h-2.5 text-blue-600 shrink-0" />
+              {customer.summary.linkedBranch || customer.warehouse}
+            </span>
+            {customer.summary.isCustomerLinked && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
+                مربوط ✓
+              </span>
+            )}
           </div>
-          <div className="text-[10px] text-slate-500 font-bold mt-1 inline-flex items-center gap-1">
-            <UserRound className="w-2.5 h-2.5" />
-            المندوب: {customer.repName || 'غير محدد'}
+          <div className="text-[10px] text-slate-600 font-bold mt-1 inline-flex items-center gap-1">
+            <UserRound className="w-2.5 h-2.5 text-slate-500 shrink-0" />
+            المندوب: <span className="text-slate-900 font-black">{customer.summary.linkedRepName || customer.repName || 'غير محدد'}</span>
           </div>
         </div>
       </div>

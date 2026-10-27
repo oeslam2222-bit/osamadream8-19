@@ -148,6 +148,16 @@ export const UserManager: React.FC = () => {
       icon: Smartphone,
       desc: 'مندوب مبيعات ميداني: إنشاء وتجهيز طلبيات البيع لعملائه المسجلين وإرسالها (لا يوافق على الطلبيات ولا ينفذ تحويلات مخزنية بنفسه).'
     },
+    warehouse_keeper: {
+      label: 'أمين المخزن',
+      shortLabel: 'أمين مخزن',
+      bg: 'bg-teal-50',
+      border: 'border-teal-200',
+      text: 'text-teal-800',
+      activeRing: 'border-teal-500 bg-teal-50/50',
+      icon: Building,
+      desc: 'مسؤول المخزن: استلام وتوريد البضائع، مراقبة المخزون الفعلي، وصرف وتجهيز طلبيات الفروع ومخزن أكتوبر.'
+    },
     legal_advisor: {
       label: 'المستشار القانوني',
       shortLabel: 'مستشار قانوني',

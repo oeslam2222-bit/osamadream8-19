@@ -779,6 +779,15 @@ export interface CustomerItemSaleRecord {
   definitions?: string;         // التعريفات (Definitions)
   familyDimension: string;      // Family Dimension (عائلة الصنف / التصنيف)
   createdAt?: string;
+
+  // --- الربط بقاعدة العملاء (Linked to Master Customers Directory) ---
+  isCustomerLinked?: boolean;   // هل تم مطابقة كود العميل بقاعدة العملاء بنجاح؟
+  linkedCustomerId?: string;    // معرّف العميل في قاعدة العملاء
+  linkedCustomerCode?: string;  // كود العميل الرسمي
+  linkedBranch?: string;        // فرع العميل المعتمد بقاعدة العملاء
+  linkedRepName?: string;       // مندوب العميل المعتمد بقاعدة العملاء
+  linkedSupervisorName?: string;// المشرف المعتمد
+  linkedPhone?: string;         // هاتف العميل
 }
 
 /** تجميع وتحليل مبيعات العميل الواحد بالصنف والمجموعات والشهور */
@@ -807,5 +816,18 @@ export interface CustomerItemSalesSummary {
     totalAmount: number;
     monthlyBreakdown: Record<number, { quantity: number; amount: number }>;
   }>;
+
+  // تفاصيل العميل المعتمدة من قاعدة العملاء
+  isCustomerLinked?: boolean;
+  linkedCustomerId?: string;
+  linkedCustomerCode?: string;
+  linkedBranch?: string;
+  linkedRepName?: string;
+  linkedSupervisorName?: string;
+  linkedPhone?: string;
+  linkedBalance?: number;
+  linkedOverdue?: number;
+  linkedTier?: string;
+  linkedAddress?: string;
 }
 

@@ -12,8 +12,12 @@ import {
 import { buildGoogleSheetsPublicCsvUrl } from './excelService';
 import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 import { idbGet, idbSet, idbDelete } from './storageService';
+import { supabase } from './supabaseService';
 
 export const ITEM_SALES_STORAGE_KEY = 'tantawy_customer_item_sales_v1';
+
+// Fast in-memory cache so uploaded 11,000 rows are immediately available across views
+let inMemoryItemSalesCache: CustomerItemSaleRecord[] | null = null;
 
 export const MONTH_NAMES_MAP: Record<number, string> = {
   1: 'يناير',
@@ -31,14 +35,18 @@ export const MONTH_NAMES_MAP: Record<number, string> = {
 };
 
 /**
- * Clean & normalize column header names
+ * Clean & normalize column header names (strips invisible characters & normalizes Arabic letters)
  */
 function cleanHeader(raw: any): string {
   if (raw === null || raw === undefined) return '';
   return String(raw)
     .trim()
     .toLowerCase()
-    .replace(/[\s_\-\/\\]+/g, '');
+    .replace(/[\u200B-\u200D\uFEFF]/g, '')
+    .replace(/[أإآ]/g, 'ا')
+    .replace(/[ة]/g, 'ه')
+    .replace(/[ى]/g, 'ي')
+    .replace(/[\s_\-\/\\#*.]+/g, '');
 }
 
 /**
@@ -307,7 +315,7 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
   let headerIndex = -1;
   let colMap: Record<string, number> = {};
 
-  for (let r = 0; r < Math.min(5, rawRows.length); r++) {
+  for (let r = 0; r < Math.min(25, rawRows.length); r++) {
     const candidateMap = mapHeaderIndices(rawRows[r]);
     // Must find at least customer, item, and quantity or amount
     if (
@@ -494,6 +502,176 @@ export async function fetchCustomerItemSalesFromGoogleSheet(urlOrId: string): Pr
 }
 
 /**
+ * Normalizes customer code for robust cross-sheet matching
+ * Handles variants like: "CUST-0123" -> "123", "00123" -> "123", "C123" -> "123", " 123 " -> "123"
+ */
+export function normalizeCustomerLookupCode(code?: string): string {
+  if (!code) return '';
+  const raw = String(code).trim().toLowerCase();
+  // Remove spaces, dashes, dots, underscores, slashes, hash
+  const stripped = raw.replace(/[\s\-_./\\#]+/g, '');
+  // Remove common prefixes like 'cust', 'c', 'cl', 'client' when followed by alphanumeric
+  const withoutPrefix = stripped.replace(/^(cust|client|cl|c)/i, '');
+  // Strip leading zeros if numeric or alphanumeric
+  const numericWithoutZeros = withoutPrefix.replace(/^0+/, '');
+  return numericWithoutZeros || withoutPrefix || stripped;
+}
+
+/**
+ * Builds high-speed indexed lookup maps from master customers directory
+ * to resolve Customer Code -> Branch & Sales Rep & Customer profile
+ */
+export function buildCustomerDirectoryLookup(customers: Customer[]) {
+  const byExactCode = new Map<string, Customer>();
+  const byNormCode = new Map<string, Customer>();
+  const byId = new Map<string, Customer>();
+  const byCleanName = new Map<string, Customer>();
+
+  customers.forEach((c) => {
+    if (c.code) {
+      const rawCode = c.code.trim().toLowerCase();
+      byExactCode.set(rawCode, c);
+      const normCode = normalizeCustomerLookupCode(c.code);
+      if (normCode) byNormCode.set(normCode, c);
+    }
+    if (c.id) {
+      const rawId = c.id.trim().toLowerCase();
+      byId.set(rawId, c);
+      const normId = normalizeCustomerLookupCode(c.id);
+      if (normId) byNormCode.set(normId, c);
+    }
+    if (c.name) {
+      const cleanName = normalizeArabicText(c.name).replace(/\s+/g, '');
+      if (cleanName) byCleanName.set(cleanName, c);
+    }
+  });
+
+  const findCustomer = (customerAccount?: string, invoicingName?: string): Customer | undefined => {
+    if (customerAccount) {
+      const acc = customerAccount.trim().toLowerCase();
+      if (byExactCode.has(acc)) return byExactCode.get(acc);
+      const normAcc = normalizeCustomerLookupCode(customerAccount);
+      if (byNormCode.has(normAcc)) return byNormCode.get(normAcc);
+      if (byId.has(acc)) return byId.get(acc);
+    }
+    if (invoicingName) {
+      const cleanName = normalizeArabicText(invoicingName).replace(/\s+/g, '');
+      if (cleanName && byCleanName.has(cleanName)) {
+        return byCleanName.get(cleanName);
+      }
+      for (const [key, cust] of byCleanName.entries()) {
+        if (cleanName.includes(key) || key.includes(cleanName) || isArabicNameMatch(invoicingName, cust.name)) {
+          return cust;
+        }
+      }
+    }
+    return undefined;
+  };
+
+  return {
+    byExactCode,
+    byNormCode,
+    byId,
+    byCleanName,
+    findCustomer
+  };
+}
+
+/**
+ * Enriches customer item sales records with their authoritative branch (warehouse)
+ * and sales rep from the master Customers directory.
+ */
+export function enrichCustomerItemSalesWithDirectory(
+  sales: CustomerItemSaleRecord[],
+  customers: Customer[],
+  options: { forceOverwrite?: boolean } = {}
+): {
+  enriched: CustomerItemSaleRecord[];
+  matchedRecordsCount: number;
+  distinctCustomersMatched: number;
+} {
+  if (!customers || customers.length === 0 || !sales || sales.length === 0) {
+    return { enriched: sales, matchedRecordsCount: 0, distinctCustomersMatched: 0 };
+  }
+
+  const lookup = buildCustomerDirectoryLookup(customers);
+  const matchedAccounts = new Set<string>();
+  let matchedRecordsCount = 0;
+
+  const isGenericWarehouse = (w?: string) => {
+    if (!w) return true;
+    const v = w.trim();
+    return (
+      v === 'الفرع الرئيسي' ||
+      v === 'غير محدد' ||
+      v === 'عام' ||
+      v === 'مخزن' ||
+      v === 'المخزن الرئيسي' ||
+      v === 'المخزن' ||
+      v === '---' ||
+      v === '0'
+    );
+  };
+
+  const isGenericRep = (r?: string) => {
+    if (!r) return true;
+    const v = r.trim();
+    return (
+      v === 'غير محدد' ||
+      v === 'مندوب' ||
+      v === 'مندوب المبيعات' ||
+      v === 'مندوب غير محدد' ||
+      v === '---' ||
+      v === '0'
+    );
+  };
+
+  const enriched = sales.map((record) => {
+    const matched = lookup.findCustomer(record.customerAccount, record.invoicingName);
+    if (!matched) {
+      return record;
+    }
+
+    matchedRecordsCount++;
+    if (record.customerAccount) matchedAccounts.add(record.customerAccount.trim().toLowerCase());
+
+    const branch = matched.branchName || (matched as any).branch;
+    const rep = matched.salesRepName || matched.repName;
+
+    // Resolve warehouse: prioritize authoritative customer branch if forceOverwrite or current warehouse is generic/empty
+    const newWarehouse =
+      options.forceOverwrite || isGenericWarehouse(record.warehouse)
+        ? (branch || record.warehouse)
+        : record.warehouse;
+
+    // Resolve rep: prioritize authoritative rep if forceOverwrite or current rep is generic/empty
+    const newRep =
+      options.forceOverwrite || isGenericRep(record.repName)
+        ? (rep || record.repName)
+        : record.repName;
+
+    return {
+      ...record,
+      warehouse: newWarehouse,
+      repName: newRep,
+      isCustomerLinked: true,
+      linkedCustomerId: matched.id,
+      linkedCustomerCode: matched.code,
+      linkedBranch: branch,
+      linkedRepName: rep,
+      linkedSupervisorName: matched.supervisorName,
+      linkedPhone: matched.phone
+    };
+  });
+
+  return {
+    enriched,
+    matchedRecordsCount,
+    distinctCustomersMatched: matchedAccounts.size
+  };
+}
+
+/**
  * Filter Customer Item Sales based on strict RBAC permissions:
  * - Sales Rep: Only sales of customers assigned to this rep (matching repName, customerAccount, or customerName)
  * - Supervisor: Supervised reps or supervised branch
@@ -506,12 +684,16 @@ export function filterCustomerItemSalesByRBAC(
   allUsers: User[] = [],
   customers: Customer[] = []
 ): CustomerItemSaleRecord[] {
-  if (!user) return [];
+  if (!user) return sales;
   if (user.role === 'admin' || user.role === 'developer') return sales;
 
   // Branch Manager: Only his branch warehouse
   if (user.role === 'branch_manager') {
-    return sales.filter((s) => isBranchMatch(s.warehouse, user.branchName, { allowUnassigned: false }));
+    return sales.filter((s) => {
+      if (s.warehouse && isBranchMatch(s.warehouse, user.branchName, { allowUnassigned: false })) return true;
+      if (s.linkedBranch && isBranchMatch(s.linkedBranch, user.branchName, { allowUnassigned: false })) return true;
+      return false;
+    });
   }
 
   // Supervisor: Sales belonging to his reps or matching his supervised branch
@@ -521,7 +703,9 @@ export function filterCustomerItemSalesByRBAC(
 
     return sales.filter((s) => {
       if (s.repName && supervisedNames.has(normalizeArabicText(s.repName))) return true;
+      if (s.linkedRepName && supervisedNames.has(normalizeArabicText(s.linkedRepName))) return true;
       if (s.warehouse && isBranchMatch(s.warehouse, user.branchName, { allowUnassigned: false })) return true;
+      if (s.linkedBranch && isBranchMatch(s.linkedBranch, user.branchName, { allowUnassigned: false })) return true;
       return false;
     });
   }
@@ -531,22 +715,41 @@ export function filterCustomerItemSalesByRBAC(
     const repNorm = normalizeArabicText(user.name);
     // Find customers explicitly assigned to this rep
     const repCustomerAccounts = new Set<string>();
+    const repCustomerNormCodes = new Set<string>();
     const repCustomerNames = new Set<string>();
 
     customers.forEach((c) => {
       if (doesCustomerBelongToRep(c, user)) {
-        if (c.code) repCustomerAccounts.add(c.code.trim().toLowerCase());
+        if (c.code) {
+          repCustomerAccounts.add(c.code.trim().toLowerCase());
+          const norm = normalizeCustomerLookupCode(c.code);
+          if (norm) repCustomerNormCodes.add(norm);
+        }
+        if (c.id) {
+          repCustomerAccounts.add(c.id.trim().toLowerCase());
+          const normId = normalizeCustomerLookupCode(c.id);
+          if (normId) repCustomerNormCodes.add(normId);
+        }
         if (c.name) repCustomerNames.add(normalizeArabicText(c.name));
       }
     });
 
     return sales.filter((s) => {
-      // 1. Matched by Rep Name directly
+      // 1. Matched by Rep Name directly (from sheet or linked customer directory)
       if (s.repName && (normalizeArabicText(s.repName) === repNorm || isArabicNameMatch(s.repName, user.name))) {
         return true;
       }
+      if (s.linkedRepName && (normalizeArabicText(s.linkedRepName) === repNorm || isArabicNameMatch(s.linkedRepName, user.name))) {
+        return true;
+      }
       // 2. Matched by Customer Account code
-      if (s.customerAccount && repCustomerAccounts.has(s.customerAccount.trim().toLowerCase())) {
+      if (s.customerAccount) {
+        const rawAcc = s.customerAccount.trim().toLowerCase();
+        if (repCustomerAccounts.has(rawAcc)) return true;
+        const normAcc = normalizeCustomerLookupCode(s.customerAccount);
+        if (repCustomerNormCodes.has(normAcc)) return true;
+      }
+      if (s.linkedCustomerCode && repCustomerAccounts.has(s.linkedCustomerCode.trim().toLowerCase())) {
         return true;
       }
       // 3. Matched by Customer Name
@@ -562,10 +765,15 @@ export function filterCustomerItemSalesByRBAC(
 
 /**
  * Aggregate item-level sales records into Customer Dossiers:
- * Groups by Customer -> summarizes total amount, items bought, quantities, monthly timeline, and item groups
+ * Groups by Customer -> summarizes total amount, items bought, quantities, monthly timeline, and item groups.
+ * If master Customers directory is passed, enriches dossiers with authoritative Branch and Rep and debt metrics.
  */
-export function aggregateCustomerItemSales(sales: CustomerItemSaleRecord[]): CustomerItemSalesSummary[] {
+export function aggregateCustomerItemSales(
+  sales: CustomerItemSaleRecord[],
+  customers: Customer[] = []
+): CustomerItemSalesSummary[] {
   const map = new Map<string, CustomerItemSalesSummary>();
+  const lookup = customers && customers.length > 0 ? buildCustomerDirectoryLookup(customers) : null;
 
   sales.forEach((s) => {
     // Unique key: prefer customerAccount, fallback to invoicingName
@@ -573,11 +781,16 @@ export function aggregateCustomerItemSales(sales: CustomerItemSaleRecord[]): Cus
     if (!key) return;
 
     if (!map.has(key)) {
+      const matched = lookup?.findCustomer(s.customerAccount, s.invoicingName);
+      const isLinked = Boolean(s.isCustomerLinked || matched);
+      const branch = s.linkedBranch || matched?.branchName || (matched as any)?.branch || s.warehouse;
+      const rep = s.linkedRepName || matched?.salesRepName || matched?.repName || s.repName;
+
       map.set(key, {
         customerAccount: s.customerAccount,
         customerName: s.invoicingName || s.customerAccount,
-        repName: s.repName,
-        warehouse: s.warehouse,
+        repName: rep || 'غير محدد',
+        warehouse: branch || 'الفرع الرئيسي',
         totalQuantity: 0,
         totalAmount: 0,
         distinctItemsCount: 0,
@@ -586,7 +799,19 @@ export function aggregateCustomerItemSales(sales: CustomerItemSaleRecord[]): Cus
         monthlyQuantities: {},
         groupBreakdown: {},
         familyBreakdown: {},
-        items: []
+        items: [],
+        // Linked Customer Directory Metadata
+        isCustomerLinked: isLinked,
+        linkedCustomerId: s.linkedCustomerId || matched?.id,
+        linkedCustomerCode: s.linkedCustomerCode || matched?.code,
+        linkedBranch: branch,
+        linkedRepName: rep,
+        linkedSupervisorName: s.linkedSupervisorName || matched?.supervisorName,
+        linkedPhone: s.linkedPhone || matched?.phone,
+        linkedBalance: matched?.currentBalance ?? matched?.balance,
+        linkedOverdue: matched?.totalOverdue ?? matched?.overdueBalance,
+        linkedTier: matched?.tier,
+        linkedAddress: matched?.address || matched?.district || matched?.governorate
       });
     }
 
@@ -734,30 +959,39 @@ export function generateDemoCustomerItemSales(customers: Customer[], allUsers: U
 }
 
 /**
- * Load Customer Item Sales from storage (IndexedDB primary, localStorage fallback)
+ * Load Customer Item Sales from storage (Memory Cache -> IndexedDB primary -> localStorage fallback)
  */
 export async function getSavedCustomerItemSales(): Promise<CustomerItemSaleRecord[]> {
+  if (inMemoryItemSalesCache && inMemoryItemSalesCache.length > 0) {
+    return inMemoryItemSalesCache;
+  }
   if (typeof window === 'undefined') return [];
   try {
     // Try IndexedDB first (high capacity, ~50MB+)
     const idbData = await idbGet<CustomerItemSaleRecord[]>(ITEM_SALES_STORAGE_KEY);
     if (Array.isArray(idbData) && idbData.length > 0) {
+      inMemoryItemSalesCache = idbData;
       return idbData;
     }
     // Fallback to localStorage (legacy / small datasets)
     const raw = window.localStorage.getItem(ITEM_SALES_STORAGE_KEY);
     if (!raw) return [];
     const list = JSON.parse(raw);
-    return Array.isArray(list) ? list : [];
-  } catch {
+    if (Array.isArray(list) && list.length > 0) {
+      inMemoryItemSalesCache = list;
+      return list;
+    }
     return [];
+  } catch {
+    return inMemoryItemSalesCache || [];
   }
 }
 
 /**
- * Clear Customer Item Sales from storage (IndexedDB + localStorage)
+ * Clear Customer Item Sales from storage (IndexedDB + localStorage + memory)
  */
 export async function clearCustomerItemSales(): Promise<void> {
+  inMemoryItemSalesCache = [];
   if (typeof window === 'undefined') return;
   try {
     await idbDelete(ITEM_SALES_STORAGE_KEY);
@@ -765,12 +999,20 @@ export async function clearCustomerItemSales(): Promise<void> {
   try {
     window.localStorage.removeItem(ITEM_SALES_STORAGE_KEY);
   } catch {}
+  try {
+    window.dispatchEvent(
+      new CustomEvent('tantawy-customer-item-sales-updated', {
+        detail: { count: 0, timestamp: Date.now() }
+      })
+    );
+  } catch {}
 }
 
 /**
- * Save Customer Item Sales to storage (IndexedDB primary, localStorage cache)
+ * Save Customer Item Sales to storage (In-memory + IndexedDB primary + localStorage cache + window event)
  */
 export async function saveCustomerItemSales(sales: CustomerItemSaleRecord[]): Promise<void> {
+  inMemoryItemSalesCache = sales;
   if (typeof window === 'undefined') return;
   // Primary: IndexedDB (high capacity)
   try {
@@ -784,6 +1026,135 @@ export async function saveCustomerItemSales(sales: CustomerItemSaleRecord[]): Pr
   } catch {
     // Quota exceeded - data is safely in IndexedDB
     try { window.localStorage.removeItem(ITEM_SALES_STORAGE_KEY); } catch {}
+  }
+  // Dispatch custom event to notify all active views instantly
+  try {
+    window.dispatchEvent(
+      new CustomEvent('tantawy-customer-item-sales-updated', {
+        detail: { count: sales.length, timestamp: Date.now() }
+      })
+    );
+  } catch {}
+}
+
+/**
+ * Push Customer Item Sales records to Supabase table `customer_item_sales` in batches of 500 rows
+ */
+export async function pushCustomerItemSalesToSupabase(
+  sales: CustomerItemSaleRecord[],
+  onProgress?: (synced: number, total: number) => void
+): Promise<{ success: boolean; syncedCount: number; error?: string }> {
+  if (!sales || sales.length === 0) return { success: true, syncedCount: 0 };
+
+  const batchSize = 500;
+  let syncedCount = 0;
+
+  try {
+    for (let i = 0; i < sales.length; i += batchSize) {
+      const slice = sales.slice(i, i + batchSize);
+      const batch = slice.map((s) => ({
+        id: s.id,
+        customer_account: s.customerAccount || 'CUST-UNKNOWN',
+        invoicing_name: s.invoicingName || 'عميل غير محدد',
+        sales_order: s.salesOrder || null,
+        sale_date: s.date ? s.date.slice(0, 10) : null,
+        rep_name: s.repName || 'غير محدد',
+        month: Math.max(1, Math.min(12, Number(s.month) || 1)),
+        warehouse: s.warehouse || 'الفرع الرئيسي',
+        item_code: s.itemCode || 'ITM-UNKNOWN',
+        item_name: s.itemName || 'صنف غير محدد',
+        unified_code: s.unifiedCode || null,
+        unit: s.unit || 'كرتونة',
+        factor: Number(s.factor) || 1,
+        unit_price: Number(s.unitPrice) || 0,
+        discount: Number(s.discount) || 0,
+        quantity: Number(s.quantity) || 0,
+        amount: Number(s.amount) || 0,
+        item_group: s.itemGroup || 'عام',
+        definitions: s.definitions || null,
+        family_dimension: s.familyDimension || s.itemGroup || 'عام',
+        created_at: s.createdAt || new Date().toISOString()
+      }));
+
+      const { error } = await supabase
+        .from('customer_item_sales')
+        .upsert(batch, { onConflict: 'id' });
+
+      if (error) {
+        return {
+          success: false,
+          syncedCount,
+          error: `تعذر حفظ الدفعة ${Math.floor(i / batchSize) + 1}: ${error.message}`
+        };
+      }
+
+      syncedCount += slice.length;
+      if (onProgress) onProgress(syncedCount, sales.length);
+    }
+
+    return { success: true, syncedCount };
+  } catch (err: any) {
+    return {
+      success: false,
+      syncedCount,
+      error: err?.message || 'حدث خطأ أثناء المزامنة مع Supabase'
+    };
+  }
+}
+
+/**
+ * Fetch Customer Item Sales from Supabase table `customer_item_sales`
+ */
+export async function fetchCustomerItemSalesFromSupabase(): Promise<{
+  sales: CustomerItemSaleRecord[];
+  error?: string;
+}> {
+  try {
+    const { data, error } = await supabase
+      .from('customer_item_sales')
+      .select('*')
+      .order('month', { ascending: true })
+      .limit(20000);
+
+    if (error) {
+      return { sales: [], error: error.message };
+    }
+
+    if (!data || data.length === 0) {
+      return { sales: [] };
+    }
+
+    const mapped: CustomerItemSaleRecord[] = data.map((row: any) => ({
+      id: row.id,
+      customerAccount: row.customer_account,
+      invoicingName: row.invoicing_name,
+      salesOrder: row.sales_order || undefined,
+      date: row.sale_date || undefined,
+      repName: row.rep_name || 'غير محدد',
+      month: Number(row.month) || 1,
+      monthName: MONTH_NAMES_MAP[Number(row.month)] || `شهر ${row.month}`,
+      warehouse: row.warehouse || 'الفرع الرئيسي',
+      itemCode: row.item_code,
+      itemName: row.item_name,
+      unifiedCode: row.unified_code || undefined,
+      unit: row.unit || 'كرتونة',
+      factor: Number(row.factor) || 1,
+      unitPrice: Number(row.unit_price) || 0,
+      discount: Number(row.discount) || 0,
+      quantity: Number(row.quantity) || 0,
+      amount: Number(row.amount) || 0,
+      itemGroup: row.item_group || 'عام',
+      definitions: row.definitions || undefined,
+      familyDimension: row.family_dimension || row.item_group || 'عام',
+      createdAt: row.created_at || new Date().toISOString()
+    }));
+
+    // Cache into memory & IndexedDB
+    await saveCustomerItemSales(mapped);
+
+    return { sales: mapped };
+  } catch (err: any) {
+    return { sales: [], error: err?.message || 'فشل الاتصال بـ Supabase' };
   }
 }
 

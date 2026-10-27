@@ -66,6 +66,7 @@ import {
 import { formatCurrency } from '../services/invoiceService';
 import { Customer, Product } from '../types';
 import {
+  enrichCustomerItemSalesWithDirectory,
   fetchCustomerItemSalesFromGoogleSheet,
   parseExcelCustomerItemSales,
   saveCustomerItemSales
@@ -212,7 +213,10 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       // Attempt parsing Customer Item Sales first
       const itemSalesRes = await fetchCustomerItemSalesFromGoogleSheet(url);
       if (itemSalesRes.sales && itemSalesRes.sales.length > 0) {
-        await saveCustomerItemSales(itemSalesRes.sales);
+        // Automatically link customer codes with master customer directory to resolve branch and sales rep
+        const enrichedRes = enrichCustomerItemSalesWithDirectory(itemSalesRes.sales, customers);
+        const finalSales = enrichedRes.enriched;
+        await saveCustomerItemSales(finalSales);
 
         // Extract and deduplicate customer profiles from sales records
         const codeMap = new Map<string, Customer>();
@@ -229,7 +233,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
         // Group total sales by customer
         const custTotals = new Map<string, { totalAmount: number; repName: string; warehouse: string }>();
-        itemSalesRes.sales.forEach((s) => {
+        finalSales.forEach((s) => {
           const k = (s.customerAccount || s.invoicingName).trim().toLowerCase();
           const prev = custTotals.get(k) || { totalAmount: 0, repName: s.repName, warehouse: s.warehouse };
           prev.totalAmount += s.amount;
@@ -242,7 +246,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         let updatedCount = 0;
         let newCount = 0;
 
-        itemSalesRes.sales.forEach((s) => {
+        finalSales.forEach((s) => {
           const cd = cleanCustomerCode(s.customerAccount);
           const normN = s.invoicingName ? normalizeArabicText(s.invoicingName).replace(/\s+/g, '') : '';
           const existing = (cd && codeMap.get(cd)) || (normN && nameMap.get(normN));
@@ -286,7 +290,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
         setSheetSuccess((prev) => ({
           ...prev,
-          customerSales: `تم بنجاح تحديث ${itemSalesRes.sales.length} حركة مبيعات صنف وتحديث بيانات ${custTotals.size} عميل بدون تكرار! أرقامك الحقيقية متاحة الآن في قسم "مبيعات الأصناف".`
+          customerSales: `تم بنجاح مزامنة ${finalSales.length.toLocaleString('ar-EG')} حركة مبيعات صنف، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) لاستخراج فروعهم ومناديبهم تلقائياً بدون تكرار! البيانات متاحة الآن في قسم "مبيعات الأصناف".`
         }));
         return;
       }
@@ -606,7 +610,10 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       // 1. Try parsing customer item sales format first
       const itemSalesRes = await parseExcelCustomerItemSales(file);
       if (itemSalesRes.sales && itemSalesRes.sales.length > 0) {
-        await saveCustomerItemSales(itemSalesRes.sales);
+        // Automatically link customer codes with master customer directory to resolve branch and sales rep
+        const enrichedRes = enrichCustomerItemSalesWithDirectory(itemSalesRes.sales, customers);
+        const finalSales = enrichedRes.enriched;
+        await saveCustomerItemSales(finalSales);
 
         // Deduplicate and merge customer profiles from item sales rows
         const codeMap = new Map<string, Customer>();
@@ -623,7 +630,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
         // Group total sales by customer
         const custTotals = new Map<string, { totalAmount: number; repName: string; warehouse: string }>();
-        itemSalesRes.sales.forEach((s) => {
+        finalSales.forEach((s) => {
           const k = (s.customerAccount || s.invoicingName).trim().toLowerCase();
           const prev = custTotals.get(k) || { totalAmount: 0, repName: s.repName, warehouse: s.warehouse };
           prev.totalAmount += s.amount;
@@ -636,7 +643,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         let updatedCount = 0;
         let newCount = 0;
 
-        itemSalesRes.sales.forEach((s) => {
+        finalSales.forEach((s) => {
           const cd = cleanCustomerCode(s.customerAccount);
           const normN = s.invoicingName ? normalizeArabicText(s.invoicingName).replace(/\s+/g, '') : '';
           const existing = (cd && codeMap.get(cd)) || (normN && nameMap.get(normN));
@@ -680,7 +687,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
         setSheetSuccess((prev) => ({
           ...prev,
-          customerSales: `تم بنجاح رفع ملف مبيعات الأصناف وتحديث ${itemSalesRes.sales.length} حركة صنف وتحديث ${custTotals.size} عميل بدون تكرار! البيانات متاحة الآن في قسم "مبيعات الأصناف".`
+          customerSales: `تم بنجاح رفع ملف الإكسل وتحديث ${finalSales.length.toLocaleString('ar-EG')} حركة صنف، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) وتحديد فروعهم ومناديبهم تلقائياً بدون تكرار!`
         }));
         return;
       }
