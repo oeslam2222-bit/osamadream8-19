@@ -50,7 +50,253 @@ function cleanHeader(raw: any): string {
 }
 
 /**
- * Flexible header recognition for ERP customer sales by item
+ * Convert Arabic-Indic / Persian digits to ASCII digits and unify separators.
+ * الأرقام العربية (٠١٢٣٤٥٦٧٨٩) كانت بتتحول لصفر في النسخة القديمة، وده كان
+ * بيخلي كل الكميات والأسعار والقيم تترفع صفر لـ Supabase.
+ */
+export function normalizeNumericText(input: any): string {
+  if (input === null || input === undefined) return '';
+  return String(input)
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/\u066B/g, '.') // Arabic decimal separator
+    .replace(/[\u066C\u060C]/g, ',') // Arabic thousands / Arabic comma
+    .replace(/\u2212/g, '-')
+    .trim();
+}
+
+/**
+ * Robust number parser:
+ * - Arabic-Indic digits (١٢٣)
+ * - thousands separators (1,234 / ١٬٢٣٤)
+ * - currency words / symbols (ج.م / EGP / %)
+ * - accounting negatives (1,200)
+ */
+export function parseFlexibleNumber(input: any): number {
+  if (input === null || input === undefined || input === '') return 0;
+  if (typeof input === 'number') return Number.isFinite(input) ? input : 0;
+
+  let text = normalizeNumericText(input);
+  if (!text) return 0;
+
+  const isNegative = /^\s*\(.*\)\s*$/.test(text) || text.startsWith('-');
+  // Remove everything except digits, dot and minus
+  text = text.replace(/[^0-9.\-]/g, '');
+  if (!text || text === '-' || text === '.') return 0;
+
+  // Keep only the first minus sign at the beginning
+  text = text.replace(/(?!^)-/g, '');
+  // If more than one dot, keep the first one as decimal separator
+  const firstDot = text.indexOf('.');
+  if (firstDot !== -1) {
+    text = text.slice(0, firstDot + 1) + text.slice(firstDot + 1).replace(/\./g, '');
+  }
+
+  const parsed = parseFloat(text);
+  if (!Number.isFinite(parsed)) return 0;
+  return isNegative ? -Math.abs(parsed) : parsed;
+}
+
+const ARABIC_MONTH_NAMES: Record<string, number> = {
+  يناير: 1, فبراير: 2, مارس: 3, ابريل: 4, أبريل: 4, مايو: 5, يونيو: 6,
+  يوليو: 7, اغسطس: 8, أغسطس: 8, سبتمبر: 9, اكتوبر: 10, أكتوبر: 10, نوفمبر: 11, ديسمبر: 12
+};
+
+/**
+ * Robust date parser that returns an ISO `YYYY-MM-DD` string or undefined.
+ * Handles: Excel serial numbers, yyyy-mm-dd, dd/mm/yyyy, Arabic month names.
+ */
+export function parseFlexibleDate(input: any): string | undefined {
+  if (input === null || input === undefined || input === '') return undefined;
+
+  const toIso = (year: number, month: number, day: number): string | undefined => {
+    if (!year || !month || !day) return undefined;
+    if (year < 100) year += year > 70 ? 1900 : 2000;
+    if (month < 1 || month > 12 || day < 1 || day > 31) return undefined;
+    const dt = new Date(Date.UTC(year, month - 1, day));
+    if (
+      dt.getUTCFullYear() !== year ||
+      dt.getUTCMonth() !== month - 1 ||
+      dt.getUTCDate() !== day
+    ) {
+      return undefined;
+    }
+    return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  };
+
+  // Excel serial date (e.g. 46023)
+  if (typeof input === 'number' && input > 20000 && input < 80000) {
+    const ms = Math.round((input - 25569) * 86400 * 1000);
+    const dt = new Date(ms);
+    if (!isNaN(dt.getTime())) return dt.toISOString().slice(0, 10);
+  }
+
+  const text = normalizeNumericText(input);
+
+  // yyyy-mm-dd / yyyy/mm/dd
+  const isoMatch = text.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (isoMatch) {
+    return toIso(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]));
+  }
+
+  // dd-mm-yyyy / dd/mm/yyyy (default for Egyptian sheets) or mm/dd/yyyy when unambiguous
+  const dmyMatch = text.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})/);
+  if (dmyMatch) {
+    const a = Number(dmyMatch[1]);
+    const b = Number(dmyMatch[2]);
+    const year = Number(dmyMatch[3]);
+    if (a > 12 && b <= 12) return toIso(year, b, a);
+    if (b > 12 && a <= 12) return toIso(year, a, b);
+    return toIso(year, b, a); // dd/mm/yyyy
+  }
+
+  // "15 يناير 2026" / "يناير 2026"
+  const normalized = text.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه');
+  const monthEntry = Object.entries(ARABIC_MONTH_NAMES).find(([name]) =>
+    normalized.includes(name.replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه'))
+  );
+  if (monthEntry) {
+    const numbers = text.match(/\d+/g) || [];
+    const year = numbers.map(Number).find((n) => n >= 1900 && n <= 2200);
+    const day = numbers.map(Number).find((n) => n >= 1 && n <= 31) || 1;
+    if (year) return toIso(year, monthEntry[1], day);
+  }
+
+  const parsed = new Date(text);
+  if (!isNaN(parsed.getTime())) {
+    return toIso(parsed.getFullYear(), parsed.getMonth() + 1, parsed.getDate());
+  }
+
+  return undefined;
+}
+
+interface HeaderRule {
+  field: string;
+  exact: string[];
+  contains: string[];
+  excludes?: string[];
+}
+
+/**
+ * Header recognition rules, ordered by priority.
+ * Every token is normalized with `cleanHeader` (Arabic letters + no spaces).
+ */
+const HEADER_RULES: HeaderRule[] = [
+  {
+    field: 'customerAccount',
+    exact: ['customeraccount', 'accountnum', 'custaccount', 'كودالعميل', 'رقمحسابالعميل', 'حسابالعميل', 'كود'],
+    contains: ['customeraccount', 'custaccount', 'كودالعميل', 'رقمحساب', 'حسابالعميل'],
+  },
+  {
+    field: 'invoicingName',
+    exact: ['invoicingname', 'customername', 'اسمالعميل', 'اسمفاتورة', 'اسمالفاتورة'],
+    contains: ['invoicingname', 'customername', 'اسمالعميل', 'اسمفاتورة', 'العميل'],
+    excludes: ['كود', 'account'],
+  },
+  {
+    field: 'salesOrder',
+    exact: ['salesorder', 'orderno', 'invoiceno', 'invoice', 'امرالبيع', 'رقمامرالبيع', 'رقمالفاتورة', 'فاتورة', 'رقمالطلب'],
+    contains: ['salesorder', 'orderno', 'invoiceno', 'امرالبيع', 'فاتورة', 'رقمالطلب'],
+    excludes: ['تاريخ', 'date'],
+  },
+  {
+    field: 'date',
+    exact: ['date', 'saledate', 'التاريخ', 'تاريخ', 'تاريخالطلب', 'تاريخالبيع', 'orderdate', 'invoicedate'],
+    contains: ['date', 'تاريخ'],
+  },
+  {
+    field: 'repName',
+    exact: ['المندوب', 'مندوب', 'مندوبالمبيعات', 'salesrep', 'repname', 'rep', 'اسمالمندوب'],
+    contains: ['salesrep', 'repname', 'المندوب', 'مندوب'],
+  },
+  {
+    field: 'month',
+    exact: ['الشهر', 'شهر', 'month', 'رقمشهر', 'monthno'],
+    contains: ['month', 'الشهر', 'رقمشهر'],
+  },
+  {
+    field: 'warehouse',
+    exact: ['warehouse', 'المخزن', 'مخزن', 'الفرع', 'فرع', 'branch', 'اسمالمخزن'],
+    contains: ['warehouse', 'المخزن', 'الفرع', 'branch'],
+  },
+  {
+    field: 'unifiedCode',
+    exact: ['unifiedcode', 'unified', 'كودموحد', 'كودموحد#', '#', 'كود#', 'كودالموحد'],
+    contains: ['unifiedcode', 'كودموحد'],
+  },
+  {
+    field: 'unitPrice',
+    exact: ['unitprice', 'price', 'سعرالوحدة', 'سعرالقطعة', 'السعر', 'سعرالبيع', 'itemprice'],
+    contains: ['unitprice', 'itemprice', 'سعرالوحدة', 'سعرالقطعة', 'سعرالبيع', 'السعر'],
+  },
+  {
+    field: 'unit',
+    exact: ['unit', 'الوحدة', 'وحدة', 'unitid', 'وحدةالبيع'],
+    contains: ['unit', 'الوحدة', 'وحدةالبيع'],
+    excludes: ['price', 'سعر'],
+  },
+  {
+    field: 'factor',
+    exact: ['factor', 'معامل', 'معاملالتحويل', 'شدةالكرتونة', 'شدةالكرتونه', 'عددالقطع'],
+    contains: ['factor', 'معاملالتحويل', 'شدةالكرتونة', 'شدةالكرتونه'],
+  },
+  {
+    field: 'discount',
+    exact: ['discount', 'الخصم', 'خصم', 'discountamount', 'discountpct'],
+    contains: ['discount', 'الخصم', 'خصم'],
+  },
+  {
+    field: 'quantity',
+    exact: ['quantity', 'qty', 'الكمية', 'الكميه', 'العدد', 'quantitysold'],
+    contains: ['quantity', 'qty', 'الكميه', 'الكمية', 'العدد'],
+    excludes: ['price', 'سعر', 'amount', 'قيمة', 'مبلغ'],
+  },
+  {
+    field: 'amount',
+    exact: ['amount', 'total', 'totalamount', 'القيمة', 'المبلغ', 'الاجمالي', 'الاجماليالصافي', 'الصافي'],
+    contains: ['amount', 'total', 'القيمة', 'المبلغ', 'الاجمالي', 'الصافي'],
+    excludes: ['discount', 'خصم'],
+  },
+  {
+    field: 'itemGroup',
+    exact: ['itemgroup', 'مجموعةالصنف', 'مجموعهالصنف', 'المجموعة', 'المجموعه', 'القسم'],
+    contains: ['itemgroup', 'مجموعةالصنف', 'مجموعهالصنف', 'المجموعه'],
+  },
+  {
+    field: 'definitions',
+    exact: ['التعريفات', 'تعريفات', 'definitions', 'definition', 'التعريف', 'الماركة', 'ماركة', 'brand'],
+    contains: ['definitions', 'تعريفات', 'التعريف', 'الماركة', 'brand'],
+  },
+  {
+    field: 'familyDimension',
+    exact: ['familydimension', 'family', 'عائلةالصنف', 'العائلة', 'الفئة', 'التصنيف'],
+    contains: ['familydimension', 'عائلةالصنف', 'العائلة', 'التصنيف', 'family'],
+  },
+  {
+    field: 'itemCode',
+    exact: ['item', 'itemid', 'itemcode', 'itemno', 'كودالصنف', 'كودالمنتج', 'الصنف', 'كودالايزر'],
+    contains: ['itemcode', 'itemno', 'itemid', 'كودالصنف', 'كودالمنتج'],
+    excludes: ['name', 'اسم', 'بيان'],
+  },
+  {
+    field: 'itemName',
+    exact: ['name', 'itemname', 'productname', 'اسمالصنف', 'اسمالمنتج', 'بيانالصنف'],
+    contains: ['itemname', 'productname', 'اسمالصنف', 'اسمالمنتج', 'بيانالصنف'],
+    excludes: ['كود', 'code'],
+  },
+];
+
+const CLEANED_HEADER_RULES = HEADER_RULES.map((rule) => ({
+  field: rule.field,
+  exact: rule.exact.map(cleanHeader).filter(Boolean),
+  contains: rule.contains.map(cleanHeader).filter(Boolean),
+  excludes: (rule.excludes || []).map(cleanHeader).filter(Boolean),
+}));
+
+/**
+ * Flexible header recognition for ERP customer sales by item.
+ * Uses exact + fuzzy (contains) matching so bilingual headers such as
+ * "Quantity (الكمية المطلوبة)" or "المبلغ الصافي" are still recognized.
  */
 function mapHeaderIndices(headerRow: any[]): Record<string, number> {
   const map: Record<string, number> = {
@@ -75,227 +321,94 @@ function mapHeaderIndices(headerRow: any[]): Record<string, number> {
     familyDimension: -1,
   };
 
-  headerRow.forEach((raw, idx) => {
-    const h = cleanHeader(raw);
-    const rawStr = String(raw || '').trim().toLowerCase();
+  const bestScores: Record<string, number> = {};
+  const bestRuleIndex: Record<string, number> = {};
 
-    // 1. Customer account (كود العميل)
+  (headerRow || []).forEach((raw, idx) => {
+    const h = cleanHeader(raw);
+    if (!h) return;
+
+    let bestField = '';
+    let bestScore = 0;
+
+    CLEANED_HEADER_RULES.forEach((rule, ruleIndex) => {
+      if (rule.excludes.some((token) => h.includes(token))) return;
+
+      let score = 0;
+      if (rule.exact.includes(h)) {
+        // Longer exact headers are more specific: "كود العميل" beats a bare "كود"
+        score = 100 + Math.min(h.length, 20);
+      } else {
+        const token = rule.contains
+          .filter((t) => h.includes(t))
+          .sort((a, b) => b.length - a.length)[0];
+        if (token) score = 40 + Math.min(token.length, 20);
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestField = rule.field;
+      }
+    });
+
+    if (!bestField) return;
+
+    const ruleIndex = CLEANED_HEADER_RULES.findIndex((rule) => rule.field === bestField);
+    const currentScore = bestScores[bestField] ?? -1;
+    const currentRuleIndex = bestRuleIndex[bestField] ?? Number.MAX_SAFE_INTEGER;
+
+    // Prefer the higher score, and on ties prefer the higher-priority rule
     if (
-      h === 'customeraccount' ||
-      h === 'accountnum' ||
-      h === 'custaccount' ||
-      h === 'كودالعميل' ||
-      h === 'رقمحسابالعميل' ||
-      h === 'حسابالعميل' ||
-      h === 'كود' ||
-      h.includes('customeraccount')
+      map[bestField] === -1 ||
+      bestScore > currentScore ||
+      (bestScore === currentScore && ruleIndex < currentRuleIndex)
     ) {
-      if (map.customerAccount === -1) map.customerAccount = idx;
-    }
-    // 2. Invoicing name (اسم العميل)
-    else if (
-      h === 'invoicingname' ||
-      h === 'customername' ||
-      h === 'اسمالعميل' ||
-      h === 'اسمفاتورة' ||
-      h === 'اسمالفاتورة' ||
-      h.includes('invoicingname') ||
-      (h.includes('عميل') && !h.includes('كود'))
-    ) {
-      if (map.invoicingName === -1) map.invoicingName = idx;
-    }
-    // 3. Sales order (رقم أمر البيع / الفاتورة)
-    else if (
-      h === 'salesorder' ||
-      h === 'orderno' ||
-      h === 'امرالبيع' ||
-      h === 'أمرالبيع' ||
-      h === 'رقمأمرالبيع' ||
-      h === 'رقمالفاتورة' ||
-      h === 'فاتورة' ||
-      h.includes('salesorder')
-    ) {
-      if (map.salesOrder === -1) map.salesOrder = idx;
-    }
-    // 4. Date (التاريخ)
-    else if (
-      h === 'date' ||
-      h === 'التاريخ' ||
-      h === 'تاريخ' ||
-      h === 'تاريخالطلب' ||
-      h === 'تاريخالبيع' ||
-      h === 'orderdate'
-    ) {
-      if (map.date === -1) map.date = idx;
-    }
-    // 5. المندوب (Sales Rep)
-    else if (
-      h === 'المندوب' ||
-      h === 'مندوب' ||
-      h === 'مندوبالمبيعات' ||
-      h === 'salesrep' ||
-      h === 'repname' ||
-      h === 'rep'
-    ) {
-      if (map.repName === -1) map.repName = idx;
-    }
-    // 6. الشهر (Month)
-    else if (
-      h === 'الشهر' ||
-      h === 'شهر' ||
-      h === 'month' ||
-      h === 'رقمشهر' ||
-      h === 'monthno'
-    ) {
-      if (map.month === -1) map.month = idx;
-    }
-    // 7. Warehouse (المخزن / الفرع)
-    else if (
-      h === 'warehouse' ||
-      h === 'المخزن' ||
-      h === 'مخزن' ||
-      h === 'الفرع' ||
-      h === 'فرع' ||
-      h === 'branch'
-    ) {
-      if (map.warehouse === -1) map.warehouse = idx;
-    }
-    // 8. Item (كود الصنف)
-    else if (
-      h === 'item' ||
-      h === 'itemid' ||
-      h === 'itemcode' ||
-      h === 'كودالصنف' ||
-      h === 'كودالمنتج' ||
-      h === 'الصنف' ||
-      rawStr === 'item'
-    ) {
-      if (map.itemCode === -1) map.itemCode = idx;
-    }
-    // 9. Name (اسم الصنف)
-    else if (
-      h === 'name' ||
-      h === 'itemname' ||
-      h === 'productname' ||
-      h === 'اسمالصنف' ||
-      h === 'اسمالمنتج' ||
-      h === 'بيانالصنف' ||
-      rawStr === 'name'
-    ) {
-      if (map.itemName === -1) map.itemName = idx;
-    }
-    // 9b. Unified code (الكود الموحد #) — يربط ألوان وموديلات الصنف
-    else if (
-      h === 'unifiedcode' ||
-      h === 'unified' ||
-      h === 'كودموحد' ||
-      h === 'كودموحد#' ||
-      h === '#' ||
-      h === 'كود#' ||
-      h === 'كودالموحد' ||
-      h.includes('unifiedcode') ||
-      h.includes('كودموحد')
-    ) {
-      if (map.unifiedCode === -1) map.unifiedCode = idx;
-    }
-    else if (
-      h === 'unit' ||
-      h === 'الوحدة' ||
-      h === 'وحدة' ||
-      h === 'unitid'
-    ) {
-      if (map.unit === -1) map.unit = idx;
-    }
-    // 11. Factor (معامل التحويل)
-    else if (
-      h === 'factor' ||
-      h === 'معامل' ||
-      h === 'معاملالتحويل' ||
-      h === 'شدةالكرتونة' ||
-      h === 'شدةالكرتونه' ||
-      h === 'عددالقطع'
-    ) {
-      if (map.factor === -1) map.factor = idx;
-    }
-    // 12. Unit price (سعر الوحدة)
-    else if (
-      h === 'unitprice' ||
-      h === 'price' ||
-      h === 'سعرالوحدة' ||
-      h === 'سعرالقطعة' ||
-      h === 'السعر'
-    ) {
-      if (map.unitPrice === -1) map.unitPrice = idx;
-    }
-    // 13. Discount (الخصم)
-    else if (
-      h === 'discount' ||
-      h === 'الخصم' ||
-      h === 'خصم' ||
-      h === 'discountamount' ||
-      h === 'discountpct'
-    ) {
-      if (map.discount === -1) map.discount = idx;
-    }
-    // 14. Quantity (الكمية)
-    else if (
-      h === 'quantity' ||
-      h === 'qty' ||
-      h === 'الكمية' ||
-      h === 'الكميه' ||
-      h === 'العدد'
-    ) {
-      if (map.quantity === -1) map.quantity = idx;
-    }
-    // 15. Amount (المبلغ / القيمة الإجمالية)
-    else if (
-      h === 'amount' ||
-      h === 'total' ||
-      h === 'totalamount' ||
-      h === 'القيمة' ||
-      h === 'المبلغ' ||
-      h === 'الاجمالي' ||
-      h === 'الإجمالي'
-    ) {
-      if (map.amount === -1) map.amount = idx;
-    }
-    // 16. Item group (مجموعة الصنف)
-    else if (
-      h === 'itemgroup' ||
-      h === 'مجموعةالصنف' ||
-      h === 'مجموعهالصنف' ||
-      h === 'المجموعة' ||
-      h === 'المجموعه' ||
-      h === 'القسم' ||
-      h.includes('itemgroup')
-    ) {
-      if (map.itemGroup === -1) map.itemGroup = idx;
-    }
-    // 17. التعريفات (Definitions)
-    else if (
-      h === 'التعريفات' ||
-      h === 'تعريفات' ||
-      h === 'definitions' ||
-      h === 'definition' ||
-      h === 'التعريف'
-    ) {
-      if (map.definitions === -1) map.definitions = idx;
-    }
-    // 18. Family Dimension (عائلة الصنف / التصنيف)
-    else if (
-      h === 'familydimension' ||
-      h === 'family' ||
-      h === 'عائلةالصنف' ||
-      h === 'العائلة' ||
-      h === 'الفئة' ||
-      h === 'التصنيف' ||
-      h.includes('familydimension')
-    ) {
-      if (map.familyDimension === -1) map.familyDimension = idx;
+      map[bestField] = idx;
+      bestScores[bestField] = bestScore;
+      bestRuleIndex[bestField] = ruleIndex;
     }
   });
 
   return map;
+}
+
+/**
+ * Stable hash used to build deterministic record ids so re-syncing the same
+ * sheet updates rows instead of duplicating them in Supabase.
+ */
+function stableHash(value: string): string {
+  let hash = 5381;
+  for (let i = 0; i < value.length; i++) {
+    hash = ((hash << 5) + hash) ^ value.charCodeAt(i);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+/**
+ * Human readable summary of the detected sheet columns — surfaced in the Excel
+ * page so a wrong/missing column is visible instead of silently syncing zeros.
+ */
+export function describeCustomerItemSalesDetection(
+  detection?: CustomerItemSalesParseDetection
+): string {
+  if (!detection) return '';
+  const q = detection.columns.quantity;
+  const a = detection.columns.amount;
+  const d = detection.columns.date;
+  return `تم قراءة ${detection.rowsRead.toLocaleString('ar-EG')} صف — عمود الكمية: ${
+    q ? `"${q.header}"` : 'غير موجود'
+  }، عمود القيمة: ${a ? `"${a.header}"` : 'غير موجود'}، عمود التاريخ: ${
+    d ? `"${d.header}"` : 'غير موجود'
+  }، صفوف فيها كمية: ${detection.rowsWithQuantity.toLocaleString('ar-EG')}، صفوف فيها قيمة: ${detection.rowsWithAmount.toLocaleString('ar-EG')}.`;
+}
+
+export interface CustomerItemSalesParseDetection {
+  headerRowIndex: number;
+  headers: string[];
+  columns: Record<string, { index: number; header: string } | null>;
+  rowsRead: number;
+  rowsWithQuantity: number;
+  rowsWithAmount: number;
 }
 
 /**
@@ -305,6 +418,7 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
   sales: CustomerItemSaleRecord[];
   errors: string[];
   totalRows: number;
+  detection?: CustomerItemSalesParseDetection;
 } {
   const errors: string[] = [];
   if (!rawRows || rawRows.length < 2) {
@@ -338,19 +452,33 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
     };
   }
 
+  const headerCells = (rawRows[headerIndex] || []).map((c) => String(c ?? '').trim());
+  const detectedColumns: Record<string, { index: number; header: string } | null> = {};
+  Object.keys(colMap).forEach((key) => {
+    const idx = colMap[key];
+    detectedColumns[key] = idx >= 0 ? { index: idx, header: headerCells[idx] || '' } : null;
+  });
+
+  const numericFields = ['quantity', 'amount'] as const;
+  numericFields.forEach((field) => {
+    if (colMap[field] === -1) {
+      errors.push(
+        `لم يتم التعرف على عمود ${field === 'quantity' ? 'الكمية (Quantity)' : 'القيمة/المبلغ (Amount)'} في ترويسة الشيت — القيم هتترفع صفر. راجع أسماء الأعمدة.`
+      );
+    }
+  });
+
   const result: CustomerItemSaleRecord[] = [];
+  const seenBusinessKeys = new Map<string, number>();
+  let rowsWithQuantity = 0;
+  let rowsWithAmount = 0;
 
   for (let i = headerIndex + 1; i < rawRows.length; i++) {
     const row = rawRows[i];
     if (!row || row.length === 0) continue;
 
     const getVal = (idx: number): string => (idx >= 0 && row[idx] !== undefined ? String(row[idx]).trim() : '');
-    const getNum = (idx: number): number => {
-      if (idx < 0 || row[idx] === undefined) return 0;
-      const clean = String(row[idx]).replace(/[^0-9.-]/g, '');
-      const parsed = parseFloat(clean);
-      return isNaN(parsed) ? 0 : parsed;
-    };
+    const getNum = (idx: number): number => (idx >= 0 ? parseFlexibleNumber(row[idx]) : 0);
 
     const customerAccount = getVal(colMap.customerAccount);
     const invoicingName = getVal(colMap.invoicingName);
@@ -364,8 +492,8 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
 
     const salesOrder = getVal(colMap.salesOrder);
     const rawDate = getVal(colMap.date);
+    const isoDate = parseFlexibleDate(rawDate);
     const repName = getVal(colMap.repName) || 'غير محدد';
-    const rawMonth = getNum(colMap.month);
     const warehouse = getVal(colMap.warehouse) || 'الفرع الرئيسي';
     const unit = getVal(colMap.unit) || 'كرتونة';
     const factor = Math.max(1, getNum(colMap.factor) || 1);
@@ -374,31 +502,46 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
     const quantity = getNum(colMap.quantity);
     let amount = getNum(colMap.amount);
 
-    // Calculate amount if missing
+    // Calculate amount if missing (quantity × unit price − discount)
     if (amount === 0 && quantity > 0 && unitPrice > 0) {
       amount = Math.max(0, (quantity * unitPrice) - discount);
     }
 
-    // Resolve month: from explicit month column, or derived from date
-    let month = Math.max(1, Math.min(12, Math.round(rawMonth)));
-    if ((!rawMonth || rawMonth < 1 || rawMonth > 12) && rawDate) {
-      const parsedDate = new Date(rawDate);
-      if (!isNaN(parsedDate.getTime())) {
-        month = parsedDate.getMonth() + 1;
-      }
+    // Resolve month: explicit month column first, otherwise derive from the date
+    let month = Math.round(getNum(colMap.month));
+    if (!(month >= 1 && month <= 12)) {
+      month = isoDate ? Number(isoDate.slice(5, 7)) : 1;
     }
     if (!month || month < 1 || month > 12) month = 1;
+
+    if (quantity !== 0) rowsWithQuantity++;
+    if (amount !== 0) rowsWithAmount++;
 
     const itemGroup = getVal(colMap.itemGroup) || 'عام';
     const definitions = getVal(colMap.definitions);
     const familyDimension = getVal(colMap.familyDimension) || itemGroup;
 
+    // Deterministic id => re-syncing the same sheet updates rows instead of duplicating them
+    const businessKey = [
+      customerAccount || invoicingName,
+      salesOrder,
+      itemCode || itemName,
+      isoDate || `m${month}`,
+      String(quantity),
+      String(unitPrice),
+      String(amount),
+      unit
+    ].join('|');
+    const occurrence = (seenBusinessKeys.get(businessKey) || 0) + 1;
+    seenBusinessKeys.set(businessKey, occurrence);
+    const recordId = `cis-${stableHash(businessKey)}${occurrence > 1 ? `-${occurrence}` : ''}`;
+
     const record: CustomerItemSaleRecord = {
-      id: `cis-${i}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      id: recordId,
       customerAccount: customerAccount || `CUST-${i}`,
       invoicingName: invoicingName || customerAccount || `عميل #${i}`,
       salesOrder: salesOrder || undefined,
-      date: rawDate || undefined,
+      date: isoDate || undefined,
       repName,
       month,
       monthName: MONTH_NAMES_MAP[month] || `شهر ${month}`,
@@ -421,10 +564,26 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
     result.push(record);
   }
 
+  if (result.length > 0) {
+    if (rowsWithQuantity === 0) {
+      errors.push('كل صفوف الشيت اترفعت بكمية = 0. تأكد إن عمود الكمية أرقامه إنجليزية أو إن اسم العمود صح.');
+    }
+    if (rowsWithAmount === 0) {
+      errors.push('كل صفوف الشيت اترفعت بقيمة = 0. تأكد إن عمود المبلغ/القيمة موجود وفيه أرقام.');
+    }
+  }
   return {
     sales: result,
     errors,
-    totalRows: result.length
+    totalRows: result.length,
+    detection: {
+      headerRowIndex: headerIndex,
+      headers: headerCells,
+      columns: detectedColumns,
+      rowsRead: result.length,
+      rowsWithQuantity,
+      rowsWithAmount
+    }
   };
 }
 
@@ -435,6 +594,7 @@ export async function parseExcelCustomerItemSales(file: File): Promise<{
   sales: CustomerItemSaleRecord[];
   errors: string[];
   totalRows: number;
+  detection?: CustomerItemSalesParseDetection;
 }> {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -472,6 +632,7 @@ export async function fetchCustomerItemSalesFromGoogleSheet(urlOrId: string): Pr
   sales: CustomerItemSaleRecord[];
   errors: string[];
   totalRows: number;
+  detection?: CustomerItemSalesParseDetection;
 }> {
   const csvUrl = buildGoogleSheetsPublicCsvUrl(urlOrId);
   if (!csvUrl) {
@@ -1057,62 +1218,168 @@ export async function getSupabaseCustomerItemSalesCount(): Promise<number> {
 }
 
 /**
- * Push Customer Item Sales records to Supabase table `customer_item_sales` in robust batches of 250 rows
+ * Map a local record to the Supabase `customer_item_sales` row shape.
+ * Every value is sanitized so a single bad cell can't fail a whole batch.
+ */
+function toSupabaseRow(s: CustomerItemSaleRecord, index: number): Record<string, unknown> {
+  const isoDate = parseFlexibleDate(s.date);
+  const month = Math.max(1, Math.min(12, Math.round(parseFlexibleNumber(s.month)) || 1));
+  return {
+    id: String(s.id || `cis-${stableHash(`${s.customerAccount}|${s.itemCode}|${index}`)}`),
+    customer_account: String(s.customerAccount || 'CUST-UNKNOWN').trim(),
+    invoicing_name: String(s.invoicingName || s.customerAccount || 'عميل غير محدد').trim(),
+    sales_order: s.salesOrder ? String(s.salesOrder).trim() : null,
+    sale_date: isoDate || null,
+    rep_name: String(s.repName || 'غير محدد').trim(),
+    month,
+    warehouse: String(s.warehouse || 'الفرع الرئيسي').trim(),
+    item_code: String(s.itemCode || 'ITM-UNKNOWN').trim(),
+    item_name: String(s.itemName || s.itemCode || 'صنف غير محدد').trim(),
+    unified_code: s.unifiedCode ? String(s.unifiedCode).trim() : null,
+    unit: String(s.unit || 'كرتونة').trim(),
+    factor: parseFlexibleNumber(s.factor) > 0 ? parseFlexibleNumber(s.factor) : 1,
+    unit_price: parseFlexibleNumber(s.unitPrice),
+    discount: parseFlexibleNumber(s.discount),
+    quantity: parseFlexibleNumber(s.quantity),
+    amount: parseFlexibleNumber(s.amount),
+    item_group: String(s.itemGroup || 'عام').trim(),
+    definitions: s.definitions ? String(s.definitions).trim() : null,
+    family_dimension: String(s.familyDimension || s.itemGroup || 'عام').trim(),
+    created_at: s.createdAt || new Date().toISOString()
+  };
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function upsertCustomerItemSalesBatch(
+  batch: Record<string, unknown>[]
+): Promise<{ error: { message: string } | null }> {
+  let { error } = await supabase
+    .from('customer_item_sales')
+    .upsert(batch, { onConflict: 'id' });
+
+  // Older deployments may not have the `unified_code` column yet — retry without it
+  if (error && /unified_code/i.test(error.message || '')) {
+    const stripped = batch.map(({ unified_code, ...rest }) => rest);
+    ({ error } = await supabase
+      .from('customer_item_sales')
+      .upsert(stripped, { onConflict: 'id' }));
+  }
+
+  // Retry once on transient network / gateway errors
+  if (error && /(failed to fetch|network|timeout|502|503|504)/i.test(error.message || '')) {
+    await sleep(900);
+    ({ error } = await supabase
+      .from('customer_item_sales')
+      .upsert(batch, { onConflict: 'id' }));
+  }
+
+  return { error: error ? { message: error.message } : null };
+}
+
+/**
+ * Fetch every id currently stored in the cloud table (paginated).
+ */
+async function fetchAllCustomerItemSalesIds(): Promise<string[]> {
+  const pageSize = 1000;
+  const ids: string[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('customer_item_sales')
+      .select('id')
+      .order('id', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error || !data || data.length === 0) break;
+    ids.push(...data.map((row: any) => String(row.id)));
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return ids;
+}
+
+export interface PushCustomerItemSalesOptions {
+  /** Remove cloud rows that no longer exist in the synced dataset (full snapshot sync) */
+  pruneStale?: boolean;
+  batchSize?: number;
+}
+
+/**
+ * Push Customer Item Sales records to Supabase table `customer_item_sales`
+ * in robust batches (250 rows) using deterministic ids, so re-syncing the same
+ * sheet updates rows instead of duplicating them.
  */
 export async function pushCustomerItemSalesToSupabase(
   sales: CustomerItemSaleRecord[],
-  onProgress?: (synced: number, total: number) => void
-): Promise<{ success: boolean; syncedCount: number; error?: string }> {
-  if (!sales || sales.length === 0) return { success: true, syncedCount: 0 };
+  onProgress?: (synced: number, total: number) => void,
+  options: PushCustomerItemSalesOptions = {}
+): Promise<{ success: boolean; syncedCount: number; deletedCount?: number; error?: string }> {
+  if (!sales || sales.length === 0) return { success: true, syncedCount: 0, deletedCount: 0 };
 
-  const batchSize = 250;
+  const batchSize = options.batchSize && options.batchSize > 0 ? options.batchSize : 250;
+  const pruneStale = options.pruneStale === true;
+
+  // Deduplicate by id inside the payload: Postgres rejects a batch where the same
+  // conflict key appears twice (ON CONFLICT DO UPDATE cannot affect row a second time)
+  const rowsById = new Map<string, Record<string, unknown>>();
+  sales.forEach((sale, idx) => {
+    const row = toSupabaseRow(sale, idx);
+    rowsById.set(String(row.id), row);
+  });
+  const rows = Array.from(rowsById.values());
+
   let syncedCount = 0;
 
   try {
-    for (let i = 0; i < sales.length; i += batchSize) {
-      const slice = sales.slice(i, i + batchSize);
-      const batch = slice.map((s, idx) => ({
-        id: s.id || `cis-${i + idx}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-        customer_account: String(s.customerAccount || 'CUST-UNKNOWN').trim(),
-        invoicing_name: String(s.invoicingName || s.customerAccount || 'عميل غير محدد').trim(),
-        sales_order: s.salesOrder ? String(s.salesOrder).trim() : null,
-        sale_date: s.date ? String(s.date).trim().slice(0, 10) : null,
-        rep_name: String(s.repName || 'غير محدد').trim(),
-        month: Math.max(1, Math.min(12, Number(s.month) || 1)),
-        warehouse: String(s.warehouse || 'الفرع الرئيسي').trim(),
-        item_code: String(s.itemCode || 'ITM-UNKNOWN').trim(),
-        item_name: String(s.itemName || s.itemCode || 'صنف غير محدد').trim(),
-        unified_code: s.unifiedCode ? String(s.unifiedCode).trim() : null,
-        unit: String(s.unit || 'كرتونة').trim(),
-        factor: Number(s.factor) > 0 ? Number(s.factor) : 1,
-        unit_price: Number(s.unitPrice) || 0,
-        discount: Number(s.discount) || 0,
-        quantity: Number(s.quantity) || 0,
-        amount: Number(s.amount) || 0,
-        item_group: String(s.itemGroup || 'عام').trim(),
-        definitions: s.definitions ? String(s.definitions).trim() : null,
-        family_dimension: String(s.familyDimension || s.itemGroup || 'عام').trim(),
-        created_at: s.createdAt || new Date().toISOString()
-      }));
-
-      const { error } = await supabase
-        .from('customer_item_sales')
-        .upsert(batch, { onConflict: 'id' });
+    for (let i = 0; i < rows.length; i += batchSize) {
+      const batch = rows.slice(i, i + batchSize);
+      const { error } = await upsertCustomerItemSalesBatch(batch);
 
       if (error) {
         console.error('Supabase batch upsert error:', error);
         return {
           success: false,
           syncedCount,
-          error: `تعذر حفظ الدفعة ${Math.floor(i / batchSize) + 1} من ${Math.ceil(sales.length / batchSize)}: ${error.message}`
+          error: `تعذر حفظ الدفعة ${Math.floor(i / batchSize) + 1} من ${Math.ceil(rows.length / batchSize)}: ${error.message}`
         };
       }
 
-      syncedCount += slice.length;
-      if (onProgress) onProgress(syncedCount, sales.length);
+      syncedCount += batch.length;
+      if (onProgress) onProgress(syncedCount, rows.length);
     }
 
-    return { success: true, syncedCount };
+    let deletedCount = 0;
+    if (pruneStale && syncedCount === rows.length) {
+      const existingIds = await fetchAllCustomerItemSalesIds();
+      const keep = new Set(rows.map((row) => String(row.id)));
+      const stale = existingIds.filter((id) => !keep.has(id));
+
+      // Safety valve: never wipe a much larger cloud dataset by accident
+      // (e.g. a partial local cache being pushed over the full cloud snapshot)
+      const wouldShrinkTooMuch = existingIds.length > 0 && rows.length < existingIds.length * 0.2;
+
+      if (!wouldShrinkTooMuch) {
+        const deleteChunk = 200;
+        for (let i = 0; i < stale.length; i += deleteChunk) {
+          const chunk = stale.slice(i, i + deleteChunk);
+          const { error } = await supabase.from('customer_item_sales').delete().in('id', chunk);
+          if (error) {
+            console.warn('Supabase stale rows cleanup note:', error.message);
+            break;
+          }
+          deletedCount += chunk.length;
+        }
+      } else {
+        console.warn(
+          `Skipped stale cleanup: cloud has ${existingIds.length} rows while the new snapshot has ${rows.length}.`
+        );
+      }
+    }
+
+    return { success: true, syncedCount, deletedCount };
   } catch (err: any) {
     console.error('pushCustomerItemSalesToSupabase error:', err);
     return {
@@ -1127,7 +1394,8 @@ export async function pushCustomerItemSalesToSupabase(
  * Fetch Customer Item Sales from Supabase table `customer_item_sales` with complete pagination (fetching all 10,000+ rows)
  */
 export async function fetchCustomerItemSalesFromSupabase(
-  onProgress?: (loaded: number) => void
+  onProgress?: (loaded: number) => void,
+  options: { persist?: boolean } = {}
 ): Promise<{
   sales: CustomerItemSaleRecord[];
   error?: string;
@@ -1142,8 +1410,11 @@ export async function fetchCustomerItemSalesFromSupabase(
       const { data, error } = await supabase
         .from('customer_item_sales')
         .select('*')
-        .range(from, from + pageSize - 1)
-        .order('month', { ascending: true });
+        .order('month', { ascending: true })
+        // Ordering by a non-unique column alone makes paginated reads skip/duplicate rows,
+        // so we add the primary key as a deterministic tie-breaker.
+        .order('id', { ascending: true })
+        .range(from, from + pageSize - 1);
 
       if (error) {
         console.warn('Error fetching chunk from Supabase:', error);
@@ -1195,8 +1466,10 @@ export async function fetchCustomerItemSalesFromSupabase(
       createdAt: row.created_at || new Date().toISOString()
     }));
 
-    // Cache into memory & IndexedDB
-    await saveCustomerItemSales(mapped);
+    // Cache into memory & IndexedDB (skippable so callers can validate the data first)
+    if (options.persist !== false) {
+      await saveCustomerItemSales(mapped);
+    }
 
     return { sales: mapped };
   } catch (err: any) {
@@ -1329,7 +1602,7 @@ export function getCustomerItemSalesSQLSchema(): string {
 
 -- 1. إنشاء جدول مبيعات العملاء بالصنف
 CREATE TABLE IF NOT EXISTS public.customer_item_sales (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY,                               -- معرّف ثابت للحركة (cis-xxxx) لمنع التكرار عند إعادة المزامنة
     customer_account VARCHAR(100) NOT NULL,            -- كود العميل (Customer account)
     invoicing_name VARCHAR(255) NOT NULL,              -- اسم العميل في الفاتورة (Invoicing name)
     sales_order VARCHAR(100),                          -- رقم أمر البيع / الفاتورة (Sales order)
@@ -1340,11 +1613,12 @@ CREATE TABLE IF NOT EXISTS public.customer_item_sales (
     warehouse VARCHAR(150) DEFAULT 'الفرع الرئيسي',    -- اسم المخزن أو الفرع (Warehouse)
     item_code VARCHAR(100) NOT NULL,                   -- كود الصنف (Item)
     item_name VARCHAR(255) NOT NULL,                   -- اسم الصنف (Name)
+    unified_code VARCHAR(100),                         -- الكود الموحد للصنف (Unified code #)
     unit VARCHAR(50) DEFAULT 'كرتونة',                 -- الوحدة (Unit)
     factor NUMERIC(10, 2) DEFAULT 1.00,                -- معامل التحويل / شدة الكرتونة (factor)
     unit_price NUMERIC(15, 2) DEFAULT 0.00,            -- سعر الوحدة (Unit price)
     discount NUMERIC(15, 2) DEFAULT 0.00,              -- الخصم (Discount)
-    quantity NUMERIC(12, 2) NOT NULL DEFAULT 1.00,     -- الكمية المباعة (Quantity)
+    quantity NUMERIC(12, 2) NOT NULL DEFAULT 0.00,     -- الكمية المباعة (Quantity)
     amount NUMERIC(15, 2) NOT NULL DEFAULT 0.00,       -- المبلغ الإجمالي الصافي (Amount)
     item_group VARCHAR(150) DEFAULT 'عام',             -- مجموعة الصنف (Item group)
     definitions TEXT,                                  -- التعريفات (Definitions)
@@ -1352,6 +1626,14 @@ CREATE TABLE IF NOT EXISTS public.customer_item_sales (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- 1b. ترقية جدول موجود بالفعل (لو الجدول اتعمل بنسخة قديمة ناقصة أعمدة)
+ALTER TABLE public.customer_item_sales ADD COLUMN IF NOT EXISTS unified_code VARCHAR(100);
+ALTER TABLE public.customer_item_sales ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE public.customer_item_sales ADD COLUMN IF NOT EXISTS rep_id VARCHAR(100);
+ALTER TABLE public.customer_item_sales ALTER COLUMN id DROP DEFAULT;
+ALTER TABLE public.customer_item_sales ALTER COLUMN id TYPE TEXT;
+ALTER TABLE public.customer_item_sales ALTER COLUMN quantity SET DEFAULT 0.00;
 
 -- 2. إنشاء الفهارس لتسريع البحث والاستعلام اللحظي (Indexes)
 CREATE INDEX IF NOT EXISTS idx_customer_item_sales_cust_account ON public.customer_item_sales(customer_account);
@@ -1374,7 +1656,12 @@ TO authenticated, anon
 USING (true)
 WITH CHECK (true);
 
--- 4. فيو تحليلي ذكي لتجميع مبيعات كل عميل شهرياً وبالصنف
+-- 4. الصلاحيات + تحديث كاش الـ API (PostgREST)
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.customer_item_sales TO anon, authenticated;
+NOTIFY pgrst, 'reload schema';
+
+-- 5. فيو تحليلي ذكي لتجميع مبيعات كل عميل شهرياً وبالصنف
 CREATE OR REPLACE VIEW public.view_customer_monthly_item_sales AS
 SELECT 
     customer_account,
@@ -1390,6 +1677,8 @@ SELECT
     COUNT(DISTINCT sales_order) AS total_orders
 FROM public.customer_item_sales
 GROUP BY customer_account, invoicing_name, rep_name, warehouse, month, item_code, item_name, item_group;
+
+GRANT SELECT ON public.view_customer_monthly_item_sales TO anon, authenticated;
 
 -- تم التجهيز بنجاح لشركة طنطاوي جروب!`;
 }

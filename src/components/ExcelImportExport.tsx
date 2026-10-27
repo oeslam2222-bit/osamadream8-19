@@ -32,7 +32,7 @@ import {
   Users,
   X
 } from 'lucide-react';
-import React, { useId, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   cleanCustomerCode,
@@ -67,9 +67,12 @@ import {
 import { formatCurrency } from '../services/invoiceService';
 import { Customer, Product } from '../types';
 import {
+  describeCustomerItemSalesDetection,
   enrichCustomerItemSalesWithDirectory,
   fetchCustomerItemSalesFromGoogleSheet,
   fetchCustomerItemSalesFromSupabase,
+  getSavedCustomerItemSales,
+  getSupabaseCustomerItemSalesCount,
   parseExcelCustomerItemSales,
   pushCustomerItemSalesToSupabase,
   saveCustomerItemSales
@@ -153,6 +156,86 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
   const [isWiping, setIsWiping] = useState(false);
   const [wipeInvoicesToo, setWipeInvoicesToo] = useState(false);
 
+  // Sales-by-item cloud sync status (local cache ⇄ Supabase)
+  const [isPushingSalesToSupabase, setIsPushingSalesToSupabase] = useState(false);
+  const [salesCloudStatus, setSalesCloudStatus] = useState<{
+    localCount: number | null;
+    remoteCount: number | null;
+    checkedAt: string | null;
+    error: string | null;
+  }>({ localCount: null, remoteCount: null, checkedAt: null, error: null });
+
+  const refreshSalesCloudStatus = async () => {
+    try {
+      const [local, remote] = await Promise.all([
+        getSavedCustomerItemSales(),
+        getSupabaseCustomerItemSalesCount()
+      ]);
+      setSalesCloudStatus({
+        localCount: local.length,
+        remoteCount: remote >= 0 ? remote : null,
+        checkedAt: new Date().toLocaleTimeString('ar-EG'),
+        error:
+          remote < 0
+            ? 'تعذر قراءة جدول customer_item_sales — تأكد من تشغيل ملف supabase/customer_item_sales.sql في مشروع Supabase.'
+            : null
+      });
+    } catch (err: any) {
+      setSalesCloudStatus((prev) => ({
+        ...prev,
+        error: err?.message || 'تعذر فحص حالة المزامنة السحابية'
+      }));
+    }
+  };
+
+  useEffect(() => {
+    refreshSalesCloudStatus();
+  }, []);
+
+  const handlePushSalesToSupabase = async () => {
+    setIsPushingSalesToSupabase(true);
+    setSheetErrors((prev) => ({ ...prev, customerSales: null }));
+    try {
+      const local = await getSavedCustomerItemSales();
+      if (local.length === 0) {
+        throw new Error('لا توجد حركات مبيعات محفوظة على الجهاز — اعمل مزامنة الشيت أو ارفع ملف الإكسل أولاً');
+      }
+      const res = await pushCustomerItemSalesToSupabase(local, undefined, { pruneStale: true });
+      if (!res.success) throw new Error(res.error || 'فشل رفع البيانات إلى Supabase');
+      const deletedNote =
+        res.deletedCount && res.deletedCount > 0
+          ? ` وتم حذف ${res.deletedCount.toLocaleString('ar-EG')} سجل قديم غير موجود في الشيت.`
+          : '';
+      setSheetSuccess((prev) => ({
+        ...prev,
+        customerSales: `تم رفع ${res.syncedCount.toLocaleString('ar-EG')} حركة مبيعات صنف إلى جدول customer_item_sales في Supabase.${deletedNote}`
+      }));
+      await refreshSalesCloudStatus();
+    } catch (err: any) {
+      setSheetErrors((prev) => ({ ...prev, customerSales: err?.message || 'فشلت المزامنة مع Supabase' }));
+    } finally {
+      setIsPushingSalesToSupabase(false);
+    }
+  };
+
+  const handlePullSalesFromSupabase = async () => {
+    setIsPullingSalesFromSupabase(true);
+    setSheetErrors((prev) => ({ ...prev, customerSales: null }));
+    try {
+      const res = await fetchCustomerItemSalesFromSupabase();
+      if (res.error) throw new Error(res.error);
+      setSheetSuccess((prev) => ({
+        ...prev,
+        customerSales: `تم جلب ${res.sales.length.toLocaleString('ar-EG')} حركة مبيعات من Supabase وتحديث شاشة مبيعات الأصناف.`
+      }));
+      await refreshSalesCloudStatus();
+    } catch (err: any) {
+      setSheetErrors((prev) => ({ ...prev, customerSales: err?.message || 'فشل الجلب من Supabase' }));
+    } finally {
+      setIsPullingSalesFromSupabase(false);
+    }
+  };
+
   // Save single source URL permanently
   const handleSaveUrl = (key: SheetKey) => {
     const cleanUrl = (sourceUrls[key] || '').trim();
@@ -222,10 +305,31 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         const finalSales = enrichedRes.enriched;
         await saveCustomerItemSales(finalSales);
 
-        // Auto sync to Supabase so data is immediately saved in cloud customer_item_sales table
-        pushCustomerItemSalesToSupabase(finalSales).catch((err) => {
-          console.warn('Auto cloud sync notice:', err);
-        });
+        // Auto sync to Supabase (awaited so failures are reported, not swallowed)
+        let cloudNote = '';
+        try {
+          const cloudRes = await pushCustomerItemSalesToSupabase(finalSales, undefined, {
+            pruneStale: true
+          });
+          if (cloudRes.success) {
+            cloudNote = ` وتم رفعها إلى Supabase (${cloudRes.syncedCount.toLocaleString('ar-EG')} حركة${
+              cloudRes.deletedCount ? `، وحذف ${cloudRes.deletedCount.toLocaleString('ar-EG')} سجل قديم` : ''
+            }).`;
+            await refreshSalesCloudStatus();
+          } else {
+            cloudNote = ' لكن فشل رفعها إلى Supabase.';
+            setSheetErrors((prev) => ({
+              ...prev,
+              customerSales: `تم الحفظ على الجهاز فقط، وفشل الرفع إلى Supabase: ${cloudRes.error}`
+            }));
+          }
+        } catch (cloudErr: any) {
+          cloudNote = ' لكن فشل رفعها إلى Supabase.';
+          setSheetErrors((prev) => ({
+            ...prev,
+            customerSales: `تم الحفظ على الجهاز فقط، وفشل الرفع إلى Supabase: ${cloudErr?.message || 'خطأ غير معروف'}`
+          }));
+        }
 
         // Extract and deduplicate customer profiles from sales records
         const codeMap = new Map<string, Customer>();
@@ -297,9 +401,12 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         const finalDeduped = deduplicateAndMergeCustomers(updatedCustomers).customers;
         await importCustomersList(finalDeduped, 'replace');
 
+        const parseNote = describeCustomerItemSalesDetection(itemSalesRes.detection);
+        const parseWarnings = itemSalesRes.errors.length > 0 ? ` ⚠ ${itemSalesRes.errors.join(' • ')}` : '';
+
         setSheetSuccess((prev) => ({
           ...prev,
-          customerSales: `تم بنجاح مزامنة ${finalSales.length.toLocaleString('ar-EG')} حركة مبيعات صنف، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) لاستخراج فروعهم ومناديبهم تلقائياً بدون تكرار! البيانات متاحة الآن في قسم "مبيعات الأصناف".`
+          customerSales: `تم بنجاح مزامنة ${finalSales.length.toLocaleString('ar-EG')} حركة مبيعات صنف، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) لاستخراج فروعهم ومناديبهم تلقائياً بدون تكرار!${cloudNote} ${parseNote}${parseWarnings}`
         }));
         return;
       }
@@ -624,10 +731,31 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         const finalSales = enrichedRes.enriched;
         await saveCustomerItemSales(finalSales);
 
-        // Auto sync to Supabase so data is immediately saved in cloud customer_item_sales table
-        pushCustomerItemSalesToSupabase(finalSales).catch((err) => {
-          console.warn('Auto cloud sync notice:', err);
-        });
+        // Auto sync to Supabase (awaited so failures are reported, not swallowed)
+        let cloudNote = '';
+        try {
+          const cloudRes = await pushCustomerItemSalesToSupabase(finalSales, undefined, {
+            pruneStale: true
+          });
+          if (cloudRes.success) {
+            cloudNote = ` وتم رفعها إلى Supabase (${cloudRes.syncedCount.toLocaleString('ar-EG')} حركة${
+              cloudRes.deletedCount ? `، وحذف ${cloudRes.deletedCount.toLocaleString('ar-EG')} سجل قديم` : ''
+            }).`;
+            await refreshSalesCloudStatus();
+          } else {
+            cloudNote = ' لكن فشل رفعها إلى Supabase.';
+            setSheetErrors((prev) => ({
+              ...prev,
+              customerSales: `تم الحفظ على الجهاز فقط، وفشل الرفع إلى Supabase: ${cloudRes.error}`
+            }));
+          }
+        } catch (cloudErr: any) {
+          cloudNote = ' لكن فشل رفعها إلى Supabase.';
+          setSheetErrors((prev) => ({
+            ...prev,
+            customerSales: `تم الحفظ على الجهاز فقط، وفشل الرفع إلى Supabase: ${cloudErr?.message || 'خطأ غير معروف'}`
+          }));
+        }
 
         // Deduplicate and merge customer profiles from item sales rows
         const codeMap = new Map<string, Customer>();
@@ -699,9 +827,12 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         const finalDeduped = deduplicateAndMergeCustomers(updatedCustomers).customers;
         await importCustomersList(finalDeduped, 'replace');
 
+        const parseNote = describeCustomerItemSalesDetection(itemSalesRes.detection);
+        const parseWarnings = itemSalesRes.errors.length > 0 ? ` ⚠ ${itemSalesRes.errors.join(' • ')}` : '';
+
         setSheetSuccess((prev) => ({
           ...prev,
-          customerSales: `تم بنجاح رفع ملف الإكسل وتحديث ${finalSales.length.toLocaleString('ar-EG')} حركة صنف، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) وتحديد فروعهم ومناديبهم تلقائياً بدون تكرار!`
+          customerSales: `تم بنجاح رفع ملف الإكسل وتحديث ${finalSales.length.toLocaleString('ar-EG')} حركة صنف، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) وتحديد فروعهم ومناديبهم تلقائياً بدون تكرار!${cloudNote} ${parseNote}${parseWarnings}`
         }));
         return;
       }
@@ -1331,6 +1462,107 @@ function onEdit(e) {
               <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                 <span>{sheetErrors.customerSales}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Supabase cloud sync panel: Google Sheet ➜ Supabase ➜ sales-by-item view */}
+          <div className="bg-sky-50/70 rounded-2xl p-4 border border-sky-200 space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <CloudLightning className="w-4 h-4 text-sky-600" />
+                <h4 className="text-xs font-black text-slate-800">
+                  مزامنة جدول <code className="font-mono text-[11px] bg-white px-1.5 py-0.5 rounded border border-sky-200">customer_item_sales</code>{' '}
+                  (Google Sheet ➜ Supabase ➜ شاشة مبيعات الأصناف)
+                </h4>
+              </div>
+              <button
+                type="button"
+                onClick={refreshSalesCloudStatus}
+                className="text-[11px] font-bold text-sky-800 hover:text-sky-950 flex items-center gap-1 cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                فحص الحالة
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+              <div className="bg-white border border-slate-200 rounded-xl px-2 py-1.5">
+                <div className="text-[10px] text-slate-500 font-bold">محفوظ على الجهاز</div>
+                <div className="text-sm font-black text-slate-900 font-mono">
+                  {salesCloudStatus.localCount === null
+                    ? '—'
+                    : salesCloudStatus.localCount.toLocaleString('ar-EG')}
+                </div>
+              </div>
+              <div className="bg-white border border-sky-200 rounded-xl px-2 py-1.5">
+                <div className="text-[10px] text-sky-700 font-bold">مسجّل في Supabase</div>
+                <div className="text-sm font-black text-sky-900 font-mono">
+                  {salesCloudStatus.remoteCount === null
+                    ? '—'
+                    : salesCloudStatus.remoteCount.toLocaleString('ar-EG')}
+                </div>
+              </div>
+              <div
+                className={`rounded-xl px-2 py-1.5 border ${
+                  salesCloudStatus.localCount !== null &&
+                  salesCloudStatus.remoteCount !== null &&
+                  salesCloudStatus.localCount === salesCloudStatus.remoteCount
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-amber-50 border-amber-200 text-amber-800'
+                }`}
+              >
+                <div className="text-[10px] font-bold opacity-80">حالة التطابق</div>
+                <div className="text-sm font-black">
+                  {salesCloudStatus.localCount === null || salesCloudStatus.remoteCount === null
+                    ? '—'
+                    : salesCloudStatus.localCount === salesCloudStatus.remoteCount
+                      ? 'متطابق ✓'
+                      : 'غير متطابق'}
+                </div>
+              </div>
+              <div className="bg-white border border-slate-200 rounded-xl px-2 py-1.5">
+                <div className="text-[10px] text-slate-500 font-bold">آخر فحص</div>
+                <div className="text-[11px] font-black text-slate-700 font-mono">
+                  {salesCloudStatus.checkedAt || '—'}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handlePushSalesToSupabase}
+                disabled={isPushingSalesToSupabase}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-[11px] shadow-xs transition cursor-pointer disabled:opacity-50"
+              >
+                <CloudLightning className={`w-3.5 h-3.5 ${isPushingSalesToSupabase ? 'animate-bounce' : ''}`} />
+                <span>
+                  {isPushingSalesToSupabase ? 'جاري الرفع إلى Supabase...' : 'رفع بيانات الجهاز إلى Supabase'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handlePullSalesFromSupabase}
+                disabled={isPullingSalesFromSupabase}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white border border-sky-300 text-sky-900 hover:bg-sky-100 font-black text-[11px] shadow-2xs transition cursor-pointer disabled:opacity-50"
+              >
+                <CloudDownload className={`w-3.5 h-3.5 ${isPullingSalesFromSupabase ? 'animate-bounce' : ''}`} />
+                <span>
+                  {isPullingSalesFromSupabase ? 'جاري الجلب من Supabase...' : 'جلب بيانات Supabase إلى الجهاز'}
+                </span>
+              </button>
+
+              <span className="text-[10px] text-slate-500 font-medium">
+                الرفع بيستبدل محتوى الجدول بنسخة الشيت الحالية ويمنع التكرار (IDs ثابتة).
+              </span>
+            </div>
+
+            {salesCloudStatus.error && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-[11px] flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{salesCloudStatus.error}</span>
               </div>
             )}
           </div>

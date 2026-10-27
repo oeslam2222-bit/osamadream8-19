@@ -83,6 +83,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const [isSupabasePushing, setIsSupabasePushing] = useState(false);
   const [supabasePushProgress, setSupabasePushProgress] = useState<{ synced: number; total: number } | null>(null);
   const [isSupabaseFetching, setIsSupabaseFetching] = useState(false);
+  const [cloudDataSuspicious, setCloudDataSuspicious] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMonth, setSelectedMonth] = useState<number | 'all'>('all');
@@ -96,8 +97,11 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const [expandedCustomerAccounts, setExpandedCustomerAccounts] = useState<Set<string>>(new Set());
 
   const initialExpandDone = useRef(false);
+  const isLoadingRef = useRef(false);
 
-  const loadSalesData = async () => {
+  const loadSalesData = async (preferCloud = false) => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
     setIsLoading(true);
     try {
       const saved = await getSavedCustomerItemSales();
@@ -113,26 +117,54 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         setSupabaseCount(remoteCount);
       }
 
-      // If local cache is empty, but Supabase already contains records, auto-fetch from Supabase
-      if (realSaved.length === 0 && remoteCount > 0) {
-        const fetchRes = await fetchCustomerItemSalesFromSupabase();
-        if (fetchRes.sales && fetchRes.sales.length > 0) {
-          realSaved = fetchRes.sales;
+      // Supabase is the source of truth: whenever it has rows we read them into the view.
+      if (preferCloud && remoteCount > 0) {
+        const fetchRes = await fetchCustomerItemSalesFromSupabase(undefined, { persist: false });
+        if (fetchRes.error) {
+          setSyncErrorMsg(
+            `تعذر قراءة البيانات من Supabase: ${fetchRes.error}. يتم عرض النسخة المحفوظة على الجهاز (${realSaved.length.toLocaleString('ar-EG')} حركة).`
+          );
+        } else if (fetchRes.sales.length > 0) {
+          const cloudHasValues = fetchRes.sales.some((s) => s.amount !== 0 || s.quantity !== 0);
+          const localHasValues = realSaved.some((s) => s.amount !== 0 || s.quantity !== 0);
+
+          if (!cloudHasValues && localHasValues) {
+            // Cloud snapshot is corrupted (every quantity/amount = 0) — don't hide valid local data.
+            setCloudDataSuspicious(true);
+            setSyncErrorMsg(
+              `البيانات السحابية (${fetchRes.sales.length.toLocaleString('ar-EG')} حركة) كل كمياتها وقيمها = 0، فتم عرض النسخة المحفوظة على الجهاز (${realSaved.length.toLocaleString('ar-EG')} حركة). اضغط "مزامنة Supabase" لإعادة رفع البيانات الصحيحة.`
+            );
+          } else {
+            realSaved = fetchRes.sales;
+            setCloudDataSuspicious(!cloudHasValues);
+            setSyncErrorMsg(null);
+            // Persist the validated cloud snapshot locally for offline use
+            await saveCustomerItemSales(realSaved);
+          }
         }
+      } else if (remoteCount === 0 && realSaved.length > 0) {
+        setSyncErrorMsg(
+          'قاعدة Supabase فارغة (0 سجل) — اضغط "مزامنة Supabase" لرفع حركات الأصناف للسحابة.'
+        );
       }
 
       setSalesRecords(realSaved);
+    } catch (err: any) {
+      setSyncErrorMsg(`تعذر تحميل مبيعات الأصناف: ${err?.message || 'خطأ غير معروف'}`);
     } finally {
+      isLoadingRef.current = false;
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadSalesData();
+    // On first load the view reads directly from Supabase (source of truth)
+    loadSalesData(true);
 
-    // Auto-refresh when an Excel file is uploaded from the Excel tab or background
+    // Auto-refresh from the local cache when an Excel file is uploaded / cloud sync finishes.
+    // (Cloud reads are intentionally skipped here to avoid a fetch ⇄ save loop.)
     const handleUpdate = () => {
-      loadSalesData();
+      loadSalesData(false);
     };
     window.addEventListener('tantawy-customer-item-sales-updated', handleUpdate);
     return () => window.removeEventListener('tantawy-customer-item-sales-updated', handleUpdate);
@@ -147,12 +179,24 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     setSyncErrorMsg(null);
     setSyncSuccessMsg(null);
     try {
-      const res = await pushCustomerItemSalesToSupabase(salesRecords, (synced, total) => {
-        setSupabasePushProgress({ synced, total });
-      });
+      const res = await pushCustomerItemSalesToSupabase(
+        salesRecords,
+        (synced, total) => {
+          setSupabasePushProgress({ synced, total });
+        },
+        // Full snapshot sync: cloud rows that no longer exist in the sheet are removed
+        { pruneStale: true }
+      );
       if (res.success) {
-        setSupabaseCount(res.syncedCount);
-        setSyncSuccessMsg(`تم بنجاح رفع ومزامنة ${res.syncedCount.toLocaleString('ar-EG')} حركة إلى جدول customer_item_sales في Supabase! أصبحت البيانات متطابقة سحابياً.`);
+        const remote = await getSupabaseCustomerItemSalesCount();
+        setSupabaseCount(remote >= 0 ? remote : res.syncedCount);
+        const removedPart =
+          res.deletedCount && res.deletedCount > 0
+            ? ` وتم حذف ${res.deletedCount.toLocaleString('ar-EG')} سجل قديم غير موجود في الشيت.`
+            : '';
+        setSyncSuccessMsg(
+          `تم بنجاح رفع ومزامنة ${res.syncedCount.toLocaleString('ar-EG')} حركة إلى جدول customer_item_sales في Supabase!${removedPart}`
+        );
       } else {
         setSyncErrorMsg(res.error || 'فشلت المزامنة مع Supabase');
       }
@@ -188,6 +232,13 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       setSyncErrorMsg(null);
     }
   };
+
+  // True when every stored row has zero quantity/amount — a red flag that the sheet
+  // columns were not recognized (the classic "data is there but all zeros" symptom).
+  const recordsHaveNoValues = useMemo(
+    () => salesRecords.length > 0 && !salesRecords.some((r) => r.quantity !== 0 || r.amount !== 0),
+    [salesRecords]
+  );
 
   // Automatically link customer codes with master Customer directory to extract authoritative branch and rep
   const enrichedSalesRecords = useMemo(() => {
@@ -509,8 +560,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           <div className="flex items-center gap-2 flex-wrap shrink-0">
             <button
               type="button"
-              onClick={loadSalesData}
-              title="تحديث البيانات من الذاكرة وقاعدة البيانات"
+              onClick={() => loadSalesData(true)}
+              title="تحديث البيانات من Supabase وقاعدة البيانات المحلية"
               className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isLoading ? 'animate-spin' : ''}`} />
@@ -708,6 +759,93 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                   <span>حفظ ومزامنة ({salesRecords.length.toLocaleString('ar-EG')}) حركة إلى Supabase الآن</span>
                 </>
               )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {recordsHaveNoValues && (
+        <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-start gap-2.5 text-amber-900">
+            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-black">كل الحركات المعروضة كمياتها وقيمها = 0</div>
+              <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                ده معناه إن أعمدة الكمية/السعر/القيمة في الشيت لم يتم التعرف عليها وقت الرفع. افتح صفحة الإكسل ←
+                «شيت مبيعات العملاء بالصنف» واعمل مزامنة جديدة؛ هيظهر لك تقرير بالأعمدة المكتشفة وبعدها ارفعها إلى
+                Supabase.
+              </p>
+            </div>
+          </div>
+          {onNavigateToExcel && (
+            <button
+              type="button"
+              onClick={onNavigateToExcel}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-black hover:bg-amber-400 transition cursor-pointer shrink-0"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              فتح صفحة المزامنة
+            </button>
+          )}
+        </div>
+      )}
+
+      {cloudDataSuspicious && salesRecords.length > 0 && (
+        <div className="bg-rose-50 border border-rose-300 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-start gap-2.5 text-rose-900">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-black">البيانات المحفوظة في Supabase غير سليمة (كميات وقيم = 0)</div>
+              <p className="text-[11px] text-rose-800 mt-0.5 leading-relaxed">
+                الجدول السحابي يحتوي حركات لكن كل الكميات والأسعار والقيم فيه صفر، وده معناه إن الرفع القديم قرأ
+                الأعمدة غلط. اضغط «مزامنة Supabase» لإعادة رفع البيانات الصحيحة من الشاشة الحالية.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handlePushToSupabase}
+            disabled={isSupabasePushing}
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 text-white font-black hover:bg-rose-700 transition cursor-pointer disabled:opacity-50 shrink-0"
+          >
+            <CloudUpload className="w-3.5 h-3.5" />
+            إصلاح السحابة الآن
+          </button>
+        </div>
+      )}
+
+      {/* Mismatch banner: cloud rows differ from the rows currently displayed */}
+      {salesRecords.length > 0 && supabaseCount !== null && supabaseCount > 0 && supabaseCount !== salesRecords.length && (
+        <div className="bg-sky-50 border border-sky-300 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-start gap-2.5 text-sky-900">
+            <AlertTriangle className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-black">حركات الأصناف غير متطابقة بين Supabase والشاشة</div>
+              <p className="text-[11px] text-sky-800 mt-0.5 leading-relaxed">
+                السحابة فيها <strong>{supabaseCount.toLocaleString('ar-EG')}</strong> حركة، والشاشة تعرض{' '}
+                <strong>{salesRecords.length.toLocaleString('ar-EG')}</strong> حركة. اضغط «جلب من Supabase» لقراءة
+                السحابة أو «مزامنة Supabase» لرفع النسخة الحالية.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={handleFetchFromSupabase}
+              disabled={isSupabaseFetching}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-sky-300 text-sky-900 font-black hover:bg-sky-100 transition cursor-pointer disabled:opacity-50"
+            >
+              <CloudDownload className="w-3.5 h-3.5 text-sky-600" />
+              جلب من Supabase
+            </button>
+            <button
+              type="button"
+              onClick={handlePushToSupabase}
+              disabled={isSupabasePushing}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-sky-600 text-white font-black hover:bg-sky-700 transition cursor-pointer disabled:opacity-50"
+            >
+              <CloudUpload className="w-3.5 h-3.5" />
+              مزامنة Supabase
             </button>
           </div>
         </div>
