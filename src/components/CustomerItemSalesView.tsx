@@ -2,6 +2,7 @@ import {
   AlertCircle,
   AlertTriangle,
   BarChart3,
+  Building2,
   Check,
   CheckCircle2,
   ClipboardList,
@@ -11,17 +12,21 @@ import {
   LayoutDashboard,
   Link2,
   Loader2,
+  Phone,
+  Plus,
   RefreshCw,
   RotateCcw,
   Search,
   SlidersHorizontal,
   Sparkles,
   Trash2,
+  UserRound,
   Users,
   X
 } from 'lucide-react';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { formatCurrency } from '../services/invoiceService';
 import {
   buildCustomerGrowthMap,
   buildCustomerInsights,
@@ -74,6 +79,12 @@ interface CustomerItemSalesViewProps {
 
 type SalesViewMode = 'overview' | 'customers';
 
+const initials = (name: string): string => {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '؟';
+  return parts.length === 1 ? parts[0].slice(0, 2) : `${parts[0][0] || ''}${parts[1][0] || ''}`;
+};
+
 export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   onOpenNewOrderForCustomer,
   onNavigateToExcel
@@ -94,6 +105,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const [isSupabaseFetching, setIsSupabaseFetching] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+  const [selectedSearchCustomer, setSelectedSearchCustomer] = useState<CustomerItemSalesSummary | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | 'all'>('all');
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [selectedRep, setSelectedRep] = useState<string>('all');
@@ -172,19 +185,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       loadSalesInProgress.current = false;
     }
   };
-
-  const computedDiagnostics = useMemo(() => {
-    const numericValuesCount = salesRecords.filter(
-      (r) => Number(r.quantity || 0) > 0 || Number(r.amount || 0) > 0
-    ).length;
-    return {
-      supabaseCount: supabaseCount ?? 0,
-      loadedCount: salesRecords.length,
-      numericValuesCount,
-      afterRbacCount: rbacSales.length,
-      afterFiltersCount: filteredSales.length
-    };
-  }, [salesRecords, rbacSales, filteredSales, supabaseCount]);
 
   useEffect(() => {
     loadSalesData();
@@ -344,10 +344,35 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     [baseSales, selectedMonth]
   );
 
+  const computedDiagnostics = useMemo(() => {
+    const numericValuesCount = salesRecords.filter(
+      (r) => Number(r.quantity || 0) > 0 || Number(r.amount || 0) > 0
+    ).length;
+    return {
+      supabaseCount: supabaseCount ?? 0,
+      loadedCount: salesRecords.length,
+      numericValuesCount,
+      afterRbacCount: rbacSales.length,
+      afterFiltersCount: filteredSales.length
+    };
+  }, [salesRecords, rbacSales, filteredSales, supabaseCount]);
+
   const customerSummaries = useMemo(
     () => aggregateCustomerItemSales(filteredSales, customers),
     [filteredSales, customers]
   );
+
+  const searchedCustomers = useMemo(() => {
+    if (!customerSearchTerm.trim()) return [];
+    const query = customerSearchTerm.toLowerCase().trim();
+    return customerSummaries
+      .filter(
+        (s) =>
+          s.customerName.toLowerCase().includes(query) ||
+          s.customerAccount.toLowerCase().includes(query)
+      )
+      .slice(0, 5);
+  }, [customerSearchTerm, customerSummaries]);
 
   const latestMonth = useMemo(() => resolveLatestSalesMonth(baseSales), [baseSales]);
   const growthMonth = selectedMonth === 'all' ? latestMonth : selectedMonth;
@@ -746,7 +771,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             <div className="bg-white border border-slate-200 rounded-xl p-2.5">
               <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">قيم رقمية أكبر من صفر</div>
               <div className="text-lg font-black text-emerald-700">{computedDiagnostics.numericValuesCount.toLocaleString('ar-EG')}</div>
-              <div className="text-[9px] text-slate-400 mt-0.5">سجلات فيها كمية أو مبلغ > 0</div>
+              <div className="text-[9px] text-slate-400 mt-0.5">سجلات فيها كمية أو مبلغ &gt; 0</div>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl p-2.5">
               <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">بعد الصلاحيات (RBAC)</div>
@@ -989,6 +1014,48 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             )}
           </div>
 
+          <div className="relative col-span-2 md:col-span-3 xl:col-span-2">
+            <UserRound className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={customerSearchTerm}
+              onChange={(event) => setCustomerSearchTerm(event.target.value)}
+              placeholder="بحث عن عميل بالاسم أو الكود..."
+              className="w-full h-10 pr-9 pl-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+            {customerSearchTerm && (
+              <button
+                type="button"
+                onClick={() => setCustomerSearchTerm('')}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+            {searchedCustomers.length > 0 && (
+              <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto text-right">
+                {searchedCustomers.map((customer) => (
+                  <button
+                    key={customer.customerAccount}
+                    type="button"
+                    onClick={() => {
+                      setSelectedSearchCustomer(customer);
+                      setCustomerSearchTerm(customer.customerName);
+                    }}
+                    className="w-full text-right px-3 py-2 text-[11px] hover:bg-slate-50 border-b border-slate-50 last:border-0 transition"
+                  >
+                    <div className="font-black text-slate-800">{customer.customerName}</div>
+                    <div className="text-[9.5px] text-slate-400 font-mono">
+                      كود: {customer.customerAccount || '—'} •
+                      {formatCurrency(customer.totalAmount)} •
+                      {customer.totalQuantity.toLocaleString('ar-EG')} كرتونة
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <select
             value={selectedMonth}
             onChange={(event) =>
@@ -1133,10 +1200,183 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             previousQuantity={kpiPreviousQuantity}
             itemsCount={periodTotals.itemsCount}
             previousItemsCount={kpiPreviousItemsCount}
+            customersCount={periodTotals.customersCount}
             idleCount={idleItems.totalIdle}
             idleCaption={idleCaption}
             comparisonCaption={kpiGrowthCaption}
           />
+
+          {/* بطاقة تفاصيل العميل المختار من بحث العملاء */}
+          {selectedSearchCustomer && (
+            <section className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4 sm:p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-sm shrink-0">
+                    {initials(selectedSearchCustomer.customerName)}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-black text-slate-900 truncate flex-1">
+                        {selectedSearchCustomer.customerName}
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedSearchCustomer(null)}
+                        className="w-6 h-6 rounded-full bg-slate-100 text-slate-500 hover:text-slate-700 hover:bg-slate-200 transition flex items-center justify-center"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <div className="text-[9.5px] text-slate-400 font-bold font-mono">
+                      كود العميل: {selectedSearchCustomer.customerAccount || '—'}
+                    </div>
+                    <div className="text-[9.5px] text-slate-500 font-bold flex items-center gap-1 mt-0.5">
+                      <Building2 className="w-3 h-3 shrink-0" />
+                      {selectedSearchCustomer.linkedBranch || selectedSearchCustomer.warehouse || 'الفرع الرئيسي'}
+                    </div>
+                    <div className="text-[9.5px] text-slate-500 font-bold flex items-center gap-1 mt-0.5">
+                      <UserRound className="w-3 h-3 shrink-0" />
+                      {selectedSearchCustomer.linkedRepName || selectedSearchCustomer.repName || 'غير محدد'}
+                    </div>
+                    {selectedSearchCustomer.linkedPhone && (
+                      <div className="text-[9.5px] text-slate-500 font-bold flex items-center gap-1 mt-0.5">
+                        <Phone className="w-3 h-3 shrink-0" />
+                        {selectedSearchCustomer.linkedPhone}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="text-left">
+                  <div className="text-[9.5px] font-bold text-slate-400">إجمالي المشتريات</div>
+                  <div className="text-xl font-black text-emerald-700 font-mono">
+                    {formatCurrency(selectedSearchCustomer.totalAmount)}
+                  </div>
+                  <div className="text-[9px] text-slate-400">
+                    {selectedSearchCustomer.totalQuantity.toLocaleString('ar-EG')} كرتونة •
+                    {selectedSearchCustomer.distinctItemsCount} صنف
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* أكثر صنف اشتراه */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    أكثر صنف اشتراه
+                  </div>
+                  {selectedSearchCustomer.items.length > 0 ? (
+                    <div className="space-y-2">
+                      <div>
+                        <div className="text-sm font-black text-slate-900 truncate">
+                          {selectedSearchCustomer.items[0].itemName}
+                        </div>
+                        <div className="text-[9px] text-slate-500 font-mono">
+                          {selectedSearchCustomer.items[0].itemCode || '—'}
+                        </div>
+                        <div className="text-[10px] font-bold text-emerald-700 mt-1">
+                          {formatCurrency(selectedSearchCustomer.items[0].totalAmount)}
+                        </div>
+                        <div className="text-[9px] text-slate-600">
+                          {selectedSearchCustomer.items[0].totalQuantity.toLocaleString('ar-EG')} كرتونة
+                        </div>
+                      </div>
+                      {selectedSearchCustomer.totalAmount > 0 && (
+                        <div className="text-[9px] text-slate-400 mt-1">
+                          تمثل {Math.round((selectedSearchCustomer.items[0].totalAmount / selectedSearchCustomer.totalAmount) * 100)}% من مشتريات العميل
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-slate-400 font-bold">لا توجد أصناف</div>
+                  )}
+                </div>
+
+                {/* توزيع الأصناف بالنسبة المئوية */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    نسبة كل صنف من مشتريات العميل
+                  </div>
+                  <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                    {selectedSearchCustomer.items.slice(0, 6).map((item, idx) => {
+                      const pct =
+                        selectedSearchCustomer.totalAmount > 0
+                          ? (item.totalAmount / selectedSearchCustomer.totalAmount) * 100
+                          : 0;
+                      return (
+                        <div
+                          key={item.itemCode || idx}
+                          className="text-[9.5px] font-bold text-slate-700"
+                        >
+                          <div className="flex justify-between mb-0.5">
+                            <span className="truncate max-w-[120px]">{item.itemName}</span>
+                            <span className="font-mono text-indigo-700">{Math.round(pct)}%</span>
+                          </div>
+                          <div className="w-full bg-slate-200 rounded-full h-1.5">
+                            <div
+                              className="bg-indigo-600 h-1.5 rounded-full"
+                              style={{ width: `${Math.min(pct, 100)}%` }}
+                            ></div>
+                          </div>
+                          <div className="flex justify-between text-[8.5px] text-slate-400 mt-0.5">
+                            <span>{formatCurrency(item.totalAmount)}</span>
+                            <span>{item.totalQuantity.toLocaleString('ar-EG')} كرتونة</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {selectedSearchCustomer.items.length === 0 && (
+                      <div className="text-[10px] text-slate-400 font-bold">لا توجد بيانات</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* المشتريات الشهرية */}
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                    المشتريات الشهرية (السنة كاملة)
+                  </div>
+                  <div className="grid grid-cols-3 gap-1">
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => {
+                      const amount = selectedSearchCustomer.monthlySales[month] || 0;
+                      const qty = selectedSearchCustomer.monthlyQuantities[month] || 0;
+                      const hasSales = amount > 0;
+                      return (
+                        <div
+                          key={month}
+                          className="text-center p-1.5 rounded-lg border text-[9px] font-bold transition ${
+                            hasSales
+                              ? 'bg-amber-50 border-amber-200 text-amber-900'
+                              : 'bg-slate-100/50 border-transparent text-slate-400'
+                          }"
+                        >
+                          <div className="text-[8px] uppercase tracking-wider mb-0.5">
+                            {MONTH_NAMES_MAP[month].slice(0, 3)}
+                          </div>
+                          <div className="font-mono font-black">
+                            {hasSales ? formatCurrency(amount) : '—'}
+                          </div>
+                          <div className="text-[8px]">{hasSales ? qty.toLocaleString('ar-EG') : '0'} ك</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {onOpenNewOrderForCustomer && (
+                <div className="mt-4 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => onOpenNewOrderForCustomer(customers.find((c) => c.code === selectedSearchCustomer!.customerAccount || c.name === selectedSearchCustomer!.customerName) as Customer, undefined)}
+                    className="w-full inline-flex items-center justify-center gap-1.5 h-9 rounded-xl bg-[#102b4e] hover:bg-[#0b1f39] text-white text-[11px] font-black transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    طلبية جديدة لهذا العميل
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
             <div className="xl:col-span-5">

@@ -535,7 +535,7 @@ export function buildIdleItems(
       .slice(0, limit);
     return {
       items,
-      totalIdle: catalogMap.size,
+      totalIdle: items.length,
       catalogWithStock,
       source: 'catalog'
     };
@@ -561,11 +561,13 @@ export function buildIdleItems(
     });
   });
 
+  const idleItems = idleFromHistory
+    .sort((a, b) => (b.lastMonth || 0) - (a.lastMonth || 0))
+    .slice(0, limit);
+
   return {
-    items: idleFromHistory
-      .sort((a, b) => (b.lastMonth || 0) - (a.lastMonth || 0))
-      .slice(0, limit),
-    totalIdle: idleFromHistory.length,
+    items: idleItems,
+    totalIdle: idleItems.length,
     catalogWithStock: 0,
     source: idleFromHistory.length > 0 ? 'sales-history' : 'none'
   };
