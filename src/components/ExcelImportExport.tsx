@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  CloudDownload,
   CloudLightning,
   Copy,
   Download,
@@ -68,7 +69,9 @@ import { Customer, Product } from '../types';
 import {
   enrichCustomerItemSalesWithDirectory,
   fetchCustomerItemSalesFromGoogleSheet,
+  fetchCustomerItemSalesFromSupabase,
   parseExcelCustomerItemSales,
+  pushCustomerItemSalesToSupabase,
   saveCustomerItemSales
 } from '../services/customerItemSalesService';
 
@@ -126,6 +129,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
   // Global Sync Progress & Dedup Audit State
   const [masterSyncProgress, setMasterSyncProgress] = useState<string | null>(null);
+  const [isPullingSalesFromSupabase, setIsPullingSalesFromSupabase] = useState(false);
   const [dedupNotice, setDedupNotice] = useState<{
     original: number;
     cleaned: number;
@@ -217,6 +221,11 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         const enrichedRes = enrichCustomerItemSalesWithDirectory(itemSalesRes.sales, customers);
         const finalSales = enrichedRes.enriched;
         await saveCustomerItemSales(finalSales);
+
+        // Auto sync to Supabase so data is immediately saved in cloud customer_item_sales table
+        pushCustomerItemSalesToSupabase(finalSales).catch((err) => {
+          console.warn('Auto cloud sync notice:', err);
+        });
 
         // Extract and deduplicate customer profiles from sales records
         const codeMap = new Map<string, Customer>();
@@ -614,6 +623,11 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         const enrichedRes = enrichCustomerItemSalesWithDirectory(itemSalesRes.sales, customers);
         const finalSales = enrichedRes.enriched;
         await saveCustomerItemSales(finalSales);
+
+        // Auto sync to Supabase so data is immediately saved in cloud customer_item_sales table
+        pushCustomerItemSalesToSupabase(finalSales).catch((err) => {
+          console.warn('Auto cloud sync notice:', err);
+        });
 
         // Deduplicate and merge customer profiles from item sales rows
         const codeMap = new Map<string, Customer>();

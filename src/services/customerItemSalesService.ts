@@ -1038,7 +1038,26 @@ export async function saveCustomerItemSales(sales: CustomerItemSaleRecord[]): Pr
 }
 
 /**
- * Push Customer Item Sales records to Supabase table `customer_item_sales` in batches of 500 rows
+ * Get current exact record count from Supabase `customer_item_sales` table
+ */
+export async function getSupabaseCustomerItemSalesCount(): Promise<number> {
+  try {
+    const { count, error } = await supabase
+      .from('customer_item_sales')
+      .select('id', { count: 'exact', head: true });
+    if (error) {
+      console.warn('Error fetching Supabase customer_item_sales count:', error);
+      return -1;
+    }
+    return count ?? 0;
+  } catch (err) {
+    console.warn('Exception checking Supabase customer_item_sales count:', err);
+    return -1;
+  }
+}
+
+/**
+ * Push Customer Item Sales records to Supabase table `customer_item_sales` in robust batches of 250 rows
  */
 export async function pushCustomerItemSalesToSupabase(
   sales: CustomerItemSaleRecord[],
@@ -1046,33 +1065,33 @@ export async function pushCustomerItemSalesToSupabase(
 ): Promise<{ success: boolean; syncedCount: number; error?: string }> {
   if (!sales || sales.length === 0) return { success: true, syncedCount: 0 };
 
-  const batchSize = 500;
+  const batchSize = 250;
   let syncedCount = 0;
 
   try {
     for (let i = 0; i < sales.length; i += batchSize) {
       const slice = sales.slice(i, i + batchSize);
-      const batch = slice.map((s) => ({
-        id: s.id,
-        customer_account: s.customerAccount || 'CUST-UNKNOWN',
-        invoicing_name: s.invoicingName || 'عميل غير محدد',
-        sales_order: s.salesOrder || null,
-        sale_date: s.date ? s.date.slice(0, 10) : null,
-        rep_name: s.repName || 'غير محدد',
+      const batch = slice.map((s, idx) => ({
+        id: s.id || `cis-${i + idx}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+        customer_account: String(s.customerAccount || 'CUST-UNKNOWN').trim(),
+        invoicing_name: String(s.invoicingName || s.customerAccount || 'عميل غير محدد').trim(),
+        sales_order: s.salesOrder ? String(s.salesOrder).trim() : null,
+        sale_date: s.date ? String(s.date).trim().slice(0, 10) : null,
+        rep_name: String(s.repName || 'غير محدد').trim(),
         month: Math.max(1, Math.min(12, Number(s.month) || 1)),
-        warehouse: s.warehouse || 'الفرع الرئيسي',
-        item_code: s.itemCode || 'ITM-UNKNOWN',
-        item_name: s.itemName || 'صنف غير محدد',
-        unified_code: s.unifiedCode || null,
-        unit: s.unit || 'كرتونة',
-        factor: Number(s.factor) || 1,
+        warehouse: String(s.warehouse || 'الفرع الرئيسي').trim(),
+        item_code: String(s.itemCode || 'ITM-UNKNOWN').trim(),
+        item_name: String(s.itemName || s.itemCode || 'صنف غير محدد').trim(),
+        unified_code: s.unifiedCode ? String(s.unifiedCode).trim() : null,
+        unit: String(s.unit || 'كرتونة').trim(),
+        factor: Number(s.factor) > 0 ? Number(s.factor) : 1,
         unit_price: Number(s.unitPrice) || 0,
         discount: Number(s.discount) || 0,
         quantity: Number(s.quantity) || 0,
         amount: Number(s.amount) || 0,
-        item_group: s.itemGroup || 'عام',
-        definitions: s.definitions || null,
-        family_dimension: s.familyDimension || s.itemGroup || 'عام',
+        item_group: String(s.itemGroup || 'عام').trim(),
+        definitions: s.definitions ? String(s.definitions).trim() : null,
+        family_dimension: String(s.familyDimension || s.itemGroup || 'عام').trim(),
         created_at: s.createdAt || new Date().toISOString()
       }));
 
@@ -1081,10 +1100,11 @@ export async function pushCustomerItemSalesToSupabase(
         .upsert(batch, { onConflict: 'id' });
 
       if (error) {
+        console.error('Supabase batch upsert error:', error);
         return {
           success: false,
           syncedCount,
-          error: `تعذر حفظ الدفعة ${Math.floor(i / batchSize) + 1}: ${error.message}`
+          error: `تعذر حفظ الدفعة ${Math.floor(i / batchSize) + 1} من ${Math.ceil(sales.length / batchSize)}: ${error.message}`
         };
       }
 
@@ -1094,6 +1114,7 @@ export async function pushCustomerItemSalesToSupabase(
 
     return { success: true, syncedCount };
   } catch (err: any) {
+    console.error('pushCustomerItemSalesToSupabase error:', err);
     return {
       success: false,
       syncedCount,
@@ -1103,28 +1124,53 @@ export async function pushCustomerItemSalesToSupabase(
 }
 
 /**
- * Fetch Customer Item Sales from Supabase table `customer_item_sales`
+ * Fetch Customer Item Sales from Supabase table `customer_item_sales` with complete pagination (fetching all 10,000+ rows)
  */
-export async function fetchCustomerItemSalesFromSupabase(): Promise<{
+export async function fetchCustomerItemSalesFromSupabase(
+  onProgress?: (loaded: number) => void
+): Promise<{
   sales: CustomerItemSaleRecord[];
   error?: string;
 }> {
   try {
-    const { data, error } = await supabase
-      .from('customer_item_sales')
-      .select('*')
-      .order('month', { ascending: true })
-      .limit(20000);
+    const pageSize = 1000;
+    let from = 0;
+    let allData: any[] = [];
+    let hasMore = true;
 
-    if (error) {
-      return { sales: [], error: error.message };
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('customer_item_sales')
+        .select('*')
+        .range(from, from + pageSize - 1)
+        .order('month', { ascending: true });
+
+      if (error) {
+        console.warn('Error fetching chunk from Supabase:', error);
+        if (allData.length > 0) break; // If we already got some chunks, keep them
+        return { sales: [], error: error.message };
+      }
+
+      if (!data || data.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      allData = allData.concat(data);
+      if (onProgress) onProgress(allData.length);
+
+      if (data.length < pageSize) {
+        hasMore = false;
+        break;
+      }
+      from += pageSize;
     }
 
-    if (!data || data.length === 0) {
+    if (allData.length === 0) {
       return { sales: [] };
     }
 
-    const mapped: CustomerItemSaleRecord[] = data.map((row: any) => ({
+    const mapped: CustomerItemSaleRecord[] = allData.map((row: any) => ({
       id: row.id,
       customerAccount: row.customer_account,
       invoicingName: row.invoicing_name,

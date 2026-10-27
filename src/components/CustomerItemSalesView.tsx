@@ -44,6 +44,7 @@ import {
   fetchCustomerItemSalesFromSupabase,
   filterCustomerItemSalesByRBAC,
   getSavedCustomerItemSales,
+  getSupabaseCustomerItemSalesCount,
   MONTH_NAMES_MAP,
   pushCustomerItemSalesToSupabase,
   saveCustomerItemSales
@@ -73,6 +74,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
   const [salesRecords, setSalesRecords] = useState<CustomerItemSaleRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [supabaseCount, setSupabaseCount] = useState<number | null>(null);
   const [lastSyncAt] = useState<string | null>(null);
   const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
   const [syncErrorMsg, setSyncErrorMsg] = useState<string | null>(null);
@@ -100,10 +102,25 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     try {
       const saved = await getSavedCustomerItemSales();
       // Strictly purge any legacy demo-generated records
-      const realSaved = saved.filter((record) => !String(record.id || '').startsWith('cis-demo-'));
+      let realSaved = saved.filter((record) => !String(record.id || '').startsWith('cis-demo-'));
       if (realSaved.length !== saved.length) {
         await saveCustomerItemSales(realSaved);
       }
+
+      // Check remote Supabase record count
+      const remoteCount = await getSupabaseCustomerItemSalesCount();
+      if (remoteCount >= 0) {
+        setSupabaseCount(remoteCount);
+      }
+
+      // If local cache is empty, but Supabase already contains records, auto-fetch from Supabase
+      if (realSaved.length === 0 && remoteCount > 0) {
+        const fetchRes = await fetchCustomerItemSalesFromSupabase();
+        if (fetchRes.sales && fetchRes.sales.length > 0) {
+          realSaved = fetchRes.sales;
+        }
+      }
+
       setSalesRecords(realSaved);
     } finally {
       setIsLoading(false);
@@ -134,7 +151,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         setSupabasePushProgress({ synced, total });
       });
       if (res.success) {
-        setSyncSuccessMsg(`تم بنجاح رفع ومزامنة ${res.syncedCount.toLocaleString('ar-EG')} حركة إلى جدول customer_item_sales في Supabase!`);
+        setSupabaseCount(res.syncedCount);
+        setSyncSuccessMsg(`تم بنجاح رفع ومزامنة ${res.syncedCount.toLocaleString('ar-EG')} حركة إلى جدول customer_item_sales في Supabase! أصبحت البيانات متطابقة سحابياً.`);
       } else {
         setSyncErrorMsg(res.error || 'فشلت المزامنة مع Supabase');
       }
@@ -154,6 +172,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         setSyncErrorMsg(res.error);
       } else {
         setSalesRecords(res.sales);
+        setSupabaseCount(res.sales.length);
         setSyncSuccessMsg(`تم بنجاح جلب ${res.sales.length.toLocaleString('ar-EG')} حركة من جدول customer_item_sales في Supabase!`);
       }
     } finally {
@@ -466,6 +485,18 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                   {salesRecords.length.toLocaleString('ar-EG')} حركة بيع معتمدة
                 </span>
               )}
+              {supabaseCount !== null && supabaseCount > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-50 rounded-lg text-sky-800 font-bold border border-sky-200">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />
+                  مزامنة Supabase: {supabaseCount.toLocaleString('ar-EG')} حركة سحابياً
+                </span>
+              )}
+              {supabaseCount === 0 && salesRecords.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 rounded-lg text-rose-800 font-bold border border-rose-200 animate-pulse">
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                  قاعدة Supabase فارغة (0) — يلزم المزامنة السحابية
+                </span>
+              )}
               {lastSyncAt && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 rounded-lg text-emerald-700 font-bold border border-emerald-200">
                   <CheckCircle2 className="w-3.5 h-3.5" />
@@ -514,6 +545,17 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 </span>
               </button>
             )}
+
+            <button
+              type="button"
+              onClick={handleFetchFromSupabase}
+              disabled={isSupabaseFetching}
+              title="جلب وتحديث الحركات من جدول customer_item_sales في Supabase"
+              className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition cursor-pointer disabled:opacity-50"
+            >
+              <CloudDownload className={`w-3.5 h-3.5 text-sky-600 ${isSupabaseFetching ? 'animate-bounce' : ''}`} />
+              <span>{isSupabaseFetching ? 'جاري الجلب...' : 'جلب من Supabase'}</span>
+            </button>
 
             {salesRecords.length > 0 && (
               <button
@@ -625,17 +667,81 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         </div>
       )}
 
+      {/* Prominent Cloud Sync Banner when local records exist but Supabase is empty */}
+      {salesRecords.length > 0 && supabaseCount !== null && supabaseCount === 0 && (
+        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 rounded-3xl p-5 sm:p-6 text-white shadow-xl shadow-amber-500/20 animate-in fade-in">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/30 shadow-inner">
+                <CloudUpload className="w-6 h-6 text-white" />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-black text-base sm:text-lg text-white">
+                    البيانات محفوظة على جهازك محلياً فقط — قاعدة Supabase السحابية لا تزال فارغة (0 سجل)!
+                  </h3>
+                  <span className="bg-white/25 px-2.5 py-0.5 rounded-full text-[11px] font-black border border-white/30">
+                    تنبيه مزامنة سحابية
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-amber-50 max-w-3xl leading-relaxed">
+                  شاشتك تعرض حالياً <strong>{salesRecords.length.toLocaleString('ar-EG')}</strong> حركة بيع (مخزنة في ذاكرة المتصفح)، بينما جدول <code className="bg-black/20 px-1.5 py-0.5 rounded text-amber-100 font-mono">customer_item_sales</code> والـ View <code className="bg-black/20 px-1.5 py-0.5 rounded text-amber-100 font-mono">view_customer_monthly_item_sales</code> في Supabase فارغين تماماً. اضغط على الزر المقابل لحفظها سحابياً فوراً ليتم ملء الجداول السحابية بالكامل.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handlePushToSupabase}
+              disabled={isSupabasePushing}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-white text-amber-900 hover:bg-amber-50 font-black text-xs sm:text-sm shadow-lg transition cursor-pointer disabled:opacity-75 shrink-0 whitespace-nowrap active:scale-95"
+            >
+              {isSupabasePushing ? (
+                <>
+                  <Loader2 className="w-5 h-5 text-amber-700 animate-spin" />
+                  <span>
+                    جاري الرفع سحابياً {supabasePushProgress ? `(${supabasePushProgress.synced.toLocaleString('ar-EG')} / ${supabasePushProgress.total.toLocaleString('ar-EG')})` : '...'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <CloudUpload className="w-5 h-5 text-amber-600" />
+                  <span>حفظ ومزامنة ({salesRecords.length.toLocaleString('ar-EG')}) حركة إلى Supabase الآن</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
       {salesRecords.length === 0 ? (
         <section className="bg-white rounded-3xl border border-slate-200 p-8 sm:p-12 text-center shadow-xs">
           <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-700 mx-auto flex items-center justify-center mb-4 shadow-xs">
             <BarChart3 className="w-8 h-8" />
           </div>
           <h2 className="text-base sm:text-lg font-black text-slate-900">
-            لا توجد بيانات مبيعات مسجلة حالياً
+            لا توجد بيانات مبيعات مسجلة في المتصفح حالياً
           </h2>
           <p className="text-xs text-slate-500 max-w-xl mx-auto mt-2 leading-relaxed">
-            تم مسح البيانات التجريبية نهائياً. يتم قراءة وتحليل بيانات المبيعات الحقيقية فور رفع الملفات المعتمدة.
+            تم مسح البيانات التجريبية نهائياً. يتم قراءة وتحليل بيانات المبيعات الحقيقية فور رفع الملفات المعتمدة، أو جلبها مباشرة من السحابة إذا كانت مرفوعة مسبقاً.
           </p>
+
+          {supabaseCount !== null && supabaseCount > 0 && (
+            <div className="mt-5">
+              <button
+                type="button"
+                onClick={handleFetchFromSupabase}
+                disabled={isSupabaseFetching}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-xs shadow-md transition cursor-pointer disabled:opacity-50"
+              >
+                <CloudDownload className={`w-4 h-4 ${isSupabaseFetching ? 'animate-bounce' : ''}`} />
+                <span>
+                  {isSupabaseFetching
+                    ? 'جاري الجلب من Supabase...'
+                    : `جلب (${supabaseCount.toLocaleString('ar-EG')}) حركة محفوظة في Supabase السحابي`}
+                </span>
+              </button>
+            </div>
+          )}
 
           <div className="mt-8 pt-6 border-t border-slate-100 max-w-2xl mx-auto text-right">
             <h4 className="text-[11px] font-black text-slate-700 mb-2">الأعمدة المدعومة في الملف (Excel / Google Sheet):</h4>
