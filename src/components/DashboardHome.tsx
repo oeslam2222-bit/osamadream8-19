@@ -271,6 +271,20 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
     const visitSumFromMonths = monthlyVisits.reduce((a, b) => a + b, 0);
     if (visitSumFromMonths > visitsTotal) visitsTotal = visitSumFromMonths;
 
+    // Fallback: derive sales from invoices when customer sales fields are all zero
+    if (sales === 0 && visibleInvoices.length > 0) {
+      let invoiceSales = 0;
+      visibleInvoices.forEach((inv) => {
+        const ym = visitMonth(inv.date);
+        if (ym && (ym.year === 2026 || !ym.year)) {
+          const amount = Number(inv.estimatedGrandTotal) || 0;
+          invoiceSales += amount;
+          monthlySales[ym.month - 1] += amount;
+        }
+      });
+      if (invoiceSales > 0) sales = invoiceSales;
+    }
+
     // Fallback: distribute annual totals across months when monthly breakdown fields are missing
     const hasMonthlySales = monthlySales.some((v) => v > 0);
     if (!hasMonthlySales && sales > 0) {
@@ -312,7 +326,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
       monthlyTargetSales,
       monthlyTargetCollections
     };
-  }, [scopedCustomers, scopedVisits, scopedTargets]);
+  }, [scopedCustomers, scopedVisits, scopedTargets, visibleInvoices]);
 
   const money = (n: number) => (isPrivacyMode ? MASK : formatCurrency(n));
   const compact = (n: number) =>
