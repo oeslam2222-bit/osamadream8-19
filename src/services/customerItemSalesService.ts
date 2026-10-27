@@ -13,6 +13,7 @@ import { buildGoogleSheetsPublicCsvUrl } from './excelService';
 import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 import { idbGet, idbSet, idbDelete } from './storageService';
 import { supabase } from './supabaseService';
+import { parseNumericValue } from './numericParsing';
 
 export const ITEM_SALES_STORAGE_KEY = 'tantawy_customer_item_sales_v1';
 
@@ -33,6 +34,8 @@ export const MONTH_NAMES_MAP: Record<number, string> = {
   11: 'نوفمبر',
   12: 'ديسمبر'
 };
+
+export { parseNumericValue } from './numericParsing';
 
 /**
  * Clean & normalize column header names (strips invisible characters & normalizes Arabic letters)
@@ -117,15 +120,8 @@ function mapHeaderIndices(headerRow: any[]): Record<string, number> {
     ) {
       if (map.salesOrder === -1) map.salesOrder = idx;
     }
-    // 4. Date (التاريخ)
-    else if (
-      h === 'date' ||
-      h === 'التاريخ' ||
-      h === 'تاريخ' ||
-      h === 'تاريخالطلب' ||
-      h === 'تاريخالبيع' ||
-      h === 'orderdate'
-    ) {
+    // 4. Date (التاريخ) — بنقبل أي عمود فيه date/تاريخ (مثل Order Date)
+    else if (h.includes('date') || h.includes('تاريخ')) {
       if (map.date === -1) map.date = idx;
     }
     // 5. المندوب (Sales Rep)
@@ -139,25 +135,12 @@ function mapHeaderIndices(headerRow: any[]): Record<string, number> {
     ) {
       if (map.repName === -1) map.repName = idx;
     }
-    // 6. الشهر (Month)
-    else if (
-      h === 'الشهر' ||
-      h === 'شهر' ||
-      h === 'month' ||
-      h === 'رقمشهر' ||
-      h === 'monthno'
-    ) {
+    // 6. الشهر (Month) — Month / Shahr / رقم شهر
+    else if (h.includes('month') || h.includes('شهر')) {
       if (map.month === -1) map.month = idx;
     }
     // 7. Warehouse (المخزن / الفرع)
-    else if (
-      h === 'warehouse' ||
-      h === 'المخزن' ||
-      h === 'مخزن' ||
-      h === 'الفرع' ||
-      h === 'فرع' ||
-      h === 'branch'
-    ) {
+    else if (h.includes('warehouse') || h.includes('مخزن') || h.includes('فرع') || h === 'branch') {
       if (map.warehouse === -1) map.warehouse = idx;
     }
     // 8. Item (كود الصنف)
@@ -207,89 +190,61 @@ function mapHeaderIndices(headerRow: any[]): Record<string, number> {
       if (map.unit === -1) map.unit = idx;
     }
     // 11. Factor (معامل التحويل)
-    else if (
-      h === 'factor' ||
-      h === 'معامل' ||
-      h === 'معاملالتحويل' ||
-      h === 'شدةالكرتونة' ||
-      h === 'شدةالكرتونه' ||
-      h === 'عددالقطع'
-    ) {
+    else if (h.includes('factor') || h.includes('معامل') || h.includes('شدة') || h.includes('شده')) {
       if (map.factor === -1) map.factor = idx;
     }
-    // 12. Unit price (سعر الوحدة)
-    else if (
-      h === 'unitprice' ||
-      h === 'price' ||
-      h === 'سعرالوحدة' ||
-      h === 'سعرالقطعة' ||
-      h === 'السعر'
-    ) {
+    // 12. Unit price (سعر الوحدة) — Unit Price / Price / السعر
+    else if (h.includes('unitprice') || h.includes('price') || h.includes('سعر')) {
       if (map.unitPrice === -1) map.unitPrice = idx;
     }
     // 13. Discount (الخصم)
-    else if (
-      h === 'discount' ||
-      h === 'الخصم' ||
-      h === 'خصم' ||
-      h === 'discountamount' ||
-      h === 'discountpct'
-    ) {
+    else if (h.includes('discount') || h.includes('خصم')) {
       if (map.discount === -1) map.discount = idx;
     }
-    // 14. Quantity (الكمية)
+    // 14. Quantity (الكمية) — Quantity / Qty / الكمية / العدد
     else if (
-      h === 'quantity' ||
-      h === 'qty' ||
-      h === 'الكمية' ||
-      h === 'الكميه' ||
-      h === 'العدد'
+      h.includes('quantity') ||
+      h.includes('qty') ||
+      h.includes('كمية') ||
+      h.includes('كميه') ||
+      h.includes('العدد')
     ) {
       if (map.quantity === -1) map.quantity = idx;
     }
-    // 15. Amount (المبلغ / القيمة الإجمالية)
+    // 15. Amount (المبلغ / القيمة) — Amount / Net Amount / Total / القيمة
     else if (
-      h === 'amount' ||
-      h === 'total' ||
-      h === 'totalamount' ||
-      h === 'القيمة' ||
-      h === 'المبلغ' ||
-      h === 'الاجمالي' ||
-      h === 'الإجمالي'
+      h.includes('amount') ||
+      h.includes('total') ||
+      h.includes('value') ||
+      h.includes('القيمة') ||
+      h.includes('المبلغ') ||
+      h.includes('الاجمالي') ||
+      h.includes('الإجمالي')
     ) {
       if (map.amount === -1) map.amount = idx;
     }
     // 16. Item group (مجموعة الصنف)
     else if (
-      h === 'itemgroup' ||
-      h === 'مجموعةالصنف' ||
-      h === 'مجموعهالصنف' ||
-      h === 'المجموعة' ||
-      h === 'المجموعه' ||
+      h.includes('itemgroup') ||
+      h.includes('department') ||
+      h.includes('مجموعة') ||
+      h.includes('مجموعه') ||
       h === 'القسم' ||
-      h.includes('itemgroup')
+      h === 'قسم'
     ) {
       if (map.itemGroup === -1) map.itemGroup = idx;
     }
-    // 17. التعريفات (Definitions)
-    else if (
-      h === 'التعريفات' ||
-      h === 'تعريفات' ||
-      h === 'definitions' ||
-      h === 'definition' ||
-      h === 'التعريف'
-    ) {
+    // 17. التعريفات (Definitions) — تصنيف/براند الصنف
+    else if (h.includes('تعريف') || h.includes('definition')) {
       if (map.definitions === -1) map.definitions = idx;
     }
     // 18. Family Dimension (عائلة الصنف / التصنيف)
     else if (
-      h === 'familydimension' ||
-      h === 'family' ||
-      h === 'عائلةالصنف' ||
-      h === 'العائلة' ||
-      h === 'الفئة' ||
-      h === 'التصنيف' ||
-      h.includes('familydimension')
+      h.includes('family') ||
+      h.includes('عائلة') ||
+      h.includes('الفئة') ||
+      h.includes('فئة') ||
+      h.includes('التصنيف')
     ) {
       if (map.familyDimension === -1) map.familyDimension = idx;
     }
@@ -347,9 +302,7 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
     const getVal = (idx: number): string => (idx >= 0 && row[idx] !== undefined ? String(row[idx]).trim() : '');
     const getNum = (idx: number): number => {
       if (idx < 0 || row[idx] === undefined) return 0;
-      const clean = String(row[idx]).replace(/[^0-9.-]/g, '');
-      const parsed = parseFloat(clean);
-      return isNaN(parsed) ? 0 : parsed;
+      return parseNumericValue(row[idx]);
     };
 
     const customerAccount = getVal(colMap.customerAccount);
@@ -372,10 +325,12 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
     const unitPrice = getNum(colMap.unitPrice);
     const discount = getNum(colMap.discount);
     const quantity = getNum(colMap.quantity);
+    // المبالغ بتتاخد من عمود Amount زي ما هو. الحساب التلقائي بيشتغل فقط
+    // لو العمود نفسه غير موجود أو الخلية فاضية — مش لما القيمة تكون صفر.
     let amount = getNum(colMap.amount);
-
-    // Calculate amount if missing
-    if (amount === 0 && quantity > 0 && unitPrice > 0) {
+    const rawAmountCell = colMap.amount >= 0 ? (row[colMap.amount] ?? '') : '';
+    const amountCellMissing = colMap.amount < 0 || String(rawAmountCell).trim() === '';
+    if (amountCellMissing && quantity > 0 && unitPrice > 0) {
       amount = Math.max(0, (quantity * unitPrice) - discount);
     }
 
@@ -404,7 +359,7 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
       monthName: MONTH_NAMES_MAP[month] || `شهر ${month}`,
       warehouse,
       itemCode: itemCode || `ITEM-${i}`,
-      itemName: itemName || itemCode || `صنف #${i}`,
+      itemName: itemName || definitions || itemCode || `صنف #${i}`,
       unifiedCode: unifiedCode || undefined,
       unit,
       factor,
@@ -1062,13 +1017,36 @@ export async function getSupabaseCustomerItemSalesCount(): Promise<number> {
 export async function pushCustomerItemSalesToSupabase(
   sales: CustomerItemSaleRecord[],
   onProgress?: (synced: number, total: number) => void
-): Promise<{ success: boolean; syncedCount: number; error?: string }> {
+): Promise<{ success: boolean; syncedCount: number; prunedCount?: number; error?: string }> {
   if (!sales || sales.length === 0) return { success: true, syncedCount: 0 };
 
   const batchSize = 250;
   let syncedCount = 0;
+  let prunedCount = 0;
 
   try {
+    /**
+     * تنظيف بقايا الرفع القديم: الصفوف اللي اتخزنت بكمية ومبلغ صفر بسبب
+     * تحويل أرقام غلط. بنمسحها فقط لو الداتا الجديدة فيها أرقام حقيقية،
+     * عشان مانمسحش داتا سليمة بالغلط.
+     */
+    const hasRealValues = sales.some(
+      (record) => parseNumericValue(record.amount) > 0 || parseNumericValue(record.quantity) > 0
+    );
+
+    if (hasRealValues) {
+      try {
+        const { count, error: pruneError } = await supabase
+          .from('customer_item_sales')
+          .delete({ count: 'exact' })
+          .eq('amount', 0)
+          .eq('quantity', 0);
+        if (!pruneError) prunedCount = count ?? 0;
+      } catch {
+        // التنظيف تحسيني فقط — فشله لا يمنع الحفظ
+      }
+    }
+
     for (let i = 0; i < sales.length; i += batchSize) {
       const slice = sales.slice(i, i + batchSize);
       const batch = slice.map((s, idx) => ({
@@ -1084,11 +1062,11 @@ export async function pushCustomerItemSalesToSupabase(
         item_name: String(s.itemName || s.itemCode || 'صنف غير محدد').trim(),
         unified_code: s.unifiedCode ? String(s.unifiedCode).trim() : null,
         unit: String(s.unit || 'كرتونة').trim(),
-        factor: Number(s.factor) > 0 ? Number(s.factor) : 1,
-        unit_price: Number(s.unitPrice) || 0,
-        discount: Number(s.discount) || 0,
-        quantity: Number(s.quantity) || 0,
-        amount: Number(s.amount) || 0,
+        factor: parseNumericValue(s.factor) > 0 ? parseNumericValue(s.factor) : 1,
+        unit_price: parseNumericValue(s.unitPrice),
+        discount: parseNumericValue(s.discount),
+        quantity: parseNumericValue(s.quantity),
+        amount: parseNumericValue(s.amount),
         item_group: String(s.itemGroup || 'عام').trim(),
         definitions: s.definitions ? String(s.definitions).trim() : null,
         family_dimension: String(s.familyDimension || s.itemGroup || 'عام').trim(),
@@ -1112,7 +1090,7 @@ export async function pushCustomerItemSalesToSupabase(
       if (onProgress) onProgress(syncedCount, sales.length);
     }
 
-    return { success: true, syncedCount };
+    return { success: true, syncedCount, prunedCount };
   } catch (err: any) {
     console.error('pushCustomerItemSalesToSupabase error:', err);
     return {
@@ -1184,11 +1162,11 @@ export async function fetchCustomerItemSalesFromSupabase(
       itemName: row.item_name,
       unifiedCode: row.unified_code || undefined,
       unit: row.unit || 'كرتونة',
-      factor: Number(row.factor) || 1,
-      unitPrice: Number(row.unit_price) || 0,
-      discount: Number(row.discount) || 0,
-      quantity: Number(row.quantity) || 0,
-      amount: Number(row.amount) || 0,
+      factor: parseNumericValue(row.factor) || 1,
+      unitPrice: parseNumericValue(row.unit_price),
+      discount: parseNumericValue(row.discount),
+      quantity: parseNumericValue(row.quantity),
+      amount: parseNumericValue(row.amount),
       itemGroup: row.item_group || 'عام',
       definitions: row.definitions || undefined,
       familyDimension: row.family_dimension || row.item_group || 'عام',

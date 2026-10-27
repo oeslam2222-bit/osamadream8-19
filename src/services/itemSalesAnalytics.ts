@@ -40,8 +40,15 @@ const itemKeyOf = (record: CustomerItemSaleRecord): string =>
 const customerKeyOf = (record: CustomerItemSaleRecord): string =>
   (record.customerAccount || record.invoicingName || '').trim();
 
-/** مجموعة الصنف المعتمدة للعرض: Item group ثم Family Dimension ثم «عام». */
+/**
+ * مجموعة/فئة الصنف المعتمدة للعرض.
+ * الأولوية لعمود «التعريفات» لأنه هو التصنيف الحقيقي في شيت الـ ERP
+ * (Item group عندهم بيكون «عام» لكل الصفوف فمش مفيد)، وبعده Item group
+ * ثم Family Dimension.
+ */
 export function resolveItemGroup(record: CustomerItemSaleRecord): string {
+  const definitions = (record.definitions || '').trim();
+  if (definitions) return definitions;
   const group = (record.itemGroup || '').trim();
   if (group && group !== 'عام') return group;
   const family = (record.familyDimension || '').trim();
@@ -180,7 +187,7 @@ function accumulateItems(records: CustomerItemSaleRecord[]): Map<string, ItemAcc
     const entry: ItemAccumulator =
       map.get(key) || {
         itemCode: record.itemCode || '',
-        itemName: record.itemName || 'صنف غير محدد',
+        itemName: record.itemName || record.definitions || 'صنف غير محدد',
         itemGroup: resolveItemGroup(record),
         unit: record.unit || 'وحدة',
         amount: 0,

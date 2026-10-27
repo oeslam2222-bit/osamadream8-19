@@ -37,7 +37,8 @@ import {
   buildMonthlyPerformance,
   buildPeriodTotals,
   buildRepPerformance,
-  growthPct
+  growthPct,
+  resolveItemGroup
 } from '../services/itemSalesAnalytics';
 import {
   aggregateCustomerItemSales,
@@ -160,7 +161,13 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       });
       if (res.success) {
         setSupabaseCount(res.syncedCount);
-        setSyncSuccessMsg(`تم بنجاح رفع ومزامنة ${res.syncedCount.toLocaleString('ar-EG')} حركة إلى جدول customer_item_sales في Supabase! أصبحت البيانات متطابقة سحابياً.`);
+        setSyncSuccessMsg(
+          `تم بنجاح رفع ومزامنة ${res.syncedCount.toLocaleString('ar-EG')} حركة إلى جدول customer_item_sales في Supabase!` +
+            (res.prunedCount && res.prunedCount > 0
+              ? ` وتم تنظيف ${res.prunedCount.toLocaleString('ar-EG')} صف قديم بكمية/مبلغ صفر.`
+              : '') +
+            ' أصبحت البيانات متطابقة سحابياً.'
+        );
       } else {
         setSyncErrorMsg(res.error || 'فشلت المزامنة مع Supabase');
       }
@@ -234,7 +241,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const distinctGroups = useMemo(() => {
     const set = new Set<string>();
     rbacSales.forEach((record) => {
-      if (record.itemGroup && record.itemGroup !== 'عام') set.add(record.itemGroup);
+      const group = resolveItemGroup(record);
+      if (group && group !== 'عام') set.add(group);
     });
     return Array.from(set).sort();
   }, [rbacSales]);
@@ -258,7 +266,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   /** كل الفلاتر ما عدا الشهر — أساس حساب المقارنة الشهرية. */
   const baseSales = useMemo(() => {
     return rbacSales.filter((record) => {
-      if (selectedGroup !== 'all' && record.itemGroup !== selectedGroup) return false;
+      if (selectedGroup !== 'all' && resolveItemGroup(record) !== selectedGroup) return false;
       if (selectedRep !== 'all' && record.repName !== selectedRep) return false;
       if (selectedWarehouse !== 'all' && record.warehouse !== selectedWarehouse) return false;
       if (searchTerm.trim()) {
@@ -268,6 +276,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           record.customerAccount?.toLowerCase().includes(query) ||
           record.itemName?.toLowerCase().includes(query) ||
           record.itemCode?.toLowerCase().includes(query) ||
+          record.definitions?.toLowerCase().includes(query) ||
+          record.familyDimension?.toLowerCase().includes(query) ||
           record.salesOrder?.toLowerCase().includes(query) ||
           record.repName?.toLowerCase().includes(query);
         if (!matches) return false;
@@ -510,7 +520,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             </h1>
             <p className="text-[11px] sm:text-xs text-slate-500 max-w-3xl leading-relaxed">
               لوحة تحليل صنفية شاملة: المبيعات والكميات، توزيع الفئات، أعلى وأقل الأصناف حركة، أداء المناديب،
-              وتحليل شهري للعملاء — كل الأرقام محسوبة من حركات البيع الفعلية وبنفس نطاق صلاحيات المستخدم.
+              وتحليل شهري للعملاء. كل المبالغ تُحسب من عمود <strong>Amount</strong> كما هو، والتجميع/الفئات من
+              عمود <strong>التعريفات</strong> — وكل الأرقام محسوبة من حركات البيع الفعلية وبنفس نطاق صلاحيات المستخدم.
             </p>
 
             <div className="pt-1 flex items-center gap-2 flex-wrap text-[10px]">
@@ -892,7 +903,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             aria-label="تصفية بمجموعة الأصناف"
             className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
           >
-            <option value="all">كل المجموعات ({distinctGroups.length})</option>
+            <option value="all">كل الفئات/التعريفات ({distinctGroups.length})</option>
             {distinctGroups.map((group) => (
               <option key={group} value={group}>
                 {group}
@@ -979,6 +990,35 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
       {activeView === 'overview' ? (
         <>
+          {salesRecords.length > 0 && periodTotals.amount === 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-start gap-2.5 min-w-0">
+                <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-4 h-4" />
+                </span>
+                <div className="min-w-0">
+                  <div className="text-[11.5px] font-black text-amber-900">
+                    كل المبالغ والكميات في الداتا الحالية = صفر
+                  </div>
+                  <p className="text-[10px] text-amber-800 font-bold leading-relaxed mt-0.5">
+                    الصفوف موجودة لكن أعمدة Amount/Quantity وصلت فاضية. أعد رفع شيت المبيعات من صفحة
+                    الإكسل (أصبح بيقرأ الأرقام العربية والفواصل بشكل صحيح)، ثم اضغط «مزامنة Supabase»
+                    لتنظيف الصفوف الصفرية ورفع القيم الحقيقية.
+                  </p>
+                </div>
+              </div>
+              {onNavigateToExcel && (
+                <button
+                  type="button"
+                  onClick={onNavigateToExcel}
+                  className="shrink-0 h-8 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black transition cursor-pointer"
+                >
+                  فتح صفحة الإكسل
+                </button>
+              )}
+            </div>
+          )}
+
           <ItemSalesKpiCards
             comparison={comparison}
             totalQuantity={periodTotals.quantity}

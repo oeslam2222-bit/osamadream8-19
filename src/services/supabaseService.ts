@@ -1088,7 +1088,9 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
         .slice(i, i + 50)
         .map((payload) => pickUserColumns('users', payload));
 
-      const { error } = await supabase.from('users').insert(chunk);
+      // upsert صريح على المفتاح الأساسي: لو السجل موجود يتحدّث، ولو جديد يُضاف —
+      // مفيش أي فرصة لخطأ 409 على نفس الـ id (والـ IDs مضمونة بدون تكرار فوق).
+      const { error } = await supabase.from('users').upsert(chunk, { onConflict: 'id' });
       if (!error) continue;
 
       // لو الإدخال اتضرب بقيد فريد/خارجي، بنحاول صف صف بمسار آمن.
