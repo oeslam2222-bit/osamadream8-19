@@ -105,36 +105,86 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const [expandedCustomerAccounts, setExpandedCustomerAccounts] = useState<Set<string>>(new Set());
 
   const initialExpandDone = useRef(false);
+  const loadSalesInProgress = useRef(false);
 
   const loadSalesData = async () => {
+    // منع تكرار التحميل بسبب حدث الحفظ (save event) الذي يُطلق عند المزامنة/الجلب من Supabase
+    if (loadSalesInProgress.current) return;
+    loadSalesInProgress.current = true;
+
     setIsLoading(true);
+    setSyncErrorMsg(null);
     try {
+      // 1. قراءة الكاش المحلي كبيانات احتياطية
       const saved = await getSavedCustomerItemSales();
-      // Strictly purge any legacy demo-generated records
-      let realSaved = saved.filter((record) => !String(record.id || '').startsWith('cis-demo-'));
-      if (realSaved.length !== saved.length) {
-        await saveCustomerItemSales(realSaved);
+      let localBackup = saved.filter((record) => !String(record.id || '').startsWith('cis-demo-'));
+      if (localBackup.length !== saved.length) {
+        await saveCustomerItemSales(localBackup);
       }
 
-      // Check remote Supabase record count
-      const remoteCount = await getSupabaseCustomerItemSalesCount();
-      if (remoteCount >= 0) {
-        setSupabaseCount(remoteCount);
-      }
+      // 2. جلب أحدث السجلات من Supabase عند نجاح الاتصال
+      let supabaseSales: CustomerItemSaleRecord[] = [];
+      let supabaseError: string | null = null;
+      let remoteCount = 0;
 
-      // If local cache is empty, but Supabase already contains records, auto-fetch from Supabase
-      if (realSaved.length === 0 && remoteCount > 0) {
-        const fetchRes = await fetchCustomerItemSalesFromSupabase();
-        if (fetchRes.sales && fetchRes.sales.length > 0) {
-          realSaved = fetchRes.sales;
+      try {
+        const countRes = await getSupabaseCustomerItemSalesCount();
+        remoteCount = countRes >= 0 ? countRes : 0;
+        if (remoteCount >= 0) {
+          setSupabaseCount(remoteCount);
         }
+
+        const fetchRes = await fetchCustomerItemSalesFromSupabase();
+        if (fetchRes.error) {
+          supabaseError = fetchRes.error;
+        } else if (fetchRes.sales && fetchRes.sales.length > 0) {
+          supabaseSales = fetchRes.sales;
+        }
+      } catch (err: any) {
+        supabaseError = err?.message || 'فشل الاتصال بـ Supabase';
       }
 
-      setSalesRecords(realSaved);
+      // 3. الاعتماد على بيانات Supabase حتى لو الكاش المحلي مش فاضي (عند نجاح الاتصال)
+      // 4. لو الاتصال فشل، استخدم الكاش المحلي واعرض تنبيه واضح
+      let finalSales: CustomerItemSaleRecord[] = [];
+      if (supabaseSales.length > 0 && !supabaseError) {
+        finalSales = supabaseSales;
+        setSyncSuccessMsg(
+          `تم جلب ${supabaseSales.length.toLocaleString('ar-EG')} حركة من Supabase واعتمادها كبيانات أساسية.`
+        );
+      } else if (supabaseError) {
+        finalSales = localBackup;
+        setSyncErrorMsg(
+          `فشل الاتصال بـ Supabase: ${supabaseError}. يتم عرض البيانات المخزنة محلياً (${localBackup.length.toLocaleString('ar-EG')} حركة) كنسخة احتياطية.`
+        );
+      } else if (remoteCount > 0 && supabaseSales.length === 0) {
+        finalSales = localBackup;
+        setSyncErrorMsg(
+          `قاعدة Supabase تحتوي على ${remoteCount.toLocaleString('ar-EG')} سجل لكنها لم تُجلب بنجاح. يتم عرض البيانات المخزنة محلياً.`
+        );
+      } else {
+        finalSales = localBackup;
+      }
+
+      setSalesRecords(finalSales);
     } finally {
       setIsLoading(false);
+      loadSalesInProgress.current = false;
     }
   };
+
+  const computedDiagnostics = useMemo(() => {
+    const numericValuesCount = salesRecords.filter(
+      (r) => Number(r.quantity || 0) > 0 || Number(r.amount || 0) > 0
+    ).length;
+    return {
+      supabaseCount: supabaseCount ?? 0,
+      loadedCount: salesRecords.length,
+      numericValuesCount,
+      afterRbacCount: rbacSales.length,
+      afterFiltersCount: filteredSales.length
+    };
+  }, [salesRecords, rbacSales, filteredSales, supabaseCount]);
 
   useEffect(() => {
     loadSalesData();
@@ -671,6 +721,64 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           </div>
         )}
       </section>
+
+      {/* تشخيص عدد السجلات في كل مرحلة (لتعقب مصدر المشكلة) */}
+      {salesRecords.length > 0 && (
+        <section className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-[10px]">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-black text-slate-700 flex items-center gap-1.5">
+              <AlertTriangle className="w-3 h-3 text-amber-500" />
+              تشخيص أعداد السجلات حسب المرحلة
+            </h3>
+            <span className="text-slate-400 font-bold">يساعد في تحديد ما إذا كانت المشكلة في التحميل أو التحويل أو الصلاحيات أو الفلاتر</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Supabase (السحابة)</div>
+              <div className="text-lg font-black text-sky-700">{computedDiagnostics.supabaseCount.toLocaleString('ar-EG')}</div>
+              <div className="text-[9px] text-slate-400 mt-0.5">سجلات موجودة على السحابة</div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">بعد التحميل (الصفحة)</div>
+              <div className="text-lg font-black text-amber-700">{computedDiagnostics.loadedCount.toLocaleString('ar-EG')}</div>
+              <div className="text-[9px] text-slate-400 mt-0.5">سجلات وصلت للعرض</div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">قيم رقمية أكبر من صفر</div>
+              <div className="text-lg font-black text-emerald-700">{computedDiagnostics.numericValuesCount.toLocaleString('ar-EG')}</div>
+              <div className="text-[9px] text-slate-400 mt-0.5">سجلات فيها كمية أو مبلغ > 0</div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">بعد الصلاحيات (RBAC)</div>
+              <div className="text-lg font-black text-teal-700">{computedDiagnostics.afterRbacCount.toLocaleString('ar-EG')}</div>
+              <div className="text-[9px] text-slate-400 mt-0.5">سجلات مسموح للمستخدم رؤيتها</div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-2.5">
+              <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">بعد الفلاتر</div>
+              <div className="text-lg font-black text-rose-700">{computedDiagnostics.afterFiltersCount.toLocaleString('ar-EG')}</div>
+              <div className="text-[9px] text-slate-400 mt-0.5">سجلات داخل الشهر والفئة المحددين</div>
+            </div>
+          </div>
+          {computedDiagnostics.loadedCount > 0 && computedDiagnostics.afterFiltersCount === 0 && (
+            <div className="mt-2.5 bg-amber-50 border border-amber-200 rounded-lg p-2 text-amber-800 text-[10px]">
+              <AlertTriangle className="w-3.5 h-3.5 inline mr-1.5" />
+              كل السجلات المحملة ({computedDiagnostics.loadedCount.toLocaleString('ar-EG')}) تُستبعد بواسطة الفلاتر الحالية — راجع الشهر والفئة والمندوب والفرع المختارين.
+            </div>
+          )}
+          {computedDiagnostics.loadedCount > 0 && computedDiagnostics.numericValuesCount === 0 && (
+            <div className="mt-2.5 bg-rose-50 border border-rose-200 rounded-lg p-2 text-rose-800 text-[10px]">
+              <AlertCircle className="w-3.5 h-3.5 inline mr-1.5" />
+              لا توجد سجلات فيها كمية أو مبلغ أكبر من صفر — قد تكون المشكلة في تحويل الأرقام من الملف المرفوع.
+            </div>
+          )}
+          {computedDiagnostics.supabaseCount > 0 && computedDiagnostics.loadedCount === 0 && (
+            <div className="mt-2.5 bg-sky-50 border border-sky-200 rounded-lg p-2 text-sky-800 text-[10px]">
+              <CloudDownload className="w-3.5 h-3.5 inline mr-1.5" />
+              يوجد سجلات في Supabase ({computedDiagnostics.supabaseCount.toLocaleString('ar-EG')}) لكن لم تصل لأي سجل للصفحة — تأكد من الاتصال بالسحابة أو اضغط «تحديث».
+            </div>
+          )}
+        </section>
+      )}
 
       {/* RBAC Filter Warning Banner when sales exist but user role filters them out */}
       {salesRecords.length > 0 && rbacSales.length === 0 && (
