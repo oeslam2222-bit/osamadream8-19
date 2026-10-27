@@ -23,19 +23,22 @@ import {
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import {
-  buildBranchInsights,
   buildCustomerGrowthMap,
   buildCustomerInsights,
-  buildCustomerRecentOrders,
   buildFollowUpAlerts,
-  buildMonthlyTrend,
   buildPeriodComparison,
-  buildTopItemInsights,
-  countDistinctOrders,
-  hasSalesOrderData,
-  resolveLatestSalesMonth,
-  sumSalesQuantity
+  resolveLatestSalesMonth
 } from '../services/customerItemSalesInsights';
+import {
+  buildGroupInsights,
+  buildIdleItems,
+  buildItemRanking,
+  buildMonthlyCustomerAnalysis,
+  buildMonthlyPerformance,
+  buildPeriodTotals,
+  buildRepPerformance,
+  growthPct
+} from '../services/itemSalesAnalytics';
 import {
   aggregateCustomerItemSales,
   clearCustomerItemSales,
@@ -50,13 +53,18 @@ import {
   saveCustomerItemSales
 } from '../services/customerItemSalesService';
 import { Customer, CustomerItemSaleRecord, CustomerItemSalesSummary } from '../types';
-import { BranchShareCard } from './customerSales/BranchShareCard';
 import { CustomerDossiers } from './customerSales/CustomerDossiers';
-import { CustomerInsightRail } from './customerSales/CustomerInsightRail';
-import { MonthlyTrendCard } from './customerSales/MonthlyTrendCard';
-import { SalesKpiCards } from './customerSales/SalesKpiCards';
-import { TopCustomersCard } from './customerSales/TopCustomersCard';
-import { TopItemsChartCard } from './customerSales/TopItemsChartCard';
+import { CategoryMixCard } from './itemSales/CategoryMixCard';
+import {
+  MonthlyCustomerAnalysisTable,
+  TopCustomersTable
+} from './itemSales/CustomerBreakdownCards';
+import { CustomerSnapshotCard } from './itemSales/CustomerSnapshotCard';
+import { ItemRankingCard } from './itemSales/ItemRankingCard';
+import { ItemSalesKpiCards } from './itemSales/ItemSalesKpiCards';
+import { MonthlyPerformanceCard } from './itemSales/MonthlyPerformanceCard';
+import { RepPerformanceCard } from './itemSales/RepPerformanceCard';
+import { SlowMoversCard } from './itemSales/SlowMoversCard';
 
 interface CustomerItemSalesViewProps {
   onOpenNewOrderForCustomer?: (customer: Customer, prefilledItemCode?: string) => void;
@@ -69,7 +77,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   onOpenNewOrderForCustomer,
   onNavigateToExcel
 }) => {
-  const { currentUser, users, customers } = useApp();
+  const { currentUser, users, customers, products } = useApp();
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   const [salesRecords, setSalesRecords] = useState<CustomerItemSaleRecord[]>([]);
@@ -298,13 +306,89 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     [filteredSales, baseSales, selectedMonth, latestMonth]
   );
 
-  const topItems = useMemo(
-    () => buildTopItemInsights(filteredSales, previousMonthSales, 5),
+  /* ---------------- لوحة تحليل الأصناف (Item-centric) ---------------- */
+  const periodTotals = useMemo(() => buildPeriodTotals(filteredSales), [filteredSales]);
+  const previousPeriodTotals = useMemo(
+    () => buildPeriodTotals(previousMonthSales),
+    [previousMonthSales]
+  );
+
+  const groupMix = useMemo(() => buildGroupInsights(filteredSales), [filteredSales]);
+
+  const topItemsByValue = useMemo(
+    () => buildItemRanking(filteredSales, previousMonthSales, { metric: 'amount', limit: 10 }),
     [filteredSales, previousMonthSales]
   );
 
-  const branchData = useMemo(() => buildBranchInsights(filteredSales), [filteredSales]);
-  const monthlyTrend = useMemo(() => buildMonthlyTrend(baseSales), [baseSales]);
+  const topItemsByQuantity = useMemo(
+    () => buildItemRanking(filteredSales, previousMonthSales, { metric: 'quantity', limit: 10 }),
+    [filteredSales, previousMonthSales]
+  );
+
+  const slowMovers = useMemo(
+    () =>
+      buildItemRanking(filteredSales, previousMonthSales, {
+        metric: 'amount',
+        limit: 6,
+        order: 'asc'
+      }),
+    [filteredSales, previousMonthSales]
+  );
+
+  const monthlyPerformance = useMemo(() => buildMonthlyPerformance(baseSales, 6), [baseSales]);
+
+  const monthlyPerformanceGrowth = useMemo(() => {
+    if (monthlyPerformance.length < 2) return null;
+    const last = monthlyPerformance[monthlyPerformance.length - 1];
+    const before = monthlyPerformance[monthlyPerformance.length - 2];
+    return growthPct(last.amount, before.amount);
+  }, [monthlyPerformance]);
+
+  const monthlyCustomerRows = useMemo(() => buildMonthlyCustomerAnalysis(baseSales), [baseSales]);
+
+  const repPerformance = useMemo(() => buildRepPerformance(filteredSales, 6), [filteredSales]);
+
+  const idleItems = useMemo(
+    () => buildIdleItems(filteredSales, baseSales, products || [], 6),
+    [filteredSales, baseSales, products]
+  );
+
+  const idleCaption = useMemo(() => {
+    if (idleItems.source === 'catalog') {
+      return `من ${idleItems.catalogWithStock.toLocaleString('en-US')} صنف برصيد في الكتالوج`;
+    }
+    if (idleItems.source === 'sales-history') return 'بدون حركة في الفترة المحددة';
+    return 'الكتالوج غير محمّل';
+  }, [idleItems]);
+
+  /**
+   * عند اختيار «كل الشهور» مفيش فترة سابقة مكافئة للسنة، فبنقارن آخر شهر
+   * متاح بالشهر اللي قبله — نفس منطق buildPeriodComparison للمبيعات.
+   */
+  const beforeLatestMonthSales = useMemo(
+    () =>
+      latestMonth && latestMonth > 1
+        ? baseSales.filter((record) => Number(record.month) === latestMonth - 1)
+        : [],
+    [baseSales, latestMonth]
+  );
+
+  const kpiPreviousQuantity = useMemo(() => {
+    if (selectedMonth === 'all') {
+      return latestMonth ? buildPeriodTotals(beforeLatestMonthSales).quantity : 0;
+    }
+    return previousPeriodTotals.quantity;
+  }, [selectedMonth, latestMonth, beforeLatestMonthSales, previousPeriodTotals]);
+
+  const kpiPreviousItemsCount = useMemo(() => {
+    if (selectedMonth === 'all') {
+      return latestMonth ? buildPeriodTotals(beforeLatestMonthSales).itemsCount : 0;
+    }
+    return previousPeriodTotals.itemsCount;
+  }, [selectedMonth, latestMonth, beforeLatestMonthSales, previousPeriodTotals]);
+
+  const kpiGrowthCaption =
+    comparison.growthPct !== null ? 'مقارنة بالفترة السابقة' : 'نمو آخر شهر متاح';
 
   const customerInsights = useMemo(() => {
     const growthMap = buildCustomerGrowthMap(baseSales, growthMonth);
@@ -322,14 +406,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
   const alerts = useMemo(() => buildFollowUpAlerts(customerInsights), [customerInsights]);
 
-  const invoicesCount = useMemo(() => countDistinctOrders(filteredSales), [filteredSales]);
-  const ordersAvailable = useMemo(() => hasSalesOrderData(filteredSales), [filteredSales]);
-  const uniqueItemsCount = useMemo(
-    () => new Set(filteredSales.map((record) => record.itemCode || record.itemName)).size,
-    [filteredSales]
-  );
-  const totalQuantity = useMemo(() => sumSalesQuantity(filteredSales), [filteredSales]);
-
   const selectedCustomer = useMemo(
     () =>
       customerInsights.find((customer) => customer.customerAccount === selectedCustomerAccount) ||
@@ -337,47 +413,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       null,
     [customerInsights, selectedCustomerAccount]
   );
-
-  const recentOrders = useMemo(
-    () =>
-      selectedCustomer
-        ? buildCustomerRecentOrders(baseSales, selectedCustomer.customerAccount, 3)
-        : [],
-    [baseSales, selectedCustomer]
-  );
-
-  const selectedCustomerMonthlySales = useMemo(() => {
-    const monthly: Record<number, number> = {};
-    if (!selectedCustomer) return monthly;
-    const selectedAccount = selectedCustomer.customerAccount.trim().toLowerCase();
-    baseSales.forEach((record) => {
-      const account = (record.customerAccount || record.invoicingName || '').trim().toLowerCase();
-      if (account !== selectedAccount) return;
-      const month = Number(record.month);
-      if (!Number.isFinite(month)) return;
-      monthly[month] = (monthly[month] || 0) + (Number(record.amount) || 0);
-    });
-    return monthly;
-  }, [baseSales, selectedCustomer]);
-
-  const selectedCustomerFinancials = useMemo(() => {
-    if (!selectedCustomer) return null;
-    const matched = customers.find(
-      (customer) =>
-        customer.code === selectedCustomer.customerAccount ||
-        customer.name === selectedCustomer.customerAccount ||
-        customer.name === selectedCustomer.customerName
-    );
-    if (!matched) return null;
-    return {
-      currentBalance: matched.currentBalance ?? matched.balance ?? 0,
-      overdue: matched.totalOverdueAndDue ?? matched.overdueBalance ?? 0,
-      collections: matched.collections2026 ?? matched.totalOverallCollections ?? 0,
-      creditLimit: matched.creditLimit ?? 0,
-      lastCollectionDate: matched.lastCollectionDate,
-      lastCollectionAmount: matched.lastCollectionAmount ?? 0
-    };
-  }, [customers, selectedCustomer]);
 
   useEffect(() => {
     if (customerInsights.length === 0) {
@@ -471,11 +506,11 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-[#c99a43]" />
-              مبيعات العملاء بالصنف
+              تحليل مبيعات الأصناف
             </h1>
             <p className="text-[11px] sm:text-xs text-slate-500 max-w-3xl leading-relaxed">
-              تحليل شامل لحركات البيع الفعلية لكل عميل حسب الصنف والمجموعة والشهر، مع إمكانية البحث الفوري لكل مندوب
-              باسم العميل المربوط به، وتصدير إكسل نظيف وسريع.
+              لوحة تحليل صنفية شاملة: المبيعات والكميات، توزيع الفئات، أعلى وأقل الأصناف حركة، أداء المناديب،
+              وتحليل شهري للعملاء — كل الأرقام محسوبة من حركات البيع الفعلية وبنفس نطاق صلاحيات المستخدم.
             </p>
 
             <div className="pt-1 flex items-center gap-2 flex-wrap text-[10px]">
@@ -768,14 +803,50 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 <SlidersHorizontal className="w-3.5 h-3.5 text-amber-500" />
                 تصفية النتائج
               </h2>
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer"
-              >
-                <RotateCcw className="w-3 h-3" />
-                إعادة تعيين
-              </button>
+              <div className="flex items-center gap-1 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setSelectedMonth(latestMonth ?? 'all')}
+                  className={`h-7 px-2.5 rounded-lg text-[10px] font-black transition cursor-pointer ${
+                    selectedMonth !== 'all' && selectedMonth === latestMonth
+                      ? 'bg-[#102b4e] text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  هذا الشهر
+                </button>
+                <button
+                  type="button"
+                  onClick={() => previousMonth && setSelectedMonth(previousMonth)}
+                  disabled={!previousMonth}
+                  className={`h-7 px-2.5 rounded-lg text-[10px] font-black transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                    previousMonth && selectedMonth === previousMonth
+                      ? 'bg-[#102b4e] text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  الشهر السابق
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedMonth('all')}
+                  className={`h-7 px-2.5 rounded-lg text-[10px] font-black transition cursor-pointer ${
+                    selectedMonth === 'all'
+                      ? 'bg-[#102b4e] text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  كل الشهور
+                </button>
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="inline-flex items-center gap-1 h-7 px-2 text-[10px] font-bold text-slate-500 hover:text-slate-800 transition cursor-pointer"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  إعادة تعيين
+                </button>
+              </div>
             </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
@@ -908,63 +979,97 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
       {activeView === 'overview' ? (
         <>
-          <SalesKpiCards
+          <ItemSalesKpiCards
             comparison={comparison}
-            invoicesCount={invoicesCount}
-            hasOrders={ordersAvailable}
-            customersCount={customerSummaries.length}
-            itemsCount={uniqueItemsCount}
-            totalQuantity={totalQuantity}
-            topItem={topItems[0] || null}
+            totalQuantity={periodTotals.quantity}
+            previousQuantity={kpiPreviousQuantity}
+            itemsCount={periodTotals.itemsCount}
+            previousItemsCount={kpiPreviousItemsCount}
+            idleCount={idleItems.totalIdle}
+            idleCaption={idleCaption}
+            comparisonCaption={kpiGrowthCaption}
           />
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-            <div className="xl:col-span-8 space-y-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <TopItemsChartCard
-                  items={topItems}
-                  currentLabel={comparison.scopeLabel}
-                  previousLabel={
-                    previousMonth ? MONTH_NAMES_MAP[previousMonth] : null
-                  }
-                  onSelectItem={(itemCode) => {
-                    if (itemCode) setSearchTerm(itemCode);
-                  }}
-                />
-                <BranchShareCard
-                  branches={branchData.branches}
-                  totalAmount={branchData.totalAmount}
-                  totalCustomers={branchData.totalCustomers}
-                />
-              </div>
+            <div className="xl:col-span-5">
+              <CategoryMixCard
+                groups={groupMix.groups}
+                totalAmount={groupMix.totalAmount}
+                totalItems={groupMix.totalItems}
+                totalQuantity={groupMix.totalQuantity}
+                onSelectGroup={(group) => {
+                  if (group.startsWith('أخرى')) return;
+                  if (!distinctGroups.includes(group)) return;
+                  setSelectedGroup(group);
+                }}
+              />
+            </div>
+            <div className="xl:col-span-7">
+              <ItemRankingCard
+                variant="amount"
+                items={topItemsByValue}
+                subtitle={`${comparison.scopeLabel} • أعلى 10 أصناف بالقيمة`}
+                onSelectItem={(itemCode) => {
+                  if (itemCode) setSearchTerm(itemCode);
+                }}
+              />
+            </div>
+          </div>
 
-              <MonthlyTrendCard trend={monthlyTrend} selectedMonth={selectedMonth} />
-
-              <TopCustomersCard
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <div className="xl:col-span-7">
+              <MonthlyPerformanceCard
+                points={monthlyPerformance}
+                growth={monthlyPerformanceGrowth}
+                selectedMonth={selectedMonth}
+                onSelectMonth={(month) => setSelectedMonth(month)}
+              />
+            </div>
+            <div className="xl:col-span-5">
+              <TopCustomersTable
                 customers={customerInsights}
                 selectedAccount={selectedCustomer?.customerAccount || null}
                 onSelectCustomer={setSelectedCustomerAccount}
-                onStartOrder={onOpenNewOrderForCustomer ? handleStartOrderForCustomer : undefined}
                 onOpenAll={() => setActiveView('customers')}
-                onExport={handleExportExcel}
               />
             </div>
+          </div>
 
-            <div className="xl:col-span-4">
-              <CustomerInsightRail
-                customers={customerInsights}
-                selected={selectedCustomer}
-                alerts={alerts}
-                recentOrders={recentOrders}
-                selectedMonth={selectedMonth}
-                monthlyAmounts={selectedCustomerMonthlySales}
-                financial={selectedCustomerFinancials}
-                onSelectCustomer={setSelectedCustomerAccount}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <div className="xl:col-span-7">
+              <ItemRankingCard
+                variant="quantity"
+                items={topItemsByQuantity}
+                subtitle={`${comparison.scopeLabel} • أعلى 10 أصناف بالكمية`}
+                onSelectItem={(itemCode) => {
+                  if (itemCode) setSearchTerm(itemCode);
+                }}
+              />
+            </div>
+            <div className="xl:col-span-5">
+              <CustomerSnapshotCard
+                customer={selectedCustomer}
+                alert={alerts[0] || null}
                 onStartOrder={onOpenNewOrderForCustomer ? handleStartOrderForCustomer : undefined}
                 onOpenDetails={openCustomerDetails}
               />
             </div>
           </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+            <div className="xl:col-span-7">
+              <SlowMoversCard items={slowMovers} totalItems={periodTotals.itemsCount} />
+            </div>
+            <div className="xl:col-span-5">
+              <RepPerformanceCard
+                reps={repPerformance}
+                selectedRep={selectedRep}
+                onSelectRep={(rep) => setSelectedRep(rep === selectedRep ? 'all' : rep)}
+              />
+            </div>
+          </div>
+
+          <MonthlyCustomerAnalysisTable rows={monthlyCustomerRows} />
         </>
       ) : (
         <CustomerDossiers
