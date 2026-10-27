@@ -10,6 +10,7 @@ export interface User {
   password?: string;
   role: UserRole;
   branchName: string;
+  sector?: 'home' | 'electrical' | 'both' | 'all';
   code?: string;
   supervisorName?: string;
   supervisorId?: string;
@@ -93,6 +94,7 @@ export interface Product {
   price?: number;                    // السعر العام / سعر القطعة (مرادف اختياري للتوافق)
   cartonPrice: number;               // سعر الكرتونة (Factor * Sales Price)
   branchName: string;                // اسم الفرع
+  sector?: 'home' | 'electrical' | 'both' | 'all';  // القطاع (منزلي / كهربائي)
   imageUrl?: string;                 // رابط الصورة المباشر
   cloudinaryPublicId?: string;       // معرّف Cloudinary
   barcode?: string;

@@ -3,6 +3,13 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
+// Apply dark mode before render to prevent flash
+try {
+  if (localStorage.getItem('tantawy_dark_mode') === 'true') {
+    document.documentElement.classList.add('dark');
+  }
+} catch {}
+
 const CHUNK_RECOVERY_KEY = 'tantawy:chunk-recovery';
 
 window.addEventListener('vite:preloadError', (event) => {

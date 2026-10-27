@@ -16,6 +16,40 @@ import { supabase } from './supabaseService';
 import { parseNumericValue } from './numericParsing';
 
 export const ITEM_SALES_STORAGE_KEY = 'tantawy_customer_item_sales_v1';
+export const ITEM_SALES_ARCHIVE_KEY = 'tantawy_customer_item_sales_archive_v1';
+
+export async function getArchivedCustomerItemSales(): Promise<CustomerItemSaleRecord[]> {
+  if (typeof window === 'undefined') return [];
+  try {
+    const idbData = await idbGet<CustomerItemSaleRecord[]>(ITEM_SALES_ARCHIVE_KEY);
+    if (Array.isArray(idbData)) return idbData;
+    const raw = window.localStorage.getItem(ITEM_SALES_ARCHIVE_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function archiveOldCustomerItemSales(oldRecords: CustomerItemSaleRecord[]): Promise<void> {
+  if (typeof window === 'undefined' || oldRecords.length === 0) return;
+  try {
+    const existing = await getArchivedCustomerItemSales();
+    const map = new Map<string, CustomerItemSaleRecord>();
+    existing.forEach((r) => {
+      const key = r.customerAccount + '||' + r.itemCode + '||' + r.month + '||' + (r.salesOrder || '');
+      map.set(key, r);
+    });
+    oldRecords.forEach((r) => {
+      const key = r.customerAccount + '||' + r.itemCode + '||' + r.month + '||' + (r.salesOrder || '');
+      map.set(key, { ...r, createdAt: r.createdAt || new Date().toISOString() });
+    });
+    const archived = Array.from(map.values());
+    await idbSet(ITEM_SALES_ARCHIVE_KEY, archived);
+    try { window.localStorage.setItem(ITEM_SALES_ARCHIVE_KEY, JSON.stringify(archived)); } catch {}
+  } catch {}
+}
 
 // Fast in-memory cache so uploaded 11,000 rows are immediately available across views
 let inMemoryItemSalesCache: CustomerItemSaleRecord[] | null = null;
@@ -966,18 +1000,39 @@ export async function clearCustomerItemSales(): Promise<void> {
 /**
  * Save Customer Item Sales to storage (In-memory + IndexedDB primary + localStorage cache + window event)
  */
-export async function saveCustomerItemSales(sales: CustomerItemSaleRecord[]): Promise<void> {
-  inMemoryItemSalesCache = sales;
+export async function saveCustomerItemSales(sales: CustomerItemSaleRecord[], mode: 'replace' | 'merge' = 'replace'): Promise<void> {
+  let finalSales = sales;
+  if (mode === 'merge') {
+    try {
+      const existing = await getSavedCustomerItemSales();
+      const newKeys = new Set(sales.map((r) => r.customerAccount + '||' + r.itemCode + '||' + r.month + '||' + (r.salesOrder || '')));
+      const oldRecords = existing.filter((r) => !newKeys.has(r.customerAccount + '||' + r.itemCode + '||' + r.month + '||' + (r.salesOrder || '')));
+      if (oldRecords.length > 0) {
+        archiveOldCustomerItemSales(oldRecords).catch(() => {});
+      }
+      const map = new Map();
+      existing.forEach((r) => {
+        const key = r.customerAccount + '||' + r.itemCode + '||' + r.month + '||' + (r.salesOrder || '');
+        map.set(key, r);
+      });
+      sales.forEach((r) => {
+        const key = r.customerAccount + '||' + r.itemCode + '||' + r.month + '||' + (r.salesOrder || '');
+        map.set(key, r);
+      });
+      finalSales = Array.from(map.values());
+    } catch {}
+  }
+  inMemoryItemSalesCache = finalSales;
   if (typeof window === 'undefined') return;
   // Primary: IndexedDB (high capacity)
   try {
-    await idbSet(ITEM_SALES_STORAGE_KEY, sales);
+    await idbSet(ITEM_SALES_STORAGE_KEY, finalSales);
   } catch (err) {
     console.warn('Customer item sales IndexedDB save note:', err);
   }
   // Cache: localStorage (best-effort, may fail for large datasets)
   try {
-    window.localStorage.setItem(ITEM_SALES_STORAGE_KEY, JSON.stringify(sales));
+    window.localStorage.setItem(ITEM_SALES_STORAGE_KEY, JSON.stringify(finalSales));
   } catch {
     // Quota exceeded - data is safely in IndexedDB
     try { window.localStorage.removeItem(ITEM_SALES_STORAGE_KEY); } catch {}
@@ -986,7 +1041,7 @@ export async function saveCustomerItemSales(sales: CustomerItemSaleRecord[]): Pr
   try {
     window.dispatchEvent(
       new CustomEvent('tantawy-customer-item-sales-updated', {
-        detail: { count: sales.length, timestamp: Date.now() }
+        detail: { count: finalSales.length, timestamp: Date.now() }
       })
     );
   } catch {}

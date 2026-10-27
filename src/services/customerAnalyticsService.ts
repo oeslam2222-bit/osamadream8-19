@@ -41,28 +41,39 @@ export function filterCustomersByRBAC(
 ): Customer[] {
   if (!user) return [];
 
-  // Admin & Developer see all customers across all branches
+  // Admin & Developer see all customers across all branches and sectors
   if (user.role === 'admin' || user.role === 'developer') {
-    return customers;
+    // If user has sector 'all' or 'both', see everything
+    if (!user.sector || user.sector === 'all' || user.sector === 'both') {
+      return customers;
+    }
+    // Otherwise filter by sector
+    return customers.filter((c) => !c.sector || c.sector === user.sector || c.sector === 'both' || c.sector === 'all');
+  }
+
+  // Sector filtering for non-admin users
+  let sectorFiltered = customers;
+  if (user.sector && user.sector !== 'all' && user.sector !== 'both') {
+    sectorFiltered = customers.filter((c) => !c.sector || c.sector === user.sector || c.sector === 'both' || c.sector === 'all');
   }
 
   // Branch Manager only sees customers in his branch (matching direct branch name, or any rep in the branch)
   if (user.role === 'branch_manager') {
-    return customers.filter((c) =>
+    return sectorFiltered.filter((c) =>
       doesCustomerBelongToBranch(c, user.branchName, allUsers)
     );
   }
 
   // Supervisor sees customers in his branch and assigned to his supervised reps
   if (user.role === 'supervisor') {
-    return customers.filter((c) =>
+    return sectorFiltered.filter((c) =>
       doesCustomerBelongToSupervisor(c, user, allUsers)
     );
   }
 
   // Sales Rep ONLY sees his assigned customers
   if (user.role === 'sales_rep') {
-    return customers.filter((c) =>
+    return sectorFiltered.filter((c) =>
       doesCustomerBelongToRep(c, user)
     );
   }
