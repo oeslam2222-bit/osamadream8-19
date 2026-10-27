@@ -6506,22 +6506,30 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     return { total: list.length, completed, scheduled: list.filter((v) => v.status === 'مجدولة').length, lastVisit: list.filter((v) => v.status === 'منفذة').sort((a, b) => b.date.localeCompare(a.date))[0]?.date, nextVisit: list.filter((v) => v.status === 'مجدولة' && v.date >= new Date().toISOString().slice(0, 10)).sort((a, b) => a.date.localeCompare(b.date))[0]?.date };
   };
 
+  // helper: عزل البيانات حسب القطاع (منزلي / كهربائي / الكل)
+  const filterBySector = <T extends { sector?: 'home' | 'electrical' | 'both' | 'all' }>(items: T[], userSector?: string): T[] => {
+    if (!userSector || userSector === 'all' || userSector === 'both') return items;
+    return items.filter((item) => !item.sector || item.sector === userSector || item.sector === 'both' || item.sector === 'all');
+  };
+
   const getVisibleCustomers = (): Customer[] => {
     if (!currentUser) return [];
+    // القطاع: admin/developer يشاهدون كل القطاعات، 나머ج يُفلتر حسب قطاع المستخدم
+    const sectorFiltered = filterBySector(customers, currentUser.sector);
     if (currentUser.role === 'admin' || currentUser.role === 'developer') {
       return selectedBranchFilter === 'الكل'
-        ? customers
-        : customers.filter((c) => Boolean(c.branchName) && isBranchMatch(c.branchName, selectedBranchFilter, { allowUnassigned: false }));
+        ? sectorFiltered
+        : sectorFiltered.filter((c) => Boolean(c.branchName) && isBranchMatch(c.branchName, selectedBranchFilter, { allowUnassigned: false }));
     }
     if (currentUser.role === 'branch_manager') {
       if (!currentUser.branchName) return [];
-      return customers.filter((c) => doesCustomerBelongToBranch(c, currentUser.branchName, users));
+      return sectorFiltered.filter((c) => doesCustomerBelongToBranch(c, currentUser.branchName, users));
     }
     if (currentUser.role === 'supervisor') {
       const supervisedRepIds = new Set(
         users.filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id).map((u) => u.id)
       );
-      return customers.filter((c) => {
+      return sectorFiltered.filter((c) => {
         const isSameBranch = Boolean(c.branchName) && isBranchMatch(c.branchName, currentUser.branchName, { allowUnassigned: false });
         if (!isSameBranch) return false;
         if (c.repId && supervisedRepIds.has(c.repId)) return true;
@@ -6539,14 +6547,16 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       });
     }
     // Sales Rep: ONLY customers belonging directly to this rep
-    return customers.filter((c) => doesCustomerBelongToRep(c, currentUser));
+    return sectorFiltered.filter((c) => doesCustomerBelongToRep(c, currentUser));
   };
 
   const getVisibleProducts = (): Product[] => {
     // Admin/developer can audit every warehouse. Other roles receive only their branch stock;
     // never expose another branch's balances to the client view.
+    // القطاع: عزل البيانات حسب القطاع
+    const sectorFiltered = filterBySector(products, currentUser?.sector);
     if (!currentUser || currentUser.role === 'admin' || currentUser.role === 'developer') {
-      return products;
+      return sectorFiltered;
     }
 
     const branchName = currentUser.branchName;
@@ -6554,7 +6564,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     const isRep = currentUser.role === 'sales_rep';
 
-    return products.map((product) => {
+    return sectorFiltered.map((product) => {
       const branchStock = getBranchStockForProduct(product, branchName);
       return {
         ...product,

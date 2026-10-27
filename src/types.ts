@@ -356,6 +356,7 @@ export interface Customer {
   legalStatus?: string;              // حالة النزاع أو التسوية (pending, settlement, resolved, etc.)
   legalNotes?: string;               // إفادة المستشار القانوني
 
+  sector?: 'home' | 'electrical' | 'both' | 'all';  // القطاع (منزلي / كهربائي) - لعزل البيانات بين القطاعات
   notes?: string;
   createdAt?: string;
 }
