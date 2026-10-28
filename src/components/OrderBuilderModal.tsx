@@ -415,7 +415,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               type="button"
               onClick={() => {
                 if (cart.length > 0) setCurrentStep(2);
-                else setFeedbackError('يرجى إضافة أصناف إلى الفاتورة أولاً.');
+                else setFeedbackError('يرجى إضافة أصناف إلى الفات��رة أولاً.');
               }}
               className={`pill-filter p-2 text-xs flex items-center justify-center gap-1.5 cursor-pointer ${
                 currentStep === 2 ? 'on' : ''
@@ -703,24 +703,6 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     })}
                   </div>
 
-                  {/* Sticky Mobile/Desktop Step 1 Next Button */}
-                  <div className="sticky bottom-0 z-20 ord-sticky rounded-[var(--app-radius)] p-3 flex items-center justify-between gap-3 flex-wrap">
-                    <div>
-                      <div className="text-[11px] t-muted">إجمالي الفاتورة:</div>
-                      <div className="dream-amt t-navy text-sm sm:text-base">
-                        {formatCurrency(summary.grandTotal)} <span className="text-xs t-muted font-normal">({summary.totalCartons} كرتونة)</span>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setCurrentStep(2)}
-                      className="btn-primary ord-cta px-5 text-xs sm:text-sm cursor-pointer"
-                    >
-                      <span>متابعة: العميل والماليات (2/3)</span>
-                      <ArrowRight className="w-4 h-4 rotate-180" />
-                    </button>
-                  </div>
                 </div>
               )}
 
@@ -1259,7 +1241,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   <div className="bg-rose-50 border border-rose-200 rounded-[var(--app-btn-radius)] p-3 text-xs">
                     <div className="flex items-center gap-2 mb-1.5">
                       <AlertTriangle className="w-4 h-4 t-risk shrink-0" />
-                      <span className="font-black text-rose-800">تم تجاوز الحد الائتماني!</span>
+                      <span className="font-black text-rose-800">تم تجاوز الحد الائتما��ي!</span>
                     </div>
                     <div className="text-[10px] text-rose-700 space-y-0.5">
                       <div>رصيد العميل الحالي: <strong>{formatCurrency(balBefore)}</strong></div>
