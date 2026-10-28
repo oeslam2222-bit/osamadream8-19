@@ -648,14 +648,14 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
         <>
           {/* خلفية شفافة للإغلاق عند النقر بالخارج */}
           <div
-            className="fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[9998] bg-slate-900/30 backdrop-blur-[2px]"
             onClick={() => setIsOpen(false)}
             aria-hidden
           />
           <div
             role="dialog"
             aria-label="مركز الإشعارات"
-            className="absolute z-50 top-full right-0 mt-2 max-h-[82vh] overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl flex flex-col md:w-[420px] w-[92vw] animate-in fade-in zoom-in-95"
+            className="absolute z-[9999] top-full left-1/2 -translate-x-1/2 mt-2 max-h-[82vh] overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl flex flex-col w-[calc(100vw-1rem)] max-w-[420px] animate-in fade-in zoom-in-95"
           >
             {/* الترويسة الرئيسية */}
             <div className="p-3 border-b border-slate-100 bg-slate-50/90 space-y-2.5">
