@@ -886,7 +886,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
       {/* ===== Toast ===== */}
       {toast && (
         <div
-          className={`fixed bottom-20 left-1/2 -translate-x-1/2 z-50 ${toastStyles[toast.kind]} rounded-xl px-4 py-2.5 text-[12px] font-bold shadow-lg flex items-center gap-2 max-w-[92vw]`}
+          className={`fixed bottom-20 left-1/2 -translate-x-1/2 z-[99999] ${toastStyles[toast.kind]} rounded-xl px-4 py-2.5 text-[12px] font-bold shadow-lg flex items-center gap-2 max-w-[92vw]`}
           role="status"
         >
           {toast.kind === 'success' ? (
