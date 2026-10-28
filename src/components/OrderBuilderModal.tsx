@@ -97,17 +97,14 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [unregisteredCustomerAddress, setUnregisteredCustomerAddress] = useState('');
 
   // Financial & Order Options
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('نقدي (كاش)');
+  // طريقة الدفع مأخوذة من بيانات العميل المسجل في قاعدة العملاء، أو "نقدي (كاش)" افتراضياً للبيع النقدي المباشر
+  const effectivePaymentMethod = useMemo<PaymentMethod>(() => {
+    if (!activeCustomer) return 'نقدي (كاش)';
+    const pt = (activeCustomer.paymentTerms || '').trim() as PaymentMethod;
+    const valid: PaymentMethod[] = ['نقدي (كاش)', 'آجل (30 يوم)', 'آجل (60 يوم)', 'تحويل بنكي', 'شيك'];
+    return valid.includes(pt) ? pt : 'نقدي (كاش)';
+  }, [activeCustomer]);
   const [invoiceNotes, setInvoiceNotes] = useState('');
-
-  // Payment method options with labels
-  const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: string }[] = [
-    { value: 'نقدي (كاش)', label: 'نقدي (كاش)', icon: '💵' },
-    { value: 'آجل (30 يوم)', label: 'آجل 30 يوم', icon: '⏳' },
-    { value: 'آجل (60 يوم)', label: 'آجل 60 يوم', icon: '⏳' },
-    { value: 'تحويل بنكي', label: 'تحويل بنكي', icon: '🏦' },
-    { value: 'شيك', label: 'شيك', icon: '🧾' },
-  ];
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
@@ -313,7 +310,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         repName: activeRepUser?.name || currentUser?.name || 'مندوب المبيعات',
         repId: activeRepUser?.id || currentUser?.id,
         branchName: effectiveCustomer.branchName || activeBranch,
-        paymentMethod: paymentMethod,
+        paymentMethod: effectivePaymentMethod,
         notes: invoiceNotes || `فاتورة مبيعات كاشير دريم - تسجيل بواسطة ${currentUser?.name || 'المندوب'}`,
         customerBalanceBefore: balBefore,
         customerCreditLimit: credLimit,
@@ -1100,25 +1097,17 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Payment Method Selector */}
+                  {/* Payment Method (from customer data - read only) */}
                   <div className="ord-card p-3 rounded-[var(--app-btn-radius)]">
-                    <div className="text-[10px] t-muted font-bold mb-2">طريقة السداد:</div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                      {PAYMENT_METHODS.map((pm) => (
-                        <button
-                          key={pm.value}
-                          type="button"
-                          onClick={() => setPaymentMethod(pm.value)}
-                          className={`px-3 py-2 rounded-[var(--app-btn-radius)] text-xs font-bold border flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                            paymentMethod === pm.value
-                              ? 'bg-[var(--app-navy)] text-white border-[var(--app-navy)] shadow-sm'
-                              : 'bg-white border-[var(--app-line)] text-[var(--app-ink)] hover:bg-slate-50'
-                          }`}
-                        >
-                          <span className="text-sm">{pm.icon}</span>
-                          <span>{pm.label}</span>
-                        </button>
-                      ))}
+                    <div className="text-[10px] t-muted font-bold mb-2">طريقة السداد (من بيانات العميل):</div>
+                    <div className="flex items-center gap-2 border border-[var(--app-line)] rounded-[var(--app-btn-radius)] p-2 bg-white/50">
+                      <span className={`text-xs font-bold ${effectivePaymentMethod === 'نقدي (كاش)' ? 't-ok' : 't-warn'}`}>
+                        {effectivePaymentMethod === 'نقدي (كاش)' ? '💵' : '⏳'}
+                      </span>
+                      <span className="text-xs font-black">{effectivePaymentMethod}</span>
+                      {activeCustomer && !activeCustomer.paymentTerms && (
+                        <span className="text-[10px] text-slate-400 ml-auto">(غير محدد - كافتراضي كاش)</span>
+                      )}
                     </div>
                   </div>
 
@@ -1257,19 +1246,12 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   <label className="text-xs font-bold text-[var(--app-ink)] block mb-1.5">
                     طريقة السداد:
                   </label>
-                  {PAYMENT_METHODS.map((pm) => (
-                    <div
-                      key={pm.value}
-                      className={`p-2.5 rounded-[var(--app-btn-radius)] text-xs font-bold flex items-center gap-2 border transition-all ${
-                        paymentMethod === pm.value
-                          ? 'bg-[var(--app-navy)] text-white border-[var(--app-navy)]'
-                          : 'bg-white border-[var(--app-line)] text-[var(--app-ink)] hover:bg-slate-50'
-                      }`}
-                    >
-                      <span className="text-xs">{pm.icon}</span>
-                      <span>{pm.label}</span>
+                    <div className="p-2.5 rounded-[var(--app-btn-radius)] text-xs font-bold flex items-center gap-2 border border-[var(--app-line)] bg-white/50">
+                      <span className={`text-xs font-bold ${effectivePaymentMethod === 'نقدي (كاش)' ? 't-ok' : 't-warn'}`}>
+                        {effectivePaymentMethod === 'نقدي (كاش)' ? '💵' : '⏳'}
+                      </span>
+                      <span className="text-xs font-black">{effectivePaymentMethod}</span>
                     </div>
-                  ))}
                 </div>
 
                 {/* Credit Limit Warning in Step 3 */}
