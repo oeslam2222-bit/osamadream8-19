@@ -4287,7 +4287,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     // Sales reps only submit a request. Approval, transfer, and stock deduction belong to supervisors/managers.
     const isDirectManager = currentUser?.role === 'admin' || currentUser?.role === 'branch_manager';
-    const initialStatus: OrderStatus = isDirectManager ? 'معتمدة ومصروفة من المخزن' : 'قيد مراجعة المشرف';
+    const initialStatus: OrderStatus =
+      currentUser?.role === 'admin' || currentUser?.role === 'developer'
+        ? 'معتمدة'
+        : currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager'
+          ? 'في انتظار اعتماد الإدارة'
+          : 'قيد مراجعة المشرف';
 
     // Resolved order branch (e.g. فرع ديمشلت or employee's assigned branch)
     const defaultBranch = currentUser?.branchName || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)';
