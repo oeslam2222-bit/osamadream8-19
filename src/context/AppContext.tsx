@@ -3608,6 +3608,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     phone: string;
     branchName: string;
     role: UserRole;
+    sector?: 'home' | 'electrical' | 'both' | 'all';
     supervisorId?: string;
   }): Promise<{ success: boolean; message: string }> => {
     const existing = users.find(
@@ -3629,6 +3630,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       phone: userData.phone.trim(),
       branchName: userData.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
       role: userData.role || 'sales_rep',
+      sector: userData.sector || 'home',
       supervisorId: userData.supervisorId,
       isActive: true,
       approvalStatus: userData.role === 'developer' || userData.role === 'admin' ? 'active' : 'pending_approval', // Requires admin approval for reps
