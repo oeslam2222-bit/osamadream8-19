@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  CreditCard,
   FileText,
   Flame,
   Grid,
@@ -98,8 +97,17 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [unregisteredCustomerAddress, setUnregisteredCustomerAddress] = useState('');
 
   // Financial & Order Options
-  const paymentMethod: PaymentMethod = 'نقدي (كاش)';
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('نقدي (كاش)');
   const [invoiceNotes, setInvoiceNotes] = useState('');
+
+  // Payment method options with labels
+  const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: string }[] = [
+    { value: 'نقدي (كاش)', label: 'نقدي (كاش)', icon: '💵' },
+    { value: 'آجل (30 يوم)', label: 'آجل 30 يوم', icon: '⏳' },
+    { value: 'آجل (60 يوم)', label: 'آجل 60 يوم', icon: '⏳' },
+    { value: 'تحويل بنكي', label: 'تحويل بنكي', icon: '🏦' },
+    { value: 'شيك', label: 'شيك', icon: '🧾' },
+  ];
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
@@ -337,6 +345,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const overdueBal = resolveCustomerDuesValue(activeCustomer);
   const creditLimitVal = Number(activeCustomer?.creditLimit ?? 0);
   const isCreditExceeded = creditLimitVal > 0 && balAfter > creditLimitVal;
+  const remainingCredit = creditLimitVal > 0 ? Math.max(0, creditLimitVal - balAfter) : 0;
 
   return (
     <div
@@ -1079,6 +1088,38 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                         {formatCurrency(balAfter)}
                       </div>
                     </div>
+
+                    {/* KPI 5: Remaining Credit */}
+                    <div className={`ord-card p-3 rounded-[var(--app-btn-radius)] ${isCreditExceeded ? 'border-rose-200 bg-rose-50' : ''}`}>
+                      <div className={`text-[10px] font-bold ${isCreditExceeded ? 't-risk' : 't-ok'}`}>
+                        المتبقي من الحد الائتماني:
+                      </div>
+                      <div className={`dream-amt text-sm sm:text-base mt-0.5 ${isCreditExceeded ? 't-risk' : 't-ok'}`}>
+                        {creditLimitVal > 0 ? formatCurrency(remainingCredit) : 'غير محدود'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Method Selector */}
+                  <div className="ord-card p-3 rounded-[var(--app-btn-radius)]">
+                    <div className="text-[10px] t-muted font-bold mb-2">طريقة السداد:</div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                      {PAYMENT_METHODS.map((pm) => (
+                        <button
+                          key={pm.value}
+                          type="button"
+                          onClick={() => setPaymentMethod(pm.value)}
+                          className={`px-3 py-2 rounded-[var(--app-btn-radius)] text-xs font-bold border flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                            paymentMethod === pm.value
+                              ? 'bg-[var(--app-navy)] text-white border-[var(--app-navy)] shadow-sm'
+                              : 'bg-white border-[var(--app-line)] text-[var(--app-ink)] hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="text-sm">{pm.icon}</span>
+                          <span>{pm.label}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Guarantee docs and warning */}
@@ -1211,15 +1252,43 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
               {/* Payment Method & Notes */}
               <div className="ord-card p-4 space-y-4">
-                {/* Payment Method (Cash Only) */}
+                {/* Payment Method */}
                 <div>
                   <label className="text-xs font-bold text-[var(--app-ink)] block mb-1.5">
                     طريقة السداد:
                   </label>
-                  <div className="p-2 rounded-[var(--app-btn-radius)] text-xs font-black text-center bg-[var(--app-navy)] text-white">
-                    نقدي (كاش)
-                  </div>
+                  {PAYMENT_METHODS.map((pm) => (
+                    <div
+                      key={pm.value}
+                      className={`p-2.5 rounded-[var(--app-btn-radius)] text-xs font-bold flex items-center gap-2 border transition-all ${
+                        paymentMethod === pm.value
+                          ? 'bg-[var(--app-navy)] text-white border-[var(--app-navy)]'
+                          : 'bg-white border-[var(--app-line)] text-[var(--app-ink)] hover:bg-slate-50'
+                      }`}
+                    >
+                      <span className="text-xs">{pm.icon}</span>
+                      <span>{pm.label}</span>
+                    </div>
+                  ))}
                 </div>
+
+                {/* Credit Limit Warning in Step 3 */}
+                {activeCustomer && creditLimitVal > 0 && isCreditExceeded && (
+                  <div className="bg-rose-50 border border-rose-200 rounded-[var(--app-btn-radius)] p-3 text-xs">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <AlertTriangle className="w-4 h-4 t-risk shrink-0" />
+                      <span className="font-black text-rose-800">تم تجاوز الحد الائتماني!</span>
+                    </div>
+                    <div className="text-[10px] text-rose-700 space-y-0.5">
+                      <div>رصيد العميل الحالي: <strong>{formatCurrency(balBefore)}</strong></div>
+                      <div>قيمة الفاتورة: <strong>{formatCurrency(summary.grandTotal)}</strong></div>
+                      <div>الرصيد بعد الفاتورة: <strong className="text-rose-800">{formatCurrency(balAfter)}</strong></div>
+                      <div>الحد الائتماني المعتمد: <strong>{formatCurrency(creditLimitVal)}</strong></div>
+                      <div>تجاوز الحد بمقدار: <strong className="font-black text-rose-800">{formatCurrency(balAfter - creditLimitVal)}</strong></div>
+                      <div className="text-[10px] opacity-80 mt-1">سيتم إرسال الفاتورة لاعتماد المشرف ومدير الفرع قبل التنفيذ.</div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Rep Notes */}
                 <div>
@@ -1246,6 +1315,16 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   <span>رصيد العميل بعد إضافة هذه الفاتورة:</span>
                   <span className="dream-amt t-navy">{formatCurrency(balAfter)}</span>
                 </div>
+                {creditLimitVal > 0 && (
+                  <div className="flex items-center justify-between pt-1 text-[11px]">
+                    <span className={`font-bold ${isCreditExceeded ? 't-risk' : 't-ok'}`}>
+                      المتبقي من الحد الائتماني بعد الفاتورة:
+                    </span>
+                    <span className={`dream-amt ${isCreditExceeded ? 't-risk' : 't-ok'}`}>
+                      {formatCurrency(remainingCredit)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Step 3 Bottom Action Bar */}
