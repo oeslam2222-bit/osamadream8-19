@@ -617,7 +617,6 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
 
   const displayedNotifications = filterMode === 'unread' ? unreadNotifications : notifications;
 
-  return (
     <div className="relative">
       {/* زر الجرس — مثل فيسبوك: يظهر الرقم فقط إذا كانت هناك إشعارات غير مقروءة، ويختفي تماماً عند القراءة */}
       <button
@@ -656,7 +655,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
           <div
             role="dialog"
             aria-label="مركز الإشعارات"
-            className="fixed z-50 top-16 right-0 max-h-[82vh] overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl flex flex-col md:top-14 md:w-[420px] w-[92vw] animate-in fade-in zoom-in-95"
+            className="absolute z-50 top-full right-0 mt-2 max-h-[82vh] overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-2xl flex flex-col md:w-[420px] w-[92vw] animate-in fade-in zoom-in-95"
           >
             {/* الترويسة الرئيسية */}
             <div className="p-3 border-b border-slate-100 bg-slate-50/90 space-y-2.5">
