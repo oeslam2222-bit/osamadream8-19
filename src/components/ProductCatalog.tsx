@@ -34,7 +34,6 @@ import {
   Upload,
   RefreshCw,
   Star,
-  ShieldCheck,
   Truck,
   User,
   SlidersHorizontal,
@@ -113,23 +112,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
 
   // Data Confidentiality Mode (سرية البيانات - إخفاء الأسعار الحساسة وهوامش الربح وأرصدة العملاء)
-  const [isConfidentialMode, setIsConfidentialMode] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('catalog_confidential_mode') === 'true';
-    } catch {
-      return false;
-    }
-  });
+  const [isConfidentialMode] = useState<boolean>(false);  // Privacy toggle removed: prices always visible
 
-  const toggleConfidentialMode = () => {
-    setIsConfidentialMode((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem('catalog_confidential_mode', String(next));
-      } catch {}
-      return next;
-    });
-  };
+
 
   // Auto-open cart drawer when customer is selected so user sees their financial details immediately
   useEffect(() => {
@@ -1070,20 +1055,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <option value="name_asc">الاسم (أ - ي)</option>
           </select>
 
-          {/* Confidentiality Toggle (Privacy Mode) */}
-          <button
-            type="button"
-            onClick={toggleConfidentialMode}
-            className={`h-10 sm:h-11 px-2.5 sm:px-3 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
-              isConfidentialMode
-                ? 'bg-amber-light text-warn border-[var(--app-accent)]'
-                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-[color:var(--app-line)]'
-            }`}
-            title={isConfidentialMode ? 'وضع السرية مفعّل (الأسعار محجوبة أمام العميل) - انقر للإظهار' : 'إخفاء الأسعار أمام العميل (وضع السرية)'}
-          >
-            <ShieldCheck className={`w-4 h-4 ${isConfidentialMode ? 'text-amber-600' : 'text-slate-400'}`} />
-            <span className="hidden md:inline">{isConfidentialMode ? 'الأسعار محجوبة' : 'وضع السرية'}</span>
-          </button>
 
           {/* View Mode Toggle: شبكة / جدول */}
           <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-[color:var(--app-line)] h-10 sm:h-11 shrink-0">
@@ -1263,6 +1234,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     className="relative aspect-square bg-amber-50/40 overflow-hidden cursor-pointer flex items-center justify-center p-2.5 border-b border-slate-200"
                     onClick={() => {
                       const img = getProductImageUrl(product, cloudinaryConfig);
+                      // لا تفتح المشغل إذا كان الصنف مالهاش صورة حقيقية (فقط placeholder SVG)
+                      if (!img || img.startsWith('data:image/svg+xml')) return;
                       setLightboxImage({ src: img, alt: product.name });
                     }}
                   >
