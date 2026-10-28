@@ -183,7 +183,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'all_customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'customer_item_sales', label: 'مبيعات الأصناف', icon: BarChart3, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'dashboard', label: 'المتابعة', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'developer'] },
     { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'visits', label: 'الزيارات', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
@@ -668,7 +667,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         <>
             {[
               { id: 'home', label: 'الرئيسية', icon: Home },
-              { id: 'customer_item_sales', label: 'الأصناف', icon: BarChart3 },
               { id: 'all_customers', label: 'العملاء', icon: Users },
               { id: 'invoices', label: 'الفواتير', icon: Receipt },
               { id: 'catalog', label: 'الكتالوج', icon: Boxes, badge: cartSummary.itemCount },
