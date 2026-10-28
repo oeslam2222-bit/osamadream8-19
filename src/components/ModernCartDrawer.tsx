@@ -314,17 +314,17 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
           {/* Cart Items List */}
           <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3">
             {cart.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
-                <div className="w-16 h-16 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
-                  <ShoppingCart className="w-8 h-8 stroke-1" />
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3">
+                  <div className="w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center">
+                    <ShoppingCart className="w-8 h-8 stroke-1" />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-slate-800 dark:text-slate-200 text-sm">سلة الطلبية فارغة</h4>
+                    <p className="text-xs text-slate-400 dark:text-slate-400/70 mt-1 max-w-xs">
+                      تصفح الكتالوج واضغط على "أضف للسلة" لأي صنف لإضافته مباشرة للطلبية.
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-black text-slate-800 text-sm">سلة الطلبية فارغة</h4>
-                  <p className="text-xs text-slate-400 mt-1 max-w-xs">
-                    تصفح الكتالوج واضغط على "أضف للسلة" لأي صنف لإضافته مباشرة للطلبية.
-                  </p>
-                </div>
-              </div>
             ) : (
               cart.map((item) => {
                 const p = item.product;
@@ -335,10 +335,10 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
                 return (
                   <div
                     key={p.id}
-                    className="bg-white rounded-2xl border border-[var(--app-line)] p-3 shadow-xs flex items-center gap-3 hover:border-slate-300 transition"
+                    className="bg-white dark:bg-slate-800 rounded-2xl border border-[var(--app-line)] p-3 shadow-xs flex items-center gap-3 hover:border-slate-300 dark:hover:border-slate-700 transition"
                   >
                     {/* Thumbnail */}
-                    <div className="w-14 h-14 rounded-xl bg-slate-50 border border-slate-100 overflow-hidden shrink-0 flex items-center justify-center">
+                    <div className="w-14 h-14 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 overflow-hidden shrink-0 flex items-center justify-center">
                       <ProductImage
                         product={p}
                         sizeVariant="thumbnail"
@@ -348,13 +348,13 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
 
                     {/* Info */}
                     <div className="flex-1 min-w-0">
-                      <div className="font-black text-slate-900 text-xs sm:text-sm truncate">
+                      <div className="font-black text-slate-900 dark:text-slate-100 text-xs sm:text-sm truncate">
                         {p.name}
                       </div>
-                      <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                      <div className="text-[10px] text-slate-400 dark:text-slate-400/70 font-mono mt-0.5">
                         كود: {p.code} • {p.cartonQuantity ? `كرتونة ${p.cartonQuantity} قطعة` : 'قطعة'}
                       </div>
-                      <div className="text-xs font-black text-amber-700 mt-1 tabular-nums">
+                      <div className="text-xs font-black text-amber-700 dark:text-amber-400 mt-1 tabular-nums">
                         {formatCurrency(item.unitPrice)} ج <span className="text-[10px] text-slate-400 font-normal">/ {unitLabel}</span>
                       </div>
                     </div>
@@ -398,7 +398,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
                         </button>
                       </div>
 
-                      <div className="text-[11px] font-black text-slate-900 tabular-nums">
+                      <div className="text-[11px] font-black text-slate-900 dark:text-slate-100 tabular-nums">
                         {formatCurrency(item.totalPrice)} ج
                       </div>
                     </div>
@@ -410,7 +410,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
             {/* Rep Notes */}
             {cart.length > 0 && (
               <div className="pt-2">
-                <label className="text-[11px] font-bold text-slate-600 mb-1 block">
+                <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1 block">
                   ملاحظات الطلبية للمشرف (اختياري):
                 </label>
                 <input
