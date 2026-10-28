@@ -1,4 +1,4 @@
-﻿import {
+import {
   AlertCircle,
   AlertTriangle,
   ArrowUpDown,
@@ -848,20 +848,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               عرض {displayedProducts.length} من {products.length} صنفاً نشطاً • أسعار الجملة المعتمدة
             </p>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-          <button
-            type="button"
-            onClick={() => setIsCartDrawerOpen(true)}
-            className="flex-1 sm:flex-initial h-10 px-4 rounded-xl bg-[#0f233d] hover:bg-[#1a3861] text-[var(--app-accent)] font-black text-xs flex items-center justify-center gap-2 shadow-xs transition active:scale-95 cursor-pointer"
-          >
-            <ShoppingCart className="w-4 h-4" />
-            <span>سلة الطلبية</span>
-            <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full font-black text-[10px] tabular-nums">
-              {cart.length}
-            </span>
-          </button>
         </div>
       </section>
 
@@ -1794,57 +1780,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         }}
       />
 
-      {/* Sticky Mobile Bottom Cart Bar (Taager / Raneen B2B Mobile Style) */}
-      {cart.length > 0 && (
-        <div className="fixed bottom-[calc(62px+env(safe-area-inset-bottom)+0.5rem)] left-3 right-3 z-40 lg:hidden animate-in slide-in-from-bottom">
-          <div className="bg-[#0f233d] text-white p-2.5 px-3.5 rounded-2xl shadow-2xl border-2 border-amber-400 flex items-center justify-between gap-2.5">
-            <button
-              type="button"
-              onClick={() => setIsCartDrawerOpen(true)}
-              className="flex-1 min-w-0 flex items-center gap-2.5 text-right cursor-pointer"
-            >
-              <span className="relative w-10 h-10 rounded-xl bg-[var(--app-accent)] text-slate-950 flex items-center justify-center font-black shrink-0 shadow-sm">
-                <ShoppingCart className="w-5 h-5" />
-                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-rose-600 text-white text-[10px] font-black flex items-center justify-center px-1 tabular-nums">
-                  {cart.length}
-                </span>
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-xs font-black text-[var(--app-accent)] truncate">
-                  {selectedCustomer ? selectedCustomer.name : 'سلة الطلبية الحالية'}
-                </span>
-                <span className="block text-[11px] font-bold text-slate-200 truncate tabular-nums">
-                  {cart.length} أصناف • {formatCurrency(cartSummary.grandTotal)} ج
-                </span>
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsCartDrawerOpen(true)}
-              className="shrink-0 bg-[var(--app-accent)] hover:bg-amber-400 text-slate-950 px-4 py-2.5 rounded-xl font-black text-xs shadow-md transition active:scale-95 cursor-pointer"
-            >
-              إتمام الطلب
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Desktop Floating Cart Indicator (Amazon / Noon Style) */}
-      {cart.length > 0 && (
-        <button
-          type="button"
-          onClick={() => setIsCartDrawerOpen(true)}
-          className="fixed bottom-6 left-6 z-40 hidden lg:flex items-center gap-3 bg-[#0f233d] hover:bg-[#1a3861] text-white px-5 py-3 rounded-2xl shadow-2xl border-2 border-amber-400 cursor-pointer active:scale-95 transition"
-        >
-          <div className="w-10 h-10 rounded-xl bg-[var(--app-accent)] text-slate-950 flex items-center justify-center font-black shadow-sm">
-            <ShoppingCart className="w-5 h-5" />
-          </div>
-          <div className="text-right">
-            <div className="text-xs text-[var(--app-accent)] font-bold">السلة ({cart.length} أصناف)</div>
-            <div className="text-sm font-black tabular-nums">{formatCurrency(cartSummary.grandTotal)} ج.م • مراجعة الشراء</div>
-          </div>
-        </button>
-      )}
+      {/* Mobile Cart Floating Bar removed as requested by user */}
 
       {/* Wipe All Data Confirmation Modal (Admin & Developer Only) */}
       {isAdminOrDev && isWipeModalOpen && (

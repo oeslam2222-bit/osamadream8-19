@@ -9,47 +9,91 @@ export type PublishedDataSource = {
 };
 
 export type PublishedDataSources = {
+  // Household sector (قطاع الأدوات المنزلية)
   customers: PublishedDataSource;
   customerSales: PublishedDataSource;
   products: PublishedDataSource;
   targets: PublishedDataSource;
   offers: PublishedDataSource;
+  // Electrical sector (قطاع الأدوات الكهربائية)
+  customers_electrical: PublishedDataSource;
+  customerSales_electrical: PublishedDataSource;
+  products_electrical: PublishedDataSource;
+  targets_electrical: PublishedDataSource;
+  offers_electrical: PublishedDataSource;
 };
 
 const STORAGE_KEY = 'dream_dist_published_data_sources_v1';
 
 const defaultSources: PublishedDataSources = {
+  // قطاع الأدوات المنزلية
   customers: {
     kind: 'google_sheets',
-    label: 'شيت العملاء والمديونيات (Google Sheets)',
+    label: 'شيت عملاء ومديونيات قطاع الأدوات المنزلية (Google Sheets)',
     url: '',
     enabled: false,
     updatedAt: '',
   },
   customerSales: {
     kind: 'google_sheets',
-    label: 'شيت مبيعات العملاء بالصنف (Google Sheets)',
+    label: 'شيت مبيعات عملاء المنزلي بالأصناف (Google Sheets)',
     url: '',
     enabled: false,
     updatedAt: '',
   },
   products: {
     kind: 'google_sheets',
-    label: 'شيت الأصناف والمخزون والأسعار (Google Sheets)',
+    label: 'شيت أصناف وكتالوج الأدوات المنزلية والأسعار (Google Sheets)',
     url: '',
     enabled: false,
     updatedAt: '',
   },
   targets: {
     kind: 'google_sheets',
-    label: 'شيت أهداف ومبيعات وتحصيلات المناديب (Google Sheets)',
+    label: 'شيت أهداف وتارجت قطاع الأدوات المنزلية (Google Sheets)',
     url: '',
     enabled: false,
     updatedAt: '',
   },
   offers: {
     kind: 'google_sheets',
-    label: 'شيت العروض الترويجية والخصومات وجدول العروض (Google Sheets)',
+    label: 'شيت عروض وتخفيضات قطاع الأدوات المنزلية (Google Sheets)',
+    url: '',
+    enabled: false,
+    updatedAt: '',
+  },
+  // قطاع الكهرباء
+  customers_electrical: {
+    kind: 'google_sheets',
+    label: 'شيت عملاء ومديونيات قطاع الكهرباء (Google Sheets)',
+    url: '',
+    enabled: false,
+    updatedAt: '',
+  },
+  customerSales_electrical: {
+    kind: 'google_sheets',
+    label: 'شيت مبيعات عملاء الكهرباء بالأصناف (Google Sheets)',
+    url: '',
+    enabled: false,
+    updatedAt: '',
+  },
+  products_electrical: {
+    kind: 'google_sheets',
+    label: 'شيت أصناف وكتالوج قطاع الكهرباء والأسعار (Google Sheets)',
+    url: '',
+    enabled: false,
+    updatedAt: '',
+  },
+  targets_electrical: {
+    kind: 'google_sheets',
+    label: 'شيت أهداف وتارجت قطاع الكهرباء (Google Sheets)',
+    url: '',
+    enabled: false,
+    updatedAt: '',
+  },
+  offers_electrical: {
+    kind: 'google_sheets',
+    label: 'شيت عروض وتخفيضات قطاع الكهرباء (Google Sheets)',
     url: '',
     enabled: false,
     updatedAt: '',
@@ -88,6 +132,31 @@ export function getPublishedDataSources(): PublishedDataSources {
         ...(parsed.offers || {}),
         kind: 'google_sheets',
       },
+      customers_electrical: {
+        ...defaultSources.customers_electrical,
+        ...(parsed.customers_electrical || {}),
+        kind: 'google_sheets',
+      },
+      customerSales_electrical: {
+        ...defaultSources.customerSales_electrical,
+        ...(parsed.customerSales_electrical || {}),
+        kind: 'google_sheets',
+      },
+      products_electrical: {
+        ...defaultSources.products_electrical,
+        ...(parsed.products_electrical || {}),
+        kind: 'google_sheets',
+      },
+      targets_electrical: {
+        ...defaultSources.targets_electrical,
+        ...(parsed.targets_electrical || {}),
+        kind: 'google_sheets',
+      },
+      offers_electrical: {
+        ...defaultSources.offers_electrical,
+        ...(parsed.offers_electrical || {}),
+        kind: 'google_sheets',
+      },
     };
   } catch {
     return defaultSources;
@@ -103,6 +172,11 @@ export function savePublishedDataSources(sources: PublishedDataSources): void {
     products: { ...sources.products, kind: 'google_sheets' },
     targets: { ...sources.targets, kind: 'google_sheets' },
     offers: { ...(sources.offers || defaultSources.offers), kind: 'google_sheets' },
+    customers_electrical: { ...(sources.customers_electrical || defaultSources.customers_electrical), kind: 'google_sheets' },
+    customerSales_electrical: { ...(sources.customerSales_electrical || defaultSources.customerSales_electrical), kind: 'google_sheets' },
+    products_electrical: { ...(sources.products_electrical || defaultSources.products_electrical), kind: 'google_sheets' },
+    targets_electrical: { ...(sources.targets_electrical || defaultSources.targets_electrical), kind: 'google_sheets' },
+    offers_electrical: { ...(sources.offers_electrical || defaultSources.offers_electrical), kind: 'google_sheets' },
   };
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(sanitized));
 }

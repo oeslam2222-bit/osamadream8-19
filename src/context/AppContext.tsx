@@ -612,7 +612,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const getVisibleTargets = () => {
-    return filterTargetsForUser(targets, currentUser, users, customers);
+    const scoped = filterBySector(targets, currentUser?.sector);
+    return filterTargetsForUser(scoped, currentUser, users, customers);
   };
 
   const importTargetsFromExcel = async (file: File): Promise<{ success: boolean; count: number; message: string }> => {
@@ -3018,8 +3019,20 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       return !c.sector || c.sector === userSector || c.sector === 'both' || c.sector === 'all';
     });
 
-    // 'replace' is the admin's authoritative sheet: drop the local list entirely
-    const finalCustomers = mode === 'replace' ? sectorFilteredIncoming : deduplicateCustomersArray([...customers, ...sectorFilteredIncoming]);
+    // 'replace' is the admin's authoritative sheet for that sector: preserve other sectors
+    const incomingSectors = new Set(sectorFilteredIncoming.map((c) => c.sector).filter(Boolean));
+    let finalCustomers: Customer[] = [];
+    if (mode === 'replace') {
+      if (incomingSectors.size === 1 && (incomingSectors.has('electrical') || incomingSectors.has('home'))) {
+        const targetSector = Array.from(incomingSectors)[0];
+        const otherSectorCustomers = customers.filter((c) => c.sector && c.sector !== targetSector);
+        finalCustomers = deduplicateCustomersArray([...otherSectorCustomers, ...sectorFilteredIncoming]);
+      } else {
+        finalCustomers = sectorFilteredIncoming;
+      }
+    } else {
+      finalCustomers = deduplicateCustomersArray([...customers, ...sectorFilteredIncoming]);
+    }
     idbSet(STORAGE_KEYS.CUSTOMERS, finalCustomers).catch(() => {});
     setCustomers(finalCustomers);
     authoritativeWriteAtRef.current = Date.now();
@@ -4146,7 +4159,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     let finalUpdated: Product[] = [];
     if (mode === 'replace') {
-      finalUpdated = sanitizeProducts(processedIncoming);
+      const incomingSectors = new Set(processedIncoming.map((p) => p.sector).filter(Boolean));
+      if (incomingSectors.size === 1 && (incomingSectors.has('electrical') || incomingSectors.has('home'))) {
+        const targetSector = Array.from(incomingSectors)[0];
+        const otherSectorProducts = products.filter((p) => p.sector && p.sector !== targetSector);
+        finalUpdated = sanitizeProducts([...otherSectorProducts, ...processedIncoming]);
+      } else {
+        finalUpdated = sanitizeProducts(processedIncoming);
+      }
       setProducts(finalUpdated);
     } else {
       // Upsert: update matched existing items and append genuinely new codes
@@ -4478,6 +4498,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       customerOverdueBalance: custOverdue,
       creditLimitExceeded: isCreditExceeded,
       requiredDownPayment: reqPayment,
+      sector: (currentUser?.sector && currentUser.sector !== 'all' && currentUser.sector !== 'both')
+        ? currentUser.sector
+        : (matchedCustomer?.sector || 'home'),
       qrPayload: `DREAM-EINV-${newInvoiceNumber}|${orderData.customerTaxNumber || 'GEN'}|${primaryTotals.estimatedGrandTotal.toFixed(2)}|${primaryTotals.taxAmount.toFixed(2)}|${formattedDate}`,
     };
 
@@ -5838,17 +5861,19 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const getVisibleInvoices = (): Invoice[] => {
     if (!currentUser) return [];
 
+    const scopedInvoices = filterBySector(invoices, currentUser.sector);
+
     // Admin & Developer: Full oversight, filtered by branch selector if selected
     if (currentUser.role === 'admin' || currentUser.role === 'developer') {
       return selectedBranchFilter === 'الكل'
-        ? invoices
-        : invoices.filter((i) => Boolean(i.branchName) && isBranchMatch(i.branchName, selectedBranchFilter, { allowUnassigned: false }));
+        ? scopedInvoices
+        : scopedInvoices.filter((i) => Boolean(i.branchName) && isBranchMatch(i.branchName, selectedBranchFilter, { allowUnassigned: false }));
     }
 
     // Branch Manager: STRICTLY sees ONLY invoices of his own branch
     if (currentUser.role === 'branch_manager') {
       if (!currentUser.branchName) return [];
-      return invoices.filter((i) => {
+      return scopedInvoices.filter((i) => {
         if (i.branchName && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false })) return true;
         const c = customers.find((cust) => cust.id === i.customerId);
         return Boolean(c && doesCustomerBelongToBranch(c, currentUser.branchName, users));
@@ -5863,7 +5888,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   .filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id)
   .map((u) => u.id)
   );
-  return invoices.filter((i) => {
+  return scopedInvoices.filter((i) => {
     const isSameBranch = Boolean(i.branchName) && isBranchMatch(i.branchName, currentUser.branchName, { allowUnassigned: false });
     const isSupervisedRep = Boolean(i.repId) && repIds.has(i.repId);
     const isSameRepName = Boolean(i.repName) && users.some(
@@ -5880,7 +5905,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     // Sales Rep: STRICT PRIVACY - ONLY his own orders, NEVER another rep's orders!
     if (currentUser.role === 'sales_rep') {
-      return invoices.filter((i) => {
+      return scopedInvoices.filter((i) => {
         // 1. Direct Rep ID match (highest authority)
         const isDirectIdMatch = Boolean(i.repId) && (
           i.repId === currentUser.id ||

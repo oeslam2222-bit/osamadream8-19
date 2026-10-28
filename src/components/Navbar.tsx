@@ -626,16 +626,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             </div>
 
-            <div className="flex items-center justify-between px-2 pt-4 pb-2 text-[10px] font-bold text-blue-200/70">
+            <div className="px-2 pt-4 pb-2 text-[10px] font-bold text-blue-200/70">
               <span>القائمة الرئيسية</span>
-              <button
-                type="button"
-                onClick={handleToggleSidebar}
-                className="text-[10px] text-amber-300 hover:text-white font-medium flex items-center gap-0.5 cursor-pointer"
-              >
-                <span>تصغير</span>
-                <ChevronRight className="w-3 h-3" />
-              </button>
             </div>
 
             <nav className="space-y-1">

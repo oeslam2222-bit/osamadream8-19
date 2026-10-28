@@ -1,5 +1,7 @@
 export type UserRole = 'admin' | 'branch_manager' | 'supervisor' | 'sales_rep' | 'developer' | 'legal_advisor' | 'warehouse_keeper';
 
+export type SectorType = 'home' | 'electrical' | 'both' | 'all';
+
 export type UserApprovalStatus = 'active' | 'pending_approval' | 'rejected';
 
 export interface User {
@@ -575,6 +577,7 @@ export interface Invoice {
   totalRefundedAmount?: number;
   netAmountAfterReturns?: number;
   lastReturnDate?: string;
+  sector?: SectorType;
 }
 
 export interface CloudinaryConfig {
@@ -667,6 +670,7 @@ export interface TargetRecord {
   remainingCollection: number;        // المتبقي للتحصيل
   updatedAt?: string;
   notes?: string;
+  sector?: SectorType;
 }
 
 /* ============================================================

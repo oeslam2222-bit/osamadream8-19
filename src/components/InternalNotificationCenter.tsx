@@ -59,9 +59,9 @@ const priorityOrder: Record<AppNotification['priority'], number> = {
 };
 
 const priorityStyles: Record<AppNotification['priority'], string> = {
-  high: 'border-rose-200 bg-rose-50/70 hover:bg-rose-50',
-  medium: 'border-amber-200 bg-amber-50/70 hover:bg-amber-50',
-  low: 'border-slate-200 bg-white hover:bg-slate-50',
+  high: 'border-rose-200 bg-rose-50/90 hover:bg-rose-100/80 dark:bg-rose-950/80 dark:border-rose-800/80 dark:hover:bg-rose-900/60 shadow-xs',
+  medium: 'border-amber-200 bg-amber-50/90 hover:bg-amber-100/80 dark:bg-amber-950/80 dark:border-amber-800/80 dark:hover:bg-amber-900/60 shadow-xs',
+  low: 'border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-850 dark:border-slate-700 dark:hover:bg-slate-800 shadow-xs',
 };
 
 const priorityDot: Record<AppNotification['priority'], string> = {
@@ -394,7 +394,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
     }
 
     // ===== مرتجعات معلقة (pending returns) =====
-    const pendingReturns = visibleVisits.filter((v) => v.isReturn && v.returnStatus && v.returnStatus !== 'مغلق' && v.returnStatus !== 'مكتمل');
+    const pendingReturns = visibleVisits.filter((v) => v.isReturn && v.returnStatus && (v.returnStatus as string) !== 'مغلق' && (v.returnStatus as string) !== 'مكتمل' && v.returnStatus !== 'مرفوض');
     if (pendingReturns.length > 0) {
       list.push({
         id: 'pending-returns',
@@ -656,18 +656,20 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
           <div
             role="dialog"
             aria-label="مركز الإشعارات"
-            className="fixed z-50 inset-x-2 top-16 max-h-[82vh] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl flex flex-col md:inset-x-auto md:right-0 md:top-14 md:w-[420px] animate-in fade-in zoom-in-95"
+            className="fixed inset-x-2 top-16 sm:absolute sm:inset-x-auto sm:top-full sm:mt-2 rtl:sm:left-0 ltr:sm:right-0 sm:w-[420px] max-w-[calc(100vw-16px)] max-h-[82vh] overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shadow-2xl flex flex-col z-50 animate-in fade-in zoom-in-95"
           >
+            {/* Facebook-style arrow indicator pointing to bell */}
+            <div className="hidden sm:block absolute -top-1.5 rtl:left-3.5 ltr:right-3.5 w-3 h-3 rotate-45 bg-slate-50 dark:bg-slate-900 border-t border-s border-slate-200 dark:border-slate-800 z-10" />
             {/* الترويسة الرئيسية */}
-            <div className="p-3 border-b border-slate-100 bg-slate-50/90 space-y-2.5">
+            <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/90 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 shadow-xs font-black">
                     <BellRing className="w-4 h-4" />
                   </span>
                   <div className="min-w-0">
-                    <div className="text-[13px] font-black text-slate-800">مركز الإشعارات والتنبيهات</div>
-                    <div className="text-[10px] font-bold text-slate-500">
+                    <div className="text-[13px] font-black text-slate-900 dark:text-slate-100">مركز الإشعارات والتنبيهات</div>
+                    <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
                       {hasUnread ? `${unreadCount} تنبيه جديد غير مقروء` : 'جميع التنبيهات مقروءة بالكامل'}
                     </div>
                   </div>
@@ -688,7 +690,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                   <button
                     type="button"
                     onClick={() => setIsOpen(false)}
-                    className="w-7 h-7 rounded-lg hover:bg-slate-200 text-slate-500 flex items-center justify-center cursor-pointer transition"
+                    className="w-7 h-7 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center cursor-pointer transition"
                     aria-label="إغلاق"
                   >
                     <X className="w-4 h-4" />
@@ -697,15 +699,15 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
               </div>
 
               {/* تبويبات الفرز على طريقة فيسبوك: غير المقروءة والكل */}
-              <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-200/60">
-                <div className="flex items-center gap-1 bg-slate-200/70 p-0.5 rounded-xl text-[10.5px] font-black flex-1">
+              <div className="flex items-center justify-between gap-1 pt-1 border-t border-slate-200/60 dark:border-slate-800/80">
+                <div className="flex items-center gap-1 bg-slate-200/70 dark:bg-slate-800 p-0.5 rounded-xl text-[10.5px] font-black flex-1">
                   <button
                     type="button"
                     onClick={() => setFilterMode('unread')}
                     className={`flex-1 py-1 rounded-lg transition text-center cursor-pointer ${
                       filterMode === 'unread'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                     }`}
                   >
                     غير المقروءة ({unreadCount})
@@ -715,8 +717,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                     onClick={() => setFilterMode('all')}
                     className={`flex-1 py-1 rounded-lg transition text-center cursor-pointer ${
                       filterMode === 'all'
-                        ? 'bg-white text-slate-900 shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                     }`}
                   >
                     كل الإشعارات ({notifications.length})
@@ -727,7 +729,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                   <button
                     type="button"
                     onClick={clearAllRead}
-                    className="text-[10px] font-bold text-slate-500 hover:text-rose-600 px-2 py-1 rounded-lg hover:bg-slate-200/60 transition cursor-pointer shrink-0"
+                    className="text-[10px] font-bold text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 px-2 py-1 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
                     title="مسح الإشعارات المقروءة من القائمة"
                   >
                     مسح المقروء
@@ -737,16 +739,16 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
             </div>
 
             {/* قائمة الإشعارات */}
-            <div className="flex-1 overflow-y-auto p-2.5 space-y-2 max-h-[60vh]">
+            <div className="flex-1 overflow-y-auto p-2.5 space-y-2 max-h-[60vh] dark:bg-[#0f172a]">
               {displayedNotifications.length === 0 ? (
                 <div className="text-center py-10 px-4 space-y-2">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-xs">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-xs">
                     <CheckCheck className="w-6 h-6 stroke-[2.5]" />
                   </div>
-                  <div className="text-sm font-black text-slate-800">
+                  <div className="text-sm font-black text-slate-800 dark:text-slate-100">
                     {filterMode === 'unread' ? 'تمت قراءة جميع الإشعارات بنجاح ✅' : 'لا توجد تنبيهات حالياً'}
                   </div>
-                  <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mx-auto leading-relaxed">
                     {filterMode === 'unread'
                       ? 'مثل فيسبوك تماماً؛ تم تفريغ الإشعارات المقروءة واختفى الرقم من على الجرس ولن يزعجك ثانية.'
                       : 'كافة أمور الحسابات والمخزون والزيارات منتظمة تماماً.'}
@@ -755,7 +757,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                     <button
                       type="button"
                       onClick={() => setFilterMode('all')}
-                      className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline underline-offset-4 pt-1 cursor-pointer block mx-auto"
+                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline pt-1 cursor-pointer block mx-auto"
                     >
                       استعراض الإشعارات السابقة ({notifications.length})
                     </button>
@@ -772,13 +774,13 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                       onClick={() => handleCardClick(n)}
                       className={`rounded-xl border p-3 transition relative group cursor-pointer active:scale-[0.99] select-none ${
                         isRead
-                          ? 'border-slate-200 bg-slate-50/70 opacity-70 hover:opacity-100 hover:bg-slate-100/70'
+                          ? 'border-slate-200 bg-slate-50/70 opacity-70 hover:opacity-100 hover:bg-slate-100/70 dark:bg-slate-900/50 dark:border-slate-800/80 dark:opacity-60 dark:hover:opacity-100 dark:hover:bg-slate-800/60'
                           : priorityStyles[n.priority]
                       }`}
                     >
                       <div className="flex items-start gap-2.5">
                         <span
-                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${n.iconBg}`}
+                          className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${n.iconBg} dark:bg-slate-850 dark:border dark:border-slate-700/60`}
                         >
                           <Icon className="w-4 h-4" />
                         </span>
@@ -788,7 +790,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                             <div className="flex items-center gap-1.5 min-w-0">
                               {!isRead ? (
                                 <span
-                                  className={`w-2 h-2 rounded-full shrink-0 ${priorityDot[n.priority]} ring-2 ring-white`}
+                                  className={`w-2 h-2 rounded-full shrink-0 ${priorityDot[n.priority]} ring-2 ring-white dark:ring-slate-900`}
                                   title="غير مقروء"
                                 />
                               ) : (
@@ -796,7 +798,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                                   ✓
                                 </span>
                               )}
-                              <span className="text-[12px] font-black text-slate-800 leading-tight truncate">
+                              <span className="text-[12px] font-black text-slate-900 dark:text-slate-100 leading-tight truncate">
                                 {n.title}
                               </span>
                             </div>
@@ -807,13 +809,13 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                                 <button
                                   type="button"
                                   onClick={(e) => markSingleRead(n, e)}
-                                  className="text-[10px] font-black text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg shrink-0 cursor-pointer transition active:scale-95 shadow-2xs"
+                                  className="text-[10.5px] font-black text-white bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-slate-950 px-2.5 py-0.5 rounded-lg shrink-0 cursor-pointer transition active:scale-95 shadow-sm"
                                   title="تحديد هذا الإشعار كمقروء وإخفاؤه من التنبيهات"
                                 >
                                   تم القراءة ✓
                                 </button>
                               ) : (
-                                <span className="text-[9.5px] font-bold text-slate-400 bg-slate-200/60 px-1.5 py-0.5 rounded">
+                                <span className="text-[9.5px] font-bold text-slate-500 dark:text-slate-300 bg-slate-200/80 dark:bg-slate-800 px-2 py-0.5 rounded">
                                   مقروء
                                 </span>
                               )}
@@ -822,7 +824,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                               <button
                                 type="button"
                                 onClick={(e) => dismissNotification(n, e)}
-                                className="w-5 h-5 rounded-md hover:bg-slate-200 text-slate-400 hover:text-rose-600 flex items-center justify-center transition cursor-pointer"
+                                className="w-5 h-5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-850 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 flex items-center justify-center transition cursor-pointer"
                                 title="إخفاء هذا الإشعار تماماً"
                               >
                                 <X className="w-3.5 h-3.5" />
@@ -830,13 +832,13 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                             </div>
                           </div>
 
-                          <p className="text-[11px] font-medium text-slate-600 mt-1 leading-snug">
+                          <p className="text-[11.5px] font-medium text-slate-800 dark:text-slate-200 mt-1 leading-snug">
                             {n.detail}
                           </p>
 
-                          <div className="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-slate-100/80">
+                          <div className="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-slate-200/70 dark:border-slate-800">
                             {n.actionTab && n.actionLabel ? (
-                              <span className="inline-flex items-center gap-1 text-[10.5px] font-black text-amber-800 hover:text-amber-900 underline underline-offset-2">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-amber-700 dark:text-amber-300 hover:underline underline-offset-2">
                                 {n.actionLabel}
                                 <ChevronDown className="w-3 h-3 -rotate-90" />
                               </span>
@@ -844,7 +846,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                               <span />
                             )}
 
-                            <span className="text-[9px] text-slate-400 font-medium">
+                            <span className="text-[9.5px] text-slate-500 dark:text-slate-300 font-medium">
                               انقر للانتقال مباشرة 👈
                             </span>
                           </div>
@@ -857,7 +859,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
             </div>
 
             {/* التذييل */}
-            <div className="px-4 py-2 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between gap-2 text-[9.5px] font-bold text-slate-400">
+            <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/60 flex items-center justify-between gap-2 text-[9.5px] font-bold text-slate-500 dark:text-slate-400">
               <span className="truncate">
                 طنطاوي دريم جروب • إشعارات ذكية
               </span>
