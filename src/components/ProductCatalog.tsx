@@ -1168,6 +1168,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <span className="text-slate-500 text-[11px] font-medium hidden sm:inline">
                 مطابق: <strong className="text-slate-900 dark:text-slate-100 font-bold">{filteredProducts.length}</strong> صنف
               </span>
+            {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || stockAvailabilityFilter !== 'all' || sortBy !== 'default') && (
               <button
                 type="button"
                 onClick={resetAllFilters}
