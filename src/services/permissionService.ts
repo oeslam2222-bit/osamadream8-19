@@ -17,9 +17,9 @@ export interface PermissionDefaults {
 export const DEFAULT_ROLE_TABS: PermissionDefaults = {
   developer: ['home', 'legal_advisor', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'excel', 'users', 'guide'],
   admin: ['home', 'legal_advisor', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'excel', 'users', 'guide'],
-  branch_manager: ['home', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'users', 'guide'],
-  supervisor: ['home', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns_customers', 'invoices', 'inventory', 'users'],
-  sales_rep: ['home', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'targets', 'visits', 'returns_customers', 'invoices', 'inventory'],
+  branch_manager: ['home', 'catalog', 'all_customers', 'customers', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'users', 'guide'],
+  supervisor: ['home', 'catalog', 'all_customers', 'customers', 'dashboard', 'targets', 'visits', 'returns_customers', 'invoices', 'inventory', 'users'],
+  sales_rep: ['home', 'catalog', 'all_customers', 'customers', 'targets', 'visits', 'returns_customers', 'invoices', 'inventory'],
   legal_advisor: ['legal_advisor', 'home'],
   warehouse_keeper: ['home', 'returns', 'inventory', 'catalog', 'guide'],
 };

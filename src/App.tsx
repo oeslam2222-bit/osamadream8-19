@@ -59,17 +59,17 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   ],
   branch_manager: [
     'home', 'catalog', 'all_customers', 'customers',
-    'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
+    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'users', 'guide'
   ],
   supervisor: [
     'home', 'catalog', 'all_customers', 'customers',
-    'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
+    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'users'
   ],
   sales_rep: [
     'home', 'catalog', 'all_customers', 'customers',
-    'customer_item_sales', 'targets', 'visits', 'returns_customers', 'invoices',
+    'targets', 'visits', 'returns_customers', 'invoices',
     'inventory'
   ],
   warehouse_keeper: [

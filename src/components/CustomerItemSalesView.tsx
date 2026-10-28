@@ -592,6 +592,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-warn" />
               تحليل مبيعات الأصناف
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-50 border border-rose-200 text-rose-700 rounded text-[10px] font-bold ml-2">
+                تحت التطوير
+              </span>
             </h1>
             <p className="text-[11px] sm:text-xs text-slate-500 max-w-3xl leading-relaxed">
               لوحة تحليل صنفية شاملة: المبيعات والكميات، توزيع الفئات، أعلى وأقل الأصناف حركة، أداء المناديب،
