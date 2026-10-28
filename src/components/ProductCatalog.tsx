@@ -2,7 +2,6 @@ import {
   AlertCircle,
   AlertTriangle,
   ArrowUpDown,
-  Boxes,
   Building,
   Check,
   CheckCircle2,
@@ -61,7 +60,8 @@ import {
 } from '../services/cloudinaryService';
 import { formatCurrency } from '../services/invoiceService';
 import { cacheProductImages, getCachedImagesStats, clearCachedImages } from '../services/imageCacheService';
-import { parseExcelProducts, fetchAndParseGoogleSheet, generateSampleExcelTemplate } from '../services/excelService';
+import { parseExcelProducts, fetchAndParseGoogleSheet, generateSampleExcelTemplate, exportProductsToExcel } from '../services/excelService';
+import { buildClientCatalogPDF, type ClientCatalogProduct } from '../services/pdfService';
 import { Customer, ItemStatus, Product, SalesPriority } from '../types';
 import { DepartmentCategorySlicer } from './DepartmentCategorySlicer';
 import { getDepartmentMeta } from '../data/departmentMeta';
@@ -619,7 +619,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setShowAllExplicitly(true);
   };
 
-  const handleDownloadCatalogPDF = useCallback(async () => {
+  const handleDownloadSmartCatalogPDF = useCallback(async () => {
+    if (filteredProducts.length === 0) {
+      window.alert('لا توجد منتجات معروضة للتصدير. يرجى إلغاء التصفية أو البحث أولاً.');
+      return;
+    }
+
     const filterParts = [
       searchTerm.trim() ? `بحث: ${searchTerm.trim()}` : '',
       selectedOfficialDept !== 'الكل' ? `القسم: ${selectedOfficialDept}` : '',
@@ -630,99 +635,70 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     ].filter(Boolean);
     const filterLabel = filterParts.length > 0 ? `\n\nالفلاتر الحالية:\n${filterParts.join('\n')}` : '';
     const confirmed = window.confirm(
-      `سيتم إنشاء ملف PDF يحتوي على صور وأسماء ${filteredProducts.length} منتج فقط.${filterLabel}\n\nهل تريد المتابعة؟`,
+      `سيتم إنشاء ملف PDF احترافي (بهوية مجموعة الطنطاوي) يحتوي على صور وأسماء ${filteredProducts.length} منتج فقط (وفقاً للفلترة الحالية).${filterLabel}\n\nهل تريد المتابعة؟`,
     );
     if (!confirmed) return;
 
     try {
-      const { jsPDF } = await import('jspdf');
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 10;
-      const contentWidth = pageWidth - margin * 2;
-      const imageSize = 30; // mm
-      let y = 12;
+      const catalogProducts: ClientCatalogProduct[] = filteredProducts.map((p) => ({
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        imageUrl: getProductImageUrl(p, cloudinaryConfig),
+      }));
 
-      // Header
-      doc.setFontSize(16);
-      doc.setTextColor(30, 58, 95); // navy
-      doc.text('كتالوج المنتجات - Dream Distribution', pageWidth / 2, y, { align: 'center' });
-      y += 7;
-      doc.setFontSize(10);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`عدد المنتجات المعروضة: ${filteredProducts.length}`, pageWidth / 2, y, { align: 'center' });
-      y += 6;
-      doc.setLineWidth(0.5);
-      doc.setDrawColor(30, 58, 95);
-      doc.line(margin, y, pageWidth - margin, y);
-      y += 8;
+      const categoryName =
+        selectedOfficialDept !== 'الكل' ? selectedOfficialDept : undefined;
 
-      // Helper to load image as data URL
-      const loadImageAsDataUrl = async (url: string | undefined | null): Promise<string | null> => {
-        if (!url) return null;
-        try {
-          const resp = await fetch(url);
-          if (!resp.ok) return null;
-          const blob = await resp.blob();
-          return await new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(blob);
-          });
-        } catch {
-          return null;
-        }
-      };
+      const { pdf, filename, exportedCount, failedImageCount } = await buildClientCatalogPDF(
+        catalogProducts,
+        { categoryName },
+      );
 
-      for (let i = 0; i < filteredProducts.length; i++) {
-        const p = filteredProducts[i];
-        const rowStartY = y;
+      pdf.save(filename);
 
-        // Check page break
-        if (y + imageSize + 18 > pageHeight - margin) {
-          doc.addPage();
-          y = margin;
-        }
-
-        // Product image (left)
-        const imgUrl = getProductImageUrl(p, cloudinaryConfig);
-        const dataUrl = await loadImageAsDataUrl(imgUrl);
-        if (dataUrl) {
-          doc.addImage(dataUrl, 'JPEG', margin, y, imageSize, imageSize);
-        } else {
-          // Fallback placeholder box
-          doc.setFillColor(241, 245, 249);
-          doc.roundedRect(margin, y, imageSize, imageSize, 2, 2, 'F');
-          doc.setDrawColor(156, 163, 175);
-          doc.setLineWidth(0.3);
-          doc.roundedRect(margin, y, imageSize, imageSize, 2, 2, 'S');
-          doc.setFontSize(8);
-          doc.setTextColor(100, 116, 139);
-          doc.text('لا توجد صورة', margin + imageSize / 2, y + imageSize / 2, { align: 'center' });
-        }
-
-        // The printable catalog intentionally contains only the product image and name.
-        const textX = margin + imageSize + 6;
-        const textMaxWidth = contentWidth - imageSize - 6;
-        doc.setFontSize(11);
-        doc.setTextColor(15, 23, 42);
-        doc.setFont('helvetica', 'bold');
-        doc.text(p.name || 'بلا اسم', textX, y + imageSize / 2 + 2, { maxWidth: textMaxWidth });
-
-        // Divider line between products
-        doc.setDrawColor(226, 232, 240);
-        doc.setLineWidth(0.3);
-        doc.line(margin, y + imageSize + 4, pageWidth - margin, y + imageSize + 4);
-
-        y = rowStartY + imageSize + 12;
+      if (failedImageCount > 0) {
+        window.alert(
+          `تم تصدير ${exportedCount} منتج بنجاح. تعذر تحميل ${failedImageCount} صورة (ستظهر بأيقونة صندوق بديلة).`,
+        );
       }
-
-      doc.save('catalog-products.pdf');
-    } catch (err) {
-      console.error('PDF generation failed:', err);
+    } catch (err: any) {
+      console.error('Smart catalog PDF failed:', err);
+      window.alert(
+        err.message === 'no-items'
+          ? 'لا توجد منتجات للتصدير.'
+          : 'فشل توليد ملف PDF. يرجى التحقق من الاتصال وتجربة العملية مرة أخرى.',
+      );
     }
-  }, [filteredProducts, cloudinaryConfig, searchTerm, selectedOfficialDept, selectedSubCategory, stockAvailabilityFilter, selectedPriority, selectedStatus]);
+  }, [
+    filteredProducts,
+    cloudinaryConfig,
+    searchTerm,
+    selectedOfficialDept,
+    selectedSubCategory,
+    stockAvailabilityFilter,
+    selectedPriority,
+    selectedStatus,
+  ]);
+
+
+  const handleDownloadSmartCatalogExcel = useCallback(() => {
+    if (filteredProducts.length === 0) {
+      window.alert('لا توجد منتجات معروضة للتصدير إلى إكسل. يرجى إلغاء التصفية أو البحث أولاً.');
+      return;
+    }
+    const confirmed = window.confirm(
+      `سيتم تصدير ${filteredProducts.length} منتج إلى ملف إكسل (مطابق للفلترة الحالية)، مع روابط الصور والمخزون لكل فرع. هل تريد المتابعة؟`,
+    );
+    if (!confirmed) return;
+    try {
+      exportProductsToExcel(filteredProducts, selectedOfficialDept, currentUser);
+    } catch (err) {
+      console.error('Excel export failed:', err);
+      window.alert('فشل تصدير ملف الإكسل. يرجى المحاولة مرة أخرى.');
+    }
+  }, [filteredProducts, selectedOfficialDept, currentUser]);
+
 
 
   const cartSummary = useMemo(() => {
@@ -826,9 +802,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* Clean Modern Catalog Header (Amazon / Dream Distribution Ops Console style) */}
       <section className="bg-white rounded-2xl border border-[color:var(--app-line)] p-3.5 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-navy-panel text-[var(--app-accent)] flex items-center justify-center font-black shadow-sm shrink-0">
-            <Boxes className="w-6 h-6" />
-          </div>
+          <img
+            src="/tantawy-brand-logo.svg"
+            alt="مجموعة الطنطاوي"
+            className="w-9 h-9 sm:w-10 sm:h-10 object-contain shrink-0"
+            loading="eager"
+          />
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-black tracking-wider uppercase text-warn bg-amber-light px-2 py-0.5 rounded border border-amber-200">
@@ -1228,12 +1207,20 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <div className="flex items-center gap-2 shrink-0">
             <button
                type="button"
-               onClick={handleDownloadCatalogPDF}
+               onClick={handleDownloadSmartCatalogPDF}
                className="px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer bg-[var(--app-navy)] text-white hover:opacity-90 flex items-center gap-1"
-               title={`تحميل صور وأسماء المنتجات الظاهرة (${filteredProducts.length})`}
+               title={`تصدير كتالوج احترافي للمنتجات الظاهرة (${filteredProducts.length})`}
              >
-               PDF الصور والأسماء
+               تصدير كتالوج PDF
              </button>
+              <button
+                type="button"
+                onClick={handleDownloadSmartCatalogExcel}
+                className="px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer bg-[color:var(--app-accent)] text-white hover:opacity-90 flex items-center gap-1"
+                title={`تصدير إكسل للمنتجات الظاهرة (${filteredProducts.length})`}
+              >
+                إكسل الصور والمخزون
+              </button>
              <span className="text-slate-500 text-[11px] font-medium hidden sm:inline">
                مطابق: <strong className="text-slate-900 font-bold">{filteredProducts.length}</strong> صنف
             </span>
@@ -1269,11 +1256,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 <div
                   id={`prod-${product.id}`}
                   key={product.id}
-                  className="bg-white rounded-xl overflow-hidden border border-[color:var(--app-line)] shadow-xs hover:shadow-md hover:border-slate-300 transition-all duration-200 flex flex-col justify-between group relative"
+                  className="bg-white rounded-2xl overflow-hidden border border-[color:var(--app-line)] shadow-sm hover:shadow-lg hover:border-[color:var(--app-accent)] transition-all duration-200 flex flex-col justify-between group relative"
                 >
                   {/* 1:1 Aspect-Square Image Box with object-contain (No distorted or cropped cookware) */}
                   <div
-                    className="relative aspect-square bg-white overflow-hidden cursor-pointer flex items-center justify-center p-2.5 border-b border-slate-100"
+                    className="relative aspect-square bg-amber-50/40 overflow-hidden cursor-pointer flex items-center justify-center p-2.5 border-b border-slate-200"
                     onClick={() => {
                       const img = getProductImageUrl(product, cloudinaryConfig);
                       setLightboxImage({ src: img, alt: product.name });
@@ -1357,7 +1344,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       </div>
 
                       {/* Pricing Row */}
-                      <div className="bg-slate-50 rounded-lg p-2 border border-slate-150 flex items-baseline justify-between">
+                      <div className="bg-amber-50/30 rounded-xl p-2.5 border border-[color:var(--app-line)] flex items-baseline justify-between">
                         <div>
                           <span className="text-[10px] text-slate-400 font-bold block leading-none">الكرتونة</span>
                           <span className="text-[color:var(--app-navy)] font-black text-sm sm:text-base tabular-nums">

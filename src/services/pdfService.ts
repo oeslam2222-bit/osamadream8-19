@@ -640,7 +640,7 @@ export async function buildClientCatalogPDF(
           <div style="font-size:24px;font-weight:900;color:#ffffff;">مجموعة الطنطاوي</div>
           <div style="font-size:12px;font-weight:700;color:#fbbf24;margin-top:3px;">كتالوج المنتجات${categoryName !== 'كل الأصناف' ? ` • ${safeCategory}` : ''}</div>
         </div>
-        <div style="width:44px;height:44px;border-radius:12px;background:#f59e0b;color:#0f172a;font-weight:900;font-size:22px;display:flex;align-items:center;justify-content:center;">D</div>
+        <img src="/tantawy-brand-logo.svg" alt="مجموعة الطنطاوي" style="width:44px;height:44px;border-radius:12px;object-fit:contain;display:block;" />
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:14px;margin-top:16px;">
         ${cardsHtml}
