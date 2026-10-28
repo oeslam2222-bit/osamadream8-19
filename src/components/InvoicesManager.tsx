@@ -995,6 +995,62 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               <RotateCcw className="w-3.5 h-3.5 text-warn-deep" />
                               <span>مرتجع</span>
                             </button>
+                          {/* Order Preparation & Delivery Workflow Buttons */}
+                          {invoice.status === 'معتمدة' && canMakeReturn && (
+                            <button
+                              onClick={() => {
+                                const res = updateOrderStatus(invoice.id, 'جاري تحضير المنتجات', 'تم بدء تحضير منتجات الطلبية للتسليم');
+                                if (res.success) {
+                                  setSuccessToast(res.message);
+                                  setTimeout(() => setSuccessToast(null), 4000);
+                                } else {
+                                  alert(res.message);
+                                }
+                              }}
+                              className="app-btn app-btn-info px-2 text-xs"
+                              title="تأكيد بدء تحضير منتجات الطلبية للتسليم"
+                            >
+                              <Boxes className="w-3.5 h-3.5" />
+                              <span>جارٍ التحضير</span>
+                            </button>
+                          )}
+                          {invoice.status === 'جاري تحضير المنتجات' && canMakeReturn && (
+                            <button
+                              onClick={() => {
+                                const res = updateOrderStatus(invoice.id, 'تم التسليم', 'تم تسليم المنتجات للعميل');
+                                if (res.success) {
+                                  setSuccessToast(res.message);
+                                  setTimeout(() => setSuccessToast(null), 4000);
+                                } else {
+                                  alert(res.message);
+                                }
+                              }}
+                              className="app-btn app-btn-ok px-2 text-xs"
+                              title="تأكيد تسليم المنتجات للعميل وإغلاق الطلبية"
+                            >
+                              <Truck className="w-3.5 h-3.5" />
+                              <span>تم التسليم</span>
+                            </button>
+                          )}
+                          {invoice.status === 'تم التسليم' && canMakeReturn && (
+                            <button
+                              onClick={() => {
+                                const res = updateOrderStatus(invoice.id, 'إغلاق الطلبية', 'تم إغلاق الطلبية بعد التسليم للعميل');
+                                if (res.success) {
+                                  setSuccessToast(res.message);
+                                  setTimeout(() => setSuccessToast(null), 4000);
+                                } else {
+                                  alert(res.message);
+                                }
+                              }}
+                              className="app-btn app-btn-secondary px-2 text-xs"
+                              title="إغلاق الطلبية نهائياً بعد التسليم"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>إغلاق الطلبية</span>
+                            </button>
+                          )}
+
                           )}
 
                           <button
