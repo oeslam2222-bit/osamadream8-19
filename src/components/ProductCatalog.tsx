@@ -11,7 +11,6 @@ import {
   Filter,
   Flame,
   Grid,
-  LayoutGrid,
   Info,
   Layers,
   List,
@@ -161,7 +160,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     'default' | 'branch_stock_desc' | 'branch_stock_asc' | 'october_stock_desc' | 'october_stock_asc' | 'total_stock_desc' | 'priority' | 'price_asc' | 'price_desc' | 'name_asc'
   >('default');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [gridDensity, setGridDensity] = useState<'comfortable' | 'compact'>('comfortable');
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
 
   // Role permissions: ONLY Developer and Admin can upload or wipe catalog data
@@ -1108,33 +1106,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <span className="hidden md:inline">{isConfidentialMode ? 'الأسعار محجوبة' : 'وضع السرية'}</span>
           </button>
 
-          {/* View Mode Toggle */}
+          {/* View Mode Toggle: شبكة / جدول */}
           <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-[color:var(--app-line)] h-10 sm:h-11 shrink-0">
             <button
               type="button"
-              onClick={() => {
-                setViewMode('grid');
-                setGridDensity('comfortable');
-              }}
+              onClick={() => setViewMode('grid')}
               className={`px-2 h-8 rounded text-xs font-bold transition cursor-pointer ${
-                viewMode === 'grid' && gridDensity === 'comfortable' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'
+                viewMode === 'grid' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'
               }`}
-              title="عرض مريح للمنتجات"
+              title="عرض المنتجات كشبكة كروت"
+              aria-label="عرض شبكة"
             >
               <Grid className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('grid');
-                setGridDensity('compact');
-              }}
-              className={`px-2 h-8 rounded text-xs font-bold transition cursor-pointer ${
-                viewMode === 'grid' && gridDensity === 'compact' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'
-              }`}
-              title="عرض مكثف"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
             </button>
             <button
               type="button"
@@ -1142,7 +1125,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               className={`px-2 h-8 rounded text-xs font-bold transition cursor-pointer ${
                 viewMode === 'list' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500'
               }`}
-              title="عرض جدول"
+              title="عرض المنتجات كجدول"
+              aria-label="عرض جدول"
             >
               <List className="w-3.5 h-3.5" />
             </button>
