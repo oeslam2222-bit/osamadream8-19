@@ -4671,117 +4671,154 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   // Supervisor / Manager approves order & discharges physical stock
+  // Supervisor / Branch Manager approves order -> pending admin approval (two-stage approval)
+  // Admin / Developer gives final approval -> deduct physical stock and mark as approved
   const approveOrder = (invoiceId: string, notes?: string): { success: boolean; message: string } => {
-  if (!currentUser || !['supervisor', 'branch_manager', 'admin', 'developer'].includes(currentUser.role)) {
-  return { success: false, message: 'المندوب لا يملك صلاحية اعتماد الطلبية أو صرف المخزون.' };
-  }
-  const inv = invoices.find((i) => i.id === invoiceId);
-  if (!inv) return { success: false, message: 'الطلبية غير موجودة' };
-  if (
-    currentUser.role !== 'admin' &&
-    currentUser.role !== 'developer' &&
-    (!currentUser.branchName || !inv.branchName || !isBranchMatch(inv.branchName, currentUser.branchName, { allowUnassigned: false }))
-  ) {
-    return { success: false, message: 'لا يمكنك اعتماد طلبية تابعة لفرع آخر.' };
-  }
-  const isPending = inv.status === 'قيد مراجعة المشرف' || inv.status === 'معلقة بانتظار اعتماد الفرع' || inv.status === 'قيد المراجعة' || inv.status === 'مسودة';
-  if (!isPending) return { success: false, message: 'لا يمكن اعتماد طلبية غير معلّقة للمراجعة.' };
-    if (inv.status === 'معتمدة ومصروفة من المخزن') {
-      return { success: false, message: 'الطلبية معتمدة ومصروفة بالفعل' };
+    if (!currentUser || !['supervisor', 'branch_manager', 'admin', 'developer'].includes(currentUser.role)) {
+      return { success: false, message: 'المندوب لا يملك صلاحية اعتماد الطلبية أو صرف المخزون.' };
     }
-
-  // Deduct physical stock only after the supervisor explicitly clicks approve & dispatch:
-  // branch first, then central warehouse. Drafts and pending orders never deduct stock.
-  // If one item cannot be fulfilled, this manual approval is rejected before any state changes.
-    const allocations = new Map<string, { branch: number; main: number }>();
-    for (const invItem of inv.items) {
-      const product = products.find((p) => p.id === invItem.productId);
-      if (!product) return { success: false, message: `الصنف (${invItem.productName}) غير موجود في المخزون` };
-      const requested = Math.max(0, invItem.cartonCount || 0);
-      const branchAvailable = Math.max(0, getBranchStockForProduct(product, inv.branchName));
-      const mainAvailable = Math.max(0, product.mainWarehouseActual);
-      const branch = Math.min(requested, branchAvailable);
-      const main = requested - branch;
-      if (main > mainAvailable) {
-        return {
-          success: false,
-          message: `لا يمكن اعتماد الطلبية: الصنف (${product.name}) يحتاج ${requested} كرتونة، المتاح ${branchAvailable} بالفرع و${mainAvailable} بالمخزن الرئيسي.`,
-        };
-      }
-      allocations.set(invItem.productId, { branch, main });
+    const inv = invoices.find((i) => i.id === invoiceId);
+    if (!inv) return { success: false, message: 'الطلبية غير موجودة' };
+    if (
+      currentUser.role !== 'admin' &&
+      currentUser.role !== 'developer' &&
+      (!currentUser.branchName || !inv.branchName || !isBranchMatch(inv.branchName, currentUser.branchName, { allowUnassigned: false }))
+    ) {
+      return { success: false, message: 'لا يمكنك اعتماد طلبية تابعة لفرع آخر.' };
     }
+    const isPending = inv.status === 'قيد مراجعة المشرف' || inv.status === 'معلقة بانتظار اعتماد الفرع' || inv.status === 'قيد المراجعة' || inv.status === 'مسودة' || inv.status === 'في انتظار اعتماد الإدارة';
+    if (!isPending) return { success: false, message: 'لا يمكن اعتماد طلبية غير معلّقة للمراجعة.' };
 
-    setProducts((prev) => prev.map((p) => {
-      const allocation = allocations.get(p.id);
-      if (!allocation) return p;
-      const updatedBranchStocks = p.branchStocks ? { ...p.branchStocks } : undefined;
-      if (updatedBranchStocks && allocation.branch > 0) {
-        const branchKey = Object.keys(updatedBranchStocks).find((key) =>
-          isBranchMatch(key, inv.branchName, { allowUnassigned: false })
-        );
-        if (branchKey) {
-          updatedBranchStocks[branchKey] = Math.max(0, Number(updatedBranchStocks[branchKey] || 0) - allocation.branch);
-        }
+    // STAGE 1: Supervisor / Branch Manager approval -> move to "في انتظار اعتماد الإدارة"
+    if (currentUser.role === 'supervisor' || currentUser.role === 'branch_manager') {
+      if (inv.status === 'في انتظار اعتماد الإدارة') {
+        return { success: false, message: 'الطلبية في انتظار اعتماد الإدارة بالفعل' };
       }
-      return {
-        ...p,
-        ...(updatedBranchStocks ? { branchStocks: updatedBranchStocks } : {}),
-        branchStockActual: updatedBranchStocks ? p.branchStockActual : Math.max(0, p.branchStockActual - allocation.branch),
-        mainWarehouseActual: Math.max(0, p.mainWarehouseActual - allocation.main),
+      const updatedInv: Invoice = {
+        ...inv,
+        status: 'في انتظار اعتماد الإدارة' as OrderStatus,
+        notes: notes ? `${inv.notes ? inv.notes + ' | ' : ''}ملاحظة اعتماد المشرف/مدير الفرع: ${notes}` : inv.notes,
       };
-    }));
-
-    // Log transaction
-    inv.items.forEach((item) => {
-      const prod = products.find((p) => p.id === item.productId);
-      const currentActual = prod ? prod.branchStockActual : 0;
-      recordInventoryTransaction({
-        productId: item.productId,
-        productCode: item.productCode,
-        productName: item.productName,
-        type: 'صرف واعتماد مشرف',
-        quantityPieces: item.cartonCount,
-        branchStockBefore: currentActual,
-        branchStockAfter: Math.max(0, currentActual - item.cartonCount),
-        branchName: inv.branchName,
+      setInvoices((prev) =>
+        prev.map((i) => (i.id === invoiceId ? updatedInv : i))
+      );
+      saveInvoiceWithQueue(updatedInv).catch((e) => console.warn('Supabase invoice update failed:', e));
+      recordAuditLog({
+        userId: currentUser?.id || 'supervisor',
         userName: currentUser?.name || 'المشرف',
         userRole: currentUser?.role || 'supervisor',
+        branchName: inv.branchName,
+        action: 'approve_invoice_stage1',
+        actionTitle: `اعتماد مشرف/مدير الفرع وإحالة للإدارة #${inv.invoiceNumber}`,
+        details: `العميل: ${inv.customerName} • المندوب: ${inv.repName} • تم اعتماد الطلبية من قبل ${currentUser?.name} وتم إحالتها لاعتماد الإدارة النهائي • القيمة: ${inv.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م ${notes ? `• ملاحظة: ${notes}` : ''}`,
         invoiceId: inv.id,
         invoiceNumber: inv.invoiceNumber,
-        notes: notes ? `اعتماد وصرف: ${notes}` : `تم اعتماد وصرف الطلبية من المخزن بواسطة ${currentUser?.name}`,
+        badgeType: 'success',
       });
-    });
+      return {
+        success: true,
+        message: `تم اعتماد الطلبية #${inv.invoiceNumber} من قبل ${currentUser.role === 'supervisor' ? 'المشرف' : 'مدير الفرع'} وتم إحالتها لاعتماد الإدارة النهائي`,
+      };
+    }
 
-    const updatedInv: Invoice = {
-      ...inv,
-      status: 'معتمدة ومصروفة من المخزن' as OrderStatus,
-      notes: notes ? `${inv.notes ? inv.notes + ' | ' : ''}ملاحظة الاعتماد: ${notes}` : inv.notes,
-    };
+    // STAGE 2: Admin / Developer final approval -> deduct physical stock and mark as 'معتمدة'
+    if (currentUser.role === 'admin' || currentUser.role === 'developer') {
+      if (inv.status !== 'في انتظار اعتماد الإدارة') {
+        return { success: false, message: 'لا يمكن للإدارة اعتماد الطلبية إلا بعد اعتماد المشرف/مدير الفرع أولاً (الرجاء الانتظار حتى يعتمد المشرف أو مدير الفرع الطلب)' };
+      }
 
-    setInvoices((prev) =>
-      prev.map((i) => (i.id === invoiceId ? updatedInv : i))
-    );
+      // Deduct physical stock only after admin final approval: branch first, then central warehouse.
+      const allocations = new Map<string, { branch: number; main: number }>();
+      for (const invItem of inv.items) {
+        const product = products.find((p) => p.id === invItem.productId);
+        if (!product) return { success: false, message: `الصنف (${invItem.productName}) غير موجود في المخزون` };
+        const requested = Math.max(0, invItem.cartonCount || 0);
+        const branchAvailable = Math.max(0, getBranchStockForProduct(product, inv.branchName));
+        const mainAvailable = Math.max(0, product.mainWarehouseActual);
+        const branch = Math.min(requested, branchAvailable);
+        const main = requested - branch;
+        if (main > mainAvailable) {
+          return {
+            success: false,
+            message: `لا يمكن اعتماد الطلبية: الصنف (${product.name}) يحتاج ${requested} كرتونة، المتاح ${branchAvailable} بالفرع و${mainAvailable} بالمخزن الرئيسي.` ,
+          };
+        }
+        allocations.set(invItem.productId, { branch, main });
+      }
 
-    saveInvoiceWithQueue(updatedInv).catch((e) => console.warn('Supabase invoice update failed:', e));
-    // Automatic email sending has been permanently disabled per user request in favor of Microsoft Dynamics 365 direct integration
+      setProducts((prev) => prev.map((p) => {
+        const allocation = allocations.get(p.id);
+        if (!allocation) return p;
+        const updatedBranchStocks = p.branchStocks ? { ...p.branchStocks } : undefined;
+        if (updatedBranchStocks && allocation.branch > 0) {
+          const branchKey = Object.keys(updatedBranchStocks).find((key) =>
+            isBranchMatch(key, inv.branchName, { allowUnassigned: false })
+          );
+          if (branchKey) {
+            updatedBranchStocks[branchKey] = Math.max(0, Number(updatedBranchStocks[branchKey] || 0) - allocation.branch);
+          }
+        }
+        return {
+          ...p,
+          ...(updatedBranchStocks ? { branchStocks: updatedBranchStocks } : {}),
+          branchStockActual: updatedBranchStocks ? p.branchStockActual : Math.max(0, p.branchStockActual - allocation.branch),
+          mainWarehouseActual: Math.max(0, p.mainWarehouseActual - allocation.main),
+        };
+      }));
 
-    recordAuditLog({
-      userId: currentUser?.id || 'supervisor',
-      userName: currentUser?.name || 'المشرف',
-      userRole: currentUser?.role || 'supervisor',
-      branchName: inv.branchName,
-      action: 'approve_invoice',
-      actionTitle: `اعتماد وصرف الفاتورة #${inv.invoiceNumber}`,
-      details: `العميل: ${inv.customerName} • المندوب: ${inv.repName} • تم خصم المخزون الفعلي من ${inv.branchName} (${inv.totalCartons} كرتونة) • القيمة: ${inv.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م ${notes ? `• ملاحظة: ${notes}` : ''}`,
-      invoiceId: inv.id,
-      invoiceNumber: inv.invoiceNumber,
-      badgeType: 'success',
-    });
+      // Log transaction
+      inv.items.forEach((item) => {
+        const prod = products.find((p) => p.id === item.productId);
+        const currentActual = prod ? prod.branchStockActual : 0;
+        recordInventoryTransaction({
+          productId: item.productId,
+          productCode: item.productCode,
+          productName: item.productName,
+          type: 'اعتماد وإدارة المخزون',
+          quantityPieces: item.cartonCount,
+          branchStockBefore: currentActual,
+          branchStockAfter: Math.max(0, currentActual - item.cartonCount),
+          branchName: inv.branchName,
+          userName: currentUser?.name || 'الإدارة',
+          userRole: currentUser?.role || 'admin',
+          invoiceId: inv.id,
+          invoiceNumber: inv.invoiceNumber,
+          notes: notes ? `اعتماد نهائي وصرف: ${notes}` : `تم الاعتماد النهائي وصرف الطلبية من المخزن بواسطة ${currentUser?.name}`,
+        });
+      });
 
-    return {
-      success: true,
-      message: `تم اعتماد وصرف الطلبية #${inv.invoiceNumber} وخصم المخزون الفعلي (${inv.totalCartons} كرتونة) من الفرع بنجاح!`,
-    };
+      const updatedInv: Invoice = {
+        ...inv,
+        status: 'معتمدة' as OrderStatus,
+        notes: notes ? `${inv.notes ? inv.notes + ' | ' : ''}ملاحظة الاعتماد النهائي من الإدارة: ${notes}` : inv.notes,
+      };
+
+      setInvoices((prev) =>
+        prev.map((i) => (i.id === invoiceId ? updatedInv : i))
+      );
+
+      saveInvoiceWithQueue(updatedInv).catch((e) => console.warn('Supabase invoice update failed:', e));
+
+      recordAuditLog({
+        userId: currentUser?.id || 'admin',
+        userName: currentUser?.name || 'الإدارة',
+        userRole: currentUser?.role || 'admin',
+        branchName: inv.branchName,
+        action: 'approve_invoice_final',
+        actionTitle: `الاعتماد النهائي وصرف الفاتورة #${inv.invoiceNumber}`,
+        details: `العميل: ${inv.customerName} • المندوب: ${inv.repName} • تم الاعتماد النهائي من الإدارة وخصم المخزون الفعلي من ${inv.branchName} (${inv.totalCartons} كرتونة) • القيمة: ${inv.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م ${notes ? `• ملاحظة: ${notes}` : ''}`,
+        invoiceId: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        badgeType: 'success',
+      });
+
+      return {
+        success: true,
+        message: `تم الاعتماد النهائي للطلبية #${inv.invoiceNumber} من الإدارة وخصم المخزون الفعلي (${inv.totalCartons} كرتونة) من الفرع بنجاح!`,
+      };
+    }
+
+    return { success: false, message: 'دور المستخدم غير مدعوم لاعتماد الطلبية' };
   };
 
   const resendInvoiceEmail = async (invoiceId: string): Promise<{ success: boolean; message: string }> => {
