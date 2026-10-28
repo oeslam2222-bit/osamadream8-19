@@ -1472,17 +1472,6 @@ function onEdit(e) {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              {onNavigateToItemSales && (
-                <button
-                  type="button"
-                  onClick={onNavigateToItemSales}
-                  className="bg-amber-100 hover:bg-amber-200 text-amber-950 font-black px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-2xs border border-amber-300 cursor-pointer"
-                >
-                  <BarChart3 className="w-3.5 h-3.5 text-amber-800" />
-                  <span>فتح شاشة تحليل مبيعات الأصناف ↗</span>
-                </button>
-              )}
-
               <button
                 type="button"
                 onClick={() => exportCustomerAnalyticsToExcel(customers, 'تقرير_مبيعات_كافة_العملاء_2026')}

@@ -74,7 +74,6 @@ import {
   filterCustomersByRBAC,
   fetchDetailedCustomersFromGoogleSheet,
   parseDetailedCustomersExcel,
-  exportCustomerAnalyticsToExcel,
   downloadCustomerAnalyticsTemplate
 } from '../services/customerAnalyticsService';
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
@@ -1287,31 +1286,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           </button>
           )}
 
-          {/* مزامنة شيت العملاء والمديونية (Admin / Dev / Branch Manager) */}
-          {isAdminOrDev && (
-            <button
-              id="analytics-sync-sheet-btn"
-              type="button"
-              onClick={() => setIsSyncModalOpen(true)}
-              className="app-btn app-btn-primary px-3.5 py-2 text-xs whitespace-nowrap"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span>مزامنة شيت المديونية / إكسل</span>
-            </button>
-          )}
-
-          {!isRep && (
-            <button
-              id="analytics-export-excel-btn"
-              type="button"
-              onClick={() => exportCustomerAnalyticsToExcel(filteredCustomers, 'مبيعات_وعملاء_طنطاوي_2026')}
-              className="app-btn app-btn-ok px-3 py-2 text-xs whitespace-nowrap"
-              title="تصدير كشف شامل يتضمن شيت 'مبيعات العملاء' وشيت 'المديونيات' كملف Excel"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>تصدير إكسل (مبيعات العملاء)</span>
-            </button>
-          )}
         </div>
       </div>
 

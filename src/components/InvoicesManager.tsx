@@ -131,7 +131,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       available: base.filter((i) => !i.isShortageInvoice && !(i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))).length,
       shortage: base.filter((i) => i.isShortageInvoice || (i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))).length,
       pending: base.filter(
-        (i) => i.status === 'قيد مراجعة المشرف' || i.status === 'معلقة بانتظار اعتماد الفرع' || i.status === 'قيد المراجعة'
+        (i) => i.status === 'قيد مراجعة المشرف' || i.status === 'معلقة بانتظار اعتماد الفرع' || i.status === 'قيد المراجعة' || i.status === 'في انتظار اعتماد الإدارة'
       ).length,
       approved: base.filter((i) => i.status === 'معتمدة ومصروفة من المخزن' || i.status === 'معتمدة').length,
       cancelled: base.filter((i) => i.status === 'مرفوضة / ملغاة' || i.status === 'ملغاة').length,
@@ -203,7 +203,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       if (
         inv.status === 'قيد مراجعة المشرف' ||
         inv.status === 'معلقة بانتظار اعتماد الفرع' ||
-        inv.status === 'قيد المراجعة'
+        inv.status === 'قيد المراجعة' ||
+        inv.status === 'في انتظار اعتماد الإدارة'
       ) {
         pendingCount++;
       }
@@ -237,10 +238,13 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     'قيد مراجعة المشرف': { bg: 'app-badge warn animate-pulse', label: 'قيد مراجعة المشرف' },
     'معلقة بانتظار اعتماد الفرع': { bg: 'app-badge warn animate-pulse', label: 'بانتظار مدير الفرع' },
     'قيد المراجعة': { bg: 'app-badge warn' },
+    'في انتظار اعتماد الإدارة': { bg: 'app-badge warn animate-pulse', label: 'في انتظار الإدارة' },
     'معتمدة ومصروفة من المخزن': { bg: 'app-badge ok', label: 'معتمدة ومصروفة' },
     'معتمدة': { bg: 'app-badge ok' },
     'جاري التجهيز': { bg: 'app-badge warn' },
+    'جاري تحضير المنتجات': { bg: 'app-badge info', label: 'جارٍ التحضير' },
     'تم التسليم': { bg: 'app-badge ok' },
+    'إغلاق الطلبية': { bg: 'app-badge ok', label: 'مغلقة' },
     'مرفوضة / ملغاة': { bg: 'app-badge risk', label: 'مرفوضة / ملغاة' },
     'ملغاة': { bg: 'app-badge risk' },
   };
@@ -991,6 +995,62 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               <RotateCcw className="w-3.5 h-3.5 text-warn-deep" />
                               <span>مرتجع</span>
                             </button>
+                          {/* Order Preparation & Delivery Workflow Buttons */}
+                          {invoice.status === 'معتمدة' && canMakeReturn && (
+                            <button
+                              onClick={() => {
+                                const res = updateOrderStatus(invoice.id, 'جاري تحضير المنتجات', 'تم بدء تحضير منتجات الطلبية للتسليم');
+                                if (res.success) {
+                                  setSuccessToast(res.message);
+                                  setTimeout(() => setSuccessToast(null), 4000);
+                                } else {
+                                  alert(res.message);
+                                }
+                              }}
+                              className="app-btn app-btn-info px-2 text-xs"
+                              title="تأكيد بدء تحضير منتجات الطلبية للتسليم"
+                            >
+                              <Boxes className="w-3.5 h-3.5" />
+                              <span>جارٍ التحضير</span>
+                            </button>
+                          )}
+                          {invoice.status === 'جاري تحضير المنتجات' && canMakeReturn && (
+                            <button
+                              onClick={() => {
+                                const res = updateOrderStatus(invoice.id, 'تم التسليم', 'تم تسليم المنتجات للعميل');
+                                if (res.success) {
+                                  setSuccessToast(res.message);
+                                  setTimeout(() => setSuccessToast(null), 4000);
+                                } else {
+                                  alert(res.message);
+                                }
+                              }}
+                              className="app-btn app-btn-ok px-2 text-xs"
+                              title="تأكيد تسليم المنتجات للعميل وإغلاق الطلبية"
+                            >
+                              <Truck className="w-3.5 h-3.5" />
+                              <span>تم التسليم</span>
+                            </button>
+                          )}
+                          {invoice.status === 'تم التسليم' && canMakeReturn && (
+                            <button
+                              onClick={() => {
+                                const res = updateOrderStatus(invoice.id, 'إغلاق الطلبية', 'تم إغلاق الطلبية بعد التسليم للعميل');
+                                if (res.success) {
+                                  setSuccessToast(res.message);
+                                  setTimeout(() => setSuccessToast(null), 4000);
+                                } else {
+                                  alert(res.message);
+                                }
+                              }}
+                              className="app-btn app-btn-secondary px-2 text-xs"
+                              title="إغلاق الطلبية نهائياً بعد التسليم"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>إغلاق الطلبية</span>
+                            </button>
+                          )}
+
                           )}
 
                           <button

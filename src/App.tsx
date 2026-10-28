@@ -21,7 +21,6 @@ import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
 import { AllCustomersAnalyticsView } from './components/AllCustomersAnalyticsView';
-import { CustomerItemSalesView } from './components/CustomerItemSalesView';
 import { SupervisorDashboard } from './components/SupervisorDashboard';
 import { InvoicesManager } from './components/InvoicesManager';
 import { InventoryStockView } from './components/InventoryStockView';
@@ -49,27 +48,23 @@ import { Customer, Invoice, UserRole } from './types';
 export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
     'home', 'catalog', 'all_customers', 'customers',
-    'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   admin: [
     'home', 'catalog', 'all_customers', 'customers',
-    'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   branch_manager: [
     'home', 'catalog', 'all_customers', 'customers',
-    'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'users', 'guide'
   ],
   supervisor: [
     'home', 'catalog', 'all_customers', 'customers',
-    'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'users'
   ],
   sales_rep: [
     'home', 'catalog', 'all_customers', 'customers',
-    'customer_item_sales', 'targets', 'visits', 'returns_customers', 'invoices',
+    'targets', 'visits', 'returns_customers', 'invoices',
     'inventory'
   ],
   warehouse_keeper: [
@@ -218,20 +213,6 @@ const MainLayout: React.FC = () => {
             />
           )}
 
-          {activeTab === 'customer_item_sales' && allowedTabs.includes('customer_item_sales') && (
-            <CustomerItemSalesView
-              onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
-              onNavigateToExcel={() => setActiveTab('excel')}
-            />
-          )}
-
-          {activeTab === 'dashboard' && allowedTabs.includes('dashboard') && (
-            <SupervisorDashboard
-              onOpenNewOrder={() => setIsOrderModalOpen(true)}
-              onViewInvoice={(inv) => setViewingInvoice(inv)}
-            />
-          )}
-
           {activeTab === 'targets' && allowedTabs.includes('targets') && <TargetPerformanceDashboard />}
 
           {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
@@ -249,7 +230,7 @@ const MainLayout: React.FC = () => {
           {activeTab === 'inventory' && allowedTabs.includes('inventory') && <InventoryStockView />}
 
           {activeTab === 'excel' && allowedTabs.includes('excel') && (
-            <ExcelImportExport onNavigateToItemSales={() => setActiveTab('customer_item_sales')} />
+            <ExcelImportExport />
           )}
 
           {activeTab === 'users' && allowedTabs.includes('users') && <UserManager />}
