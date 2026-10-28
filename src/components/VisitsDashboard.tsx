@@ -1,5 +1,5 @@
 ﻿import React, { useMemo, useState } from 'react';
-import { AlertTriangle, CalendarCheck, CheckCircle2, Clock3, Plus, Save, Users } from 'lucide-react';
+import { AlertTriangle, CalendarCheck, CheckCircle2, Clock3, Plus, Save, Users, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StatGrid } from './ui/StatGrid';
 import type { CustomerVisit, ReturnedItem } from '../types';
@@ -18,12 +18,13 @@ export const VisitsDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('الكل');
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [selectedVisit, setSelectedVisit] = useState<CustomerVisit | null>(null);
   const [flash, setFlash] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const todayStr = new Date().toISOString().slice(0, 10);
   // المشرف ومدير الفرع والإدارة هم اللي بيحوّلوا المرتجع لأمين المخزن
   const canApproveReturns = currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer';
-  const [form, setForm] = useState({ customerId: '', repId: currentUser?.role === 'sales_rep' ? currentUser.id : '', date: todayStr, time: '09:00', type: 'زيارة دورية' as CustomerVisit['type'], outcome: 'متابعة فقط' as CustomerVisit['outcome'], collectedAmount: 0, orderAmount: 0, returnValue: 0, returnReason: '', returnItems: '', returnLocation: 'عند العميل' as ReturnLocation, notes: '' });
+  const [form, setForm] = useState({ customerId: '', repId: currentUser?.role === 'sales_rep' ? currentUser.id : '', date: todayStr, time: '09:00', type: 'زيارة دورية' as CustomerVisit['type'], outcome: 'متابعة فقط' as CustomerVisit['outcome'], collectedAmount: 0, orderAmount: 0, returnValue: 0, returnReason: '', returnItems: '', returnLocation: 'عند العميل' as ReturnLocation, notes: '', returnImages: [] as string[] });
 
   const branches = currentUser?.role === 'branch_manager' ? [currentUser.branchName || ''] :
     currentUser?.role === 'supervisor' ? Array.from(new Set(users.filter((u) => u.supervisorId === currentUser.id).map((u) => u.branchName).filter(Boolean))) :
@@ -90,6 +91,7 @@ export const VisitsDashboard: React.FC = () => {
       // مكان المرتجع (عند العميل / بالمخزن) بيتسجل جوّه returnNote عشان
       // أمين المخزن ينسّق على أساسه.
       returnNote: isReturn ? buildReturnNote('', { location: form.returnLocation }) : undefined,
+      returnImages: isReturn ? form.returnImages : undefined,
       // المرتجع ممكن يتسجل في يوم فيه زيارة سابقة لنفس العميل.
       allowSameDaySecondVisit: isReturn ? true : undefined,
     });
@@ -382,6 +384,37 @@ export const VisitsDashboard: React.FC = () => {
                     {RETURN_LOCATIONS.map((l) => <option key={l} value={l}>{l}</option>)}
                   </select>
                 </label>
+                <label className="block mt-2">
+                  <span className="text-[11px] text-slate-500 font-bold">صور المرتجع (اختياري)</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      const urls = files.map((f) => URL.createObjectURL(f));
+                      setForm({ ...form, returnImages: [...form.returnImages, ...urls] });
+                    }}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm"
+                  />
+                  {form.returnImages.length > 0 && (
+                    <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {form.returnImages.map((img, i) => (
+                        <div key={i} className="relative group">
+                          <img src={img} alt="return" className="w-full h-20 object-cover rounded-lg border border-slate-200" />
+                          <button
+                            type="button"
+                            onClick={() => setForm({ ...form, returnImages: form.returnImages.filter((_, idx) => idx !== i) })}
+                            className="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-rose-700"
+                            aria-label="حذف الصورة"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </label>
               </div>
             ) : null}
 
@@ -470,6 +503,18 @@ export const VisitsDashboard: React.FC = () => {
                 <p className="text-sm text-slate-700">سبب المرتجع: {selectedVisit.returnReason}</p>
                 <p className="text-sm text-slate-700">الأصناف: {selectedVisit.returnItems}</p>
                 <p className="text-sm text-slate-700">حالة المرتجع: {selectedVisit.returnStatus}</p>
+                {selectedVisit.returnImages && selectedVisit.returnImages.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs text-[#8a6420] font-bold mb-2">صور المرتجع:</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {selectedVisit.returnImages.map((img, i) => (
+                        <div key={i} className="relative">
+                          <img src={img} alt="return" className="w-full h-24 object-cover rounded-lg border border-slate-200 cursor-pointer" onClick={() => setLightboxImage(img)} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {selectedVisit.returnHandledBy ? (
                   <p className="text-xs text-slate-500 mt-1">آخر قرار: {selectedVisit.returnHandledBy} — {selectedVisit.returnHandledAt}</p>
                 ) : null}
@@ -524,6 +569,37 @@ export const VisitsDashboard: React.FC = () => {
           </div>
         </div>
       ) : null}
-    </div>
+
+    {/* Image Lightbox */}
+    {lightboxImage && (
+      <div
+        className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setLightboxImage(null);
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="تكبير صورة المرتجع"
+      >
+        <button
+          type="button"
+          onClick={() => setLightboxImage(null)}
+          className="absolute top-4 left-4 z-20 w-10 h-10 rounded-full bg-white/10 text-white backdrop-blur-md hover:bg-white/20 transition cursor-pointer flex items-center justify-center"
+          aria-label="إغلاق التكبير"
+        >
+          <X className="w-5 h-5" />
+        </button>
+        <div className="relative flex items-center justify-center max-w-[90vh] max-h-[90vh]">
+          <img
+            src={lightboxImage}
+            alt="return image"
+            className="max-w-[85vw] max-h-[85vh] rounded-2xl shadow-2xl object-contain bg-white p-2 border border-white/20"
+            loading="lazy"
+            decoding="async"
+          />
+        </div>
+      </div>
+    )}
+  </div>
   );
 };

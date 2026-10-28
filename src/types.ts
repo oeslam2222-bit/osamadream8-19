@@ -274,6 +274,7 @@ export interface CustomerVisit {
   returnHandledAt?: string;           // وقت تأكيد التحويل
   returnHandledRole?: string;         // وظيفة/دور من قام بالتحويل
   returnNote?: string;                // ملاحظة المشرف عند الإرسال/التحويل
+  returnImages?: string[];            // روابط صور المرتجع (من جوجل درايف أو شيت)
 }
 
 export interface Customer {
