@@ -59,7 +59,7 @@ import {
 } from '../services/cloudinaryService';
 import { formatCurrency } from '../services/invoiceService';
 import { cacheProductImages, getCachedImagesStats, clearCachedImages } from '../services/imageCacheService';
-import { parseExcelProducts, fetchAndParseGoogleSheet, generateSampleExcelTemplate, exportProductsToExcel } from '../services/excelService';
+import { parseExcelProducts, fetchAndParseGoogleSheet, generateSampleExcelTemplate } from '../services/excelService';
 import { buildClientCatalogPDF, type ClientCatalogProduct } from '../services/pdfService';
 import { Customer, ItemStatus, Product, SalesPriority } from '../types';
 import { DepartmentCategorySlicer } from './DepartmentCategorySlicer';
@@ -667,25 +667,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   ]);
 
 
-  const handleDownloadSmartCatalogExcel = useCallback(() => {
-    if (filteredProducts.length === 0) {
-      window.alert('لا توجد منتجات معروضة للتصدير إلى إكسل. يرجى إلغاء التصفية أو البحث أولاً.');
-      return;
-    }
-    const confirmed = window.confirm(
-      `سيتم تصدير ${filteredProducts.length} منتج إلى ملف إكسل (مطابق للفلترة الحالية)، مع روابط الصور والمخزون لكل فرع. هل تريد المتابعة؟`,
-    );
-    if (!confirmed) return;
-    try {
-      exportProductsToExcel(filteredProducts, selectedOfficialDept, currentUser);
-    } catch (err) {
-      console.error('Excel export failed:', err);
-      window.alert('فشل تصدير ملف الإكسل. يرجى المحاولة مرة أخرى.');
-    }
-  }, [filteredProducts, selectedOfficialDept, currentUser]);
-
-
-
   const cartSummary = useMemo(() => {
     return getCartSummary ? getCartSummary() : { totalCartons: 0, totalPieces: 0, grandTotal: 0, subtotal: 0, discountAmount: 0 };
   }, [getCartSummary, cart]);
@@ -1184,15 +1165,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
              >
                تصدير كتالوج PDF
              </button>
-              <button
-                type="button"
-                onClick={handleDownloadSmartCatalogExcel}
-                className="px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer bg-[color:var(--app-accent)] text-white hover:opacity-90 flex items-center gap-1"
-                title={`تصدير إكسل للمنتجات الظاهرة (${filteredProducts.length})`}
-              >
-                إكسل الصور والمخزون
-              </button>
-             <span className="text-slate-500 text-[11px] font-medium hidden sm:inline">
                مطابق: <strong className="text-slate-900 dark:text-slate-100 font-bold">{filteredProducts.length}</strong> صنف
             </span>
             {(searchTerm || selectedOfficialDept !== 'الكل' || selectedSubCategory !== 'الكل' || stockAvailabilityFilter !== 'all' || sortBy !== 'default') && (
