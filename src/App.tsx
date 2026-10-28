@@ -48,22 +48,18 @@ import { Customer, Invoice, UserRole } from './types';
 export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
     'home', 'catalog', 'all_customers', 'customers',
-    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   admin: [
     'home', 'catalog', 'all_customers', 'customers',
-    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   branch_manager: [
     'home', 'catalog', 'all_customers', 'customers',
-    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'users', 'guide'
   ],
   supervisor: [
     'home', 'catalog', 'all_customers', 'customers',
-    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'users'
   ],
   sales_rep: [
@@ -214,13 +210,6 @@ const MainLayout: React.FC = () => {
           {(activeTab === 'all_customers' || activeTab === 'customers') && allowedTabs.includes('all_customers') && (
             <AllCustomersAnalyticsView
               onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
-            />
-          )}
-
-          {activeTab === 'dashboard' && allowedTabs.includes('dashboard') && (
-            <SupervisorDashboard
-              onOpenNewOrder={() => setIsOrderModalOpen(true)}
-              onViewInvoice={(inv) => setViewingInvoice(inv)}
             />
           )}
 

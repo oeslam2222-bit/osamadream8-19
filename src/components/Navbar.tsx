@@ -183,7 +183,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'all_customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'dashboard', label: 'المتابعة', icon: LayoutDashboard, roles: ['admin', 'branch_manager', 'supervisor', 'developer'] },
     { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'visits', label: 'الزيارات', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'returns', label: 'المرتجعات والمخزن', icon: RotateCcw, roles: ['admin', 'branch_manager', 'supervisor', 'developer', 'warehouse_keeper'] },
@@ -420,7 +419,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="space-y-1.5 pt-2">
                     <div className="lg:hidden grid grid-cols-2 gap-1.5 pb-1">
                       {[
-                        { id: 'dashboard', label: 'المتابعة' },
                         { id: 'targets', label: 'التارجت' },
                         { id: 'visits', label: 'الزيارات' },
                         { id: 'inventory', label: 'المخزون' }
