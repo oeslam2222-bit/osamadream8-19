@@ -829,12 +829,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* Clean Modern Catalog Header (Amazon / Dream Distribution Ops Console style) */}
       <section className="bg-white rounded-2xl border border-[color:var(--app-line)] p-3.5 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-2xl bg-[#0f233d] text-[var(--app-accent)] flex items-center justify-center font-black shadow-sm shrink-0">
+          <div className="w-11 h-11 rounded-2xl bg-navy-panel text-[var(--app-accent)] flex items-center justify-center font-black shadow-sm shrink-0">
             <Boxes className="w-6 h-6" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black tracking-wider uppercase text-[#8a6420] bg-[#fffdf7] px-2 py-0.5 rounded border border-amber-200">
+              <span className="text-[10px] font-black tracking-wider uppercase text-warn bg-amber-light px-2 py-0.5 rounded border border-amber-200">
                 OPS CONSOLE / CATALOG
               </span>
               <span className="text-[11px] font-bold text-slate-400">
@@ -853,7 +853,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
       {/* Selected Customer Order Context Banner */}
       {selectedCustomer && (
-        <div className="bg-[#fdf8ed] text-slate-950 p-3 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm border border-[#e8dcba] animate-in fade-in slide-in-from-top-2">
+        <div className="bg-amber-soft text-slate-950 p-3 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm border border-amber-soft animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-[color:var(--app-navy)] text-[color:var(--app-accent)] flex items-center justify-center font-black shrink-0 shadow-sm">
               <ShoppingCart className="w-5 h-5" />
@@ -889,7 +889,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             {onOpenCart && (
               <button
                 onClick={onOpenCart}
-                className="bg-[color:var(--app-navy)] hover:bg-[#0d2340] active:scale-95 text-white px-4 py-2 rounded-[10px] text-xs font-black flex items-center gap-2 shadow-md transition cursor-pointer"
+                className="bg-[color:var(--app-navy)] hover:bg-navy-deep2 active:scale-95 text-white px-4 py-2 rounded-[10px] text-xs font-black flex items-center gap-2 shadow-md transition cursor-pointer"
               >
                 <ShoppingCart className="w-4 h-4" />
                 <span>معاينة الفاتورة وتأكيد الطلبية</span>
@@ -912,7 +912,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {addedItemToast && (
         <div className="fixed bottom-20 md:bottom-6 left-4 right-4 md:left-6 md:right-auto z-50 bg-[color:var(--app-navy)] text-white px-4 py-3 rounded-2xl shadow-2xl border-2 border-[color:var(--app-accent)] flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[color:var(--app-accent)] text-[#231a05] flex items-center justify-center font-black">
+            <div className="w-9 h-9 rounded-xl bg-[color:var(--app-accent)] text-deep-navy flex items-center justify-center font-black">
               <Check className="w-5 h-5" />
             </div>
             <div>
@@ -928,7 +928,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           {onOpenCart && (
             <button
               onClick={onOpenCart}
-              className="bg-[color:var(--app-accent)] hover:bg-[#b98e3c] text-[#231a05] px-3 py-1.5 rounded-[10px] font-black text-xs shadow transition whitespace-nowrap cursor-pointer"
+              className="bg-[color:var(--app-accent)] hover:bg-amber-deep3 text-deep-navy px-3 py-1.5 rounded-[10px] font-black text-xs shadow transition whitespace-nowrap cursor-pointer"
             >
               عرض السلة
             </button>
@@ -944,11 +944,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-xs text-[#f5a5a5] font-black">تنبيه نفاذ / حجز المخزون</div>
+              <div className="text-xs text-amber-soft2 font-black">تنبيه نفاذ / حجز المخزون</div>
               <div className="text-xs text-white font-bold leading-tight">{stockErrorToast}</div>
             </div>
           </div>
-          <button onClick={() => setStockErrorToast(null)} className="text-[#f5a5a5] hover:text-white p-1">
+          <button onClick={() => setStockErrorToast(null)} className="text-amber-soft2 hover:text-white p-1">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -956,7 +956,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
       {/* Wipe / Reset Data Success Alert */}
       {wipeSuccessText && (
-        <div className="p-3 bg-[#e8f3ee] border border-[rgba(46,125,91,.22)] text-[color:var(--app-ok)] text-xs rounded-xl font-bold flex items-center gap-2 animate-in fade-in">
+        <div className="p-3 bg-green-soft border border-[rgba(46,125,91,.22)] text-[color:var(--app-ok)] text-xs rounded-xl font-bold flex items-center gap-2 animate-in fade-in">
           <CheckCheck className="w-4 h-4 text-[color:var(--app-ok)] shrink-0" />
           <span>{wipeSuccessText}</span>
         </div>
@@ -1019,7 +1019,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               }}
               onFocus={() => setShowSuggestions(true)}
               placeholder="ابحث بالاسم، الكود (#)، الماركة، أو القسم..."
-              className={`w-full h-10 sm:h-11 pl-9 pr-9 ${isDark ? 'bg-[#1e293b] focus:bg-[#1e293b] text-slate-100 placeholder-slate-500' : 'bg-slate-50 focus:bg-white text-slate-900 placeholder-slate-400'} border border-[color:var(--app-line)] focus:border-[color:var(--app-blue)] rounded-lg text-xs sm:text-sm font-medium transition`}
+              className={`w-full h-10 sm:h-11 pl-9 pr-9 ${isDark ? 'bg-slate-dark focus:bg-slate-dark text-slate-100 placeholder-slate-500' : 'bg-slate-50 focus:bg-white text-slate-900 placeholder-slate-400'} border border-[color:var(--app-line)] focus:border-[color:var(--app-blue)] rounded-lg text-xs sm:text-sm font-medium transition`}
             />
             {searchTerm ? (
               <button
@@ -1040,8 +1040,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
           {/* Smart Search Suggestions Dropdown */}
           {smartSuggestions.length > 0 && showSuggestions && (
-            <div className={`absolute top-full left-0 right-0 mt-1 z-50 ${isDark ? 'bg-[#1e293b] border-[#334155]' : 'bg-white border-[color:var(--app-line)]'} rounded-xl shadow-xl max-h-72 overflow-y-auto`}>
-              <div className={`p-2 text-[10px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-400'} border-b ${isDark ? 'border-[#334155]' : 'border-slate-100'} flex items-center justify-between`}>
+            <div className={`absolute top-full left-0 right-0 mt-1 z-50 ${isDark ? 'bg-slate-dark border-deep' : 'bg-white border-[color:var(--app-line)]'} rounded-xl shadow-xl max-h-72 overflow-y-auto`}>
+              <div className={`p-2 text-[10px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-400'} border-b ${isDark ? 'border-deep' : 'border-slate-100'} flex items-center justify-between`}>
                 <span>اقتراحات سريعة ({smartSuggestions.length})</span>
                 <button
                   type="button"
@@ -1061,10 +1061,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       handleSelectSuggestion(p);
                       setShowSuggestions(false);
                     }}
-                    className={`w-full text-right px-3 py-2 ${isDark ? 'hover:bg-[#334155]' : 'hover:bg-slate-50'} flex items-center justify-between border-b ${isDark ? 'border-[#334155]' : 'border-slate-50'} last:border-0 cursor-pointer`}
+                    className={`w-full text-right px-3 py-2 ${isDark ? 'hover:bg-slate-deep2' : 'hover:bg-slate-50'} flex items-center justify-between border-b ${isDark ? 'border-deep' : 'border-slate-50'} last:border-0 cursor-pointer`}
                   >
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-slate-100 ${isDark ? 'bg-[#334155]' : ''}">
+                      <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-slate-100 ${isDark ? 'bg-slate-deep2' : ''}">
                         <img src={imgUrl} alt={p.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                       </div>
                       <div className="truncate min-w-0 flex-1 ml-2">
@@ -1100,7 +1100,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             onClick={toggleConfidentialMode}
             className={`h-10 sm:h-11 px-2.5 sm:px-3 rounded-lg border text-xs font-bold transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
               isConfidentialMode
-                ? 'bg-[#fffdf7] text-[#8a6420] border-[var(--app-accent)]'
+                ? 'bg-amber-light text-warn border-[var(--app-accent)]'
                 : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-[color:var(--app-line)]'
             }`}
             title={isConfidentialMode ? 'وضع السرية مفعّل (الأسعار محجوبة أمام العميل) - انقر للإظهار' : 'إخفاء الأسعار أمام العميل (وضع السرية)'}
@@ -1208,7 +1208,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               type="button"
               onClick={() => setStockAvailabilityFilter('in_branch')}
               className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
-                stockAvailabilityFilter === 'in_branch' ? 'bg-[#e8f5ef] text-[var(--app-ok)]' : 'text-slate-600 hover:text-[var(--app-ok)]'
+                stockAvailabilityFilter === 'in_branch' ? 'bg-green-pale text-[var(--app-ok)]' : 'text-slate-600 hover:text-[var(--app-ok)]'
               }`}
             >
               متوفر بالفرع ({stockCounts.inBranch})
@@ -1217,7 +1217,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               type="button"
               onClick={() => setStockAvailabilityFilter('in_warehouse')}
               className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
-                stockAvailabilityFilter === 'in_warehouse' ? 'bg-[#e8f0f8] text-[var(--app-navy)]' : 'text-slate-600 hover:text-blue-700'
+                stockAvailabilityFilter === 'in_warehouse' ? 'bg-slate-soft7 text-[var(--app-navy)]' : 'text-slate-600 hover:text-blue-700'
               }`}
             >
               مخزن أكتوبر ({stockCounts.inWarehouse})
@@ -1226,7 +1226,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               type="button"
               onClick={() => setStockAvailabilityFilter('has_stock')}
                className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
-                 stockAvailabilityFilter === 'has_stock' ? 'bg-[#e8f5ef] text-[var(--app-ok)]' : 'text-slate-600 hover:text-[var(--app-ok)]'
+                 stockAvailabilityFilter === 'has_stock' ? 'bg-green-pale text-[var(--app-ok)]' : 'text-slate-600 hover:text-[var(--app-ok)]'
                }`}
              >
                متوفر فقط ✓
@@ -1235,7 +1235,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                type="button"
                onClick={() => setStockAvailabilityFilter('offers')}
               className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
-                stockAvailabilityFilter === 'offers' ? 'bg-[#fff8e8] text-[#8a6420]' : 'text-slate-600 hover:text-[#8a6420]'
+                stockAvailabilityFilter === 'offers' ? 'bg-amber-very-pale text-warn' : 'text-slate-600 hover:text-warn'
               }`}
             >
               عروض خاصة 🔥 ({stockCounts.offers})
@@ -1328,7 +1328,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
                     {/* Pack size indicator */}
                     <div className="absolute bottom-2 right-2 bg-white/90 text-slate-600 border border-slate-200 text-[9px] font-bold px-1.5 py-0.5 rounded backdrop-blur-xs">
-                      الشدة: <span className="font-mono text-[#8a6420]">{product.cartonQuantity || 1} ق</span>
+                      الشدة: <span className="font-mono text-warn">{product.cartonQuantity || 1} ق</span>
                     </div>
                   </div>
 
@@ -1459,7 +1459,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         <button
                           type="button"
                           onClick={() => handleQuickAddWithState(product)}
-                          className="w-full bg-[color:var(--app-navy)] hover:bg-[#0d2340] active:scale-[0.98] text-white font-bold h-9 px-2 rounded-lg text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="w-full bg-[color:var(--app-navy)] hover:bg-navy-deep2 active:scale-[0.98] text-white font-bold h-9 px-2 rounded-lg text-xs shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
                           <span>أضف للطلبية</span>
@@ -1515,7 +1515,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                             cloudinaryConfig={cloudinaryConfig}
                             targetSize={120}
                             sizeVariant="thumbnail"
-                            containerClassName="w-11 h-11 rounded-[8px] bg-[#f2f6fa] dark:bg-slate-700 overflow-hidden shrink-0 border border-[color:var(--app-line)] cursor-pointer"
+                            containerClassName="w-11 h-11 rounded-[8px] bg-blue-soft dark:bg-slate-700 overflow-hidden shrink-0 border border-[color:var(--app-line)] cursor-pointer"
                             className="w-full h-full object-cover"
                             showBadgeOnFallback={false}
                             onClick={() => {
@@ -1529,7 +1529,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                             </span>
                             {product.unifiedCode && (
                               <span className="font-mono font-bold text-[var(--app-navy)] bg-white border border-[color:var(--app-line)] px-1.5 py-0.2 rounded text-[10px] flex items-center gap-0.5" title="الكود الموحد">
-                                <span className="text-[#8a6420] dark:text-[var(--app-accent)] font-bold">#</span>
+                                <span className="text-warn dark:text-[var(--app-accent)] font-bold">#</span>
                                 <span>{product.unifiedCode.replace('#', '')}</span>
                               </span>
                             )}
@@ -1537,7 +1537,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         </div>
                       </td>
                       <td className="p-2.5">
-                        <div className="font-black text-slate-900 hover:text-[#8a6420] dark:text-[var(--app-accent)] cursor-pointer" onClick={() => setSelectedProductForModal(product)}>
+                        <div className="font-black text-slate-900 hover:text-warn dark:text-[var(--app-accent)] cursor-pointer" onClick={() => setSelectedProductForModal(product)}>
                           {product.name}
                         </div>
                         <div className="text-[10px] text-[var(--app-muted)] flex items-center gap-2">
@@ -1555,11 +1555,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                           {branchCartons <= 0 ? (
                             <span className="text-[color:var(--app-risk)] font-black">نفد (0 متاح)</span>
                           ) : branchCartons <= 5 ? (
-                            <span className="text-[color:var(--app-warn)] bg-[#f7f0e1] border border-[rgba(155,112,39,.25)] font-black px-1.5 py-0.5 rounded-full text-[9px] inline-block">
+                            <span className="text-[color:var(--app-warn)] bg-warn-soft border border-[rgba(155,112,39,.25)] font-black px-1.5 py-0.5 rounded-full text-[9px] inline-block">
                               مخزون حرج ({branchCartons} ك)
                             </span>
                           ) : branchCartons <= 10 ? (
-                            <span className="text-[color:var(--app-warn)] bg-[#fdf8ed] border border-[#e8dcba] font-bold px-1.5 py-0.5 rounded-full text-[9px] inline-block">
+                            <span className="text-[color:var(--app-warn)] bg-amber-soft border border-amber-soft font-bold px-1.5 py-0.5 rounded-full text-[9px] inline-block">
                               محدود ({branchCartons} ك)
                             </span>
                           ) : (
@@ -1572,16 +1572,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       </td>
                       <td className="p-2.5 text-left font-extrabold text-slate-900 text-sm tabular-nums">
                         {isConfidentialMode ? (
-                          <span className="font-mono text-slate-400 text-xs tracking-widest bg-[#f2f6fa] dark:bg-slate-700 px-1.5 py-0.5 rounded">••••••</span>
+                          <span className="font-mono text-slate-400 text-xs tracking-widest bg-blue-soft dark:bg-slate-700 px-1.5 py-0.5 rounded">••••••</span>
                         ) : (
                           formatCurrency(product.cartonPrice)
                         )}
                       </td>
                       <td className="p-2.5 text-center">
                         {isConfidentialMode ? (
-                          <span className="font-mono text-slate-400 text-xs tracking-widest bg-[#f2f6fa] dark:bg-slate-700 px-1.5 py-0.5 rounded">••••••</span>
+                          <span className="font-mono text-slate-400 text-xs tracking-widest bg-blue-soft dark:bg-slate-700 px-1.5 py-0.5 rounded">••••••</span>
                         ) : product.promoPrice ? (
-                          <div className="inline-flex flex-col items-center bg-[#fdf5f5] border border-[rgba(179,74,74,.25)] px-2 py-0.5 rounded-[8px]">
+                          <div className="inline-flex flex-col items-center bg-red-pale border border-[rgba(179,74,74,.25)] px-2 py-0.5 rounded-[8px]">
                             <span className="text-[color:var(--app-risk)] font-black text-xs tabular-nums">{formatCurrency(product.promoPrice)}</span>
                             <span className="text-[9px] text-[color:var(--app-risk)] opacity-80 font-bold">
                               ({formatCurrency(product.promoPiecePrice || (product.cartonQuantity ? product.promoPrice / product.cartonQuantity : product.promoPrice))} ق)
@@ -1596,13 +1596,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               onClick={() => handleDirectAdd(product, 'carton', 1)}
-                              className="bg-[color:var(--app-navy)] hover:bg-[#0d2340] text-white font-black px-3 py-1.5 rounded-[10px] text-xs transition cursor-pointer shadow-sm whitespace-nowrap min-h-[38px]"
+                              className="bg-[color:var(--app-navy)] hover:bg-navy-deep2 text-white font-black px-3 py-1.5 rounded-[10px] text-xs transition cursor-pointer shadow-sm whitespace-nowrap min-h-[38px]"
                             >
                               +1 كرتونة
                             </button>
                           </div>
                         ) : (
-                          <div className="text-center text-[color:var(--app-risk)] font-bold text-[11px] bg-[#fdf5f5] px-2 py-1 rounded-[8px] border border-[rgba(179,74,74,.25)]">
+                          <div className="text-center text-[color:var(--app-risk)] font-bold text-[11px] bg-red-pale px-2 py-1 rounded-[8px] border border-[rgba(179,74,74,.25)]">
                             نفد المخزون
                           </div>
                         )}
@@ -1644,7 +1644,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     className={`px-2 py-1 rounded-[8px] text-xs font-black transition cursor-pointer ${
                       itemsPerPage === size
                         ? 'bg-[color:var(--app-navy)] text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-[#eef3f9]'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-blue-very-pale'
                     }`}
                   >
                     {size === 'all' ? 'الكل' : size}
@@ -1691,7 +1691,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         className={`min-w-[36px] h-[36px] rounded-[10px] text-xs font-black transition cursor-pointer flex items-center justify-center ${
                           currentPage === p
                             ? 'bg-[color:var(--app-navy)] text-white shadow-sm'
-                            : 'bg-white border border-[color:var(--app-line)] hover:bg-[#f4f7fa] hover:border-[#b8c9db] text-slate-700'
+                            : 'bg-white border border-[color:var(--app-line)] hover:bg-slate-light hover:border-slate-border text-slate-700'
                         }`}
                       >
                         {p}
@@ -1720,7 +1720,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* Empty State with Fast Setup Assistant */}
       {filteredProducts.length === 0 && (
         <div className="bg-white rounded-3xl p-8 sm:p-12 text-center border border-slate-200 shadow-sm space-y-4 max-w-xl mx-auto">
-          <div className="w-16 h-16 bg-[#f2f6fa] text-[#9aabbf] rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+          <div className="w-16 h-16 bg-blue-soft text-slate-soft5 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
             <Package className="w-8 h-8" />
           </div>
           
@@ -1739,7 +1739,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               isAdminOrDev ? (
                 <button
                   onClick={() => setIsUploadBoxOpen(true)}
-                  className="bg-[color:var(--app-navy)] hover:bg-[#0d2340] text-white px-5 py-2.5 rounded-[10px] text-xs font-black shadow-sm transition flex items-center gap-2 cursor-pointer"
+                  className="bg-[color:var(--app-navy)] hover:bg-navy-deep2 text-white px-5 py-2.5 rounded-[10px] text-xs font-black shadow-sm transition flex items-center gap-2 cursor-pointer"
                 >
                   <Upload className="w-4 h-4" />
                   <span>رفع شيت الأصناف الآن</span>
@@ -1758,7 +1758,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   setStockAvailabilityFilter('all');
                   setSortBy('default');
                 }}
-                className="bg-[color:var(--app-navy)] text-white px-5 py-2.5 rounded-[10px] text-xs font-bold shadow hover:bg-[#0d2340] cursor-pointer"
+                className="bg-[color:var(--app-navy)] text-white px-5 py-2.5 rounded-[10px] text-xs font-bold shadow hover:bg-navy-deep2 cursor-pointer"
               >
                 إعادة تعيين البحث
               </button>
@@ -1823,7 +1823,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 type="button"
                 onClick={handleConfirmWipe}
                 disabled={isWiping}
-                className="flex-1 bg-[color:var(--app-risk)] hover:bg-[#953f3f] text-white font-black py-2.5 rounded-[10px] text-xs shadow-md transition cursor-pointer disabled:opacity-50"
+                className="flex-1 bg-[color:var(--app-risk)] hover:bg-rose-deep4 text-white font-black py-2.5 rounded-[10px] text-xs shadow-md transition cursor-pointer disabled:opacity-50"
               >
                 {isWiping ? 'جاري المسح...' : 'نعم، تصفير والبدء من جديد'}
               </button>
@@ -1844,8 +1844,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   {selectedProductForModal.code}
                 </span>
                 {selectedProductForModal.unifiedCode && (
-                  <span className="bg-[#e8f1fa] text-[#1e5f9d] font-mono font-black text-xs px-2.5 py-1 rounded-[10px] border border-[#cfe0f0] flex items-center gap-1">
-                    <span className="text-[#8a6420] font-bold">#</span>
+                  <span className="bg-blue-pale text-blue font-mono font-black text-xs px-2.5 py-1 rounded-[10px] border border-slate-border-deep2 flex items-center gap-1">
+                    <span className="text-warn font-bold">#</span>
                     <span>الكود الموحد: {selectedProductForModal.unifiedCode.replace('#', '')}</span>
                   </span>
                 )}
@@ -1853,7 +1853,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   const deptMeta = getDepartmentMeta(selectedProductForModal.department || selectedProductForModal.category);
                   const DeptIcon = deptMeta.icon;
                   return (
-                    <span className="text-xs font-bold text-slate-700 bg-[#f2f6fa] border border-[#e3ebf3] px-2 py-0.5 rounded-lg flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-slate-700 bg-blue-soft border border-slate-border-soft px-2 py-0.5 rounded-lg flex items-center gap-1.5">
                       <DeptIcon className="w-3.5 h-3.5 text-[color:var(--app-muted)]" />
                       <span>{deptMeta.nameArabic} ({selectedProductForModal.department || 'عام'})</span>
                     </span>
@@ -1893,7 +1893,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   )}
                 </div>
                 <div className="text-[11px] text-slate-500 text-center">
-                  معرّف الصورة: <code className="bg-[#f2f6fa] px-1.5 py-0.5 rounded text-[#8a6420] font-mono font-bold">{selectedProductForModal.cloudinaryPublicId || selectedProductForModal.code}</code>
+                  معرّف الصورة: <code className="bg-blue-soft px-1.5 py-0.5 rounded text-warn font-mono font-bold">{selectedProductForModal.cloudinaryPublicId || selectedProductForModal.code}</code>
                 </div>
               </div>
 
@@ -1913,17 +1913,17 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       كود الصنف: {selectedProductForModal.code}
                     </span>
                     {selectedProductForModal.unifiedCode ? (
-                      <span className="bg-[#e8f1fa] text-[#1e5f9d] font-mono font-black text-xs px-2.5 py-1 rounded-[10px] border border-[#cfe0f0] flex items-center gap-1">
-                        <span className="text-[#8a6420] font-bold">#</span>
+                      <span className="bg-blue-pale text-blue font-mono font-black text-xs px-2.5 py-1 rounded-[10px] border border-slate-border-deep2 flex items-center gap-1">
+                        <span className="text-warn font-bold">#</span>
                         <span>الكود الموحد ل��موديل: {selectedProductForModal.unifiedCode.replace('#', '')}</span>
                       </span>
                     ) : (
-                      <span className="bg-[#f2f6fa] text-slate-600 font-bold text-xs px-2 py-0.5 rounded-lg border border-[color:var(--app-line)]">
+                      <span className="bg-blue-soft text-slate-600 font-bold text-xs px-2 py-0.5 rounded-lg border border-[color:var(--app-line)]">
                         # بدون كود موحد
                       </span>
                     )}
                     {selectedProductForModal.color && (
-                      <span className="bg-[#e8f1fa] text-[#1e5f9d] border border-[#cfe0f0] font-black text-xs px-2 py-0.5 rounded-lg">
+                      <span className="bg-blue-pale text-blue border border-slate-border-deep2 font-black text-xs px-2 py-0.5 rounded-lg">
                         اللون: {selectedProductForModal.color}
                       </span>
                     )}
@@ -1940,8 +1940,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     );
                     if (siblings.length === 0) return null;
                     return (
-                      <div className="mt-3 bg-[#e8f1fa]/70 border border-[#cfe0f0] rounded-2xl p-2.5 space-y-2">
-                        <div className="flex items-center justify-between text-xs font-black text-[#1e5f9d]">
+                      <div className="mt-3 bg-blue-pale/70 border border-slate-border-deep2 rounded-2xl p-2.5 space-y-2">
+                        <div className="flex items-center justify-between text-xs font-black text-blue">
                           <span className="flex items-center gap-1">
                             <span>الألوان والموديلات لنفس الكود الموحد (#{normCode}):</span>
                           </span>
@@ -1954,7 +1954,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                             <div
                               key={sib.id}
                               onClick={() => setSelectedProductForModal(sib)}
-                              className="flex items-center gap-2 p-1.5 bg-white border border-[#cfe0f0] rounded-[10px] hover:border-[#1e5f9d] hover:shadow-xs cursor-pointer transition text-[11px]"
+                              className="flex items-center gap-2 p-1.5 bg-white border border-slate-border-deep2 rounded-[10px] hover:border-deep5 hover:shadow-xs cursor-pointer transition text-[11px]"
                               title={`عرض صنف: ${sib.name} (${sib.color || 'بدون لون'})`}
                             >
                               <ProductImage
@@ -1966,7 +1966,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                               />
                               <div className="truncate flex-1">
                                 <div className="font-black text-slate-900 truncate">{sib.color || sib.name}</div>
-                                <div className="text-[10px] text-[#1e5f9d] font-mono font-bold flex items-center gap-1">
+                                <div className="text-[10px] text-blue font-mono font-bold flex items-center gap-1">
                                   <span>{sib.code}</span>
                                 </div>
                               </div>
@@ -1992,7 +1992,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2.5">
                       <div className="flex items-center justify-between">
                         <div className="font-bold text-slate-900 text-xs">مستويات المخزون بالكراتين ({activeBranchLabel}):</div>
-                        <span className="text-[10px] bg-[#f7f0e1] text-[color:var(--app-warn)] font-bold px-2 py-0.5 rounded-md">
+                        <span className="text-[10px] bg-warn-soft text-[color:var(--app-warn)] font-bold px-2 py-0.5 rounded-md">
                           أكتوبر: المخزن الرئيسي
                         </span>
                       </div>
@@ -2038,9 +2038,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                                   key={b.id}
                                   className={`p-1.5 rounded-lg border ${
                                     isOctober
-                                      ? 'bg-[#f7f0e1] border-[#e6d9b8] text-[color:var(--app-warn)] font-black'
+                                      ? 'bg-warn-soft border-amber-soft2 text-[color:var(--app-warn)] font-black'
                                       : bStock > 0
-                                      ? 'bg-[#e8f3ee] border-[rgba(46,125,91,.22)] text-[color:var(--app-ok)]'
+                                      ? 'bg-green-soft border-[rgba(46,125,91,.22)] text-[color:var(--app-ok)]'
                                       : 'bg-white border-slate-200 text-slate-500'
                                   }`}
                                 >
@@ -2061,11 +2061,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 })()}
 
                 {/* Pricing Box (Carton Price Only) */}
-                <div className="bg-[#fdf8ed] p-3.5 rounded-2xl border border-[#e8dcba] space-y-2">
+                <div className="bg-amber-soft p-3.5 rounded-2xl border border-amber-soft space-y-2">
                   <div className="flex items-baseline justify-between">
                     <div>
                       <div className="text-xs text-slate-700 font-black">سعر الكرتونة بالجملة (المعتمد):</div>
-                      <div className="text-xl font-black text-[#8a6420] tabular-nums">
+                      <div className="text-xl font-black text-warn tabular-nums">
                         {isConfidentialMode ? (
                               <span className="font-mono text-slate-400 text-sm tracking-widest bg-white px-2.5 py-1 rounded-[10px]">•••••• ج.م (محمي)</span>
                         ) : (
@@ -2106,19 +2106,19 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       return (
                         <div className="space-y-2">
                           {isCriticalStock && (
-                            <div className="bg-[#f7f0e1] text-[color:var(--app-warn)] border border-[#e6d9b8] p-2.5 rounded-xl text-xs font-black flex items-center gap-2">
+                            <div className="bg-warn-soft text-[color:var(--app-warn)] border border-amber-soft2 p-2.5 rounded-xl text-xs font-black flex items-center gap-2">
                               <AlertTriangle className="w-4 h-4 text-[color:var(--app-warn)] shrink-0" />
                               <span><strong>هامش الأمان:</strong> رصيد الصنف حرج ({branchAvail} كرتونة فقط متبقية بالفرع) - يُرجى التأكد من مسؤولي الفرع قبل تأكيد البيع.</span>
                             </div>
                           )}
                           {isFromOctober && (
-                            <div className="bg-[#e8f1fa] text-[#1e5f9d] border border-[#cfe0f0] p-2 rounded-xl text-[11px] font-bold flex items-center gap-1.5">
-                              <Truck className="w-4 h-4 text-[#1e5f9d] shrink-0" />
+                            <div className="bg-blue-pale text-blue border border-slate-border-deep2 p-2 rounded-xl text-[11px] font-bold flex items-center gap-1.5">
+                              <Truck className="w-4 h-4 text-blue shrink-0" />
                               <span>الصنف غير متوفر بالفرع وسيتم سحبه وتحويله من مخزن أكتوبر المركزي مباشرة.</span>
                             </div>
                           )}
                           <div className="flex items-center gap-2">
-                            <div className="flex items-center bg-[#f8fbfe] rounded-[10px] border border-[color:var(--app-line)] p-1 shrink-0">
+                            <div className="flex items-center bg-blue-very-pale2 rounded-[10px] border border-[color:var(--app-line)] p-1 shrink-0">
                               <button
                                 type="button"
                                 onClick={() => adjustCardQuantity(selectedProductForModal.id, -1)}
@@ -2155,8 +2155,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                               }}
                               className={`flex-1 font-black py-3 px-3 rounded-[10px] shadow-md text-xs transition cursor-pointer flex items-center justify-center gap-2 ${
                                 isFromOctober
-                                  ? 'bg-[#1e5f9d] hover:bg-[#184f84] text-white'
-                                  : 'bg-[color:var(--app-navy)] hover:bg-[#0d2340] text-white'
+                                  ? 'bg-blue-deep7 hover:bg-blue-deep6 text-white'
+                                  : 'bg-[color:var(--app-navy)] hover:bg-navy-deep2 text-white'
                               }`}
                             >
                               <ShoppingCart className="w-4 h-4" />
@@ -2174,7 +2174,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     return (
                       <button
                         disabled
-                        className="w-full bg-[#fdf5f5] border border-[rgba(179,74,74,.3)] text-[color:var(--app-risk)] font-bold py-3 rounded-[10px] text-xs cursor-not-allowed"
+                        className="w-full bg-red-pale border border-[rgba(179,74,74,.3)] text-[color:var(--app-risk)] font-bold py-3 rounded-[10px] text-xs cursor-not-allowed"
                       >
                         الصنف غير متاح للطلب (بدون مخزون بالفرع أو بأكتوبر)
                       </button>
@@ -2198,11 +2198,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             {/* Panel Header */}
             <div className="bg-white p-4 sm:p-5 border-b border-[color:var(--app-line)] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-2xl bg-[#0f233d] text-[var(--app-accent)] flex items-center justify-center font-black shadow-sm shrink-0">
+                <div className="w-9 h-9 rounded-2xl bg-navy-panel text-[var(--app-accent)] flex items-center justify-center font-black shadow-sm shrink-0">
                   {rightPanelType === 'product' ? <Package /> : rightPanelType === 'cart' ? <ShoppingCart /> : <User />}
                 </div>
                 <div>
-                  <span className="text-[10px] font-black tracking-wider uppercase text-[#8a6420] bg-[#fffdf7] px-2 py-0.5 rounded border border-amber-200">
+                  <span className="text-[10px] font-black tracking-wider uppercase text-warn bg-amber-light px-2 py-0.5 rounded border border-amber-200">
                     {rightPanelType === 'product' ? 'تفاصيل الصنف' : rightPanelType === 'cart' ? 'سلة الطلبية' : 'معلومات العميل'}
                   </span>
                   <h3 className="text-sm font-black text-slate-900 leading-tight">
@@ -2233,7 +2233,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         containerClassName="w-full h-full"
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute top-2 right-2 bg-white/95 text-[#657b93] border border-[color:var(--app-line)] font-mono text-[10px] font-bold px-2 py-0.5 rounded-lg backdrop-blur-sm">
+                      <div className="absolute top-2 right-2 bg-white/95 text-muted-dark border border-[color:var(--app-line)] font-mono text-[10px] font-bold px-2 py-0.5 rounded-lg backdrop-blur-sm">
                         {(rightPanelData as Product).code}
                       </div>
                     </div>
@@ -2248,7 +2248,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         <Warehouse className="w-3 h-3 shrink-0" />
                         <span>الكود الموحد</span>
                       </div>
-                      <span className="text-sm font-mono font-black text-[#1e5f9d]">
+                      <span className="text-sm font-mono font-black text-blue">
                         #{(rightPanelData as Product).unifiedCode?.replace('#', '') || '—'}
                       </span>
 
@@ -2261,7 +2261,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </div>
 
                   {/* Stock & Pricing */}
-                  <div className="bg-[#f8fbfe] border border-[color:var(--app-line)] rounded-3xl p-4 shadow-sm">
+                  <div className="bg-blue-very-pale2 border border-[color:var(--app-line)] rounded-3xl p-4 shadow-sm">
                     <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase mb-1">
                       <span>رصيد الفرع</span>
                       <span className={getProductBranchStock(rightPanelData as Product) > 0 ? 'text-[color:var(--app-ok)] font-black' : 'text-[color:var(--app-risk)] font-bold'}>
@@ -2270,7 +2270,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </div>
                     <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase mb-3">
                       <span>مخزن أكتوبر المركزي</span>
-                      <span className="text-[#1e5f9d] font-black">
+                      <span className="text-blue font-black">
                         {(rightPanelData as Product).mainWarehouseActual || 0} كرتونة
                       </span>
                     </div>
@@ -2285,7 +2285,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       </div>
                     </div>
                     {(rightPanelData as Product).promoPrice && (
-                      <div className="mt-3 bg-[#fdf5f5] border border-[rgba(179,74,74,.25)] rounded-[10px] p-3 flex items-center gap-2">
+                      <div className="mt-3 bg-red-pale border border-[rgba(179,74,74,.25)] rounded-[10px] p-3 flex items-center gap-2">
                         <Flame className="w-4 h-4 text-[color:var(--app-risk)] shrink-0" />
                         <div>
                           <span className="text-[10px] text-[color:var(--app-risk)] font-bold block uppercase">سعر العرض للكرتونة</span>
@@ -2300,12 +2300,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase mb-2">
                       <span>الكمية والوحدة</span>
                     </div>
-                    <div className="flex items-center bg-[#f8fbfe] rounded-[10px] border border-[color:var(--app-line)] p-0.5 shrink-0 w-full max-w-xs">
+                    <div className="flex items-center bg-blue-very-pale2 rounded-[10px] border border-[color:var(--app-line)] p-0.5 shrink-0 w-full max-w-xs">
                       <button
                         type="button"
                         disabled={getProductBranchStock(rightPanelData as Product) <= 0 || getCardState((rightPanelData as Product).id).quantity <= 1}
                         onClick={() => adjustCardQuantity((rightPanelData as Product).id, -1)}
-                        className="w-10 h-10 flex items-center justify-center text-slate-800 active:bg-[#eef3f9] rounded-[8px] font-black disabled:opacity-30 cursor-pointer"
+                        className="w-10 h-10 flex items-center justify-center text-slate-800 active:bg-blue-very-pale rounded-[8px] font-black disabled:opacity-30 cursor-pointer"
                       >
                         <Minus className="w-3.5 h-3.5 stroke-[2.5]" />
                       </button>
@@ -2324,7 +2324,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         type="button"
                         disabled={getProductBranchStock(rightPanelData as Product) <= 0}
                         onClick={() => adjustCardQuantity((rightPanelData as Product).id, 1)}
-                        className="w-10 h-10 flex items-center justify-center text-slate-800 active:bg-[#eef3f9] rounded-[8px] font-black disabled:opacity-30 cursor-pointer"
+                        className="w-10 h-10 flex items-center justify-center text-slate-800 active:bg-blue-very-pale rounded-[8px] font-black disabled:opacity-30 cursor-pointer"
                       >
                         <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                       </button>
@@ -2363,7 +2363,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         setAddedItemToast({ name: (rightPanelData as Product).name, count: `${count} ${getCardState((rightPanelData as Product).id).type === 'carton' ? 'كرتونة' : 'قطعة'}` });
                         setTimeout(() => setAddedItemToast(null), 2500);
                       }}
-                      className="w-full bg-[color:var(--app-navy)] hover:bg-[#0d2340] active:scale-[0.98] text-white font-black h-11 px-3 rounded-[10px] text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full bg-[color:var(--app-navy)] hover:bg-navy-deep2 active:scale-[0.98] text-white font-black h-11 px-3 rounded-[10px] text-sm shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <ShoppingCart className="w-4 h-4 stroke-[2.5] shrink-0" />
                       <span className="font-black tracking-wide whitespace-nowrap">أضف للطلبية</span>
@@ -2390,7 +2390,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       {cart.map((item) => (
                         <div key={item.product.id} className="flex items-center justify-between gap-3 p-3 bg-white border border-slate-100 rounded-2xl shadow-sm">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-[#f2f6fa] overflow-hidden flex items-center justify-center border border-slate-200">
+                            <div className="w-10 h-10 rounded-xl bg-blue-soft overflow-hidden flex items-center justify-center border border-slate-200">
                               <ProductImage
                                 product={item.product}
                                 cloudinaryConfig={cloudinaryConfig}
@@ -2404,7 +2404,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                               <div className="font-black text-slate-900 text-sm truncate">{item.product.name}</div>
                               <div className="text-[10px] text-slate-500 font-bold flex items-center gap-1">
                                 <span>{item.product.code}</span>
-                                {item.product.unifiedCode && <span className="text-[#1e5f9d]">#{item.product.unifiedCode.replace('#', '')}</span>}
+                                {item.product.unifiedCode && <span className="text-blue">#{item.product.unifiedCode.replace('#', '')}</span>}
                               </div>
                               <div className="text-[10px] text-slate-500 font-medium mt-0.5">
                                 {item.cartonCount} كرتونة • {item.pieceCount} قطعة
@@ -2436,7 +2436,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     <div className="mt-4">
                       <button
                         onClick={() => setIsCartDrawerOpen(true)}
-                        className="w-full bg-[color:var(--app-navy)] hover:bg-[#0d2340] text-white font-black py-3 rounded-[10px] text-sm shadow-sm transition cursor-pointer flex items-center justify-center gap-2"
+                        className="w-full bg-[color:var(--app-navy)] hover:bg-navy-deep2 text-white font-black py-3 rounded-[10px] text-sm shadow-sm transition cursor-pointer flex items-center justify-center gap-2"
                       >
                         <ShoppingCart className="w-4 h-4" />
                         <span>عرض السلة completa وتأكيد الطلب</span>
@@ -2449,7 +2449,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               {/* Customer Info Panel */}
               {rightPanelType === 'customer' && rightPanelData && (
                 <div className="space-y-4">
-                  <div className="bg-[#fdf8ed] border border-[#e8dcba] rounded-3xl p-4">
+                  <div className="bg-amber-soft border border-amber-soft rounded-3xl p-4">
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 rounded-2xl bg-[color:var(--app-navy)] text-[color:var(--app-accent)] flex items-center justify-center font-black shrink-0 shadow-sm">
                         <User className="w-5 h-5" />
@@ -2489,7 +2489,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       </div>
                     )}
                     {(rightPanelData as Customer).notes && (
-                      <div className="mt-3 bg-[#f2f6fa] border border-[color:var(--app-line)] rounded-[10px] p-3">
+                      <div className="mt-3 bg-blue-soft border border-[color:var(--app-line)] rounded-[10px] p-3">
                         <div className="text-[10px] text-slate-400 font-bold uppercase mb-1">ملاحظات</div>
                         <div className="text-sm text-slate-700 font-medium">{ (rightPanelData as Customer).notes }</div>
                       </div>
@@ -2504,7 +2504,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </button>
                     <button
                       onClick={() => { setIsCartDrawerOpen(true); setRightPanelOpen(false); }}
-                      className="flex-1 bg-[color:var(--app-navy)] hover:bg-[#0d2340] text-white font-bold py-2.5 rounded-[10px] text-sm transition cursor-pointer flex items-center justify-center gap-2"
+                      className="flex-1 bg-[color:var(--app-navy)] hover:bg-navy-deep2 text-white font-bold py-2.5 rounded-[10px] text-sm transition cursor-pointer flex items-center justify-center gap-2"
                     >
                       <ShoppingCart className="w-4 h-4" />
                       <span>إتمام الطلب</span>

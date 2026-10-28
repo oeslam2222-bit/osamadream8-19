@@ -59,7 +59,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   };
 
   return (
-    <div dir="rtl" className="login-canvas min-h-[100dvh] text-[#e8f0f8] flex flex-col justify-center items-center p-3 sm:p-6 antialiased selection:bg-[rgba(201,154,67,.28)]">
+    <div dir="rtl" className="login-canvas min-h-[100dvh] text-slate-soft7 flex flex-col justify-center items-center p-3 sm:p-6 antialiased selection:bg-[rgba(201,154,67,.28)]">
       <div className="w-full max-w-md z-10 my-4">
         {/* Header Branding */}
         <div className="text-center mb-6">
@@ -69,21 +69,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center justify-center gap-2">
             <span>مجموعة الطنطاوي للتجارة والتوزيع</span>
           </h1>
-          <p className="text-xs sm:text-sm text-[#9db0c7] mt-1 max-w-sm mx-auto font-medium">
+          <p className="text-xs sm:text-sm text-blue-soft3 mt-1 max-w-sm mx-auto font-medium">
             TANTAWY GROUP • منظومة إدارة المبيعات والفروع والمخازن المركزية
           </p>
         </div>
 
         {/* Card Box */}
         <div className="login-card p-6 sm:p-8">
-          <div className="flex items-center justify-between pb-4 mb-5 border-b border-[#edf2f8]">
+          <div className="flex items-center justify-between pb-4 mb-5 border-b border-edf">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-[10px] bg-[#102b4e] text-[#c99a43] flex items-center justify-center font-bold shadow-[0_2px_8px_rgba(16,43,78,.25)]">
+              <div className="w-9 h-9 rounded-[10px] bg-navy-deep text-warn flex items-center justify-center font-bold shadow-[0_2px_8px_rgba(16,43,78,.25)]">
                 <LogIn className="w-4 h-4" />
               </div>
               <div>
-                <h2 className="font-black text-sm sm:text-base text-[#102b4e]">تسجيل الدخول للنظام</h2>
-              <p className="text-[11px] text-[#6d7e91]">للمطورين، المديرين، المشرفين، والمناديب</p>
+                <h2 className="font-black text-sm sm:text-base text-deep-slate">تسجيل الدخول للنظام</h2>
+              <p className="text-[11px] text-muted-dark">للمطورين، المديرين، المشرفين، والمناديب</p>
               </div>
             </div>
           </div>
@@ -105,7 +105,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
 
             {/* Identifier (Email / Username) */}
             <div>
-              <label className="block text-xs font-bold text-[#17283d] mb-1.5 text-right">
+              <label className="block text-xs font-bold text-slate-dark mb-1.5 text-right">
                 البريد الإلكتروني لتسجيل الدخول (أو اسم المستخدم)
               </label>
               <div className="relative">
@@ -118,13 +118,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                   autoComplete="username"
                   className="login-input pr-10"
                 />
-                <UserIcon className="w-4 h-4 text-[#93a4b8] absolute right-3.5 top-4" />
+                <UserIcon className="w-4 h-4 text-muted absolute right-3.5 top-4" />
               </div>
             </div>
 
             {/* Password */}
             <div>
-              <label className="block text-xs font-bold text-[#17283d] mb-1.5 text-right">
+              <label className="block text-xs font-bold text-slate-dark mb-1.5 text-right">
                 كلمة المرور
               </label>
               <div className="relative">
@@ -137,11 +137,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                   autoComplete="current-password"
                   className="login-input pr-10 pl-11"
                 />
-                <Lock className="w-4 h-4 text-[#93a4b8] absolute right-3.5 top-4" />
+                <Lock className="w-4 h-4 text-muted absolute right-3.5 top-4" />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="text-[#6d7e91] hover:text-[#102b4e] absolute left-3.5 top-2"
+                  className="text-muted-dark hover:text-deep-slate absolute left-3.5 top-2"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -168,8 +168,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
             </button>
 
             {/* Note that accounts are managed by Admin/Developer only */}
-            <div className="pt-3 border-t border-[#edf2f8] text-center">
-              <p className="text-[11px] text-[#6d7e91] leading-relaxed">
+            <div className="pt-3 border-t border-edf text-center">
+              <p className="text-[11px] text-muted-dark leading-relaxed">
                 يتم إنشاء وتفعيل حسابات الموظفين والصلاحيات حصرياً من قِبل إدارة النظام (الآدمن والمطور).
               </p>
             </div>

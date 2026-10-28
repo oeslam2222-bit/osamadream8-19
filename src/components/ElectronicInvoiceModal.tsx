@@ -391,7 +391,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
       <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[95vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden print:max-h-none print:shadow-none print:border-none print:w-full">
         
         {/* Top Control Bar (Hidden in Print) */}
-        <div className="ein-topbar text-[#eaf2f9] p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <div className="ein-topbar text-slate-soft6 p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
           <div className="flex items-center gap-2.5">
             <div className="ein-brandtile w-9 h-9 flex items-center justify-center font-black">
               <FileText className="w-5 h-5" />
@@ -894,7 +894,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                       <td className="p-2.5 font-black font-mono text-slate-800">{item.productCode}</td>
                       <td className="p-2.5 text-center font-mono font-bold t-navy">
                         {unified ? (
-                          <span className="tint-navy px-2 py-0.5 rounded border border-[#d8e2ec] text-[11px]">
+                          <span className="tint-navy px-2 py-0.5 rounded border border-slate-border-deep text-[11px]">
                             {unified}
                           </span>
                         ) : (
@@ -941,7 +941,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                           </span>
                         ) : oStock > 0 ? (
                           <div className="flex flex-col items-center gap-0.5">
-                            <span className="tint-navy border border-[#d8e2ec] text-[10px] font-black px-1.5 py-0.5 rounded">
+                            <span className="tint-navy border border-slate-border-deep text-[10px] font-black px-1.5 py-0.5 rounded">
                               متوفر في مخزن أكتوبر ({oStock} ك)
                             </span>
                             <span className="tint-brass border text-[9px] font-black px-1.5 py-0.2 rounded shadow-2xs">
@@ -964,7 +964,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
           {/* Returned Items & Credit Vouchers Summary (If any returns registered) */}
           {invoice.returnRecords && invoice.returnRecords.length > 0 && (
             <div className="panel-navy border rounded-3xl p-4 space-y-3 print:border-slate-300">
-              <div className="flex items-center justify-between border-b border-[#d8e2ec] pb-2">
+              <div className="flex items-center justify-between border-b border-slate-border-deep pb-2">
                 <div className="flex items-center gap-2 font-black text-xs">
                   <RotateCcw className="w-4 h-4 t-navy" />
                   <span>سجل قسائم المرتجعات المعتمدة على الفاتورة ({invoice.returnRecords.length} حركة)</span>
@@ -976,10 +976,10 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
 
               <div className="space-y-2.5">
                 {invoice.returnRecords.map((record, idx) => (
-                  <div key={record.id || idx} className="bg-white p-3 rounded-2xl border border-[#d8e2ec] shadow-2xs space-y-2 text-xs">
+                  <div key={record.id || idx} className="bg-white p-3 rounded-2xl border border-slate-border-deep shadow-2xs space-y-2 text-xs">
                     <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
                       <div className="flex items-center gap-2">
-                        <span className="tint-navy border border-[#d8e2ec] font-mono font-black px-2 py-0.5 rounded">
+                        <span className="tint-navy border border-slate-border-deep font-mono font-black px-2 py-0.5 rounded">
                           إذن مرتجع #{record.returnVoucherNumber}
                         </span>
                         <span className="text-slate-500 font-medium">
@@ -1003,7 +1003,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                     {/* Returned items breakdown */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
                       {record.returnedItems.map((rItem, rIdx) => (
-                        <div key={rIdx} className="row-brass p-2 rounded-xl border border-[#d8e2ec] text-[11px] flex items-center justify-between">
+                        <div key={rIdx} className="row-brass p-2 rounded-xl border border-slate-border-deep text-[11px] flex items-center justify-between">
                           <div>
                             <div className="font-bold text-slate-900">{rItem.productName}</div>
                             <div className="text-[10px] text-slate-500 font-mono">{rItem.productCode}</div>

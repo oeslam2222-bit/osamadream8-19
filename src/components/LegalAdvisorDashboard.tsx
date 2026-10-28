@@ -354,7 +354,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
           onClick={() => setActiveTab('delinquents')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
             activeTab === 'delinquents'
-              ? 'bg-[#0f233d] text-white shadow-sm'
+              ? 'bg-navy-panel text-white shadow-sm'
               : 'bg-white text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -369,7 +369,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
           onClick={() => setActiveTab('notices')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
             activeTab === 'notices'
-              ? 'bg-[#0f233d] text-white shadow-sm'
+              ? 'bg-navy-panel text-white shadow-sm'
               : 'bg-white text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -381,7 +381,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
           onClick={() => setActiveTab('checks')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
             activeTab === 'checks'
-              ? 'bg-[#0f233d] text-white shadow-sm'
+              ? 'bg-navy-panel text-white shadow-sm'
               : 'bg-white text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -393,7 +393,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
           onClick={() => setActiveTab('templates')}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
             activeTab === 'templates'
-              ? 'bg-[#0f233d] text-white shadow-sm'
+              ? 'bg-navy-panel text-white shadow-sm'
               : 'bg-white text-slate-600 hover:bg-slate-100'
           }`}
         >
@@ -413,7 +413,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="ابحث باسم العميل أو الكود أو المندوب..."
-                className="w-full h-10 pr-9 pl-3 text-xs rounded-xl border border-[var(--app-line)] focus:outline-none focus:border-[#0f233d]"
+                className="w-full h-10 pr-9 pl-3 text-xs rounded-xl border border-[var(--app-line)] focus:outline-none focus:border-navy-panel"
               />
             </div>
 
@@ -499,7 +499,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
                               setSelectedCustomerForNotice(c);
                               setIsNoticeModalOpen(true);
                             }}
-                            className="bg-[#0f233d] hover:bg-[#1a3861] text-amber-300 font-black px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer active:scale-95"
+                            className="bg-navy-panel hover:bg-navy-hover text-amber-300 font-black px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer active:scale-95"
                           >
                             <Scale className="w-3.5 h-3.5" />
                             <span>إصدار إنذار قانوني</span>
@@ -601,7 +601,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
             </h3>
             <button
               onClick={() => setIsCheckModalOpen(true)}
-              className="bg-[#0f233d] text-amber-300 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className="bg-navy-panel text-amber-300 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <Plus className="w-4 h-4" />
               <span>إضافة شيك / إيصال جديد</span>
@@ -689,7 +689,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
                   setIsNoticeModalOpen(true);
                 }
               }}
-              className="bg-[#0f233d] hover:bg-[#1a3861] text-amber-300 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer"
+              className="bg-navy-panel hover:bg-navy-hover text-amber-300 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer"
             >
               <Printer className="w-4 h-4" />
               <span>توليد نموذج الإنذار</span>
@@ -726,7 +726,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
           <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-[var(--app-line)] space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-[var(--app-line)]">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-[#0f233d] text-amber-400 flex items-center justify-center font-black">
+                <div className="w-9 h-9 rounded-xl bg-navy-panel text-amber-400 flex items-center justify-center font-black">
                   <Scale className="w-5 h-5" />
                 </div>
                 <div>
@@ -789,7 +789,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
               </button>
               <button
                 onClick={handleCreateNotice}
-                className="bg-[#0f233d] hover:bg-[#1a3861] text-amber-300 font-black px-5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md"
+                className="bg-navy-panel hover:bg-navy-hover text-amber-300 font-black px-5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md"
               >
                 <Printer className="w-4 h-4" />
                 <span>إصدار ومعاينة للطباعة</span>
@@ -814,7 +814,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
               <div className="flex items-center gap-2 print:hidden">
                 <button
                   onClick={() => window.print()}
-                  className="bg-[#0f233d] text-amber-300 font-black px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-1 cursor-pointer"
+                  className="bg-navy-panel text-amber-300 font-black px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-1 cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>طباعة رسمية</span>
@@ -829,8 +829,8 @@ export const LegalAdvisorDashboard: React.FC = () => {
             </div>
 
             {/* Official Legal Document Body */}
-            <div className="space-y-4 text-xs text-slate-800 leading-relaxed border-2 border-slate-200 p-5 rounded-2xl bg-[#fafcff]">
-              <div className="text-center font-black text-base text-[#0f233d] pb-2 border-b border-slate-200">
+            <div className="space-y-4 text-xs text-slate-800 leading-relaxed border-2 border-slate-200 p-5 rounded-2xl bg-slate-very-pale">
+              <div className="text-center font-black text-base text-slate-deep pb-2 border-b border-slate-200">
                 {viewingNotice.legalType}
               </div>
 
@@ -871,7 +871,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
                 </div>
                 <div>
                   <div className="font-bold text-slate-500 text-[11px]">المستشار القانوني للشركة</div>
-                  <div className="font-black text-[#0f233d] mt-4">أ. سامح عبد الرازق (المحامي بالنقض)</div>
+                  <div className="font-black text-slate-deep mt-4">أ. سامح عبد الرازق (المحامي بالنقض)</div>
                   <div className="text-[10px] text-amber-700 font-bold">خاتم الإدارة القانونية المعتمد</div>
                 </div>
               </div>
@@ -971,7 +971,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
               </button>
               <button
                 onClick={handleAddCheck}
-                className="bg-[#0f233d] hover:bg-[#1a3861] text-amber-300 font-black px-5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md"
+                className="bg-navy-panel hover:bg-navy-hover text-amber-300 font-black px-5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md"
               >
                 <CheckCircle2 className="w-4 h-4" />
                 <span>حفظ الضمانة بالخزينة</span>

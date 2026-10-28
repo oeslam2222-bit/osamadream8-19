@@ -188,7 +188,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
           </div>
 
           {/* Header */}
-          <div className="bg-[#0f233d] text-white p-4 sm:p-5 flex items-center justify-between shadow-md shrink-0">
+          <div className="bg-navy-panel text-white p-4 sm:p-5 flex items-center justify-between shadow-md shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-sm shrink-0">
                 <ShoppingCart className="w-5 h-5" />
@@ -272,7 +272,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
                     }}
                     onFocus={() => setIsCustomerDropdownOpen(true)}
                     placeholder="ابحث باسم العميل أو الكود أو رقم الهاتف..."
-                    className="w-full h-10 pr-9 pl-3 text-xs rounded-xl border border-[var(--app-line)] bg-white focus:outline-none focus:border-[#0f233d]"
+                    className="w-full h-10 pr-9 pl-3 text-xs rounded-xl border border-[var(--app-line)] bg-white focus:outline-none focus:border-navy-panel"
                   />
 
                   {/* Customer Dropdown Results */}
@@ -392,7 +392,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
                           onClick={() => {
                             updateCartItem(p.id, isPiece ? { pieceCount: count + 1 } : { cartonCount: count + 1 });
                           }}
-                          className="w-7 h-7 rounded-lg bg-[#0f233d] text-amber-300 hover:bg-[#1a3861] flex items-center justify-center font-black active:scale-90 cursor-pointer"
+                          className="w-7 h-7 rounded-lg bg-navy-panel text-amber-300 hover:bg-navy-hover flex items-center justify-center font-black active:scale-90 cursor-pointer"
                         >
                           <Plus className="w-3 h-3" />
                         </button>
@@ -418,7 +418,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
                   value={repNotes}
                   onChange={(e) => setRepNotes(e.target.value)}
                   placeholder="مثال: تسليم غداً صباحاً، أو بضاعة عاجلة..."
-                  className="w-full h-9 px-3 text-xs rounded-xl border border-[var(--app-line)] focus:outline-none focus:border-[#0f233d]"
+                  className="w-full h-9 px-3 text-xs rounded-xl border border-[var(--app-line)] focus:outline-none focus:border-navy-panel"
                 />
               </div>
             )}

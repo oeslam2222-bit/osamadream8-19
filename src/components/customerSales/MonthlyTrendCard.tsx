@@ -37,7 +37,7 @@ export const MonthlyTrendCard: React.FC<MonthlyTrendCardProps> = ({ trend, selec
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-            <Activity className="w-4 h-4 text-[#c99a43]" />
+            <Activity className="w-4 h-4 text-warn" />
             اتجاه المبيعات الشهرية
           </h3>
           <p className="text-[11px] text-slate-500 mt-1">

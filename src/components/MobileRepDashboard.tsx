@@ -386,28 +386,28 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
 
   // ===== tiles =====
   const fieldTiles: RepTile[] = [
-    { id: 'customers', label: 'العملاء', hint: 'قائمة عملاء المندوب', icon: Users, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('all_customers') },
-    { id: 'catalog', label: 'الكتالوج', hint: 'الأصناف والأسعار', icon: Boxes, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('catalog') },
-    { id: 'new-invoice', label: 'فاتورة مبيعات', hint: 'طلبية جديدة', icon: ShoppingCart, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: onNewInvoice },
-    { id: 'visits', label: 'الزيارات', hint: 'خط السير و GPS', icon: MapPin, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('visits') },
-    { id: 'returns', label: 'المرتجعات', hint: 'مرتجع فاتورة', icon: RotateCcw, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('invoices') },
+    { id: 'customers', label: 'العملاء', hint: 'قائمة عملاء المندوب', icon: Users, accent: 'rep-ico-navy', ring: 'group-active:border-slate-border', action: () => onNavigate('all_customers') },
+    { id: 'catalog', label: 'الكتالوج', hint: 'الأصناف والأسعار', icon: Boxes, accent: 'rep-ico-navy', ring: 'group-active:border-slate-border', action: () => onNavigate('catalog') },
+    { id: 'new-invoice', label: 'فاتورة مبيعات', hint: 'طلبية جديدة', icon: ShoppingCart, accent: 'rep-ico-navy', ring: 'group-active:border-slate-border', action: onNewInvoice },
+    { id: 'visits', label: 'الزيارات', hint: 'خط السير و GPS', icon: MapPin, accent: 'rep-ico-navy', ring: 'group-active:border-slate-border', action: () => onNavigate('visits') },
+    { id: 'returns', label: 'المرتجعات', hint: 'مرتجع فاتورة', icon: RotateCcw, accent: 'rep-ico-navy', ring: 'group-active:border-slate-border', action: () => onNavigate('invoices') },
   ];
 
   const moneyTiles: RepTile[] = [
-    { id: 'collections', label: 'التحصيلات', hint: 'سند قبض / تحصيل', icon: Coins, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('visits') },
-    { id: 'statement', label: 'كشف حساب العميل', hint: 'المديونيات وسقف الائتمان', icon: Wallet, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('all_customers') },
-    { id: 'debts', label: 'المديونيات', hint: 'أعلى العملاء ديناً', icon: FileText, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('all_customers') },
+    { id: 'collections', label: 'التحصيلات', hint: 'سند قبض / تحصيل', icon: Coins, accent: 'rep-ico-navy', ring: 'group-active:border-slate-border', action: () => onNavigate('visits') },
+    { id: 'statement', label: 'كشف حساب العميل', hint: 'المديونيات وسقف الائتمان', icon: Wallet, accent: 'rep-ico-navy', ring: 'group-active:border-slate-border', action: () => onNavigate('all_customers') },
+    { id: 'debts', label: 'المديونيات', hint: 'أعلى العملاء ديناً', icon: FileText, accent: 'rep-ico-navy', ring: 'group-active:border-slate-border', action: () => onNavigate('all_customers') },
   ];
 
   const reportTiles: RepTile[] = [
-    { id: 'sales-report', label: 'تقرير المبيعات', hint: 'متابعة طلبياتي', icon: LayoutDashboard, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('dashboard') },
-    { id: 'forecast', label: 'توقعات التحصيل', hint: 'المتوقع تحصيله', icon: TrendingUp, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('forecast') },
-    { id: 'targets', label: 'هدفي والتارجت', hint: 'المبيعات والتحصيل', icon: Target, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('targets') },
+    { id: 'sales-report', label: 'تقرير المبيعات', hint: 'متابعة طلبياتي', icon: LayoutDashboard, accent: 'rep-ico-navy', ring: 'group-active:border-slate-border', action: () => onNavigate('dashboard') },
+    { id: 'forecast', label: 'توقعات التحصيل', hint: 'المتوقع تحصيله', icon: TrendingUp, accent: 'rep-ico-navy', ring: 'group-active:border-slate-border', action: () => onNavigate('forecast') },
+    { id: 'targets', label: 'هدفي والتارجت', hint: 'المبيعات والتحصيل', icon: Target, accent: 'rep-ico-navy', ring: 'group-active:border-slate-border', action: () => onNavigate('targets') },
   ];
 
   const moreTiles: RepTile[] = [
-    { id: 'inventory', label: 'المخزون', hint: 'الأرصدة المتاحة', icon: Layers, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('inventory') },
-    { id: 'guide', label: 'دليل دورة العمل', hint: 'طريقة التشغيل', icon: BookOpen, accent: 'rep-ico-navy', ring: 'group-active:border-[#b8c9db]', action: () => onNavigate('guide') },
+    { id: 'inventory', label: 'المخزون', hint: 'الأرصدة المتاحة', icon: Layers, accent: 'rep-ico-navy', ring: 'group-active:border-slate-border', action: () => onNavigate('inventory') },
+    { id: 'guide', label: 'دليل دورة العمل', hint: 'طريقة التشغيل', icon: BookOpen, accent: 'rep-ico-navy', ring: 'group-active:border-slate-border', action: () => onNavigate('guide') },
   ];
 
   const renderTile = (tile: RepTile) => {
@@ -523,7 +523,7 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('all_customers')}
-            className="flex items-center gap-2.5 p-2.5 bg-slate-50 text-slate-800 rounded-2xl border border-slate-200/80 active:border-[#b8c9db] active:scale-[0.98] transition-all text-right cursor-pointer"
+            className="flex items-center gap-2.5 p-2.5 bg-slate-50 text-slate-800 rounded-2xl border border-slate-200/80 active:border-slate-border active:scale-[0.98] transition-all text-right cursor-pointer"
           >
             <span className="rep-ico-navy w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
               <Users className="w-4 h-4" strokeWidth={2.3} />
@@ -537,7 +537,7 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
           <button
             type="button"
             onClick={() => onNavigate('catalog')}
-            className="flex items-center gap-2.5 p-2.5 bg-slate-50 text-slate-800 rounded-2xl border border-slate-200/80 active:border-[#d0a34e] active:scale-[0.98] transition-all text-right cursor-pointer"
+            className="flex items-center gap-2.5 p-2.5 bg-slate-50 text-slate-800 rounded-2xl border border-slate-200/80 active:border-amber-deep active:scale-[0.98] transition-all text-right cursor-pointer"
           >
             <span className="rep-ico-brass w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
               <Boxes className="w-4 h-4" strokeWidth={2.3} />
@@ -871,7 +871,7 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
                   key={v.id}
                   type="button"
                   onClick={() => onNavigate('visits')}
-                  className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex items-center gap-3 text-right cursor-pointer active:scale-[0.99] transition hover:border-[#d0a34e]"
+                  className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-3 flex items-center gap-3 text-right cursor-pointer active:scale-[0.99] transition hover:border-amber-deep"
                 >
                   <span className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center shrink-0 ${
                     isToday ? 'rep-solid-navy' : isTomorrow ? 'rep-ico-warn' : 'rep-ico-slate'

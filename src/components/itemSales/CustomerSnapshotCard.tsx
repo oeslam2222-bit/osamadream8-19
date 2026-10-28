@@ -27,13 +27,13 @@ export const CustomerSnapshotCard: React.FC<CustomerSnapshotCardProps> = ({
     title="تفاصيل العميل"
     subtitle="أعلى عميل في الفترة المحددة"
     icon={<IdCard className="w-4 h-4" />}
-    iconClass="bg-[#c99a43]/10 text-[#a97f2f]"
+    iconClass="bg-amber-main/10 text-amber-dark"
     action={
       customer && onOpenDetails ? (
         <button
           type="button"
           onClick={() => onOpenDetails(customer.customerAccount)}
-          className="text-[9.5px] font-black text-[#102b4e] hover:text-[#c99a43] cursor-pointer"
+          className="text-[9.5px] font-black text-deep-slate hover:text-warn cursor-pointer"
         >
           الملف الكامل
         </button>
@@ -45,7 +45,7 @@ export const CustomerSnapshotCard: React.FC<CustomerSnapshotCardProps> = ({
     ) : (
       <div className="space-y-3">
         <div className="flex items-center gap-2.5">
-          <span className="w-11 h-11 rounded-2xl bg-[#102b4e] text-white text-sm font-black flex items-center justify-center shrink-0">
+          <span className="w-11 h-11 rounded-2xl bg-navy-deep text-white text-sm font-black flex items-center justify-center shrink-0">
             {initials(customer.customerName)}
           </span>
           <div className="min-w-0 flex-1">
@@ -108,7 +108,7 @@ export const CustomerSnapshotCard: React.FC<CustomerSnapshotCardProps> = ({
           <button
             type="button"
             onClick={() => onStartOrder(customer.customerAccount)}
-            className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-xl bg-[#102b4e] hover:bg-[#0b1f39] text-white text-[10px] font-black transition cursor-pointer"
+            className="w-full inline-flex items-center justify-center gap-1.5 h-8 rounded-xl bg-navy-deep hover:bg-navy-dark4 text-white text-[10px] font-black transition cursor-pointer"
           >
             <ShoppingCart className="w-3.5 h-3.5" />
             بدء طلبية جديدة

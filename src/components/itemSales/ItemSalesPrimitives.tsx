@@ -44,7 +44,7 @@ export const CardShell: React.FC<{
   title,
   subtitle,
   icon,
-  iconClass = 'bg-[#102b4e]/5 text-[#102b4e]',
+  iconClass = 'bg-navy-deep/5 text-deep-slate',
   action,
   children,
   className = '',

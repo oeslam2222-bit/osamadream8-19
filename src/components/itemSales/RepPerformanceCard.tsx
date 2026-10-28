@@ -47,7 +47,7 @@ export const RepPerformanceCard: React.FC<RepPerformanceCardProps> = ({
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="flex items-center gap-1.5 min-w-0">
-                    <span className="w-6 h-6 rounded-full bg-[#102b4e] text-white text-[9px] font-black flex items-center justify-center shrink-0">
+                    <span className="w-6 h-6 rounded-full bg-navy-deep text-white text-[9px] font-black flex items-center justify-center shrink-0">
                       {initials(rep.repName)}
                     </span>
                     <span className="min-w-0">

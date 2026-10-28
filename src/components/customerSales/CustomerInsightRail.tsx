@@ -68,7 +68,7 @@ const CustomerCard: React.FC<{
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4 space-y-3">
       <div className="flex items-start gap-3">
-        <div className="w-11 h-11 rounded-2xl bg-[#102b4e] text-amber-300 flex items-center justify-center font-black text-base shrink-0">
+        <div className="w-11 h-11 rounded-2xl bg-navy-deep text-amber-300 flex items-center justify-center font-black text-base shrink-0">
           {(customer.customerName || 'ع').trim().charAt(0)}
         </div>
         <div className="min-w-0 flex-1">
@@ -122,7 +122,7 @@ const CustomerCard: React.FC<{
                 <div className="w-full h-8 flex items-end">
                   <div
                     className={`w-full rounded-sm transition-all ${
-                      isActive ? 'bg-[#c99a43]' : amount > 0 ? 'bg-[#102b4e]/70' : 'bg-slate-200'
+                      isActive ? 'bg-amber-main' : amount > 0 ? 'bg-navy-deep/70' : 'bg-slate-200'
                     }`}
                     style={{ height: `${height}%` }}
                   />

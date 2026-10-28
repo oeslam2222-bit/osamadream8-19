@@ -119,7 +119,7 @@ export const MonthlyPerformanceCard: React.FC<MonthlyPerformanceCardProps> = ({
 
       <div className="mt-2 flex items-center gap-2 flex-wrap text-[9.5px] font-bold text-slate-400">
         <span className="inline-flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-[#1e5f9d]" /> قيمة المبيعات
+          <span className="w-2 h-2 rounded-full bg-blue-deep7" /> قيمة المبيعات
         </span>
         {selectedMonth !== 'all' && (
           <span className="text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-1.5 py-0.5">

@@ -469,7 +469,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     'معتمدة ومصروفة من المخزن': { bg: 'tint-navy', text: '', label: 'معتمدة ومصروفة' },
     'قيد التوصيل': { bg: 'tint-navy', text: '', label: 'قيد التوصيل' },
     'تم التسليم': { bg: 'tint-ok', text: '', label: 'تم التسليم بنجاح' },
-    'إغلاق الطلبية': { bg: 'bg-[#f4f7fa] text-slate-700', text: 'border-slate-200', label: 'تم إغلاق الطلبية' },
+    'إغلاق الطلبية': { bg: 'bg-slate-light text-slate-700', text: 'border-slate-200', label: 'تم إغلاق الطلبية' },
     'مرتجع': { bg: 'tint-risk', text: '', label: 'مرتجع للمخزن' },
     'مرفوضة / ملغاة': { bg: 'tint-risk', text: '', label: 'ملغاة / مرفوضة' },
   };
@@ -491,7 +491,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       )}
 
       {/* Main Header & Role Welcome */}
-      <div className="bg-[#102b4e] text-white rounded-3xl p-5 sm:p-6 shadow-sm border border-[#23496f] space-y-4">
+      <div className="bg-navy-deep text-white rounded-3xl p-5 sm:p-6 shadow-sm border border-deep2 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -553,7 +553,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           <div className="bg-white p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
             <div className="flex items-center justify-between gap-1">
               <span className="text-[11px] text-slate-500 font-bold">{currentUser?.role === 'sales_rep' ? 'طلبياتي المسلّمة' : 'الفواتير المكتملة'}</span>
-              <div className="w-7 h-7 rounded-lg bg-[#e8f3ee] t-ok flex items-center justify-center shrink-0">
+              <div className="w-7 h-7 rounded-lg bg-green-soft t-ok flex items-center justify-center shrink-0">
                 <CheckCircle2 className="w-3.5 h-3.5" />
               </div>
             </div>
@@ -604,12 +604,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
             className={`p-3.5 rounded-2xl border space-y-1.5 text-right transition cursor-pointer ${
               activeStatusTab === 'فواتير النواقص'
                 ? 'navy-panel text-white border-transparent shadow-[inset_0_-3px_0_var(--app-accent)]'
-                : 'bg-white hover:bg-[#f8fafc] text-slate-600 border-slate-200'
+                : 'bg-white hover:bg-slate-light text-slate-600 border-slate-200'
             }`}
           >
-            <div className={`flex items-center justify-between gap-1 text-[11px] font-bold ${activeStatusTab === 'فواتير النواقص' ? 'text-[#ecc987]' : 'text-slate-500'}`}>
+            <div className={`flex items-center justify-between gap-1 text-[11px] font-bold ${activeStatusTab === 'فواتير النواقص' ? 'text-amber' : 'text-slate-500'}`}>
               <span>فواتير النواقص (-NQ)</span>
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${activeStatusTab === 'فواتير النواقص' ? 'bg-white/10 text-[#ecc987]' : 'bg-[var(--app-navy)] text-white'}`}>
+              <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${activeStatusTab === 'فواتير النواقص' ? 'bg-white/10 text-amber' : 'bg-[var(--app-navy)] text-white'}`}>
                 <Boxes className="w-3.5 h-3.5" />
               </div>
             </div>
@@ -625,7 +625,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
           <div className="bg-white p-3.5 rounded-2xl border border-slate-200 space-y-1.5">
             <div className="flex items-center justify-between gap-1">
               <span className="text-[11px] text-slate-500 font-bold">المرتجعات (المستردة)</span>
-              <div className="w-7 h-7 rounded-lg bg-[#f9eaea] t-risk flex items-center justify-center shrink-0">
+              <div className="w-7 h-7 rounded-lg bg-red-light t-risk flex items-center justify-center shrink-0">
                 <RotateCcw className="w-3.5 h-3.5" />
               </div>
             </div>
@@ -664,7 +664,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                 <div className="text-[11px] text-slate-500 font-bold">متوفر بالمخازن</div>
                 <div className="text-lg dream-amt t-ok">{productMetrics.availableCount} صنف</div>
               </div>
-              <div className="w-9 h-9 rounded-xl bg-[#e8f3ee] t-ok flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-green-soft t-ok flex items-center justify-center shrink-0">
                 <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
@@ -675,7 +675,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                 <div className="text-[11px] text-slate-500 font-bold">غير متوفر (0 رصيد)</div>
                 <div className="text-lg dream-amt t-risk">{productMetrics.outOfStockCount} صنف</div>
               </div>
-              <div className="w-9 h-9 rounded-xl bg-[#f9eaea] t-risk flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-red-light t-risk flex items-center justify-center shrink-0">
                 <XCircle className="w-4 h-4" />
               </div>
             </div>
@@ -686,7 +686,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                 <div className="text-[11px] text-slate-500 font-bold">رصيد حرج (قرب النفاذ)</div>
                 <div className="text-lg dream-amt t-warn">{productMetrics.lowStockCount} صنف</div>
               </div>
-              <div className="w-9 h-9 rounded-xl bg-[#f7f0e1] t-warn flex items-center justify-center shrink-0">
+              <div className="w-9 h-9 rounded-xl bg-warn-soft t-warn flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-4 h-4" />
               </div>
             </div>
@@ -714,7 +714,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-slate-500">إجمالي مبيعات كافة الفروع:</span>
-              <span className="navy-panel text-[#ecc987] dream-amt px-3 py-1 rounded-xl text-xs sm:text-sm">
+              <span className="navy-panel text-amber dream-amt px-3 py-1 rounded-xl text-xs sm:text-sm">
                 {formatCurrency(totalAllBranchSales)}
               </span>
             </div>
@@ -731,12 +731,12 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                   className={`text-right p-3.5 rounded-2xl border transition-all cursor-pointer relative overflow-hidden flex flex-col justify-between ${
                     isSelected
                       ? 'navy-panel text-white border-transparent shadow-[inset_0_-3px_0_var(--app-accent),0_4px_12px_rgba(16,43,78,.22)]'
-                      : 'bg-white hover:bg-[#f8fafc] text-slate-900 border-slate-200 hover:border-[#b8c9db]'
+                      : 'bg-white hover:bg-slate-light text-slate-900 border-slate-200 hover:border-slate-border'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-2 w-full">
                     <div className="space-y-0.5">
-                      <div className={`text-xs font-black truncate ${isSelected ? 'text-[#ecc987]' : 'text-slate-900'}`}>
+                      <div className={`text-xs font-black truncate ${isSelected ? 'text-amber' : 'text-slate-900'}`}>
                         {b.name}
                       </div>
                       <div className={`text-[10px] font-medium ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
@@ -746,8 +746,8 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                     <span
                       className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
                         isSelected
-                          ? 'bg-[var(--app-accent)] text-[#231a05]'
-                          : 'bg-[#f4f7fa] text-slate-600 border border-slate-200'
+                          ? 'bg-[var(--app-accent)] text-deep-navy'
+                          : 'bg-slate-light text-slate-600 border border-slate-200'
                       }`}
                     >
                       {b.ordersCount} طلبية
@@ -763,7 +763,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                         {formatCurrency(b.totalSales)}
                       </strong>
                     </div>
-                    <div className={`text-[10px] dream-amt font-bold ${isSelected ? 'text-[#a9d3bd]' : 't-ok'}`}>
+                    <div className={`text-[10px] dream-amt font-bold ${isSelected ? 'text-teal-soft6' : 't-ok'}`}>
                       {b.totalCartons} كرتونة
                     </div>
                   </div>
@@ -786,7 +786,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                 {accessibleInvoices.length} طلبية
               </span>
               {selectedBranchFilter !== 'الكل' && (
-                <span className="navy-panel text-[#ecc987] text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+                <span className="navy-panel text-amber text-xs px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
                   <span>فرع: {selectedBranchFilter}</span>
                   <button
                     onClick={() => setSelectedBranchFilter('الكل')}
@@ -880,7 +880,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                 <span>{tab.label}</span>
                 {tab.count > 0 && (
                   <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
-                    activeStatusTab === tab.id ? 'bg-white/15 text-white' : 'bg-[#f2f6fa] text-[var(--app-muted)]'
+                    activeStatusTab === tab.id ? 'bg-white/15 text-white' : 'bg-blue-soft text-[var(--app-muted)]'
                   }`}>
                     {tab.count}
                   </span>
@@ -927,7 +927,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               <tbody className="divide-y divide-slate-100">
                 {displayedInvoices.map((inv) => {
                   const badge = statusBadges[inv.status] || {
-                    bg: 'bg-[#f4f7fa] text-slate-700',
+                    bg: 'bg-slate-light text-slate-700',
                     text: 'border-slate-200',
                     label: inv.status,
                   };
@@ -957,7 +957,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                       
                       {/* Order Code */}
                       <td className="p-3 font-mono font-black text-slate-900">
-                        <span className="bg-[#f4f7fa] px-2 py-1 rounded-md text-[var(--app-navy)] border border-slate-200 dream-amt block w-fit">
+                        <span className="bg-slate-light px-2 py-1 rounded-md text-[var(--app-navy)] border border-slate-200 dream-amt block w-fit">
                           {inv.invoiceNumber}
                         </span>
                         <div className="text-[10px] text-slate-400 mt-0.5">{inv.date}</div>
@@ -1219,7 +1219,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                           {/* 6. If Closed: Display Final Closed Badge with Return Option */}
                           {inv.status === 'إغلاق الطلبية' && (
                             <div className="flex items-center gap-1.5">
-                              <span className="t-navy bg-[#f4f7fa] text-[10px] dream-amt px-2 py-0.5 rounded-md border border-slate-200">
+                              <span className="t-navy bg-slate-light text-[10px] dream-amt px-2 py-0.5 rounded-md border border-slate-200">
                                 مغلقة ومكتملة
                               </span>
                               {canManage && (
@@ -1430,7 +1430,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
               </button>
             </div>
 
-            <div className="bg-[#fdf1f1] border border-[rgba(179,74,74,.28)] text-[#9c4343] p-3.5 rounded-2xl text-xs space-y-1.5">
+            <div className="bg-red-soft2 border border-[rgba(179,74,74,.28)] text-rose-deep p-3.5 rounded-2xl text-xs space-y-1.5">
               <div className="font-black flex items-center gap-1.5">
                 <CheckCircle2 className="w-4 h-4" />
                 <span>إرجاع البضاعة والمخزون فوراً:</span>
@@ -1458,7 +1458,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                     className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
                       rejectReason === reasonText
                         ? 'tint-risk font-black'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-[#f8fafc]'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-light'
                     }`}
                   >
                     {reasonText}

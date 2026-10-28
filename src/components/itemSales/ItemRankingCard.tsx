@@ -75,7 +75,7 @@ export const ItemRankingCard: React.FC<ItemRankingCardProps> = ({
                     <span className="w-4 h-4 rounded-md bg-slate-100 text-slate-500 text-[9px] font-black flex items-center justify-center shrink-0">
                       {index + 1}
                     </span>
-                    <span className="text-[10.5px] font-bold text-slate-700 truncate group-hover:text-[#102b4e]">
+                    <span className="text-[10.5px] font-bold text-slate-700 truncate group-hover:text-deep-slate">
                       {item.itemName}
                     </span>
                   </span>
@@ -111,10 +111,10 @@ export const ItemRankingCard: React.FC<ItemRankingCardProps> = ({
       title="أعلى 10 أصناف مبيعًا (القيمة)"
       subtitle={subtitle || 'أعلى الأصناف تحقيقًا للإيراد في الفترة'}
       icon={<BarChart3 className="w-4 h-4" />}
-      iconClass="bg-[#102b4e]/5 text-[#102b4e]"
+      iconClass="bg-navy-deep/5 text-deep-slate"
       action={
         <span className="inline-flex items-center gap-1.5 text-[9.5px] font-bold text-slate-500">
-          <span className="w-2 h-2 rounded-sm bg-[#102b4e]" /> القيمة
+          <span className="w-2 h-2 rounded-sm bg-navy-deep" /> القيمة
         </span>
       }
     >

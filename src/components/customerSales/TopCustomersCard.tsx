@@ -139,7 +139,7 @@ export const TopCustomersCard: React.FC<TopCustomersCardProps> = ({
                       <div className="flex items-center gap-2">
                         <div className="h-1.5 w-16 rounded-full bg-slate-100 overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-[#c99a43]"
+                            className="h-full rounded-full bg-amber-main"
                             style={{ width: `${Math.min(100, Math.max(2, customer.sharePct))}%` }}
                           />
                         </div>

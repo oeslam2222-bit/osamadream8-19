@@ -254,12 +254,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setIsMobileDrawerOpen(true)}
               aria-label="القائمة الرئيسية"
               title="القائمة الرئيسية"
-              className="h-10 px-2.5 rounded-xl bg-[#0f2b38] hover:bg-[#1a3f52] text-amber-300 flex items-center gap-1.5 font-black text-xs shadow-xs cursor-pointer border border-teal-500/30"
+              className="h-10 px-2.5 rounded-xl bg-navy-deep hover:bg-blue-deep4 text-amber-300 flex items-center gap-1.5 font-black text-xs shadow-xs cursor-pointer border border-teal-500/30"
             >
               <Menu className="w-4 h-4 text-amber-400 shrink-0" />
               <span className="text-[11px]">القائمة</span>
             </button>
-            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-[#0f2b38] p-1 border-2 border-teal-500 shadow-md shadow-teal-500/20 flex items-center justify-center shrink-0 overflow-hidden">
+            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-navy-deep p-1 border-2 border-teal-500 shadow-md shadow-teal-500/20 flex items-center justify-center shrink-0 overflow-hidden">
               <img src="/icon.svg" alt="طنطاوي جروب - Tantawy Group" className="h-full w-full object-contain" />
             </div>
             <div>
@@ -489,7 +489,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => logout()}
               title="تسجيل الخروج"
               aria-label="تسجيل الخروج من التطبيق"
-              className="lg:hidden flex items-center justify-center w-11 h-11 shrink-0 rounded-xl border border-[var(--app-line)] bg-white text-[var(--app-risk)] hover:bg-[#fdf1f1] active:scale-95 transition cursor-pointer"
+              className="lg:hidden flex items-center justify-center w-11 h-11 shrink-0 rounded-xl border border-[var(--app-line)] bg-white text-[var(--app-risk)] hover:bg-red-soft2 active:scale-95 transition cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -498,12 +498,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               id="open-cart-btn"
               onClick={onOpenCart}
-              className="relative hidden lg:flex items-center justify-center gap-1.5 bg-[var(--app-navy)] hover:bg-[#1a3a63] text-white font-black px-3 h-11 rounded-xl shadow-md transition transform active:scale-95 cursor-pointer min-w-[44px]"
+              className="relative hidden lg:flex items-center justify-center gap-1.5 bg-[var(--app-navy)] hover:bg-blue-deep5 text-white font-black px-3 h-11 rounded-xl shadow-md transition transform active:scale-95 cursor-pointer min-w-[44px]"
             >
               <ShoppingCart className="w-4 h-4" />
               <span className="hidden xs:inline text-xs">الطلبية</span>
               {cartSummary.itemCount > 0 && (
-                <span className="bg-[var(--app-accent)] text-[#231a05] text-xs px-1.5 py-0.2 rounded-full font-black min-w-[20px] text-center">
+                <span className="bg-[var(--app-accent)] text-deep-navy text-xs px-1.5 py-0.2 rounded-full font-black min-w-[20px] text-center">
                   {cartSummary.itemCount}
                 </span>
               )}
@@ -581,10 +581,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     className={`relative w-11 h-11 rounded-xl flex items-center justify-center transition cursor-pointer group ${
                       isActive
                         ? 'bg-amber-500 text-slate-950 font-black shadow-md'
-                        : 'text-[#9db0c7] hover:bg-white/[0.08] hover:text-white'
+                        : 'text-blue-soft3 hover:bg-white/[0.08] hover:text-white'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-slate-950' : 'text-[#8aa2bd] group-hover:text-amber-300'}`} />
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-slate-950' : 'text-blue-soft2 group-hover:text-amber-300'}`} />
                     {item.badge && item.badge > 0 ? (
                       <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-rose-500 px-1 text-center text-[9px] font-black text-white flex items-center justify-center shadow-xs">
                         {item.badge}
@@ -640,10 +640,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     onClick={() => setActiveTab(item.id)}
                     aria-current={isActive ? 'page' : undefined}
                     className={`relative w-full flex items-center gap-3 px-3 rounded-xl text-right text-sm transition cursor-pointer ${
-                      isActive ? 'bg-white/[0.08] text-white font-semibold' : 'text-[#9db0c7] hover:bg-white/[0.08] hover:text-white font-medium'
+                      isActive ? 'bg-white/[0.08] text-white font-semibold' : 'text-blue-soft3 hover:bg-white/[0.08] hover:text-white font-medium'
                     }`}
                   >
-                    <Icon className={`w-[19px] h-[19px] shrink-0 ${isActive ? 'text-[var(--app-accent)]' : 'text-[#8aa2bd]'}`} />
+                    <Icon className={`w-[19px] h-[19px] shrink-0 ${isActive ? 'text-[var(--app-accent)]' : 'text-blue-soft2'}`} />
                     <span className="flex-1">{item.label}</span>
                     {item.badge && item.badge > 0 ? (
                       <span className="min-w-5 rounded-full bg-rose-500 px-1.5 text-center text-[10px] font-black text-white">
@@ -731,7 +731,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           />
 
           {/* Drawer Content */}
-          <div className="relative w-full max-w-xs sm:max-w-sm bg-[#0f2b38] text-white h-full shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-200">
+          <div className="relative w-full max-w-xs sm:max-w-sm bg-navy-deep text-white h-full shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-200">
             {/* Drawer Header */}
             <div className="p-4 border-b border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -800,7 +800,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             {/* Drawer Footer Actions */}
-            <div className="p-4 border-t border-white/10 space-y-2 bg-[#0a1e27]">
+            <div className="p-4 border-t border-white/10 space-y-2 bg-navy-dark3">
               <button
                 type="button"
                 onClick={() => {
