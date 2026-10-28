@@ -24,7 +24,60 @@ export const VisitsDashboard: React.FC = () => {
   const todayStr = new Date().toISOString().slice(0, 10);
   // المشرف ومدير الفرع والإدارة هم اللي بيحوّلوا المرتجع لأمين المخزن
   const canApproveReturns = currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer';
-  const [form, setForm] = useState({ customerId: '', repId: currentUser?.role === 'sales_rep' ? currentUser.id : '', date: todayStr, time: '09:00', type: 'زيارة دورية' as CustomerVisit['type'], outcome: 'متابعة فقط' as CustomerVisit['outcome'], collectedAmount: 0, orderAmount: 0, returnValue: 0, returnReason: '', returnItems: '', returnLocation: 'عند العميل' as ReturnLocation, notes: '', returnImages: [] as string[] });
+  const [form, setForm] = useState({ customerId: '', repId: currentUser?.role === 'sales_rep' ? currentUser.id : '', date: todayStr, time: '09:00', type: 'زيارة دورية' as CustomerVisit['type'], outcome: 'متابعة فقط' as CustomerVisit['outcome'], collectedAmount: 0, orderAmount: 0, returnValue: 0, returnReason: '', returnItems: [] as ReturnItemForm[], returnLocation: 'عند العميل' as ReturnLocation, notes: '', returnImages: [] as string[] });
+
+interface ReturnItemForm {
+  id: string;
+  productName: string;
+  quantity: number;
+  unit: 'كرتونة' | 'قطعة';
+  reason: string;
+  condition: 'سليم' | 'تالف' | 'منتهي';
+  images: string[];
+}
+
+  // Add new return item
+  const addReturnItem = () => {
+    const newItem: ReturnItemForm = {
+      id: crypto.randomUUID(),
+      productName: '',
+      quantity: 1,
+      unit: 'كرتونة',
+      reason: '',
+      condition: 'سليم',
+      images: [],
+    };
+    setForm({ ...form, returnItems: [...form.returnItems, newItem] });
+  };
+
+  // Remove return item
+  const removeReturnItem = (id: string) => {
+    setForm({ ...form, returnItems: form.returnItems.filter((item) => item.id !== id) });
+  };
+
+  // Add image to specific return item
+  const addReturnItemImage = (itemId: string, imgUrl: string) => {
+    setForm({
+      ...form,
+      returnItems: form.returnItems.map((item) =>
+        item.id === itemId
+          ? { ...item, images: [...item.images, imgUrl] }
+          : item
+      ),
+    });
+  };
+
+  // Remove image from specific return item
+  const removeReturnItemImage = (itemId: string, imgIndex: number) => {
+    setForm({
+      ...form,
+      returnItems: form.returnItems.map((item) =>
+        item.id === itemId
+          ? { ...item, images: item.images.filter((_, idx) => idx !== imgIndex) }
+          : item
+      ),
+    });
+  };
 
   const branches = currentUser?.role === 'branch_manager' ? [currentUser.branchName || ''] :
     currentUser?.role === 'supervisor' ? Array.from(new Set(users.filter((u) => u.supervisorId === currentUser.id).map((u) => u.branchName).filter(Boolean))) :
@@ -85,7 +138,7 @@ export const VisitsDashboard: React.FC = () => {
       isReturn,
       returnValue: isReturn ? form.returnValue : 0,
       returnReason: isReturn ? form.returnReason : '',
-      returnItems: isReturn ? form.returnItems : '',
+      returnItems: isReturn ? JSON.stringify(form.returnItems.map((i) => `${i.productName}: ${i.quantity} ${i.unit} (${i.condition})${i.reason ? ' - ' + i.reason : ''}`).join(' | ')) : '',
       // المرتجع يبدأ دورته فور تسجيله: بانتظار المشرف.
       returnStatus: isReturn ? 'بانتظار المشرف' : undefined,
       // مكان المرتجع (عند العميل / بالمخزن) بيتسجل جوّه returnNote عشان
@@ -104,19 +157,19 @@ export const VisitsDashboard: React.FC = () => {
     if (isReturn) {
       // الأصناف تُكتب يدوياً لحد ما يتم تحميل مبيعات العملاء بالأصناف والربط
       // بالفاتورة، فبنفتح إذن مستقل من غير فاتورة.
-      const manualItems: ReturnedItem[] = [{
+      const manualItems: ReturnedItem[] = form.returnItems.map((item) => ({
         productId: '',
         productCode: '',
-        productName: form.returnItems || 'أصناف مرتجعة',
-        cartonCount: 0,
-        pieceCount: 0,
+        productName: item.productName || 'أصناف مرتجعة',
+        cartonCount: item.unit === 'كرتونة' ? item.quantity : 0,
+        pieceCount: item.unit === 'قطعة' ? item.quantity : 0,
         cartonQuantity: 0,
-        totalPieces: 0,
+        totalPieces: item.quantity,
         pricePerCarton: 0,
         pricePerPiece: 0,
-        refundAmount: form.returnValue || 0,
-        returnReason: form.returnReason || '',
-      }];
+        refundAmount: form.returnValue / Math.max(form.returnItems.length, 1),
+        returnReason: item.reason || form.returnReason || '',
+      }));
       const created = createStandaloneReturn({
         customerName: c?.name || '',
         customerCode: c?.code,
@@ -375,8 +428,52 @@ export const VisitsDashboard: React.FC = () => {
                   <input value={form.returnReason} onChange={(e) => setForm({ ...form, returnReason: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
                 </label>
                 <label className="block">
-                  <span className="text-[11px] text-slate-500 font-bold">تفاصيل الأصناف المرتجعة</span>
-                  <input value={form.returnItems} onChange={(e) => setForm({ ...form, returnItems: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+                  <span className="text-[11px] text-slate-500 font-bold">الأصناف المرتجعة</span>
+                  {form.returnItems.length > 0 ? (
+                    <div className="mt-2 space-y-1.5">
+                      {form.returnItems.map((item, idx) => (
+                        <div key={item.id} className="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-slate-50 border border-[color:var(--app-line)]">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-bold text-slate-700">{item.productName || 'بدون اسم'}</span>
+                            <span className="text-[10px] text-slate-500 block">{item.quantity} {item.unit} • {item.condition} • {item.reason || 'بدون سبب'}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeReturnItem(item.id)}
+                            className="text-xs text-rose-600 hover:text-rose-800"
+                          >
+                            حذف
+                          </button>
+                        </div>
+                      ))}
+                      <div className="mt-2">
+                        <span className="text-[10px] text-slate-500 block mb-1">صور الأصناف:</span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+                          {form.returnImages.map((img, i) => (
+                            <div key={i} className="relative">
+                              <img src={img} alt="return" className="w-full h-12 object-cover rounded border border-slate-200 cursor-pointer" onClick={() => setLightboxImage(img)} />
+                              <button
+                                type="button"
+                                onClick={() => setForm({ ...form, returnImages: form.returnImages.filter((_, idx) => idx !== i) })}
+                                className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]"
+                              >
+                                <X className="w-2 h-2" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 italic">لا توجد أصناف مرتجعة مضافة</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={addReturnItem}
+                    className="mt-2 w-full px-3 py-1.5 rounded-lg border border-[color:var(--app-line)] text-xs text-[color:var(--app-blue)] hover:bg-slate-50 flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" /> إضافة صنف مرتجع
+                  </button>
                 </label>
                 <label className="block">
                   <span className="text-[11px] text-slate-500 font-bold">مكان المرتجع</span>
