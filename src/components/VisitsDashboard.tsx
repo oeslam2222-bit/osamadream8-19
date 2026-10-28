@@ -1,5 +1,5 @@
 ﻿import React, { useMemo, useState } from 'react';
-import { AlertTriangle, CalendarCheck, CheckCircle2, Clock3, Plus, Save, Users } from 'lucide-react';
+import { AlertTriangle, CalendarCheck, CheckCircle2, Clock3, Plus, Save, Users, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StatGrid } from './ui/StatGrid';
 import type { CustomerVisit, ReturnedItem } from '../types';
@@ -18,12 +18,66 @@ export const VisitsDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('الكل');
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [selectedVisit, setSelectedVisit] = useState<CustomerVisit | null>(null);
   const [flash, setFlash] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const todayStr = new Date().toISOString().slice(0, 10);
   // المشرف ومدير الفرع والإدارة هم اللي بيحوّلوا المرتجع لأمين المخزن
   const canApproveReturns = currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer';
-  const [form, setForm] = useState({ customerId: '', repId: currentUser?.role === 'sales_rep' ? currentUser.id : '', date: todayStr, time: '09:00', type: 'زيارة دورية' as CustomerVisit['type'], outcome: 'متابعة فقط' as CustomerVisit['outcome'], collectedAmount: 0, orderAmount: 0, returnValue: 0, returnReason: '', returnItems: '', returnLocation: 'عند العميل' as ReturnLocation, notes: '' });
+  const [form, setForm] = useState({ customerId: '', repId: currentUser?.role === 'sales_rep' ? currentUser.id : '', date: todayStr, time: '09:00', type: 'زيارة دورية' as CustomerVisit['type'], outcome: 'متابعة فقط' as CustomerVisit['outcome'], collectedAmount: 0, orderAmount: 0, returnValue: 0, returnReason: '', returnItems: [] as ReturnItemForm[], returnLocation: 'عند العميل' as ReturnLocation, notes: '', returnImages: [] as string[] });
+
+interface ReturnItemForm {
+  id: string;
+  productName: string;
+  quantity: number;
+  unit: 'كرتونة' | 'قطعة';
+  reason: string;
+  condition: 'سليم' | 'تالف' | 'منتهي';
+  images: string[];
+}
+
+  // Add new return item
+  const addReturnItem = () => {
+    const newItem: ReturnItemForm = {
+      id: crypto.randomUUID(),
+      productName: '',
+      quantity: 1,
+      unit: 'كرتونة',
+      reason: '',
+      condition: 'سليم',
+      images: [],
+    };
+    setForm({ ...form, returnItems: [...form.returnItems, newItem] });
+  };
+
+  // Remove return item
+  const removeReturnItem = (id: string) => {
+    setForm({ ...form, returnItems: form.returnItems.filter((item) => item.id !== id) });
+  };
+
+  // Add image to specific return item
+  const addReturnItemImage = (itemId: string, imgUrl: string) => {
+    setForm({
+      ...form,
+      returnItems: form.returnItems.map((item) =>
+        item.id === itemId
+          ? { ...item, images: [...item.images, imgUrl] }
+          : item
+      ),
+    });
+  };
+
+  // Remove image from specific return item
+  const removeReturnItemImage = (itemId: string, imgIndex: number) => {
+    setForm({
+      ...form,
+      returnItems: form.returnItems.map((item) =>
+        item.id === itemId
+          ? { ...item, images: item.images.filter((_, idx) => idx !== imgIndex) }
+          : item
+      ),
+    });
+  };
 
   const branches = currentUser?.role === 'branch_manager' ? [currentUser.branchName || ''] :
     currentUser?.role === 'supervisor' ? Array.from(new Set(users.filter((u) => u.supervisorId === currentUser.id).map((u) => u.branchName).filter(Boolean))) :
@@ -84,12 +138,13 @@ export const VisitsDashboard: React.FC = () => {
       isReturn,
       returnValue: isReturn ? form.returnValue : 0,
       returnReason: isReturn ? form.returnReason : '',
-      returnItems: isReturn ? form.returnItems : '',
+      returnItems: isReturn ? JSON.stringify(form.returnItems.map((i) => `${i.productName}: ${i.quantity} ${i.unit} (${i.condition})${i.reason ? ' - ' + i.reason : ''}`).join(' | ')) : '',
       // المرتجع يبدأ دورته فور تسجيله: بانتظار المشرف.
       returnStatus: isReturn ? 'بانتظار المشرف' : undefined,
       // مكان المرتجع (عند العميل / بالمخزن) بيتسجل جوّه returnNote عشان
       // أمين المخزن ينسّق على أساسه.
       returnNote: isReturn ? buildReturnNote('', { location: form.returnLocation }) : undefined,
+      returnImages: isReturn ? form.returnImages : undefined,
       // المرتجع ممكن يتسجل في يوم فيه زيارة سابقة لنفس العميل.
       allowSameDaySecondVisit: isReturn ? true : undefined,
     });
@@ -102,19 +157,19 @@ export const VisitsDashboard: React.FC = () => {
     if (isReturn) {
       // الأصناف تُكتب يدوياً لحد ما يتم تحميل مبيعات العملاء بالأصناف والربط
       // بالفاتورة، فبنفتح إذن مستقل من غير فاتورة.
-      const manualItems: ReturnedItem[] = [{
+      const manualItems: ReturnedItem[] = form.returnItems.map((item) => ({
         productId: '',
         productCode: '',
-        productName: form.returnItems || 'أصناف مرتجعة',
-        cartonCount: 0,
-        pieceCount: 0,
+        productName: item.productName || 'أصناف مرتجعة',
+        cartonCount: item.unit === 'كرتونة' ? item.quantity : 0,
+        pieceCount: item.unit === 'قطعة' ? item.quantity : 0,
         cartonQuantity: 0,
-        totalPieces: 0,
+        totalPieces: item.quantity,
         pricePerCarton: 0,
         pricePerPiece: 0,
-        refundAmount: form.returnValue || 0,
-        returnReason: form.returnReason || '',
-      }];
+        refundAmount: form.returnValue / Math.max(form.returnItems.length, 1),
+        returnReason: item.reason || form.returnReason || '',
+      }));
       const created = createStandaloneReturn({
         customerName: c?.name || '',
         customerCode: c?.code,
@@ -228,38 +283,95 @@ export const VisitsDashboard: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        {filtered.length === 0 ? (
-          <div className="p-10 text-center text-slate-500 font-bold">لا توجد زيارات مسجلة حالياً</div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {filtered.map((v) => (
-              <button key={v.id} type="button" onClick={() => setSelectedVisit(v)} className="w-full text-start p-4 hover:bg-slate-50 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-black" style={{ color: 'var(--app-navy)' }}>{v.date}</span>
-                    <span className="text-xs font-bold text-slate-600">{v.time}</span>
-                  </div>
-                  <span className="text-[11px] font-black px-2 py-1 rounded-full" style={{ background: v.status === 'منفذة' ? '#d1fae5' : v.status === 'مجدولة' ? '#fef3c7' : v.status === 'ملغاة' ? '#e2e8f0' : '#fee2e2', color: v.status === 'منفذة' ? '#065f46' : v.status === 'مجدولة' ? '#92400e' : v.status === 'ملغاة' ? '#475569' : '#991b1b' }}>{v.status}</span>
-                </div>
-                <div className="text-sm font-black text-slate-800">{v.customerName || customers.find((x) => x.id === v.customerId)?.name || 'عميل غير معروف'}</div>
-                <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 font-bold">
-                  <span>المندوب: {v.repName}</span>
-                  <span>الفرع: {v.branchName || '-'}</span>
-                  <span>النوع: {v.type}</span>
-                  {v.outcome ? <span>النتيجة: {v.outcome}</span> : null}
-                </div>
-                {v.isReturn ? (
-                  <div className="rounded-lg bg-[#fffdf7] border border-[var(--app-accent)] px-2 py-1 text-[11px] font-black text-[#8a6420]">مرتجع: {v.returnValue} ج.م — {v.returnReason || '-'}</div>
-                ) : null}
-                {v.collectedAmount ? (
-                  <div className="text-[11px] font-black text-[var(--app-ok)]">المبلغ المحصل: {v.collectedAmount}</div>
-                ) : null}
-              </button>
-            ))}
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="p-3 text-xs font-black text-slate-600">التاريخ والوقت</th>
+                <th className="p-3 text-xs font-black text-slate-600">اسم العميل</th>
+                <th className="p-3 text-xs font-black text-slate-600">المندوب</th>
+                <th className="p-3 text-xs font-black text-slate-600">الفرع</th>
+                <th className="p-3 text-xs font-black text-slate-600">نوع الزيارة</th>
+                <th className="p-3 text-xs font-black text-slate-600">الحالة</th>
+                <th className="p-3 text-xs font-black text-slate-600">النتيجة</th>
+                <th className="p-3 text-xs font-black text-slate-600 text-center">الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="p-10 text-center text-slate-500 font-bold">لا توجد زيارات مسجلة حالياً</td>
+                </tr>
+              ) : (
+                filtered.map((v) => (
+                  <tr key={v.id} className="hover:bg-slate-50 transition group cursor-pointer" onClick={() => setSelectedVisit(v)}>
+                    <td className="p-3 text-xs font-bold text-slate-800">
+                      <div>{v.date}</div>
+                      <div className="text-[10px] text-slate-500">{v.time || '-'}</div>
+                    </td>
+                    <td className="p-3 text-xs font-black">
+                      {v.customerName || customers.find((x) => x.id === v.customerId)?.name || 'عميل غير معروف'}
+                      <div className="text-[10px] text-slate-400 font-mono">{v.customerCode || '-'}</div>
+                    </td>
+                    <td className="p-3 text-xs text-slate-700">{v.repName || '-'}</td>
+                    <td className="p-3 text-xs text-slate-700">{v.branchName || '-'}</td>
+                    <td className="p-3 text-xs text-slate-700">{v.type || '-'}</td>
+                    <td className="p-3 text-center">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        v.status === 'منفذة' ? 'bg-green-100 text-green-700' :
+                        v.status === 'مجدولة' ? 'bg-amber-100 text-amber-700' :
+                        v.status === 'ملغاة' ? 'bg-slate-100 text-slate-600' :
+                        'bg-rose-100 text-rose-700'
+                      }`}>
+                        {v.status}
+                      </span>
+                    </td>
+                    <td className="p-3 text-xs text-slate-600">
+                      {v.outcome || <span className="text-slate-400 italic">—</span>}
+                    </td>
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setSelectedVisit(v); }}
+                          className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center text-xs"
+                          title="عرض التفاصيل"
+                        >
+                          <CalendarCheck className="w-4 h-4" />
+                        </button>
+                        {v.isReturn && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setSelectedVisit(v); }}
+                            className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center text-xs"
+                            title="عرض المرتجع"
+                          >
+                            <AlertTriangle className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setSelectedVisit(v); }}
+                          className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center text-xs"
+                          title="تعديل"
+                        >
+                          <Clock3 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        {filtered.length > 0 && (
+          <div className="p-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-xs">
+            <span className="font-bold text-slate-600">إجمالي الزيارات المعروضة: <span className="text-slate-900">{filtered.length}</span></span>
+            <span className="text-slate-500">نطاق الوقت: {month}</span>
           </div>
         )}
       </div>
-
       {showForm ? (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowForm(false); }}>
           <form onSubmit={submit} className="relative z-[60] bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
@@ -316,14 +428,89 @@ export const VisitsDashboard: React.FC = () => {
                   <input value={form.returnReason} onChange={(e) => setForm({ ...form, returnReason: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
                 </label>
                 <label className="block">
-                  <span className="text-[11px] text-slate-500 font-bold">تفاصيل الأصناف المرتجعة</span>
-                  <input value={form.returnItems} onChange={(e) => setForm({ ...form, returnItems: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+                  <span className="text-[11px] text-slate-500 font-bold">الأصناف المرتجعة</span>
+                  {form.returnItems.length > 0 ? (
+                    <div className="mt-2 space-y-1.5">
+                      {form.returnItems.map((item, idx) => (
+                        <div key={item.id} className="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-slate-50 border border-[color:var(--app-line)]">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-xs font-bold text-slate-700">{item.productName || 'بدون اسم'}</span>
+                            <span className="text-[10px] text-slate-500 block">{item.quantity} {item.unit} • {item.condition} • {item.reason || 'بدون سبب'}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeReturnItem(item.id)}
+                            className="text-xs text-rose-600 hover:text-rose-800"
+                          >
+                            حذف
+                          </button>
+                        </div>
+                      ))}
+                      <div className="mt-2">
+                        <span className="text-[10px] text-slate-500 block mb-1">صور الأصناف:</span>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
+                          {form.returnImages.map((img, i) => (
+                            <div key={i} className="relative">
+                              <img src={img} alt="return" className="w-full h-12 object-cover rounded border border-slate-200 cursor-pointer" onClick={() => setLightboxImage(img)} />
+                              <button
+                                type="button"
+                                onClick={() => setForm({ ...form, returnImages: form.returnImages.filter((_, idx) => idx !== i) })}
+                                className="absolute -top-1 -right-1 bg-rose-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]"
+                              >
+                                <X className="w-2 h-2" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 italic">لا توجد أصناف مرتجعة مضافة</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={addReturnItem}
+                    className="mt-2 w-full px-3 py-1.5 rounded-lg border border-[color:var(--app-line)] text-xs text-[color:var(--app-blue)] hover:bg-slate-50 flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-3 h-3" /> إضافة صنف مرتجع
+                  </button>
                 </label>
                 <label className="block">
                   <span className="text-[11px] text-slate-500 font-bold">مكان المرتجع</span>
                   <select value={form.returnLocation} onChange={(e) => setForm({ ...form, returnLocation: e.target.value as ReturnLocation })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
                     {RETURN_LOCATIONS.map((l) => <option key={l} value={l}>{l}</option>)}
                   </select>
+                </label>
+                <label className="block mt-2">
+                  <span className="text-[11px] text-slate-500 font-bold">صور المرتجع (اختياري)</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      const urls = files.map((f) => URL.createObjectURL(f));
+                      setForm({ ...form, returnImages: [...form.returnImages, ...urls] });
+                    }}
+                    className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm"
+                  />
+                  {form.returnImages.length > 0 && (
+                    <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {form.returnImages.map((img, i) => (
+                        <div key={i} className="relative group">
+                          <img src={img} alt="return" className="w-full h-20 object-cover rounded-lg border border-slate-200" />
+                          <button
+                            type="button"
+                            onClick={() => setForm({ ...form, returnImages: form.returnImages.filter((_, idx) => idx !== i) })}
+                            className="absolute -top-2 -right-2 bg-rose-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-rose-700"
+                            aria-label="حذف الصورة"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </label>
               </div>
             ) : null}
@@ -413,6 +600,18 @@ export const VisitsDashboard: React.FC = () => {
                 <p className="text-sm text-slate-700">سبب المرتجع: {selectedVisit.returnReason}</p>
                 <p className="text-sm text-slate-700">الأصناف: {selectedVisit.returnItems}</p>
                 <p className="text-sm text-slate-700">حالة المرتجع: {selectedVisit.returnStatus}</p>
+                {selectedVisit.returnImages && selectedVisit.returnImages.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-xs text-[#8a6420] font-bold mb-2">صور المرتجع:</p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {selectedVisit.returnImages.map((img, i) => (
+                        <div key={i} className="relative">
+                          <img src={img} alt="return" className="w-full h-24 object-cover rounded-lg border border-slate-200 cursor-pointer" onClick={() => setLightboxImage(img)} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {selectedVisit.returnHandledBy ? (
                   <p className="text-xs text-slate-500 mt-1">آخر قرار: {selectedVisit.returnHandledBy} — {selectedVisit.returnHandledAt}</p>
                 ) : null}
@@ -467,6 +666,37 @@ export const VisitsDashboard: React.FC = () => {
           </div>
         </div>
       ) : null}
-    </div>
+
+    {/* Image Lightbox */}
+    {lightboxImage && (
+      <div
+        className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setLightboxImage(null);
+        }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="تكبير صورة المرتجع"
+      >
+        <button
+          type="button"
+          onClick={() => setLightboxImage(null)}
+          className="absolute top-4 left-4 z-20 w-10 h-10 rounded-full bg-white/10 text-white backdrop-blur-md hover:bg-white/20 transition cursor-pointer flex items-center justify-center"
+          aria-label="إغلاق التكبير"
+        >
+          <X className="w-5 h-5" />
+        </button>
+        <div className="relative flex items-center justify-center max-w-[90vh] max-h-[90vh]">
+          <img
+            src={lightboxImage}
+            alt="return image"
+            className="max-w-[85vw] max-h-[85vh] rounded-2xl shadow-2xl object-contain bg-white p-2 border border-white/20"
+            loading="lazy"
+            decoding="async"
+          />
+        </div>
+      </div>
+    )}
+  </div>
   );
 };

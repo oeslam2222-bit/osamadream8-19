@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Boxes, CheckCircle2, Clock3, MapPin, PackageCheck, Settings2, Truck, Warehouse } from 'lucide-react';
+import { AlertTriangle, Boxes, CheckCircle2, Clock3, MapPin, PackageCheck, Settings2, Truck, Warehouse, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { StatGrid } from './ui/StatGrid';
 import {
@@ -268,6 +268,18 @@ export const ReturnsWarehouseView: React.FC = () => {
                     </div>
                     {v.returnReason ? <p className="mt-2 text-xs font-bold text-slate-700">السبب: {v.returnReason}</p> : null}
                     {v.returnItems ? <p className="mt-1 text-xs text-slate-600">الأصناف: {v.returnItems}</p> : null}
+                    {v.returnImages && v.returnImages.length > 0 && (
+                      <div className="mt-2">
+                        <p className="text-[11px] text-slate-500 font-bold mb-1">صور المرتجع:</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          {v.returnImages.map((img, i) => (
+                            <div key={i} className="relative">
+                              <img src={img} alt="return" className="w-full h-16 object-cover rounded-lg border border-slate-200 cursor-pointer" />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     {text ? <p className="mt-1 text-xs text-slate-500">ملاحظات: {text}</p> : null}
                     {typeof meta.receivedCartons === 'number' ? (
                       <p className="mt-1 text-xs font-black text-teal-700">المستلم فعلياً: {meta.receivedCartons} كرتونة{typeof meta.receivedPieces === 'number' ? ` — ${meta.receivedPieces} قطعة` : ''}</p>

@@ -42,6 +42,7 @@ import {
 } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/themeContext';
 import { formatCurrency } from '../services/invoiceService';
 import { UserRole } from '../types';
 import { CompanySettingsModal } from './CompanySettingsModal';
@@ -89,16 +90,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   } = useApp();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [isDark, setIsDark] = useState(() => {
-    try { return localStorage.getItem('tantawy_dark_mode') === 'true'; } catch { return false; }
-  });
-
-  useEffect(() => {
-    const root = document.documentElement;
-    if (isDark) root.classList.add('dark');
-    else root.classList.remove('dark');
-    try { localStorage.setItem('tantawy_dark_mode', String(isDark)); } catch {}
-  }, [isDark]);
+  const { isDark, toggleTheme } = useTheme();
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStandalone, setIsStandalone] = useState(true);
@@ -158,7 +150,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     supervisor: { label: 'مشرف المناديب', bg: 'bg-blue-500/20 border-blue-500/40', text: 'text-blue-300' },
     sales_rep: { label: 'المندوب', bg: 'bg-emerald-500/20 border-emerald-500/40', text: 'text-emerald-300' },
     warehouse_keeper: { label: 'أمين المخزن', bg: 'bg-teal-500/20 border-teal-500/40', text: 'text-teal-300' },
-    legal_advisor: { label: 'المستشار القانوني', bg: 'bg-indigo-500/20 border-indigo-500/40', text: 'text-indigo-300' },
+    legal_advisor: { label: 'الشؤون القانونية', bg: 'bg-indigo-500/20 border-indigo-500/40', text: 'text-indigo-300' }, // صفحة معطلة
   };
 
   const pendingApprovalsCount = users.filter((u) => {
@@ -188,8 +180,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isFieldRole = currentUser.role === 'sales_rep' || currentUser.role === 'supervisor';
 
   const navItems = [
-    { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'legal_advisor', 'warehouse_keeper'] },
-    { id: 'legal_advisor', label: 'الشؤون القانونية', icon: Scale, roles: ['admin', 'developer', 'legal_advisor'] },
+    { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'all_customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'customer_item_sales', label: 'مبيعات الأصناف', icon: BarChart3, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
@@ -206,9 +197,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'permissions', label: 'الصلاحيات', icon: ShieldCheck, roles: ['admin', 'developer'] },
   ];
 
-  const filteredNavItems = currentUser.role === 'legal_advisor'
-    ? navItems.filter((item) => item.id === 'legal_advisor' || item.id === 'home')
-    : navItems.filter((item) => item.roles.includes(currentUser.role));
+  const filteredNavItems = navItems.filter((item) => item.roles.includes(currentUser.role));
 
   return (
     <>
@@ -482,12 +471,13 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Dark mode toggle */}
             <button
               type="button"
-              onClick={() => setIsDark((d) => !d)}
-              title={isDark ? 'الوضع الفاتح' : 'الوضع الداكن'}
-              aria-label={isDark ? 'التبديل للوضع الفاتح' : 'التبديل للوضع الداكن'}
-              className="flex items-center justify-center w-11 h-11 shrink-0 rounded-xl border border-[var(--app-line)] bg-white text-[var(--app-navy)] hover:bg-slate-50 active:scale-95 transition cursor-pointer"
+              onClick={toggleTheme}
+              title={isDark ? 'الوضع الفاتح (نهار)' : 'الوضع الليلي (ظلام)'}
+              aria-label={isDark ? 'التبديل للوضع الفاتح' : 'التبديل للوضع الليلي'}
+              className="flex items-center justify-center w-12 h-12 shrink-0 rounded-xl border-2 border-[var(--app-line)] bg-white text-[var(--app-navy)] hover:bg-slate-50 active:scale-95 transition-all cursor-pointer shadow-sm"
             >
-              {isDark ? '☀️' : '🌙'}
+              <span className="text-xl font-bold">{isDark ? '☀️' : '🌙'}</span>
+              <span className="hidden sm:inline text-[10px] font-black ml-1">{isDark ? 'نهار' : 'ليل'}</span>
             </button>
 
             {/* Notification Center */}
@@ -683,16 +673,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       </aside>
 
       <nav className="tantawy-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 flex items-center justify-around py-1.5 px-1 shadow-xl safe-area-inset-bottom print:hidden" aria-label="التنقل">
-        {currentUser.role === 'legal_advisor' ? (
-          <button
-            onClick={() => setActiveTab('legal_advisor')}
-            className="flex items-center justify-center gap-2 rounded-xl px-6 py-2.5 text-xs font-black text-white bg-[#0f2b38] shadow-md my-0.5 cursor-pointer"
-          >
-            <Scale className="w-4 h-4 text-amber-400" />
-            <span>لوحة الشؤون القانونية</span>
-          </button>
-        ) : (
-          <>
+        <>
             {[
               { id: 'home', label: 'الرئيسية', icon: Home },
               { id: 'customer_item_sales', label: 'الأصناف', icon: BarChart3 },
@@ -746,7 +727,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="text-[10px] tracking-tight truncate font-black">القائمة</span>
             </button>
           </>
-        )}
       </nav>
 
       {/* Complete Mobile Navigation Slide-Over Drawer */}

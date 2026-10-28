@@ -286,6 +286,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     commissionRate: 2.5,
     isActive: true,
     approvalStatus: 'active',
+    sector: 'home', // القطاع الافتراضي: منزلي
   });
 
   const matchingCustomerCount = useMemo(() => {
@@ -298,6 +299,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       phone: formData.phone || '',
       branchName: formData.branchName || '',
       role: formData.role || 'sales_rep',
+      sector: formData.sector || 'home',
       approvalStatus: 'active',
       isActive: true,
     };
@@ -1387,6 +1389,26 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 </label>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Sector Selector (منزلي / كهربائي) */}
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1">
+                      القطاع (نوع البيانات) *
+                    </label>
+                    <select
+                      value={String(formData.sector || 'home')}
+                      onChange={(e) => setFormData({ ...formData, sector: e.target.value as 'home' | 'electrical' | 'both' | 'all' })}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-800 text-xs cursor-pointer"
+                    >
+                      <option value="home">منزلي (البيانات الخاصة بالمنزلي)</option>
+                      <option value="electrical">كهربائي (البيانات الخاصة بالكهرباء)</option>
+                      <option value="both">كلا القطاعين (منزلي + كهربائي)</option>
+                      <option value="all">كل البيانات (إدارة عامة)</option>
+                    </select>
+                    <p className="text-[10px] text-slate-500 mt-1">
+                      يحدد أي قاعدة بيانات سيشاهدها هذا المستخدم: منزلي، كهربائي، أو كليهما
+                    </p>
+                  </div>
+
                   {/* Branch Selector */}
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">

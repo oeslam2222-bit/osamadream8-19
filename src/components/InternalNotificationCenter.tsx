@@ -410,6 +410,80 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
       });
     }
 
+    // ===== فواتير بانتظار مراجعة المشرف — تنبيه للمشرفين ومديري الفروع والإدارة =====
+    const isSupervisorOrManagerOrAdmin =
+      currentUser?.role === 'supervisor' ||
+      currentUser?.role === 'branch_manager' ||
+      currentUser?.role === 'admin' ||
+      currentUser?.role === 'developer';
+
+    if (isSupervisorOrManagerOrAdmin) {
+      const pendingSupervisorReview = visibleInvoices.filter(
+        (inv) => inv.status === 'قيد مراجعة المشرف'
+      );
+      if (pendingSupervisorReview.length > 0) {
+        const pendingValue = pendingSupervisorReview.reduce(
+          (sum, inv) => sum + (inv.estimatedGrandTotal || 0),
+        0);
+        list.push({
+          id: `invoices-pending-supervisor-${today}`,
+          kind: 'system',
+          priority: 'high',
+          title: `${pendingSupervisorReview.length} فاتورة بانتظار مراجعة المشرف`,
+          detail: `إجمالي قيمة الفواتير ${formatCurrency(pendingValue)} — تتطلب المراجعة والاعتماد قبل التحويل لمدير الفرع`,
+          icon: ShieldAlert,
+          accent: 'text-amber-700',
+          iconBg: 'bg-amber-100 text-amber-700',
+          actionTab: 'invoices',
+          actionLabel: 'مراجعة الفواتير',
+        });
+      }
+
+      // ===== فواتير بانتظار اعتماد الفرع — تنبيه لمديري الفروع والإدارة =====
+      const pendingBranchApproval = visibleInvoices.filter(
+        (inv) => inv.status === 'معلقة بانتظار اعتماد الفرع'
+      );
+      if (pendingBranchApproval.length > 0) {
+        const pendingValue = pendingBranchApproval.reduce(
+          (sum, inv) => sum + (inv.estimatedGrandTotal || 0),
+        0);
+        list.push({
+          id: `invoices-pending-branch-${today}`,
+          kind: 'system',
+          priority: 'high',
+          title: `${pendingBranchApproval.length} فاتورة بانتظار اعتماد الفرع`,
+          detail: `إجمالي القيمة ${formatCurrency(pendingValue)} — بعد اعتماد مدير الفرع تتحول للإدارة للمراجعة النهائية`,
+          icon: ShieldAlert,
+          accent: 'text-rose-700',
+          iconBg: 'bg-rose-100 text-rose-700',
+          actionTab: 'invoices',
+          actionLabel: 'اعتماد الفواتير',
+        });
+      }
+
+      // ===== فواتير dépasseت حد الائتمان — تنبيه حرج للإدارة =====
+      const overCreditInvoices = visibleInvoices.filter(
+        (inv) => inv.creditLimitExceeded === true
+      );
+      if (overCreditInvoices.length > 0) {
+        const overValue = overCreditInvoices.reduce(
+          (sum, inv) => sum + (inv.estimatedGrandTotal || 0),
+        0);
+        list.push({
+          id: `invoices-over-credit-${today}`,
+          kind: 'system',
+          priority: 'high',
+          title: `${overCreditInvoices.length} فاتورة dépasseت حد الائتمان للعميل`,
+          detail: `إجمالي الفواتير ${formatCurrency(overValue)} — يتطلب مراجعة موقف العميل المالي قبل الاعتماد`,
+          icon: Wallet,
+          accent: 'text-rose-700',
+          iconBg: 'bg-rose-100 text-rose-700',
+          actionTab: 'invoices',
+          actionLabel: 'الفواتير',
+        });
+      }
+    }
+
     // ===== شؤون قانونية (legal cases) =====
     const legalCustomers = visibleCustomers.filter((c) => c.isLegalPending || c.legalStatus);
     if (legalCustomers.length > 0) {

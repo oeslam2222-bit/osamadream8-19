@@ -37,6 +37,7 @@ import { PermissionManagerModal } from './components/PermissionManagerModal';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
 import { AppProvider, useApp } from './context/AppContext';
+import { ThemeProvider } from './context/themeContext';
 import { getUserAllowedTabs, getCustomPermissions, UserPermissionOverride } from './services/permissionService';
 import { AuthProvider } from './context/authContext';
 import { InvoiceProvider } from './context/invoiceContext';
@@ -47,12 +48,12 @@ import { Customer, Invoice, UserRole } from './types';
 
 export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
-    'home', 'legal_advisor', 'catalog', 'all_customers', 'customers',
+    'home', 'catalog', 'all_customers', 'customers',
     'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   admin: [
-    'home', 'legal_advisor', 'catalog', 'all_customers', 'customers',
+    'home', 'catalog', 'all_customers', 'customers',
     'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
@@ -74,9 +75,7 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   warehouse_keeper: [
     'home', 'returns', 'inventory', 'catalog', 'guide'
   ],
-  legal_advisor: [
-    'legal_advisor', 'home'
-  ],
+  legal_advisor: [], // صفحة الشؤون القانونية معطلة
 };
 
 // Lightweight Skeleton for tab transitions
@@ -124,7 +123,7 @@ const MainLayout: React.FC = () => {
       const override = customPermissionOverrides.find((o) => o.userId === currentUser.id);
       const allowed = override ? override.allowedTabs : (ROLE_ALLOWED_TABS[currentUser.role] || ['home']);
       if (!allowed.includes(activeTab)) {
-        setActiveTab(currentUser.role === 'legal_advisor' ? 'legal_advisor' : 'home');
+        setActiveTab('home');
       }
     }
   }, [currentUser?.id, currentUser?.role, activeTab, customPermissionOverrides]);
@@ -232,8 +231,6 @@ const MainLayout: React.FC = () => {
               onViewInvoice={(inv) => setViewingInvoice(inv)}
             />
           )}
-
-          {activeTab === 'legal_advisor' && allowedTabs.includes('legal_advisor') && <LegalAdvisorDashboard />}
 
           {activeTab === 'targets' && allowedTabs.includes('targets') && <TargetPerformanceDashboard />}
 
@@ -408,7 +405,9 @@ export function App() {
             <InventoryProvider>
               <SyncProvider>
                 <AppProvider>
-                  <MainLayout />
+                  <ThemeProvider>
+                    <MainLayout />
+                  </ThemeProvider>
                 </AppProvider>
               </SyncProvider>
             </InventoryProvider>

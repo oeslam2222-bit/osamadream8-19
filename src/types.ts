@@ -274,6 +274,7 @@ export interface CustomerVisit {
   returnHandledAt?: string;           // وقت تأكيد التحويل
   returnHandledRole?: string;         // وظيفة/دور من قام بالتحويل
   returnNote?: string;                // ملاحظة المشرف عند الإرسال/التحويل
+  returnImages?: string[];            // روابط صور المرتجع (من جوجل درايف أو شيت)
 }
 
 export interface Customer {
@@ -356,6 +357,7 @@ export interface Customer {
   legalStatus?: string;              // حالة النزاع أو التسوية (pending, settlement, resolved, etc.)
   legalNotes?: string;               // إفادة المستشار القانوني
 
+  sector?: 'home' | 'electrical' | 'both' | 'all';  // القطاع (منزلي / كهربائي) - لعزل البيانات بين القطاعات
   notes?: string;
   createdAt?: string;
 }
