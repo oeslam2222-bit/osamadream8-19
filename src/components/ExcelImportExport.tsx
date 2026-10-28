@@ -767,7 +767,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
         setSheetSuccess((prev) => ({
           ...prev,
-          customerSales: `ت�� بنجاح رفع ملف الإكسل وتحديث ${finalSales.length.toLocaleString('ar-EG')} حركة صنف، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) وتحديد فروعهم ومناديبهم تلقائياً بدون تكرار!`
+          customerSales: `ت���� بنجاح رفع ملف الإكسل وتحديث ${finalSales.length.toLocaleString('ar-EG')} حركة صنف، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) وتحديد فروعهم ومناديبهم تلقائياً بدون تكرار!`
         }));
         return;
       }
@@ -1380,7 +1380,7 @@ function onEdit(e) {
                   rel="noopener noreferrer"
                   className="text-xs text-amber-700 hover:underline flex items-center gap-1 font-bold"
                 >
-                  <span>فتح الشيت في Google Sheets</span>
+                  <span>فتح ا��شيت في Google Sheets</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               )}
@@ -1942,8 +1942,6 @@ function onEdit(e) {
             )}
           </div>
         </div>
-
-      </div>
 
       {/* Quick Recognized Columns Reference */}
       <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-sm space-y-4">
