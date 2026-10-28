@@ -850,19 +850,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-end">
-          <button
-            type="button"
-            onClick={() => setIsCartDrawerOpen(true)}
-            className="flex-1 sm:flex-initial h-10 px-4 rounded-xl bg-[#0f233d] hover:bg-[#1a3861] text-[var(--app-accent)] font-black text-xs flex items-center justify-center gap-2 shadow-xs transition active:scale-95 cursor-pointer"
-          >
-            <ShoppingCart className="w-4 h-4" />
-            <span>سلة الطلبية</span>
-            <span className="bg-amber-400 text-slate-950 px-2 py-0.5 rounded-full font-black text-[10px] tabular-nums">
-              {cart.length}
-            </span>
-          </button>
-        </div>
+
       </section>
 
       {/* Selected Customer Order Context Banner */}
