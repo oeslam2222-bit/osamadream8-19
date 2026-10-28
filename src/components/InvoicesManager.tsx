@@ -131,7 +131,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       available: base.filter((i) => !i.isShortageInvoice && !(i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))).length,
       shortage: base.filter((i) => i.isShortageInvoice || (i.invoiceNumber && i.invoiceNumber.endsWith('-NQ'))).length,
       pending: base.filter(
-        (i) => i.status === 'قيد مراجعة المشرف' || i.status === 'معلقة بانتظار اعتماد الفرع' || i.status === 'قيد المراجعة'
+        (i) => i.status === 'قيد مراجعة المشرف' || i.status === 'معلقة بانتظار اعتماد الفرع' || i.status === 'قيد المراجعة' || i.status === 'في انتظار اعتماد الإدارة'
       ).length,
       approved: base.filter((i) => i.status === 'معتمدة ومصروفة من المخزن' || i.status === 'معتمدة').length,
       cancelled: base.filter((i) => i.status === 'مرفوضة / ملغاة' || i.status === 'ملغاة').length,
@@ -203,7 +203,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       if (
         inv.status === 'قيد مراجعة المشرف' ||
         inv.status === 'معلقة بانتظار اعتماد الفرع' ||
-        inv.status === 'قيد المراجعة'
+        inv.status === 'قيد المراجعة' ||
+        inv.status === 'في انتظار اعتماد الإدارة'
       ) {
         pendingCount++;
       }
@@ -237,10 +238,13 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     'قيد مراجعة المشرف': { bg: 'app-badge warn animate-pulse', label: 'قيد مراجعة المشرف' },
     'معلقة بانتظار اعتماد الفرع': { bg: 'app-badge warn animate-pulse', label: 'بانتظار مدير الفرع' },
     'قيد المراجعة': { bg: 'app-badge warn' },
+    'في انتظار اعتماد الإدارة': { bg: 'app-badge warn animate-pulse', label: 'في انتظار الإدارة' },
     'معتمدة ومصروفة من المخزن': { bg: 'app-badge ok', label: 'معتمدة ومصروفة' },
     'معتمدة': { bg: 'app-badge ok' },
     'جاري التجهيز': { bg: 'app-badge warn' },
+    'جاري تحضير المنتجات': { bg: 'app-badge info', label: 'جارٍ التحضير' },
     'تم التسليم': { bg: 'app-badge ok' },
+    'إغلاق الطلبية': { bg: 'app-badge ok', label: 'مغلقة' },
     'مرفوضة / ملغاة': { bg: 'app-badge risk', label: 'مرفوضة / ملغاة' },
     'ملغاة': { bg: 'app-badge risk' },
   };
