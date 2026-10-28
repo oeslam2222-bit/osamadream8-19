@@ -1846,13 +1846,12 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
 .dark .icon-brass { background-color: #f59e0b !important; color: #090e17 !important; }
 
 /* Dark mode: Typography & Accessible High Contrast */
-.dark .text-slate-900 { color: #f8fafc !important; }
-.dark .text-slate-800 { color: #f1f5f9 !important; }
-.dark .text-slate-700 { color: #e2e8f0 !important; }
-.dark .text-slate-600 { color: #cbd5e1 !important; }
-.dark .text-slate-500 { color: #94a3b8 !important; }
-.dark .text-slate-400 { color: #64748b !important; }
-.dark .text-\[var\(--app-ink\)\] { color: #f8fafc !important; }
+.dark .text-slate-900 { color: #f8fafc; }
+.dark .text-slate-800 { color: #f1f5f9; }
+.dark .text-slate-700 { color: #e2e8f0; }
+.dark .text-slate-600 { color: #cbd5e1; }
+.dark .text-slate-500 { color: #94a3b8; }
+.dark .text-slate-400 { color: #64748b; }
 
 /* Dark mode: Borders */
 .dark .border-slate-200 { border-color: #22344d !important; }

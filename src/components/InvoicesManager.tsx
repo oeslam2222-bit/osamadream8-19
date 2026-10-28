@@ -995,6 +995,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               <RotateCcw className="w-3.5 h-3.5 text-warn-deep" />
                               <span>مرتجع</span>
                             </button>
+                          )}
                           {/* Order Preparation & Delivery Workflow Buttons */}
                           {invoice.status === 'معتمدة' && canMakeReturn && (
                             <button
@@ -1049,8 +1050,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               <span>إغلاق الطلبية</span>
                             </button>
-                          )}
-
                           )}
 
                           <button

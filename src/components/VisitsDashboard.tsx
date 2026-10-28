@@ -533,7 +533,7 @@ export const VisitsDashboard: React.FC = () => {
                         {form.returnItems.map((item) => (
                           <div key={item.id} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-white border border-[color:var(--app-line)]">
                             <div className="flex-1 min-w-0">
-                              <span className="text-xs font-bold text-slate-700">{item.productName}</div>
+                              <span className="text-xs font-bold text-slate-700">{item.productName}</span>
                               <div className="text-[10px] text-slate-500 block">{item.quantity} {item.unit} • {item.condition} • {item.reason || 'بدون سبب'}</div>
                             </div>
                             <div className="flex items-center gap-1">
@@ -600,13 +600,13 @@ export const VisitsDashboard: React.FC = () => {
                             }
                           };
                           input.click();
-                        }
+                        }}
                         className="w-12 h-12 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-amber-500 hover:text-amber-500 transition"
                       >
                         <Upload className="w-4 h-4" />
                       </button>
                     </div>
-                  </div>
+                   </label>
 
                   {form.returnItems.length > 0 && (
                     <div className="mt-2 p-2 bg-warn-soft rounded-lg border border-[rgba(155,112,39,.25)]">
