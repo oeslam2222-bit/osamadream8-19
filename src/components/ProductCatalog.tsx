@@ -141,6 +141,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
   // Search & Filters
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+
+  // Debounce search input for smart suggestions (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
   const [selectedOfficialDept, setSelectedOfficialDept] = useState<string>('الكل');
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('الكل');
   const [selectedPriority, setSelectedPriority] = useState<string>('الكل');
@@ -345,18 +354,30 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const visibleProducts = getVisibleProducts();
 
   // Smart suggestions derived from visible products matching search term (declared after searchTerm & visibleProducts)
+  // Smart suggestions with fuzzy/closest match matching
   const smartSuggestions = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
+    const q = debouncedSearchTerm.trim().toLowerCase();
     if (!q || !showSuggestions) return [];
     const cleanQ = q.replace('#', '').trim();
+
+    // Fuzzy match: check if letters of query appear in order in product name/code
+    const fuzzyMatch = (text: string, query: string): boolean => {
+      let qi = 0;
+      for (let i = 0; i < text.length && qi < query.length; i++) {
+        if (text[i].toLowerCase() === query[qi]) qi++;
+      }
+      return qi === query.length;
+    };
+
     return visibleProducts.filter((p) => {
-      const codeMatch = p.code.toLowerCase().includes(q) || p.code.toLowerCase().includes(cleanQ);
-      const unifiedMatch = Boolean(p.unifiedCode && (p.unifiedCode.toLowerCase().includes(cleanQ) || p.unifiedCode.toLowerCase().includes(q)));
-      const nameMatch = p.name.toLowerCase().includes(q);
+      const codeMatch = p.code.toLowerCase().includes(q) || p.code.toLowerCase().includes(cleanQ) || fuzzyMatch(p.code, q);
+      const unifiedMatch = Boolean(p.unifiedCode && (p.unifiedCode.toLowerCase().includes(cleanQ) || p.unifiedCode.toLowerCase().includes(q) || fuzzyMatch(p.unifiedCode, q)));
+      const nameMatch = p.name.toLowerCase().includes(q) || fuzzyMatch(p.name, q);
       const barcodeMatch = Boolean(p.barcode && p.barcode.includes(q));
-      return codeMatch || unifiedMatch || nameMatch || barcodeMatch;
-    }).slice(0, 8);
-  }, [searchTerm, showSuggestions, visibleProducts]);
+      const deptMatch = Boolean(p.department && p.department.toLowerCase().includes(q));
+      return codeMatch || unifiedMatch || nameMatch || barcodeMatch || deptMatch;
+    }).slice(0, 10);
+  }, [debouncedSearchTerm, showSuggestions, visibleProducts]);
 
   // Active branch context for stock resolution: specific user's branch for reps/supervisors, or global filter for admin
   const currentActiveBranch = useMemo(() => {
@@ -1012,7 +1033,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               }}
               onFocus={() => setShowSuggestions(true)}
               placeholder="ابحث بالاسم، الكود (#)، الماركة، أو القسم..."
-              className="w-full h-10 sm:h-11 pl-9 pr-9 bg-slate-50 focus:bg-white text-slate-900 placeholder-slate-400 border border-[color:var(--app-line)] focus:border-[color:var(--app-blue)] rounded-lg text-xs sm:text-sm font-medium transition"
+              className={`w-full h-10 sm:h-11 pl-9 pr-9 ${isDark ? 'bg-[#1e293b] focus:bg-[#1e293b] text-slate-100 placeholder-slate-500' : 'bg-slate-50 focus:bg-white text-slate-900 placeholder-slate-400'} border border-[color:var(--app-line)] focus:border-[color:var(--app-blue)] rounded-lg text-xs sm:text-sm font-medium transition`}
             />
             {searchTerm ? (
               <button
@@ -1033,8 +1054,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
           {/* Smart Search Suggestions Dropdown */}
           {smartSuggestions.length > 0 && showSuggestions && (
-            <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-white border border-[color:var(--app-line)] rounded-xl shadow-xl max-h-72 overflow-y-auto">
-              <div className="p-2 text-[10px] font-bold text-slate-400 border-b border-slate-100 flex items-center justify-between">
+            <div className={`absolute top-full left-0 right-0 mt-1 z-50 ${isDark ? 'bg-[#1e293b] border-[#334155]' : 'bg-white border-[color:var(--app-line)]'} rounded-xl shadow-xl max-h-72 overflow-y-auto`}>
+              <div className={`p-2 text-[10px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-400'} border-b ${isDark ? 'border-[#334155]' : 'border-slate-100'} flex items-center justify-between`}>
                 <span>اقتراحات سريعة ({smartSuggestions.length})</span>
                 <button
                   type="button"
@@ -1044,23 +1065,31 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   إغلاق
                 </button>
               </div>
-              {smartSuggestions.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => {
-                    handleSelectSuggestion(p);
-                    setShowSuggestions(false);
-                  }}
-                  className="w-full text-right px-3 py-2 text-xs hover:bg-slate-50 flex items-center justify-between border-b border-slate-50 last:border-0 cursor-pointer"
-                >
-                  <div className="truncate min-w-0 flex-1 ml-2">
-                    <span className="font-bold text-slate-900 block truncate">{p.name}</span>
-                    <span className="text-[10px] text-slate-500 font-mono">{p.code} {p.unifiedCode ? `(#${p.unifiedCode.replace('#', '')})` : ''}</span>
-                  </div>
-                  <span className="text-[var(--app-ok)] font-bold text-[11px] shrink-0">{getProductBranchStock(p)} ك بالفرع</span>
-                </button>
-              ))}
+              {smartSuggestions.map((p) => {
+                const imgUrl = getProductImageUrl(p, cloudinaryConfig);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => {
+                      handleSelectSuggestion(p);
+                      setShowSuggestions(false);
+                    }}
+                    className={`w-full text-right px-3 py-2 ${isDark ? 'hover:bg-[#334155]' : 'hover:bg-slate-50'} flex items-center justify-between border-b ${isDark ? 'border-[#334155]' : 'border-slate-50'} last:border-0 cursor-pointer`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-slate-100 ${isDark ? 'bg-[#334155]' : ''}">
+                        <img src={imgUrl} alt={p.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
+                      </div>
+                      <div className="truncate min-w-0 flex-1 ml-2">
+                        <span className={`font-bold block truncate ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{p.name}</span>
+                        <span className={`text-[10px] font-mono ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{p.code} {p.unifiedCode ? `(#${p.unifiedCode.replace('#', '')})` : ''}</span>
+                      </div>
+                    </div>
+                    <span className={`text-[var(--app-ok)] font-bold text-[11px] shrink-0`}>{getProductBranchStock(p)} ك بالفرع</span>
+                  </button>
+                );
+              })}
             </div>
           )}
 
