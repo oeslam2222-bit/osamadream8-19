@@ -228,38 +228,95 @@ export const VisitsDashboard: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-        {filtered.length === 0 ? (
-          <div className="p-10 text-center text-slate-500 font-bold">لا توجد زيارات مسجلة حالياً</div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {filtered.map((v) => (
-              <button key={v.id} type="button" onClick={() => setSelectedVisit(v)} className="w-full text-start p-4 hover:bg-slate-50 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-black" style={{ color: 'var(--app-navy)' }}>{v.date}</span>
-                    <span className="text-xs font-bold text-slate-600">{v.time}</span>
-                  </div>
-                  <span className="text-[11px] font-black px-2 py-1 rounded-full" style={{ background: v.status === 'منفذة' ? '#d1fae5' : v.status === 'مجدولة' ? '#fef3c7' : v.status === 'ملغاة' ? '#e2e8f0' : '#fee2e2', color: v.status === 'منفذة' ? '#065f46' : v.status === 'مجدولة' ? '#92400e' : v.status === 'ملغاة' ? '#475569' : '#991b1b' }}>{v.status}</span>
-                </div>
-                <div className="text-sm font-black text-slate-800">{v.customerName || customers.find((x) => x.id === v.customerId)?.name || 'عميل غير معروف'}</div>
-                <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 font-bold">
-                  <span>المندوب: {v.repName}</span>
-                  <span>الفرع: {v.branchName || '-'}</span>
-                  <span>النوع: {v.type}</span>
-                  {v.outcome ? <span>النتيجة: {v.outcome}</span> : null}
-                </div>
-                {v.isReturn ? (
-                  <div className="rounded-lg bg-[#fffdf7] border border-[var(--app-accent)] px-2 py-1 text-[11px] font-black text-[#8a6420]">مرتجع: {v.returnValue} ج.م — {v.returnReason || '-'}</div>
-                ) : null}
-                {v.collectedAmount ? (
-                  <div className="text-[11px] font-black text-[var(--app-ok)]">المبلغ المحصل: {v.collectedAmount}</div>
-                ) : null}
-              </button>
-            ))}
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-sm">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="p-3 text-xs font-black text-slate-600">التاريخ والوقت</th>
+                <th className="p-3 text-xs font-black text-slate-600">اسم العميل</th>
+                <th className="p-3 text-xs font-black text-slate-600">المندوب</th>
+                <th className="p-3 text-xs font-black text-slate-600">الفرع</th>
+                <th className="p-3 text-xs font-black text-slate-600">نوع الزيارة</th>
+                <th className="p-3 text-xs font-black text-slate-600">الحالة</th>
+                <th className="p-3 text-xs font-black text-slate-600">النتيجة</th>
+                <th className="p-3 text-xs font-black text-slate-600 text-center">الإجراءات</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="p-10 text-center text-slate-500 font-bold">لا توجد زيارات مسجلة حالياً</td>
+                </tr>
+              ) : (
+                filtered.map((v) => (
+                  <tr key={v.id} className="hover:bg-slate-50 transition group cursor-pointer" onClick={() => setSelectedVisit(v)}>
+                    <td className="p-3 text-xs font-bold text-slate-800">
+                      <div>{v.date}</div>
+                      <div className="text-[10px] text-slate-500">{v.time || '-'}</div>
+                    </td>
+                    <td className="p-3 text-xs font-black">
+                      {v.customerName || customers.find((x) => x.id === v.customerId)?.name || 'عميل غير معروف'}
+                      <div className="text-[10px] text-slate-400 font-mono">{v.customerCode || '-'}</div>
+                    </td>
+                    <td className="p-3 text-xs text-slate-700">{v.repName || '-'}</td>
+                    <td className="p-3 text-xs text-slate-700">{v.branchName || '-'}</td>
+                    <td className="p-3 text-xs text-slate-700">{v.type || '-'}</td>
+                    <td className="p-3 text-center">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        v.status === 'منفذة' ? 'bg-green-100 text-green-700' :
+                        v.status === 'مجدولة' ? 'bg-amber-100 text-amber-700' :
+                        v.status === 'ملغاة' ? 'bg-slate-100 text-slate-600' :
+                        'bg-rose-100 text-rose-700'
+                      }`}>
+                        {v.status}
+                      </span>
+                    </td>
+                    <td className="p-3 text-xs text-slate-600">
+                      {v.outcome || <span className="text-slate-400 italic">—</span>}
+                    </td>
+                    <td className="p-3 text-center">
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setSelectedVisit(v); }}
+                          className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center text-xs"
+                          title="عرض التفاصيل"
+                        >
+                          <CalendarCheck className="w-4 h-4" />
+                        </button>
+                        {v.isReturn && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setSelectedVisit(v); }}
+                            className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center text-xs"
+                            title="عرض المرتجع"
+                          >
+                            <AlertTriangle className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setSelectedVisit(v); }}
+                          className="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center text-xs"
+                          title="تعديل"
+                        >
+                          <Clock3 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        {filtered.length > 0 && (
+          <div className="p-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-xs">
+            <span className="font-bold text-slate-600">إجمالي الزيارات المعروضة: <span className="text-slate-900">{filtered.length}</span></span>
+            <span className="text-slate-500">نطاق الوقت: {month}</span>
           </div>
         )}
       </div>
-
       {showForm ? (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowForm(false); }}>
           <form onSubmit={submit} className="relative z-[60] bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
