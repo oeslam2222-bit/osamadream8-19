@@ -141,9 +141,9 @@ export const UserManager: React.FC = () => {
     sales_rep: {
       label: 'المندوب',
       shortLabel: 'المندوب',
-      bg: 'bg-[#f4f7fa]',
+      bg: 'bg-slate-light',
       border: 'border-[var(--app-line)]',
-      text: 'text-[#45607e]',
+      text: 'text-slate',
       activeRing: 'border-[var(--app-navy)] bg-[rgba(16,43,78,.06)]',
       icon: Smartphone,
       desc: 'مندوب مبيعات ميداني: إنشاء وتجهيز طلبيات البيع لعملائه المسجلين وإرسالها (لا يوافق على الطلبيات ولا ينفذ تحويلات مخزنية بنفسه).'
@@ -650,7 +650,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 <h2 className="text-lg sm:text-xl font-black text-slate-900">
                   إدارة الموظفين والصلاحيات والهيكل الإداري
                 </h2>
-                <span className="bg-[rgba(201,154,67,.13)] text-[#8a6420] text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-[rgba(201,154,67,.3)] app-num">
+                <span className="bg-[rgba(201,154,67,.13)] text-warn text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-[rgba(201,154,67,.3)] app-num">
                   {users.length} موظف مسجل
                 </span>
               </div>
@@ -770,12 +770,12 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         <div className="font-black text-sm text-slate-900">{pUser.name}</div>
                         <div className="text-[11px] text-slate-500 font-mono">@{pUser.username} • {pUser.email}</div>
                       </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full app-badge ${roleConfigs[pUser.role]?.bg || 'bg-[#f4f7fa]'} ${roleConfigs[pUser.role]?.border || 'border-[var(--app-line)]'} ${roleConfigs[pUser.role]?.text || 'text-[#45607e]'}`}>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full app-badge ${roleConfigs[pUser.role]?.bg || 'bg-slate-light'} ${roleConfigs[pUser.role]?.border || 'border-[var(--app-line)]'} ${roleConfigs[pUser.role]?.text || 'text-slate'}`}>
                         {roleConfigs[pUser.role]?.shortLabel || pUser.role}
                       </span>
                     </div>
 
-                    <div className="mt-2 text-xs text-slate-600 space-y-1 bg-[#f4f7fa] p-2 rounded-xl">
+                    <div className="mt-2 text-xs text-slate-600 space-y-1 bg-slate-light p-2 rounded-xl">
                       <div className="flex justify-between">
                         <span className="text-slate-400">الفرع المطلوب:</span>
                         <span className="font-bold text-slate-800">{pUser.branchName}</span>
@@ -787,7 +787,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 pt-2 border-t border-[#e3ebf3]">
+                  <div className="flex items-center gap-2 pt-2 border-t border-slate-border-soft">
                     <button
                       onClick={() => handleOpenApproveModal(pUser)}
                       className="app-btn app-btn-ok flex-1 py-2 text-xs active:scale-95"
@@ -824,7 +824,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               className={`bg-white rounded-3xl p-4 border transition-all cursor-pointer shadow-xs flex flex-col justify-between ${
                 selectedRoleFilter === roleKey
                   ? 'border-[var(--app-navy)] bg-[rgba(16,43,78,.05)] shadow-[inset_0_-3px_0_var(--app-accent)]'
-                  : 'border-[var(--app-line)] hover:border-[#b8c9db]'
+                  : 'border-[var(--app-line)] hover:border-slate-border'
               }`}
             >
               <div>
@@ -840,7 +840,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 </p>
               </div>
 
-              <div className="pt-2 mt-2 border-t border-[#e3ebf3] flex items-center justify-between text-[10px] text-slate-400 font-bold">
+              <div className="pt-2 mt-2 border-t border-slate-border-soft flex items-center justify-between text-[10px] text-slate-400 font-bold">
                 <span className={selectedRoleFilter === roleKey ? 't-navy' : ''}>{selectedRoleFilter === roleKey ? 'تصفية مفعلة' : 'انقر للتصفية'}</span>
               </div>
             </div>
@@ -922,7 +922,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-[#e3ebf3] px-4 py-3 text-xs">
+        <div className="flex items-center justify-between gap-3 border-t border-slate-border-soft px-4 py-3 text-xs">
     <span className="font-bold text-slate-500 app-num">عرض {visibleUsers.length} من {activeUsers.length} مستخدم</span>
     <div className="flex items-center gap-2">
       <button type="button" onClick={() => setUsersPage((page) => Math.max(1, page - 1))} disabled={usersPage === 1} className="app-pill px-3 py-1.5 text-xs">السابق</button>
@@ -967,7 +967,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 </div>
 
                 {/* Details Grid */}
-                <div className="bg-[#f4f7fa] p-2.5 rounded-2xl text-xs space-y-1.5 border border-[#e3ebf3]">
+                <div className="bg-slate-light p-2.5 rounded-2xl text-xs space-y-1.5 border border-slate-border-soft">
                   <div className="flex justify-between">
                     <span className="text-slate-400">الفرع:</span>
                     <span className="font-bold text-slate-800">{user.branchName}</span>
@@ -1221,7 +1221,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
           <div className="bg-white rounded-t-3xl sm:rounded-3xl max-w-2xl w-full p-5 sm:p-7 space-y-5 shadow-2xl border border-slate-200 max-h-[92vh] sm:max-h-[90vh] overflow-y-auto flex flex-col">
             
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-[#e3ebf3] pb-4">
+            <div className="flex items-center justify-between border-b border-slate-border-soft pb-4">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl icon-brass-dark border border-[rgba(201,154,67,.35)] flex items-center justify-center font-black shrink-0">
                   <UserPlus className="w-5 h-5" />
@@ -1269,7 +1269,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between cursor-pointer ${
                           isSelected
                             ? 'border-[var(--app-navy)] bg-[var(--app-navy)] text-white shadow-md shadow-[inset_0_-3px_0_var(--app-accent)]'
-                            : 'border-[var(--app-line)] bg-white hover:border-[#b8c9db] text-slate-800'
+                            : 'border-[var(--app-line)] bg-white hover:border-slate-border text-slate-800'
                         }`}
                       >
                         <div className="flex items-center justify-between w-full mb-1">
@@ -1282,7 +1282,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   })}
                 </div>
                 {/* Active Role Description */}
-                <div className="bg-[#f4f7fa] p-2.5 rounded-xl border border-[var(--app-line)] text-slate-600 text-[11px] flex items-center gap-2">
+                <div className="bg-slate-light p-2.5 rounded-xl border border-[var(--app-line)] text-slate-600 text-[11px] flex items-center gap-2">
                   <span className="font-bold text-slate-900 shrink-0">مهام الصلاحية:</span>
                   <span>{roleConfigs[formData.role || 'sales_rep']?.desc}</span>
                 </div>
@@ -1466,14 +1466,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 <label className="block font-black text-slate-800 text-[11px] text-slate-500">
                   معاينة بطاقة الموظف والعملاء المرتبطين به:
                 </label>
-                <div className="bg-[var(--app-navy)] text-white p-3.5 rounded-2xl border border-[#0b2140] flex items-center justify-between gap-3">
+                <div className="bg-[var(--app-navy)] text-white p-3.5 rounded-2xl border border-deep3 flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-[var(--app-accent)] text-[#231a05] font-black flex items-center justify-center text-sm shrink-0">
+                    <div className="w-10 h-10 rounded-2xl bg-[var(--app-accent)] text-deep-navy font-black flex items-center justify-center text-sm shrink-0">
                       {formData.name?.charAt(0) || '؟'}
                     </div>
                     <div>
                       <div className="font-black text-sm text-slate-100">{formData.name || 'اسم الموظف'}</div>
-                      <div className="text-[10px] text-[#ecc987] font-mono">{formData.email || 'user@dream.com'} • {formData.branchName}</div>
+                      <div className="text-[10px] text-amber font-mono">{formData.email || 'user@dream.com'} • {formData.branchName}</div>
                     </div>
                   </div>
                   <span className="badge-brass-dark text-[10px] font-black px-2.5 py-1 rounded-xl">
@@ -1497,7 +1497,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               </div>
 
               {/* Modal Buttons */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#e3ebf3]">
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-border-soft">
                 <button
                   type="button"
                   onClick={() => setShowAddUserModal(false)}
@@ -1522,7 +1522,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       {approvingUser && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between border-b border-[#e3ebf3] pb-3">
+            <div className="flex items-center justify-between border-b border-slate-border-soft pb-3">
               <h3 className="font-black text-base text-slate-900 flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-[var(--app-ok)]" />
                 <span>تفعيل حساب وتخصيص المشرف والفرع</span>
@@ -1532,7 +1532,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               </button>
             </div>
 
-            <div className="bg-[#f4f7fa] p-3 rounded-2xl border border-[var(--app-line)] text-xs space-y-1">
+            <div className="bg-slate-light p-3 rounded-2xl border border-[var(--app-line)] text-xs space-y-1">
               <div className="font-bold text-slate-900 text-sm">{approvingUser.name}</div>
               <div className="text-slate-500 font-mono">@{approvingUser.username} • {approvingUser.email}</div>
               <div className="text-slate-500">الهاتف: {approvingUser.phone}</div>
@@ -1592,7 +1592,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               )}
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#e3ebf3]">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-border-soft">
               <button
                 type="button"
                 onClick={() => setApprovingUser(null)}
@@ -1620,7 +1620,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             {/* Header */}
             <div className="p-4 sm:p-5 navy-panel text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-[var(--app-accent)] text-[#231a05] flex items-center justify-center font-black text-base shadow-sm">
+                <div className="w-10 h-10 rounded-2xl bg-[var(--app-accent)] text-deep-navy flex items-center justify-center font-black text-base shadow-sm">
                   {viewingRepUser.name.charAt(0)}
                 </div>
                 <div>
@@ -1630,7 +1630,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                       {viewingRepUser.branchName}
                     </span>
                   </h3>
-                  <p className="text-[11px] text-[#9db0c7] font-mono mt-0.5">
+                  <p className="text-[11px] text-blue-soft3 font-mono mt-0.5">
                     كود: {viewingRepUser.id} • هاتف: {viewingRepUser.phone || 'غير مسجل'} • @{viewingRepUser.username}
                   </p>
                 </div>
@@ -1654,7 +1654,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     setViewingRepUser(null);
                     setRepCustomerSearchTerm('');
                   }}
-                  className="text-[#9db0c7] hover:text-white p-2 rounded-xl cursor-pointer"
+                  className="text-blue-soft3 hover:text-white p-2 rounded-xl cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1669,11 +1669,11 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 <div className="p-4 sm:p-5 space-y-4 flex-1 overflow-y-auto">
                   {/* Stat Cards */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="bg-[#f4f7fa] p-3.5 rounded-2xl border border-[var(--app-line)]">
+                    <div className="bg-slate-light p-3.5 rounded-2xl border border-[var(--app-line)]">
                       <div className="text-[11px] text-slate-500 font-bold">إجمالي العملاء المسندين</div>
                       <div className="text-lg font-black text-slate-900 mt-1 dream-amt">{repCustomers.length} <span className="text-xs text-slate-400 font-normal">عميل</span></div>
                     </div>
-                    <div className="bg-[#f9eaea] p-3.5 rounded-2xl border border-[rgba(179,74,74,.25)]">
+                    <div className="bg-red-light p-3.5 rounded-2xl border border-[rgba(179,74,74,.25)]">
                       <div className="text-[11px] text-[var(--app-risk)] font-bold">إجمالي مديونيات العملاء</div>
                       <div className="text-lg font-black text-[var(--app-risk)] mt-1 dream-amt">{formatCurrency(totalDebts)}</div>
                     </div>
@@ -1697,7 +1697,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 
                   {/* Customer Table */}
                   {filtered.length === 0 ? (
-                    <div className="p-8 text-center bg-[#f4f7fa] rounded-2xl border border-dashed border-slate-300 text-slate-500 text-xs">
+                    <div className="p-8 text-center bg-slate-light rounded-2xl border border-dashed border-slate-300 text-slate-500 text-xs">
                       {repCustomers.length === 0
                         ? `لا يوجد عملاء مسندين حالياً للمندوب (${viewingRepUser.name}) في فرع (${viewingRepUser.branchName}). يمكنك مزامنة الشيت أو تعديل مندوب العميل.`
                         : 'لا توجد نتائج مطابقة لبحثك في عملاء المندوب.'}
@@ -1718,7 +1718,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                             <th className="p-3">العنوان</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#e3ebf3] font-semibold text-slate-800">
+                        <tbody className="divide-y border-slate-border-soft font-semibold text-slate-800">
                           {filtered.map((c, idx) => {
                             const debt = c.currentBalance || c.balance || 0;
                             const limit = c.creditLimit || 0;
@@ -1735,7 +1735,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                                   )}
                                 </td>
                                 <td className="p-3 text-slate-600">
-                                  <span className="inline-block px-2 py-0.5 rounded bg-[#f4f7fa] text-[#45607e] font-bold text-[11px]">
+                                  <span className="inline-block px-2 py-0.5 rounded bg-slate-light text-slate font-bold text-[11px]">
                                     {c.branchName || viewingRepUser.branchName}
                                   </span>
                                 </td>
@@ -1762,7 +1762,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             })()}
 
             {/* Footer */}
-            <div className="p-4 bg-[#f4f7fa] border-t border-[var(--app-line)] flex items-center justify-end">
+            <div className="p-4 bg-slate-light border-t border-[var(--app-line)] flex items-center justify-end">
               <button
                 type="button"
                 onClick={() => {
@@ -1785,12 +1785,12 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             {/* Header */}
             <div className="p-4 sm:p-5 navy-panel text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-[var(--app-accent)] text-[#231a05] flex items-center justify-center font-black">
+                <div className="w-10 h-10 rounded-2xl bg-[var(--app-accent)] text-deep-navy flex items-center justify-center font-black">
                   <RefreshCw className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-black text-sm sm:text-base">تقرير مطابقة ومزامنة العملاء بالمناديب</h3>
-                  <p className="text-xs text-[#9db0c7]">تم فحص قاعدة البيانات وتحديث ربط العملاء بحسابات المناديب</p>
+                  <p className="text-xs text-blue-soft3">تم فحص قاعدة البيانات وتحديث ربط العملاء بحسابات المناديب</p>
                 </div>
               </div>
               <button
@@ -1799,7 +1799,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   setSyncModalData(null);
                   setAutoCreateFeedback(null);
                 }}
-                className="text-[#9db0c7] hover:text-white p-2 rounded-xl cursor-pointer"
+                className="text-blue-soft3 hover:text-white p-2 rounded-xl cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1816,7 +1816,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 
               {/* Stats overview */}
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <div className="bg-[#f4f7fa] p-3 rounded-2xl border border-[var(--app-line)]">
+                <div className="bg-slate-light p-3 rounded-2xl border border-[var(--app-line)]">
                   <span className="text-slate-500 font-bold">إجمالي العملاء:</span>
                   <div className="text-lg font-black text-slate-900 mt-0.5 dream-amt">{customers.length} عميل</div>
                 </div>
@@ -1850,7 +1850,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                         <th className="p-2.5 text-center">معاينة</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#e3ebf3] font-semibold">
+                    <tbody className="divide-y border-slate-border-soft font-semibold">
                       {syncRepBreakdown.map(({ rep, count, debts }) => (
                         <tr key={rep.id}>
                           <td className="p-2.5 font-black text-slate-900">{rep.name}</td>
@@ -1930,7 +1930,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             </div>
 
             {/* Footer */}
-            <div className="p-4 bg-[#f4f7fa] border-t border-[var(--app-line)] flex items-center justify-between">
+            <div className="p-4 bg-slate-light border-t border-[var(--app-line)] flex items-center justify-between">
               <button
                 type="button"
                 onClick={() => {
@@ -1965,12 +1965,12 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
           <div className="bg-white rounded-3xl max-w-xl w-full border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
             <div className="p-5 navy-panel text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-[rgba(46,125,91,.25)] text-[#9fdcc2] flex items-center justify-center font-black">
+                <div className="w-10 h-10 rounded-2xl bg-[rgba(46,125,91,.25)] text-teal-soft5 flex items-center justify-center font-black">
                   <CheckCircle2 className="w-6 h-6" />
                 </div>
                 <div>
                   <h3 className="font-black text-base text-white">تقرير فحص ودمج الحسابات المكررة</h3>
-                  <p className="text-xs text-[#9db0c7] mt-0.5">تنظيف وتوحيد سجلات الموظفين والمناديب</p>
+                  <p className="text-xs text-blue-soft3 mt-0.5">تنظيف وتوحيد سجلات الموظفين والمناديب</p>
                 </div>
               </div>
               <button
@@ -1994,7 +1994,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     {mergeModalData.details.map((detail, idx) => (
                       <div
                         key={idx}
-                        className="p-3 bg-[#f4f7fa] border border-[var(--app-line)] rounded-xl text-xs font-medium text-slate-800 flex items-start gap-2"
+                        className="p-3 bg-slate-light border border-[var(--app-line)] rounded-xl text-xs font-medium text-slate-800 flex items-start gap-2"
                       >
                         <span className="w-5 h-5 min-h-0 rounded-full tint-brass text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">
                           {idx + 1}
@@ -2007,7 +2007,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               )}
             </div>
 
-            <div className="p-4 bg-[#f4f7fa] border-t border-[var(--app-line)] flex items-center justify-end">
+            <div className="p-4 bg-slate-light border-t border-[var(--app-line)] flex items-center justify-end">
               <button
                 type="button"
                 onClick={() => setMergeModalData(null)}

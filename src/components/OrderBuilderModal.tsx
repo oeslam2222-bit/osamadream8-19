@@ -384,7 +384,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
           </div>
 
           {/* Stepper Progress Tabs */}
-          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 bg-[#eef3f8] border-b border-[var(--app-line)]">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 bg-slate-soft border-b border-[var(--app-line)]">
             {/* Step 1 */}
             <button
               type="button"
@@ -395,16 +395,16 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
             >
               <span className={`w-5 h-5 rounded-full grid place-items-center text-[11px] font-black shrink-0 ${
                 currentStep === 1
-                  ? 'bg-[var(--app-accent)] text-[#231a05]'
+                  ? 'bg-[var(--app-accent)] text-deep-navy'
                   : cart.length > 0 && currentStep > 1
                   ? 'tint-ok'
-                  : 'bg-[#eef3f8] t-muted'
+                  : 'bg-slate-soft t-muted'
               }`}>
                 {cart.length > 0 && currentStep > 1 ? '✓' : '1'}
               </span>
               <span className="truncate">١. اختيار المنتجات</span>
               {cart.length > 0 && (
-                <span className="hidden sm:inline-block app-num text-[10px] bg-[#eef3f8] t-navy px-1.5 py-0.5 rounded-full">
+                <span className="hidden sm:inline-block app-num text-[10px] bg-slate-soft t-navy px-1.5 py-0.5 rounded-full">
                   {cart.length}
                 </span>
               )}
@@ -423,10 +423,10 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
             >
               <span className={`w-5 h-5 rounded-full grid place-items-center text-[11px] font-black shrink-0 ${
                 currentStep === 2
-                  ? 'bg-[var(--app-accent)] text-[#231a05]'
+                  ? 'bg-[var(--app-accent)] text-deep-navy'
                   : activeCustomer && currentStep > 2
                   ? 'tint-ok'
-                  : 'bg-[#eef3f8] t-muted'
+                  : 'bg-slate-soft t-muted'
               }`}>
                 {activeCustomer && currentStep > 2 ? '✓' : '2'}
               </span>
@@ -453,8 +453,8 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
             >
               <span className={`w-5 h-5 rounded-full grid place-items-center text-[11px] font-black shrink-0 ${
                 currentStep === 3
-                  ? 'bg-[var(--app-accent)] text-[#231a05]'
-                  : 'bg-[#eef3f8] t-muted'
+                  ? 'bg-[var(--app-accent)] text-deep-navy'
+                  : 'bg-slate-soft t-muted'
               }`}>
                 3
               </span>
@@ -488,7 +488,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         )}
 
         {/* ================= STEPPER BODY ================= */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-5 bg-[#eef3f8] space-y-4">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 bg-slate-soft space-y-4">
           
           {/* ================= STEP 1: اختيار ومراجعة المنتجات ================= */}
           {currentStep === 1 && (
@@ -516,7 +516,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
               {/* Cart Items List */}
               {cart.length === 0 ? (
-                <div className="bg-white/60 border border-dashed border-[#b8c9db] rounded-[var(--app-radius)] p-8 text-center space-y-3">
+                <div className="bg-white/60 border border-dashed border-slate-border rounded-[var(--app-radius)] p-8 text-center space-y-3">
                   <div className="w-14 h-14 rounded-xl tint-navy grid place-items-center mx-auto">
                     <ShoppingCart className="w-7 h-7 t-navy" />
                   </div>
@@ -562,7 +562,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                               <ProductImage
                                 product={item.product}
                                 cloudinaryConfig={cloudinaryConfig}
-                                containerClassName="w-12 h-12 rounded-xl bg-[#f2f6fa] border border-[var(--app-line)] shrink-0"
+                                containerClassName="w-12 h-12 rounded-xl bg-blue-soft border border-[var(--app-line)] shrink-0"
                                 className="w-full h-full object-cover"
                               />
                               <div className="min-w-0 flex-1 space-y-1">
@@ -601,7 +601,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                           </div>
 
                           {/* Stocks Info & Quantity Modifiers */}
-                          <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-[#eef3f8] text-xs">
+                          <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-border-soft text-xs">
                             {/* Stock Display & October Supply Badge */}
                             <div className="flex items-center gap-2 flex-wrap text-[10.5px]">
                               {branchStock >= (item.cartonCount || 0) && (item.cartonCount || 0) > 0 ? (
@@ -786,7 +786,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                         value={catalogSearch}
                         onChange={(e) => setCatalogSearch(e.target.value)}
                         placeholder="كود الصنف أو الموحد..."
-                        className="w-full rounded-xl px-2.5 py-2 text-xs text-[var(--app-ink)] placeholder-[#93a4b8]"
+                        className="w-full rounded-xl px-2.5 py-2 text-xs text-[var(--app-ink)] placeholder-custom"
                       />
                     </div>
                   </div>
@@ -800,7 +800,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                       return (
                         <div
                           key={p.id}
-                          className="p-2.5 bg-[#fbfdff] border border-[var(--app-line)] rounded-[var(--app-btn-radius)] flex items-center justify-between gap-2 hover:border-[#b8c9db] transition"
+                          className="p-2.5 bg-blue-soft-light border border-[var(--app-line)] rounded-[var(--app-btn-radius)] flex items-center justify-between gap-2 hover:border-slate-border transition"
                         >
                           <div className="min-w-0 flex-1">
                             <div className="font-bold text-[var(--app-ink)] text-xs truncate" title={p.name}>
@@ -913,20 +913,20 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                       value={unregisteredCustomerName}
                       onChange={(e) => setUnregisteredCustomerName(e.target.value)}
                       placeholder="اسم العميل / المحل *"
-                      className="w-full rounded-[var(--app-btn-radius)] px-3 py-2 text-xs text-[var(--app-ink)] placeholder-[#93a4b8]"
+                      className="w-full rounded-[var(--app-btn-radius)] px-3 py-2 text-xs text-[var(--app-ink)] placeholder-custom"
                     />
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <input
                         value={unregisteredCustomerPhone}
                         onChange={(e) => setUnregisteredCustomerPhone(e.target.value)}
                         placeholder="رقم الهاتف (اختياري)"
-                        className="w-full rounded-[var(--app-btn-radius)] px-3 py-2 text-xs text-[var(--app-ink)] placeholder-[#93a4b8]"
+                        className="w-full rounded-[var(--app-btn-radius)] px-3 py-2 text-xs text-[var(--app-ink)] placeholder-custom"
                       />
                       <input
                         value={unregisteredCustomerAddress}
                         onChange={(e) => setUnregisteredCustomerAddress(e.target.value)}
                         placeholder="العنوان (اختياري)"
-                        className="w-full rounded-[var(--app-btn-radius)] px-3 py-2 text-xs text-[var(--app-ink)] placeholder-[#93a4b8]"
+                        className="w-full rounded-[var(--app-btn-radius)] px-3 py-2 text-xs text-[var(--app-ink)] placeholder-custom"
                       />
                     </div>
                     <button
@@ -951,17 +951,17 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     }}
                     onFocus={() => setIsCustomerDropdownOpen(true)}
                     placeholder="ابحث بالاسم، كود العميل، أو رقم الهاتف..."
-                    className="w-full rounded-xl pr-9 pl-3 py-2.5 text-xs text-[var(--app-ink)] placeholder-[#93a4b8]"
+                    className="w-full rounded-xl pr-9 pl-3 py-2.5 text-xs text-[var(--app-ink)] placeholder-custom"
                   />
                 </div>
 
                 {/* Customer Search Live Suggestions */}
                 {isCustomerDropdownOpen && (
-                  <div className="bg-white border border-[var(--app-line)] rounded-[var(--app-radius)] shadow-lg max-h-52 overflow-y-auto divide-y divide-[#eef3f8] z-30">
+                  <div className="bg-white border border-[var(--app-line)] rounded-[var(--app-radius)] shadow-lg max-h-52 overflow-y-auto divide-y divide-slate-border-soft z-30">
                     <button
                       type="button"
                       onClick={handleSelectDirectCash}
-                      className="w-full p-2.5 text-right hover:bg-[#f7f0e1] transition flex items-center justify-between text-xs font-black t-warn cursor-pointer"
+                      className="w-full p-2.5 text-right hover:bg-warn-soft transition flex items-center justify-between text-xs font-black t-warn cursor-pointer"
                     >
                       <span>⚡ عميل نقدي كاش (مباشر)</span>
                       <span className="app-badge warn text-[10px]">كاش</span>
@@ -973,7 +973,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                           key={c.id || c.code}
                           type="button"
                           onClick={() => handleSelectCustomer(c)}
-                          className="w-full p-2.5 text-right hover:bg-[#f1f6fb] transition flex items-center justify-between text-xs cursor-pointer"
+                          className="w-full p-2.5 text-right hover:bg-blue-soft-light transition flex items-center justify-between text-xs cursor-pointer"
                         >
                           <div className="min-w-0 flex-1">
                             <div className="font-black text-[var(--app-ink)] truncate">{c.name}</div>
@@ -995,7 +995,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               {activeCustomer ? (
                 <div className="ord-card p-4 space-y-4">
                   {/* Customer Banner */}
-                  <div className="flex items-start justify-between gap-3 border-b border-[#eef3f8] pb-3">
+                  <div className="flex items-start justify-between gap-3 border-b border-slate-border-soft pb-3">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="app-badge warn font-mono text-[10px]">
@@ -1122,13 +1122,13 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   )}
 
                   {activeCustomer.guaranteeDocs && (
-                    <div className="text-[11px] t-muted bg-[#f4f7fa] p-2.5 rounded-[var(--app-btn-radius)] border border-[var(--app-line)]">
+                    <div className="text-[11px] t-muted bg-slate-light p-2.5 rounded-[var(--app-btn-radius)] border border-[var(--app-line)]">
                       📄 <strong>أوراق الضمان:</strong> {activeCustomer.guaranteeDocs}
                     </div>
                   )}
                 </div>
               ) : (
-                <div className="bg-white/60 border border-dashed border-[#b8c9db] rounded-[var(--app-radius)] p-6 text-center text-xs t-muted">
+                <div className="bg-white/60 border border-dashed border-slate-border rounded-[var(--app-radius)] p-6 text-center text-xs t-muted">
                   يرجى البحث واختيار عميل لعرض موقفه المالي ومتابعة الفاتورة.
                 </div>
               )}
@@ -1164,7 +1164,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               
               {/* Order & Customer Summary Box */}
               <div className="ord-card p-4 space-y-3">
-                <div className="flex items-center justify-between border-b border-[#eef3f8] pb-2.5">
+                <div className="flex items-center justify-between border-b border-slate-border-soft pb-2.5">
                   <div className="space-y-0.5">
                     <div className="text-[10px] t-muted">عميل الفاتورة:</div>
                     <div className="font-black text-[var(--app-ink)] text-sm">
@@ -1197,7 +1197,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     </div>
                   )}
 
-                  <div className="max-h-44 overflow-y-auto divide-y divide-[#eef3f8] bg-[#f4f7fa] rounded-[var(--app-btn-radius)] p-2 border border-[var(--app-line)]">
+                  <div className="max-h-44 overflow-y-auto divide-y divide-slate-border-soft bg-slate-light rounded-[var(--app-btn-radius)] p-2 border border-[var(--app-line)]">
                     {cart.map((item, i) => {
                       const bStock = getBranchStockForProduct(item.product, activeBranch);
                       const oStock = item.product.mainWarehouseActual || 0;
@@ -1282,13 +1282,13 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     value={invoiceNotes}
                     onChange={(e) => setInvoiceNotes(e.target.value)}
                     placeholder="أي تعليمات تسليم، مواعيد، أو ملاحظات إضافية..."
-                    className="w-full bg-[#fbfdff] rounded-[var(--app-btn-radius)] p-2.5 text-xs text-[var(--app-ink)] placeholder-[#93a4b8]"
+                    className="w-full bg-blue-soft-light rounded-[var(--app-btn-radius)] p-2.5 text-xs text-[var(--app-ink)] placeholder-custom"
                   />
                 </div>
               </div>
 
               {/* Final Financial Totals Box */}
-              <div className="bg-[#eef3f8] rounded-[var(--app-radius)] border border-[var(--app-line)] p-4 space-y-2 text-xs">
+              <div className="bg-slate-soft rounded-[var(--app-radius)] border border-[var(--app-line)] p-4 space-y-2 text-xs">
                 <div className="flex items-center justify-between pt-2 border-t border-[var(--app-line)]">
                   <span className="text-sm font-black text-[var(--app-ink)]">الصافي المطلوب سداده:</span>
                   <span className="dream-amt app-ink-brass text-xl sm:text-2xl">{formatCurrency(summary.grandTotal)}</span>

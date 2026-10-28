@@ -45,7 +45,7 @@ export const TopCustomersTable: React.FC<TopCustomersTableProps> = ({
           <button
             type="button"
             onClick={onOpenAll}
-            className="text-[9.5px] font-black text-[#102b4e] hover:text-[#c99a43] inline-flex items-center gap-0.5 cursor-pointer"
+            className="text-[9.5px] font-black text-deep-slate hover:text-warn inline-flex items-center gap-0.5 cursor-pointer"
           >
             عرض الكل
             <ArrowUpRight className="w-3 h-3" />
@@ -95,7 +95,7 @@ export const TopCustomersTable: React.FC<TopCustomersTableProps> = ({
                   </td>
                   <td className="py-1.5 px-1 min-w-0">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="w-6 h-6 rounded-full bg-[#102b4e]/5 text-[#102b4e] text-[9px] font-black flex items-center justify-center shrink-0">
+                      <span className="w-6 h-6 rounded-full bg-navy-deep/5 text-deep-slate text-[9px] font-black flex items-center justify-center shrink-0">
                         {initials(customer.customerName)}
                       </span>
                       <div className="min-w-0">

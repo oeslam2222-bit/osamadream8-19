@@ -83,12 +83,12 @@ export const TopItemsChartCard: React.FC<TopItemsChartCardProps> = ({
 
         <div className="flex items-center gap-3 text-[10px] font-bold text-slate-500">
           <span className="inline-flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-sm bg-[#102b4e]" />
+            <span className="w-2.5 h-2.5 rounded-sm bg-navy-deep" />
             الفترة الحالية
           </span>
           {hasPrevious && (
             <span className="inline-flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm bg-[#c99a43]" />
+              <span className="w-2.5 h-2.5 rounded-sm bg-amber-main" />
               الفترة السابقة
             </span>
           )}

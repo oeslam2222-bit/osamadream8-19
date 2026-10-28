@@ -656,7 +656,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
           <div
             role="dialog"
             aria-label="مركز الإشعارات"
-            className="fixed inset-x-2 top-16 sm:absolute sm:inset-x-auto sm:top-full sm:mt-2 rtl:sm:left-0 ltr:sm:right-0 sm:w-[420px] max-w-[calc(100vw-16px)] max-h-[82vh] overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] shadow-2xl flex flex-col z-50 animate-in fade-in zoom-in-95"
+            className="fixed inset-x-2 top-16 sm:absolute sm:inset-x-auto sm:top-full sm:mt-2 rtl:sm:left-0 ltr:sm:right-0 sm:w-[420px] max-w-[calc(100vw-16px)] max-h-[82vh] overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-navy-dark2 shadow-2xl flex flex-col z-50 animate-in fade-in zoom-in-95"
           >
             {/* Facebook-style arrow indicator pointing to bell */}
             <div className="hidden sm:block absolute -top-1.5 rtl:left-3.5 ltr:right-3.5 w-3 h-3 rotate-45 bg-slate-50 dark:bg-slate-900 border-t border-s border-slate-200 dark:border-slate-800 z-10" />
@@ -739,7 +739,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
             </div>
 
             {/* قائمة الإشعارات */}
-            <div className="flex-1 overflow-y-auto p-2.5 space-y-2 max-h-[60vh] dark:bg-[#0f172a]">
+            <div className="flex-1 overflow-y-auto p-2.5 space-y-2 max-h-[60vh] dark:bg-navy-dark2">
               {displayedNotifications.length === 0 ? (
                 <div className="text-center py-10 px-4 space-y-2">
                   <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-xs">

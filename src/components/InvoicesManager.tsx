@@ -321,7 +321,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           <div>
             <h2 className="text-xl font-black text-slate-900 flex items-center gap-2">
               <span>سجل الفواتير وطلبيات المبيعات</span>
-              <span className="border border-[rgba(201,154,67,.3)] bg-[rgba(201,154,67,.13)] text-[#8a6420] text-xs px-2.5 py-0.5 rounded-full font-bold app-num">
+              <span className="border border-[rgba(201,154,67,.3)] bg-[rgba(201,154,67,.13)] text-warn text-xs px-2.5 py-0.5 rounded-full font-bold app-num">
                 {accessibleInvoices.length} فاتورة
               </span>
             </h2>
@@ -407,9 +407,9 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
           </div>
 
-          <div className="bg-[#f7f0e1] p-3.5 rounded-2xl border border-[rgba(155,112,39,.25)] space-y-1">
-            <div className="text-[11px] text-[#9b7027] font-bold">طلبيات معلقة بانتظار الاعتماد</div>
-            <div className="text-base sm:text-lg app-num text-[#8a6420]">
+          <div className="bg-warn-soft p-3.5 rounded-2xl border border-[rgba(155,112,39,.25)] space-y-1">
+            <div className="text-[11px] text-warn-deep font-bold">طلبيات معلقة بانتظار الاعتماد</div>
+            <div className="text-base sm:text-lg app-num text-warn">
               {metrics.pendingCount} طلبية
             </div>
           </div>
@@ -555,9 +555,9 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
         {/* Active Branch Notification for Admin/Dev */}
         {selectedBranchFilter !== 'الكل' && (currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
-          <div className="bg-[#f7f0e1] border border-[rgba(155,112,39,.25)] rounded-2xl p-3 flex items-center justify-between text-xs text-[var(--app-warn)] font-bold">
+          <div className="bg-warn-soft border border-[rgba(155,112,39,.25)] rounded-2xl p-3 flex items-center justify-between text-xs text-[var(--app-warn)] font-bold">
             <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-[#9b7027]" />
+              <Filter className="w-4 h-4 text-warn-deep" />
               <span>
                 يتم الآن تصفية الفواتير بحسب الفرع: <span className="underline decoration-[#c99a43] underline-offset-4">{selectedBranchFilter}</span>. أي فواتير لمندوبين من فروع أخرى لن تظهر حتى تلغي التصفية.
               </span>
@@ -796,17 +796,17 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                                 e.stopPropagation();
                                 if (invoice.parentInvoiceNumber) setSearchTerm(invoice.parentInvoiceNumber);
                               }}
-                              className="bg-[#f7f0e1] hover:bg-[#f0e5cb] text-[#9b7027] px-2 py-1 rounded-md text-[10px] font-black border border-[rgba(155,112,39,.25)] flex flex-col gap-0.5 transition cursor-pointer text-right shadow-2xs group"
+                              className="bg-warn-soft hover:bg-warn-soft-hover text-warn-deep px-2 py-1 rounded-md text-[10px] font-black border border-[rgba(155,112,39,.25)] flex flex-col gap-0.5 transition cursor-pointer text-right shadow-2xs group"
                               title="فاتورة نواقص محولة لمخزن أكتوبر المركزي - انقر للبحث عن الفاتورة الأساسية"
                             >
-                              <div className="flex items-center gap-1 text-[#8a6420] font-black">
+                              <div className="flex items-center gap-1 text-warn font-black">
                                 <span>فاتورة نواقص (مخزن أكتوبر)</span>
                               </div>
                               {invoice.parentInvoiceNumber && (
-                                <div className="flex items-center gap-1 text-[9px] text-[#9b7027] font-mono">
+                                <div className="flex items-center gap-1 text-[9px] text-warn-deep font-mono">
                                   <span>الأصلية:</span>
                                   <span className="font-bold underline">#{invoice.parentInvoiceNumber}</span>
-                                  <ExternalLink className="w-2.5 h-2.5 shrink-0 text-[#9b7027]" />
+                                  <ExternalLink className="w-2.5 h-2.5 shrink-0 text-warn-deep" />
                                 </div>
                               )}
                             </button>
@@ -818,23 +818,23 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                                 e.stopPropagation();
                                 if (invoice.shortageInvoiceNumber) setSearchTerm(invoice.shortageInvoiceNumber);
                               }}
-                              className="bg-[#e8f3ee] hover:bg-[#dfeeda] text-[#2e7d5b] px-2 py-1 rounded-md text-[10px] font-black border border-[rgba(46,125,91,.22)] flex flex-col gap-0.5 transition cursor-pointer text-right shadow-2xs group"
+                              className="bg-green-soft hover:bg-green-soft text-green px-2 py-1 rounded-md text-[10px] font-black border border-[rgba(46,125,91,.22)] flex flex-col gap-0.5 transition cursor-pointer text-right shadow-2xs group"
                               title="فاتورة الأصناف المتوفرة بالمخزن - تم فصل النواقص - انقر للبحث عن فاتورة النواقص"
                             >
-                              <div className="flex items-center gap-1 text-[#2e7d5b] font-black">
+                              <div className="flex items-center gap-1 text-green font-black">
                                 <span>أصناف متوفرة (بالمخزن)</span>
                               </div>
                               {invoice.shortageInvoiceNumber && (
-                                <div className="flex items-center gap-1 text-[9px] text-[#2e7d5b] font-mono">
+                                <div className="flex items-center gap-1 text-[9px] text-green font-mono">
                                   <span>نواقص:</span>
                                   <span className="font-bold underline">#{invoice.shortageInvoiceNumber}</span>
-                                  <ExternalLink className="w-2.5 h-2.5 shrink-0 text-[#2e7d5b]" />
+                                  <ExternalLink className="w-2.5 h-2.5 shrink-0 text-green" />
                                 </div>
                               )}
                             </button>
                           )}
                           {!invoice.isShortageInvoice && !invoice.hasShortageSplit && (
-                            <span className="bg-[#e8f3ee] text-[#2e7d5b] px-2 py-1 rounded-md text-[10px] font-black border border-[rgba(46,125,91,.22)] flex items-center gap-1 shadow-2xs">
+                            <span className="bg-green-soft text-green px-2 py-1 rounded-md text-[10px] font-black border border-[rgba(46,125,91,.22)] flex items-center gap-1 shadow-2xs">
                               <span>فاتورة مكتملة متوفرة بالمخزن</span>
                             </span>
                           )}
@@ -898,7 +898,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             </div>
                           )}
                           {invoice.restoredStockDetails && (invoice.status === 'مرفوضة / ملغاة' || invoice.status === 'ملغاة' || invoice.status === 'مرتجع') && (
-                            <span className="text-[9px] bg-[#e8f3ee] text-[#2e7d5b] px-1.5 py-0.5 rounded font-bold border border-[rgba(46,125,91,.22)]">
+                            <span className="text-[9px] bg-green-soft text-green px-1.5 py-0.5 rounded font-bold border border-[rgba(46,125,91,.22)]">
                               تم استرجاع الرصيد للمخزن
                             </span>
                           )}
@@ -988,7 +988,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               className="app-btn app-btn-warn-soft px-2 text-xs"
                               title="تسجيل مرتجع للطلبية وإرجاع المخزون وتعديل المديونية"
                             >
-                              <RotateCcw className="w-3.5 h-3.5 text-[#9b7027]" />
+                              <RotateCcw className="w-3.5 h-3.5 text-warn-deep" />
                               <span>مرتجع</span>
                             </button>
                           )}
@@ -1266,7 +1266,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               </button>
             </div>
 
-            <div className="bg-[#f9eaea] border border-[rgba(179,74,74,.25)] text-[var(--app-risk)] p-3 rounded-2xl text-xs space-y-1">
+            <div className="bg-red-light border border-[rgba(179,74,74,.25)] text-[var(--app-risk)] p-3 rounded-2xl text-xs space-y-1">
               <div className="font-bold flex items-center gap-1.5 text-[var(--app-risk)]">
                 <CheckCircle2 className="w-4 h-4 text-[var(--app-risk)]" />
                 <span>إرجاع البضاعة تلقائياً للمخزن:</span>
@@ -1294,7 +1294,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                     className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
                       rejectReason === reasonText
                         ? 'bg-[var(--app-risk)] text-white border-transparent'
-                        : 'bg-white text-[#526780] border-slate-200 hover:border-[#b8c9db]'
+                        : 'bg-white text-gray border-slate-200 hover:border-slate-border'
                     }`}
                   >
                     {reasonText}

@@ -99,7 +99,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
 
           {/* Luxury App Icon Preview with Standalone Badge */}
           <div className="relative w-24 h-24 mx-auto mb-3">
-            <div className="w-full h-full rounded-2xl bg-[#0f172a] border-2 border-amber-400 p-2 shadow-2xl shadow-amber-500/20 flex items-center justify-center overflow-hidden">
+            <div className="w-full h-full rounded-2xl bg-navy-dark2 border-2 border-amber-400 p-2 shadow-2xl shadow-amber-500/20 flex items-center justify-center overflow-hidden">
               <img
                 src="/pwa-512x512.png"
                 alt="مجموعة الطنطاوي"

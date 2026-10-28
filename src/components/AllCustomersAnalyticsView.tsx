@@ -1754,7 +1754,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           <div className="flex items-center gap-2 font-bold flex-wrap">
             <span className="text-[11px]">الصفحة {currentPage} من {totalPages}</span>
             <span className="text-slate-300">|</span>
-            <span className="inline-flex items-center gap-1 rounded-full bg-[#e6f7f5] text-[#046b62] border border-[#c4ebe6] px-2 py-0.5 text-[11px] font-black">
+            <span className="inline-flex items-center gap-1 rounded-full bg-teal-pale text-teal border border-teal px-2 py-0.5 text-[11px] font-black">
               <Users className="w-3 h-3" />
               {filteredCustomers.length.toLocaleString()} عميل مطابق
             </span>
@@ -1780,7 +1780,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         {/* Table Content */}
         {paginatedCustomers.length === 0 ? (
           <div className="py-12 px-6 text-center">
-            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border border-[#c4ebe6] bg-gradient-to-br from-[#f4fbfd] to-[#e6f7f5] text-[var(--app-ok)]">
+            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border border-teal bg-gradient-to-br from-[#f4fbfd] to-[#e6f7f5] text-[var(--app-ok)]">
               <Users className="h-7 w-7" />
             </div>
             <div className="text-sm font-black text-slate-800">لا يوجد عملاء مطابقين للفلاتر الحالية</div>
@@ -1878,8 +1878,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
                   {/* 3-Column Financial Metrics Bar */}
                   <div className="grid grid-cols-3 gap-1.5 pt-1">
-                    <div className="rounded-xl bg-[#eef3f8]/80 border border-[#dbe5f0] p-2 text-right">
-                      <div className="text-[9px] text-[#1b3652] font-bold">المديونية</div>
+                    <div className="rounded-xl bg-slate-soft/80 border border-slate-soft2 p-2 text-right">
+                      <div className="text-[9px] text-deep-slate font-bold">المديونية</div>
                       <div className="font-black text-[var(--app-navy)] text-xs sm:text-sm mt-0.5 truncate" title={isPrivacyMode ? 'مخفي' : formatMoney(bal)}>
                         {formatMoney(bal)}
                       </div>
@@ -1894,15 +1894,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       </div>
                     </div>
 
-                    <div className="rounded-xl bg-[#fdeeee]/80 border border-[#f3cccc] p-2 text-right">
-                      <div className="text-[9px] text-[#b03d3d] font-bold">المستحقات</div>
+                    <div className="rounded-xl bg-red-deep/80 border border-red-soft p-2 text-right">
+                      <div className="text-[9px] text-rose font-bold">المستحقات</div>
                       <div className="font-black text-rose-900 text-xs sm:text-sm mt-0.5 truncate">
                         {formatMoney(overdue)}
                       </div>
                     </div>
 
-                    <div className="rounded-xl bg-[#e8f6ef]/80 border border-[#c7e9d9] p-2 text-right">
-                      <div className="text-[9px] text-[#157a58] font-bold">إجمالي المسدد</div>
+                    <div className="rounded-xl bg-teal-soft/80 border border-teal-soft p-2 text-right">
+                      <div className="text-[9px] text-success font-bold">إجمالي المسدد</div>
                       <div className="font-black text-teal-900 text-xs sm:text-sm mt-0.5 truncate">
                         {formatMoney(paidAmount)}
                       </div>
@@ -1936,7 +1936,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         <button
                           type="button"
                           onClick={() => onOpenNewOrderForCustomer(c)}
-                          className="h-8 px-2.5 rounded-xl bg-[var(--app-navy)] hover:bg-[#0b2039] text-white font-bold text-[11px] flex items-center gap-1 transition shadow-xs cursor-pointer"
+                          className="h-8 px-2.5 rounded-xl bg-[var(--app-navy)] hover:bg-navy-deep5 text-white font-bold text-[11px] flex items-center gap-1 transition shadow-xs cursor-pointer"
                           title="بدء طلبية بيع جديدة"
                         >
                           <ShoppingCart className="w-3.5 h-3.5" />
@@ -1979,7 +1979,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       >
                         <div className={`cf-th-inner ${def.align === 'start' ? 'cf-th-inner-start' : ''}`}>
                           <span>{def.label}</span>
-                          <ArrowUpDown className="w-3 h-3 text-[#a9c4de]" />
+                          <ArrowUpDown className="w-3 h-3 text-slate-soft9" />
                         </div>
                       </th>
                     ) : (
@@ -1996,7 +1996,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <tr
                     key={c.id || c.code}
                     onClick={() => setQuickCustomer(c)}
-                    className="hover:bg-[#fbf8f1] transition cursor-pointer group"
+                    className="hover:bg-slate-deep3 transition cursor-pointer group"
                   >
                     <td className="p-3 text-center font-bold text-slate-400">
                       {(currentPage - 1) * pageSize + index + 1}
@@ -2041,7 +2041,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                               event.stopPropagation();
                               onOpenNewOrderForCustomer(c);
                             }}
-                            className="px-2 py-1.5 rounded-lg bg-[var(--app-accent)] hover:bg-[#b98a35] text-[#102b4e] font-black text-[11px] transition flex items-center gap-1 cursor-pointer"
+                            className="px-2 py-1.5 rounded-lg bg-[var(--app-accent)] hover:bg-amber-deep2 text-deep-slate font-black text-[11px] transition flex items-center gap-1 cursor-pointer"
                             title="إنشاء طلبية جديدة"
                           >
                             <ShoppingCart className="w-3.5 h-3.5" />

@@ -590,7 +590,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               لوحة تحليل مبيعات الأصناف الحقيقية
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <BarChart3 className="w-6 h-6 text-[#c99a43]" />
+              <BarChart3 className="w-6 h-6 text-warn" />
               تحليل مبيعات الأصناف
             </h1>
             <p className="text-[11px] sm:text-xs text-slate-500 max-w-3xl leading-relaxed">
@@ -953,7 +953,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                   onClick={() => setSelectedMonth(latestMonth ?? 'all')}
                   className={`h-7 px-2.5 rounded-lg text-[10px] font-black transition cursor-pointer ${
                     selectedMonth !== 'all' && selectedMonth === latestMonth
-                      ? 'bg-[#102b4e] text-white'
+                      ? 'bg-navy-deep text-white'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
@@ -965,7 +965,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                   disabled={!previousMonth}
                   className={`h-7 px-2.5 rounded-lg text-[10px] font-black transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
                     previousMonth && selectedMonth === previousMonth
-                      ? 'bg-[#102b4e] text-white'
+                      ? 'bg-navy-deep text-white'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
@@ -976,7 +976,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                   onClick={() => setSelectedMonth('all')}
                   className={`h-7 px-2.5 rounded-lg text-[10px] font-black transition cursor-pointer ${
                     selectedMonth === 'all'
-                      ? 'bg-[#102b4e] text-white'
+                      ? 'bg-navy-deep text-white'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
@@ -1128,7 +1128,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           onClick={() => setActiveView('overview')}
           className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black transition cursor-pointer ${
             activeView === 'overview'
-              ? 'bg-[#102b4e] text-white shadow-sm'
+              ? 'bg-navy-deep text-white shadow-sm'
               : 'text-slate-600 hover:bg-slate-50'
           }`}
         >
@@ -1140,7 +1140,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           onClick={() => setActiveView('customers')}
           className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black transition cursor-pointer ${
             activeView === 'customers'
-              ? 'bg-[#102b4e] text-white shadow-sm'
+              ? 'bg-navy-deep text-white shadow-sm'
               : 'text-slate-600 hover:bg-slate-50'
           }`}
         >
@@ -1368,7 +1368,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenNewOrderForCustomer(customers.find((c) => c.code === selectedSearchCustomer!.customerAccount || c.name === selectedSearchCustomer!.customerName) as Customer, undefined)}
-                    className="w-full inline-flex items-center justify-center gap-1.5 h-9 rounded-xl bg-[#102b4e] hover:bg-[#0b1f39] text-white text-[11px] font-black transition cursor-pointer"
+                    className="w-full inline-flex items-center justify-center gap-1.5 h-9 rounded-xl bg-navy-deep hover:bg-navy-dark4 text-white text-[11px] font-black transition cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     طلبية جديدة لهذا العميل

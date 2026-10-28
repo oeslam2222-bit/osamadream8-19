@@ -625,19 +625,19 @@ export const InventoryStockView: React.FC = () => {
                     key={p.id}
                     className={`bg-white rounded-3xl p-4 border transition flex flex-col justify-between shadow-xs ${
                       needsTransfer
-                        ? 'border-[rgba(16,43,78,.3)] bg-[#f7fafd]'
+                        ? 'border-[rgba(16,43,78,.3)] bg-blue-gray'
                         : isTotallyOut
-                        ? 'border-[rgba(179,74,74,.35)] bg-[#fdfafa]'
+                        ? 'border-[rgba(179,74,74,.35)] bg-red-soft'
                         : isLowStock
-                        ? 'border-[rgba(155,112,39,.35)] bg-[#fdfbf5]'
-                        : 'border-slate-200 hover:border-[#b8c9db]'
+                        ? 'border-[rgba(155,112,39,.35)] bg-orange-soft'
+                        : 'border-slate-200 hover:border-slate-border'
                     }`}
                   >
                     <div>
                       {/* Top Header: Code, Dept & Status Badge */}
                       <div className="flex items-center justify-between gap-2 mb-2">
                         <div className="flex items-center gap-1.5">
-                          <span className="bg-[#f3f6fa] text-[#526780] font-mono font-black text-xs px-2 py-0.5 rounded-lg border border-[#e3ebf3] tracking-wide">
+                          <span className="bg-blue-gray text-gray font-mono font-black text-xs px-2 py-0.5 rounded-lg border border-slate-border-soft tracking-wide">
                             {p.code}
                           </span>
                           <span className="app-badge neutral">
@@ -758,7 +758,7 @@ export const InventoryStockView: React.FC = () => {
                           متاح للصرف المباشر
                         </div>
                       ) : (
-                        <div className="flex-1 bg-[#f4f7fa] t-muted border border-slate-200 font-bold py-2 px-3 rounded-xl text-xs text-center">
+                        <div className="flex-1 bg-slate-light t-muted border border-slate-200 font-bold py-2 px-3 rounded-xl text-xs text-center">
                           غير متاح حالياً
                         </div>
                       )}
@@ -858,7 +858,7 @@ export const InventoryStockView: React.FC = () => {
                         >
                           {/* Code */}
                           <td className="p-3">
-                            <span className="bg-[#f3f6fa] text-[#657b93] font-mono px-2 py-0.5 rounded text-[11px] border border-[#e3ebf3] tracking-wide">
+                            <span className="bg-blue-gray text-muted-dark font-mono px-2 py-0.5 rounded text-[11px] border border-slate-border-soft tracking-wide">
                               {p.code}
                             </span>
                           </td>
@@ -867,12 +867,12 @@ export const InventoryStockView: React.FC = () => {
                           <td className="p-3">
                             <div className="font-extrabold text-slate-900 text-xs sm:text-sm">{p.name}</div>
                             <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                              <span className="bg-[#f4f7fa] text-[#45607e] border border-slate-200 px-1.5 py-0.2 rounded font-bold flex items-center gap-1">
+                              <span className="bg-slate-light text-slate border border-slate-200 px-1.5 py-0.2 rounded font-bold flex items-center gap-1">
                                 <DeptIcon className="w-3 h-3 t-warn" />
                                 <span>{p.department || p.category}</span>
                               </span>
                               {p.classification && (
-                                <span className="bg-[#f4f7fa] text-[#45607e] px-1.5 py-0.2 rounded font-bold">
+                                <span className="bg-slate-light text-slate px-1.5 py-0.2 rounded font-bold">
                                   {p.classification}
                                 </span>
                               )}
@@ -934,7 +934,7 @@ export const InventoryStockView: React.FC = () => {
                           {/* Promo / Offer Price */}
                           <td className="p-3 text-center font-black">
                             {p.promoPrice ? (
-                              <div className="inline-flex flex-col items-center bg-[#f9eaea] border border-[rgba(179,74,74,.25)] px-2 py-0.5 rounded-lg">
+                              <div className="inline-flex flex-col items-center bg-red-light border border-[rgba(179,74,74,.25)] px-2 py-0.5 rounded-lg">
                                 <span className="t-risk app-num text-xs">{formatCurrency(p.promoPrice)}</span>
                                 <span className="text-[9px] font-bold t-risk opacity-80 tabular-nums">
                                   ({formatCurrency(p.promoPiecePrice || (p.cartonQuantity ? p.promoPrice / p.cartonQuantity : p.promoPrice))} ق)
@@ -971,7 +971,7 @@ export const InventoryStockView: React.FC = () => {
                                 )
                               ) : (
                                 needsTransfer && (
-                                  <span className="t-navy bg-[#eef3fa] px-2 py-1 rounded-md border border-slate-200 text-[10px] font-bold">
+                                  <span className="t-navy bg-blue-very-light px-2 py-1 rounded-md border border-slate-200 text-[10px] font-bold">
                                     يحتاج تحويل
                                   </span>
                                 )

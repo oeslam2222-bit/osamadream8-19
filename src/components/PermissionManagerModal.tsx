@@ -207,7 +207,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
                       onClick={() => handleToggle(tab.id)}
                       className={`flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm font-bold transition cursor-pointer ${
                         isAllowed
-                          ? 'bg-[#f1f8f4] border-[#cbe3d6] text-[#0f2b38]'
+                          ? 'bg-slate-deep border-teal-soft2 text-deep-blue'
                           : 'bg-slate-50 border-slate-200 text-slate-400'
                       }`}
                     >
@@ -220,7 +220,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
                           <span className="text-[9px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-bold">-محذوف</span>
                         )}
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
-                          isAllowed ? 'bg-[#009488] text-white' : 'bg-slate-200 text-slate-500'
+                          isAllowed ? 'bg-teal-main text-white' : 'bg-slate-200 text-slate-500'
                         }`}>
                           {isAllowed ? '✓' : '✗'}
                         </span>
@@ -246,13 +246,13 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
             </button>
             <div className="flex items-center gap-3">
               {saveMsg && (
-                <span className="text-xs font-bold text-[#009488]">{saveMsg}</span>
+                <span className="text-xs font-bold text-teal-light">{saveMsg}</span>
               )}
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={isSaving}
-                className="px-5 py-2 rounded-xl bg-[#0f2b38] text-white text-sm font-black hover:bg-[#0b2039] disabled:opacity-50"
+                className="px-5 py-2 rounded-xl bg-navy-deep text-white text-sm font-black hover:bg-navy-deep5 disabled:opacity-50"
               >
                 {isSaving ? 'جاري الحفظ...' : 'حفظ الصلاحيات'}
               </button>

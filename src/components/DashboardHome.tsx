@@ -50,7 +50,7 @@ const TARGET_BAR = '#d7e2ef';
 const PIE_COLORS = [NAVY, GOLD, BLUE, '#8fa3bf'];
 const GRID_STROKE = '#e3ebf3';
 const TICK_FILL = '#5b6577';
-const BRASS_INK = 'text-[#8a6420]';
+const BRASS_INK = 'text-warn';
 const BRASS_SOFT = 'bg-[rgba(155,112,39,.12)]';
 const MASK = '••••••';
 
@@ -323,28 +323,28 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
             label: 'الزيارات',
             value: num(stats.visitsTotal),
             icon: MapPin,
-            tint: 'bg-[#eaf0f6]',
+            tint: 'bg-blue-deep',
             color: 'text-[var(--app-navy)]'
           },
           {
             label: 'العملاء',
             value: num(stats.customers),
             icon: Users,
-            tint: 'bg-[#ebf4fa]',
+            tint: 'bg-blue-soft2',
             color: 'text-[var(--app-blue)]'
           },
           {
             label: 'مبيعات 2026',
             value: money(stats.sales),
             icon: TrendingUp,
-            tint: 'bg-[#e8f6f0]',
+            tint: 'bg-teal-soft',
             color: 'text-[var(--app-ok)]'
           },
           {
             label: 'تحصيلات 2026',
             value: money(stats.collections),
             icon: Wallet,
-            tint: 'bg-[#fbf4e6]',
+            tint: 'bg-amber-pale',
             color: 'text-[var(--app-gold)]'
           }
         ];
@@ -354,28 +354,28 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           label: 'الزيارات',
           value: num(stats.visitsTotal),
           icon: MapPin,
-          tint: 'bg-[#eaf0f6]',
+          tint: 'bg-blue-deep',
           color: 'text-[var(--app-navy)]'
         },
         {
           label: 'مبيعات 2026',
           value: money(stats.sales),
           icon: TrendingUp,
-          tint: 'bg-[#e8f6f0]',
+          tint: 'bg-teal-soft',
           color: 'text-[var(--app-ok)]'
         },
         {
           label: 'تحصيلات 2026',
           value: money(stats.collections),
           icon: Wallet,
-          tint: 'bg-[#fbf4e6]',
+          tint: 'bg-amber-pale',
           color: 'text-[var(--app-gold)]'
         },
         {
           label: 'العملاء',
           value: num(stats.customers),
           icon: Users,
-          tint: 'bg-[#ebf4fa]',
+          tint: 'bg-blue-soft2',
           color: 'text-[var(--app-blue)]'
         }
       ];
@@ -386,28 +386,28 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
         label: 'مبيعات 2026',
         value: money(stats.sales),
         icon: TrendingUp,
-        tint: 'bg-[#e8f6f0]',
+        tint: 'bg-teal-soft',
         color: 'text-[var(--app-ok)]'
       },
       {
         label: 'تحصيلات 2026',
         value: money(stats.collections),
         icon: Wallet,
-        tint: 'bg-[#fbf4e6]',
+        tint: 'bg-amber-pale',
         color: 'text-[var(--app-gold)]'
       },
       {
         label: 'العملاء',
         value: num(stats.customers),
         icon: Users,
-        tint: 'bg-[#ebf4fa]',
+        tint: 'bg-blue-soft2',
         color: 'text-[var(--app-blue)]'
       },
       {
         label: 'الزيارات',
         value: num(stats.visitsTotal),
         icon: MapPin,
-        tint: 'bg-[#eaf0f6]',
+        tint: 'bg-blue-deep',
         color: 'text-[var(--app-navy)]'
       },
       {
@@ -524,7 +524,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <button
             type="button"
             onClick={() => onNavigateToTab('all_customers')}
-            className="bg-[#009488] hover:bg-[#008378] text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
+            className="bg-teal-main hover:bg-teal-dark-hover text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
           >
             <div className="flex items-center justify-between w-full mb-2">
               <span className="text-xs font-bold text-white/90">العملاء</span>
@@ -541,7 +541,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <button
             type="button"
             onClick={() => onNavigateToTab('visits')}
-            className="bg-[#3882f6] hover:bg-[#2563eb] text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
+            className="bg-blue-main hover:bg-blue-deep3 text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
           >
             <div className="flex items-center justify-between w-full mb-2">
               <span className="text-xs font-bold text-white/90">الزيارات</span>
@@ -558,7 +558,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
-            className="bg-[#f59e0b] hover:bg-[#d97706] text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
+            className="bg-warn-main hover:bg-warn-dark text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
           >
             <div className="flex items-center justify-between w-full mb-2">
               <span className="text-xs font-bold text-white/90">الفواتير</span>
@@ -575,7 +575,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
-            className="bg-[#6366f1] hover:bg-[#4f46e5] text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
+            className="bg-indigo hover:bg-indigo-deep text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
           >
             <div className="flex items-center justify-between w-full mb-2">
               <span className="text-xs font-bold text-white/90">التحصيلات</span>
@@ -642,7 +642,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
                     <button
                       type="button"
                       onClick={() => onNavigateToTab('visits')}
-                      className="bg-[color:var(--brand-teal)] text-white px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer hover:bg-[#008378]"
+                      className="bg-[color:var(--brand-teal)] text-white px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer hover:bg-teal-dark-hover"
                       title="تسجيل زيارة للعميل"
                     >
                       زيارة
@@ -704,7 +704,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
         {/* 4 Metric Cards in a Row matching Desktop Reference Mockup */}
         <div className="grid grid-cols-3 gap-4">
           {/* Card 1: إجمالي المبيعات */}
-          <div className="bg-[#079f96] rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
+          <div className="bg-teal-dark rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-white/90">إجمالي المبيعات</span>
             </div>
@@ -715,7 +715,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           </div>
 
           {/* Card 2: إجمالي التحصيلات */}
-          <div className="bg-[#2878bd] rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
+          <div className="bg-blue-deep2 rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-white/90">إجمالي التحصيلات</span>
             </div>
@@ -726,7 +726,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           </div>
 
           {/* Card 3: العملاء */}
-          <div className="bg-[#f19b24] rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
+          <div className="bg-amber-deep rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-white/90">العملاء</span>
             </div>
@@ -748,11 +748,11 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
               </div>
               <div className="flex items-center gap-3 text-xs font-bold">
                 <span className="flex items-center gap-1.5 text-slate-600">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#009488]" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-teal-main" />
                   <span>المبيعات</span>
                 </span>
                 <span className="flex items-center gap-1.5 text-slate-600">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#3882f6]" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-main" />
                   <span>التحصيلات</span>
                 </span>
               </div>
@@ -916,7 +916,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
             <button
               type="button"
               onClick={() => onNavigateToTab('visits')}
-              className="w-full py-2 bg-[color:var(--brand-teal)] hover:bg-[#008378] text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+              className="w-full py-2 bg-[color:var(--brand-teal)] hover:bg-teal-dark-hover text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>تسجيل زيارة جديدة</span>

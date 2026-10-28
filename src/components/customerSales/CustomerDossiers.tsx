@@ -225,7 +225,7 @@ export const CustomerDossiers: React.FC<CustomerDossiersProps> = ({
                       onClick={() => onSelectMonth(isActive ? 'all' : month)}
                       className={`p-2 rounded-xl border text-[10px] transition cursor-pointer ${
                         isActive
-                          ? 'bg-[#102b4e] text-white border-[#102b4e]'
+                          ? 'bg-navy-deep text-white border-deep4'
                           : hasSales
                             ? 'bg-white border-amber-300 hover:border-amber-500'
                             : 'bg-slate-100/60 border-transparent opacity-60'

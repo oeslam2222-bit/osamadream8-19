@@ -218,7 +218,7 @@ interface ReturnItemForm {
       </header>
 
       {flash ? (
-        <div className={`rounded-xl border px-4 py-3 text-sm font-bold flex items-start gap-2 ${flash.tone === 'success' ? 'bg-[#e8f5ef] border-[var(--app-ok)] text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+        <div className={`rounded-xl border px-4 py-3 text-sm font-bold flex items-start gap-2 ${flash.tone === 'success' ? 'bg-green-pale border-[var(--app-ok)] text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
           <span>{flash.text}</span>
         </div>
       ) : null}
@@ -417,8 +417,8 @@ interface ReturnItemForm {
             </div>
 
             {form.type === 'مرتجع' ? (
-              <div className="mt-3 rounded-xl border border-[var(--app-accent)] bg-[#fffdf7] p-3 space-y-2">
-                <div className="text-xs font-black text-[#8a6420]">بيانات المرتجع</div>
+              <div className="mt-3 rounded-xl border border-[var(--app-accent)] bg-amber-light p-3 space-y-2">
+                <div className="text-xs font-black text-warn">بيانات المرتجع</div>
                 <label className="block">
                   <span className="text-[11px] text-slate-500 font-bold">قيمة المرتجع (ج.م)</span>
                   <input type="number" value={form.returnValue} onChange={(e) => setForm({ ...form, returnValue: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
@@ -588,21 +588,21 @@ interface ReturnItemForm {
               </div>
             ) : null}
             {selectedVisit.collectedAmount ? (
-              <div className="bg-[#e8f5ef] border border-[var(--app-ok)] p-3 rounded-lg mb-4">
+              <div className="bg-green-pale border border-[var(--app-ok)] p-3 rounded-lg mb-4">
                 <p className="text-xs text-[var(--app-ok)] mb-1 font-bold">المبلغ المحصل</p>
                 <p className="text-lg font-bold text-[var(--app-ok)]">{selectedVisit.collectedAmount?.toLocaleString()} ج.م</p>
               </div>
             ) : null}
             {selectedVisit.isReturn ? (
-              <div className="bg-[#fffdf7] border border-[var(--app-accent)] p-3 rounded-lg mb-4">
-                <p className="text-xs text-[#8a6420] mb-1 font-bold">بيانات المرتجع</p>
+              <div className="bg-amber-light border border-[var(--app-accent)] p-3 rounded-lg mb-4">
+                <p className="text-xs text-warn mb-1 font-bold">بيانات المرتجع</p>
                 <p className="text-sm text-slate-700">قيمة المرتجع: {selectedVisit.returnValue} ج.م</p>
                 <p className="text-sm text-slate-700">سبب المرتجع: {selectedVisit.returnReason}</p>
                 <p className="text-sm text-slate-700">الأصناف: {selectedVisit.returnItems}</p>
                 <p className="text-sm text-slate-700">حالة المرتجع: {selectedVisit.returnStatus}</p>
                 {selectedVisit.returnImages && selectedVisit.returnImages.length > 0 && (
                   <div className="mt-3">
-                    <p className="text-xs text-[#8a6420] font-bold mb-2">صور المرتجع:</p>
+                    <p className="text-xs text-warn font-bold mb-2">صور المرتجع:</p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {selectedVisit.returnImages.map((img, i) => (
                         <div key={i} className="relative">
@@ -632,7 +632,7 @@ interface ReturnItemForm {
                         if (res.success) { setSelectedVisit(updated); setFlash({ tone: 'success', text: 'تمت الموافقة — المرتجع اتحوّل لأمين المخزن للتنسيق والاستلام ✅' }); }
                         else setFlash({ tone: 'error', text: res.message });
                       }}
-                      className="px-3 py-2 rounded-lg bg-[var(--app-ok)] hover:bg-[#256b4a] text-white text-xs font-black"
+                      className="px-3 py-2 rounded-lg bg-[var(--app-ok)] hover:bg-green-deep2 text-white text-xs font-black"
                     >
                       اعتماد وتحويل لأمين المخزن
                     </button>
@@ -651,7 +651,7 @@ interface ReturnItemForm {
                         if (res.success) { setSelectedVisit(updated); setFlash({ tone: 'error', text: 'تم رفض المرتجع' }); }
                         else setFlash({ tone: 'error', text: res.message });
                       }}
-                      className="px-3 py-2 rounded-lg bg-[var(--app-risk)] hover:bg-[#9b3a3a] text-white text-xs font-black"
+                      className="px-3 py-2 rounded-lg bg-[var(--app-risk)] hover:bg-rose-deep2 text-white text-xs font-black"
                     >
                       رفض المرتجع
                     </button>
