@@ -601,6 +601,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
         email: cleanEmail,
         password: formData.password || '',
         role: formData.role || 'sales_rep',
+        sector: formData.sector || 'home',
         branchName: assignedBranch,
         supervisorId: formData.role === 'sales_rep' ? (formData.supervisorId || undefined) : undefined,
         phone: formData.phone || '',
