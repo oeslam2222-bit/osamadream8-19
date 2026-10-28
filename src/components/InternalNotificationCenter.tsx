@@ -872,11 +872,4 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
   );
 };
 
-
-
-
-
-export default InternalNotificationCe
-
 export default InternalNotificationCenter;
-
