@@ -825,7 +825,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   ];
 
   return (
-    <div className="tantawy-screen space-y-4 pb-20">
+    <div className="tantawy-screen catalog-modern space-y-4 pb-20">
       {/* Clean Modern Catalog Header (Amazon / Dream Distribution Ops Console style) */}
       <section className="bg-white rounded-2xl border border-[color:var(--app-line)] p-3.5 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">

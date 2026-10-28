@@ -356,6 +356,74 @@ button svg,
   #invoice-print-root { display: none; }
 }
 
+/* Product catalog visual theme: calm surfaces, readable Arabic text, restrained amber accents. */
+.catalog-modern {
+  --catalog-surface: #ffffff;
+  --catalog-surface-muted: #f6f8fb;
+  --catalog-surface-soft: #eef3f8;
+  --catalog-ink: #17283d;
+  --catalog-muted: #64748b;
+  --catalog-border: #dce5ef;
+  --catalog-accent: #a66f12;
+  --catalog-accent-soft: #fff4d6;
+  --catalog-accent-strong: #8b5c0b;
+}
+
+.catalog-modern .text-warn,
+.catalog-modern .text-amber,
+.catalog-modern [class*="text-yellow"] {
+  color: var(--catalog-accent) !important;
+}
+
+.catalog-modern [class*="bg-amber-light"],
+.catalog-modern [class*="bg-amber-very-pale"],
+.catalog-modern [class*="bg-amber-soft"] {
+  background-color: var(--catalog-accent-soft) !important;
+}
+
+.catalog-modern .bg-white { background-color: var(--catalog-surface); }
+.catalog-modern .bg-slate-50 { background-color: var(--catalog-surface-muted); }
+.catalog-modern .text-slate-900,
+.catalog-modern .text-slate-950 { color: var(--catalog-ink); }
+.catalog-modern .text-slate-700,
+.catalog-modern .text-slate-600 { color: #40536a; }
+.catalog-modern .border-slate-100,
+.catalog-modern .border-slate-200,
+.catalog-modern .border-slate-300 { border-color: var(--catalog-border); }
+
+.dark .catalog-modern {
+  --catalog-surface: #142238;
+  --catalog-surface-muted: #1b2c43;
+  --catalog-surface-soft: #20344d;
+  --catalog-ink: #f1f5f9;
+  --catalog-muted: #a9b8c9;
+  --catalog-border: #30455e;
+  --catalog-accent: #f2c14e;
+  --catalog-accent-soft: #3b321c;
+  --catalog-accent-strong: #ffd86a;
+}
+
+.dark .catalog-modern .bg-white { background-color: var(--catalog-surface); }
+.dark .catalog-modern .bg-slate-50,
+.dark .catalog-modern .bg-slate-100 { background-color: var(--catalog-surface-muted); }
+.dark .catalog-modern .text-slate-900,
+.dark .catalog-modern .text-slate-950 { color: var(--catalog-ink); }
+.dark .catalog-modern .text-slate-700,
+.dark .catalog-modern .text-slate-600,
+.dark .catalog-modern .text-slate-500 { color: var(--catalog-muted); }
+.dark .catalog-modern .text-slate-400 { color: #91a4b9; }
+.dark .catalog-modern .border-slate-100,
+.dark .catalog-modern .border-slate-200,
+.dark .catalog-modern .border-slate-300 { border-color: var(--catalog-border); }
+.dark .catalog-modern [class*="bg-amber-light"],
+.dark .catalog-modern [class*="bg-amber-very-pale"],
+.dark .catalog-modern [class*="bg-amber-soft"] { background-color: var(--catalog-accent-soft) !important; }
+.dark .catalog-modern [class*="text-yellow"],
+.dark .catalog-modern .text-warn,
+.dark .catalog-modern .text-amber { color: var(--catalog-accent) !important; }
+.dark .catalog-modern input,
+.dark .catalog-modern select { color: var(--catalog-ink); }
+
 /* App-wide responsive rules for catalog, invoices, customers, inventory and dashboards. */
 @media (max-width: 767px) {
   main {
