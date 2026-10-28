@@ -622,6 +622,20 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   };
 
   const handleDownloadCatalogPDF = useCallback(async () => {
+    const filterParts = [
+      searchTerm.trim() ? `بحث: ${searchTerm.trim()}` : '',
+      selectedOfficialDept !== 'الكل' ? `القسم: ${selectedOfficialDept}` : '',
+      selectedSubCategory !== 'الكل' ? `التصنيف: ${selectedSubCategory}` : '',
+      stockAvailabilityFilter !== 'all' ? `المخزون: ${stockAvailabilityFilter}` : '',
+      selectedPriority !== 'الكل' ? `الأولوية: ${selectedPriority}` : '',
+      selectedStatus !== 'الكل' ? `الحالة: ${selectedStatus}` : '',
+    ].filter(Boolean);
+    const filterLabel = filterParts.length > 0 ? `\n\nالفلاتر الحالية:\n${filterParts.join('\n')}` : '';
+    const confirmed = window.confirm(
+      `سيتم إنشاء ملف PDF يحتوي على صور وأسماء ${filteredProducts.length} منتج فقط.${filterLabel}\n\nهل تريد المتابعة؟`,
+    );
+    if (!confirmed) return;
+
     try {
       const { jsPDF } = await import('jspdf');
       const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -690,28 +704,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           doc.text('لا توجد صورة', margin + imageSize / 2, y + imageSize / 2, { align: 'center' });
         }
 
-        // Product name & code (right of image)
+        // The printable catalog intentionally contains only the product image and name.
         const textX = margin + imageSize + 6;
         const textMaxWidth = contentWidth - imageSize - 6;
-
-        doc.setFontSize(10.5);
+        doc.setFontSize(11);
         doc.setTextColor(15, 23, 42);
         doc.setFont('helvetica', 'bold');
-        doc.text(p.name || 'بلا اسم', textX, y + 5, { maxWidth: textMaxWidth });
-
-        doc.setFontSize(8.5);
-        doc.setTextColor(56, 189, 248);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`كود المنتج: ${p.code || '---'}`, textX, y + 11, { maxWidth: textMaxWidth });
-
-        // Stock info line
-        const bStock = getProductBranchStock(p);
-        const oStock = p.mainWarehouseActual || 0;
-        const totalStock = bStock + oStock;
-        doc.setFontSize(7.5);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(totalStock > 0 ? 45 : 248, totalStock > 0 ? 212 : 113, totalStock > 0 ? 191 : 113);
-        doc.text(`الرصيد: ${totalStock} كرتونة`, textX, y + 17, { maxWidth: textMaxWidth });
+        doc.text(p.name || 'بلا اسم', textX, y + imageSize / 2 + 2, { maxWidth: textMaxWidth });
 
         // Divider line between products
         doc.setDrawColor(226, 232, 240);
@@ -725,7 +724,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     } catch (err) {
       console.error('PDF generation failed:', err);
     }
-  }, [filteredProducts, cloudinaryConfig]);
+  }, [filteredProducts, cloudinaryConfig, searchTerm, selectedOfficialDept, selectedSubCategory, stockAvailabilityFilter, selectedPriority, selectedStatus]);
 
 
   const cartSummary = useMemo(() => {
@@ -825,7 +824,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   ];
 
   return (
-    <div className="tantawy-screen space-y-4 pb-20">
+    <div className="tantawy-screen catalog-modern space-y-4 pb-20">
       {/* Clean Modern Catalog Header (Amazon / Dream Distribution Ops Console style) */}
       <section className="bg-white rounded-2xl border border-[color:var(--app-line)] p-3.5 sm:p-5 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -1247,9 +1246,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                type="button"
                onClick={handleDownloadCatalogPDF}
                className="px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer bg-[var(--app-navy)] text-white hover:opacity-90 flex items-center gap-1"
-               title="تحميل كتالوج PDF (اسم + كود)"
+               title={`تحميل صور وأسماء المنتجات الظاهرة (${filteredProducts.length})`}
              >
-               📄 PDF
+               PDF الصور والأسماء
              </button>
              <span className="text-slate-500 text-[11px] font-medium hidden sm:inline">
                مطابق: <strong className="text-slate-900 font-bold">{filteredProducts.length}</strong> صنف
