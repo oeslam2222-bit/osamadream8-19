@@ -767,7 +767,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
         setSheetSuccess((prev) => ({
           ...prev,
-          customerSales: `تم بنجاح رفع ملف الإكسل وتحديث ${finalSales.length.toLocaleString('ar-EG')} حركة صنف، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) وتحديد فروعهم ومناديبهم تلقائياً بدون تكرار!`
+          customerSales: `ت�� بنجاح رفع ملف الإكسل وتحديث ${finalSales.length.toLocaleString('ar-EG')} حركة صنف، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) وتحديد فروعهم ومناديبهم تلقائياً بدون تكرار!`
         }));
         return;
       }
@@ -1283,6 +1283,7 @@ function onEdit(e) {
                   </div>
                 )}
               </div>
+            </div>
             );
           })()}
 
