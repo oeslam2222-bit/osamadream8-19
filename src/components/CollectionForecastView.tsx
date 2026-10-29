@@ -2517,7 +2517,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                                           setChangeNoteTarget({ repId: p.repId, weekIndex: w });
                                           setChangeNote('');
                                         }}
-                                        className="px-1.5 py-0.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-white text-[10px] font-black cursor-pointer"
+                                        className="px-1.5 py-0.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-black cursor-pointer"
                                         title="طلب تعديل من المندوب"
                                       >
                                         <RotateCcw className="w-3 h-3" />
@@ -3202,7 +3202,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                 type="button"
                 onClick={handleRequestChange}
                 disabled={!changeNote.trim()}
-                className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-black cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 رجوع للمندوب للتعديل
               </button>

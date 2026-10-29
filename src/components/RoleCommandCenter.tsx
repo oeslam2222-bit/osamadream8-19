@@ -556,7 +556,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                             : idx === 1
                             ? 'bg-amber-500 text-white'
                             : idx === 2
-                            ? 'bg-orange-400 text-white'
+                            ? 'bg-orange-400 text-slate-950'
                             : 'bg-slate-200 text-slate-600'
                         }`}
                       >
@@ -668,7 +668,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                           <button
                             type="button"
                             onClick={() => handleApproveOrder(inv)}
-                            className="inline-flex items-center gap-1 bg-emerald-500 hover:bg-emerald-400 text-white text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
+                            className="inline-flex items-center gap-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             اعتماد
@@ -757,7 +757,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                             <button
                               type="button"
                               onClick={() => handleApproveVisit(v)}
-                              className="inline-flex items-center gap-1 bg-emerald-500 hover:bg-emerald-400 text-white text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
+                              className="inline-flex items-center gap-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               اعتماد
@@ -765,7 +765,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                             <button
                               type="button"
                               onClick={() => handleNeedsFixVisit(v)}
-                              className="inline-flex items-center gap-1 bg-amber-500 hover:bg-amber-400 text-white text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
+                              className="inline-flex items-center gap-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
                             >
                               <RotateCcw className="w-3.5 h-3.5" />
                               يحتاج تعديل

@@ -982,13 +982,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
           {/* Smart Search Suggestions Dropdown */}
           {smartSuggestions.length > 0 && showSuggestions && (
-            <div className={`absolute top-full left-0 right-0 mt-1 z-50 ${isDark ? 'bg-slate-dark border-deep' : 'bg-white border-[color:var(--app-line)]'} rounded-xl shadow-xl max-h-72 overflow-y-auto`}>
-              <div className={`p-2 text-[10px] font-bold ${isDark ? 'text-slate-400' : 'text-slate-400'} border-b ${isDark ? 'border-deep' : 'border-slate-100'} flex items-center justify-between`}>
+            <div className="catalog-suggest z-50">
+              <div className="catalog-suggest__head">
                 <span>اقتراحات سريعة ({smartSuggestions.length})</span>
                 <button
                   type="button"
                   onClick={() => setShowSuggestions(false)}
-                  className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                  className="catalog-suggest__close cursor-pointer"
                 >
                   إغلاق
                 </button>
@@ -1003,18 +1003,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       handleSelectSuggestion(p);
                       setShowSuggestions(false);
                     }}
-                    className={`w-full text-right px-3 py-2 ${isDark ? 'hover:bg-slate-deep2' : 'hover:bg-slate-50'} flex items-center justify-between border-b ${isDark ? 'border-deep' : 'border-slate-50'} last:border-0 cursor-pointer`}
+                    className="catalog-suggest__item cursor-pointer"
                   >
                     <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg overflow-hidden shrink-0 bg-slate-100 ${isDark ? 'bg-slate-deep2' : ''}">
+                      <div className="catalog-suggest__thumb">
                         <img src={imgUrl} alt={p.name} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                       </div>
                       <div className="truncate min-w-0 flex-1 ml-2">
-                        <span className={`font-bold block truncate ${isDark ? 'text-slate-100' : 'text-slate-900 dark:text-slate-100'}`}>{p.name}</span>
-                        <span className={`text-[10px] font-mono ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{p.code} {p.unifiedCode ? `(#${p.unifiedCode.replace('#', '')})` : ''}</span>
+                        <span className="catalog-suggest__name block truncate">{p.name}</span>
+                        <span className="catalog-suggest__code">{p.code} {p.unifiedCode ? `(#${p.unifiedCode.replace('#', '')})` : ''}</span>
                       </div>
                     </div>
-                    <span className={`text-[var(--app-ok)] font-bold text-[11px] shrink-0`}>{getProductBranchStock(p)} ك بالفرع</span>
+                    <span className="catalog-suggest__stock">{getProductBranchStock(p)} ك بالفرع</span>
                   </button>
                 );
               })}
@@ -1205,7 +1205,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 >
                   {/* 1:1 Aspect-Square Image Box with object-contain (No distorted or cropped cookware) */}
                   <div
-                    className="relative aspect-square bg-amber-50/40 overflow-hidden cursor-pointer flex items-center justify-center p-2.5 border-b border-slate-200"
+                    className="relative aspect-square product-img-box overflow-hidden cursor-pointer flex items-center justify-center p-2.5 border-b border-slate-200"
                     onClick={() => {
                       const img = getProductImageUrl(product, cloudinaryConfig);
                       // لا تفتح المشغل إذا كان الصنف مالهاش صورة حقيقية (فقط placeholder SVG)
@@ -1294,7 +1294,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <div className="bg-amber-50/30 rounded-xl p-2.5 border border-[color:var(--app-line)] flex items-baseline justify-between">
                         <div>
                           <span className="text-[10px] text-slate-400 font-bold block leading-none">الكرتونة</span>
-                          <span className="text-[color:var(--app-navy)] font-black text-sm sm:text-base tabular-nums">
+                          <span className="cat-ink font-black text-sm sm:text-base tabular-nums">
                             {isConfidentialMode ? '••••••' : formatCurrency(product.cartonPrice)}
                           </span>
                         </div>
@@ -1485,7 +1485,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         </div>
                       </td>
                       <td className="p-2.5 text-center">
-                        <span className="text-[color:var(--app-navy)] font-black">{mainWhCartons} كرتونة</span>
+                        <span className="cat-ink font-black">{mainWhCartons} كرتونة</span>
                       </td>
                       <td className="p-2.5 text-left font-extrabold text-slate-900 dark:text-slate-100 text-sm tabular-nums">
                         {isConfidentialMode ? (
@@ -1931,7 +1931,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         </div>
                         <div className="bg-white p-2.5 rounded-xl border border-[color:var(--app-line)]">
                           <div className="text-[10px] text-slate-400">المخزن المركزي بأكتوبر:</div>
-                          <div className="font-black text-sm text-[color:var(--app-navy)]">
+                          <div className="font-black text-sm cat-ink">
                             {octoberStock} كرتونة
                           </div>
                           <div className="text-[10px] text-slate-500 font-bold">
@@ -1992,7 +1992,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </div>
                     <div className="text-left">
                       <div className="text-[10px] text-slate-500 font-bold">شدة الكرتونة:</div>
-                      <div className="text-xs font-black bg-white text-[color:var(--app-navy)] border border-[color:var(--app-line)] px-2 py-0.5 rounded-lg tabular-nums">
+                      <div className="text-xs font-black bg-white cat-ink border border-[color:var(--app-line)] px-2 py-0.5 rounded-lg tabular-nums">
                         {selectedProductForModal.cartonQuantity} قطعة
                       </div>
                     </div>
@@ -2194,7 +2194,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <span className="text-[10px] text-[color:var(--app-muted)] font-bold block uppercase">سعر الكرتونة</span>
-                        <span className="text-[color:var(--app-navy)] font-black tabular-nums text-lg">{formatCurrency((rightPanelData as Product).cartonPrice)} ج</span>
+                        <span className="cat-ink font-black tabular-nums text-lg">{formatCurrency((rightPanelData as Product).cartonPrice)} ج</span>
                       </div>
                       <div>
                         <span className="text-[10px] text-[color:var(--app-muted)] font-bold block uppercase">سعر القطعة</span>
@@ -2345,7 +2345,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                           <span>- {formatCurrency(cartSummary.discountAmount)} ج</span>
                         </div>
                       )}
-                      <div className="flex items-center justify-between text-sm font-black text-[color:var(--app-navy)] pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between text-sm font-black cat-ink pt-2 border-t border-slate-100">
                         <span>الإجمالي النهائي</span>
                         <span className="tabular-nums">{formatCurrency(cartSummary.grandTotal)} ج</span>
                       </div>

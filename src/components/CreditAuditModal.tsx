@@ -518,7 +518,7 @@ ${
                       <span className="w-2 h-2 rounded-full bg-slate-900"></span>
                       <span>إجمالي المديونية بعد احتساب الفاتورة</span>
                     </td>
-                    <td className="p-3.5 font-mono font-black text-center text-slate-950 text-base">
+                    <td className="p-3.5 font-mono font-black text-center text-[var(--app-ink)] text-base">
                       {debtAfter.toLocaleString()} ج.م
                     </td>
                     <td className="p-3.5 text-slate-800">

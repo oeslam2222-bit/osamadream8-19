@@ -2550,7 +2550,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     {filteredRecords.map((r, idx) => (
                       <tr key={r.id || idx} className="hover:bg-amber-50/40 transition">
                         <td className="p-3 font-bold text-slate-900">{r.branch}</td>
-                        <td className="p-3 font-black text-slate-950">{r.repName}</td>
+                        <td className="p-3 font-black text-[var(--app-ink)]">{r.repName}</td>
                         <td className="p-3">
                           <span className="font-bold">{ARABIC_MONTHS[r.month - 1]}</span>{' '}
                           <span className="text-[11px] text-slate-400">({r.quarter})</span>

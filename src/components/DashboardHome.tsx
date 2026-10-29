@@ -486,7 +486,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6" dir="rtl">
+    <div className="home-dashboard space-y-4 sm:space-y-6" dir="rtl">
       {/* ======================================================== */}
       {/* 1. MOBILE VIEW (واجهة المندوب - الموبايل)                */}
       {/* ======================================================== */}
@@ -502,7 +502,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
             </div>
             <div>
               <div className="font-black text-slate-900 text-sm">{currentUser?.name || 'مستخدم'}</div>
-              <div className="text-[11px] text-slate-500 font-semibold">
+              <div className="text-[11px] text-slate-600 font-semibold">
                 {currentUser?.role === 'sales_rep' ? 'مندوب المبيعات' : currentUser?.role === 'supervisor' ? 'مشرف المبيعات' : 'إدارة المبيعات'}
               </div>
             </div>
@@ -524,15 +524,15 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <button
             type="button"
             onClick={() => onNavigateToTab('all_customers')}
-            className="bg-teal-main hover:bg-teal-dark-hover text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
+            className="kpi-tile kpi-tile--teal kpi-tile--clickable text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right active:scale-95 cursor-pointer"
           >
             <div className="flex items-center justify-between w-full mb-2">
-              <span className="text-xs font-bold text-white/90">العملاء</span>
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                <Users className="w-4 h-4 text-white" />
+              <span className="kpi-tile__label text-xs font-bold">العملاء</span>
+              <div className="kpi-tile__icon">
+                <Users className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-2xl font-black tabular-nums tracking-tight">
+            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {scopedCustomers.length}
             </div>
           </button>
@@ -541,15 +541,15 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <button
             type="button"
             onClick={() => onNavigateToTab('visits')}
-            className="bg-blue-main hover:bg-blue-deep3 text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
+            className="kpi-tile kpi-tile--blue kpi-tile--clickable text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right active:scale-95 cursor-pointer"
           >
             <div className="flex items-center justify-between w-full mb-2">
-              <span className="text-xs font-bold text-white/90">الزيارات</span>
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                <CalendarCheck className="w-4 h-4 text-white" />
+              <span className="kpi-tile__label text-xs font-bold">الزيارات</span>
+              <div className="kpi-tile__icon">
+                <CalendarCheck className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-2xl font-black tabular-nums tracking-tight">
+            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {scopedVisits.length}
             </div>
           </button>
@@ -558,15 +558,15 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
-            className="bg-warn-main hover:bg-warn-dark text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
+            className="kpi-tile kpi-tile--amber kpi-tile--clickable text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right active:scale-95 cursor-pointer"
           >
             <div className="flex items-center justify-between w-full mb-2">
-              <span className="text-xs font-bold text-white/90">الفواتير</span>
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                <Receipt className="w-4 h-4 text-white" />
+              <span className="kpi-tile__label text-xs font-bold">الفواتير</span>
+              <div className="kpi-tile__icon">
+                <Receipt className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-2xl font-black tabular-nums tracking-tight">
+            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {visibleInvoices.length}
             </div>
           </button>
@@ -575,15 +575,15 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
-            className="bg-indigo hover:bg-indigo-deep text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
+            className="kpi-tile kpi-tile--indigo kpi-tile--clickable text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right active:scale-95 cursor-pointer"
           >
             <div className="flex items-center justify-between w-full mb-2">
-              <span className="text-xs font-bold text-white/90">التحصيلات</span>
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                <Wallet className="w-4 h-4 text-white" />
+              <span className="kpi-tile__label text-xs font-bold">التحصيلات</span>
+              <div className="kpi-tile__icon">
+                <Wallet className="w-4 h-4" />
               </div>
             </div>
-            <div className="text-2xl font-black tabular-nums tracking-tight">
+            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {money(stats.collections)}
             </div>
           </button>
@@ -620,7 +620,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
                     </div>
                     <div className="truncate min-w-0">
                       <div className="font-bold text-slate-900 text-xs truncate">{cust.name}</div>
-                      <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
+                      <div className="text-[10px] text-slate-600 flex items-center gap-1 mt-0.5">
                         <MapPin className="w-2.5 h-2.5 text-slate-400 shrink-0" />
                         <span className="truncate">{cust.address || cust.region || cust.branchName || 'لم يحدد العنوان'}</span>
                       </div>
@@ -650,7 +650,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
                   </div>
                 </div>
               );
-            }) : <p className="py-5 text-center text-xs text-slate-400">لا يوجد عملاء في النطاق الحالي</p>}
+            }) : <p className="py-5 text-center text-xs text-slate-500">لا يوجد عملاء في النطاق الحالي</p>}
           </div>
         </div>
       </div>
@@ -693,7 +693,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
               </div>
               <div className="text-right">
                 <div className="text-xs font-black text-slate-900">{currentUser?.name || 'أحمد محمد'}</div>
-                <div className="text-[10px] text-slate-500 font-semibold">
+                <div className="text-[10px] text-slate-600 font-semibold">
                   {currentUser?.role === 'admin' ? 'مدير النظام' : currentUser?.role === 'branch_manager' ? 'مدير الفرع' : 'مشرف'}
                 </div>
               </div>
@@ -704,36 +704,39 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
         {/* 4 Metric Cards in a Row matching Desktop Reference Mockup */}
         <div className="grid grid-cols-3 gap-4">
           {/* Card 1: إجمالي المبيعات */}
-          <div className="bg-teal-dark rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
+          <div className="kpi-tile kpi-tile--teal rounded-2xl p-4 shadow-xs flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white/90">إجمالي المبيعات</span>
+              <span className="kpi-tile__label text-xs font-bold">إجمالي المبيعات</span>
+              <span className="kpi-tile__icon"><TrendingUp className="w-4 h-4" /></span>
             </div>
-            <div className="text-2xl font-black text-white tabular-nums">
+            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {money(stats.sales)}
             </div>
-            <div className="text-[10px] text-white/75 font-medium">حسب بيانات العملاء</div>
+            <div className="kpi-tile__caption text-[10px] font-semibold">حسب بيانات العملاء</div>
           </div>
 
           {/* Card 2: إجمالي التحصيلات */}
-          <div className="bg-blue-deep2 rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
+          <div className="kpi-tile kpi-tile--blue rounded-2xl p-4 shadow-xs flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white/90">إجمالي التحصيلات</span>
+              <span className="kpi-tile__label text-xs font-bold">إجمالي التحصيلات</span>
+              <span className="kpi-tile__icon"><Wallet className="w-4 h-4" /></span>
             </div>
-            <div className="text-2xl font-black text-white tabular-nums">
+            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {money(stats.collections)}
             </div>
-            <div className="text-[10px] text-white/75 font-medium">حسب بيانات العملاء</div>
+            <div className="kpi-tile__caption text-[10px] font-semibold">حسب بيانات العملاء</div>
           </div>
 
           {/* Card 3: العملاء */}
-          <div className="bg-amber-deep rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
+          <div className="kpi-tile kpi-tile--amber rounded-2xl p-4 shadow-xs flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white/90">العملاء</span>
+              <span className="kpi-tile__label text-xs font-bold">العملاء</span>
+              <span className="kpi-tile__icon"><Users className="w-4 h-4" /></span>
             </div>
-            <div className="text-2xl font-black text-white tabular-nums">
+            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {scopedCustomers.length}
             </div>
-            <div className="text-[10px] text-white/75 font-medium">من إجمالي قاعدة العملاء</div>
+            <div className="kpi-tile__caption text-[10px] font-semibold">من إجمالي قاعدة العملاء</div>
           </div>
         </div>
 
@@ -744,14 +747,14 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-black text-slate-900 text-sm">المبيعات والتحصيلات</h3>
-                <p className="text-[11px] text-slate-400">مقارنة حركة المبيعات مقابل التحصيل الفعلي</p>
+                <p className="text-[11px] text-slate-500">مقارنة حركة المبيعات مقابل التحصيل الفعلي</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-bold">
-                <span className="flex items-center gap-1.5 text-slate-600">
+                <span className="flex items-center gap-1.5 text-slate-700">
                   <span className="w-2.5 h-2.5 rounded-full bg-teal-main" />
                   <span>المبيعات</span>
                 </span>
-                <span className="flex items-center gap-1.5 text-slate-600">
+                <span className="flex items-center gap-1.5 text-slate-700">
                   <span className="w-2.5 h-2.5 rounded-full bg-blue-main" />
                   <span>التحصيلات</span>
                 </span>
@@ -784,7 +787,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <div className="col-span-4 bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
             <div>
               <h3 className="font-black text-slate-900 text-sm">توزيع العملاء</h3>
-              <p className="text-[11px] text-slate-400">تصنيف التعامل للعملاء المسجلين</p>
+              <p className="text-[11px] text-slate-500">تصنيف التعامل للعملاء المسجلين</p>
             </div>
 
             <div className="relative w-full h-40 flex items-center justify-center" dir="ltr">
@@ -806,7 +809,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <span className="text-xl font-black text-slate-900">{scopedCustomers.length}</span>
-                <span className="text-[10px] text-slate-400 font-bold">عميل</span>
+                <span className="text-[10px] text-slate-500 font-bold">عميل</span>
               </div>
             </div>
 
@@ -842,7 +845,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
             <div className="overflow-x-auto">
               <table className="w-full text-right text-xs">
                 <thead>
-                  <tr className="border-b border-slate-100 text-slate-400 font-semibold">
+                  <tr className="home-table-head border-b border-slate-100 font-black">
                     <th className="pb-2">رقم الفاتورة</th>
                     <th className="pb-2">العميل</th>
                     <th className="pb-2">التاريخ</th>
@@ -867,7 +870,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-xs text-slate-400">لا توجد فواتير مسجلة</td>
+                      <td colSpan={5} className="py-8 text-center text-xs text-slate-500">لا توجد فواتير مسجلة</td>
                     </tr>
                   )}
                 </tbody>
@@ -910,7 +913,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
                   </div>
                 </div>
                 );
-              }) : <p className="py-5 text-center text-xs text-slate-400">لا توجد زيارات قادمة</p>}
+              }) : <p className="py-5 text-center text-xs text-slate-500">لا توجد زيارات قادمة</p>}
             </div>
 
             <button

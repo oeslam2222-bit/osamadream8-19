@@ -516,7 +516,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
               {/* Cart Items List */}
               {cart.length === 0 ? (
-                <div className="bg-white/60 border border-dashed border-slate-border rounded-[var(--app-radius)] p-8 text-center space-y-3">
+                <div className="ord-empty rounded-[var(--app-radius)] p-8 text-center space-y-3">
                   <div className="w-14 h-14 rounded-xl tint-navy grid place-items-center mx-auto">
                     <ShoppingCart className="w-7 h-7 t-navy" />
                   </div>
@@ -1110,7 +1110,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   )}
                 </div>
               ) : (
-                <div className="bg-white/60 border border-dashed border-slate-border rounded-[var(--app-radius)] p-6 text-center text-xs t-muted">
+                <div className="ord-empty rounded-[var(--app-radius)] p-6 text-center text-xs">
                   يرجى البحث واختيار عميل لعرض موقفه المالي ومتابعة الفاتورة.
                 </div>
               )}

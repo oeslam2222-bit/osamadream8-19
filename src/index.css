@@ -103,6 +103,47 @@
   --color-text-amber-dark: #a97f2f;
   --color-text-slate-soft9: #a9c4de;
   --color-bg-amber-deep3: #b98e3c;
+  /* Legacy tone aliases (original hex values). These CSS variables were
+     referenced by utility classes but never defined, so those backgrounds
+     fell back to transparent and white text vanished on white surfaces. */
+  --color-bg-teal-dark: #079f96;
+  --color-bg-blue-deep2: #2878bd;
+  --color-bg-blue-deep3: #2563eb;
+  --color-bg-amber-deep: #f19b24;
+  --color-bg-indigo: #4f46e5;
+  --color-bg-indigo-deep: #4338ca;
+  --color-bg-slate-dark: #0f1c2e;
+  --color-bg-slate-deep2: #1b2a40;
+  --color-border-deep: #22344d;
+  /* Remaining tone tokens that utility classes referenced but were missing
+     (recovered from the original hex palette). */
+  --color-bg-navy-deep: #102b4e;
+  --color-bg-navy-deep2: #17395f;
+  --color-bg-navy-dark2: #0f172a;
+  --color-bg-navy-dark3: #0a1c30;
+  --color-bg-blue-deep: #eaf0f6;
+  --color-bg-blue-deep4: #1a3861;
+  --color-bg-blue-deep5: #1a3861;
+  --color-bg-blue-deep6: #2a4a7a;
+  --color-bg-blue-pale: #e8f1fa;
+  --color-bg-blue-soft2: #ebf4fa;
+  --color-bg-blue-very-pale: #f8fbfe;
+  --color-bg-teal-pale: #e6f7f5;
+  --color-bg-teal-soft: #e8f6f0;
+  --color-bg-green-pale: #e8f5ef;
+  --color-bg-green-soft: #e8f3ee;
+  --color-bg-red-pale: #fdf5f5;
+  --color-bg-red-soft2: #fdf1f1;
+  --color-bg-red-deep: #953f3f;
+  --color-bg-amber-pale: #fbf4e6;
+  --color-bg-amber-soft: #fdf8ed;
+  --color-bg-amber-light: #fffdf7;
+  --color-bg-slate-deep: #f1f8f4;
+  --color-placeholder: #94a3b8;
+  --color-border-amber: #e6d9b8;
+  --color-border-amber-soft: #e8dcba;
+  --color-border-teal: #c4ebe6;
+  --color-border-deep3: #22344d;
   --color-border-amber-soft2: #e6d9b8;
   --color-bg-slate-soft7: #e8f0f8;
 }
@@ -523,10 +564,16 @@ main .shadow-sm, main .shadow-xs {
 }
 main table thead { background-color: #173b63 !important; color: #edf5fc !important; }
 main tbody tr:hover { background-color: #f1f6fb; }
+.dark main tbody tr:hover { background-color: #1b2942; }
 main .text-amber-600, main .text-amber-700 { color: #9b7027 !important; }
 main .bg-amber-500, main .bg-amber-400 { background-color: #d0a34e !important; }
 main .border-amber-400, main .border-amber-500 { border-color: #d0a34e !important; }
 main .text-slate-900 { color: #17283d !important; }
+/* Dark mode must win over the light-mode !important rule above, otherwise
+   headings, table titles and the user name stay dark navy on the dark
+   cards (invisible at night). */
+.dark main .text-slate-900 { color: #f8fafc !important; }
+.dark main .text-amber-600, .dark main .text-amber-700 { color: #fde047 !important; }
 main .bg-slate-50 { background-color: #f4f7fa !important; }
 main .border-slate-200 { border-color: var(--app-line) !important; }
 
@@ -1851,7 +1898,7 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
 .dark .text-slate-700 { color: #e2e8f0; }
 .dark .text-slate-600 { color: #cbd5e1; }
 .dark .text-slate-500 { color: #94a3b8; }
-.dark .text-slate-400 { color: #64748b; }
+.dark .text-slate-400 { color: #9db0c6; }
 
 /* Dark mode: Borders */
 .dark .border-slate-200 { border-color: #22344d !important; }
@@ -1940,3 +1987,503 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
 /* ===== Smooth dark mode transitions ===== */
 * { transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease; }
 button:focus-visible, a:focus-visible, [role="button"]:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--r-sm); }
+
+/* ===== Dashboard KPI tiles =====
+   Day mode  : white surface + bold BLACK text (per request).
+   Night mode: dark surface + bold WHITE text.
+   Each metric keeps a coloured accent bar + icon chip so the tiles stay
+   visually distinct instead of relying on coloured backgrounds. */
+.kpi-tile {
+  --kpi-accent: #0b7f76;
+  --kpi-tint: rgba(11, 127, 118, .12);
+  position: relative;
+  overflow: hidden;
+  color: #000;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 6px 18px rgba(15, 43, 56, .10);
+}
+.kpi-tile::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 4px;
+  background: var(--kpi-accent);
+}
+.kpi-tile > * { position: relative; z-index: 1; }
+.kpi-tile__label { color: #000; font-weight: 800; }
+.kpi-tile__value { color: #000; font-weight: 900; }
+.kpi-tile__caption { color: #1f2937; font-weight: 800; }
+.kpi-tile__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: .6rem;
+  flex-shrink: 0;
+  background: var(--kpi-tint);
+  color: var(--kpi-accent);
+}
+.kpi-tile--teal { --kpi-accent: #0b7f76; --kpi-tint: rgba(11, 127, 118, .12); }
+.kpi-tile--blue { --kpi-accent: #1e5f9d; --kpi-tint: rgba(30, 95, 157, .12); }
+.kpi-tile--amber { --kpi-accent: #b45309; --kpi-tint: rgba(180, 83, 9, .12); }
+.kpi-tile--indigo { --kpi-accent: #4f46e5; --kpi-tint: rgba(79, 70, 229, .12); }
+.kpi-tile--clickable { transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+.kpi-tile--clickable:hover { box-shadow: 0 10px 24px rgba(15, 43, 56, .16); border-color: var(--kpi-accent); }
+.kpi-tile--clickable:focus-visible { box-shadow: 0 0 0 3px rgba(11, 127, 118, .45); }
+
+.dark .kpi-tile {
+  color: #fff;
+  background: #131d2e;
+  border-color: #22344d;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .5);
+}
+.dark .kpi-tile__label,
+.dark .kpi-tile__value,
+.dark .kpi-tile__caption { color: #fff; }
+.dark .kpi-tile__icon { background: rgba(255, 255, 255, .12); color: #fff; }
+.dark .kpi-tile--teal { --kpi-accent: #14b8a6; }
+.dark .kpi-tile--blue { --kpi-accent: #38bdf8; }
+.dark .kpi-tile--amber { --kpi-accent: #fbbf24; }
+.dark .kpi-tile--indigo { --kpi-accent: #818cf8; }
+
+/* ===== Home dashboard typography =====
+   Requested rule: bold BLACK text in light mode, bold WHITE text in dark
+   mode. Coloured surfaces (KPI tiles, chips, status pills) keep their own
+   colours, only the slate text tokens used by the dashboard are re-mapped. */
+.home-dashboard { color: #000; }
+.dark .home-dashboard { color: #ffffff; }
+.home-dashboard .text-slate-900,
+.home-dashboard .text-slate-800 { color: #000 !important; }
+.home-dashboard .text-slate-700,
+.home-dashboard .text-slate-600 { color: #0b1220 !important; font-weight: 800 !important; }
+.home-dashboard .text-slate-500,
+.home-dashboard .text-slate-400 { color: #1f2937 !important; font-weight: 800 !important; }
+
+.dark .home-dashboard .text-slate-900,
+.dark .home-dashboard .text-slate-800 { color: #ffffff !important; }
+.dark .home-dashboard .text-slate-700,
+.dark .home-dashboard .text-slate-600 { color: #ffffff !important; font-weight: 800 !important; }
+.dark .home-dashboard .text-slate-500,
+.dark .home-dashboard .text-slate-400 { color: #f8fafc !important; font-weight: 800 !important; }
+
+/* The invoices table header always sits on the navy band, so it stays light. */
+.home-dashboard thead tr,
+.home-dashboard thead th { color: #eaf2f9 !important; font-weight: 900 !important; }
+.home-table-head, .home-table-head th, .home-table-head td { color: #eaf2f9 !important; font-weight: 900 !important; }
+
+/* Top bar (brand + logged in user name): black/bold by day, white/bold by night. */
+.tantawy-topbar .text-slate-900 { color: #000 !important; font-weight: 900 !important; }
+.dark .tantawy-topbar .text-slate-900 { color: #ffffff !important; }
+
+/* Sidebar lives on navy in both modes: keep its labels bold and white. */
+.tantawy-sidebar nav button span { font-weight: 800; }
+.tantawy-sidebar .text-white { color: #ffffff !important; font-weight: 800; }
+
+/* ===== Catalog search suggestions =====
+   The dropdown relied on bg-slate-dark / border-deep / bg-slate-deep2, whose
+   variables were never defined: at night the panel was fully transparent so
+   the white product names sat on the white product images and disappeared.
+   It now has a solid surface in both themes, a sticky header and a capped
+   height (compact rows) so it no longer swallows half the screen. */
+.catalog-suggest {
+  position: absolute;
+  top: 100%;
+  inset-inline: 0;
+  margin-top: .35rem;
+  z-index: 60;
+  max-height: min(52vh, 300px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, .18);
+}
+.catalog-suggest__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .4rem .7rem;
+  font-size: 10px;
+  font-weight: 900;
+  color: #0f172a;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+.catalog-suggest__close { color: #475569; font-weight: 800; }
+.catalog-suggest__close:hover { color: #0f172a; }
+.catalog-suggest__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  width: 100%;
+  padding: .4rem .7rem;
+  text-align: right;
+  cursor: pointer;
+  background: transparent;
+  color: #0f172a;
+  border-bottom: 1px solid #f1f5f9;
+}
+.catalog-suggest__item:last-child { border-bottom: 0; }
+.catalog-suggest__item:hover { background: #f1f5f9; }
+.catalog-suggest__thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: #f1f5f9;
+}
+.catalog-suggest__name { font-size: 12px; font-weight: 800; color: #0f172a; }
+.catalog-suggest__code { font-size: 10px; color: #64748b; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.catalog-suggest__stock { font-size: 11px; font-weight: 800; color: #046b62; white-space: nowrap; flex-shrink: 0; }
+
+.dark .catalog-suggest { background: #142238; border-color: #30455e; box-shadow: 0 18px 40px rgba(0, 0, 0, .65); }
+.dark .catalog-suggest__head { background: #1b2c43; color: #f8fafc; border-bottom-color: #30455e; }
+.dark .catalog-suggest__close { color: #a9b8c9; }
+.dark .catalog-suggest__close:hover { color: #ffffff; }
+.dark .catalog-suggest__item { color: #f1f5f9; border-bottom-color: #22344d; }
+.dark .catalog-suggest__item:hover { background: #1f3049; }
+.dark .catalog-suggest__thumb { background: #22344d; }
+.dark .catalog-suggest__name { color: #ffffff; }
+.dark .catalog-suggest__code { color: #a9b8c9; }
+.dark .catalog-suggest__stock { color: #34d399; }
+
+/* ===== Product image boxes / catalog ink =====
+   The catalog cards and the auto-generated SVG placeholder used a fixed
+   light studio backdrop, so at night every card showed a big white block and
+   navy prices (--app-navy = #0b1d33) vanished on the dark card. */
+.product-img-box {
+  background: linear-gradient(135deg, #ffffff 0%, #fbfaf6 55%, #fdf6e6 100%);
+}
+.dark .product-img-box {
+  background: linear-gradient(135deg, #1a2a40 0%, #16243a 55%, #1b2740 100%);
+}
+/* The generated placeholder is a light studio card: flip it for night mode. */
+.dark .product-img-box img[src^="data:image/svg+xml"] {
+  filter: invert(1) hue-rotate(180deg) saturate(1.1) brightness(.92);
+}
+/* Amber price strips inside the catalog must not stay light at night. */
+.dark .catalog-modern .bg-amber-50,
+.dark .catalog-modern [class*="bg-amber-50/"] {
+  background-color: rgba(245, 158, 11, .10) !important;
+}
+/* Ink text that used --app-navy (dark navy) on cards. */
+.cat-ink { color: var(--app-navy); }
+/* Day mode: catalog muted labels were #90a1b9 (2.6:1 on white). */
+html:not(.dark) .catalog-modern .text-slate-400 { color: #64748b; }
+/* Night mode: the white /90 chips over product images (code tag, pack size)
+   keep a white backdrop with light text = invisible; flip them dark. */
+.dark .catalog-modern [class*="bg-white/90"] {
+  background-color: rgba(15, 23, 42, .86) !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, .38) !important;
+}
+.dark .cat-ink { color: #f8fafc; }
+
+/* ===== Night-mode readability sweep ===== */
+/* --app-navy turns #0b1d33 in dark mode, so text painted with it (unified
+   codes, KPI numbers, filter pills) was dark-on-dark = invisible. */
+.dark [class*="text-[var(--app-navy)]"] { color: #f8fafc !important; }
+/* Pale surfaces that had no night equivalent. */
+.dark .bg-green-pale,
+.dark .bg-green-soft { background-color: #14261f !important; }
+.dark .bg-teal-pale,
+.dark .bg-teal-soft { background-color: #10241f !important; }
+.dark .bg-blue-pale,
+.dark .bg-blue-deep,
+.dark .bg-blue-soft2,
+.dark .bg-blue-very-pale { background-color: #131d2e !important; }
+.dark .bg-red-soft2 { background-color: #261418 !important; }
+.dark .bg-amber-pale { background-color: #251d13 !important; }
+.dark .bg-slate-deep { background-color: #131d2e !important; }
+.dark .bg-slate-soft7 { background-color: #1b2a40 !important; }
+.dark .bg-slate-deep3 { background-color: #131d2e !important; }
+.dark .bg-amber-very-pale { background-color: #251d13 !important; }
+
+/* ===== Order builder (شاشة كاشير الفاتورة): night readability =====
+   In dark mode --app-navy is #0b1d33, so .btn-primary blended into the card
+   and its disabled state (opacity .4) looked like a blurred ghost. The step
+   pills, muted labels and the empty-state box were also low contrast. */
+.dark .btn-primary { background-color: #1d4ed8; color: #ffffff; }
+.dark .btn-primary:hover:not(:disabled) { background-color: #2563eb; box-shadow: 0 6px 16px rgba(37, 99, 235, .35); }
+.dark .btn-primary:disabled { opacity: .6; }
+.dark .btn-primary:disabled { color: #ffffff !important; }
+.dark .app-btn-ghost { background-color: #131f33; border-color: #1e3556; color: #f8fafc; font-weight: 800; }
+.dark .app-btn-ghost:hover:not(:disabled) { background-color: #1b2c43; color: #ffffff; border-color: #2f4a6b; }
+.dark .pill-filter { background-color: #131f33 !important; border-color: #1e3556 !important; color: #f1f5f9 !important; font-weight: 800 !important; }
+.dark .pill-filter.on { background-color: #0284c7; border-color: #0284c7; color: #ffffff; font-weight: 900; }
+.dark .panel-navy { background-color: #0f1c2e; border-color: #1e3556; color: #f8fafc; }
+.dark .ord-shell .t-muted { color: #e2e8f0 !important; font-weight: 800; }
+.dark .app-badge.neutral { color: #f8fafc !important; font-weight: 800; }
+.dark input::placeholder,
+.dark textarea::placeholder { color: #94a3b8 !important; }
+.dark .ord-shell [class*="bg-white/5"],
+.dark .ord-shell [class*="bg-white/6"],
+.dark .ord-shell [class*="bg-white/7"],
+.dark .ord-shell [class*="bg-white/8"],
+.dark .ord-shell [class*="bg-white/9"] { background-color: rgba(15, 28, 46, .72) !important; }
+
+.ord-empty {
+  background: #ffffff;
+  border: 1px dashed #b8c9db;
+  color: #17283d;
+  font-weight: 800;
+}
+.dark .ord-empty {
+  background: #0f1c2e;
+  border-color: #30455e;
+  color: #f8fafc;
+}
+
+.dark .app-link { color: #7dd3fc; }
+.dark .app-link:hover { color: #bae6fd; }
+.dark .app-btn-primary { background: #1d4ed8; border-color: #1d4ed8; color: #ffffff; }
+.dark .app-btn-primary:hover:not(:disabled) { background: #2563eb; }
+.dark .app-pill { background-color: #131f33; border-color: #1e3556; color: #e2e8f0; }
+.dark .app-pill:hover:not(:disabled) { background-color: #1b2c43; color: #ffffff; border-color: #2f4a6b; }
+.dark .app-pill.on { background-color: #0284c7; border-color: #0284c7; color: #ffffff; }
+
+/* ===== Night palette: pastel badges / chips (50-100-200 shades) =====
+   These Tailwind pastels stayed light at night while their inner text turned
+   white (#f8fafc / #fde047), which made chips and badges unreadable.
+   Attribute selectors are used for the /opacity variants so we never match
+   the 500+ shades by accident. */
+.dark .bg-amber-50, .dark [class*="bg-amber-50/"] { background-color: rgba(245, 158, 11, .16) !important; }
+.dark .bg-amber-100, .dark .bg-amber-200, .dark [class*="bg-amber-100/"], .dark [class*="bg-amber-200/"] { background-color: rgba(245, 158, 11, .24) !important; }
+.dark .bg-emerald-50, .dark [class*="bg-emerald-50/"] { background-color: rgba(16, 185, 129, .16) !important; }
+.dark .bg-emerald-100, .dark .bg-emerald-200, .dark [class*="bg-emerald-100/"], .dark [class*="bg-emerald-200/"] { background-color: rgba(16, 185, 129, .24) !important; }
+.dark .bg-rose-50, .dark [class*="bg-rose-50/"] { background-color: rgba(244, 63, 94, .16) !important; }
+.dark .bg-rose-100, .dark .bg-rose-200, .dark [class*="bg-rose-100/"], .dark [class*="bg-rose-200/"] { background-color: rgba(244, 63, 94, .24) !important; }
+.dark .bg-red-50, .dark [class*="bg-red-50/"] { background-color: rgba(239, 68, 68, .16) !important; }
+.dark .bg-red-100, .dark .bg-red-200, .dark [class*="bg-red-100/"], .dark [class*="bg-red-200/"] { background-color: rgba(239, 68, 68, .24) !important; }
+.dark .bg-blue-50, .dark [class*="bg-blue-50/"] { background-color: rgba(59, 130, 246, .16) !important; }
+.dark .bg-blue-100, .dark .bg-blue-200, .dark [class*="bg-blue-100/"], .dark [class*="bg-blue-200/"] { background-color: rgba(59, 130, 246, .24) !important; }
+.dark .bg-sky-50, .dark [class*="bg-sky-50/"] { background-color: rgba(14, 165, 233, .16) !important; }
+.dark .bg-sky-100, .dark .bg-sky-200, .dark [class*="bg-sky-100/"], .dark [class*="bg-sky-200/"] { background-color: rgba(14, 165, 233, .24) !important; }
+.dark .bg-teal-50, .dark [class*="bg-teal-50/"] { background-color: rgba(20, 184, 166, .16) !important; }
+.dark .bg-teal-100, .dark .bg-teal-200, .dark [class*="bg-teal-100/"], .dark [class*="bg-teal-200/"] { background-color: rgba(20, 184, 166, .24) !important; }
+.dark .bg-indigo-50, .dark [class*="bg-indigo-50/"] { background-color: rgba(99, 102, 241, .16) !important; }
+.dark .bg-indigo-100, .dark .bg-indigo-200, .dark [class*="bg-indigo-100/"], .dark [class*="bg-indigo-200/"] { background-color: rgba(99, 102, 241, .24) !important; }
+.dark .bg-purple-50, .dark [class*="bg-purple-50/"] { background-color: rgba(168, 85, 247, .16) !important; }
+.dark .bg-purple-100, .dark .bg-purple-200, .dark [class*="bg-purple-100/"], .dark [class*="bg-purple-200/"] { background-color: rgba(168, 85, 247, .24) !important; }
+.dark .bg-violet-50, .dark [class*="bg-violet-50/"] { background-color: rgba(139, 92, 246, .16) !important; }
+.dark .bg-violet-100, .dark .bg-violet-200, .dark [class*="bg-violet-100/"], .dark [class*="bg-violet-200/"] { background-color: rgba(139, 92, 246, .24) !important; }
+.dark .bg-cyan-50, .dark [class*="bg-cyan-50/"] { background-color: rgba(6, 182, 212, .16) !important; }
+.dark .bg-cyan-100, .dark .bg-cyan-200, .dark [class*="bg-cyan-100/"], .dark [class*="bg-cyan-200/"] { background-color: rgba(6, 182, 212, .24) !important; }
+.dark .bg-lime-50, .dark [class*="bg-lime-50/"] { background-color: rgba(132, 204, 22, .16) !important; }
+.dark .bg-lime-100, .dark .bg-lime-200, .dark [class*="bg-lime-100/"], .dark [class*="bg-lime-200/"] { background-color: rgba(132, 204, 22, .24) !important; }
+.dark .bg-orange-50, .dark [class*="bg-orange-50/"] { background-color: rgba(249, 115, 22, .16) !important; }
+.dark .bg-orange-100, .dark .bg-orange-200, .dark [class*="bg-orange-100/"], .dark [class*="bg-orange-200/"] { background-color: rgba(249, 115, 22, .24) !important; }
+.dark .bg-yellow-50, .dark [class*="bg-yellow-50/"] { background-color: rgba(234, 179, 8, .16) !important; }
+.dark .bg-yellow-100, .dark .bg-yellow-200, .dark [class*="bg-yellow-100/"], .dark [class*="bg-yellow-200/"] { background-color: rgba(234, 179, 8, .24) !important; }
+.dark .bg-slate-50, .dark [class*="bg-slate-50/"] { background-color: rgba(19, 29, 46, .80) !important; }
+.dark .bg-slate-100, .dark [class*="bg-slate-100/"] { background-color: rgba(30, 41, 59, .85) !important; }
+.dark .bg-slate-200, .dark [class*="bg-slate-200/"] { background-color: rgba(39, 53, 73, .85) !important; }
+/* High-opacity white overlays become dark glass at night. */
+.dark [class*="bg-white/5"], .dark [class*="bg-white/6"], .dark [class*="bg-white/7"], .dark [class*="bg-white/8"], .dark [class*="bg-white/9"] { background-color: rgba(19, 29, 46, .78) !important; }
+
+
+/* ===== Night palette: coloured text (600-900 shades) =====
+   Only rose/amber/emerald/teal/sky/blue had night overrides; indigo, purple,
+   violet, cyan, lime, orange, yellow, red text stayed dark and vanished on
+   the dark surfaces. */
+.dark .text-indigo-600, .dark .text-indigo-700, .dark .text-indigo-800, .dark .text-indigo-900 { color: #a5b4fc !important; }
+.dark .text-purple-600, .dark .text-purple-700, .dark .text-purple-800, .dark .text-purple-900, .dark .text-purple-950 { color: #d8b4fe !important; }
+.dark .text-violet-600, .dark .text-violet-700, .dark .text-violet-800, .dark .text-violet-900 { color: #c4b5fd !important; }
+.dark .text-cyan-600, .dark .text-cyan-700, .dark .text-cyan-800, .dark .text-cyan-900 { color: #67e8f9 !important; }
+.dark .text-lime-600, .dark .text-lime-700, .dark .text-lime-800, .dark .text-lime-900 { color: #bef264 !important; }
+.dark .text-orange-600, .dark .text-orange-700, .dark .text-orange-800, .dark .text-orange-900 { color: #fdba74 !important; }
+.dark .text-yellow-600, .dark .text-yellow-700, .dark .text-yellow-800, .dark .text-yellow-900 { color: #fde047 !important; }
+.dark .text-red-600, .dark .text-red-700, .dark .text-red-800, .dark .text-red-900 { color: #fca5a5 !important; }
+.dark .text-green-600, .dark .text-green-700, .dark .text-green-800, .dark .text-green-900 { color: #86efac !important; }
+.dark .text-fuchsia-600, .dark .text-fuchsia-700, .dark .text-fuchsia-800, .dark .text-fuchsia-900 { color: #f9a8d4 !important; }
+.dark .text-pink-600, .dark .text-pink-700, .dark .text-pink-800, .dark .text-pink-900 { color: #f9a8d4 !important; }
+.dark .text-gray-600, .dark .text-gray-700, .dark .text-gray-800, .dark .text-gray-900 { color: #cbd5e1 !important; }
+
+
+/* ===== Night mode: customers workspace (cf-* / cust-table / ckpi / cchart) =====
+   These custom classes are hard-coded white surfaces and had no night
+   variant, so the filter bar and the even table rows stayed bright white
+   inside the dark page. */
+.dark .cf-bar { background: #131d2e !important; border-color: #22344d !important; box-shadow: 0 2px 10px rgba(0, 0, 0, .5) !important; }
+.dark .cf-bar-h { color: #f8fafc !important; }
+.dark .cf-bar-sub { color: #cbd5e1 !important; }
+.dark .cf-bar-sub strong { color: #34d399 !important; }
+.dark .cf-field { color: #cbd5e1 !important; }
+.dark .cf-field select,
+.dark .cf-field-quick select { background-color: #0f1827 !important; color: #f8fafc !important; border-color: #22344d !important; }
+.dark .cf-tags-label { color: #cbd5e1 !important; }
+.dark .cf-tag { background-color: rgba(20, 184, 166, .18) !important; color: #5eead4 !important; border-color: rgba(20, 184, 166, .38) !important; }
+.dark .cf-tag:hover { background-color: rgba(20, 184, 166, .28) !important; }
+.dark .cf-tag-reset { background-color: rgba(239, 68, 68, .16) !important; color: #fca5a5 !important; border-color: rgba(239, 68, 68, .38) !important; }
+.dark .cf-tag-reset:hover { background-color: rgba(239, 68, 68, .26) !important; }
+.dark .cf-badge { background-color: rgba(245, 158, 11, .22) !important; color: #fbbf24 !important; }
+.dark .cf-suggest { background: #131d2e !important; border-color: #22344d !important; box-shadow: 0 18px 40px rgba(0, 0, 0, .65) !important; }
+.dark .cf-suggest-item:hover,
+.dark .cf-suggest-item:focus-visible { background: #1c2a3f !important; }
+.dark .cf-suggest-name,
+.dark .cf-suggest-amount { color: #f8fafc !important; }
+.dark .cf-suggest-meta,
+.dark .cf-suggest-hint { color: #a9b8c9 !important; }
+.dark .cf-switch { background: #131d2e !important; border-color: #22344d !important; }
+.dark .cf-switch:hover { border-color: #2f4a6b !important; }
+.dark .cf-switch.on { background: rgba(31, 157, 116, .18) !important; border-color: rgba(31, 157, 116, .45) !important; }
+.dark .cf-switch-track { background: #334155 !important; }
+.dark .cf-switch-thumb { background: #f8fafc !important; }
+.dark .cf-switch-text strong { color: #f8fafc !important; }
+.dark .cf-switch-text small { color: #94a3b8 !important; }
+.dark .cf-switch.on .cf-switch-text strong { color: #6ee7b7 !important; }
+.dark .cf-switch-count { background: rgba(31, 157, 116, .22) !important; color: #6ee7b7 !important; }
+.dark .cf-switch.on .cf-switch-count { background: #1b2a40 !important; color: #6ee7b7 !important; }
+.dark .cf-search-clear { background: #1b2a40 !important; color: #cbd5e1 !important; }
+
+/* Customers table zebra + hover (were #fafcfe / #f0f7fb). */
+.dark .cust-table tbody tr:nth-child(even) { background-color: #17233a !important; }
+.dark .cust-table tbody tr:hover { background-color: #1e2f4a !important; }
+.dark .cust-table tbody td { border-bottom-color: #22344d !important; }
+
+/* KPI cards, chart cards & mini panels of the customers workspace. */
+.dark .ckpi { background: #131d2e !important; border-color: #22344d !important; }
+.dark .ckpi-value { color: #f8fafc !important; }
+.dark .ckpi-label { color: #cbd5e1 !important; }
+.dark .ckpi-hint { color: #a9b8c9 !important; }
+.dark .cchart-card { background: #131d2e !important; border-color: #22344d !important; }
+.dark .cchart-chip { background: #1b2a40 !important; color: #cbd5e1 !important; border-color: #22344d !important; }
+.dark .cq-info { background: #0f1c2e !important; border-color: #22344d !important; }
+.dark .cdebt-bar { background: #22344d !important; }
+.dark .chip-btn { background-color: #1b2a40 !important; color: #f8fafc !important; border-color: #2f4a6b !important; }
+.dark .chip-btn:hover:not(:disabled) { background-color: #24365a !important; border-color: #3d5a80 !important; }
+.dark .btn-ghost { background-color: #131d2e !important; color: #f8fafc !important; border-color: #22344d !important; }
+.dark .btn-ghost:hover:not(:disabled) { background-color: #1b2a40 !important; border-color: #2f4a6b !important; }
+.dark .pill-risk { background: rgba(239, 68, 68, .16) !important; color: #fca5a5 !important; }
+.dark .rep-ico-slate { background-color: #1b2a40 !important; color: #cbd5e1 !important; }
+.dark .app-btn-warn-soft { background: rgba(245, 158, 11, .16) !important; color: #fbbf24 !important; border-color: rgba(245, 158, 11, .42) !important; }
+.dark .app-btn-warn-soft:hover:not(:disabled) { background: rgba(245, 158, 11, .26) !important; }
+.dark .app-btn-risk-soft { background: rgba(239, 68, 68, .16) !important; color: #f87171 !important; border-color: rgba(239, 68, 68, .42) !important; }
+.dark .app-btn-risk-soft:hover:not(:disabled) { background: rgba(239, 68, 68, .26) !important; }
+
+/* Column settings sheet. */
+.dark .ctl-tabs { background: #131d2e !important; border-bottom-color: #22344d !important; }
+.dark .ctl-tab { color: #cbd5e1 !important; }
+.dark .ctl-tab:hover { background: #1b2a40 !important; color: #f8fafc !important; }
+.dark .ctl-tab.on { background: #1b2a40 !important; border-color: #22344d !important; color: #f8fafc !important; }
+.dark .ctl-tab-count { background: rgba(20, 184, 166, .2) !important; color: #5eead4 !important; }
+.dark .ctl-column { background: #131d2e !important; border-color: #22344d !important; color: #e2e8f0 !important; }
+.dark .ctl-column:hover { border-color: #2f4a6b !important; }
+.dark .ctl-column.on { background: rgba(20, 184, 166, .16) !important; border-color: rgba(20, 184, 166, .42) !important; color: #5eead4 !important; }
+
+/* Login screen surfaces. */
+.dark .login-card { background: #131d2e !important; border-color: #22344d !important; }
+.dark .login-input { background: #0f1827 !important; color: #f8fafc !important; border-color: #22344d !important; }
+.dark .login-chip { background: #1b2a40 !important; color: #e2e8f0 !important; }
+
+/* ===== Night mode: customers page remaining surfaces ===== */
+.dark .cust-table tbody tr { background-color: #131d2e !important; border-color: #22344d !important; }
+.dark .cust-table tbody tr.row-brass { background-color: rgba(201, 154, 67, .16) !important; }
+.dark .disclose { background: #131d2e !important; border-color: #22344d !important; }
+.dark .disclose > .disclose-body { background: #0f1c2e !important; border-top-color: #22344d !important; }
+.dark .disclose > summary .count { background: rgba(245, 158, 11, .22) !important; color: #fbbf24 !important; }
+.dark .kpi-strip .kp { background: #131d2e !important; border-color: #22344d !important; }
+.dark .kpi-strip .kp .val { color: #f8fafc !important; }
+.dark .kpi-strip .kp .lbl { color: #cbd5e1 !important; }
+
+.dark .cf-search input { background-color: #0f1827 !important; color: #f8fafc !important; border-color: #22344d !important; }
+.dark .cf-search input:focus { background-color: #0f1827 !important; box-shadow: 0 0 0 3px rgba(20, 184, 166, .28) !important; }
+.dark .cf-search input::placeholder { color: #94a3b8 !important; }
+.dark .cf-search-ico { color: #94a3b8 !important; }
+.dark .cf-search-clear { background: #1b2a40 !important; color: #cbd5e1 !important; }
+.dark .cf-search-clear:hover { background: #24365a !important; color: #ffffff !important; }
+.dark .cf-chip { background-color: #131d2e !important; border-color: #22344d !important; color: #e2e8f0 !important; }
+.dark .cf-chip:hover { background-color: #1b2a40 !important; }
+.dark .cf-chip .cf-count { background: rgba(255, 255, 255, .16) !important; color: inherit !important; }
+
+.dark .pill-ok { background: rgba(16, 185, 129, .16) !important; color: #6ee7b7 !important; border-color: rgba(16, 185, 129, .38) !important; }
+.dark .pill-warn { background: rgba(245, 158, 11, .16) !important; color: #fde047 !important; border-color: rgba(245, 158, 11, .38) !important; }
+.dark .pill-muted { background: rgba(148, 163, 184, .14) !important; color: #cbd5e1 !important; border-color: rgba(148, 163, 184, .3) !important; }
+.dark .pill-teal { background: rgba(20, 184, 166, .16) !important; color: #5eead4 !important; border-color: rgba(20, 184, 166, .38) !important; }
+
+/* Customer quick-view drawer */
+.dark .cq-drawer { background: #131d2e !important; }
+.dark .cq-head { background: #131d2e !important; border-bottom-color: #22344d !important; }
+.dark .cq-name { color: #f8fafc !important; }
+.dark .cq-code { color: #a9b8c9 !important; }
+.dark .cq-close { background: #1b2a40 !important; color: #f8fafc !important; }
+.dark .cq-close:hover { background: #24365a !important; }
+.dark .cq-bar { background: #0f1c2e !important; border-color: #22344d !important; }
+.dark .cq-finance { background: #0f1c2e !important; border-color: #22344d !important; }
+.dark .cq-finance-row-risk { background: rgba(239, 68, 68, .14) !important; }
+.dark .cq-limit { background: #131d2e !important; border-color: #22344d !important; }
+.dark .cq-notes { background: #0f1c2e !important; border-color: #22344d !important; }
+.dark .cq-notes li strong { color: #e2e8f0 !important; }
+.dark .cq-btn-call { background: rgba(59, 130, 246, .18) !important; color: #93c5fd !important; border-color: rgba(59, 130, 246, .4) !important; }
+.dark .cq-btn-wa { background: rgba(16, 185, 129, .18) !important; color: #6ee7b7 !important; border-color: rgba(16, 185, 129, .4) !important; }
+.dark .cq-btn-ghost { background: #1b2a40 !important; color: #f8fafc !important; border-color: #2f4a6b !important; }
+
+/* Column settings modal */
+.dark .ctl-modal { background: #131d2e !important; }
+.dark .ctl-head { background: #131d2e !important; border-bottom-color: #22344d !important; }
+.dark .ctl-head h3 { color: #f8fafc !important; }
+.dark .ctl-head p { color: #a9b8c9 !important; }
+.dark .ctl-close { background: #1b2a40 !important; color: #f8fafc !important; }
+.dark .ctl-close:hover { background: #24365a !important; }
+.dark .ctl-body { background: #0f1c2e !important; }
+.dark .ctl-group h4 { color: #f8fafc !important; }
+.dark .ctl-check { background: #1b2a40 !important; border-color: #2f4a6b !important; }
+.dark .ctl-note { background: #0f1c2e !important; border-color: #2f4a6b !important; color: #a9b8c9 !important; }
+.dark .ctl-builder { border-color: #22344d !important; }
+.dark .ctl-empty { background: #0f1c2e !important; border-color: #2f4a6b !important; color: #a9b8c9 !important; }
+.dark .ctl-filter-list li { background: #131d2e !important; border-color: #22344d !important; }
+.dark .ctl-filter-text { color: #cbd5e1 !important; }
+.dark .ctl-filter-text strong { color: #f8fafc !important; }
+.dark .ctl-filter-text em { color: #a9b8c9 !important; }
+.dark .ctl-filter-text b { background: rgba(20, 184, 166, .2) !important; color: #5eead4 !important; }
+.dark .ctl-filter-remove { background: #1b2a40 !important; }
+.dark .ctl-filter-remove:hover { background: rgba(239, 68, 68, .22) !important; }
+.dark .ctl-foot { background: #131d2e !important; border-top-color: #22344d !important; }
+.dark .ctl-saved { color: #a9b8c9 !important; }
+
+.dark .cchart-legend li { color: #cbd5e1 !important; }
+.dark .cq-info svg { color: #a9b8c9 !important; }
+.dark .cq-finance-row { color: #e2e8f0 !important; }
+
+/* ===== Night mode: remaining custom surfaces & labels (all pages) ===== */
+.dark .cust-hero {
+  background:
+    radial-gradient(120% 160% at 100% 0%, rgba(20, 184, 166, .18) 0%, rgba(20, 184, 166, 0) 55%),
+    linear-gradient(135deg, #131d2e 0%, #0f1c2e 58%, #1a2130 100%) !important;
+  border-color: #22344d !important;
+}
+.dark .cf-quick,
+.dark .cf-advanced { background: #0f1c2e !important; border-color: #22344d !important; }
+.dark .cchart-head,
+.dark .cchart-legend-val,
+.dark .cchart-donut-center,
+.dark .cq-limit-head { color: #f8fafc !important; }
+.dark .cdebt-foot { color: #a9b8c9 !important; }
+.dark .ord-note.risk,
+.dark .ord-panel-risk,
+.dark .login-msg-risk { color: #fca5a5 !important; }
+.dark .rep-ico-brass { background-color: rgba(201, 154, 67, .2) !important; color: #fbbf24 !important; }
+.dark .tantawy-mobile-nav { background-color: #131d2e !important; color: #e2e8f0 !important; border-top-color: #22344d !important; }
+.dark .tantawy-mobile-nav button[aria-current="page"] { color: #f8fafc !important; }
+
+/* Solid status/CTA buttons: their accent turns light at night, so white text
+   lost contrast. Use a darker accent with white text at night. */
+.dark .app-btn-ok { background: #0f7a5a !important; border-color: #0f7a5a !important; color: #ffffff !important; }
+.dark .app-btn-ok:hover:not(:disabled) { background: #128965 !important; }
+.dark .app-btn-risk { background: #b3261e !important; border-color: #b3261e !important; color: #ffffff !important; }
+.dark .app-btn-risk:hover:not(:disabled) { background: #c9342b !important; }
+.dark .rep-cta,
+.dark .login-btn { background-color: #1d4ed8 !important; border-color: #1d4ed8 !important; color: #ffffff !important; }
+.dark .rep-cta:hover:not(:disabled),
+.dark .login-btn:hover:not(:disabled) { background-color: #2563eb !important; }
