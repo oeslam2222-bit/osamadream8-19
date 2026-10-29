@@ -103,6 +103,15 @@
   --color-text-amber-dark: #a97f2f;
   --color-text-slate-soft9: #a9c4de;
   --color-bg-amber-deep3: #b98e3c;
+  /* Legacy tone aliases (original hex values). These CSS variables were
+     referenced by utility classes but never defined, so those backgrounds
+     fell back to transparent and white text vanished on white surfaces. */
+  --color-bg-teal-dark: #079f96;
+  --color-bg-blue-deep2: #2878bd;
+  --color-bg-blue-deep3: #2563eb;
+  --color-bg-amber-deep: #f19b24;
+  --color-bg-indigo: #4f46e5;
+  --color-bg-indigo-deep: #4338ca;
   --color-border-amber-soft2: #e6d9b8;
   --color-bg-slate-soft7: #e8f0f8;
 }
@@ -1940,3 +1949,48 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
 /* ===== Smooth dark mode transitions ===== */
 * { transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease; }
 button:focus-visible, a:focus-visible, [role="button"]:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--r-sm); }
+
+/* ===== Dashboard KPI tiles (readable in light & dark mode) =====
+   The dashboard KPI cards previously used bg-teal-dark / bg-blue-deep2 /
+   bg-amber-deep / bg-indigo, whose CSS variables were never defined, so the
+   background resolved to transparent and the white text disappeared on the
+   white page. These tiles carry their own colours (every stop keeps a white
+   text contrast ratio of at least 4.5:1) and are tuned for dark mode too. */
+.kpi-tile {
+  position: relative;
+  overflow: hidden;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, .18);
+  box-shadow: 0 6px 18px rgba(15, 43, 56, .16);
+}
+.kpi-tile::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 12% 0%, rgba(255, 255, 255, .24), transparent 60%);
+  pointer-events: none;
+}
+.kpi-tile > * {
+  position: relative;
+  z-index: 1;
+}
+.kpi-tile__label { color: rgba(255, 255, 255, .95); }
+.kpi-tile__value { color: #fff; text-shadow: 0 1px 2px rgba(6, 24, 22, .28); }
+.kpi-tile__caption { color: rgba(255, 255, 255, .95); }
+.kpi-tile--teal { background: linear-gradient(135deg, #0b7f76 0%, #096b63 100%); }
+.kpi-tile--blue { background: linear-gradient(135deg, #1e5f9d 0%, #17497a 100%); }
+.kpi-tile--amber { background: linear-gradient(135deg, #b45309 0%, #92400e 100%); }
+.kpi-tile--indigo { background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%); }
+.kpi-tile--clickable { transition: transform .18s ease, filter .18s ease, border-color .18s ease; }
+.kpi-tile--clickable:hover { filter: brightness(1.08); border-color: rgba(255, 255, 255, .32); }
+.kpi-tile--clickable:focus-visible { box-shadow: 0 0 0 3px rgba(255, 255, 255, .55); }
+
+/* Dark mode: lift the tiles off the dark canvas while keeping white text legible. */
+.dark .kpi-tile {
+  border-color: rgba(255, 255, 255, .24);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .5);
+}
+.dark .kpi-tile--teal { background: linear-gradient(135deg, #0c8078 0%, #08635b 100%); }
+.dark .kpi-tile--blue { background: linear-gradient(135deg, #1f639f 0%, #15426e 100%); }
+.dark .kpi-tile--amber { background: linear-gradient(135deg, #b4560a 0%, #8a3d0b 100%); }
+.dark .kpi-tile--indigo { background: linear-gradient(135deg, #4f46e5 0%, #3c33b4 100%); }

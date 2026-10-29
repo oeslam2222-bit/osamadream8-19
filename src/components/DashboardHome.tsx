@@ -524,15 +524,15 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <button
             type="button"
             onClick={() => onNavigateToTab('all_customers')}
-            className="bg-teal-main hover:bg-teal-dark-hover text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
+            className="kpi-tile kpi-tile--teal kpi-tile--clickable text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right active:scale-95 cursor-pointer"
           >
             <div className="flex items-center justify-between w-full mb-2">
-              <span className="text-xs font-bold text-white/90">العملاء</span>
+              <span className="kpi-tile__label text-xs font-bold">العملاء</span>
               <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
                 <Users className="w-4 h-4 text-white" />
               </div>
             </div>
-            <div className="text-2xl font-black tabular-nums tracking-tight">
+            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {scopedCustomers.length}
             </div>
           </button>
@@ -541,15 +541,15 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <button
             type="button"
             onClick={() => onNavigateToTab('visits')}
-            className="bg-blue-main hover:bg-blue-deep3 text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
+            className="kpi-tile kpi-tile--blue kpi-tile--clickable text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right active:scale-95 cursor-pointer"
           >
             <div className="flex items-center justify-between w-full mb-2">
-              <span className="text-xs font-bold text-white/90">الزيارات</span>
+              <span className="kpi-tile__label text-xs font-bold">الزيارات</span>
               <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
                 <CalendarCheck className="w-4 h-4 text-white" />
               </div>
             </div>
-            <div className="text-2xl font-black tabular-nums tracking-tight">
+            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {scopedVisits.length}
             </div>
           </button>
@@ -558,15 +558,15 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
-            className="bg-warn-main hover:bg-warn-dark text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
+            className="kpi-tile kpi-tile--amber kpi-tile--clickable text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right active:scale-95 cursor-pointer"
           >
             <div className="flex items-center justify-between w-full mb-2">
-              <span className="text-xs font-bold text-white/90">الفواتير</span>
+              <span className="kpi-tile__label text-xs font-bold">الفواتير</span>
               <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
                 <Receipt className="w-4 h-4 text-white" />
               </div>
             </div>
-            <div className="text-2xl font-black tabular-nums tracking-tight">
+            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {visibleInvoices.length}
             </div>
           </button>
@@ -575,15 +575,15 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
-            className="bg-indigo hover:bg-indigo-deep text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right transition cursor-pointer active:scale-95"
+            className="kpi-tile kpi-tile--indigo kpi-tile--clickable text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right active:scale-95 cursor-pointer"
           >
             <div className="flex items-center justify-between w-full mb-2">
-              <span className="text-xs font-bold text-white/90">التحصيلات</span>
+              <span className="kpi-tile__label text-xs font-bold">التحصيلات</span>
               <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
                 <Wallet className="w-4 h-4 text-white" />
               </div>
             </div>
-            <div className="text-2xl font-black tabular-nums tracking-tight">
+            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {money(stats.collections)}
             </div>
           </button>
@@ -704,36 +704,36 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
         {/* 4 Metric Cards in a Row matching Desktop Reference Mockup */}
         <div className="grid grid-cols-3 gap-4">
           {/* Card 1: إجمالي المبيعات */}
-          <div className="bg-teal-dark rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
+          <div className="kpi-tile kpi-tile--teal rounded-2xl p-4 shadow-xs flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white/90">إجمالي المبيعات</span>
+              <span className="kpi-tile__label text-xs font-bold">إجمالي المبيعات</span>
             </div>
-            <div className="text-2xl font-black text-white tabular-nums">
+            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {money(stats.sales)}
             </div>
-            <div className="text-[10px] text-white/75 font-medium">حسب بيانات العملاء</div>
+            <div className="kpi-tile__caption text-[10px] font-semibold">حسب بيانات العملاء</div>
           </div>
 
           {/* Card 2: إجمالي التحصيلات */}
-          <div className="bg-blue-deep2 rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
+          <div className="kpi-tile kpi-tile--blue rounded-2xl p-4 shadow-xs flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white/90">إجمالي التحصيلات</span>
+              <span className="kpi-tile__label text-xs font-bold">إجمالي التحصيلات</span>
             </div>
-            <div className="text-2xl font-black text-white tabular-nums">
+            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {money(stats.collections)}
             </div>
-            <div className="text-[10px] text-white/75 font-medium">حسب بيانات العملاء</div>
+            <div className="kpi-tile__caption text-[10px] font-semibold">حسب بيانات العملاء</div>
           </div>
 
           {/* Card 3: العملاء */}
-          <div className="bg-amber-deep rounded-2xl p-4 border border-white/15 shadow-xs flex flex-col justify-between space-y-2 text-white">
+          <div className="kpi-tile kpi-tile--amber rounded-2xl p-4 shadow-xs flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-white/90">العملاء</span>
+              <span className="kpi-tile__label text-xs font-bold">العملاء</span>
             </div>
-            <div className="text-2xl font-black text-white tabular-nums">
+            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {scopedCustomers.length}
             </div>
-            <div className="text-[10px] text-white/75 font-medium">من إجمالي قاعدة العملاء</div>
+            <div className="kpi-tile__caption text-[10px] font-semibold">من إجمالي قاعدة العملاء</div>
           </div>
         </div>
 
