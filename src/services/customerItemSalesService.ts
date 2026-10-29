@@ -1067,6 +1067,27 @@ export async function getSupabaseCustomerItemSalesCount(): Promise<number> {
 }
 
 /**
+ * Produces a deterministic, compliant RFC 4122 v4-formatted UUID string from any natural key.
+ * Guarantees zero failures whether the Supabase column `id` is typed as UUID or as TEXT/VARCHAR.
+ */
+export function toValidUUID(key: string): string {
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(key)) {
+    return key.toLowerCase();
+  }
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57, h3 = 0x67452301, h4 = 0xefcdab89;
+  for (let i = 0; i < key.length; i++) {
+    const ch = key.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+    h3 = Math.imul(h3 ^ ch, 3812015801);
+    h4 = Math.imul(h4 ^ ch, 2718281829);
+  }
+  const toHex8 = (n: number) => (n >>> 0).toString(16).padStart(8, '0');
+  const h = `${toHex8(h1)}${toHex8(h2)}${toHex8(h3)}${toHex8(h4)}`;
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-a${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
+/**
  * Push Customer Item Sales records to Supabase table `customer_item_sales` in robust batches of 250 rows
  */
 export async function pushCustomerItemSalesToSupabase(
@@ -1105,13 +1126,15 @@ export async function pushCustomerItemSalesToSupabase(
     for (let i = 0; i < sales.length; i += batchSize) {
       const slice = sales.slice(i, i + batchSize);
       const batch = slice.map((s, idx) => {
-        // ID ثابت determinada بناءً على البيانات الطبيعية
-        // عشان ما يحصلش تكرار عند كل مزامنة، upsert होताحدث السجل اللي موجود
+        // ID ثابت دقيق ومتوافق مع UUID و TEXT في PostgreSQL لمنع أخطاء النوع
         const naturalKey = `${String(s.customerAccount || 'UNK')}|${String(s.itemCode || 'UNK')}|${String(s.month || '0')}|${String(s.salesOrder || '0')}`;
-        const deterministicId = `cis-${naturalKey.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        const deterministicUuid = toValidUUID(naturalKey);
+        const finalId = s.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.id)
+          ? s.id.toLowerCase()
+          : deterministicUuid;
 
         return {
-          id: s.id || deterministicId,
+          id: finalId,
           customer_account: String(s.customerAccount || 'CUST-UNKNOWN').trim(),
           invoicing_name: String(s.invoicingName || s.customerAccount || 'عميل غير محدد').trim(),
           sales_order: s.salesOrder ? String(s.salesOrder).trim() : null,
@@ -1369,7 +1392,7 @@ export function getCustomerItemSalesSQLSchema(): string {
 
 -- 1. إنشاء جدول مبيعات العملاء بالصنف
 CREATE TABLE IF NOT EXISTS public.customer_item_sales (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     customer_account VARCHAR(100) NOT NULL,            -- كود العميل (Customer account)
     invoicing_name VARCHAR(255) NOT NULL,              -- اسم العميل في الفاتورة (Invoicing name)
     sales_order VARCHAR(100),                          -- رقم أمر البيع / الفاتورة (Sales order)
@@ -1392,6 +1415,17 @@ CREATE TABLE IF NOT EXISTS public.customer_item_sales (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- في حال كان الجدول موجوداً مسبقاً بعمود id نوعه UUID، يتم تحويله لـ TEXT بسلاسة
+DO $$ 
+BEGIN 
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_name = 'customer_item_sales' AND column_name = 'id' AND data_type = 'uuid'
+  ) THEN 
+    ALTER TABLE public.customer_item_sales ALTER COLUMN id TYPE TEXT;
+  END IF;
+END $$;
 
 -- 2. إنشاء الفهارس لتسريع البحث والاستعلام اللحظي (Indexes)
 CREATE INDEX IF NOT EXISTS idx_customer_item_sales_cust_account ON public.customer_item_sales(customer_account);

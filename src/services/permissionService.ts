@@ -15,12 +15,12 @@ export interface PermissionDefaults {
 
 // Default tab sets per role (mirrors ROLE_ALLOWED_TABS in App.tsx)
 export const DEFAULT_ROLE_TABS: PermissionDefaults = {
-  developer: ['home', 'legal_advisor', 'catalog', 'all_customers', 'customers', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'excel', 'users', 'guide'],
-  admin: ['home', 'legal_advisor', 'catalog', 'all_customers', 'customers', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'excel', 'users', 'guide'],
-  branch_manager: ['home', 'catalog', 'all_customers', 'customers', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'users', 'guide'],
-  supervisor: ['home', 'catalog', 'all_customers', 'customers', 'targets', 'visits', 'returns_customers', 'invoices', 'inventory', 'users'],
-  sales_rep: ['home', 'catalog', 'all_customers', 'customers', 'targets', 'visits', 'returns_customers', 'invoices', 'inventory'],
-  legal_advisor: ['legal_advisor', 'home'],
+  developer: ['home', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'excel', 'users', 'guide', 'permissions'],
+  admin: ['home', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'excel', 'users', 'guide', 'permissions'],
+  branch_manager: ['home', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'users', 'guide'],
+  supervisor: ['home', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'users'],
+  sales_rep: ['home', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory'],
+  legal_advisor: ['home'],
   warehouse_keeper: ['home', 'returns', 'inventory', 'catalog', 'guide'],
 };
 
@@ -29,17 +29,18 @@ export const ALL_AVAILABLE_TABS: { id: string; label: string; icon?: string }[] 
   { id: 'home', label: 'الرئيسية' },
   { id: 'catalog', label: 'كتالوج المنتجات' },
   { id: 'all_customers', label: 'العملاء' },
-  { id: 'customers', label: 'العملاء (بديل)' },
+  { id: 'customer_item_sales', label: 'مبيعات الأصناف' },
+  { id: 'dashboard', label: 'المتابعة والاعتماد' },
   { id: 'targets', label: 'الأهداف والأداء' },
-  { id: 'visits', label: 'الزيارات' },
+  { id: 'visits', label: 'الزيارات الميدانية' },
   { id: 'returns', label: 'مرتجعات المخزن' },
-  { id: 'returns_customers', label: 'مرتجعات العملاء' },
+  { id: 'returns_customers', label: 'عملاء المرتجعات' },
   { id: 'invoices', label: 'الفواتير' },
   { id: 'inventory', label: 'المخزون' },
-  { id: 'excel', label: 'الاستيراد/التصدير' },
+  { id: 'excel', label: 'الإكسل والمزامنة' },
   { id: 'users', label: 'إدارة المستخدمين' },
   { id: 'guide', label: 'دليل النظام' },
-  { id: 'legal_advisor', label: 'الشؤون القانونية' },
+  { id: 'permissions', label: 'الصلاحيات' },
 ];
 
 export async function getCustomPermissions(): Promise<UserPermissionOverride[]> {

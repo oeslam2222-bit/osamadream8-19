@@ -249,7 +249,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     if (window.confirm('هل أنت متأكد من رغبتك في مسح كافة سجلات مبيعات الأصناف نهائياً؟')) {
       clearCustomerItemSales();
       setSalesRecords([]);
-      setSyncSuccessMsg('تم مسح وتصفير كافة سجلات مبيعات الأصناف بنجاح. يتم تحديث البيانات من صفحة الإكسل.');
+      setSyncSuccessMsg('تم مسح وتصفير كافة سجلات مبيعات الأصناف بنجاح.');
       setSyncErrorMsg(null);
     }
   };
@@ -666,17 +666,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 </span>
               </button>
             )}
-
-            <button
-              type="button"
-              onClick={handleFetchFromSupabase}
-              disabled={isSupabaseFetching}
-              title="جلب وتحديث الحركات من جدول customer_item_sales في Supabase"
-              className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition cursor-pointer disabled:opacity-50"
-            >
-              <CloudDownload className={`w-3.5 h-3.5 text-sky-600 ${isSupabaseFetching ? 'animate-bounce' : ''}`} />
-              <span>{isSupabaseFetching ? 'جاري الجلب...' : 'جلب من Supabase'}</span>
-            </button>
 
             {salesRecords.length > 0 && (
               <button
@@ -1176,21 +1165,10 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                     كل المبالغ والكميات في الداتا الحالية = صفر
                   </div>
                   <p className="text-[10px] text-amber-800 font-bold leading-relaxed mt-0.5">
-                    الصفوف موجودة لكن أعمدة Amount/Quantity وصلت فاضية. أعد رفع شيت المبيعات من صفحة
-                    الإكسل (أصبح بيقرأ الأرقام العربية والفواصل بشكل صحيح)، ثم اضغط «مزامنة Supabase»
-                    لتنظيف الصفوف الصفرية ورفع القيم الحقيقية.
+                    الصفوف الحالية تحتوي على كميات ومبالغ غير مسجلة. يتم تحديث البيانات ومزامنتها فور توفر أرقام البيع الفعلية.
                   </p>
                 </div>
               </div>
-              {onNavigateToExcel && (
-                <button
-                  type="button"
-                  onClick={onNavigateToExcel}
-                  className="shrink-0 h-8 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-black transition cursor-pointer"
-                >
-                  فتح صفحة الإكسل
-                </button>
-              )}
             </div>
           )}
 

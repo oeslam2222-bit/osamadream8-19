@@ -28,9 +28,11 @@ import {
   Pencil,
   PlusCircle,
   ExternalLink,
-  RefreshCw,
   Sparkles,
-  Building2
+  Building2,
+  Boxes,
+  Truck,
+  RefreshCw
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -249,13 +251,61 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     'ملغاة': { bg: 'app-badge risk' },
   };
 
-  const handleApproveClick = (invoiceId: string) => {
-    const res = approveOrder(invoiceId, 'تم اعتماد الطلبية وصرف الرصيد من المخزن');
+  // المرحلة 1: اعتماد المشرف -> تحويل إلى "معلقة بانتظار اعتماد الفرع"
+  const handleSupervisorApprove = (invoiceId: string) => {
+    const res = updateOrderStatus(invoiceId, 'معلقة بانتظار اعتماد الفرع', `اعتماد المشرف (${currentUser?.name || 'المشرف'}) - تم توجيه الطلبية للاعتماد الثاني لمدير الفرع.`);
     if (res.success) {
-      setSuccessToast(res.message);
+      setSuccessToast(`تم اعتماد المشرف (1/3) بنجاح وتوجيه الطلبية لمدير الفرع.`);
       setTimeout(() => setSuccessToast(null), 4000);
     } else {
       alert(res.message);
+    }
+  };
+
+  // المرحلة 2: اعتماد مدير الفرع -> تحويل إلى "في انتظار اعتماد الإدارة"
+  const handleBranchManagerApprove = (invoiceId: string) => {
+    const res = updateOrderStatus(invoiceId, 'في انتظار اعتماد الإدارة', `اعتماد مدير الفرع (${currentUser?.name || 'مدير الفرع'}) - تم توجيه الطلبية للاعتماد النهائي للإدارة.`);
+    if (res.success) {
+      setSuccessToast(`تم اعتماد مدير الفرع (2/3) بنجاح وتوجيه الطلبية للإدارة العامة.`);
+      setTimeout(() => setSuccessToast(null), 4000);
+    } else {
+      alert(res.message);
+    }
+  };
+
+  // المرحلة 3: الاعتماد النهائي للإدارة -> "معتمدة ومصروفة من المخزن"
+  const handleAdminFinalApprove = (invoiceId: string) => {
+    const res = approveOrder(invoiceId, `الاعتماد النهائي للإدارة العامة (${currentUser?.name || 'الإدارة'}) وصرف المخزون.`);
+    if (res.success) {
+      setSuccessToast(`تم الاعتماد النهائي للإدارة (3/3) بنجاح واكتمال الفاتورة رسمياً!`);
+      setTimeout(() => setSuccessToast(null), 4000);
+    } else {
+      alert(res.message);
+    }
+  };
+
+  // تجاوز قرار الرفض السابق واعتماد الفاتورة نهائياً بقرار الإدارة
+  const handleAdminOverrideApprove = (invoice: Invoice) => {
+    if (window.confirm(`هل أنت متأكد من تجاوز قرار الرفض السابق واعتماد الفاتورة #${invoice.invoiceNumber} نهائياً بقرار الإدارة العامة؟`)) {
+      const res = approveOrder(invoice.id, `تم تجاوز قرار الرفض السابق واعتماد الفاتورة نهائياً بواسطة الإدارة العامة (${currentUser?.name || 'الإدارة'}).`);
+      if (res.success) {
+        setSuccessToast(`تم بنجاح تجاوز الرفض واعتماد الفاتورة #${invoice.invoiceNumber} نهائياً واكتمال أمر البيع!`);
+        setTimeout(() => setSuccessToast(null), 5000);
+      } else {
+        alert(res.message);
+      }
+    }
+  };
+
+  const handleApproveClick = (invoiceId: string) => {
+    const inv = invoices.find((i) => i.id === invoiceId);
+    if (!inv) return;
+    if (inv.status === 'قيد مراجعة المشرف') {
+      handleSupervisorApprove(invoiceId);
+    } else if (inv.status === 'معلقة بانتظار اعتماد الفرع') {
+      handleBranchManagerApprove(invoiceId);
+    } else {
+      handleAdminFinalApprove(invoiceId);
     }
   };
 
@@ -266,11 +316,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   };
 
   const handleForwardClick = (invoiceId: string) => {
-    const res = forwardOrderToManager(invoiceId, 'تم إرسال الطلبية لمدير الفرع للموافقة النهائية');
-    if (res.success) {
-      setSuccessToast(res.message);
-      setTimeout(() => setSuccessToast(null), 4000);
-    }
+    handleSupervisorApprove(invoiceId);
   };
 
   const handleRejectConfirm = () => {
@@ -925,33 +971,21 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             </button>
                           )}
 
-                          {/* Fast Approval Action for Supervisor/Manager */}
-                          {canApprove && (
+                          {/* 1. المرحلة الأولى: قيد مراجعة المشرف */}
+                          {invoice.status === 'قيد مراجعة المشرف' && (currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
                             <>
                               <button
-                                onClick={() => handleApproveClick(invoice.id)}
-                                className="app-btn app-btn-ok px-2 text-xs"
-                                title="اعتماد وصرف المخزون"
+                                onClick={() => handleSupervisorApprove(invoice.id)}
+                                className="app-btn app-btn-ok px-2.5 py-1 text-xs font-black shadow-xs"
+                                title="اعتماد المشرف وتوجيه الطلبية لمدير الفرع للاعتماد الثاني"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
-                                <span>اعتماد</span>
+                                <span>اعتماد المشرف (1/3) ✓</span>
                               </button>
-
-                              {currentUser?.role === 'supervisor' && invoice.status === 'قيد مراجعة المشرف' && (
-                                <button
-                                  onClick={() => handleForwardClick(invoice.id)}
-                                  className="app-btn app-btn-ghost px-2 text-xs"
-                                  title="إرسال لمدير الفرع"
-                                >
-                                  <Send className="w-3.5 h-3.5" />
-                                  <span>للمدير</span>
-                                </button>
-                              )}
-
                               <button
                                 onClick={() => setRejectModalInvoiceId(invoice.id)}
-                                className="app-btn app-btn-risk-soft px-2 text-xs"
-                                title="رفض وإرجاع الرصيد المحجوز"
+                                className="app-btn app-btn-risk-soft px-2 py-1 text-xs font-bold"
+                                title="رفض الطلبية وإرجاع الرصيد المحجوز"
                               >
                                 <XCircle className="w-3.5 h-3.5" />
                                 <span>رفض</span>
@@ -959,8 +993,64 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             </>
                           )}
 
-                          {/* Rep cancel pending order button */}
-                          {!canApprove && canRepCancel && (
+                          {/* 2. المرحلة الثانية: معلقة بانتظار اعتماد الفرع */}
+                          {invoice.status === 'معلقة بانتظار اعتماد الفرع' && (currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+                            <>
+                              <button
+                                onClick={() => handleBranchManagerApprove(invoice.id)}
+                                className="app-btn app-btn-ok px-2.5 py-1 text-xs font-black shadow-xs bg-sky-600 hover:bg-sky-500 text-white"
+                                title="اعتماد مدير الفرع وتوجيه الطلبية للإدارة العامة للاعتماد النهائي"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>اعتماد مدير الفرع (2/3) ✓</span>
+                              </button>
+                              <button
+                                onClick={() => setRejectModalInvoiceId(invoice.id)}
+                                className="app-btn app-btn-risk-soft px-2 py-1 text-xs font-bold"
+                                title="رفض الطلبية وإرجاع الرصيد المحجوز"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span>رفض</span>
+                              </button>
+                            </>
+                          )}
+
+                          {/* 3. المرحلة الثالثة: في انتظار اعتماد الإدارة */}
+                          {invoice.status === 'في انتظار اعتماد الإدارة' && (currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+                            <>
+                              <button
+                                onClick={() => handleAdminFinalApprove(invoice.id)}
+                                className="app-btn px-3 py-1 text-xs font-black shadow-md bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center gap-1.5 active:scale-95"
+                                title="الاعتماد النهائي للطلبية بقرار الإدارة العامة وصرف المخزون"
+                              >
+                                <ShieldCheck className="w-4 h-4 text-slate-950" />
+                                <span>الاعتماد النهائي للإدارة (3/3) 👑</span>
+                              </button>
+                              <button
+                                onClick={() => setRejectModalInvoiceId(invoice.id)}
+                                className="app-btn app-btn-risk-soft px-2 py-1 text-xs font-bold"
+                                title="رفض الطلبية وإرجاع الرصيد المحجوز"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span>رفض</span>
+                              </button>
+                            </>
+                          )}
+
+                          {/* ميزة استثنائية: تجاوز قرار الرفض واعتماد الفاتورة نهائياً للإدارة */}
+                          {(invoice.status === 'مرفوضة / ملغاة' || invoice.status === 'ملغاة') && (currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+                            <button
+                              onClick={() => handleAdminOverrideApprove(invoice)}
+                              className="app-btn px-3 py-1.5 text-xs font-black shadow-lg bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center gap-1.5 active:scale-95 border border-amber-600/40 animate-pulse"
+                              title="تجاوز قرار الرفض السابق واعتماد الفاتورة نهائياً بقرار الإدارة العامة"
+                            >
+                              <ShieldCheck className="w-4 h-4 text-slate-950" />
+                              <span>تجاوز الرفض واعتماد الإدارة 👑</span>
+                            </button>
+                          )}
+
+                          {/* إلغاء الطلبية للمندوب صاحب الفاتورة قبل اعتمادها */}
+                          {isPending && isOwnerRep && (
                             <button
                               onClick={() => setRejectModalInvoiceId(invoice.id)}
                               className="app-btn app-btn-risk-soft px-2 text-xs"
@@ -971,18 +1061,96 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             </button>
                           )}
 
-                          {/* If not pending, but active: Supervisor / Manager / Admin can cancel anytime */}
-                          {!canApprove && !canRepCancel && canCancelAnytime && (
+                          {/* إلغاء من الإدارة أو المشرف أو المدير في أي وقت */}
+                          {!isPending && !['مرتجع', 'مرتجع جزئي', 'مرفوضة / ملغاة', 'ملغاة'].includes(invoice.status) && (currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'branch_manager') && (
                             <button
                               onClick={() => setRejectModalInvoiceId(invoice.id)}
                               className="app-btn app-btn-risk-soft px-2 text-xs"
-                              title="إلغاء الطلبية في أي وقت وإرجاع المخزون"
+                              title="إلغاء الطلبية وإرجاع المخزون"
                             >
                               <XCircle className="w-3.5 h-3.5 text-[var(--app-risk)]" />
                               <span>إلغاء</span>
                             </button>
                           )}
-                          {/* Return Button for Manager/Supervisor/Admin on approved or completed orders */}
+
+                          {/* دورة التجهيز، الصرف، والتوصيل بعد الاعتماد النهائي */}
+                          {['معتمدة', 'معتمدة ومصروفة من المخزن'].includes(invoice.status) && canMakeReturn && (
+                            <button
+                              onClick={() => {
+                                const res = updateOrderStatus(invoice.id, 'جاري تحضير المنتجات', 'بدء تجهيز وصرف منتجات الطلبية من المخزن');
+                                if (res.success) {
+                                  setSuccessToast('تم بدء تحضير وصرف منتجات الطلبية بالمخزن بنجاح.');
+                                  setTimeout(() => setSuccessToast(null), 4000);
+                                } else {
+                                  alert(res.message);
+                                }
+                              }}
+                              className="app-btn app-btn-info px-2.5 py-1 text-xs font-black shadow-2xs"
+                              title="تأكيد بدء تحضير وتجهيز منتجات الطلبية بالمخزن"
+                            >
+                              <Boxes className="w-3.5 h-3.5" />
+                              <span>تحضير المنتجات 📦</span>
+                            </button>
+                          )}
+
+                          {invoice.status === 'جاري تحضير المنتجات' && canMakeReturn && (
+                            <button
+                              onClick={() => {
+                                const res = updateOrderStatus(invoice.id, 'قيد التوصيل', 'تم خروج سيارة التوصيل مع المندوب للتسليم للعميل');
+                                if (res.success) {
+                                  setSuccessToast('تم تأكيد خروج الشحنة مع المندوب للتوصيل للعميل.');
+                                  setTimeout(() => setSuccessToast(null), 4000);
+                                } else {
+                                  alert(res.message);
+                                }
+                              }}
+                              className="app-btn app-btn-info px-2.5 py-1 text-xs font-black shadow-2xs bg-sky-600 hover:bg-sky-500 text-white"
+                              title="تأكيد خروج المنتجات للتوصيل مع المندوب"
+                            >
+                              <Truck className="w-3.5 h-3.5" />
+                              <span>خروج للتوصيل 🚚</span>
+                            </button>
+                          )}
+
+                          {invoice.status === 'قيد التوصيل' && canMakeReturn && (
+                            <button
+                              onClick={() => {
+                                const res = updateOrderStatus(invoice.id, 'تم التسليم', 'تم تسليم المنتجات للعميل بنجاح');
+                                if (res.success) {
+                                  setSuccessToast('تم تسجيل تسليم المنتجات للعميل بنجاح.');
+                                  setTimeout(() => setSuccessToast(null), 4000);
+                                } else {
+                                  alert(res.message);
+                                }
+                              }}
+                              className="app-btn app-btn-ok px-2.5 py-1 text-xs font-black shadow-2xs"
+                              title="تأكيد تسليم المنتجات للعميل بنجاح"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>تم التسليم للعميل ✓</span>
+                            </button>
+                          )}
+
+                          {invoice.status === 'تم التسليم' && canMakeReturn && (
+                            <button
+                              onClick={() => {
+                                const res = updateOrderStatus(invoice.id, 'إغلاق الطلبية', 'تم إغلاق دورة الطلبية بالكامل بعد اكتمال التسليم');
+                                if (res.success) {
+                                  setSuccessToast('تم إغلاق الفاتورة والطلبية نهائياً.');
+                                  setTimeout(() => setSuccessToast(null), 4000);
+                                } else {
+                                  alert(res.message);
+                                }
+                              }}
+                              className="app-btn app-btn-secondary px-2.5 py-1 text-xs font-bold"
+                              title="إغلاق الطلبية نهائياً بعد التسليم"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>إغلاق الطلبية 🔒</span>
+                            </button>
+                          )}
+
+                          {/* زر تسجيل مرتجع على الفواتير المعتمدة */}
                           {canMakeReturn && (
                             <button
                               onClick={() => {
@@ -994,61 +1162,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             >
                               <RotateCcw className="w-3.5 h-3.5 text-warn-deep" />
                               <span>مرتجع</span>
-                            </button>
-                          )}
-                          {/* Order Preparation & Delivery Workflow Buttons */}
-                          {invoice.status === 'معتمدة' && canMakeReturn && (
-                            <button
-                              onClick={() => {
-                                const res = updateOrderStatus(invoice.id, 'جاري تحضير المنتجات', 'تم بدء تحضير منتجات الطلبية للتسليم');
-                                if (res.success) {
-                                  setSuccessToast(res.message);
-                                  setTimeout(() => setSuccessToast(null), 4000);
-                                } else {
-                                  alert(res.message);
-                                }
-                              }}
-                              className="app-btn app-btn-info px-2 text-xs"
-                              title="تأكيد بدء تحضير منتجات الطلبية للتسليم"
-                            >
-                              <Boxes className="w-3.5 h-3.5" />
-                              <span>جارٍ التحضير</span>
-                            </button>
-                          )}
-                          {invoice.status === 'جاري تحضير المنتجات' && canMakeReturn && (
-                            <button
-                              onClick={() => {
-                                const res = updateOrderStatus(invoice.id, 'تم التسليم', 'تم تسليم المنتجات للعميل');
-                                if (res.success) {
-                                  setSuccessToast(res.message);
-                                  setTimeout(() => setSuccessToast(null), 4000);
-                                } else {
-                                  alert(res.message);
-                                }
-                              }}
-                              className="app-btn app-btn-ok px-2 text-xs"
-                              title="تأكيد تسليم المنتجات للعميل وإغلاق الطلبية"
-                            >
-                              <Truck className="w-3.5 h-3.5" />
-                              <span>تم التسليم</span>
-                            </button>
-                          )}
-                          {invoice.status === 'تم التسليم' && canMakeReturn && (
-                            <button
-                              onClick={() => {
-                                const res = updateOrderStatus(invoice.id, 'إغلاق الطلبية', 'تم إغلاق الطلبية بعد التسليم للعميل');
-                                if (res.success) {
-                                  setSuccessToast(res.message);
-                                  setTimeout(() => setSuccessToast(null), 4000);
-                                } else {
-                                  alert(res.message);
-                                }
-                              }}
-                              className="app-btn app-btn-secondary px-2 text-xs"
-                              title="إغلاق الطلبية نهائياً بعد التسليم"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>إغلاق الطلبية</span>
                             </button>
                           )}
 

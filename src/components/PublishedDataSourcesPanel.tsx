@@ -12,7 +12,7 @@ import {
 
 type SourceKey = keyof PublishedDataSources;
 
-const sourceMeta: Record<SourceKey, { icon: React.ReactNode; title: string; description: string; help: string }> = {
+const sourceMeta: Partial<Record<SourceKey, { icon: React.ReactNode; title: string; description: string; help: string }>> = {
   customers: {
     icon: <Users className="w-5 h-5" />,
     title: 'شيت العملاء (Google Sheets)',
@@ -54,7 +54,7 @@ export const PublishedDataSourcesPanel: React.FC = () => {
   const isAuthorized = currentUser.role === 'admin' || currentUser.role === 'branch_manager' || currentUser.role === 'developer';
 
   const activeSource = sources[activeKey];
-  const activeMeta = sourceMeta[activeKey];
+  const activeMeta = sourceMeta[activeKey] || sourceMeta.customers || { icon: null, title: activeKey, description: '', help: '' };
   const connectedCount = useMemo(() => Object.values(sources).filter(isValidPublishedSource).length, [sources]);
 
   if (!isAuthorized) {

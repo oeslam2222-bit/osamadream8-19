@@ -1,4 +1,4 @@
-﻿import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { AlertTriangle, CalendarCheck, CheckCircle2, Clock3, Plus, Save, Users, X, Search, Image as ImageIcon, Upload, Trash2, Mail, Truck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
@@ -41,7 +41,7 @@ export const VisitsDashboard: React.FC = () => {
     repId: currentUser?.role === 'sales_rep' ? currentUser.id : '',
     date: todayStr,
     time: '09:00',
-    type: 'تحصيل' as const,
+    type: 'تحصيل' as string,
     collectedAmount: 0,
     notes: '',
     returnValue: 0,
@@ -301,8 +301,6 @@ export const VisitsDashboard: React.FC = () => {
     };
   }, [filtered]);
 
-  if (!isOpen) return null;
-
   return (
     <div className="tantawy-screen space-y-5" dir="rtl">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -436,7 +434,7 @@ export const VisitsDashboard: React.FC = () => {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="p-6 text-center text-slate-500 text-sm">
+                  <td colSpan={6} className="p-6 text-center text-slate-500 text-sm">
                     لا توجد زيارات
                   </td>
                 </tr>
@@ -468,7 +466,7 @@ export const VisitsDashboard: React.FC = () => {
 
               <label className="block">
                 <span className="text-[11px] text-slate-500 font-bold">نوع الزيارة</span>
-                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as const })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
+                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
                   {SIMPLE_VISIT_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
                 </select>
               </label>
@@ -593,7 +591,8 @@ export const VisitsDashboard: React.FC = () => {
                           input.accept = 'image/*';
                           input.multiple = true;
                           input.onchange = (e) => {
-                            const files = e.target.files;
+                            const target = e.target as HTMLInputElement;
+                            const files = target?.files;
                             if (files) {
                               const urls = Array.from(files).map((f) => URL.createObjectURL(f));
                               addReturnImages(urls);
@@ -619,7 +618,7 @@ export const VisitsDashboard: React.FC = () => {
 
               <label className="block">
                 <span className="text-[11px] text-slate-500 font-bold">ملاحظات</span>
-                <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows="2" className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" placeholder="ملاحظات إضافية عن الزيارة..."></textarea>
+                <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" placeholder="ملاحظات إضافية عن الزيارة..."></textarea>
               </label>
 
               {formErrors.length > 0 && (

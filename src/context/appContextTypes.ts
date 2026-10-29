@@ -47,6 +47,8 @@ export interface AppContextType {
   flushPendingInvoices: () => Promise<{ success: boolean; syncedCount: number }>;
   selectedBranchFilter: string;
   setSelectedBranchFilter: (branch: string) => void;
+  activeSectorFilter: 'all' | 'home' | 'electrical';
+  setActiveSectorFilter: (sector: 'all' | 'home' | 'electrical') => void;
   refreshInvoicesNow: (force?: boolean) => Promise<{ success: boolean; count: number; message: string }>;
   
   // Supabase Sync

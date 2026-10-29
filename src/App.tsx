@@ -21,6 +21,7 @@ import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
 import { AllCustomersAnalyticsView } from './components/AllCustomersAnalyticsView';
+import { CustomerItemSalesView } from './components/CustomerItemSalesView';
 import { SupervisorDashboard } from './components/SupervisorDashboard';
 import { InvoicesManager } from './components/InvoicesManager';
 import { InventoryStockView } from './components/InventoryStockView';
@@ -47,30 +48,34 @@ import { Customer, Invoice, UserRole } from './types';
 
 export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
-    'home', 'catalog', 'all_customers', 'customers',
+    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
+    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   admin: [
-    'home', 'catalog', 'all_customers', 'customers',
+    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
+    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   branch_manager: [
-    'home', 'catalog', 'all_customers', 'customers',
+    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
+    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'users', 'guide'
   ],
   supervisor: [
-    'home', 'catalog', 'all_customers', 'customers',
+    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
+    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'users'
   ],
   sales_rep: [
-    'home', 'catalog', 'all_customers', 'customers',
-    'targets', 'visits', 'returns_customers', 'invoices',
+    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
+    'targets', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory'
   ],
   warehouse_keeper: [
     'home', 'returns', 'inventory', 'catalog', 'guide'
   ],
-  legal_advisor: [], // صفحة الشؤون القانونية معطلة
+  legal_advisor: ['home'],
 };
 
 // Lightweight Skeleton for tab transitions
@@ -107,21 +112,26 @@ const MainLayout: React.FC = () => {
 
   const allowedTabs = useMemo(() => {
     if (!currentUser) return ['home'];
+    if (currentUser.role === 'admin' || currentUser.role === 'developer') {
+      return ROLE_ALLOWED_TABS.developer;
+    }
+    const baseTabs = ROLE_ALLOWED_TABS[currentUser.role] || ROLE_ALLOWED_TABS.sales_rep || ['home'];
     const override = customPermissionOverrides.find((o) => o.userId === currentUser.id);
-    if (override) return override.allowedTabs;
-    return ROLE_ALLOWED_TABS[currentUser.role] || ['home'];
+    if (override && Array.isArray(override.allowedTabs) && override.allowedTabs.length > 0) {
+      // Merge role base tabs with custom override tabs so system screens are never inadvertently blocked
+      return Array.from(new Set([...baseTabs, ...override.allowedTabs]));
+    }
+    return baseTabs;
   }, [currentUser, customPermissionOverrides]);
 
   // Land on authorized tab and strictly guard unauthorized tabs
   useEffect(() => {
     if (currentUser) {
-      const override = customPermissionOverrides.find((o) => o.userId === currentUser.id);
-      const allowed = override ? override.allowedTabs : (ROLE_ALLOWED_TABS[currentUser.role] || ['home']);
-      if (!allowed.includes(activeTab)) {
+      if (!allowedTabs.includes(activeTab)) {
         setActiveTab('home');
       }
     }
-  }, [currentUser?.id, currentUser?.role, activeTab, customPermissionOverrides]);
+  }, [currentUser?.id, currentUser?.role, activeTab, allowedTabs]);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     try {
@@ -213,6 +223,18 @@ const MainLayout: React.FC = () => {
             />
           )}
 
+          {activeTab === 'customer_item_sales' && (allowedTabs.includes('customer_item_sales') || allowedTabs.includes('catalog')) && (
+            <CustomerItemSalesView />
+          )}
+
+          {activeTab === 'dashboard' && allowedTabs.includes('dashboard') && (
+            <SupervisorDashboard
+              onOpenNewOrder={() => setIsOrderModalOpen(true)}
+              onViewInvoice={(inv) => setViewingInvoice(inv)}
+              onNavigateToTab={(tab) => setActiveTab(tab)}
+            />
+          )}
+
           {activeTab === 'targets' && allowedTabs.includes('targets') && <TargetPerformanceDashboard />}
 
           {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
@@ -230,7 +252,7 @@ const MainLayout: React.FC = () => {
           {activeTab === 'inventory' && allowedTabs.includes('inventory') && <InventoryStockView />}
 
           {activeTab === 'excel' && allowedTabs.includes('excel') && (
-            <ExcelImportExport />
+            <ExcelImportExport onNavigateToItemSales={() => setActiveTab('customer_item_sales')} />
           )}
 
           {activeTab === 'users' && allowedTabs.includes('users') && <UserManager />}

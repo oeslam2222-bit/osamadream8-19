@@ -958,6 +958,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('الكل');
 
+  const [activeSectorFilter, setActiveSectorFilterState] = useState<'all' | 'home' | 'electrical'>(() => {
+    try {
+      const saved = localStorage.getItem('tantawy_active_sector_filter');
+      if (saved === 'home' || saved === 'electrical' || saved === 'all') return saved;
+    } catch {}
+    return 'all';
+  });
+
+  const setActiveSectorFilter = (sector: 'all' | 'home' | 'electrical') => {
+    setActiveSectorFilterState(sector);
+    try {
+      localStorage.setItem('tantawy_active_sector_filter', sector);
+    } catch {}
+  };
+
   const {
     installPromptEvent,
     canInstallPwa,
@@ -4713,7 +4728,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         userName: currentUser?.name || 'المشرف',
         userRole: currentUser?.role || 'supervisor',
         branchName: inv.branchName,
-        action: 'approve_invoice_stage1',
+        action: 'approve_invoice',
         actionTitle: `اعتماد مشرف/مدير الفرع وإحالة للإدارة #${inv.invoiceNumber}`,
         details: `العميل: ${inv.customerName} • المندوب: ${inv.repName} • تم اعتماد الطلبية من قبل ${currentUser?.name} وتم إحالتها لاعتماد الإدارة النهائي • القيمة: ${inv.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م ${notes ? `• ملاحظة: ${notes}` : ''}`,
         invoiceId: inv.id,
@@ -4779,7 +4794,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           productId: item.productId,
           productCode: item.productCode,
           productName: item.productName,
-          type: 'اعتماد وإدارة المخزون',
+          type: 'صرف واعتماد مشرف',
           quantityPieces: item.cartonCount,
           branchStockBefore: currentActual,
           branchStockAfter: Math.max(0, currentActual - item.cartonCount),
@@ -4809,7 +4824,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         userName: currentUser?.name || 'الإدارة',
         userRole: currentUser?.role || 'admin',
         branchName: inv.branchName,
-        action: 'approve_invoice_final',
+        action: 'approve_invoice',
         actionTitle: `الاعتماد النهائي وصرف الفاتورة #${inv.invoiceNumber}`,
         details: `العميل: ${inv.customerName} • المندوب: ${inv.repName} • تم الاعتماد النهائي من الإدارة وخصم المخزون الفعلي من ${inv.branchName} (${inv.totalCartons} كرتونة) • القيمة: ${inv.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م ${notes ? `• ملاحظة: ${notes}` : ''}`,
         invoiceId: inv.id,
@@ -6589,10 +6604,16 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     return { total: list.length, completed, scheduled: list.filter((v) => v.status === 'مجدولة').length, lastVisit: list.filter((v) => v.status === 'منفذة').sort((a, b) => b.date.localeCompare(a.date))[0]?.date, nextVisit: list.filter((v) => v.status === 'مجدولة' && v.date >= new Date().toISOString().slice(0, 10)).sort((a, b) => a.date.localeCompare(b.date))[0]?.date };
   };
 
-  // helper: عزل البيانات حسب القطاع (منزلي / كهربائي / الكل)
+  // helper: عزل وتصفية البيانات حسب القطاع (منزلي / كهربائي / الكل)
   const filterBySector = <T extends { sector?: 'home' | 'electrical' | 'both' | 'all' }>(items: T[], userSector?: string): T[] => {
-    if (!userSector || userSector === 'all' || userSector === 'both') return items;
-    return items.filter((item) => !item.sector || item.sector === userSector || item.sector === 'both' || item.sector === 'all');
+    // If admin/developer or account has multi-sector privileges, allow switching via activeSectorFilter
+    const isMultiSector = !currentUser || currentUser.role === 'admin' || currentUser.role === 'developer' || userSector === 'both' || userSector === 'all';
+    const effectiveSector = isMultiSector
+      ? (activeSectorFilter === 'all' ? undefined : activeSectorFilter)
+      : (userSector || 'home');
+
+    if (!effectiveSector || effectiveSector === 'all' || effectiveSector === 'both') return items;
+    return items.filter((item) => !item.sector || item.sector === effectiveSector || item.sector === 'both' || item.sector === 'all');
   };
 
   const getVisibleCustomers = (): Customer[] => {
@@ -6709,6 +6730,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         flushPendingInvoices,
         selectedBranchFilter,
         setSelectedBranchFilter,
+        activeSectorFilter,
+        setActiveSectorFilter,
         refreshInvoicesNow,
         supabaseStatus,
         isSupabaseSyncing,
