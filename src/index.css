@@ -2209,3 +2209,46 @@ html:not(.dark) .catalog-modern .text-slate-400 { color: #64748b; }
 .dark .bg-slate-soft7 { background-color: #1b2a40 !important; }
 .dark .bg-slate-deep3 { background-color: #131d2e !important; }
 .dark .bg-amber-very-pale { background-color: #251d13 !important; }
+
+/* ===== Order builder (شاشة كاشير الفاتورة): night readability =====
+   In dark mode --app-navy is #0b1d33, so .btn-primary blended into the card
+   and its disabled state (opacity .4) looked like a blurred ghost. The step
+   pills, muted labels and the empty-state box were also low contrast. */
+.dark .btn-primary { background-color: #1d4ed8; color: #ffffff; }
+.dark .btn-primary:hover:not(:disabled) { background-color: #2563eb; box-shadow: 0 6px 16px rgba(37, 99, 235, .35); }
+.dark .btn-primary:disabled { opacity: .6; }
+.dark .btn-primary:disabled { color: #ffffff !important; }
+.dark .app-btn-ghost { background-color: #131f33; border-color: #1e3556; color: #f8fafc; font-weight: 800; }
+.dark .app-btn-ghost:hover:not(:disabled) { background-color: #1b2c43; color: #ffffff; border-color: #2f4a6b; }
+.dark .pill-filter { background-color: #131f33 !important; border-color: #1e3556 !important; color: #f1f5f9 !important; font-weight: 800 !important; }
+.dark .pill-filter.on { background-color: #0284c7; border-color: #0284c7; color: #ffffff; font-weight: 900; }
+.dark .panel-navy { background-color: #0f1c2e; border-color: #1e3556; color: #f8fafc; }
+.dark .ord-shell .t-muted { color: #e2e8f0 !important; font-weight: 800; }
+.dark .app-badge.neutral { color: #f8fafc !important; font-weight: 800; }
+.dark input::placeholder,
+.dark textarea::placeholder { color: #94a3b8 !important; }
+.dark .ord-shell [class*="bg-white/5"],
+.dark .ord-shell [class*="bg-white/6"],
+.dark .ord-shell [class*="bg-white/7"],
+.dark .ord-shell [class*="bg-white/8"],
+.dark .ord-shell [class*="bg-white/9"] { background-color: rgba(15, 28, 46, .72) !important; }
+
+.ord-empty {
+  background: #ffffff;
+  border: 1px dashed #b8c9db;
+  color: #17283d;
+  font-weight: 800;
+}
+.dark .ord-empty {
+  background: #0f1c2e;
+  border-color: #30455e;
+  color: #f8fafc;
+}
+
+.dark .app-link { color: #7dd3fc; }
+.dark .app-link:hover { color: #bae6fd; }
+.dark .app-btn-primary { background: #1d4ed8; border-color: #1d4ed8; color: #ffffff; }
+.dark .app-btn-primary:hover:not(:disabled) { background: #2563eb; }
+.dark .app-pill { background-color: #131f33; border-color: #1e3556; color: #e2e8f0; }
+.dark .app-pill:hover:not(:disabled) { background-color: #1b2c43; color: #ffffff; border-color: #2f4a6b; }
+.dark .app-pill.on { background-color: #0284c7; border-color: #0284c7; color: #ffffff; }
