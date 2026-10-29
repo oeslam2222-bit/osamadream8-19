@@ -551,7 +551,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                   <div className="min-w-0">
                     <span className="text-[10px] text-slate-400 font-bold block">الشباك المحدد حالياً:</span>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                      <span className="text-sm font-black text-slate-950 flex items-center gap-1.5">
+                      <span className="text-sm font-black text-[var(--app-ink)] flex items-center gap-1.5">
                         <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
                         <span>{activeVariant.name.replace(/\(blank\)/gi, '').replace(/blank/gi, '').trim() || `شباك ${activeVariant.windowNumber || 1}`}</span>
                       </span>

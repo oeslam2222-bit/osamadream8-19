@@ -295,7 +295,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                     {formData.logoLetter || 'D'}
                   </div>
                   <div>
-                    <h1 className="text-base sm:text-xl font-black text-slate-950 tracking-tight leading-none">
+                    <h1 className="text-base sm:text-xl font-black text-[var(--app-ink)] tracking-tight leading-none">
                       {formData.nameArabic || formData.name || 'شركة دريم للتجارة والتوزيع'}
                     </h1>
                     <div className="text-[10px] sm:text-xs font-bold text-slate-500 font-sans tracking-wide mt-0.5">
