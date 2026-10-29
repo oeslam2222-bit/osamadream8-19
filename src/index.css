@@ -112,6 +112,38 @@
   --color-bg-amber-deep: #f19b24;
   --color-bg-indigo: #4f46e5;
   --color-bg-indigo-deep: #4338ca;
+  --color-bg-slate-dark: #0f1c2e;
+  --color-bg-slate-deep2: #1b2a40;
+  --color-border-deep: #22344d;
+  /* Remaining tone tokens that utility classes referenced but were missing
+     (recovered from the original hex palette). */
+  --color-bg-navy-deep: #102b4e;
+  --color-bg-navy-deep2: #17395f;
+  --color-bg-navy-dark2: #0f172a;
+  --color-bg-navy-dark3: #0a1c30;
+  --color-bg-blue-deep: #eaf0f6;
+  --color-bg-blue-deep4: #1a3861;
+  --color-bg-blue-deep5: #1a3861;
+  --color-bg-blue-deep6: #2a4a7a;
+  --color-bg-blue-pale: #e8f1fa;
+  --color-bg-blue-soft2: #ebf4fa;
+  --color-bg-blue-very-pale: #f8fbfe;
+  --color-bg-teal-pale: #e6f7f5;
+  --color-bg-teal-soft: #e8f6f0;
+  --color-bg-green-pale: #e8f5ef;
+  --color-bg-green-soft: #e8f3ee;
+  --color-bg-red-pale: #fdf5f5;
+  --color-bg-red-soft2: #fdf1f1;
+  --color-bg-red-deep: #953f3f;
+  --color-bg-amber-pale: #fbf4e6;
+  --color-bg-amber-soft: #fdf8ed;
+  --color-bg-amber-light: #fffdf7;
+  --color-bg-slate-deep: #f1f8f4;
+  --color-placeholder: #94a3b8;
+  --color-border-amber: #e6d9b8;
+  --color-border-amber-soft: #e8dcba;
+  --color-border-teal: #c4ebe6;
+  --color-border-deep3: #22344d;
   --color-border-amber-soft2: #e6d9b8;
   --color-bg-slate-soft7: #e8f0f8;
 }
@@ -2157,3 +2189,23 @@ html:not(.dark) .catalog-modern .text-slate-400 { color: #64748b; }
   border-color: rgba(148, 163, 184, .38) !important;
 }
 .dark .cat-ink { color: #f8fafc; }
+
+/* ===== Night-mode readability sweep ===== */
+/* --app-navy turns #0b1d33 in dark mode, so text painted with it (unified
+   codes, KPI numbers, filter pills) was dark-on-dark = invisible. */
+.dark [class*="text-[var(--app-navy)]"] { color: #f8fafc !important; }
+/* Pale surfaces that had no night equivalent. */
+.dark .bg-green-pale,
+.dark .bg-green-soft { background-color: #14261f !important; }
+.dark .bg-teal-pale,
+.dark .bg-teal-soft { background-color: #10241f !important; }
+.dark .bg-blue-pale,
+.dark .bg-blue-deep,
+.dark .bg-blue-soft2,
+.dark .bg-blue-very-pale { background-color: #131d2e !important; }
+.dark .bg-red-soft2 { background-color: #261418 !important; }
+.dark .bg-amber-pale { background-color: #251d13 !important; }
+.dark .bg-slate-deep { background-color: #131d2e !important; }
+.dark .bg-slate-soft7 { background-color: #1b2a40 !important; }
+.dark .bg-slate-deep3 { background-color: #131d2e !important; }
+.dark .bg-amber-very-pale { background-color: #251d13 !important; }
