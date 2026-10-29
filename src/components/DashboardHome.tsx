@@ -486,7 +486,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6" dir="rtl">
+    <div className="home-dashboard space-y-4 sm:space-y-6" dir="rtl">
       {/* ======================================================== */}
       {/* 1. MOBILE VIEW (واجهة المندوب - الموبايل)                */}
       {/* ======================================================== */}
@@ -528,8 +528,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           >
             <div className="flex items-center justify-between w-full mb-2">
               <span className="kpi-tile__label text-xs font-bold">العملاء</span>
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                <Users className="w-4 h-4 text-white" />
+              <div className="kpi-tile__icon">
+                <Users className="w-4 h-4" />
               </div>
             </div>
             <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
@@ -545,8 +545,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           >
             <div className="flex items-center justify-between w-full mb-2">
               <span className="kpi-tile__label text-xs font-bold">الزيارات</span>
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                <CalendarCheck className="w-4 h-4 text-white" />
+              <div className="kpi-tile__icon">
+                <CalendarCheck className="w-4 h-4" />
               </div>
             </div>
             <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
@@ -562,8 +562,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           >
             <div className="flex items-center justify-between w-full mb-2">
               <span className="kpi-tile__label text-xs font-bold">الفواتير</span>
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                <Receipt className="w-4 h-4 text-white" />
+              <div className="kpi-tile__icon">
+                <Receipt className="w-4 h-4" />
               </div>
             </div>
             <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
@@ -579,8 +579,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           >
             <div className="flex items-center justify-between w-full mb-2">
               <span className="kpi-tile__label text-xs font-bold">التحصيلات</span>
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-                <Wallet className="w-4 h-4 text-white" />
+              <div className="kpi-tile__icon">
+                <Wallet className="w-4 h-4" />
               </div>
             </div>
             <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
@@ -707,6 +707,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <div className="kpi-tile kpi-tile--teal rounded-2xl p-4 shadow-xs flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between">
               <span className="kpi-tile__label text-xs font-bold">إجمالي المبيعات</span>
+              <span className="kpi-tile__icon"><TrendingUp className="w-4 h-4" /></span>
             </div>
             <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {money(stats.sales)}
@@ -718,6 +719,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <div className="kpi-tile kpi-tile--blue rounded-2xl p-4 shadow-xs flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between">
               <span className="kpi-tile__label text-xs font-bold">إجمالي التحصيلات</span>
+              <span className="kpi-tile__icon"><Wallet className="w-4 h-4" /></span>
             </div>
             <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {money(stats.collections)}
@@ -729,6 +731,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <div className="kpi-tile kpi-tile--amber rounded-2xl p-4 shadow-xs flex flex-col justify-between space-y-2">
             <div className="flex items-center justify-between">
               <span className="kpi-tile__label text-xs font-bold">العملاء</span>
+              <span className="kpi-tile__icon"><Users className="w-4 h-4" /></span>
             </div>
             <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
               {scopedCustomers.length}
@@ -842,7 +845,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
             <div className="overflow-x-auto">
               <table className="w-full text-right text-xs">
                 <thead>
-                  <tr className="border-b border-slate-100 text-slate-500 font-semibold">
+                  <tr className="home-table-head border-b border-slate-100 font-black">
                     <th className="pb-2">رقم الفاتورة</th>
                     <th className="pb-2">العميل</th>
                     <th className="pb-2">التاريخ</th>
