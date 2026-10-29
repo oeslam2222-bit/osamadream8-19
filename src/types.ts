@@ -1,4 +1,32 @@
-export type UserRole = 'admin' | 'branch_manager' | 'supervisor' | 'sales_rep' | 'developer' | 'legal_advisor' | 'warehouse_keeper';
+export type UserRole = 'admin' | 'branch_manager' | 'supervisor' | 'sales_rep' | 'developer' | 'legal_advisor' | 'warehouse_keeper' | 'sector_supervisor' | 'sector_manager' | 'top_admin' | 'technical_support';
+
+/**
+ * مستويات الإدارة العليا ضمن كل قطاع (كهرباء / منزلي):
+ * - sector_supervisor: مشرف القطاع (المشرف المباشر للمناديب في القطاع)
+ * - sector_manager: مدير القطاع / مدير الإدارة (المسؤول النهائي في القطاع)
+ */
+export type SectorAdminLevel = 'sector_supervisor' | 'sector_manager';
+
+export const SECTOR_ADMIN_ROLES: UserRole[] = ['sector_supervisor', 'sector_manager'];
+
+export const SECTOR_ADMIN_LEVEL_LABELS: Record<SectorAdminLevel, string> = {
+  sector_supervisor: 'مشرف قطاع',
+  sector_manager: 'مدير قطاع',
+};
+
+export const SECTOR_ADMIN_ROLES_LIST_LABELS: Record<UserRole, string> = {
+  admin: 'الإدارة العامة',
+  branch_manager: 'مدير الفرع',
+  supervisor: 'مشرف المناديب',
+  sales_rep: 'المندوب',
+  developer: 'المطور',
+  legal_advisor: 'الشؤون القانونية',
+  warehouse_keeper: 'أمين المخزن',
+  sector_supervisor: 'مشرف القطاع',
+  sector_manager: 'مدير القطاع',
+  top_admin: 'الإدارة العليا',
+  technical_support: 'الدعم الفني',
+};
 
 export type SectorType = 'home' | 'electrical' | 'both' | 'all';
 

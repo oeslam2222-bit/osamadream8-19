@@ -153,6 +153,10 @@ export const Navbar: React.FC<NavbarProps> = ({
     sales_rep: { label: 'المندوب', bg: 'bg-emerald-500/20 border-emerald-500/40', text: 'text-emerald-300' },
     warehouse_keeper: { label: 'أمين المخزن', bg: 'bg-teal-500/20 border-teal-500/40', text: 'text-teal-300' },
     legal_advisor: { label: 'الشؤون القانونية', bg: 'bg-indigo-500/20 border-indigo-500/40', text: 'text-indigo-300' }, // صفحة معطلة
+    sector_supervisor: { label: 'مشرف القطاع', bg: 'bg-blue-500/20 border-blue-500/40', text: 'text-blue-300' },
+    sector_manager: { label: 'مدير القطاع', bg: 'bg-purple-500/20 border-purple-500/40', text: 'text-purple-300' },
+    top_admin: { label: 'الإدارة العليا', bg: 'bg-amber-500/20 border-amber-500/40', text: 'text-amber-300' },
+    technical_support: { label: 'الدعم الفني', bg: 'bg-teal-500/20 border-teal-500/40', text: 'text-teal-300' },
   };
 
   const pendingApprovalsCount = users.filter((u) => {
@@ -182,13 +186,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isFieldRole = currentUser.role === 'sales_rep' || currentUser.role === 'supervisor';
 
   const navItems = [
-    { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
-    { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
-    { id: 'all_customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'invoices', label: 'الفواتير والاعتمادات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
-    { id: 'returns', label: 'المرتجعات', icon: RotateCcw, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
-    { id: 'inventory', label: 'المخزون', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
-    { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper', 'sector_supervisor', 'sector_manager'] },
+    { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper', 'sector_supervisor', 'sector_manager'] },
+    { id: 'all_customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'sector_supervisor', 'sector_manager'] },
+    { id: 'invoices', label: 'الفواتير والاعتمادات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'sector_supervisor', 'sector_manager'], badge: pendingOrdersCount },
+    { id: 'returns', label: 'المرتجعات', icon: RotateCcw, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper', 'sector_supervisor', 'sector_manager'] },
+    { id: 'inventory', label: 'المخزون', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper', 'sector_supervisor', 'sector_manager'] },
+    { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'sector_supervisor', 'sector_manager'] },
     { id: 'visits', label: 'الزيارات', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'excel', label: 'الإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
     { id: 'guide', label: 'الدليل', icon: BookOpen, roles: isFieldRole ? [] : ['admin', 'branch_manager', 'developer', 'warehouse_keeper'] },

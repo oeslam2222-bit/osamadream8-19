@@ -167,6 +167,46 @@ export const UserManager: React.FC = () => {
       activeRing: 'border-indigo-500 bg-indigo-50/50',
       icon: Scale,
       desc: 'الإدارة القانونية والتحصيل القضائي: كشوفات العملاء المتعثرين، صياغة ومتابعة الإنذارات الرسمية، تسويات وجدولة الديون، وإدارة محفظة الشيكات وإيصالات الأمانة.'
+    },
+    sector_supervisor: {
+      label: 'مشرف القطاع',
+      shortLabel: 'مشرف القطاع',
+      bg: 'tint-brass',
+      border: 'border-[rgba(201,154,67,.35)]',
+      text: 'text-[var(--app-ink-brass)]',
+      activeRing: 'border-[rgba(201,154,67,.6)] bg-[rgba(201,154,67,.12)]',
+      icon: UserCheck,
+      desc: 'مشرف قطاع (كهرباء / منزلي): يراجع طلبيات مناديبه ويعتمدها أولاً ثم يحيلها لمدير القطاع للموافقة النهائية.'
+    },
+    sector_manager: {
+      label: 'مدير القطاع',
+      shortLabel: 'مدير القطاع',
+      bg: 'tint-navy',
+      border: 'border-[rgba(16,43,78,.22)]',
+      text: 'text-[var(--app-navy)]',
+      activeRing: 'border-[var(--app-navy)] bg-[rgba(16,43,78,.06)]',
+      icon: UserCog,
+      desc: 'مدير القطاع / مدير الإدارة: الموافقة النهائية على طلبيات الفواتير بعد اعتماد المشرف/مدير الفرع، وإدارة شؤون القطاع.'
+    },
+    top_admin: {
+      label: 'الإدارة العليا',
+      shortLabel: 'الإدارة العليا',
+      bg: 'tint-navy',
+      border: 'border-[rgba(16,43,78,.22)]',
+      text: 'text-[var(--app-navy)]',
+      activeRing: 'border-[var(--app-navy)] bg-[rgba(16,43,78,.06)]',
+      icon: Shield,
+      desc: 'الإدارة العليا للتقارير: صلاحية عرض وإعداد وإرسال التقارير المالية فقط (بدون صلاحيات تشغيلية).'
+    },
+    technical_support: {
+      label: 'الدعم الفني',
+      shortLabel: 'الدعم الفني',
+      bg: 'tint-navy',
+      border: 'border-[rgba(16,43,78,.22)]',
+      text: 'text-[var(--app-navy)]',
+      activeRing: 'border-[var(--app-navy)] bg-[rgba(16,43,78,.06)]',
+      icon: Wrench,
+      desc: 'الدعم الفني للنظام: صلاحيات صيانة وتطوير وإدارة الربط والتشغيل التقني للمنظومة.'
     }
   };
 

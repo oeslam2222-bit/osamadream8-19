@@ -121,7 +121,10 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
     return () => { isMounted = false; };
   }, [currentUser]);
 
-  const isAuthorizedRole = profileRole === 'admin' || profileRole === 'developer';
+  const isAuthorizedRole = Boolean(
+    profileRole &&
+    ['admin', 'developer', 'sector_supervisor', 'sector_manager', 'top_admin', 'technical_support'].includes(profileRole)
+  );
   const isDeveloperRole = profileRole === 'developer' || currentUser?.role === 'developer';
 
   // Fetch dynamics status, order number, and error from orders table
@@ -259,6 +262,8 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
     (isPending || isRecent || isOwnerRep ||
       currentUser?.role === 'supervisor' ||
       currentUser?.role === 'branch_manager' ||
+      currentUser?.role === 'sector_supervisor' ||
+      currentUser?.role === 'sector_manager' ||
       currentUser?.role === 'admin' ||
       currentUser?.role === 'developer')
   );
@@ -266,6 +271,8 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   const canMakeReturn =
     (currentUser?.role === 'supervisor' ||
      currentUser?.role === 'branch_manager' ||
+     currentUser?.role === 'sector_supervisor' ||
+     currentUser?.role === 'sector_manager' ||
      currentUser?.role === 'admin' ||
      currentUser?.role === 'developer') &&
     (currentInv.status === 'معتمدة ومصروفة من المخزن' ||
@@ -283,10 +290,14 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
       ? isOwnerRep ||
         currentUser?.role === 'supervisor' ||
         currentUser?.role === 'branch_manager' ||
+        currentUser?.role === 'sector_supervisor' ||
+        currentUser?.role === 'sector_manager' ||
         currentUser?.role === 'admin' ||
         currentUser?.role === 'developer'
       : (currentUser?.role === 'supervisor' ||
           currentUser?.role === 'branch_manager' ||
+          currentUser?.role === 'sector_supervisor' ||
+          currentUser?.role === 'sector_manager' ||
           currentUser?.role === 'admin' ||
           currentUser?.role === 'developer') &&
         currentInv.status !== 'تم التسليم' &&

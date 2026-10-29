@@ -1016,7 +1016,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           )}
 
                           {/* 3. المرحلة الثالثة: في انتظار اعتماد الإدارة */}
-                          {invoice.status === 'في انتظار اعتماد الإدارة' && (currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+                          {invoice.status === 'في انتظار اعتماد الإدارة' && (currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'sector_supervisor' || currentUser?.role === 'sector_manager') && (
                             <>
                               <button
                                 onClick={() => handleAdminFinalApprove(invoice.id)}

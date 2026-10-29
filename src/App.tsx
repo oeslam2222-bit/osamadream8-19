@@ -76,6 +76,22 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
     'home', 'returns', 'inventory', 'catalog', 'guide'
   ],
   legal_advisor: ['home'],
+  sector_supervisor: [
+    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
+    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
+    'inventory', 'users'
+  ],
+  sector_manager: [
+    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
+    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
+    'inventory', 'users'
+  ],
+  top_admin: ['dashboard'],
+  technical_support: [
+    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
+    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
+    'inventory', 'excel', 'users', 'guide'
+  ],
 };
 
 // Lightweight Skeleton for tab transitions

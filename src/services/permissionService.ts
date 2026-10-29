@@ -22,6 +22,14 @@ export const DEFAULT_ROLE_TABS: PermissionDefaults = {
   sales_rep: ['home', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory'],
   legal_advisor: ['home'],
   warehouse_keeper: ['home', 'returns', 'inventory', 'catalog', 'guide'],
+  // مشرف القطاع (كهرباء / منزلي): يشوف ويتابع مندبيه والمخزن ضمن القطاع
+  sector_supervisor: ['home', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'users', 'guide'],
+  // مدير القطاع / مدير الإدارة: صلاحيات تشغيلية ومتابعة طلبيات الاعتماد النهائي
+  sector_manager: ['home', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'users', 'guide'],
+  // الإدارة العليا: مخصصة للتقارير فقط
+  top_admin: ['dashboard'],
+  // الدعم الفني: إدارة تشغيلية وثقافية للنظام
+  technical_support: ['home', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'excel', 'users', 'guide'],
 };
 
 // All available tabs with labels

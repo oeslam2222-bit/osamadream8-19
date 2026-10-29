@@ -4694,7 +4694,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   // Supervisor / Branch Manager approves order -> pending admin approval (two-stage approval)
   // Admin / Developer gives final approval -> deduct physical stock and mark as approved
   const approveOrder = (invoiceId: string, notes?: string): { success: boolean; message: string } => {
-    if (!currentUser || !['supervisor', 'branch_manager', 'admin', 'developer'].includes(currentUser.role)) {
+    if (!currentUser || !['supervisor', 'branch_manager', 'sector_supervisor', 'sector_manager', 'admin', 'developer'].includes(currentUser.role)) {
       return { success: false, message: 'المندوب لا يملك صلاحية اعتماد الطلبية أو صرف المخزون.' };
     }
     const inv = invoices.find((i) => i.id === invoiceId);
@@ -4702,6 +4702,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     if (
       currentUser.role !== 'admin' &&
       currentUser.role !== 'developer' &&
+      currentUser.role !== 'sector_supervisor' &&
+      currentUser.role !== 'sector_manager' &&
       (!currentUser.branchName || !inv.branchName || !isBranchMatch(inv.branchName, currentUser.branchName, { allowUnassigned: false }))
     ) {
       return { success: false, message: 'لا يمكنك اعتماد طلبية تابعة لفرع آخر.' };
@@ -4741,11 +4743,18 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
     }
 
-    // STAGE 2: Admin / Developer final approval -> deduct physical stock and mark as 'معتمدة'
-    if (currentUser.role === 'admin' || currentUser.role === 'developer') {
+    // STAGE 2: Sector Supervisor / Sector Manager (or Admin / Developer) final approval -> deduct physical stock and mark as 'معتمدة'
+    if (
+      currentUser.role === 'sector_supervisor' ||
+      currentUser.role === 'sector_manager' ||
+      currentUser.role === 'admin' ||
+      currentUser.role === 'developer'
+    ) {
       if (inv.status !== 'في انتظار اعتماد الإدارة') {
-        return { success: false, message: 'لا يمكن للإدارة اعتماد الطلبية إلا بعد اعتماد المشرف/مدير الفرع أولاً (الرجاء الانتظار حتى يعتمد المشرف أو مدير الفرع الطلب)' };
+        return { success: false, message: 'لا يمكن اعتماد الطلبية نهائياً إلا بعد اعتماد المشرف/مدير الفرع أولاً (الرجاء الانتظار حتى يعتمد المشرف أو مدير الفرع الطلب)' };
       }
+
+      const finalApproverLabel = currentUser.role === 'sector_manager' ? 'مدير القطاع' : currentUser.role === 'sector_supervisor' ? 'مشرف القطاع' : 'الإدارة';
 
       // Deduct physical stock only after admin final approval: branch first, then central warehouse.
       const allocations = new Map<string, { branch: number; main: number }>();
@@ -4810,7 +4819,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const updatedInv: Invoice = {
         ...inv,
         status: 'معتمدة' as OrderStatus,
-        notes: notes ? `${inv.notes ? inv.notes + ' | ' : ''}ملاحظة الاعتماد النهائي من الإدارة: ${notes}` : inv.notes,
+        notes: notes ? `${inv.notes ? inv.notes + ' | ' : ''}ملاحظة الاعتماد النهائي من ${finalApproverLabel}: ${notes}` : inv.notes,
       };
 
       setInvoices((prev) =>
@@ -4826,7 +4835,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         branchName: inv.branchName,
         action: 'approve_invoice',
         actionTitle: `الاعتماد النهائي وصرف الفاتورة #${inv.invoiceNumber}`,
-        details: `العميل: ${inv.customerName} • المندوب: ${inv.repName} • تم الاعتماد النهائي من الإدارة وخصم المخزون الفعلي من ${inv.branchName} (${inv.totalCartons} كرتونة) • القيمة: ${inv.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م ${notes ? `• ملاحظة: ${notes}` : ''}`,
+        details: `العميل: ${inv.customerName} • المندوب: ${inv.repName} • تم الاعتماد النهائي من ${finalApproverLabel} وخصم المخزون الفعلي من ${inv.branchName} (${inv.totalCartons} كرتونة) • القيمة: ${inv.estimatedGrandTotal.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج.م ${notes ? `• ملاحظة: ${notes}` : ''}`,
         invoiceId: inv.id,
         invoiceNumber: inv.invoiceNumber,
         badgeType: 'success',
@@ -4834,7 +4843,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       return {
         success: true,
-        message: `تم الاعتماد النهائي للطلبية #${inv.invoiceNumber} من الإدارة وخصم المخزون الفعلي (${inv.totalCartons} كرتونة) من الفرع بنجاح!`,
+        message: `تم الاعتماد النهائي للطلبية #${inv.invoiceNumber} من ${finalApproverLabel} وخصم المخزون الفعلي (${inv.totalCartons} كرتونة) من الفرع بنجاح!`,
       };
     }
 
@@ -4842,7 +4851,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const resendInvoiceEmail = async (invoiceId: string): Promise<{ success: boolean; message: string }> => {
-    if (!currentUser || !['supervisor', 'branch_manager', 'admin', 'developer'].includes(currentUser.role)) {
+    if (!currentUser || !['supervisor', 'branch_manager', 'sector_supervisor', 'sector_manager', 'admin', 'developer'].includes(currentUser.role)) {
       return { success: false, message: 'إعادة إرسال الفاتورة متاحة للإدارة والمشرفين فقط.' };
     }
 
@@ -4921,13 +4930,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     if (currentUser.role === 'sales_rep' && (!isOwnerRep || !isPending)) {
       return { success: false, message: 'يمكن للمندوب إلغاء طلبه المعلّق فقط.' };
     }
-    if (!['sales_rep', 'supervisor', 'branch_manager', 'admin', 'developer'].includes(currentUser.role)) {
+    if (!['sales_rep', 'supervisor', 'branch_manager', 'sector_supervisor', 'sector_manager', 'admin', 'developer'].includes(currentUser.role)) {
       return { success: false, message: 'لا تملك صلاحية رفض الطلبية.' };
     }
     if (
       currentUser.role !== 'sales_rep' &&
       currentUser.role !== 'admin' &&
       currentUser.role !== 'developer' &&
+      currentUser.role !== 'sector_supervisor' &&
+      currentUser.role !== 'sector_manager' &&
       (!currentUser.branchName || !inv.branchName || !isBranchMatch(inv.branchName, currentUser.branchName, { allowUnassigned: false }))
     ) {
       return { success: false, message: 'لا يمكنك رفض طلبية تابعة لفرع آخر.' };
@@ -5159,6 +5170,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       currentUser &&
       currentUser.role !== 'admin' &&
       currentUser.role !== 'developer' &&
+      currentUser.role !== 'sector_supervisor' &&
+      currentUser.role !== 'sector_manager' &&
       (!currentUser.branchName || !inv.branchName || !isBranchMatch(inv.branchName, currentUser.branchName, { allowUnassigned: false }))
     ) {
       return { success: false, message: 'لا يمكنك تحديث طلبية تابعة لفرع آخر.' };

@@ -15,6 +15,18 @@ export function normalizeUserRole(rawRole: any, isAdminFlag?: boolean): UserRole
   if (isAdminFlag) return 'admin';
   if (!rawRole) return 'sales_rep';
   const r = String(rawRole).toLowerCase().trim();
+  // New hierarchical administration roles must be resolved before the generic
+  // substring checks below (e.g. 'sector_manager' contains 'manager').
+  if (r === 'sector_supervisor' || r.includes('sector_supervisor') || r.includes('sector supervisor') || r.includes('sector-sup')) {
+    return 'sector_supervisor';
+  }
+  if (r === 'sector_manager' || r.includes('sector_manager') || r.includes('sector manager') || r.includes('sector_admin') || r.includes('sector admin')) {
+    return 'sector_manager';
+  }
+  if (r === 'top_admin') return 'top_admin';
+  if (r === 'technical_support' || r.includes('technical_support') || r.includes('technical support') || r.includes('tech_support')) {
+    return 'technical_support';
+  }
   if (r === 'developer' || r.includes('dev')) return 'developer';
   if (r === 'admin' || r.includes('super_admin') || r.includes('superadmin')) return 'admin';
   if (r === 'branch_manager' || r.includes('manager') || r.includes('branch')) return 'branch_manager';
