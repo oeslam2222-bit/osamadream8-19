@@ -1704,7 +1704,7 @@ export function exportInvoiceForERP(invoice: Invoice): void {
 /**
  * Convert 2D array of rows to Customer list
  */
-export function parseRawRowsToCustomers(rawRows: any[]): {
+export function parseRawRowsToCustomers(rawRows: any[], sector?: 'home' | 'electrical' | 'both' | 'all'): {
   customers: Customer[];
   errors: string[];
   totalRows: number;
@@ -2716,6 +2716,8 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       activeCollectionMonths: activeCollectionMonthsList.length > 0 ? activeCollectionMonthsList : undefined,
 
       createdAt: new Date().toISOString(),
+      // Sector يُورّث من القطاع النشط للمستخدم عند الاستيراد من الشيت
+      ...(sector ? { sector } : {}),
     };
 
     parsedCustomersList.push(newCustomer);

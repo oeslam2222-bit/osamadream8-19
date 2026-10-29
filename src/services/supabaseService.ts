@@ -350,6 +350,8 @@ export async function fetchCustomersFromSupabase(
           lastCollectionAmount: c.last_collection_amount !== undefined && c.last_collection_amount !== null
             ? Number(c.last_collection_amount)
             : (c.lastCollectionAmount !== undefined ? Number(c.lastCollectionAmount) : undefined),
+          // Sector (كهرباء / منزلي / كلاهما / الكل) — يُستعاد من السيرفر عند المزامنة
+          sector: c.sector || c.secteur || undefined,
         };
       });
       return { success: true, customers: mapped, scoped: scopedUsed };
@@ -490,6 +492,8 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
         region: c.region || c.district || c.route || null,
         last_collection_date: c.lastCollectionDate || null,
         last_collection_amount: Number(c.lastCollectionAmount || 0),
+        // Sector (كهرباء / منزلي / كلاهما / الكل) — ضروري لعزل بيانات القطاعات عند المزامنة
+        sector: c.sector || null,
         updated_at: new Date().toISOString(),
       };
     });
@@ -1861,6 +1865,8 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
         price: piecePrice,
         stock: p.branchStockActual || 0,
         image_url: p.imageUrl || null,
+        // Sector (كهرباء / منزلي / كلاهما / الكل) — لعزل بيانات القطاعات
+        sector: p.sector || null,
       };
     });
 
@@ -1939,7 +1945,8 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
               : typeof raw === 'string'
               ? JSON.parse(raw)
               : [];
-            allItems.push(...list);
+            // استعادة sector لكل منتج من المخزن الموحد
+            allItems.push(...list.map((p: Product) => ({ ...p, sector: p.sector || undefined })));
           }
         });
         if (allItems.length > 0) {
@@ -1963,7 +1970,7 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
         ? JSON.parse(rawItems)
         : [];
       if (itemsList.length > 0) {
-        return { success: true, products: itemsList };
+        return { success: true, products: itemsList.map((p: Product) => ({ ...p, sector: p.sector || undefined })) };
       }
     }
 
@@ -2033,6 +2040,8 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
           imageUrl: p.image_url || undefined,
           cloudinaryPublicId: p.cloudinary_public_id || undefined,
           barcode: p.barcode || undefined,
+          // Sector (كهرباء / منزلي / كلاهما / الكل) — يُستعاد من السيرفر عند المزامنة
+          sector: p.sector || undefined,
         };
       });
       return { success: true, products: mapped };

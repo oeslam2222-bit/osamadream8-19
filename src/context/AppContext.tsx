@@ -3023,7 +3023,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     newCustomers: Customer[],
     mode: 'merge' | 'replace' | 'upsert' = 'replace'
   ): Promise<{ success: boolean; count: number; removed: number; message: string }> => {
-    const sanitizedIncoming = sanitizeCustomers(newCustomers);
+    // وراثة قطاع المستخدم الحالي للعملاء المستوردين من الشيت لمنع خلط بيانات القطاعات
+    const userSector = currentUser?.sector;
+    const customersWithSector = userSector && userSector !== 'all' && userSector !== 'both'
+      ? newCustomers.map((c) => ({ ...c, sector: c.sector || userSector }))
+      : newCustomers;
+
+    const sanitizedIncoming = sanitizeCustomers(customersWithSector);
     const linked = linkCustomersToUsers(sanitizedIncoming, users);
     const incomingDeduped = deduplicateCustomersArray(linked);
 
@@ -4066,9 +4072,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const importProductsList = (newProducts: Product[], mode: 'merge' | 'replace' = 'replace') => {
-    // فلترة الوارد حسب قطاع المستخدم الحالي لمنع خلط بيانات المنزلي مع الكهرباء
+    // وراثة قطاع المستخدم الحالي للمنتجات المستوردة من الشيت لمنع خلط بيانات القطاعات
     const userSector = currentUser?.sector;
-    const sectorFilteredIncoming = newProducts.filter((p) => {
+    const productsWithSector = userSector && userSector !== 'all' && userSector !== 'both'
+      ? newProducts.map((p) => ({ ...p, sector: p.sector || userSector }))
+      : newProducts;
+
+    // فلترة الوارد حسب قطاع المستخدم الحالي لمنع خلط بيانات المنزلي مع الكهرباء
+    const sectorFilteredIncoming = productsWithSector.filter((p) => {
       if (!userSector || userSector === 'all' || userSector === 'both') return true;
       return !p.sector || p.sector === userSector || p.sector === 'both' || p.sector === 'all';
     });
