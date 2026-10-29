@@ -532,10 +532,16 @@ main .shadow-sm, main .shadow-xs {
 }
 main table thead { background-color: #173b63 !important; color: #edf5fc !important; }
 main tbody tr:hover { background-color: #f1f6fb; }
+.dark main tbody tr:hover { background-color: #1b2942; }
 main .text-amber-600, main .text-amber-700 { color: #9b7027 !important; }
 main .bg-amber-500, main .bg-amber-400 { background-color: #d0a34e !important; }
 main .border-amber-400, main .border-amber-500 { border-color: #d0a34e !important; }
 main .text-slate-900 { color: #17283d !important; }
+/* Dark mode must win over the light-mode !important rule above, otherwise
+   headings, table titles and the user name stay dark navy on the dark
+   cards (invisible at night). */
+.dark main .text-slate-900 { color: #f8fafc !important; }
+.dark main .text-amber-600, .dark main .text-amber-700 { color: #fde047 !important; }
 main .bg-slate-50 { background-color: #f4f7fa !important; }
 main .border-slate-200 { border-color: var(--app-line) !important; }
 
@@ -1860,7 +1866,7 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
 .dark .text-slate-700 { color: #e2e8f0; }
 .dark .text-slate-600 { color: #cbd5e1; }
 .dark .text-slate-500 { color: #94a3b8; }
-.dark .text-slate-400 { color: #64748b; }
+.dark .text-slate-400 { color: #9db0c6; }
 
 /* Dark mode: Borders */
 .dark .border-slate-200 { border-color: #22344d !important; }

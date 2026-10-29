@@ -502,7 +502,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
             </div>
             <div>
               <div className="font-black text-slate-900 text-sm">{currentUser?.name || 'مستخدم'}</div>
-              <div className="text-[11px] text-slate-500 font-semibold">
+              <div className="text-[11px] text-slate-600 font-semibold">
                 {currentUser?.role === 'sales_rep' ? 'مندوب المبيعات' : currentUser?.role === 'supervisor' ? 'مشرف المبيعات' : 'إدارة المبيعات'}
               </div>
             </div>
@@ -620,7 +620,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
                     </div>
                     <div className="truncate min-w-0">
                       <div className="font-bold text-slate-900 text-xs truncate">{cust.name}</div>
-                      <div className="text-[10px] text-slate-500 flex items-center gap-1 mt-0.5">
+                      <div className="text-[10px] text-slate-600 flex items-center gap-1 mt-0.5">
                         <MapPin className="w-2.5 h-2.5 text-slate-400 shrink-0" />
                         <span className="truncate">{cust.address || cust.region || cust.branchName || 'لم يحدد العنوان'}</span>
                       </div>
@@ -650,7 +650,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
                   </div>
                 </div>
               );
-            }) : <p className="py-5 text-center text-xs text-slate-400">لا يوجد عملاء في النطاق الحالي</p>}
+            }) : <p className="py-5 text-center text-xs text-slate-500">لا يوجد عملاء في النطاق الحالي</p>}
           </div>
         </div>
       </div>
@@ -693,7 +693,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
               </div>
               <div className="text-right">
                 <div className="text-xs font-black text-slate-900">{currentUser?.name || 'أحمد محمد'}</div>
-                <div className="text-[10px] text-slate-500 font-semibold">
+                <div className="text-[10px] text-slate-600 font-semibold">
                   {currentUser?.role === 'admin' ? 'مدير النظام' : currentUser?.role === 'branch_manager' ? 'مدير الفرع' : 'مشرف'}
                 </div>
               </div>
@@ -744,14 +744,14 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="font-black text-slate-900 text-sm">المبيعات والتحصيلات</h3>
-                <p className="text-[11px] text-slate-400">مقارنة حركة المبيعات مقابل التحصيل الفعلي</p>
+                <p className="text-[11px] text-slate-500">مقارنة حركة المبيعات مقابل التحصيل الفعلي</p>
               </div>
               <div className="flex items-center gap-3 text-xs font-bold">
-                <span className="flex items-center gap-1.5 text-slate-600">
+                <span className="flex items-center gap-1.5 text-slate-700">
                   <span className="w-2.5 h-2.5 rounded-full bg-teal-main" />
                   <span>المبيعات</span>
                 </span>
-                <span className="flex items-center gap-1.5 text-slate-600">
+                <span className="flex items-center gap-1.5 text-slate-700">
                   <span className="w-2.5 h-2.5 rounded-full bg-blue-main" />
                   <span>التحصيلات</span>
                 </span>
@@ -784,7 +784,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
           <div className="col-span-4 bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
             <div>
               <h3 className="font-black text-slate-900 text-sm">توزيع العملاء</h3>
-              <p className="text-[11px] text-slate-400">تصنيف التعامل للعملاء المسجلين</p>
+              <p className="text-[11px] text-slate-500">تصنيف التعامل للعملاء المسجلين</p>
             </div>
 
             <div className="relative w-full h-40 flex items-center justify-center" dir="ltr">
@@ -806,7 +806,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <span className="text-xl font-black text-slate-900">{scopedCustomers.length}</span>
-                <span className="text-[10px] text-slate-400 font-bold">عميل</span>
+                <span className="text-[10px] text-slate-500 font-bold">عميل</span>
               </div>
             </div>
 
@@ -842,7 +842,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
             <div className="overflow-x-auto">
               <table className="w-full text-right text-xs">
                 <thead>
-                  <tr className="border-b border-slate-100 text-slate-400 font-semibold">
+                  <tr className="border-b border-slate-100 text-slate-500 font-semibold">
                     <th className="pb-2">رقم الفاتورة</th>
                     <th className="pb-2">العميل</th>
                     <th className="pb-2">التاريخ</th>
@@ -867,7 +867,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
                     </tr>
                   )) : (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-xs text-slate-400">لا توجد فواتير مسجلة</td>
+                      <td colSpan={5} className="py-8 text-center text-xs text-slate-500">لا توجد فواتير مسجلة</td>
                     </tr>
                   )}
                 </tbody>
@@ -910,7 +910,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab })
                   </div>
                 </div>
                 );
-              }) : <p className="py-5 text-center text-xs text-slate-400">لا توجد زيارات قادمة</p>}
+              }) : <p className="py-5 text-center text-xs text-slate-500">لا توجد زيارات قادمة</p>}
             </div>
 
             <button
