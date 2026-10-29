@@ -26,7 +26,7 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   product,
   cloudinaryConfig,
   className = 'w-full h-full object-contain',
-  containerClassName = 'relative w-full h-full bg-gradient-to-br from-slate-50 via-slate-100/70 to-amber-50/20 overflow-hidden flex items-center justify-center',
+  containerClassName = 'relative w-full h-full product-img-box overflow-hidden flex items-center justify-center',
   showBadgeOnFallback = true,
   targetSize,
   sizeVariant = 'card',
