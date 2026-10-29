@@ -2455,3 +2455,35 @@ html:not(.dark) .catalog-modern .text-slate-400 { color: #64748b; }
 .dark .cchart-legend li { color: #cbd5e1 !important; }
 .dark .cq-info svg { color: #a9b8c9 !important; }
 .dark .cq-finance-row { color: #e2e8f0 !important; }
+
+/* ===== Night mode: remaining custom surfaces & labels (all pages) ===== */
+.dark .cust-hero {
+  background:
+    radial-gradient(120% 160% at 100% 0%, rgba(20, 184, 166, .18) 0%, rgba(20, 184, 166, 0) 55%),
+    linear-gradient(135deg, #131d2e 0%, #0f1c2e 58%, #1a2130 100%) !important;
+  border-color: #22344d !important;
+}
+.dark .cf-quick,
+.dark .cf-advanced { background: #0f1c2e !important; border-color: #22344d !important; }
+.dark .cchart-head,
+.dark .cchart-legend-val,
+.dark .cchart-donut-center,
+.dark .cq-limit-head { color: #f8fafc !important; }
+.dark .cdebt-foot { color: #a9b8c9 !important; }
+.dark .ord-note.risk,
+.dark .ord-panel-risk,
+.dark .login-msg-risk { color: #fca5a5 !important; }
+.dark .rep-ico-brass { background-color: rgba(201, 154, 67, .2) !important; color: #fbbf24 !important; }
+.dark .tantawy-mobile-nav { background-color: #131d2e !important; color: #e2e8f0 !important; border-top-color: #22344d !important; }
+.dark .tantawy-mobile-nav button[aria-current="page"] { color: #f8fafc !important; }
+
+/* Solid status/CTA buttons: their accent turns light at night, so white text
+   lost contrast. Use a darker accent with white text at night. */
+.dark .app-btn-ok { background: #0f7a5a !important; border-color: #0f7a5a !important; color: #ffffff !important; }
+.dark .app-btn-ok:hover:not(:disabled) { background: #128965 !important; }
+.dark .app-btn-risk { background: #b3261e !important; border-color: #b3261e !important; color: #ffffff !important; }
+.dark .app-btn-risk:hover:not(:disabled) { background: #c9342b !important; }
+.dark .rep-cta,
+.dark .login-btn { background-color: #1d4ed8 !important; border-color: #1d4ed8 !important; color: #ffffff !important; }
+.dark .rep-cta:hover:not(:disabled),
+.dark .login-btn:hover:not(:disabled) { background-color: #2563eb !important; }
