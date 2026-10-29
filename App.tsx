@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import React, { Component, ErrorInfo, Suspense, useEffect, useState } from 'react';
 import { DashboardHome } from './components/DashboardHome';
+import { MainDashboard } from './components/MainDashboard';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
@@ -120,6 +121,10 @@ const MainLayout: React.FC = () => {
               onNavigateToTab={(tab) => setActiveTab(tab)}
               onViewInvoice={(inv) => setViewingInvoice(inv)}
             />
+          )}
+
+          {activeTab === 'main_dashboard' && (
+            <MainDashboard onNavigateToTab={(tab) => setActiveTab(tab)} />
           )}
 
           {activeTab === 'catalog' && (
