@@ -36,6 +36,7 @@ import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
 import { AppProvider, useApp } from './context/AppContext';
 import { AuthProvider } from './context/authContext';
+import { ThemeProvider } from './context/themeContext';
 import { InvoiceProvider } from './context/invoiceContext';
 import { CustomerProvider } from './context/customerContext';
 import { InventoryProvider } from './context/inventoryContext';
@@ -96,7 +97,7 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="tantawy-shell min-h-[100dvh] bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-amber-400 selection:text-slate-950" dir="rtl">
+    <div className="tantawy-shell min-h-[100dvh] flex flex-col text-slate-900 dark:text-slate-100 font-sans antialiased selection:bg-amber-400 selection:text-slate-950 bg-slate-100 dark:bg-slate-900" dir="rtl">
       
       {/* Offline Status Top Bar if offline */}
       {isOffline && (
@@ -312,20 +313,22 @@ class MobileErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBound
 export function App() {
   return (
     <MobileErrorBoundary>
-      <AuthProvider>
-        <InvoiceProvider>
-          <CustomerProvider>
-            <InventoryProvider>
-              <SyncProvider>
-                <AppProvider>
-                  <MainLayout />
-                </AppProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <InvoiceProvider>
+            <CustomerProvider>
+              <InventoryProvider>
+                <SyncProvider>
+                  <AppProvider>
+                    <MainLayout />
+                  </AppProvider>
               </SyncProvider>
             </InventoryProvider>
           </CustomerProvider>
         </InvoiceProvider>
       </AuthProvider>
-    </MobileErrorBoundary>
+    </ThemeProvider>
+  </MobileErrorBoundary>
   );
 }
 

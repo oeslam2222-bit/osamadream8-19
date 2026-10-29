@@ -44,7 +44,8 @@ const statCards = [
     change: '+12%',
     icon: ShoppingCart,
     color: 'text-blue-600 dark:text-blue-400',
-    bg: 'bg-blue-50 dark:bg-blue-900/20',
+    bg: 'bg-blue-50 dark:bg-blue-900/30',
+    iconBg: 'bg-blue-100 dark:bg-blue-900',
   },
   {
     label: 'إجمالي الطلبات',
@@ -52,7 +53,8 @@ const statCards = [
     change: '+8%',
     icon: Wallet,
     color: 'text-emerald-600 dark:text-emerald-400',
-    bg: 'bg-emerald-50 dark:bg-emerald-900/20',
+    bg: 'bg-emerald-50 dark:bg-emerald-900/30',
+    iconBg: 'bg-emerald-100 dark:bg-emerald-900',
   },
   {
     label: 'إجمالي الإيرادات',
@@ -60,7 +62,8 @@ const statCards = [
     change: '+15%',
     icon: BookOpen,
     color: 'text-purple-600 dark:text-purple-400',
-    bg: 'bg-purple-50 dark:bg-purple-900/20',
+    bg: 'bg-purple-50 dark:bg-purple-900/30',
+    iconBg: 'bg-purple-100 dark:bg-purple-900',
   },
   {
     label: 'عدد العملاء المشتركين',
@@ -68,7 +71,8 @@ const statCards = [
     change: '+6%',
     icon: Users,
     color: 'text-orange-600 dark:text-orange-400',
-    bg: 'bg-orange-50 dark:bg-orange-900/20',
+    bg: 'bg-orange-50 dark:bg-orange-900/30',
+    iconBg: 'bg-orange-100 dark:bg-orange-900',
   },
 ];
 
@@ -177,7 +181,7 @@ export const MainDashboard: React.FC<MainDashboardProps> = ({ onNavigateToTab })
                 className={`rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm ${card.bg} flex flex-col`}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/30">
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${card.color} ${card.iconBg}`}>
                     <card.icon className="w-5 h-5" />
                   </div>
                   <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black bg-green-100 dark:bg-green-900 text-green-600 dark:text-green-400">
