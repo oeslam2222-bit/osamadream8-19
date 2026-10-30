@@ -99,6 +99,15 @@ export interface Product {
   sector?: 'home' | 'electrical' | 'both' | 'all';  // القطاع (منزلي / كهربائي)
   imageUrl?: string;                 // رابط الصورة المباشر
   cloudinaryPublicId?: string;       // معرّف Cloudinary
+
+  // اعتماد الصورة (المندوب يرفع -> مدير الفرع/مشرف يعتمد أول -> مدير قسم المبيعات/مدير القطاع يعتمد ثاني)
+  photoStatus?: 'pending' | 'approved' | 'rejected'; // حالة اعتماد الصورة
+  photoUploadedBy?: string;          // اسم المندوب الذي رفع الصورة
+  photoUploadedAt?: string;          // وقت الرفع
+  photoApprovedBy?: string;          // من اعتمد الصورة آخر مرة
+  photoApprovedAt?: string;          // وقت الاعتماد الأخير
+  photoApprovedRole?: string;        // وظيفة من اعتمد (مدير فرع / مشرف / مدير قسم مبيعات / مدير قطاع)
+  photoRejectionReason?: string;     // سبب الرفض إن تم الرفض
   barcode?: string;
   minOrderQuantity?: number;
   notes?: string;
