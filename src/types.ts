@@ -580,6 +580,8 @@ export interface Invoice {
   netAmountAfterReturns?: number;
   lastReturnDate?: string;
   sector?: SectorType;
+  /** تعليق المندوب الأصلي وقت إنشاء الفاتورة - يظهر للمشرف ومدير الفرع ومدير قسم المبيعات أثناء الاعتماد */
+  repComment?: string;
 }
 
 export interface CloudinaryConfig {
