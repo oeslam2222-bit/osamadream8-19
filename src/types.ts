@@ -176,6 +176,7 @@ export interface PromotionOffer {
   startDate?: string;                // تاريخ البداية
   endDate?: string;                  // تاريخ النهاية
   branchName?: string;               // الفرع المشمول أو 'كل الفروع'
+  sector?: SectorType;               // القطاع (منزلي / كهربائي)
   status: 'نشط' | 'منتهي' | 'مجدول';
   notes?: string;                    // تفاصيل وشروط العرض
   createdAt?: string;

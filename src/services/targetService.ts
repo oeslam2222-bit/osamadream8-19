@@ -37,10 +37,10 @@ export const ARABIC_MONTHS = [
 ];
 
 export const QUARTER_LABELS: Record<TargetQuarter, { label: string; months: string; color: string; bg: string }> = {
-  Q1: { label: 'الربع الأول (Q1)', months: 'يناير - فبراير - مارس', color: 'text-blue-600', bg: 'bg-blue-50 border-blue-200' },
-  Q2: { label: 'الربع الثاني (Q2)', months: 'إبريل - مايو - يونيو', color: 'text-emerald-600', bg: 'bg-emerald-50 border-emerald-200' },
-  Q3: { label: 'الربع الثالث (Q3)', months: 'يوليو - أغسطس - سبتمبر', color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200' },
-  Q4: { label: 'الربع الرابع (Q4)', months: 'أكتوبر - نوفمبر - ديسمبر', color: 'text-purple-600', bg: 'bg-purple-50 border-purple-200' },
+  Q1: { label: 'الربع الأول (Q1)', months: 'يناير - فبراير - مارس', color: 'text-[var(--app-navy-text)]', bg: 'bg-[var(--app-navy-tint)] border-[var(--app-navy-line)]' },
+  Q2: { label: 'الربع الثاني (Q2)', months: 'إبريل - مايو - يونيو', color: 'text-[var(--app-ok-text)]', bg: 'bg-[var(--app-ok-tint)] border-[var(--app-ok-line)]' },
+  Q3: { label: 'الربع الثالث (Q3)', months: 'يوليو - أغسطس - سبتمبر', color: 'text-[var(--app-warn-text)]', bg: 'bg-[var(--app-warn-tint)] border-[var(--app-warn-line)]' },
+  Q4: { label: 'الربع الرابع (Q4)', months: 'أكتوبر - نوفمبر - ديسمبر', color: 'text-[var(--app-navy-text)]', bg: 'bg-[var(--app-navy-tint)] border-[var(--app-navy-line)]' },
 };
 
 /**
@@ -412,6 +412,29 @@ export function parseTargetRawRows(rawRows: any[][]): TargetRecord[] {
  * - branch_manager: strictly see only records of his branch.
  * - admin / developer: full visibility across all branches and reps.
  */
+/**
+ * استنتاج قطاع هدف المندوب (منزلي / كهربائي) بدون أي تعديل على قاعدة البيانات:
+ * 1) إذا كان السجل يحمل sector صريحاً يُستخدم.
+ * 2) يُبحث اسم الفرع (كلمة "كهربا" / "منزل").
+ * 3) ثم قطاع المندوب نفسه من قائمة المستخدمين.
+ */
+export function inferTargetSector(
+  record: TargetRecord,
+  allUsers: User[] = []
+): 'home' | 'electrical' | undefined {
+  if (record.sector === 'home' || record.sector === 'electrical') return record.sector;
+  const branch = normalizeArabicText(record.branch || '');
+  if (branch.includes('كهربا') || branch.includes('كهرب')) return 'electrical';
+  if (branch.includes('منزل') || branch.includes('منزلي')) return 'home';
+  if (record.repName && allUsers.length) {
+    const owner = allUsers.find(
+      (u) => u?.name && isArabicNameMatch(u.name, record.repName as string)
+    );
+    if (owner?.sector === 'home' || owner?.sector === 'electrical') return owner.sector;
+  }
+  return undefined;
+}
+
 export function filterTargetsForUser(
   records: TargetRecord[],
   currentUser: User | null,

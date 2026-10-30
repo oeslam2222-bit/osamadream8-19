@@ -1036,8 +1036,8 @@ export const COMMENT_KIND_LABELS: Record<CustomerCommentKind, string> = {
 };
 
 export const COMMENT_KIND_COLORS: Record<CustomerCommentKind, string> = {
-  defaulted: 'bg-rose-100 text-rose-800 border-rose-300',
-  return: 'bg-red-100 text-red-900 border-red-400',
+  defaulted: 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border-[var(--app-risk-line)]',
+  return: 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border-[var(--app-risk)]',
   note: 'bg-slate-100 text-slate-700 border-slate-300',
 };
 

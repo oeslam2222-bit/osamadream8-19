@@ -203,15 +203,15 @@ export function nextActionsFor(stage: ReturnStage): ReturnAction[] {
 
 /** تدرّج لوني ثابت لكل حالة عشان الشكل يبقى موحّد في كل الشاشات. */
 export const STAGE_STYLES: Record<ReturnStage, { badge: string; dot: string; label: string }> = {
-  'بانتظار المشرف': { badge: 'bg-amber-100 text-amber-800 border-amber-200', dot: 'bg-amber-500', label: 'بانتظار المشرف' },
-  'تم التحويل لأمين المخزن': { badge: 'bg-sky-100 text-sky-800 border-sky-200', dot: 'bg-sky-500', label: 'تم التحويل للمخزن' },
-  'بانتظار التنسيق': { badge: 'bg-indigo-100 text-indigo-800 border-indigo-200', dot: 'bg-indigo-500', label: 'بانتظار التنسيق' },
-  'تم إرسال السيارة': { badge: 'bg-violet-100 text-violet-800 border-violet-200', dot: 'bg-violet-500', label: 'تم إرسال السيارة' },
-  'جاري الاستلام': { badge: 'bg-cyan-100 text-cyan-800 border-cyan-200', dot: 'bg-cyan-500', label: 'جاري الاستلام' },
-  'استلام جزئي': { badge: 'bg-orange-100 text-orange-800 border-orange-200', dot: 'bg-orange-500', label: 'استلام جزئي' },
-  'تعذر الاستلام': { badge: 'bg-rose-100 text-rose-800 border-rose-200', dot: 'bg-rose-500', label: 'تعذر الاستلام' },
-  'تم الاستلام بالمخزن': { badge: 'bg-teal-100 text-teal-800 border-teal-200', dot: 'bg-teal-500', label: 'تم الاستلام بالمخزن' },
-  'جاري تصفية المرتجع': { badge: 'bg-blue-100 text-blue-800 border-blue-200', dot: 'bg-blue-500', label: 'جاري التصفية' },
-  'مغلق': { badge: 'bg-emerald-100 text-emerald-800 border-emerald-200', dot: 'bg-emerald-500', label: 'مغلق' },
+  'بانتظار المشرف': { badge: 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border-[var(--app-warn-line)]', dot: 'bg-[var(--app-warn)]', label: 'بانتظار المشرف' },
+  'تم التحويل لأمين المخزن': { badge: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border-[var(--app-navy-line)]', dot: 'bg-[var(--app-navy)]', label: 'تم التحويل للمخزن' },
+  'بانتظار التنسيق': { badge: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border-[var(--app-navy-line)]', dot: 'bg-[var(--app-navy)]', label: 'بانتظار التنسيق' },
+  'تم إرسال السيارة': { badge: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border-[var(--app-navy-line)]', dot: 'bg-[var(--app-navy)]', label: 'تم إرسال السيارة' },
+  'جاري الاستلام': { badge: 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)]', dot: 'bg-[var(--app-ok)]', label: 'جاري الاستلام' },
+  'استلام جزئي': { badge: 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border-[var(--app-warn-line)]', dot: 'bg-[var(--app-warn)]', label: 'استلام جزئي' },
+  'تعذر الاستلام': { badge: 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border-[var(--app-risk-line)]', dot: 'bg-[var(--app-risk)]', label: 'تعذر الاستلام' },
+  'تم الاستلام بالمخزن': { badge: 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)]', dot: 'bg-[var(--app-ok)]', label: 'تم الاستلام بالمخزن' },
+  'جاري تصفية المرتجع': { badge: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border-[var(--app-navy-line)]', dot: 'bg-[var(--app-navy)]', label: 'جاري التصفية' },
+  'مغلق': { badge: 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)]', dot: 'bg-[var(--app-ok)]', label: 'مغلق' },
   'مرفوض': { badge: 'bg-slate-200 text-slate-700 border-slate-300', dot: 'bg-slate-400', label: 'مرفوض' },
 };

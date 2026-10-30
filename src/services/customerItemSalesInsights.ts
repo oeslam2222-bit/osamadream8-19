@@ -149,8 +149,8 @@ export function buildPeriodComparison(
 
 export const growthToneClass = (growthPct: number | null): string => {
   if (growthPct === null) return 'text-slate-400 bg-slate-100 border-slate-200';
-  if (growthPct > 0.5) return 'text-emerald-700 bg-emerald-50 border-emerald-200';
-  if (growthPct < -0.5) return 'text-rose-700 bg-rose-50 border-rose-200';
+  if (growthPct > 0.5) return 'text-[var(--app-ok-text)] bg-[var(--app-ok-tint)] border-[var(--app-ok-line)]';
+  if (growthPct < -0.5) return 'text-[var(--app-risk-text)] bg-[var(--app-risk-tint)] border-[var(--app-risk-line)]';
   return 'text-slate-500 bg-slate-100 border-slate-200';
 };
 

@@ -31,10 +31,8 @@ import { SystemWorkflowGuide } from './components/SystemWorkflowGuide';
 import { TargetPerformanceDashboard } from './components/TargetPerformanceDashboard';
 import { VisitsDashboard } from './components/VisitsDashboard';
 import { UnifiedReturnsView } from './components/UnifiedReturnsView';
-import { LegalAdvisorDashboard } from './components/LegalAdvisorDashboard';
 import { PermissionManagerModal } from './components/PermissionManagerModal';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
-import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
 import { AppProvider, useApp } from './context/AppContext';
 import { ThemeProvider } from './context/themeContext';
 import { getUserAllowedTabs, getCustomPermissions, UserPermissionOverride } from './services/permissionService';
@@ -80,7 +78,7 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
 // Lightweight Skeleton for tab transitions
 const TabLoadingSkeleton = () => (
   <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[350px] space-y-4 animate-in fade-in">
-    <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center animate-spin">
+    <div className="w-12 h-12 rounded-2xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] flex items-center justify-center animate-spin">
       <Loader2 className="w-6 h-6" />
     </div>
     <div className="text-center">
@@ -96,7 +94,6 @@ const MainLayout: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('home');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
-  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
   const [appToastMsg, setAppToastMsg] = useState<string | null>(null);
 
   const [customPermissionOverrides, setCustomPermissionOverrides] = useState<UserPermissionOverride[]>([]);
@@ -169,7 +166,6 @@ const MainLayout: React.FC = () => {
       if (res.customer) {
         setOrderInitialCustomer(res.customer);
       }
-      setViewingInvoice(null);
       setIsOrderModalOpen(true);
     } else {
       alert(res.message);
@@ -177,11 +173,11 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="tantawy-shell min-h-[100dvh] bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-amber-400 selection:text-slate-950" dir="rtl">
+    <div className="tantawy-shell min-h-[100dvh] bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-[var(--app-warn)] selection:text-slate-950" dir="rtl">
       
       {/* Offline Status Top Bar if offline */}
       {isOffline && (
-        <div className="bg-amber-600 text-white text-xs py-1.5 px-4 text-center font-bold flex items-center justify-center gap-2 shadow-inner">
+        <div className="bg-[var(--app-warn)] text-white text-xs py-1.5 px-4 text-center font-bold flex items-center justify-center gap-2 shadow-inner">
           <WifiOff className="w-3.5 h-3.5" />
           <span>أنت تعمل حالياً في وضع عدم الاتصال (Offline) - يتم حفظ الفواتير محلياً والربط تلقائياً فور عودة الشبكة</span>
         </div>
@@ -202,7 +198,6 @@ const MainLayout: React.FC = () => {
           {activeTab === 'home' && allowedTabs.includes('home') && (
             <DashboardHome
               onNavigateToTab={(tab) => setActiveTab(tab)}
-              onViewInvoice={(inv) => setViewingInvoice(inv)}
               onNewOrder={() => setIsOrderModalOpen(true)}
             />
           )}
@@ -231,7 +226,6 @@ const MainLayout: React.FC = () => {
           {activeTab === 'dashboard' && allowedTabs.includes('dashboard') && (
             <SupervisorDashboard
               onOpenNewOrder={() => setIsOrderModalOpen(true)}
-              onViewInvoice={(inv) => setViewingInvoice(inv)}
               onNavigateToTab={(tab) => setActiveTab(tab)}
             />
           )}
@@ -246,7 +240,6 @@ const MainLayout: React.FC = () => {
           {activeTab === 'invoices' && allowedTabs.includes('invoices') && (
             <InvoicesManager
               onOpenNewOrder={() => setIsOrderModalOpen(true)}
-              onViewInvoice={(inv) => setViewingInvoice(inv)}
               onEditInvoice={handleEditInvoice}
             />
           )}
@@ -290,16 +283,6 @@ const MainLayout: React.FC = () => {
             }}
           />
         )}
-
-        {/* Electronic Invoice Modal */}
-        {viewingInvoice && (
-          <ElectronicInvoiceModal
-            isOpen={!!viewingInvoice}
-            invoice={viewingInvoice}
-            onClose={() => setViewingInvoice(null)}
-            onEditInvoice={handleEditInvoice}
-          />
-        )}
       </Suspense>
 
       {/* Bottom Footer */}
@@ -318,9 +301,9 @@ const MainLayout: React.FC = () => {
 
       {/* Floating Offline Success Toast Banner */}
       {appToastMsg && (
-        <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] bg-slate-900 dark:bg-emerald-950 text-white border-2 border-emerald-500 rounded-2xl p-3.5 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom duration-300">
+        <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] bg-slate-900 dark:bg-[var(--app-ok)] text-white border-2 border-[var(--app-ok)] rounded-2xl p-3.5 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom duration-300">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 font-black">
+            <span className="w-8 h-8 rounded-xl bg-[var(--app-ok)] text-[#0d9488] flex items-center justify-center shrink-0 font-black">
               ✓
             </span>
             <p className="text-xs font-bold leading-snug">{appToastMsg}</p>
@@ -370,10 +353,10 @@ class MobileErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBound
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center font-sans">
-          <div className="w-16 h-16 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black mb-4 shadow-xl">
+          <div className="w-16 h-16 rounded-2xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black mb-4 shadow-xl">
             <Package className="w-8 h-8" />
           </div>
-          <h2 className="text-xl font-black text-amber-300 mb-2">منظومة مجموعة الطنطاوي للتجارة والتوزيع</h2>
+          <h2 className="text-xl font-black text-[#d97706] mb-2">منظومة مجموعة الطنطاوي للتجارة والتوزيع</h2>
           <p className="text-sm text-slate-300 max-w-md mb-6 leading-relaxed">
             تم استعادة بيانات التطبيق بنجاح لمنع توقف الشاشة. اضغط على الزر أدناه لإعادة تشغيل الكتالوج.
           </p>
@@ -382,7 +365,7 @@ class MobileErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBound
               this.setState({ hasError: false, error: null });
               window.location.reload();
             }}
-            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-6 py-3 rounded-2xl text-sm shadow-lg transition cursor-pointer active:scale-95"
+            className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black px-6 py-3 rounded-2xl text-sm shadow-lg transition cursor-pointer active:scale-95"
           >
              إعادة تشغيل التطبيق
           </button>

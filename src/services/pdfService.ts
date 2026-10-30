@@ -99,12 +99,8 @@ export async function createInvoicePDFDocument(invoice: Invoice, customCompanyIn
               <div style="font-size: 10px; font-weight: bold; color: #64748b;">${comp.nameEnglish}</div>
             </div>
           </div>
-          <div style="font-size: 10.5px; color: #475569; margin-top: 5px;">${comp.activity} • ${comp.headquarters}</div>
-          <div style="display: flex; gap: 12px; font-size: 10.5px; color: #334155; margin-top: 4px;">
-            <span>س.ت: <strong>${comp.commercialRegister}</strong></span>
-            <span>ب.ض: <strong>${comp.taxNumber}</strong></span>
-            <span>الخط الساخن: <strong>${comp.customerService}</strong></span>
-          </div>
+          <div style="font-size: 10.5px; color: #475569; margin-top: 5px;">مقر الشركة:regionOctober</div>
+          <div style="font-size: 10.5px; color: #64748b; margin-top: 4px;">عن sistema البيع والتوزيع - أكتوبر فقط</div>
         </div>
 
         <div style="text-align: left;">

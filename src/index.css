@@ -49,6 +49,20 @@
   --app-risk: #ef4444;  /* risk / red */
   --app-radius: 14px;
   --app-btn-radius: 10px;
+
+  /* ---- مشتقات الهوية (نص / خلفيات / حدود) لتوحيد الألوان في كل الصفحات ---- */
+  --app-ok-text: #0f7a68;
+  --app-ok-tint: rgba(0, 148, 136, .10);
+  --app-ok-line: rgba(0, 148, 136, .38);
+  --app-warn-text: #8a6420;
+  --app-warn-tint: rgba(245, 158, 11, .14);
+  --app-warn-line: rgba(180, 130, 30, .40);
+  --app-risk-text: #dc2626;
+  --app-risk-tint: rgba(239, 68, 68, .10);
+  --app-risk-line: rgba(239, 68, 68, .35);
+  --app-navy-text: #0f2b38;
+  --app-navy-tint: rgba(15, 43, 56, .08);
+  --app-navy-line: rgba(15, 43, 56, .25);
   /* Design-system scale (added for visual consistency) */
   --r-sm: 8px;
   --r-md: 12px;
@@ -1849,6 +1863,18 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
   --sh-sm: 0 1px 3px rgba(0, 0, 0, .4);
   --sh-md: 0 6px 18px rgba(0, 0, 0, .5);
   --sh-lg: 0 16px 40px rgba(0, 0, 0, .6);
+  --app-ok-text: #34d399;
+  --app-ok-tint: rgba(52, 211, 153, .14);
+  --app-ok-line: rgba(52, 211, 153, .40);
+  --app-warn-text: #fbbf24;
+  --app-warn-tint: rgba(251, 191, 36, .14);
+  --app-warn-line: rgba(251, 191, 36, .38);
+  --app-risk-text: #f87171;
+  --app-risk-tint: rgba(248, 113, 113, .14);
+  --app-risk-line: rgba(248, 113, 113, .38);
+  --app-navy-text: #cfe0f5;
+  --app-navy-tint: rgba(255, 255, 255, .07);
+  --app-navy-line: rgba(255, 255, 255, .20);
 }
 
 .dark body {

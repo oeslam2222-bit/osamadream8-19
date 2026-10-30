@@ -67,6 +67,7 @@ import {
   exportTargetsToExcel,
   filterTargetsForUser,
   generateSampleTargets,
+  inferTargetSector,
   parseTargetExcel,
   fetchTargetsFromGoogleSheetUrl,
 } from '../services/targetService';
@@ -617,6 +618,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return filterTargetsForUser(scoped, currentUser, users, customers);
   };
 
+  // 🏠⚡ وسم سجلات الأهداف بالقطاع المستهدف عند الاستيراد (منزلي / كهربائي)
+  const tagTargetsSector = (rows: TargetRecord[]): TargetRecord[] => {
+    const incoming: 'home' | 'electrical' | undefined =
+      activeSectorFilter === 'home' || activeSectorFilter === 'electrical' ? activeSectorFilter : undefined;
+    if (!incoming) return rows;
+    return rows.map((r) => ({
+      ...r,
+      sector: r.sector && r.sector !== 'all' ? r.sector : incoming,
+    }));
+  };
+
+  // منع مسح قطاع آخر عند رفع شيت قطاع واحد (نفس منطق المنتجات/العملاء)
+  const mergeSectorTargets = (incoming: TargetRecord[]): TargetRecord[] => {
+    const incomingSector = incoming[0]?.sector;
+    if (incomingSector !== 'home' && incomingSector !== 'electrical') return incoming;
+    const incomingIds = new Set(incoming.map((r) => r.id));
+    const others = targetsRef.current.filter((t) => {
+      if (incomingIds.has(t.id)) return false;
+      const s = inferTargetSector(t, users);
+      return s !== undefined && s !== incomingSector;
+    });
+    return others.length ? [...others, ...incoming] : incoming;
+  };
+
   const importTargetsFromExcel = async (file: File): Promise<{ success: boolean; count: number; message: string }> => {
     try {
       const parsed = await parseTargetExcel(file);
@@ -625,16 +650,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       // Clean mirror without accumulating past duplicates: only display current sheet rows
       const deduplicated = deduplicateTargetRecords(parsed);
-      setTargets(deduplicated);
-      await saveTargetsToSupabase(deduplicated);
+      const withSector = tagTargetsSector(deduplicated);
+      const merged = mergeSectorTargets(withSector);
+      setTargets(merged);
+      await saveTargetsToSupabase(merged);
       publishNewDataVersion({
         scope: 'targets',
         updatedBy: currentUser?.name || 'مدير النظام',
-        notes: `تحديث شيت الأهداف والمحققات البيعية (${deduplicated.length} هدف)`,
-        targetsCount: deduplicated.length,
+        notes: `تحديث شيت الأهداف والمحققات البيعية (${merged.length} هدف)`,
+        targetsCount: merged.length,
         forcePurge: true,
       }).catch(() => {});
-      return { success: true, count: deduplicated.length, message: `تم تحديث ومزامنة ${deduplicated.length} هدف بنجاح بدون تكرار السجلات!` };
+      return { success: true, count: withSector.length, message: `تم تحديث ومزامنة ${withSector.length} هدف بنجاح بدون تكرار السجلات!` };
     } catch (err: any) {
       return { success: false, count: 0, message: err?.message || 'حدث خطأ أثناء قراءة ملف الإكسل' };
     }
@@ -652,13 +679,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       // Clean mirror without accumulating past duplicates: only display current sheet rows
       const deduplicated = deduplicateTargetRecords(parsed);
-      setTargets(deduplicated);
-      await saveTargetsToSupabase(deduplicated);
+      const withSector = tagTargetsSector(deduplicated);
+      const merged = mergeSectorTargets(withSector);
+      setTargets(merged);
+      await saveTargetsToSupabase(merged);
       publishNewDataVersion({
         scope: 'targets',
         updatedBy: currentUser?.name || 'مدير النظام',
-        notes: `تحديث شيت الأهداف من Google Sheets (${deduplicated.length} هدف)`,
-        targetsCount: deduplicated.length,
+        notes: `تحديث شيت الأهداف من Google Sheets (${merged.length} هدف)`,
+        targetsCount: merged.length,
         forcePurge: true,
       }).catch(() => {});
       saveSingleSourceUrl('targets', cleanUrl);

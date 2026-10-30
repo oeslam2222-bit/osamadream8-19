@@ -8,6 +8,37 @@ const PROMOTIONS_STORAGE_KEY = 'tantawy_promotions_offers_v1';
 
 export const INITIAL_PROMOTIONS: PromotionOffer[] = [];
 
+/** توحيد قيمة القطاع للعروض: 'home' (منزلي) | 'electrical' (كهربائي) */
+export function normalizeOfferSector(value?: string | null): 'home' | 'electrical' | undefined {
+  if (!value) return undefined;
+  const v = String(value).trim().toLowerCase();
+  if (!v) return undefined;
+  if (v.includes('كهرب') || v === 'electrical' || v === 'electric') return 'electrical';
+  if (v.includes('منزل') || v === 'home') return 'home';
+  return undefined;
+}
+
+/**
+ * استنتاج قطاع العرض بدون تعديل قاعدة البيانات:
+ * الحقل الصريح ← اسم الفرع ← قطاع الصنف المرتبط بالعرض.
+ */
+export function inferOfferSector(
+  offer: PromotionOffer,
+  products: Product[] = []
+): 'home' | 'electrical' | undefined {
+  const explicit = normalizeOfferSector(offer.sector as unknown as string);
+  if (explicit) return explicit;
+  const fromBranch = normalizeOfferSector(offer.branchName);
+  if (fromBranch) return fromBranch;
+  if (products.length && (offer.productCode || offer.unifiedCode)) {
+    const prod = products.find(
+      (p) => p.code === offer.productCode || (offer.unifiedCode && p.unifiedCode === offer.unifiedCode)
+    );
+    if (prod?.sector === 'home' || prod?.sector === 'electrical') return prod.sector;
+  }
+  return undefined;
+}
+
 // Known dummy / mock promotional items to purge from storage
 const DUMMY_PROMO_IDS = new Set(['promo-1', 'promo-2', 'promo-3']);
 
@@ -173,6 +204,8 @@ export async function parsePromotionsFromExcelBuffer(
     const rawBranch = getVal('الفرع', 'الفروع المشمولة', 'Branch') || 'كل الفروع';
     const rawNotes = getVal('ملاحظات', 'شروط العرض', 'Notes');
     const rawCategory = getVal('التصنيف', 'المجموعة', 'Category');
+    const rawSector = getVal('القطاع', 'Sector', 'sector', 'نوع القطاع');
+    const parsedSector = normalizeOfferSector(rawSector);
 
     parsedPromos.push({
       id: `promo-imported-${Date.now()}-${idx}`,
@@ -181,6 +214,7 @@ export async function parsePromotionsFromExcelBuffer(
       unifiedCode: rawUnified || undefined,
       productName: rawName || (rawCode ? `صنف كود ${rawCode}` : 'صنف ترويجي'),
       category: rawCategory || undefined,
+      sector: parsedSector,
       discountPercentage: rawDiscount,
       promoPrice: rawPromoPrice > 0 ? rawPromoPrice : undefined,
       promoPiecePrice: rawPromoPiecePrice > 0 ? rawPromoPiecePrice : undefined,
