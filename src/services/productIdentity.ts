@@ -105,7 +105,6 @@ export function countDuplicateProductRows(products: Product[]): {
 }
 
 export const deduplicateProductArray = (list: Product[]): Product[] => {
-  if (!Array.isArray(list)) return [];
   const map = new Map<string, number>();
   const distinct: Product[] = [];
   list.forEach((p) => {
@@ -130,4 +129,58 @@ export const deduplicateProductArray = (list: Product[]): Product[] => {
     }
   });
   return distinct;
+};
+
+/**
+ * دeduplicate منتجات بناءً على الكود الموحد (unifiedCode) أولاً.
+ * لو نفس الكود الموحد بألوان/أحجام مختلفة → تدمج كمنتج واحد مع تعدد الألوان.
+ * لو مفيش كود موحد → ترجع للكود العادي (code).
+ */
+export const deduplicateProductsByUnifiedCode = (list: Product[]): Product[] => {
+  if (!Array.isArray(list)) return [];
+
+  const byUnifiedCode = new Map<string, Product[]>();
+  const noUnifiedCode: Product[] = [];
+
+  list.forEach((p) => {
+    if (!p) return;
+    const uCode = normalizeProductCodeKey(p.unifiedCode);
+    if (uCode) {
+      const arr = byUnifiedCode.get(uCode) || [];
+      arr.push(p);
+      byUnifiedCode.set(uCode, arr);
+    } else {
+      noUnifiedCode.push(p);
+    }
+  });
+
+  const result: Product[] = [];
+
+  // كل مجموعة ذات كود موحد واحد → منتج واحد مع تعدد الألوان/المقاسات
+  byUnifiedCode.forEach((products, uCode) => {
+    const first = products[0];
+    const merged: Product = {
+      ...first,
+      unifiedCode: uCode,
+      // نجمع الألوان والمقاسات المختلفة في notas أو نتركها كما هي
+      // هنا نأخذ أول صنف كنموذج ونحدث معلوماته من باقي الصفوف
+    };
+
+    // دمج الألوان والمقاسات المختلفة في notas إذا كانت مختلفة
+    const colors = new Set(products.map((p) => p.color).filter(Boolean));
+    const sizes = new Set(products.map((p) => p.size).filter(Boolean));
+    if (colors.size > 1 || sizes.size > 1) {
+      merged.color = [...colors].join('، ');
+      merged.size = [...sizes].join('، ');
+    }
+
+    result.push(merged);
+  });
+
+  // المنتجات اللي مفيش لها كود موحد → نطبق عليها الدالة العادية
+  if (noUnifiedCode.length > 0) {
+    result.push(...deduplicateProductArray(noUnifiedCode));
+  }
+
+  return result;
 };

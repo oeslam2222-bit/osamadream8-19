@@ -17,6 +17,7 @@
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "firebase": "^13.1.0",
     "html2canvas": "^1.4.1",
     "html2canvas-pro": "^2.4.2",
     "jspdf": "^4.2.1",
@@ -41,6 +42,7 @@
     "tailwindcss": "^4.1.14",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
-    "vite": "^6.2.3"
+    "vite": "^6.2.3",
+    "vite-plugin-pwa": "^2.0.0"
   }
 }

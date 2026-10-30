@@ -909,6 +909,21 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         <div className="text-[10px] text-slate-400">{invoice.branchName}</div>
                       </td>
 
+                      {/* تعليق المندوب الأصلي - يظهر للموافقين (مشرف / مدير فرع / إدارة) */}
+                      {invoice.repComment && (
+                        <td className="p-3">
+                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-2 mb-1">
+                            <div className="flex items-center gap-1 mb-1">
+                              <span className="text-[9px] font-black text-amber-700">💬</span>
+                              <span className="text-[9px] font-bold text-amber-700 uppercase">تعليق المندوب</span>
+                            </div>
+                            <div className="text-[10px] text-slate-700 italic max-w-[200px] truncate" title={invoice.repComment}>
+                              {invoice.repComment}
+                            </div>
+                          </div>
+                        </td>
+                      )}
+
                       {/* Date & Time */}
                       <td className="p-3 text-slate-600">
                         <div>{invoice.date}</div>
