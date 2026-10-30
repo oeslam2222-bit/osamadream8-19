@@ -582,6 +582,20 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     return filteredProducts.slice(startIndex, startIndex + itemsPerPage);
   }, [filteredProducts, currentPage, itemsPerPage]);
 
+  // Sector-based split: قطاع المنزلي (Household) vs قطاع الكهرباء (Electrical)
+  const catalogSections = useMemo(() => {
+    const household = displayedProducts.filter((p) => !p.sector || p.sector === 'home');
+    const electrical = displayedProducts.filter((p) => p.sector === 'electrical');
+    const sections: Array<{ key: string; title: string; items: typeof displayedProducts }> = [];
+    if (household.length > 0) {
+      sections.push({ key: 'home', title: 'القطاع المنزلي (Household)', items: household });
+    }
+    if (electrical.length > 0) {
+      sections.push({ key: 'electrical', title: 'القطاع الكهربائي (Electrical)', items: electrical });
+    }
+    return sections;
+  }, [displayedProducts]);
+
   // Filter-First Condition: hide products unless explicitly searched/filtered or user requests to view all
   const isFiltered = Boolean(
     searchTerm.trim().length > 0 ||
@@ -1186,8 +1200,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* Main Catalog Product Grid (Amazon/Noon Web + Taager/Raneen Mobile) */}
       <div className="w-full min-w-0">
         {viewMode === 'grid' ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5 sm:gap-3.5">
-            {displayedProducts.map((product, idx) => {
+          <div className="space-y-8">
+            {catalogSections.map((section) => (
+              <div key={section.key}>
+                <div className="flex items-center gap-2 pb-3">
+                  <span className="text-sm font-black text-slate-900 dark:text-slate-100">{section.title}</span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2.5 sm:gap-3.5">
+                  {section.items.map((product, idx) => {
               const isPromo = product.promoPrice && product.promoPrice > 0;
               const dynamicBranchStock = getProductBranchStock(product);
               const octoberAvail =
@@ -1394,7 +1414,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </div>
                 </div>
               );
-            })}
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
       ) : (
         /* Amazon Dense Table View for Fast Order Entry */
