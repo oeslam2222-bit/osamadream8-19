@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { AlertTriangle, CalendarCheck, CheckCircle2, Clock3, Plus, Save, Users, X, Search, Image as ImageIcon, Upload, Trash2, Mail, Truck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
-import type { CustomerVisit, ReturnedItem, Product } from '../types';
+import type { CustomerVisit, ReturnedItem, Product, VisitItem } from '../types';
 import { buildReturnNote } from '../services/returnsWorkflowService';
 
 const SIMPLE_VISIT_TYPES: { id: string; label: string }[] = [
@@ -48,6 +48,7 @@ export const VisitsDashboard: React.FC = () => {
     returnReason: '',
     returnItems: [] as ReturnItemForm[],
     returnImages: [] as string[],
+    visitItems: [] as VisitItem[],
   });
 
   const myCustomers = useMemo(() => {
@@ -112,6 +113,42 @@ export const VisitsDashboard: React.FC = () => {
     }
   };
 
+  const selectProductForVisit = (product: Product) => {
+    setSearchProduct(product.name);
+    setSearchResults([]);
+    const existing = form.visitItems.find((i) => i.productId === product.id);
+    if (existing) {
+      setForm({
+        ...form,
+        visitItems: form.visitItems.map((i) =>
+          i.productId === product.id
+            ? { ...i, cartonCount: i.cartonCount + 1 }
+            : i
+        ),
+      });
+    } else {
+      setForm({
+        ...form,
+        visitItems: [
+          ...form.visitItems,
+          {
+            id: crypto.randomUUID(),
+            productId: product.id,
+            productCode: product.code || '',
+            productName: product.name,
+            cartonCount: 1,
+            pieceCount: 0,
+            unitPrice: product.cartonPrice || 0,
+            amount: product.cartonPrice || 0,
+            condition: 'good_condition',
+            itemType: 'sale',
+            notes: '',
+          },
+        ],
+      });
+    }
+  };
+
   const [formErrors, setFormErrors] = useState<string[]>([]);
 
   const validateForm = (): boolean => {
@@ -159,6 +196,7 @@ export const VisitsDashboard: React.FC = () => {
       returnNote: isReturn ? `مرتجع من زيارة ${form.date} - ${form.returnReason}` : undefined,
       returnImages: isReturn ? form.returnImages : undefined,
       allowSameDaySecondVisit: isReturn ? true : undefined,
+      visitItems: form.visitItems.length > 0 ? form.visitItems : undefined,
     });
 
     if (!result.success) {
@@ -217,6 +255,7 @@ export const VisitsDashboard: React.FC = () => {
       returnReason: '',
       returnItems: [],
       returnImages: [],
+      visitItems: [],
     });
     setFormErrors([]);
     setSearchProduct('');
@@ -240,6 +279,18 @@ export const VisitsDashboard: React.FC = () => {
 
   const removeReturnItem = (id: string) => {
     setForm({ ...form, returnItems: form.returnItems.filter((item) => item.id !== id) });
+  };
+
+  const addVisitItem = () => {
+    if (searchResults.length === 0) return;
+    const product = searchResults[0];
+    selectProductForVisit(product);
+    setSearchProduct('');
+    setSearchResults([]);
+  };
+
+  const removeVisitItem = (id: string) => {
+    setForm({ ...form, visitItems: form.visitItems.filter((item) => item.id !== id) });
   };
 
   const updateReturnItem = (id: string, updates: Partial<ReturnItemForm>) => {
@@ -476,6 +527,79 @@ export const VisitsDashboard: React.FC = () => {
                   <span className="text-[11px] text-slate-500 font-bold">مبلغ التحصيل (ج.م)</span>
                   <input type="number" value={form.collectedAmount} onChange={(e) => setForm({ ...form, collectedAmount: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
                 </label>
+              )}
+
+
+              {/* الأصناف في الزيارة */}
+              <label className="block mt-3">
+                <span className="text-[11px] text-slate-500 font-bold">الأصناف (ابحث بالاسم أو الكود)</span>
+                <div className="relative mt-1">
+                  <input
+                    type="text"
+                    value={searchProduct}
+                    onChange={(e) => handleProductSearch(e.target.value)}
+                    placeholder="اكتب اسم الصنف أو الكود..."
+                    className="w-full pl-8 pr-10 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  />
+                  <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                </div>
+                {searchProduct && searchResults.length > 0 && (
+                  <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-lg mt-1 max-h-48 overflow-y-auto">
+                    {searchResults.map((p) => (
+                      <div
+                        key={p.id}
+                        onClick={() => selectProductForVisit(p)}
+                        className="px-3 py-2 text-sm hover:bg-amber-50 cursor-pointer border-b border-slate-50/30 last:border-0 flex items-center justify-between"
+                      >
+                        <div>
+                          <div className="font-black text-slate-900">{p.name}</div>
+                          <div className="text-[10px] text-slate-400">كود: {p.code} {p.unifiedCode ? '(#' + p.unifiedCode + ')' : ''}</div>
+                        </div>
+                        <div className="text-xs font-bold text-amber-600">{p.cartonPrice.toLocaleString()} ج.م</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={addVisitItem}
+                    className="w-full bg-[color:var(--app-accent)] hover:bg-navy-deep2 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition"
+                  >
+                    إضافة الصنف المختار إلى الزيارة
+                  </button>
+                </div>
+              </label>
+
+              {form.visitItems.length > 0 && (
+                <div className="mt-2 rounded-xl border border-[color:var(--app-line)] bg-slate-50 p-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold text-slate-700">الأصناف المضافة</span>
+                    <span className="text-[10px] font-black text-amber-600">
+                      {form.visitItems.reduce((s, i) => s + i.amount, 0).toLocaleString()} ج.م
+                    </span>
+                  </div>
+                  {form.visitItems.map((item) => (
+                    <div key={item.id} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-white border border-[color:var(--app-line)]">
+                      <div className="flex-1 min-w-0">
+                        <span className="text-xs font-bold text-slate-700">{item.productName}</span>
+                        <div className="text-[10px] text-slate-500 block">
+                          {item.cartonCount} كرتونة • {item.pieceCount} قطعة • {item.itemType === 'sale' ? 'بيع' : item.itemType === 'collection' ? 'تحصيل' : 'مرتجع'}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => removeVisitItem(item.id)}
+                          className="text-xs text-rose-600"
+                          title="حذف الصنف"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
 
               {form.type === 'فاتورة مرتجع لدي العميل' && (

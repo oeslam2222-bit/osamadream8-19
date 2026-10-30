@@ -178,6 +178,20 @@ export type CustomerTier = 'مميز' | 'راقي' | 'متوسط' | 'عادي';
 export type CustomerVisitStatus = 'مجدولة' | 'منفذة' | 'ملغاة' | 'لم تتم';
 export type VisitReviewStatus = 'pending' | 'approved' | 'needs_fix';
 
+export interface VisitItem {
+  id?: string;
+  productId: string;
+  productCode: string;
+  productName: string;
+  cartonCount: number;      // عدد الكراتين
+  pieceCount: number;       // عدد القطع السائبة
+  unitPrice?: number;       // سعر الوحدة إن وجد
+  amount?: number;          // القيمة الإجمالية للصنف
+  condition?: 'good_condition' | 'damaged' | 'expired'; // حالة الصنف
+  itemType?: 'sale' | 'collection' | 'return'; // بيع / تحصيل / مرتجع
+  notes?: string;           // ملاحظة خاصة بالصنف
+}
+
 export interface CustomerVisit {
   id: string;
   customerId?: string;
@@ -278,6 +292,8 @@ export interface CustomerVisit {
   returnHandledRole?: string;         // وظيفة/دور من قام بالتحويل
   returnNote?: string;                // ملاحظة المشرف عند الإرسال/التحويل
   returnImages?: string[];            // روابط صور المرتجع (من جوجل درايف أو شيت)
+  /** الأصناف المتعددة في الزيارة (بيع / تحصيل / مرتجع) */
+  visitItems?: VisitItem[];
 }
 
 export interface Customer {
