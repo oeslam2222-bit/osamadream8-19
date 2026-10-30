@@ -31,7 +31,6 @@ import {
   Upload,
   Users,
   Home,
-  Zap,
   X
 } from 'lucide-react';
 import React, { useId, useMemo, useRef, useState } from 'react';
@@ -1112,7 +1111,7 @@ function onEdit(e) {
         </div>
       </div>
 
-      {/* Sector Selector Tabs: قطاع الأدوات المنزلية vs قطاع الكهرباء */}
+      {/* Sector Selector Tab: قطاع الأدوات المنزلية (Single Source) */}
       <div className="bg-slate-900 p-1.5 rounded-2xl flex items-center gap-2 border border-slate-700 shadow-lg">
         <button
           type="button"
@@ -1127,22 +1126,6 @@ function onEdit(e) {
           <span>قطاع الأدوات المنزلية (Household)</span>
           <span className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full font-bold bg-slate-950/20">
             {products.filter((p) => !p.sector || p.sector === 'home').length} صنف
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveSectorTab('electrical')}
-          className={`flex-1 py-3 px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2.5 transition cursor-pointer ${
-            activeSectorTab === 'electrical'
-              ? 'bg-amber-500 text-slate-950 shadow-md ring-2 ring-amber-300'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800'
-          }`}
-        >
-          <Zap className="w-4 h-4 text-amber-950" />
-          <span>قطاع الكهرباء والأدوات الكهربائية (Electrical)</span>
-          <span className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full font-bold bg-slate-950/20">
-            {products.filter((p) => p.sector === 'electrical').length} صنف
           </span>
         </button>
       </div>
