@@ -6006,17 +6006,34 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const visibleVisits = useMemo((): CustomerVisit[] => {
     if (!currentUser) return [];
 
+    // Sector scoping (قطاع منزلي / كهربا): نعزل الزيارات اللي ضمن القطاع المطلوب.
+    const isSectorAllowed = (v: CustomerVisit): boolean => {
+      const cust = v.customerId ? customers.find((c) => c.id === v.customerId) : undefined;
+      const sec = cust?.sector;
+      const eff: string | undefined =
+        currentUser.sector && currentUser.sector !== 'all' && currentUser.sector !== 'both'
+          ? currentUser.sector
+          : currentUser.role === 'admin' || currentUser.role === 'developer'
+            ? (activeSectorFilter === 'all' ? undefined : activeSectorFilter)
+            : undefined;
+      if (!eff || eff === 'all' || eff === 'both') return true;
+      if (!sec) return true;
+      return sec === eff || sec === 'both' || sec === 'all';
+    };
+
       // Admin & Developer: Full oversight across branches, filtered by selected branch if set
       if (currentUser.role === 'admin' || currentUser.role === 'developer') {
+        const sectorFiltered = visits.filter(isSectorAllowed);
         return selectedBranchFilter === 'الكل'
-          ? visits
-          : visits.filter((v) => isBranchMatch(v.branchName || '', selectedBranchFilter, { allowUnassigned: false }));
+          ? sectorFiltered
+          : sectorFiltered.filter((v) => isBranchMatch(v.branchName || '', selectedBranchFilter, { allowUnassigned: false }));
       }
 
       // Branch Manager: STRICTLY sees visits belonging to his own branch only
       if (currentUser.role === 'branch_manager') {
         if (!currentUser.branchName) return [];
         return visits.filter((v) => {
+          if (!isSectorAllowed(v)) return false;
           if (v.branchName && isBranchMatch(v.branchName, currentUser.branchName, { allowUnassigned: false })) return true;
           const c = customers.find((cust) => cust.id === v.customerId);
           return Boolean(c && doesCustomerBelongToBranch(c, currentUser.branchName, users));
@@ -6026,6 +6043,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       // Supervisor: STRICTLY sees visits belonging to his branch and his supervised reps
       if (currentUser.role === 'supervisor') {
         return visits.filter((v) => {
+          if (!isSectorAllowed(v)) return false;
           if (v.supervisorId === currentUser.id) return true;
           if (v.createdBy === currentUser.id) return true;
           if (v.repId && users.some((u) => u.id === v.repId && u.supervisorId === currentUser.id)) return true;
@@ -6038,6 +6056,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       // Sales Rep: STRICT PRIVACY - ONLY his own visits!
       return visits.filter((v) => {
+        if (!isSectorAllowed(v)) return false;
         // 1. Direct rep ID match
         if (v.repId === currentUser.id) return true;
         if (currentUser.username && v.repId && v.repId.toLowerCase() === currentUser.username.toLowerCase()) return true;
