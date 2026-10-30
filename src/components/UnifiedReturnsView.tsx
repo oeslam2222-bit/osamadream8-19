@@ -48,6 +48,7 @@ export const UnifiedReturnsView: React.FC = () => {
     currentUser,
     customers,
     products,
+    visits,
     getVisibleVisits,
     addVisit,
     updateVisit,
@@ -279,7 +280,7 @@ export const UnifiedReturnsView: React.FC = () => {
         returnValue: draftTotalValue,
         returnReason: generalReason,
         returnItems: itemsSummary,
-        returnStatus: 'عند العميل',
+        returnStatus: 'بانتظار المشرف',
         returnImages: attachedPhotos,
         notes: `إذن مرتجع مسجل بواسطة المندوب: ${currentUser?.name} • الأصناف: ${validItems.length} صنف • الإجمالي التقديري: ${formatCurrency(draftTotalValue)}`
       });
@@ -313,7 +314,10 @@ export const UnifiedReturnsView: React.FC = () => {
 
   // Handler: Update Return Stage (Warehouse receipt / Close / Reject)
   const handleUpdateReturnStage = (visitId: string, newStatus: any, note: string) => {
-    const res = updateVisit(visitId, {
+    const visit = visits.find((v) => v.id === visitId);
+    if (!visit) return;
+    const res = updateVisit({
+      ...visit,
       returnStatus: newStatus,
       returnHandledBy: currentUser?.name || 'المسؤول',
       returnHandledAt: new Date().toISOString(),
