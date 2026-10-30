@@ -151,20 +151,20 @@ export const UserManager: React.FC = () => {
     warehouse_keeper: {
       label: 'أمين المخزن',
       shortLabel: 'أمين مخزن',
-      bg: 'bg-teal-50',
-      border: 'border-teal-200',
-      text: 'text-teal-800',
-      activeRing: 'border-teal-500 bg-teal-50/50',
+      bg: 'bg-[var(--app-ok-tint)]',
+      border: 'border-[var(--app-ok-line)]',
+      text: 'text-[var(--app-ok-text)]',
+      activeRing: 'border-[var(--app-ok)] bg-[var(--app-ok-tint)]',
       icon: Building,
       desc: 'مسؤول المخزن: استلام وتوريد البضائع، مراقبة المخزون الفعلي، وصرف وتجهيز طلبيات الفروع ومخزن أكتوبر.'
     },
     legal_advisor: {
       label: 'المستشار القانوني',
       shortLabel: 'مستشار قانوني',
-      bg: 'bg-indigo-50',
-      border: 'border-indigo-200',
-      text: 'text-indigo-800',
-      activeRing: 'border-indigo-500 bg-indigo-50/50',
+      bg: 'bg-[var(--app-navy-tint)]',
+      border: 'border-[var(--app-navy-line)]',
+      text: 'text-[var(--app-navy-text)]',
+      activeRing: 'border-[var(--app-navy)] bg-[var(--app-navy-tint)]',
       icon: Scale,
       desc: 'الإدارة القانونية والتحصيل القضائي: كشوفات العملاء المتعثرين، صياغة ومتابعة الإنذارات الرسمية، تسويات وجدولة الديون، وإدارة محفظة الشيكات وإيصالات الأمانة.'
     }

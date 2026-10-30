@@ -228,7 +228,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
       
       {/* Toast Alert */}
       {syncStatusMsg && (
-        <div className="bg-emerald-600 text-white p-4 rounded-2xl shadow-xl flex items-center justify-between text-xs sm:text-sm animate-in fade-in">
+        <div className="bg-[var(--app-ok)] text-white p-4 rounded-2xl shadow-xl flex items-center justify-between text-xs sm:text-sm animate-in fade-in">
           <div className="flex items-center gap-2 font-bold">
             <CheckCircle2 className="w-5 h-5" />
             <span>{syncStatusMsg}</span>
@@ -240,13 +240,13 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
       <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-md border border-slate-800 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black">
+            <div className="w-12 h-12 rounded-2xl bg-[var(--app-accent)] text-slate-950 flex items-center justify-center font-black">
               <Terminal className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-black">وحدة المطور التقني والربط المحاسبي (Developer Console & ERP)</h2>
-                <span className="bg-amber-400/20 text-amber-300 text-xs px-2 py-0.5 rounded-full border border-amber-400/30 font-bold">
+                <span className="bg-[rgba(201,154,67,.15)] text-[#8a6420] text-xs px-2 py-0.5 rounded-full border border-[rgba(201,154,67,.35)] font-bold">
                   Dev & Admin
                 </span>
               </div>
@@ -261,7 +261,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
             <button
               onClick={() => setActiveSubTab('erp')}
               className={`px-3 py-2 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                activeSubTab === 'erp' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                activeSubTab === 'erp' ? 'bg-[var(--app-accent)] text-slate-950 shadow' : 'text-slate-400 hover:text-white'
               }`}
             >
               <Server className="w-3.5 h-3.5" />
@@ -271,7 +271,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
             <button
               onClick={() => setActiveSubTab('supabase')}
               className={`px-3 py-2 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                activeSubTab === 'supabase' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                activeSubTab === 'supabase' ? 'bg-[var(--app-accent)] text-slate-950 shadow' : 'text-slate-400 hover:text-white'
               }`}
             >
               <Database className="w-3.5 h-3.5" />
@@ -281,7 +281,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
             <button
               onClick={() => setActiveSubTab('sql')}
               className={`px-3 py-2 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                activeSubTab === 'sql' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                activeSubTab === 'sql' ? 'bg-[var(--app-accent)] text-slate-950 shadow' : 'text-slate-400 hover:text-white'
               }`}
             >
               <Code className="w-3.5 h-3.5" />
@@ -291,7 +291,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
             <button
               onClick={() => setActiveSubTab('backup')}
               className={`px-3 py-2 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                activeSubTab === 'backup' ? 'bg-amber-400 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                activeSubTab === 'backup' ? 'bg-[var(--app-accent)] text-slate-950 shadow' : 'text-slate-400 hover:text-white'
               }`}
             >
               <Download className="w-3.5 h-3.5" />
@@ -308,7 +308,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
             <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-xs space-y-1">
               <span className="text-xs text-slate-500 font-bold">حالة الاتصال بنظام المحاسبة</span>
               <div className="flex items-center gap-2 mt-1">
-                <div className={`w-3 h-3 rounded-full ${isOffline ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                <div className={`w-3 h-3 rounded-full ${isOffline ? 'bg-[var(--app-accent)] animate-pulse' : 'bg-[var(--app-ok)]'}`} />
                 <span className="font-extrabold text-sm text-slate-900">
                   {isOffline ? 'وضع عدم الاتصال (تخزين مؤقت)' : 'متصل بالخادم المركزي'}
                 </span>
@@ -320,7 +320,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
 
             <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-xs space-y-1">
               <span className="text-xs text-slate-500 font-bold">الفواتير المرحلة والمثبتة في الدفاتر</span>
-              <div className="text-xl font-black text-emerald-700">
+              <div className="text-xl font-black text-[var(--app-ok)]">
                 {syncedInvoices.length} فاتورة
               </div>
               <span className="text-[10px] text-slate-400">سندات قيد يومية مسجلة برقم إلكتروني</span>
@@ -329,14 +329,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
             <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-xs space-y-1">
               <span className="text-xs text-slate-500 font-bold">فواتير قيد الانتظار للترحيل</span>
               <div className="flex items-center justify-between">
-                <div className="text-xl font-black text-amber-700">
+                <div className="text-xl font-black text-[#8a6420]">
                   {unsyncedInvoices.length} فاتورة
                 </div>
                 {unsyncedInvoices.length > 0 && (
                   <button
                     disabled={isSyncingAll}
                     onClick={handleSyncAll}
-                    className="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-3 py-1 rounded-xl text-xs shadow transition cursor-pointer"
+                    className="flex items-center gap-1.5 bg-[var(--app-accent)] hover:bg-[#b98a35] text-slate-950 font-black px-3 py-1 rounded-xl text-xs shadow transition cursor-pointer"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSyncingAll ? 'animate-spin' : ''}`} />
                     <span>ترحيل الآن</span>
@@ -348,16 +348,16 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
           </div>
 
           {/* Dedicated Company System & Microsoft 365 Gateway (خاص بالمطور فقط) */}
-          <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-5 shadow-lg border border-indigo-500/30 space-y-4">
+          <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white rounded-3xl p-5 shadow-lg border border-[rgba(16,43,78,.35)] space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-md">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[var(--app-navy)] to-[var(--app-navy)] flex items-center justify-center shadow-md">
                   <Building2 className="w-5 h-5 text-white" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-black text-white">بوابة الربط بسيستم الشركة (Microsoft Dynamics 365 & Central ERP)</h3>
-                    <span className="bg-indigo-500/30 text-indigo-200 text-[10px] px-2 py-0.5 rounded-full font-bold border border-indigo-400/30">
+                    <span className="bg-[rgba(16,43,78,.15)] text-[var(--app-navy)] text-[10px] px-2 py-0.5 rounded-full font-bold border border-[rgba(16,43,78,.35)]">
                       خاص بصفحة المطور
                     </span>
                   </div>
@@ -372,9 +372,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
                   type="button"
                   disabled={isSyncingAllMicrosoft || approvedInvoices.length === 0}
                   onClick={handleSyncAllMicrosoft}
-                  className="flex items-center gap-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex items-center gap-1.5 bg-gradient-to-r from-[var(--app-navy)] to-[var(--app-navy)] hover:from-[var(--app-navy)] hover:to-[var(--app-navy)] text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Sparkles className={`w-3.5 h-3.5 text-amber-300 ${isSyncingAllMicrosoft ? 'animate-spin' : ''}`} />
+                  <Sparkles className={`w-3.5 h-3.5 text-[var(--app-accent)] ${isSyncingAllMicrosoft ? 'animate-spin' : ''}`} />
                   <span>{isSyncingAllMicrosoft ? 'جاري الترحيل...' : `ترحيل كل الفواتير المعتمدة (${approvedInvoices.length}) 🚀`}</span>
                 </button>
               </div>
@@ -384,7 +384,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-slate-300 font-bold px-1">
                 <span>الفواتير المعتمدة الجاهزة للربط والترحيل ({approvedInvoices.length})</span>
-                <span className="text-[11px] text-indigo-300">يمكنك فحص وإرسال أي فاتورة فردياً أو جماعياً</span>
+                <span className="text-[11px] text-[var(--app-navy)]">يمكنك فحص وإرسال أي فاتورة فردياً أو جماعياً</span>
               </div>
 
               {approvedInvoices.length === 0 ? (
@@ -396,10 +396,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
                   {approvedInvoices.slice(0, 10).map((inv) => (
                     <div
                       key={inv.id}
-                      className="bg-slate-950/70 border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:border-indigo-400/40 transition"
+                      className="bg-slate-950/70 border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:border-[rgba(16,43,78,.35)] transition"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold text-amber-300 text-xs">#{inv.invoiceNumber}</span>
+                        <span className="font-mono font-bold text-[var(--app-accent)] text-xs">#{inv.invoiceNumber}</span>
                         <span className="text-white font-bold text-xs truncate max-w-[140px] sm:max-w-[200px]">{inv.customerName}</span>
                         <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] font-mono">
                           {formatCurrency(inv.estimatedGrandTotal || 0)}
@@ -411,9 +411,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
                         type="button"
                         disabled={syncingMicrosoftId === inv.id}
                         onClick={() => handleSyncToMicrosoft(inv.id, inv.invoiceNumber)}
-                        className="flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer shadow-xs disabled:opacity-60"
+                        className="flex items-center justify-center gap-1.5 bg-[var(--app-navy)] hover:bg-[#0b2039] text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer shadow-xs disabled:opacity-60"
                       >
-                        <Sparkles className="w-3 h-3 text-amber-300" />
+                        <Sparkles className="w-3 h-3 text-[#d97706]" />
                         <span>{syncingMicrosoftId === inv.id ? 'جاري الإرسال...' : 'إرسال لـ Microsoft 365 🏢'}</span>
                       </button>
                     </div>
@@ -432,7 +432,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
           <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden space-y-3">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
               <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
-                <Activity className="w-4 h-4 text-indigo-600" />
+                <Activity className="w-4 h-4 text-[var(--app-navy-text)]" />
                 <span>سجل المعاملات والترحيل المحاسبي (ERP Sync Logs)</span>
               </h3>
             </div>
@@ -461,7 +461,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
                         <td className="p-3 text-slate-700 font-medium">{log.systemName}</td>
                         <td className="p-3 text-slate-600">{log.responseMessage}</td>
                         <td className="p-3 text-center">
-                          <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full text-[10px]">
+                          <span className="bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] font-bold px-2 py-0.5 rounded-full text-[10px]">
                             {log.status}
                           </span>
                         </td>
@@ -481,7 +481,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
             <div>
               <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <Database className="w-5 h-5 text-emerald-600" />
+                <Database className="w-5 h-5 text-[var(--app-ok-text)]" />
                 <span>إعدادات وتكامل سحابة Supabase اللحظية</span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -493,7 +493,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
               <button
                 disabled={isSupabaseSyncing}
                 onClick={() => syncWithSupabase('fetch')}
-                className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-3 py-2 rounded-xl text-xs transition cursor-pointer"
+                className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-[#d97706] font-bold px-3 py-2 rounded-xl text-xs transition cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>سحب من Supabase (Pull)</span>
@@ -502,7 +502,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
               <button
                 disabled={isSupabaseSyncing}
                 onClick={() => syncWithSupabase('push')}
-                className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs transition cursor-pointer"
+                className="flex items-center gap-1.5 bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-bold px-3 py-2 rounded-xl text-xs transition cursor-pointer"
               >
                 <Upload className="w-3.5 h-3.5" />
                 <span>دفع إلى Supabase (Push)</span>
@@ -513,28 +513,28 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
               <span className="font-bold text-slate-700">Supabase Project URL:</span>
-              <code className="block bg-slate-900 text-emerald-400 p-2.5 rounded-xl font-mono text-[11px] break-all select-all">
+              <code className="block bg-slate-900 text-[#0d9488] p-2.5 rounded-xl font-mono text-[11px] break-all select-all">
                 {SUPABASE_URL}
               </code>
             </div>
 
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
               <span className="font-bold text-slate-700">Anon Public Key:</span>
-              <code className="block bg-slate-900 text-amber-300 p-2.5 rounded-xl font-mono text-[11px] truncate select-all">
+              <code className="block bg-slate-900 text-[#d97706] p-2.5 rounded-xl font-mono text-[11px] truncate select-all">
                 {SUPABASE_ANON_KEY}
               </code>
             </div>
           </div>
 
-          <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 flex items-center justify-between text-xs">
+          <div className="p-4 bg-[var(--app-ok-tint)] rounded-2xl border border-[var(--app-ok-line)] flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 bg-emerald-500 rounded-full animate-ping" />
-              <span className="font-bold text-emerald-900">
+              <div className="w-3 h-3 bg-[var(--app-ok)] rounded-full animate-ping" />
+              <span className="font-bold text-[var(--app-ok-text)]">
                 حالة الاتصال بالسحابة: {supabaseStatus.connected ? 'متصل بنجاح 🟢' : 'بانتظار المزامنة 🟡'}
               </span>
             </div>
             {supabaseStatus.lastSyncTime && (
-              <span className="text-emerald-700">آخر فحص: {supabaseStatus.lastSyncTime}</span>
+              <span className="text-[var(--app-ok-text)]">آخر فحص: {supabaseStatus.lastSyncTime}</span>
             )}
           </div>
         </div>
@@ -545,7 +545,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
         <div className="bg-slate-950 text-slate-100 rounded-3xl p-6 border border-slate-800 shadow-xl space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Code className="w-5 h-5 text-amber-400" />
+              <Code className="w-5 h-5 text-[#d97706]" />
               <h3 className="font-black text-sm text-white">
                 استعلامات SQL ومخطط الجداول الجاهزة للتشغيل (Supabase SQL Editor)
               </h3>
@@ -553,9 +553,9 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
 
             <button
               onClick={handleCopySql}
-              className="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-xs transition cursor-pointer shadow"
+              className="flex items-center gap-1.5 bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black px-3.5 py-1.5 rounded-xl text-xs transition cursor-pointer shadow"
             >
-              {copiedSql ? <CheckCircle2 className="w-4 h-4 text-emerald-800" /> : <Copy className="w-4 h-4" />}
+              {copiedSql ? <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)]" /> : <Copy className="w-4 h-4" />}
               <span>{copiedSql ? 'تم النسخ بنجاح!' : 'نسخ كود SQL 📋'}</span>
             </button>
           </div>
@@ -572,7 +572,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
       {activeSubTab === 'backup' && (
         <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm space-y-5">
           <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+            <div className="w-10 h-10 rounded-2xl bg-[var(--app-warn)] text-[var(--app-warn-text)] flex items-center justify-center font-bold">
               <Download className="w-5 h-5" />
             </div>
             <div>
@@ -586,7 +586,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
               <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                <Download className="w-4 h-4 text-amber-600" />
+                <Download className="w-4 h-4 text-[var(--app-warn-text)]" />
                 <span>تصدير نسخة احتياطية شاملة (Full JSON Backup)</span>
               </h4>
               <p className="text-xs text-slate-500">
@@ -594,7 +594,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
               </p>
               <button
                 onClick={handleExportJsonBackup}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-amber-300 font-black py-2.5 rounded-xl text-xs transition cursor-pointer shadow flex items-center justify-center gap-2"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-[#d97706] font-black py-2.5 rounded-xl text-xs transition cursor-pointer shadow flex items-center justify-center gap-2"
               >
                 <Download className="w-4 h-4" />
                 <span>تحميل ملف النسخة الاحتياطية JSON 📥</span>
@@ -603,13 +603,13 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
 
             <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
               <h4 className="font-bold text-sm text-slate-900 flex items-center gap-2">
-                <Upload className="w-4 h-4 text-emerald-600" />
+                <Upload className="w-4 h-4 text-[var(--app-ok-text)]" />
                 <span>استعادة البيانات من ملف JSON</span>
               </h4>
               <p className="text-xs text-slate-500">
                 رفع ملف نسخة احتياطية سابقة لاسترجاع البيانات وإعادة بنائها في التطبيق.
               </p>
-              <label className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-2.5 rounded-xl text-xs transition cursor-pointer shadow flex items-center justify-center gap-2">
+              <label className="w-full bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black py-2.5 rounded-xl text-xs transition cursor-pointer shadow flex items-center justify-center gap-2">
                 <Upload className="w-4 h-4" />
                 <span>اختيار ملف JSON للاستعادة 📤</span>
                 <input

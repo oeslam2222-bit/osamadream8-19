@@ -15,7 +15,7 @@ interface TopCustomersCardProps {
 const GrowthCell: React.FC<{ growth: number | null }> = ({ growth }) => {
   const Icon = growth === null ? Minus : growth >= 0 ? ArrowUpRight : ArrowDownRight;
   const tone =
-    growth === null ? 'text-slate-400' : growth >= 0 ? 'text-emerald-600' : 'text-rose-600';
+    growth === null ? 'text-slate-400' : growth >= 0 ? 'text-[var(--app-ok-text)]' : 'text-[var(--app-risk-text)]';
   return (
     <span className={`inline-flex items-center gap-0.5 font-black font-mono text-[10px] ${tone}`}>
       <Icon className="w-3 h-3" />
@@ -39,7 +39,7 @@ export const TopCustomersCard: React.FC<TopCustomersCardProps> = ({
       <div className="p-4 sm:p-5 flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-            <Users className="w-4 h-4 text-sky-500" />
+            <Users className="w-4 h-4 text-[var(--app-navy-text)]" />
             أعلى العملاء في الفترة
           </h3>
           <p className="text-[11px] text-slate-500 mt-1">
@@ -93,18 +93,18 @@ export const TopCustomersCard: React.FC<TopCustomersCardProps> = ({
                     key={customer.customerAccount}
                     onClick={() => onSelectCustomer(customer.customerAccount)}
                     className={`cursor-pointer transition ${
-                      isSelected ? 'bg-amber-50/70' : 'hover:bg-slate-50'
+                      isSelected ? 'bg-[var(--app-warn-tint)]' : 'hover:bg-slate-50'
                     }`}
                   >
                     <td className="px-3 py-2.5">
                       <span
                         className={`w-6 h-6 inline-flex items-center justify-center rounded-lg text-[10px] font-black ${
                           index === 0
-                            ? 'bg-amber-100 text-amber-900'
+                            ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]'
                             : index === 1
                               ? 'bg-slate-200 text-slate-700'
                               : index === 2
-                                ? 'bg-orange-100 text-orange-800'
+                                ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]'
                                 : 'bg-slate-100 text-slate-500'
                         }`}
                       >
@@ -160,7 +160,7 @@ export const TopCustomersCard: React.FC<TopCustomersCardProps> = ({
                             onStartOrder(customer.customerAccount);
                           }}
                           title="إنشاء طلب جديد"
-                          className="p-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 transition cursor-pointer"
+                          className="p-1.5 rounded-lg bg-[var(--app-warn-tint)] hover:bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] transition cursor-pointer"
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>

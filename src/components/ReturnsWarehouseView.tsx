@@ -169,7 +169,7 @@ export const ReturnsWarehouseView: React.FC = () => {
       </header>
 
       {flash ? (
-        <div className={`rounded-xl border px-4 py-3 text-sm font-bold ${flash.tone === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+        <div className={`rounded-xl border px-4 py-3 text-sm font-bold ${flash.tone === 'success' ? 'bg-[var(--app-ok-tint)] border-[var(--app-ok-line)] text-[var(--app-ok-text)]' : 'bg-[var(--app-risk-tint)] border-[var(--app-risk-line)] text-[var(--app-risk-text)]'}`}>
           {flash.text}
         </div>
       ) : null}
@@ -252,11 +252,11 @@ export const ReturnsWarehouseView: React.FC = () => {
                       <h3 className="font-black text-slate-800 text-base truncate">{v.customerName || customer?.name || 'عميل غير معروف'}</h3>
                       {v.customerCode ? <span className="text-[11px] font-black text-slate-500 bg-slate-100 rounded-md px-1.5 py-0.5">{v.customerCode}</span> : null}
                       <span className={`text-[11px] font-black px-2 py-1 rounded-full border ${style.badge}`}>{style.label}</span>
-                      <span className={`text-[11px] font-black px-2 py-1 rounded-full border ${meta.location === 'بالمخزن' ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
+                      <span className={`text-[11px] font-black px-2 py-1 rounded-full border ${meta.location === 'بالمخزن' ? 'bg-slate-100 text-slate-700 border-slate-200' : 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border-[var(--app-warn-line)]'}`}>
                         {meta.location || 'عند العميل'}
                       </span>
                       {overdue ? (
-                        <span className="text-[11px] font-black px-2 py-1 rounded-full border bg-rose-50 text-rose-700 border-rose-200">متأخر عن المدة</span>
+                        <span className="text-[11px] font-black px-2 py-1 rounded-full border bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border-[var(--app-risk-line)]">متأخر عن المدة</span>
                       ) : null}
                     </div>
                     <div className="flex flex-wrap items-center gap-3 mt-2 text-[11px] text-slate-500 font-bold">
@@ -282,7 +282,7 @@ export const ReturnsWarehouseView: React.FC = () => {
                     )}
                     {text ? <p className="mt-1 text-xs text-slate-500">ملاحظات: {text}</p> : null}
                     {typeof meta.receivedCartons === 'number' ? (
-                      <p className="mt-1 text-xs font-black text-teal-700">المستلم فعلياً: {meta.receivedCartons} كرتونة{typeof meta.receivedPieces === 'number' ? ` — ${meta.receivedPieces} قطعة` : ''}</p>
+                      <p className="mt-1 text-xs font-black text-[var(--app-ok-text)]">المستلم فعلياً: {meta.receivedCartons} كرتونة{typeof meta.receivedPieces === 'number' ? ` — ${meta.receivedPieces} قطعة` : ''}</p>
                     ) : null}
                   </div>
                   <div className="text-left shrink-0">
@@ -297,7 +297,7 @@ export const ReturnsWarehouseView: React.FC = () => {
                         key={a.stage + a.label}
                         type="button"
                         onClick={() => handleAction(v, a.stage, a.label, a.needsReceipt, a.needsSettlement)}
-                        className={`px-3 py-2 rounded-xl text-xs font-black transition ${a.tone === 'success' ? 'bg-emerald-600 text-white hover:bg-emerald-700' : a.tone === 'danger' ? 'bg-rose-100 text-rose-700 border border-rose-200 hover:bg-rose-200' : a.tone === 'warn' ? 'bg-orange-500 text-white hover:bg-orange-600' : 'text-white hover:opacity-90'}`}
+                        className={`px-3 py-2 rounded-xl text-xs font-black transition ${a.tone === 'success' ? 'bg-[var(--app-ok)] text-white hover:bg-[var(--app-ok)]' : a.tone === 'danger' ? 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)] hover:bg-[var(--app-risk-tint)]' : a.tone === 'warn' ? 'bg-[var(--app-warn)] text-white hover:bg-[var(--app-warn)]' : 'text-white hover:opacity-90'}`}
                         style={a.tone === 'primary' ? { background: 'var(--app-navy)' } : undefined}
                       >
                         {a.label}
@@ -381,7 +381,7 @@ export const ReturnsWarehouseView: React.FC = () => {
                   advance(draft.visit, draft.stage, { note: draft.note });
                   setSettlementDraft(null);
                 }}
-                className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-black text-sm"
+                className="px-4 py-2 rounded-lg bg-[var(--app-ok)] text-white font-black text-sm"
               >
                 إغلاق المرتجع
               </button>

@@ -220,7 +220,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
         <div className="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white shrink-0">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3 min-w-0">
-              <div className="w-11 h-11 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm shadow-md shrink-0 mt-0.5">
+              <div className="w-11 h-11 rounded-2xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black text-sm shadow-md shrink-0 mt-0.5">
                 <Boxes className="w-6 h-6" />
               </div>
               <div className="min-w-0 space-y-1">
@@ -235,13 +235,13 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                     title="انقر لفحص تفاصيل هذا الكود، وتكراراته في الشيت، والكود الموحد، واللون والحجم"
                   >
                     <span className="text-slate-400 text-[11px] ml-1 font-medium">كود الصنف:</span>
-                    <span className="font-mono font-black text-amber-300">{parentProduct.primaryCode}</span>
+                    <span className="font-mono font-black text-[#d97706]">{parentProduct.primaryCode}</span>
                     {parentProduct.variants.length > 1 ? (
-                      <span className="bg-amber-400/20 text-amber-300 text-[10px] px-1.5 py-0.2 rounded mr-1 font-bold">
+                      <span className="bg-[var(--app-warn)] text-[#d97706] text-[10px] px-1.5 py-0.2 rounded mr-1 font-bold">
                         مكرر بالشيت ({parentProduct.variants.length}) 🔍
                       </span>
                     ) : (
-                      <span className="bg-emerald-500/20 text-emerald-300 text-[10px] px-1.5 py-0.2 rounded mr-1 font-bold">
+                      <span className="bg-[var(--app-ok)] text-[#0d9488] text-[10px] px-1.5 py-0.2 rounded mr-1 font-bold">
                         فريد 🔍
                       </span>
                     )}
@@ -253,18 +253,18 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                       onClick={() => {
                         if (onInspectCode) onInspectCode(parentProduct.primaryCode);
                       }}
-                      className="flex items-center bg-blue-950/90 hover:bg-blue-900 text-blue-200 rounded-lg px-2.5 py-0.5 border border-blue-600/40 text-xs font-bold font-mono shadow-xs cursor-pointer"
+                      className="flex items-center bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-[#60a5fa] rounded-lg px-2.5 py-0.5 border border-[var(--app-navy)] text-xs font-bold font-mono shadow-xs cursor-pointer"
                       title="الكود الموحد - انقر لفحص التفاصيل"
                     >
-                      <span className="text-blue-300 text-[11px] ml-1 font-sans">الكود الموحد:</span>
-                      <span className="text-amber-300 font-black">
+                      <span className="text-[#60a5fa] text-[11px] ml-1 font-sans">الكود الموحد:</span>
+                      <span className="text-[#d97706] font-black">
                         {activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode || parentProduct.unifiedCode}
                       </span>
                     </button>
                   )}
 
                   {activeVariant.color && activeVariant.color !== '---' && !activeVariant.color.toLowerCase().includes('blank') && (
-                    <div className="flex items-center bg-amber-500/20 text-amber-300 rounded-lg px-2.5 py-0.5 border border-amber-500/30 text-xs font-bold shadow-xs">
+                    <div className="flex items-center bg-[var(--app-warn)] text-[#d97706] rounded-lg px-2.5 py-0.5 border border-[var(--app-warn)] text-xs font-bold shadow-xs">
                       <span>اللون: {activeVariant.color}</span>
                     </div>
                   )}
@@ -275,7 +275,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                 </div>
 
                 {/* Product Name */}
-                <h2 className="text-base sm:text-xl font-black text-amber-400 leading-tight">
+                <h2 className="text-base sm:text-xl font-black text-[#d97706] leading-tight">
                   {parentProduct.name}
                 </h2>
               </div>
@@ -289,7 +289,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                     onClose();
                     onOpenCart();
                   }}
-                  className="hidden sm:flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-black shadow transition cursor-pointer"
+                  className="hidden sm:flex items-center gap-1.5 bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 px-3 py-1.5 rounded-xl text-xs font-black shadow transition cursor-pointer"
                 >
                   <ShoppingCart className="w-4 h-4" />
                   <span>السلة ({cart.length})</span>
@@ -313,9 +313,9 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-5">
           {/* Notifications */}
           {successNotice && (
-            <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-2xl p-3 sm:p-4 text-xs font-bold flex items-center justify-between shadow-xs animate-in fade-in">
+            <div className="bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-2xl p-3 sm:p-4 text-xs font-bold flex items-center justify-between shadow-xs animate-in fade-in">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)] shrink-0" />
                 <span>{successNotice}</span>
               </div>
               {onOpenCart && (
@@ -325,7 +325,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                     onClose();
                     onOpenCart();
                   }}
-                  className="bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-xs font-black hover:bg-emerald-700 cursor-pointer"
+                  className="bg-[var(--app-ok)] text-white px-2.5 py-1 rounded-lg text-xs font-black hover:bg-[var(--app-ok)] cursor-pointer"
                 >
                   الذهاب للسلة ⬅️
                 </button>
@@ -334,8 +334,8 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
           )}
 
           {stockError && (
-            <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-3 text-xs font-bold flex items-center gap-2 animate-in fade-in">
-              <X className="w-4 h-4 text-rose-600 shrink-0" />
+            <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-2xl p-3 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+              <X className="w-4 h-4 text-[var(--app-risk-text)] shrink-0" />
               <span>{stockError}</span>
             </div>
           )}
@@ -408,7 +408,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
 
                 {/* Window Badge Overlay */}
                 <div className="absolute top-3 right-3 bg-slate-900/90 text-white font-black text-xs px-3 py-1.5 rounded-xl shadow-lg border border-slate-700 backdrop-blur-sm flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                  <span className="w-2.5 h-2.5 rounded-full bg-[var(--app-warn)]"></span>
                   <span>{activeVariant.name}</span>
                 </div>
 
@@ -426,7 +426,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                 </button>
 
                 {activeVariant.promoPrice && activeVariant.promoPrice > 0 && (
-                  <div className="absolute top-3 left-3 bg-rose-600 text-white font-black text-xs px-2.5 py-1 rounded-xl shadow-md flex items-center gap-1">
+                  <div className="absolute top-3 left-3 bg-[var(--app-risk)] text-white font-black text-xs px-2.5 py-1 rounded-xl shadow-md flex items-center gap-1">
                     <Flame className="w-3.5 h-3.5" />
                     <span>عرض ترويجي</span>
                   </div>
@@ -455,7 +455,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                           }}
                           className={`w-14 h-14 rounded-xl border-2 p-1 flex-shrink-0 transition bg-white overflow-hidden cursor-pointer relative ${
                             isSelected
-                              ? 'border-amber-500 shadow-md ring-2 ring-amber-400/40'
+                              ? 'border-[var(--app-warn)] shadow-md ring-2 ring-[var(--app-warn)]'
                               : 'border-slate-200 hover:border-slate-300 opacity-75 hover:opacity-100'
                           }`}
                           title={`${v.name} — اضغط للاختيار، دبل كليك للتكبير`}
@@ -483,7 +483,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
               <div className="bg-slate-50/90 p-3.5 rounded-2xl border border-slate-200/90 space-y-2">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-black text-slate-900 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4 text-amber-500" />
+                    <Sparkles className="w-4 h-4 text-[var(--app-warn-text)]" />
                     <span>اختر الشباك أو اللون المطلوب:</span>
                   </span>
                   <span className="text-[11px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-lg border border-slate-200">
@@ -508,8 +508,8 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                         onClick={() => handleSelectVariant(variant)}
                         className={`p-2.5 rounded-xl border-2 text-right transition cursor-pointer relative flex flex-col justify-between min-h-[72px] ${
                           isSelected
-                            ? 'bg-amber-400 border-slate-950 text-slate-950 shadow-md scale-[1.02] ring-2 ring-amber-400/50'
-                            : 'bg-white border-slate-200 hover:border-amber-300 text-slate-800 hover:bg-amber-50/40'
+                            ? 'bg-[var(--app-warn)] border-slate-950 text-slate-950 shadow-md scale-[1.02] ring-2 ring-[var(--app-warn)]'
+                            : 'bg-white border-slate-200 hover:border-[var(--app-warn-line)] text-slate-800 hover:bg-[var(--app-warn-tint)]'
                         }`}
                       >
                         <div className="flex items-center justify-between w-full">
@@ -517,7 +517,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                             {displayName}
                           </span>
                           {inCart && (
-                            <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px] font-bold shrink-0 shadow-xs" title="موجود بالسلة">
+                            <span className="w-4 h-4 rounded-full bg-[var(--app-ok)] text-white flex items-center justify-center text-[9px] font-bold shrink-0 shadow-xs" title="موجود بالسلة">
                               ✓
                             </span>
                           )}
@@ -531,9 +531,9 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                             className={`font-black font-mono px-1.5 py-0.5 rounded-md text-[10px] shrink-0 ${
                               vTotalStock > 0
                                 ? isSelected
-                                  ? 'bg-slate-950 text-amber-300'
-                                  : 'bg-emerald-100 text-emerald-800'
-                                : 'bg-rose-100 text-rose-700'
+                                  ? 'bg-slate-950 text-[#d97706]'
+                                  : 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]'
+                                : 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]'
                             }`}
                           >
                             {vTotalStock > 0 ? `${vTotalStock} ك` : 'منتهي'}
@@ -552,14 +552,14 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                     <span className="text-[10px] text-slate-400 font-bold block">الشباك المحدد حالياً:</span>
                     <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                       <span className="text-sm font-black text-[var(--app-ink)] flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                        <span className="w-2.5 h-2.5 rounded-full bg-[var(--app-warn)]"></span>
                         <span>{activeVariant.name.replace(/\(blank\)/gi, '').replace(/blank/gi, '').trim() || `شباك ${activeVariant.windowNumber || 1}`}</span>
                       </span>
                       <span className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
                         كود: {activeVariant.code}
                       </span>
                       {(activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode) && (
-                        <span className="text-xs font-mono font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                        <span className="text-xs font-mono font-black text-[var(--app-navy-text)] bg-[var(--app-navy-tint)] px-2 py-0.5 rounded-md border border-[var(--app-navy-line)]">
                           موحد: {activeVariant.unifiedCode || activeVariant.rawProduct?.unifiedCode}
                         </span>
                       )}
@@ -568,7 +568,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
 
                   <div className="text-left shrink-0">
                     <span className="text-[10px] text-slate-400 font-bold block">شدة الكرتونة:</span>
-                    <span className="text-xs font-black text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                    <span className="text-xs font-black text-[var(--app-warn-text)] bg-[var(--app-warn-tint)] px-2 py-0.5 rounded-md border border-[var(--app-warn-line)]">
                       {cartonQty} قطعة / كرتونة
                     </span>
                   </div>
@@ -577,8 +577,8 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                 {/* Pricing Box - Sleek Gold & Slate Theme */}
                 <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white shadow-inner">
                   <div>
-                    <span className="text-[10px] text-amber-300/80 block font-bold">سعر الكرتونة</span>
-                    <div className="text-xl font-black text-amber-400 font-mono">
+                    <span className="text-[10px] text-[#d97706] block font-bold">سعر الكرتونة</span>
+                    <div className="text-xl font-black text-[#d97706] font-mono">
                       {isConfidentialMode ? '••••••' : formatCurrency(appliedPrice)}
                     </div>
                   </div>
@@ -593,27 +593,27 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
 
                   {activeVariant.promoPrice && activeVariant.promoPrice > 0 ? (
                     <div className="text-left">
-                      <span className="text-[10px] text-rose-300 block font-bold">عرض خاص</span>
-                      <div className="text-xs font-black text-rose-400 bg-rose-950/60 px-2 py-0.5 rounded border border-rose-800">
+                      <span className="text-[10px] text-[#ef4444] block font-bold">عرض خاص</span>
+                      <div className="text-xs font-black text-[#ef4444] bg-[var(--app-risk)] px-2 py-0.5 rounded border border-[var(--app-risk)]">
                         خصم ترويجي
                       </div>
                     </div>
                   ) : (
                     <div className="text-left text-xs font-bold text-slate-400">
                       <span className="text-[10px] block">الرصيد المتاح</span>
-                      <span className="text-emerald-400 font-black font-mono">{totalStockAvailable} ك</span>
+                      <span className="text-[#0d9488] font-black font-mono">{totalStockAvailable} ك</span>
                     </div>
                   )}
                 </div>
 
                 {/* In Cart Indicator */}
                 {cartCartons > 0 || cartPieces > 0 ? (
-                  <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-bold flex items-center justify-between">
+                  <div className="p-2.5 rounded-xl bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] text-xs font-bold flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <Check className="w-4 h-4 text-emerald-600" />
+                      <Check className="w-4 h-4 text-[var(--app-ok-text)]" />
                       <span>مضاف في السلة حالياً من هذا الشباك:</span>
                     </div>
-                    <span className="font-black text-emerald-700 font-mono">
+                    <span className="font-black text-[var(--app-ok-text)] font-mono">
                       {cartCartons > 0 && `${cartCartons} كرتونة `}
                       {cartPieces > 0 && `${cartPieces} قطعة`}
                     </span>
@@ -630,7 +630,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                         onClick={() => setOrderType('carton')}
                         className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
                           orderType === 'carton'
-                            ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
+                            ? 'bg-[var(--app-warn)] text-slate-950 font-black shadow-xs'
                             : 'text-slate-600 hover:text-slate-950'
                         }`}
                       >
@@ -641,7 +641,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                         onClick={() => setOrderType('piece')}
                         className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
                           orderType === 'piece'
-                            ? 'bg-amber-400 text-slate-950 font-black shadow-xs'
+                            ? 'bg-[var(--app-warn)] text-slate-950 font-black shadow-xs'
                             : 'text-slate-600 hover:text-slate-950'
                         }`}
                       >
@@ -666,7 +666,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                         min="1"
                         value={quantity}
                         onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                        className="w-14 h-9 text-center font-black text-sm text-slate-950 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        className="w-14 h-9 text-center font-black text-sm text-slate-950 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)]"
                       />
 
                       <button
@@ -699,7 +699,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                     type="button"
                     disabled={totalStockAvailable <= 0}
                     onClick={handleAddToCart}
-                    className="w-full bg-gradient-to-r from-amber-400 via-amber-500 to-amber-400 hover:from-amber-300 hover:to-amber-400 active:scale-[0.98] text-slate-950 font-black h-12 px-4 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full bg-gradient-to-r from-[var(--app-warn)] via-[var(--app-warn)] to-[var(--app-warn)] hover:from-[var(--app-warn)] hover:to-[var(--app-warn)] active:scale-[0.98] text-slate-950 font-black h-12 px-4 rounded-xl text-sm shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <ShoppingCart className="w-4 h-4" />
                     <span>
@@ -724,13 +724,13 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                 {/* Top Header Summary */}
                 <div className="bg-slate-900 text-white p-3 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-lg bg-amber-400 text-slate-950 flex items-center justify-center font-black">
+                    <div className="w-7 h-7 rounded-lg bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black">
                       <Building2 className="w-4 h-4" />
                     </div>
                     <div>
                       <div className="text-xs font-black text-white flex items-center gap-1.5">
                         <span>تفاصيل المخزون بكافة الفروع</span>
-                        <span className="text-[10px] bg-amber-400/20 text-amber-300 px-1.5 py-0.2 rounded font-bold border border-amber-400/30">
+                        <span className="text-[10px] bg-[var(--app-warn)] text-[#d97706] px-1.5 py-0.2 rounded font-bold border border-[var(--app-warn)]">
                           {branchInventoryList.length} مخازن
                         </span>
                       </div>
@@ -743,7 +743,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                   <div className="flex items-center gap-2">
                     <div className="text-left bg-slate-800/90 px-2.5 py-1 rounded-xl border border-slate-700">
                       <span className="text-[9px] text-slate-400 block font-bold">إجمالي رصيد الشركة</span>
-                      <span className="text-sm font-black text-amber-300 font-mono">
+                      <span className="text-sm font-black text-[#d97706] font-mono">
                         {grandTotalAllWarehouses.toLocaleString()} كرتونة
                       </span>
                     </div>
@@ -752,10 +752,10 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
 
                 {/* High-Level Stock Split */}
                 <div className="grid grid-cols-2 gap-2 p-2.5 bg-white border-b border-slate-200 text-xs">
-                  <div className="p-2 rounded-xl bg-amber-50/70 border border-amber-200/80 flex items-center justify-between">
+                  <div className="p-2 rounded-xl bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] text-amber-800 font-bold block flex items-center gap-1">
-                        <Package className="w-3 h-3 text-amber-600" />
+                      <span className="text-[10px] text-[var(--app-warn-text)] font-bold block flex items-center gap-1">
+                        <Package className="w-3 h-3 text-[var(--app-warn-text)]" />
                         <span>المخزن المركزي (أكتوبر)</span>
                       </span>
                       <span className="text-sm font-black text-slate-900 font-mono">
@@ -763,16 +763,16 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                       </span>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                      mainWarehouseStock > 10 ? 'bg-emerald-100 text-emerald-800' : mainWarehouseStock > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
+                      mainWarehouseStock > 10 ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]' : mainWarehouseStock > 0 ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]' : 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]'
                     }`}>
                       {mainWarehouseStock > 0 ? 'متاح للصرف' : 'نافد'}
                     </span>
                   </div>
 
-                  <div className="p-2 rounded-xl bg-sky-50/70 border border-sky-200/80 flex items-center justify-between">
+                  <div className="p-2 rounded-xl bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] flex items-center justify-between">
                     <div>
-                      <span className="text-[10px] text-sky-800 font-bold block flex items-center gap-1">
-                        <Building2 className="w-3 h-3 text-sky-600" />
+                      <span className="text-[10px] text-[var(--app-navy-text)] font-bold block flex items-center gap-1">
+                        <Building2 className="w-3 h-3 text-[var(--app-navy-text)]" />
                         <span>إجمالي فروع التوزيع</span>
                       </span>
                       <span className="text-sm font-black text-slate-900 font-mono">
@@ -780,7 +780,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                       </span>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                      totalBranchesStockOnly > 10 ? 'bg-emerald-100 text-emerald-800' : totalBranchesStockOnly > 0 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-700'
+                      totalBranchesStockOnly > 10 ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]' : totalBranchesStockOnly > 0 ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]' : 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]'
                     }`}>
                       {totalBranchesStockOnly > 0 ? 'موزعة بالفروع' : 'نافد'}
                     </span>
@@ -824,16 +824,16 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
 
                           <div className="flex items-center justify-between mt-1 text-[10px]">
                             <span className={`font-mono font-black text-xs ${
-                              isCritical ? 'text-amber-800' : isAvailable ? 'text-emerald-700' : 'text-slate-400'
+                              isCritical ? 'text-[var(--app-warn-text)]' : isAvailable ? 'text-[var(--app-ok-text)]' : 'text-slate-400'
                             }`}>
                               {branch.stock} ك
                             </span>
                             <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
                               isCritical
-                                ? 'bg-amber-100 text-amber-800'
+                                ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]'
                                 : isAvailable
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : 'bg-rose-50 text-rose-600'
+                                  ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]'
+                                  : 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]'
                             }`}>
                               {isCritical ? 'حرج' : isAvailable ? 'متاح' : 'نافد'}
                             </span>
@@ -856,7 +856,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
               <div className="flex items-center justify-between text-xs font-black text-slate-900">
                 <span className="flex items-center gap-1.5">
-                  <Layers className="w-4 h-4 text-indigo-600" />
+                  <Layers className="w-4 h-4 text-[var(--app-navy-text)]" />
                   <span>جدول شبابيك الصنف بالكامل (طلب سريع لعدة شبابيك معاً):</span>
                 </span>
                 <span className="text-slate-500 font-normal">
@@ -900,19 +900,19 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                             </span>
                           </td>
                           <td className="p-2.5 font-mono text-slate-600 font-bold">{v.code}</td>
-                          <td className="p-2.5 text-center font-mono font-black text-blue-700">
+                          <td className="p-2.5 text-center font-mono font-black text-[var(--app-navy-text)]">
                             {v.unifiedCode || v.rawProduct?.unifiedCode ? (
-                              <span className="bg-blue-50 text-blue-800 px-2 py-0.5 rounded border border-blue-200">
+                              <span className="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] px-2 py-0.5 rounded border border-[var(--app-navy-line)]">
                                 {v.unifiedCode || v.rawProduct?.unifiedCode}
                               </span>
                             ) : (
                               '—'
                             )}
                           </td>
-                          <td className="p-2.5 text-center font-mono font-bold text-emerald-700">
+                          <td className="p-2.5 text-center font-mono font-bold text-[var(--app-ok-text)]">
                             {v.branchStockActual || 0} ك
                           </td>
-                          <td className="p-2.5 text-center font-mono font-bold text-amber-700">
+                          <td className="p-2.5 text-center font-mono font-bold text-[var(--app-warn-text)]">
                             {v.mainWarehouseActual || 0} ك
                           </td>
                           <td className="p-2.5 text-left font-bold text-slate-900">
@@ -926,7 +926,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                           </td>
                           <td className="p-2.5 text-center">
                             {inCart ? (
-                              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full">
+                              <span className="bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] text-[10px] font-black px-2 py-0.5 rounded-full">
                                 {inCart.cartonCount} كرتونة
                               </span>
                             ) : (
@@ -987,7 +987,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                   onClose();
                   onOpenCart();
                 }}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 rounded-xl font-black shadow transition cursor-pointer flex items-center gap-1.5"
+                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-[#d97706] rounded-xl font-black shadow transition cursor-pointer flex items-center gap-1.5"
               >
                 <ShoppingCart className="w-4 h-4" />
                 <span>إتمام الطلبية ({cart.length})</span>

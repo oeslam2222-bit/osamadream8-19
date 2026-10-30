@@ -48,7 +48,9 @@ import {
   Save,
   CalendarCheck,
   PackageCheck,
-  AlertCircle
+  AlertCircle,
+  Home,
+  Zap
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -151,7 +153,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     invoices = [],
     isPrivacyMode,
     togglePrivacyMode,
-    cleanAndDeduplicateCustomers
+    cleanAndDeduplicateCustomers,
+    activeSectorFilter,
+    setActiveSectorFilter,
   } = useApp();
 
   // Roles
@@ -331,10 +335,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     if (isNaN(d.getTime())) return { text: dateStr, color: 'text-slate-600 bg-slate-100' };
     const now = new Date();
     const diffDays = Math.round((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays <= 0) return { text: 'اليوم', color: 'text-emerald-700 bg-emerald-100' };
-    if (diffDays === 1) return { text: 'أمس', color: 'text-emerald-700 bg-emerald-50' };
-    if (diffDays <= 7) return { text: `منذ ${diffDays} أيام`, color: 'text-blue-700 bg-blue-50' };
-    if (diffDays <= 30) return { text: `منذ ${Math.round(diffDays / 7)} أسبوع`, color: 'text-amber-800 bg-amber-50' };
+    if (diffDays <= 0) return { text: 'اليوم', color: 'text-[var(--app-ok-text)] bg-[var(--app-ok-tint)]' };
+    if (diffDays === 1) return { text: 'أمس', color: 'text-[var(--app-ok-text)] bg-[var(--app-ok-tint)]' };
+    if (diffDays <= 7) return { text: `منذ ${diffDays} أيام`, color: 'text-[var(--app-navy-text)] bg-[var(--app-navy-tint)]' };
+    if (diffDays <= 30) return { text: `منذ ${Math.round(diffDays / 7)} أسبوع`, color: 'text-[var(--app-warn-text)] bg-[var(--app-warn-tint)]' };
     return { text: `منذ ${Math.round(diffDays / 30)} شهر`, color: 'text-slate-600 bg-slate-100' };
   };
 
@@ -353,7 +357,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     if (amt > 0) {
       return {
         label: `ماضي على ورق ضمان (${formatMoney(amt)})`,
-        color: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
+        color: 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)] font-bold',
         isSigned: true,
       };
     }
@@ -361,7 +365,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     if (g && g !== '0' && !g.includes('لا يوجد') && !g.includes('بدون') && (g.includes('ماضي') || g.includes('شيك') || g.includes('كمبيال') || g.includes('أمانة') || g.includes('امانة') || g.includes('رهن'))) {
       return {
         label: g.includes('ماضي') ? g : `ماضي (${g})`,
-        color: 'bg-emerald-100 text-emerald-800 border-emerald-300 font-bold',
+        color: 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)] font-bold',
         isSigned: true,
       };
     }
@@ -500,6 +504,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       list = list.filter((c) => c.region === selectedRegion);
     }
 
+    // Sector filter (منزلي / كهربائي)
+    if (activeSectorFilter && activeSectorFilter !== 'all') {
+      list = list.filter((c) => !c.sector || c.sector === activeSectorFilter || c.sector === 'both' || c.sector === 'all');
+    }
+
     // Deal eligibility filter (قابل / غير قابل)
     if (eligibilityFilter !== 'ALL') {
       list = list.filter((c) => matchesEligibilityFilter(c, eligibilityFilter));
@@ -549,6 +558,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     dealtFilter,
     searchQuery,
     users,
+    activeSectorFilter,
   ]);
 
   // المرحلة (ب): شرائح المديونية/النشاط/الطلبيات/التحصيل/الزيارات + الترتيب.
@@ -1061,7 +1071,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <div className="font-black text-slate-900 group-hover:text-[var(--app-accent)] transition flex items-center gap-1.5">
               {c.name}
               {customersWithReturns.has(c.id) || customersWithReturns.has(c.code) ? (
-                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-red-100 text-red-700 font-bold border border-red-200 whitespace-nowrap">
+                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] font-bold border border-[var(--app-risk-line)] whitespace-nowrap">
                   ⚠️ لديه مرتجع
                 </span>
               ) : null}
@@ -1494,7 +1504,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div>
               <h2 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-amber-500" />
+                <BarChart3 className="w-4 h-4 text-[var(--app-warn-text)]" />
                 <span>تحليلات ومؤشرات Power BI التنفيذية لعام 2026</span>
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -1556,7 +1566,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-slate-500">
                 <span className="font-bold">مقارنة حركة المبيعات والتحصيلات على مدار 12 شهراً لعام 2026:</span>
-                {isPrivacyMode && <span className="text-amber-700 font-bold bg-amber-50 px-2 py-0.5 rounded-md">وضع السرية مفعل</span>}
+                {isPrivacyMode && <span className="text-[var(--app-warn-text)] font-bold bg-[var(--app-warn-tint)] px-2 py-0.5 rounded-md">وضع السرية مفعل</span>}
               </div>
               <div className="h-64 sm:h-72 w-full">
                 <ResponsiveContainer width="100%" height="100%">
@@ -1670,13 +1680,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               {/* Guarantees & Terms Summary Cards */}
               <div className="space-y-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <h3 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <ShieldCheck className="w-4 h-4 text-[var(--app-ok-text)]" />
                   <span>توزيع أوراق الضمان وشروط السداد للعملاء</span>
                 </h3>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="p-2.5 bg-white rounded-lg border border-slate-200">
                     <span className="text-slate-400 block text-[11px] font-bold">بأوراق ضمان معتمدة:</span>
-                    <span className="text-sm font-black text-emerald-700">{kpiStats.guaranteedCount.toLocaleString()} عميل</span>
+                    <span className="text-sm font-black text-[var(--app-ok-text)]">{kpiStats.guaranteedCount.toLocaleString()} عميل</span>
                   </div>
                   <div className="p-2.5 bg-white rounded-lg border border-slate-200">
                     <span className="text-slate-400 block text-[11px] font-bold">بدون أوراق ضمان:</span>
@@ -1684,11 +1694,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   </div>
                   <div className="p-2.5 bg-white rounded-lg border border-slate-200">
                     <span className="text-slate-400 block text-[11px] font-bold">الحد الائتماني الإجمالي:</span>
-                    <span className="text-sm font-black text-amber-700">{formatMoney(kpiStats.totalCreditLimit)}</span>
+                    <span className="text-sm font-black text-[var(--app-warn-text)]">{formatMoney(kpiStats.totalCreditLimit)}</span>
                   </div>
                   <div className="p-2.5 bg-white rounded-lg border border-slate-200">
                     <span className="text-slate-400 block text-[11px] font-bold">متجاوزو الحد الائتماني:</span>
-                    <span className="text-sm font-black text-rose-700">{kpiStats.overLimitCount.toLocaleString()} عميل</span>
+                    <span className="text-sm font-black text-[var(--app-risk-text)]">{kpiStats.overLimitCount.toLocaleString()} عميل</span>
                   </div>
                 </div>
               </div>
@@ -1698,6 +1708,33 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       )}
 
       {/* شريط فلترة العملاء: بحث ذكي + ترتيب المديونية + فلاتر متقدمة */}
+      {/* 🏠⚡ فلتر القطاع (منزلي / كهربائي) */}
+      {(!isRep && !isSupervisor) && (
+        <div className="bg-white border border-[color:var(--app-line)] rounded-xl p-2.5 sm:p-3 shadow-xs mb-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <span className="text-xs font-black text-slate-600 dark:text-slate-300 sm:ml-2">اختر القطاع:</span>
+          <div className="flex flex-1 gap-1 overflow-x-auto">
+            {([
+              { key: 'all', label: 'الكل', icon: <Users className="w-4 h-4" /> },
+              { key: 'home', label: 'منزلي', icon: <Home className="w-4 h-4" /> },
+              { key: 'electrical', label: 'كهربائي', icon: <Zap className="w-4 h-4" /> },
+            ] as const).map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setActiveSectorFilter(t.key)}
+                className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 ${
+                  activeSectorFilter === t.key
+                    ? 'bg-[var(--app-navy)] text-white shadow-xs shadow-[inset_0_-3px_0_var(--app-accent)]'
+                    : 'bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 hover:text-[var(--app-navy)]'
+                }`}
+              >
+                {t.icon}
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <CustomerFilterBar
         value={filterBarValue}
         onChange={handleFilterChange}
@@ -1792,10 +1829,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               // Avatar initial & background color
               const firstLetter = (c.name || 'ع').trim().charAt(0);
               const avatarColors = [
-                'bg-teal-600 text-white',
-                'bg-blue-600 text-white',
-                'bg-amber-500 text-white',
-                'bg-indigo-600 text-white',
+                'bg-[var(--app-ok)] text-white',
+                'bg-[var(--app-navy)] text-white',
+                'bg-[var(--app-warn)] text-white',
+                'bg-[var(--app-navy)] text-white',
                 'bg-slate-700 text-white'
               ];
               const avatarBg = avatarColors[(c.code ? c.code.charCodeAt(c.code.length - 1) : index) % avatarColors.length];
@@ -1814,7 +1851,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               return (
                 <div
                   key={c.id || c.code}
-                  className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-3.5 space-y-3 hover:border-teal-500/50 transition"
+                  className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-3.5 space-y-3 hover:border-[var(--app-ok)] transition"
                 >
                   {/* Card Header: Avatar + Info + Status */}
                   <div className="flex items-start justify-between gap-2.5">
@@ -1825,7 +1862,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       <div className="min-w-0">
                         <div
                           onClick={() => setQuickCustomer(c)}
-                          className="font-black text-slate-900 text-sm truncate cursor-pointer hover:text-teal-700 transition"
+                          className="font-black text-slate-900 text-sm truncate cursor-pointer hover:text-[var(--app-ok-text)] transition"
                         >
                           {c.name}
                         </div>
@@ -1839,8 +1876,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
                     <div className="shrink-0 flex flex-col items-end gap-1">
                       {isLegal ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200">
-                          <ShieldAlert className="w-3 h-3 text-rose-600" />
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)]">
+                          <ShieldAlert className="w-3 h-3 text-[var(--app-risk-text)]" />
                           <span>شؤون قانونية</span>
                         </span>
                       ) : null}
@@ -1863,31 +1900,31 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           style={{ width: `${Math.min(100, Math.max(limit > 0 ? 3 : 0, creditUsage))}%` }}
                         />
                       </div>
-                      <div className={`text-[8px] font-bold mt-0.5 ${creditUsage > 100 ? 'text-rose-600' : 'text-slate-500'}`}>
+                      <div className={`text-[8px] font-bold mt-0.5 ${creditUsage > 100 ? 'text-[var(--app-risk-text)]' : 'text-slate-500'}`}>
                         {limit > 0 ? `حد ${formatMoney(limit)} · ${creditUsage}%` : 'بدون حد'}
                       </div>
                     </div>
 
                     <div className="rounded-xl bg-red-deep/80 border border-red-soft p-2 text-right">
                       <div className="text-[9px] text-rose font-bold">المستحقات</div>
-                      <div className="font-black text-rose-900 text-xs sm:text-sm mt-0.5 truncate">
+                      <div className="font-black text-[var(--app-risk-text)] text-xs sm:text-sm mt-0.5 truncate">
                         {formatMoney(overdue)}
                       </div>
                     </div>
 
                     <div className="rounded-xl bg-teal-soft/80 border border-teal-soft p-2 text-right">
                       <div className="text-[9px] text-success font-bold">إجمالي المسدد</div>
-                      <div className="font-black text-teal-900 text-xs sm:text-sm mt-0.5 truncate">
+                      <div className="font-black text-[var(--app-ok-text)] text-xs sm:text-sm mt-0.5 truncate">
                         {formatMoney(paidAmount)}
                       </div>
-                      {colRate > 0 && <div className="text-[8px] text-emerald-700 font-bold mt-0.5">سداد {colRate}%</div>}
+                      {colRate > 0 && <div className="text-[8px] text-[var(--app-ok-text)] font-bold mt-0.5">سداد {colRate}%</div>}
                     </div>
                   </div>
 
                   {/* Warning banner if big debt without phone */}
                   {!c.phone && bal >= 1000000 && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[10px] font-bold text-amber-900 flex items-center gap-1.5">
-                      <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <div className="rounded-xl border border-[var(--app-warn-line)] bg-[var(--app-warn-tint)] px-2.5 py-1.5 text-[10px] font-bold text-[var(--app-warn-text)] flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-[var(--app-warn-text)] shrink-0" />
                       <span>عميل بمديونية كبيرة بدون رقم هاتف مسجل</span>
                     </div>
                   )}
@@ -1901,7 +1938,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           className="h-8 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 transition"
                           title="اتصال هاتفي بالعميل"
                         >
-                          <Phone className="w-3.5 h-3.5 text-teal-600" />
+                          <Phone className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
                           <span>اتصال</span>
                         </a>
                       ) : null}
@@ -1922,7 +1959,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <button
                       type="button"
                       onClick={() => setQuickCustomer(c)}
-                      className="h-8 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-teal-700 font-black text-xs flex items-center gap-1 transition cursor-pointer"
+                      className="h-8 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-[var(--app-ok-text)] font-black text-xs flex items-center gap-1 transition cursor-pointer"
                     >
                       <span>التفاصيل</span>
                       <ChevronLeft className="w-3.5 h-3.5" />
@@ -2004,7 +2041,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                             event.stopPropagation();
                             setSelectedCustomer(c);
                           }}
-                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-teal-700 transition cursor-pointer"
+                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-[var(--app-ok-text)] transition cursor-pointer"
                           title="فتح الملف الكامل 360°"
                         >
                           <ExternalLink className="w-4 h-4" />
@@ -2058,7 +2095,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <span>السابق</span>
               </button>
 
-              <span className="px-3 py-1 font-black bg-slate-900 text-amber-300 rounded-lg">
+              <span className="px-3 py-1 font-black bg-slate-900 text-[#d97706] rounded-lg">
                 {currentPage} / {totalPages}
               </span>
 
@@ -2115,7 +2152,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             {/* Modal Header */}
             <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white rounded-t-3xl flex items-center justify-between sticky top-0 z-20 border-b border-slate-800">
               <div className="flex items-center gap-3 sm:gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-xl shadow-sm shrink-0">
+                <div className="w-12 h-12 rounded-2xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black text-xl shadow-sm shrink-0">
                   {selectedCustomer.name.slice(0, 1)}
                 </div>
                 <div>
@@ -2123,12 +2160,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <h3 className="font-black text-base sm:text-xl text-white">
                       {selectedCustomer.name}
                     </h3>
-                    <span className="font-mono text-xs px-2.5 py-0.5 rounded-lg bg-amber-400/20 text-amber-300 font-black border border-amber-400/30">
+                    <span className="font-mono text-xs px-2.5 py-0.5 rounded-lg bg-[var(--app-warn)] text-[#d97706] font-black border border-[var(--app-warn)]">
                       كود: {selectedCustomer.code}
                     </span>
                   </div>
                   <p className="text-xs text-slate-300 mt-1 flex items-center gap-2 sm:gap-3 flex-wrap font-medium">
-                    <span className="text-amber-200/90 font-bold">الفرع: {selectedCustomer.branchName}</span>
+                    <span className="text-[#d97706] font-bold">الفرع: {selectedCustomer.branchName}</span>
                     <span>•</span>
                     <span>المندوب المسؤول: <strong className="text-white font-black">{selectedCustomer.salesRepName || selectedCustomer.repName || 'غير محدد'}</strong></span>
                     {selectedCustomer.region && (
@@ -2165,7 +2202,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <>
                       <a
                         href={`tel:${selectedCustomer.phone}`}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-200 font-bold text-xs hover:bg-blue-100 transition"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)] font-bold text-xs hover:bg-[var(--app-navy-tint)] transition"
                       >
                         <Phone className="w-3.5 h-3.5" />
                         <span>اتصال ({selectedCustomer.phone})</span>
@@ -2174,7 +2211,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         href={`https://wa.me/20${selectedCustomer.phone.replace(/^0+/, '')}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold text-xs hover:bg-emerald-100 transition"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)] font-bold text-xs hover:bg-[var(--app-ok-tint)] transition"
                       >
                         <MessageCircle className="w-3.5 h-3.5" />
                         <span>واتساب</span>
@@ -2188,7 +2225,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setIsLoggingVisit(!isLoggingVisit)}
-                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-sm transition cursor-pointer"
+                    className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black text-xs shadow-sm transition cursor-pointer"
                   >
                     <Calendar className="w-3.5 h-3.5" />
                     <span>تسجيل زيارة عميل</span>
@@ -2200,7 +2237,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         onOpenNewOrderForCustomer(selectedCustomer);
                         setSelectedCustomer(null);
                       }}
-                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs shadow-sm transition cursor-pointer"
+                      className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black text-xs shadow-sm transition cursor-pointer"
                     >
                       <ShoppingCart className="w-3.5 h-3.5" />
                       <span>بدء فاتورة كاشير في الكتالوج</span>
@@ -2211,7 +2248,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
               {/* Visit Logging Form Inline */}
               {isLoggingVisit && (
-                <div className="p-4 bg-amber-50/50 rounded-2xl border border-amber-200 space-y-3 animate-in fade-in">
+                <div className="p-4 bg-[var(--app-warn-tint)] rounded-2xl border border-[var(--app-warn-line)] space-y-3 animate-in fade-in">
                   <div className="font-black text-xs text-slate-800 flex items-center justify-between">
                     <span>تسجيل زيارة جديدة لـ ({selectedCustomer.name})</span>
                     <button
@@ -2289,7 +2326,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <div className="flex justify-end pt-1">
                     <button
                       onClick={handleSaveVisit}
-                      className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow transition cursor-pointer"
+                      className="px-4 py-1.5 rounded-xl bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black text-xs shadow transition cursor-pointer"
                     >
                       حفظ وتسجيل الزيارة
                     </button>
@@ -2299,57 +2336,57 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
               {/* Financial & Comparison Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 rounded-2xl bg-blue-50/90 border border-blue-200/80 shadow-2xs">
-                  <div className="text-xs font-black text-blue-700 flex items-center justify-between">
+                <div className="p-3.5 rounded-2xl bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] shadow-2xs">
+                  <div className="text-xs font-black text-[var(--app-navy-text)] flex items-center justify-between">
                     <span>مبيعات 2026</span>
-                    <span className="w-2 h-2 rounded-full bg-blue-500" />
+                    <span className="w-2 h-2 rounded-full bg-[var(--app-navy)]" />
                   </div>
-                  <div className="text-lg sm:text-2xl font-black font-mono text-blue-950 mt-1">
+                  <div className="text-lg sm:text-2xl font-black font-mono text-[var(--app-navy-text)] mt-1">
                     {formatMoney(selectedCustomer.sales2026 || 0)}
                   </div>
-                  <div className="text-[11px] font-bold text-blue-600 mt-1 border-t border-blue-100 pt-1 flex items-center justify-between">
+                  <div className="text-[11px] font-bold text-[var(--app-navy-text)] mt-1 border-t border-[var(--app-navy-line)] pt-1 flex items-center justify-between">
                     <span>سنة 2025:</span>
                     <span className="font-mono">{formatMoney(selectedCustomer.sales2025 || 0)}</span>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-emerald-50/90 border border-emerald-200/80 shadow-2xs">
-                  <div className="text-xs font-black text-emerald-700 flex items-center justify-between">
+                <div className="p-3.5 rounded-2xl bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] shadow-2xs">
+                  <div className="text-xs font-black text-[var(--app-ok-text)] flex items-center justify-between">
                     <span>تحصيلات 2026</span>
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span className="w-2 h-2 rounded-full bg-[var(--app-ok)]" />
                   </div>
-                  <div className="text-lg sm:text-2xl font-black font-mono text-emerald-950 mt-1">
+                  <div className="text-lg sm:text-2xl font-black font-mono text-[var(--app-ok-text)] mt-1">
                     {formatMoney(selectedCustomer.collections2026 || 0)}
                   </div>
-                  <div className="text-[11px] font-bold text-emerald-600 mt-1 border-t border-emerald-100 pt-1 flex items-center justify-between">
+                  <div className="text-[11px] font-bold text-[var(--app-ok-text)] mt-1 border-t border-[var(--app-ok-line)] pt-1 flex items-center justify-between">
                     <span>سنة 2025:</span>
                     <span className="font-mono">{formatMoney(selectedCustomer.collections2025 || 0)}</span>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-purple-50/90 border border-purple-200/80 shadow-2xs">
-                  <div className="text-xs font-black text-purple-700 flex items-center justify-between">
+                <div className="p-3.5 rounded-2xl bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] shadow-2xs">
+                  <div className="text-xs font-black text-[var(--app-navy-text)] flex items-center justify-between">
                     <span>المديونية الحالية</span>
-                    <span className="w-2 h-2 rounded-full bg-purple-500" />
+                    <span className="w-2 h-2 rounded-full bg-[var(--app-navy)]" />
                   </div>
-                  <div className="text-lg sm:text-2xl font-black font-mono text-purple-950 mt-1">
+                  <div className="text-lg sm:text-2xl font-black font-mono text-[var(--app-navy-text)] mt-1">
                     {formatMoney(selectedCustomer.currentBalance ?? selectedCustomer.balance ?? 0)}
                   </div>
-                  <div className="text-[11px] font-bold text-purple-600 mt-1 border-t border-purple-100 pt-1 flex items-center justify-between">
+                  <div className="text-[11px] font-bold text-[var(--app-navy-text)] mt-1 border-t border-[var(--app-navy-line)] pt-1 flex items-center justify-between">
                     <span>الحد الائتماني:</span>
                     <span className="font-mono">{formatMoney(selectedCustomer.creditLimit || 0)}</span>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-rose-50/90 border border-rose-200/80 shadow-2xs">
-                  <div className="text-xs font-black text-rose-700 flex items-center justify-between">
+                <div className="p-3.5 rounded-2xl bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] shadow-2xs">
+                  <div className="text-xs font-black text-[var(--app-risk-text)] flex items-center justify-between">
                     <span>المستحقات الواجبة</span>
-                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span className="w-2 h-2 rounded-full bg-[var(--app-risk)]" />
                   </div>
-                  <div className="text-lg sm:text-2xl font-black font-mono text-rose-950 mt-1">
+                  <div className="text-lg sm:text-2xl font-black font-mono text-[var(--app-risk-text)] mt-1">
                     {formatMoney(selectedCustomer.totalOverdueAndDue ?? selectedCustomer.overdueBalance ?? 0)}
                   </div>
-                  <div className="text-[11px] font-bold text-rose-600 mt-1 border-t border-rose-100 pt-1 flex items-center justify-between">
+                  <div className="text-[11px] font-bold text-[var(--app-risk-text)] mt-1 border-t border-[var(--app-risk-line)] pt-1 flex items-center justify-between">
                     <span>الحالة:</span>
                     <span>واجبة التحصيل فوراً</span>
                   </div>
@@ -2360,12 +2397,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               <div className="p-4 bg-slate-50/95 rounded-2xl border border-slate-200 space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <h4 className="font-black text-xs sm:text-sm text-slate-800 flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                    <ShieldCheck className="w-4 h-4 text-[var(--app-ok-text)]" />
                     <span>موقف أوراق الضمان، الحد الائتماني، وطرق الدفع</span>
                   </h4>
                   {selectedCustomer.hasGuarantee || (selectedCustomer.guaranteeAmount && selectedCustomer.guaranteeAmount > 0) ? (
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-100 text-emerald-900 text-xs font-black border border-emerald-300">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] text-xs font-black border border-[var(--app-ok-line)]">
+                      <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)]" />
                       <span>ماضي على ورق ضمان</span>
                     </span>
                   ) : (
@@ -2412,10 +2449,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <div className="text-sm sm:text-base font-black text-slate-900 mt-1">
                       <span className={`inline-block px-2.5 py-0.5 rounded-lg text-xs font-black ${
                         (selectedCustomer.paymentTerms || 'كاش').includes('شيك')
-                          ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                          ? 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)]'
                           : (selectedCustomer.paymentTerms || 'كاش').includes('دفع')
-                          ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)]'
+                          : 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
                       }`}>
                         {selectedCustomer.paymentTerms || 'كاش'}
                       </span>
@@ -2433,7 +2470,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <div className="p-3.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
                     <div className="text-xs font-bold text-slate-500">نشاط التعامل في 2026</div>
                     <div className="text-sm sm:text-base font-black text-slate-900 mt-1 flex items-center gap-1.5">
-                      <span className={`w-2.5 h-2.5 rounded-full ${selectedCustomer.hasDealtIn2026 ? 'bg-emerald-500' : 'bg-slate-400'}`} />
+                      <span className={`w-2.5 h-2.5 rounded-full ${selectedCustomer.hasDealtIn2026 ? 'bg-[var(--app-ok)]' : 'bg-slate-400'}`} />
                       <span>{selectedCustomer.hasDealtIn2026 ? 'عميل نشط ومتعامل' : 'غير متعامل في 2026'}</span>
                     </div>
                     <div className="text-[11px] text-slate-400 mt-1">
@@ -2451,7 +2488,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <h4 className="font-black text-xs sm:text-sm text-slate-800 flex items-center gap-1.5">
-                        <ShoppingCart className="w-4 h-4 text-teal-600" />
+                        <ShoppingCart className="w-4 h-4 text-[var(--app-ok-text)]" />
                         <span>أوامر البيع والطلبيات المسجلة للعميل ({customerOrders.length})</span>
                       </h4>
                       {onOpenNewOrderForCustomer && (
@@ -2460,7 +2497,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                             onOpenNewOrderForCustomer(selectedCustomer);
                             setSelectedCustomer(null);
                           }}
-                          className="px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 font-black text-xs transition flex items-center gap-1.5 cursor-pointer"
+                          className="px-3 py-1.5 rounded-xl bg-[var(--app-ok-tint)] hover:bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)] font-black text-xs transition flex items-center gap-1.5 cursor-pointer"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           <span>إنشاء أمر بيع / طلبية جديدة</span>
@@ -2491,15 +2528,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                                 <td className="p-2">
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
                                     inv.status === 'معتمدة' || inv.status === 'تم التسليم' || inv.status === 'معتمدة ومصروفة من المخزن'
-                                      ? 'bg-emerald-100 text-emerald-800'
+                                      ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]'
                                       : inv.status === 'جاري التجهيز' || inv.status === 'قيد مراجعة المشرف'
-                                      ? 'bg-amber-100 text-amber-800'
-                                      : 'bg-blue-100 text-blue-800'
+                                      ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]'
+                                      : 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]'
                                   }`}>
                                     {inv.status || 'مسجل'}
                                   </span>
                                 </td>
-                                <td className="p-2 text-left font-mono font-black text-teal-800">
+                                <td className="p-2 text-left font-mono font-black text-[var(--app-ok-text)]">
                                   {formatCurrency(inv.estimatedGrandTotal ?? inv.subtotal ?? 0)}
                                 </td>
                               </tr>
@@ -2516,7 +2553,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                               onOpenNewOrderForCustomer(selectedCustomer);
                               setSelectedCustomer(null);
                             }}
-                            className="px-3.5 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs transition cursor-pointer shadow-2xs"
+                            className="px-3.5 py-1.5 rounded-xl bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black text-xs transition cursor-pointer shadow-2xs"
                           >
                             + بدء طلبية وفاتورة كاشير جديدة
                           </button>
@@ -2561,7 +2598,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     {/* Header with Title and View Toggle */}
                     <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
+                        <div className="w-7 h-7 rounded-lg bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] flex items-center justify-center">
                           <Calendar className="w-4 h-4" />
                         </div>
                         <div>
@@ -2609,20 +2646,20 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white shadow-xs">
                       <div className="flex items-center justify-between sm:flex-col sm:items-start px-2 py-1">
                         <span className="text-[11px] font-bold text-slate-300">إجمالي مبيعات 2026:</span>
-                        <span className="font-mono text-base sm:text-lg font-black text-amber-300">
+                        <span className="font-mono text-base sm:text-lg font-black text-[#d97706]">
                           {formatCurrency(grandSales2026)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between sm:flex-col sm:items-start px-2 py-1 border-t sm:border-t-0 sm:border-r border-slate-700">
                         <span className="text-[11px] font-bold text-slate-300">إجمالي تحصيلات 2026:</span>
-                        <span className="font-mono text-base sm:text-lg font-black text-emerald-400">
+                        <span className="font-mono text-base sm:text-lg font-black text-[#0d9488]">
                           {formatCurrency(grandCol2026)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between sm:flex-col sm:items-start px-2 py-1 border-t sm:border-t-0 sm:border-r border-slate-700">
                         <span className="text-[11px] font-bold text-slate-300">نسبة التغطية والسداد:</span>
                         <span className={`font-mono text-base sm:text-lg font-black ${
-                          grandRate >= 90 ? 'text-emerald-400' : grandRate >= 50 ? 'text-amber-300' : 'text-rose-400'
+                          grandRate >= 90 ? 'text-[#0d9488]' : grandRate >= 50 ? 'text-[#d97706]' : 'text-[#ef4444]'
                         }`}>
                           {grandRate}%
                         </span>
@@ -2657,8 +2694,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           <thead>
                             <tr className="bg-slate-100 text-slate-800 font-black border-b border-slate-200 text-xs">
                               <th className="p-3 text-right">الشهر</th>
-                              <th className="p-3 text-blue-800">المبيعات (ج.م)</th>
-                              <th className="p-3 text-emerald-800">التحصيلات (ج.م)</th>
+                              <th className="p-3 text-[var(--app-navy-text)]">المبيعات (ج.م)</th>
+                              <th className="p-3 text-[var(--app-ok-text)]">التحصيلات (ج.م)</th>
                               <th className="p-3 text-center">نسبة السداد</th>
                             </tr>
                           </thead>
@@ -2676,12 +2713,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                                     <span>{monthName}</span>
                                     <span className="text-[11px] font-bold text-slate-400 mr-1.5">(شهر {mNum})</span>
                                   </td>
-                                  <td className="p-3 font-mono font-black text-sm text-blue-900">
+                                  <td className="p-3 font-mono font-black text-sm text-[var(--app-navy-text)]">
                                     {s > 0 ? formatCurrency(s) : (
                                       <span className="text-slate-400 font-normal text-[11px]">لا توجد بيانات لهذا الشهر</span>
                                     )}
                                   </td>
-                                  <td className="p-3 font-mono font-black text-sm text-emerald-900">
+                                  <td className="p-3 font-mono font-black text-sm text-[var(--app-ok-text)]">
                                     {col > 0 ? formatCurrency(col) : (
                                       <span className="text-slate-400 font-normal text-[11px]">لا توجد بيانات لهذا الشهر</span>
                                     )}
@@ -2690,10 +2727,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                                     {hasData ? (
                                       <span className={`font-black text-xs px-2.5 py-1 rounded-full inline-block ${
                                         rate >= 90
-                                          ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                          ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
                                           : rate >= 50
-                                          ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                          : 'bg-rose-100 text-rose-900 border border-rose-300'
+                                          ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)]'
+                                          : 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)]'
                                       }`}>
                                         {rate}%
                                       </span>
@@ -2708,22 +2745,22 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           {/* Financial Total Summary Row */}
                           <tfoot className="bg-slate-900 text-white font-black border-t-2 border-slate-800">
                             <tr>
-                              <td className="p-3 text-right text-xs text-amber-300 font-black">
+                              <td className="p-3 text-right text-xs text-[#d97706] font-black">
                                 الإجمالي السنوي لعام 2026:
                               </td>
-                              <td className="p-3 font-mono font-black text-sm sm:text-base text-blue-200">
+                              <td className="p-3 font-mono font-black text-sm sm:text-base text-[#60a5fa]">
                                 {formatCurrency(grandSales2026)}
                               </td>
-                              <td className="p-3 font-mono font-black text-sm sm:text-base text-emerald-300">
+                              <td className="p-3 font-mono font-black text-sm sm:text-base text-[#0d9488]">
                                 {formatCurrency(grandCol2026)}
                               </td>
                               <td className="p-3 text-center">
                                 <span className={`font-black text-xs px-3 py-1 rounded-full inline-block ${
                                   grandRate >= 90
-                                    ? 'bg-emerald-500 text-slate-950'
+                                    ? 'bg-[var(--app-ok)] text-slate-950'
                                     : grandRate >= 50
-                                    ? 'bg-amber-400 text-slate-950'
-                                    : 'bg-rose-500 text-white'
+                                    ? 'bg-[var(--app-warn)] text-slate-950'
+                                    : 'bg-[var(--app-risk)] text-white'
                                 }`}>
                                   {grandRate}%
                                 </span>
@@ -2741,7 +2778,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               {selectedCustomer.visitHistory && selectedCustomer.visitHistory.length > 0 && (
                 <div className="space-y-2">
                   <h4 className="font-black text-xs text-slate-800 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-blue-500" />
+                    <Clock className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
                     <span>سجل الزيارات الميدانية المسجلة ({selectedCustomer.visitHistory.length})</span>
                   </h4>
 
@@ -2751,14 +2788,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         <div>
                           <div className="font-black text-slate-800 flex items-center gap-2">
                             <span>{v.date}</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-bold">{v.type || 'زيارة'}</span>
-                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold">{v.outcome}</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] font-bold">{v.type || 'زيارة'}</span>
+                            <span className="text-[10px] px-2 py-0.5 rounded-md bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] font-bold">{v.outcome}</span>
                           </div>
                           {v.notes && <p className="text-slate-500 text-[11px] mt-1">{v.notes}</p>}
                         </div>
 
                         {v.collectedAmount && v.collectedAmount > 0 ? (
-                          <div className="text-left font-mono font-black text-emerald-700">
+                          <div className="text-left font-mono font-black text-[var(--app-ok-text)]">
                             +{formatCurrency(v.collectedAmount)}
                           </div>
                         ) : null}
@@ -2797,7 +2834,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-black">
+                <div className="w-9 h-9 rounded-xl bg-[var(--app-warn)] text-[var(--app-warn-text)] flex items-center justify-center font-black">
                   <FileSpreadsheet className="w-5 h-5" />
                 </div>
                 <div>
@@ -2818,14 +2855,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               <div
                 className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
                   syncStatus.type === 'success'
-                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                    : 'bg-rose-50 text-rose-800 border border-rose-200'
+                    ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
+                    : 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)]'
                 }`}
               >
                 {syncStatus.type === 'success' ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)] shrink-0" />
                 ) : (
-                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <AlertTriangle className="w-4 h-4 text-[var(--app-risk-text)] shrink-0" />
                 )}
                 <span>{syncStatus.message}</span>
               </div>
@@ -2835,12 +2872,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                  <RefreshCw className="w-3.5 h-3.5 text-amber-500" />
+                  <RefreshCw className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
                   <span>رابط Google Sheet لشيت المديونية والعملاء (Clients):</span>
                 </label>
                 {googleSheetUrl && (
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100/80 px-2 py-0.5 rounded-full flex items-center gap-1">
-                    <Check className="w-3 h-3 text-emerald-600" />
+                  <span className="text-[10px] font-bold text-[var(--app-ok-text)] bg-[var(--app-ok-tint)] px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <Check className="w-3 h-3 text-[var(--app-ok-text)]" />
                     <span>محفوظ دائماً</span>
                   </span>
                 )}
@@ -2858,7 +2895,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   }
                 }}
                 placeholder="https://docs.google.com/spreadsheets/d/..."
-                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:border-amber-500"
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:outline-none focus:border-[var(--app-warn)]"
               />
 
               {/* Saved History Quick Selector */}
@@ -2875,7 +2912,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       }}
                       className={`text-[10px] px-2 py-0.5 rounded-lg border transition font-mono truncate max-w-[200px] cursor-pointer ${
                         googleSheetUrl === link
-                          ? 'bg-amber-100 border-amber-300 text-amber-900 font-bold'
+                          ? 'bg-[var(--app-warn-tint)] border-[var(--app-warn-line)] text-[var(--app-warn-text)] font-bold'
                           : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
                       }`}
                       title={link}
@@ -2889,7 +2926,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               <button
                 onClick={handleSyncGoogleSheet}
                 disabled={isSyncing || !googleSheetUrl}
-                className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black py-2.5 rounded-xl text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
+                className="w-full bg-[var(--app-warn)] hover:bg-[var(--app-warn)] disabled:opacity-50 text-slate-950 font-black py-2.5 rounded-xl text-xs shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 {isSyncing ? (
                   <>
@@ -2908,11 +2945,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             {/* Direct Excel File Upload Option */}
             <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
               <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                <Upload className="w-3.5 h-3.5 text-blue-500" />
+                <Upload className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
                 <span>أو رفع ملف Excel مباشر من الجهاز:</span>
               </div>
 
-              <label className="w-full border-2 border-dashed border-slate-300 hover:border-amber-500 p-4 rounded-xl flex flex-col items-center justify-center gap-1.5 cursor-pointer bg-white transition text-center">
+              <label className="w-full border-2 border-dashed border-slate-300 hover:border-[var(--app-warn)] p-4 rounded-xl flex flex-col items-center justify-center gap-1.5 cursor-pointer bg-white transition text-center">
                 <Upload className="w-6 h-6 text-slate-400" />
                 <span className="text-xs font-bold text-slate-700">اضغط هنا لاختيار ملف Excel (.xlsx)</span>
                 <span className="text-[10px] text-slate-400">يدعم حتى 10,000 عميل مع التحليل الشهري</span>
@@ -2929,7 +2966,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-xs">
               <button
                 onClick={downloadCustomerAnalyticsTemplate}
-                className="text-amber-600 hover:text-amber-700 font-bold flex items-center gap-1"
+                className="text-[var(--app-warn-text)] hover:text-[var(--app-warn-text)] font-bold flex items-center gap-1"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>تحميل قالب Excel جاهز بالأعمدة</span>

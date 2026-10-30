@@ -573,7 +573,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   if (isLoading) {
     return (
       <div className="bg-white rounded-3xl border border-slate-200 p-10 flex flex-col items-center justify-center gap-3 min-h-[360px]">
-        <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+        <Loader2 className="w-8 h-8 text-[var(--app-warn-text)] animate-spin" />
         <p className="text-xs font-bold text-slate-500">جاري تحميل سجلات مبيعات الأصناف...</p>
       </div>
     );
@@ -585,8 +585,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       <section className="bg-white rounded-3xl border border-slate-200 shadow-[0_4px_18px_rgba(15,43,56,0.05)] p-5 sm:p-6">
         <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
           <div className="space-y-2 min-w-0">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-[11px] font-black">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] text-[var(--app-warn-text)] rounded-xl text-[11px] font-black">
+              <Sparkles className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
               لوحة تحليل مبيعات الأصناف الحقيقية
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
@@ -601,25 +601,25 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
             <div className="pt-1 flex items-center gap-2 flex-wrap text-[10px]">
               {salesRecords.length > 0 && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 rounded-lg text-amber-800 font-bold border border-amber-200">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-amber-600" />
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--app-warn-tint)] rounded-lg text-[var(--app-warn-text)] font-bold border border-[var(--app-warn-line)]">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
                   {salesRecords.length.toLocaleString('ar-EG')} حركة بيع معتمدة
                 </span>
               )}
               {supabaseCount !== null && supabaseCount > 0 && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-50 rounded-lg text-sky-800 font-bold border border-sky-200">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--app-navy-tint)] rounded-lg text-[var(--app-navy-text)] font-bold border border-[var(--app-navy-line)]">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
                   مزامنة Supabase: {supabaseCount.toLocaleString('ar-EG')} حركة سحابياً
                 </span>
               )}
               {supabaseCount === 0 && salesRecords.length > 0 && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 rounded-lg text-rose-800 font-bold border border-rose-200 animate-pulse">
-                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--app-risk-tint)] rounded-lg text-[var(--app-risk-text)] font-bold border border-[var(--app-risk-line)] animate-pulse">
+                  <AlertTriangle className="w-3.5 h-3.5 text-[var(--app-risk-text)]" />
                   قاعدة Supabase فارغة (0) — يلزم المزامنة السحابية
                 </span>
               )}
               {lastSyncAt && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 rounded-lg text-emerald-700 font-bold border border-emerald-200">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--app-ok-tint)] rounded-lg text-[var(--app-ok-text)] font-bold border border-[var(--app-ok-line)]">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   آخر تحديث: {lastSyncAt}
                 </span>
@@ -643,9 +643,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 type="button"
                 onClick={handleEnrichAndPersistSales}
                 title="مطابقة كود العميل بقاعدة العملاء المركزية وتحديد الفرع والمندوب لكل حركة"
-                className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl border border-teal-300 bg-teal-50 hover:bg-teal-100 text-teal-900 font-black text-[11px] shadow-2xs transition cursor-pointer"
+                className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl border border-[var(--app-ok-line)] bg-[var(--app-ok-tint)] hover:bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] font-black text-[11px] shadow-2xs transition cursor-pointer"
               >
-                <Link2 className="w-4 h-4 text-teal-700" />
+                <Link2 className="w-4 h-4 text-[var(--app-ok-text)]" />
                 <span>ربط الفروع والمناديب</span>
               </button>
             )}
@@ -656,9 +656,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 onClick={handlePushToSupabase}
                 disabled={isSupabasePushing}
                 title="مزامنة حركات الأصناف مع جدول customer_item_sales في Supabase"
-                className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl border border-sky-300 bg-sky-50 hover:bg-sky-100 text-sky-900 font-black text-[11px] shadow-2xs transition cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl border border-[var(--app-navy-line)] bg-[var(--app-navy-tint)] hover:bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] font-black text-[11px] shadow-2xs transition cursor-pointer disabled:opacity-50"
               >
-                <CloudUpload className={`w-4 h-4 text-sky-600 ${isSupabasePushing ? 'animate-bounce' : ''}`} />
+                <CloudUpload className={`w-4 h-4 text-[var(--app-navy-text)] ${isSupabasePushing ? 'animate-bounce' : ''}`} />
                 <span>
                   {isSupabasePushing
                     ? `جاري المزامنة (${supabasePushProgress ? `${supabasePushProgress.synced}/${supabasePushProgress.total}` : '...'})`
@@ -673,7 +673,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 onClick={handleExportExcel}
                 className="inline-flex items-center gap-2 h-10 px-3.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition cursor-pointer"
               >
-                <Download className="w-4 h-4 text-emerald-600" />
+                <Download className="w-4 h-4 text-[var(--app-ok-text)]" />
                 تصدير Excel
               </button>
             )}
@@ -683,9 +683,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 type="button"
                 onClick={handleClearSales}
                 title="تصفير ومسح مبيعات الأصناف"
-                className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-rose-200 hover:bg-rose-50 text-rose-700 font-bold text-[11px] transition cursor-pointer"
+                className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-[var(--app-risk-line)] hover:bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] font-bold text-[11px] transition cursor-pointer"
               >
-                <Trash2 className="w-4 h-4 text-rose-500" />
+                <Trash2 className="w-4 h-4 text-[var(--app-risk-text)]" />
                 <span className="hidden sm:inline">مسح الداتا</span>
               </button>
             )}
@@ -694,15 +694,15 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
         {/* Directory linking info banner */}
         {salesRecords.length > 0 && customerLinkStats.linkedCustomers > 0 && (
-          <div className="mt-4 bg-gradient-to-l from-emerald-50 via-teal-50 to-sky-50 border border-teal-200 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+          <div className="mt-4 bg-gradient-to-l from-[var(--app-ok)] via-[var(--app-ok)] to-[var(--app-navy)] border border-[var(--app-ok-line)] rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-teal-700 text-white flex items-center justify-center shrink-0 shadow-2xs">
+              <div className="w-8 h-8 rounded-xl bg-[var(--app-ok)] text-white flex items-center justify-center shrink-0 shadow-2xs">
                 <Link2 className="w-4 h-4" />
               </div>
               <div>
                 <div className="font-black text-slate-900 flex items-center gap-2">
                   <span>ربط كود العميل بقاعدة العملاء المركزية</span>
-                  <span className="bg-emerald-100 text-emerald-900 text-[10px] px-2 py-0.5 rounded-md font-black border border-emerald-300">
+                  <span className="bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] text-[10px] px-2 py-0.5 rounded-md font-black border border-[var(--app-ok-line)]">
                     مفعّل وتلقائي ✓
                   </span>
                 </div>
@@ -714,7 +714,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             <button
               type="button"
               onClick={handleEnrichAndPersistSales}
-              className="inline-flex items-center justify-center gap-1.5 h-8 px-3 bg-teal-800 hover:bg-teal-900 text-white font-black rounded-xl text-[11px] shadow-2xs transition cursor-pointer shrink-0"
+              className="inline-flex items-center justify-center gap-1.5 h-8 px-3 bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black rounded-xl text-[11px] shadow-2xs transition cursor-pointer shrink-0"
             >
               <RefreshCw className="w-3 h-3" />
               <span>تثبيت الربط ببيانات العملاء</span>
@@ -723,13 +723,13 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         )}
 
         {syncSuccessMsg && (
-          <div className="mt-3 bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl text-[11px] flex items-center gap-2">
+          <div className="mt-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] p-3 rounded-xl text-[11px] flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span className="font-bold">{syncSuccessMsg}</span>
           </div>
         )}
         {syncErrorMsg && (
-          <div className="mt-3 bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-xl text-[11px] flex items-center gap-2">
+          <div className="mt-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] p-3 rounded-xl text-[11px] flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span className="font-bold">{syncErrorMsg}</span>
           </div>
@@ -741,7 +741,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         <section className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-[10px]">
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-black text-slate-700 flex items-center gap-1.5">
-              <AlertTriangle className="w-3 h-3 text-amber-500" />
+              <AlertTriangle className="w-3 h-3 text-[var(--app-warn-text)]" />
               تشخيص أعداد السجلات حسب المرحلة
             </h3>
             <span className="text-slate-400 font-bold">يساعد في تحديد ما إذا كانت المشكلة في التحميل أو التحويل أو الصلاحيات أو الفلاتر</span>
@@ -749,44 +749,44 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             <div className="bg-white border border-slate-200 rounded-xl p-2.5">
               <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">Supabase (السحابة)</div>
-              <div className="text-lg font-black text-sky-700">{computedDiagnostics.supabaseCount.toLocaleString('ar-EG')}</div>
+              <div className="text-lg font-black text-[var(--app-navy-text)]">{computedDiagnostics.supabaseCount.toLocaleString('ar-EG')}</div>
               <div className="text-[9px] text-slate-400 mt-0.5">سجلات موجودة على السحابة</div>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl p-2.5">
               <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">بعد التحميل (الصفحة)</div>
-              <div className="text-lg font-black text-amber-700">{computedDiagnostics.loadedCount.toLocaleString('ar-EG')}</div>
+              <div className="text-lg font-black text-[var(--app-warn-text)]">{computedDiagnostics.loadedCount.toLocaleString('ar-EG')}</div>
               <div className="text-[9px] text-slate-400 mt-0.5">سجلات وصلت للعرض</div>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl p-2.5">
               <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">قيم رقمية أكبر من صفر</div>
-              <div className="text-lg font-black text-emerald-700">{computedDiagnostics.numericValuesCount.toLocaleString('ar-EG')}</div>
+              <div className="text-lg font-black text-[var(--app-ok-text)]">{computedDiagnostics.numericValuesCount.toLocaleString('ar-EG')}</div>
               <div className="text-[9px] text-slate-400 mt-0.5">سجلات فيها كمية أو مبلغ &gt; 0</div>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl p-2.5">
               <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">بعد الصلاحيات (RBAC)</div>
-              <div className="text-lg font-black text-teal-700">{computedDiagnostics.afterRbacCount.toLocaleString('ar-EG')}</div>
+              <div className="text-lg font-black text-[var(--app-ok-text)]">{computedDiagnostics.afterRbacCount.toLocaleString('ar-EG')}</div>
               <div className="text-[9px] text-slate-400 mt-0.5">سجلات مسموح للمستخدم رؤيتها</div>
             </div>
             <div className="bg-white border border-slate-200 rounded-xl p-2.5">
               <div className="text-[9px] text-slate-500 font-bold uppercase tracking-wider">بعد الفلاتر</div>
-              <div className="text-lg font-black text-rose-700">{computedDiagnostics.afterFiltersCount.toLocaleString('ar-EG')}</div>
+              <div className="text-lg font-black text-[var(--app-risk-text)]">{computedDiagnostics.afterFiltersCount.toLocaleString('ar-EG')}</div>
               <div className="text-[9px] text-slate-400 mt-0.5">سجلات داخل الشهر والفئة المحددين</div>
             </div>
           </div>
           {computedDiagnostics.loadedCount > 0 && computedDiagnostics.afterFiltersCount === 0 && (
-            <div className="mt-2.5 bg-amber-50 border border-amber-200 rounded-lg p-2 text-amber-800 text-[10px]">
+            <div className="mt-2.5 bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] rounded-lg p-2 text-[var(--app-warn-text)] text-[10px]">
               <AlertTriangle className="w-3.5 h-3.5 inline mr-1.5" />
               كل السجلات المحملة ({computedDiagnostics.loadedCount.toLocaleString('ar-EG')}) تُستبعد بواسطة الفلاتر الحالية — راجع الشهر والفئة والمندوب والفرع المختارين.
             </div>
           )}
           {computedDiagnostics.loadedCount > 0 && computedDiagnostics.numericValuesCount === 0 && (
-            <div className="mt-2.5 bg-rose-50 border border-rose-200 rounded-lg p-2 text-rose-800 text-[10px]">
+            <div className="mt-2.5 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] rounded-lg p-2 text-[var(--app-risk-text)] text-[10px]">
               <AlertCircle className="w-3.5 h-3.5 inline mr-1.5" />
               لا توجد سجلات فيها كمية أو مبلغ أكبر من صفر — قد تكون المشكلة في تحويل الأرقام من الملف المرفوع.
             </div>
           )}
           {computedDiagnostics.supabaseCount > 0 && computedDiagnostics.loadedCount === 0 && (
-            <div className="mt-2.5 bg-sky-50 border border-sky-200 rounded-lg p-2 text-sky-800 text-[10px]">
+            <div className="mt-2.5 bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] rounded-lg p-2 text-[var(--app-navy-text)] text-[10px]">
               <CloudDownload className="w-3.5 h-3.5 inline mr-1.5" />
               يوجد سجلات في Supabase ({computedDiagnostics.supabaseCount.toLocaleString('ar-EG')}) لكن لم تصل لأي سجل للصفحة — تأكد من الاتصال بالسحابة أو اضغط «تحديث».
             </div>
@@ -796,14 +796,14 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
       {/* RBAC Filter Warning Banner when sales exist but user role filters them out */}
       {salesRecords.length > 0 && rbacSales.length === 0 && (
-        <div className="bg-amber-50 border-2 border-amber-300 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-amber-950 shadow-sm animate-in fade-in">
+        <div className="bg-[var(--app-warn-tint)] border-2 border-[var(--app-warn-line)] rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-[var(--app-warn-text)] shadow-sm animate-in fade-in">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="w-6 h-6 text-amber-600 shrink-0 mt-0.5" />
+            <AlertTriangle className="w-6 h-6 text-[var(--app-warn-text)] shrink-0 mt-0.5" />
             <div>
               <h3 className="font-black text-sm sm:text-base">
                 تم حفظ {salesRecords.length.toLocaleString('ar-EG')} حركة بيع في النظام بنجاح!
               </h3>
-              <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+              <p className="text-xs text-[var(--app-warn-text)] mt-1 leading-relaxed">
                 الحركات الحالية لا تطابق اسم المندوب أو الفرع الخاص بالحساب المسجل به حالياً ({currentUser?.name || 'مستخدم غير محدد'} - {currentUser?.role || 'sales_rep'}).
                 اضغط على الزر المقابل لعرض كافة مبيعات الشركة والجمهورية مباشرة بدون قيود.
               </p>
@@ -812,7 +812,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           <button
             type="button"
             onClick={() => setShowAllSalesOverride(true)}
-            className="bg-amber-600 hover:bg-amber-700 text-white font-black px-5 py-2.5 rounded-xl text-xs shrink-0 cursor-pointer shadow-md transition whitespace-nowrap"
+            className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-white font-black px-5 py-2.5 rounded-xl text-xs shrink-0 cursor-pointer shadow-md transition whitespace-nowrap"
           >
             عرض كافة مبيعات الشركة (تجاوز الفلتر)
           </button>
@@ -820,15 +820,15 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       )}
 
       {showAllSalesOverride && (
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center justify-between gap-2 text-blue-900 text-xs">
+        <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] rounded-2xl p-3 flex items-center justify-between gap-2 text-[var(--app-navy-text)] text-xs">
           <span className="font-bold flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+            <Sparkles className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
             يتم حالياً عرض كافة مبيعات الجمهورية والشركة ({salesRecords.length.toLocaleString('ar-EG')} حركة) متجاوزاً قيود المندوب.
           </span>
           <button
             type="button"
             onClick={() => setShowAllSalesOverride(false)}
-            className="underline hover:text-blue-700 font-black cursor-pointer text-[11px]"
+            className="underline hover:text-[var(--app-navy-text)] font-black cursor-pointer text-[11px]"
           >
             العودة للفلترة حسب نطاق صلاحيتي
           </button>
@@ -837,7 +837,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
       {/* Prominent Cloud Sync Banner when local records exist but Supabase is empty */}
       {salesRecords.length > 0 && supabaseCount !== null && supabaseCount === 0 && (
-        <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 rounded-3xl p-5 sm:p-6 text-white shadow-xl shadow-amber-500/20 animate-in fade-in">
+        <div className="bg-gradient-to-r from-[var(--app-warn)] via-[var(--app-warn)] to-[var(--app-warn)] rounded-3xl p-5 sm:p-6 text-white shadow-xl shadow-amber-500/20 animate-in fade-in">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0 border border-white/30 shadow-inner">
@@ -852,8 +852,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                     تنبيه مزامنة سحابية
                   </span>
                 </div>
-                <p className="text-xs sm:text-sm text-amber-50 max-w-3xl leading-relaxed">
-                  شاشتك تعرض حالياً <strong>{salesRecords.length.toLocaleString('ar-EG')}</strong> حركة بيع (مخزنة في ذاكرة المتصفح)، بينما جدول <code className="bg-black/20 px-1.5 py-0.5 rounded text-amber-100 font-mono">customer_item_sales</code> والـ View <code className="bg-black/20 px-1.5 py-0.5 rounded text-amber-100 font-mono">view_customer_monthly_item_sales</code> في Supabase فارغين تماماً. اضغط على الزر المقابل لحفظها سحابياً فوراً ليتم ملء الجداول السحابية بالكامل.
+                <p className="text-xs sm:text-sm text-[#d97706] max-w-3xl leading-relaxed">
+                  شاشتك تعرض حالياً <strong>{salesRecords.length.toLocaleString('ar-EG')}</strong> حركة بيع (مخزنة في ذاكرة المتصفح)، بينما جدول <code className="bg-black/20 px-1.5 py-0.5 rounded text-[#d97706] font-mono">customer_item_sales</code> والـ View <code className="bg-black/20 px-1.5 py-0.5 rounded text-[#d97706] font-mono">view_customer_monthly_item_sales</code> في Supabase فارغين تماماً. اضغط على الزر المقابل لحفظها سحابياً فوراً ليتم ملء الجداول السحابية بالكامل.
                 </p>
               </div>
             </div>
@@ -861,18 +861,18 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               type="button"
               onClick={handlePushToSupabase}
               disabled={isSupabasePushing}
-              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-white text-amber-900 hover:bg-amber-50 font-black text-xs sm:text-sm shadow-lg transition cursor-pointer disabled:opacity-75 shrink-0 whitespace-nowrap active:scale-95"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-white text-[var(--app-warn-text)] hover:bg-[var(--app-warn-tint)] font-black text-xs sm:text-sm shadow-lg transition cursor-pointer disabled:opacity-75 shrink-0 whitespace-nowrap active:scale-95"
             >
               {isSupabasePushing ? (
                 <>
-                  <Loader2 className="w-5 h-5 text-amber-700 animate-spin" />
+                  <Loader2 className="w-5 h-5 text-[var(--app-warn-text)] animate-spin" />
                   <span>
                     جاري الرفع سحابياً {supabasePushProgress ? `(${supabasePushProgress.synced.toLocaleString('ar-EG')} / ${supabasePushProgress.total.toLocaleString('ar-EG')})` : '...'}
                   </span>
                 </>
               ) : (
                 <>
-                  <CloudUpload className="w-5 h-5 text-amber-600" />
+                  <CloudUpload className="w-5 h-5 text-[var(--app-warn-text)]" />
                   <span>حفظ ومزامنة ({salesRecords.length.toLocaleString('ar-EG')}) حركة إلى Supabase الآن</span>
                 </>
               )}
@@ -883,7 +883,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
       {salesRecords.length === 0 ? (
         <section className="bg-white rounded-3xl border border-slate-200 p-8 sm:p-12 text-center shadow-xs">
-          <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-700 mx-auto flex items-center justify-center mb-4 shadow-xs">
+          <div className="w-16 h-16 rounded-3xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] mx-auto flex items-center justify-center mb-4 shadow-xs">
             <BarChart3 className="w-8 h-8" />
           </div>
           <h2 className="text-base sm:text-lg font-black text-slate-900">
@@ -899,7 +899,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 type="button"
                 onClick={handleFetchFromSupabase}
                 disabled={isSupabaseFetching}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-xs shadow-md transition cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white font-black text-xs shadow-md transition cursor-pointer disabled:opacity-50"
               >
                 <CloudDownload className={`w-4 h-4 ${isSupabaseFetching ? 'animate-bounce' : ''}`} />
                 <span>
@@ -933,7 +933,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           <section className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-3.5 sm:p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-[11px] font-black text-slate-700 flex items-center gap-1.5">
-                <SlidersHorizontal className="w-3.5 h-3.5 text-amber-500" />
+                <SlidersHorizontal className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
                 تصفية النتائج
               </h2>
               <div className="flex items-center gap-1 flex-wrap">
@@ -990,7 +990,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="بحث بالعميل، الصنف، كود العميل، أو رقم أمر البيع..."
-              className="w-full h-10 pr-9 pl-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="w-full h-10 pr-9 pl-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)]"
             />
             {searchTerm && (
               <button
@@ -1010,7 +1010,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               value={customerSearchTerm}
               onChange={(event) => setCustomerSearchTerm(event.target.value)}
               placeholder="بحث عن عميل بالاسم أو الكود..."
-              className="w-full h-10 pr-9 pl-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="w-full h-10 pr-9 pl-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-navy)]"
             />
             {customerSearchTerm && (
               <button
@@ -1051,7 +1051,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               setSelectedMonth(event.target.value === 'all' ? 'all' : Number(event.target.value))
             }
             aria-label="تصفية بالشهر"
-            className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+            className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
           >
             <option value="all">كل الشهور</option>
             {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
@@ -1065,7 +1065,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             value={selectedGroup}
             onChange={(event) => setSelectedGroup(event.target.value)}
             aria-label="تصفية بمجموعة الأصناف"
-            className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+            className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
           >
             <option value="all">كل الفئات/التعريفات ({distinctGroups.length})</option>
             {distinctGroups.map((group) => (
@@ -1080,7 +1080,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               value={selectedWarehouse}
               onChange={(event) => setSelectedWarehouse(event.target.value)}
               aria-label="تصفية بالفرع"
-              className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+              className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
             >
               <option value="all">كل الفروع ({distinctWarehouses.length})</option>
               {distinctWarehouses.map((warehouse) => (
@@ -1096,7 +1096,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               value={selectedRep}
               onChange={(event) => setSelectedRep(event.target.value)}
               aria-label="تصفية بالمندوب"
-              className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+              className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
             >
               <option value="all">كل المناديب ({distinctReps.length})</option>
               {distinctReps.map((rep) => (
@@ -1137,7 +1137,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           تفاصيل العملاء
           <span
             className={`text-[9px] px-1.5 py-0.5 rounded-md font-black ${
-              activeView === 'customers' ? 'bg-white/15 text-amber-200' : 'bg-slate-100 text-slate-500'
+              activeView === 'customers' ? 'bg-white/15 text-[#d97706]' : 'bg-slate-100 text-slate-500'
             }`}
           >
             {customerSummaries.length}
@@ -1155,16 +1155,16 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       {activeView === 'overview' ? (
         <>
           {salesRecords.length > 0 && periodTotals.amount === 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center gap-3">
               <div className="flex items-start gap-2.5 min-w-0">
-                <span className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <span className="w-8 h-8 rounded-xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] flex items-center justify-center shrink-0">
                   <AlertTriangle className="w-4 h-4" />
                 </span>
                 <div className="min-w-0">
-                  <div className="text-[11.5px] font-black text-amber-900">
+                  <div className="text-[11.5px] font-black text-[var(--app-warn-text)]">
                     كل المبالغ والكميات في الداتا الحالية = صفر
                   </div>
-                  <p className="text-[10px] text-amber-800 font-bold leading-relaxed mt-0.5">
+                  <p className="text-[10px] text-[var(--app-warn-text)] font-bold leading-relaxed mt-0.5">
                     الصفوف الحالية تحتوي على كميات ومبالغ غير مسجلة. يتم تحديث البيانات ومزامنتها فور توفر أرقام البيع الفعلية.
                   </p>
                 </div>
@@ -1189,7 +1189,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             <section className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4 sm:p-5">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-sm shrink-0">
+                  <div className="w-10 h-10 rounded-2xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center font-black text-sm shrink-0">
                     {initials(selectedSearchCustomer.customerName)}
                   </div>
                   <div className="min-w-0">
@@ -1226,7 +1226,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 </div>
                 <div className="text-left">
                   <div className="text-[9.5px] font-bold text-slate-400">إجمالي المشتريات</div>
-                  <div className="text-xl font-black text-emerald-700 font-mono">
+                  <div className="text-xl font-black text-[var(--app-ok-text)] font-mono">
                     {formatCurrency(selectedSearchCustomer.totalAmount)}
                   </div>
                   <div className="text-[9px] text-slate-400">
@@ -1251,7 +1251,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                         <div className="text-[9px] text-slate-500 font-mono">
                           {selectedSearchCustomer.items[0].itemCode || '—'}
                         </div>
-                        <div className="text-[10px] font-bold text-emerald-700 mt-1">
+                        <div className="text-[10px] font-bold text-[var(--app-ok-text)] mt-1">
                           {formatCurrency(selectedSearchCustomer.items[0].totalAmount)}
                         </div>
                         <div className="text-[9px] text-slate-600">
@@ -1287,11 +1287,11 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                         >
                           <div className="flex justify-between mb-0.5">
                             <span className="truncate max-w-[120px]">{item.itemName}</span>
-                            <span className="font-mono text-indigo-700">{Math.round(pct)}%</span>
+                            <span className="font-mono text-[var(--app-navy-text)]">{Math.round(pct)}%</span>
                           </div>
                           <div className="w-full bg-slate-200 rounded-full h-1.5">
                             <div
-                              className="bg-indigo-600 h-1.5 rounded-full"
+                              className="bg-[var(--app-navy)] h-1.5 rounded-full"
                               style={{ width: `${Math.min(pct, 100)}%` }}
                             ></div>
                           </div>
@@ -1323,7 +1323,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                           key={month}
                           className="text-center p-1.5 rounded-lg border text-[9px] font-bold transition ${
                             hasSales
-                              ? 'bg-amber-50 border-amber-200 text-amber-900'
+                              ? 'bg-[var(--app-warn-tint)] border-[var(--app-warn-line)] text-[var(--app-warn-text)]'
                               : 'bg-slate-100/50 border-transparent text-slate-400'
                           }"
                         >

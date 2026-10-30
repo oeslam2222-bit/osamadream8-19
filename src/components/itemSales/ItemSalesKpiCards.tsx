@@ -60,7 +60,7 @@ export const ItemSalesKpiCards: React.FC<ItemSalesKpiCardsProps> = ({
       <KpiCard
         title="إجمالي المبيعات"
         icon={<Banknote className="w-5 h-5" />}
-        iconClass="bg-emerald-50 text-emerald-600"
+        iconClass="bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]"
       >
         <div className="mt-2.5">
           <div className="text-[21px] leading-tight font-black text-slate-900 font-mono">
@@ -76,7 +76,7 @@ export const ItemSalesKpiCards: React.FC<ItemSalesKpiCardsProps> = ({
       <KpiCard
         title="إجمالي الكميات المباعة"
         icon={<Boxes className="w-5 h-5" />}
-        iconClass="bg-sky-50 text-sky-600"
+        iconClass="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]"
       >
         <div className="mt-2.5">
           <div className="text-[21px] leading-tight font-black text-slate-900 font-mono">
@@ -93,7 +93,7 @@ export const ItemSalesKpiCards: React.FC<ItemSalesKpiCardsProps> = ({
       <KpiCard
         title="إجمالي الأصناف المتحركة"
         icon={<Tags className="w-5 h-5" />}
-        iconClass="bg-violet-50 text-violet-600"
+        iconClass="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]"
       >
         <div className="mt-2.5">
           <div className="text-[21px] leading-tight font-black text-slate-900 font-mono">
@@ -110,7 +110,7 @@ export const ItemSalesKpiCards: React.FC<ItemSalesKpiCardsProps> = ({
       <KpiCard
         title="عدد العملاء"
         icon={<Users className="w-5 h-5" />}
-        iconClass="bg-indigo-50 text-indigo-600"
+        iconClass="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]"
       >
         <div className="mt-2.5">
           <div className="text-[21px] leading-tight font-black text-slate-900 font-mono">
@@ -118,7 +118,7 @@ export const ItemSalesKpiCards: React.FC<ItemSalesKpiCardsProps> = ({
             <span className="text-[11px] font-bold text-slate-400 ms-1">عميل</span>
           </div>
           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-indigo-200 bg-indigo-50 text-[10px] font-black text-indigo-700">
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-[var(--app-navy-line)] bg-[var(--app-navy-tint)] text-[10px] font-black text-[var(--app-navy-text)]">
               ضمن النطاق المحدد
             </span>
           </div>
@@ -128,7 +128,7 @@ export const ItemSalesKpiCards: React.FC<ItemSalesKpiCardsProps> = ({
       <KpiCard
         title="أصناف بدون حركة"
         icon={<PackageX className="w-5 h-5" />}
-        iconClass="bg-amber-50 text-amber-600"
+        iconClass="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]"
       >
         <div className="mt-2.5">
           <div className="text-[21px] leading-tight font-black text-slate-900 font-mono">
@@ -136,7 +136,7 @@ export const ItemSalesKpiCards: React.FC<ItemSalesKpiCardsProps> = ({
             <span className="text-[11px] font-bold text-slate-400 ms-1">صنف</span>
           </div>
           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-amber-200 bg-amber-50 text-[10px] font-black text-amber-700">
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-[var(--app-warn-line)] bg-[var(--app-warn-tint)] text-[10px] font-black text-[var(--app-warn-text)]">
               رصيد راكد
             </span>
             <span className="text-[9.5px] text-slate-400 font-bold">{idleCaption}</span>

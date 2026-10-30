@@ -164,10 +164,10 @@ ${
             <div
               className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-md font-black text-xl border ${
                 isExceeded
-                  ? 'bg-rose-500/20 border-rose-500 text-rose-400'
+                  ? 'bg-[var(--app-risk)] border-[var(--app-risk)] text-[#ef4444]'
                   : hasNoCredit
-                  ? 'bg-amber-500/20 border-amber-500 text-amber-300'
-                  : 'bg-emerald-500/20 border-emerald-500 text-emerald-400'
+                  ? 'bg-[var(--app-warn)] border-[var(--app-warn)] text-[#d97706]'
+                  : 'bg-[var(--app-ok)] border-[var(--app-ok)] text-[#0d9488]'
               }`}
             >
               {isExceeded ? <ShieldAlert className="w-6 h-6" /> : <ShieldCheck className="w-6 h-6" />}
@@ -180,10 +180,10 @@ ${
                 <span
                   className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
                     isExceeded
-                      ? 'bg-rose-900/60 text-rose-200 border-rose-500'
+                      ? 'bg-[var(--app-risk)] text-[#ef4444] border-[var(--app-risk)]'
                       : hasNoCredit
-                      ? 'bg-amber-900/60 text-amber-200 border-amber-500'
-                      : 'bg-emerald-900/60 text-emerald-200 border-emerald-500'
+                      ? 'bg-[var(--app-warn)] text-[#d97706] border-[var(--app-warn)]'
+                      : 'bg-[var(--app-ok)] text-[#0d9488] border-[var(--app-ok)]'
                   }`}
                 >
                   {isExceeded ? '⚠️ متجاوزة الحد' : hasNoCredit ? 'نقدي فقط' : '✅ ائتمان آمن'}
@@ -198,7 +198,7 @@ ${
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopyWhatsApp}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow-xs cursor-pointer"
+              className="bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow-xs cursor-pointer"
               title="نسخ تقرير الائتمان للواتساب"
             >
               <MessageCircle className="w-3.5 h-3.5" />
@@ -221,7 +221,7 @@ ${
           {/* Customer & Invoice Quick Header Strip */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-amber-100 text-amber-900 font-black flex items-center justify-center text-base border border-amber-200 shrink-0">
+              <div className="w-10 h-10 rounded-lg bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] font-black flex items-center justify-center text-base border border-[var(--app-warn-line)] shrink-0">
                 🏢
               </div>
               <div>
@@ -280,26 +280,26 @@ ${
             <div
               className={`p-3.5 rounded-xl border shadow-xs relative overflow-hidden flex flex-col justify-between ${
                 hasOverdue
-                  ? 'bg-amber-50 border-amber-300 text-amber-950'
+                  ? 'bg-[var(--app-warn-tint)] border-[var(--app-warn-line)] text-[var(--app-warn-text)]'
                   : 'bg-white border-slate-200'
               }`}
             >
               <div className="flex items-center justify-between mb-1">
-                <span className={`text-[11px] font-bold ${hasOverdue ? 'text-amber-900 font-black' : 'text-slate-500'}`}>
+                <span className={`text-[11px] font-bold ${hasOverdue ? 'text-[var(--app-warn-text)] font-black' : 'text-slate-500'}`}>
                   2. المتأخرات المستحقة
                 </span>
-                <Clock className={`w-3.5 h-3.5 ${hasOverdue ? 'text-amber-600' : 'text-slate-400'}`} />
+                <Clock className={`w-3.5 h-3.5 ${hasOverdue ? 'text-[var(--app-warn-text)]' : 'text-slate-400'}`} />
               </div>
-              <div className={`text-lg font-black font-mono ${hasOverdue ? 'text-rose-700' : 'text-slate-700'}`}>
+              <div className={`text-lg font-black font-mono ${hasOverdue ? 'text-[var(--app-risk-text)]' : 'text-slate-700'}`}>
                 {overdueDebt.toLocaleString()} <span className="text-xs font-bold">ج.م</span>
               </div>
               <div className="text-[10px] mt-1 font-bold">
                 {hasOverdue ? (
-                  <span className="text-rose-800 bg-rose-100/90 px-1.5 py-0.5 rounded border border-rose-200 inline-block font-black">
+                  <span className="text-[var(--app-risk-text)] bg-[var(--app-risk-tint)] px-1.5 py-0.5 rounded border border-[var(--app-risk-line)] inline-block font-black">
                     ⚠️ متأخرات واجبة التحصيل
                   </span>
                 ) : (
-                  <span className="text-emerald-700 font-medium">
+                  <span className="text-[var(--app-ok-text)] font-medium">
                     ✅ لا توجد متأخرات سابقة
                   </span>
                 )}
@@ -307,35 +307,35 @@ ${
             </div>
 
             {/* 3. Current Invoice Amount */}
-            <div className="bg-white p-3.5 rounded-xl border border-amber-200 bg-amber-50/20 shadow-xs relative overflow-hidden flex flex-col justify-between">
-              <div className="flex items-center justify-between text-amber-800 mb-1">
+            <div className="bg-white p-3.5 rounded-xl border border-[var(--app-warn-line)] bg-[var(--app-warn-tint)] shadow-xs relative overflow-hidden flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[var(--app-warn-text)] mb-1">
                 <span className="text-[11px] font-bold">3. قيمة الفاتورة الحالية</span>
-                <Receipt className="w-3.5 h-3.5 text-amber-600" />
+                <Receipt className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
               </div>
-              <div className="text-lg font-black text-amber-900 font-mono">
-                {invoiceTotal.toLocaleString()} <span className="text-xs font-bold text-amber-700">ج.م</span>
+              <div className="text-lg font-black text-[var(--app-warn-text)] font-mono">
+                {invoiceTotal.toLocaleString()} <span className="text-xs font-bold text-[var(--app-warn-text)]">ج.م</span>
               </div>
-              <div className="text-[10px] text-amber-700 mt-1 font-medium">
+              <div className="text-[10px] text-[var(--app-warn-text)] mt-1 font-medium">
                 {invoice.totalCartons} كرتونة ({invoice.totalPieces} قطعة)
               </div>
             </div>
 
             {/* 4. Approved Credit Limit */}
-            <div className="bg-white p-3.5 rounded-xl border border-blue-200 bg-blue-50/20 shadow-xs relative overflow-hidden flex flex-col justify-between">
-              <div className="flex items-center justify-between text-blue-800 mb-1">
+            <div className="bg-white p-3.5 rounded-xl border border-[var(--app-navy-line)] bg-[var(--app-navy-tint)] shadow-xs relative overflow-hidden flex flex-col justify-between">
+              <div className="flex items-center justify-between text-[var(--app-navy-text)] mb-1">
                 <span className="text-[11px] font-bold">4. الحد الائتماني المعتمد</span>
-                <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+                <CreditCard className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
               </div>
-              <div className="text-lg font-black text-blue-950 font-mono">
+              <div className="text-lg font-black text-[var(--app-navy-text)] font-mono">
                 {hasNoCredit ? (
-                  <span className="text-sm font-bold text-amber-700">0 (نقدي فقط)</span>
+                  <span className="text-sm font-bold text-[var(--app-warn-text)]">0 (نقدي فقط)</span>
                 ) : (
                   <>
-                    {creditLimit.toLocaleString()} <span className="text-xs font-bold text-blue-700">ج.م</span>
+                    {creditLimit.toLocaleString()} <span className="text-xs font-bold text-[var(--app-navy-text)]">ج.م</span>
                   </>
                 )}
               </div>
-              <div className="text-[10px] text-blue-700 mt-1 font-medium">
+              <div className="text-[10px] text-[var(--app-navy-text)] mt-1 font-medium">
                 {hasNoCredit ? 'سداد نقدي فوري' : 'سقف التسهيلات المعتمد'}
               </div>
             </div>
@@ -344,17 +344,17 @@ ${
             <div
               className={`p-3.5 rounded-xl border shadow-xs relative overflow-hidden flex flex-col justify-between ${
                 isExceeded
-                  ? 'bg-rose-50 border-rose-300 text-rose-950'
+                  ? 'bg-[var(--app-risk-tint)] border-[var(--app-risk-line)] text-[var(--app-risk-text)]'
                   : hasNoCredit
-                  ? 'bg-amber-50 border-amber-300 text-amber-950'
-                  : 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                  ? 'bg-[var(--app-warn-tint)] border-[var(--app-warn-line)] text-[var(--app-warn-text)]'
+                  : 'bg-[var(--app-ok-tint)] border-[var(--app-ok-line)] text-[var(--app-ok-text)]'
               }`}
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[11px] font-black">5. المديونية بعد الفاتورة</span>
-                <TrendingUp className={`w-3.5 h-3.5 ${isExceeded ? 'text-rose-600' : 'text-emerald-600'}`} />
+                <TrendingUp className={`w-3.5 h-3.5 ${isExceeded ? 'text-[var(--app-risk-text)]' : 'text-[var(--app-ok-text)]'}`} />
               </div>
-              <div className={`text-lg font-black font-mono ${isExceeded ? 'text-rose-700' : 'text-emerald-800'}`}>
+              <div className={`text-lg font-black font-mono ${isExceeded ? 'text-[var(--app-risk-text)]' : 'text-[var(--app-ok-text)]'}`}>
                 {debtAfter.toLocaleString()} <span className="text-xs font-bold">ج.م</span>
               </div>
               <div className="text-[10px] font-bold mt-1">
@@ -372,16 +372,16 @@ ${
           <div
             className={`p-4 sm:p-5 rounded-2xl border-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm ${
               isExceeded
-                ? 'bg-gradient-to-r from-rose-50 via-rose-100/70 to-rose-50 border-rose-400 text-rose-950'
+                ? 'bg-gradient-to-r from-[var(--app-risk)] via-[var(--app-risk)] to-[var(--app-risk)] border-[var(--app-risk)] text-[var(--app-risk-text)]'
                 : hasNoCredit
-                ? 'bg-gradient-to-r from-amber-50 via-amber-100/70 to-amber-50 border-amber-400 text-amber-950'
-                : 'bg-gradient-to-r from-emerald-50 via-emerald-100/70 to-emerald-50 border-emerald-400 text-emerald-950'
+                ? 'bg-gradient-to-r from-[var(--app-warn)] via-[var(--app-warn)] to-[var(--app-warn)] border-[var(--app-warn)] text-[var(--app-warn-text)]'
+                : 'bg-gradient-to-r from-[var(--app-ok)] via-[var(--app-ok)] to-[var(--app-ok)] border-[var(--app-ok)] text-[var(--app-ok-text)]'
             }`}
           >
             <div className="flex items-start gap-3.5">
               <div
                 className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
-                  isExceeded ? 'bg-rose-600 text-white' : hasNoCredit ? 'bg-amber-600 text-white' : 'bg-emerald-600 text-white'
+                  isExceeded ? 'bg-[var(--app-risk)] text-white' : hasNoCredit ? 'bg-[var(--app-warn)] text-white' : 'bg-[var(--app-ok)] text-white'
                 }`}
               >
                 {isExceeded ? <AlertTriangle className="w-7 h-7" /> : <CheckCircle2 className="w-7 h-7" />}
@@ -428,7 +428,7 @@ ${
               <div className="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all duration-500 ${
-                    isExceeded ? 'bg-rose-600' : hasNoCredit ? 'bg-amber-600' : 'bg-emerald-600'
+                    isExceeded ? 'bg-[var(--app-risk)]' : hasNoCredit ? 'bg-[var(--app-warn)]' : 'bg-[var(--app-ok)]'
                   }`}
                   style={{ width: `${Math.min(100, utilizationPercentage)}%` }}
                 />
@@ -440,7 +440,7 @@ ${
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="bg-slate-900 text-white px-5 py-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <FileText className="w-4 h-4 text-amber-400" />
+                <FileText className="w-4 h-4 text-[#d97706]" />
                 <h4 className="font-black text-sm">بيان التدقيق الحسابي والمطابقة التفصيلية</h4>
               </div>
               <span className="text-xs text-slate-300 font-mono">طريقة الدفع: {invoice.paymentMethod}</span>
@@ -472,25 +472,25 @@ ${
                   </tr>
 
                   {/* Row 2: Overdue Debt (المتأخرات المستحقة على العميل) */}
-                  <tr className={`hover:bg-amber-50/60 ${hasOverdue ? 'bg-amber-50/40' : ''}`}>
+                  <tr className={`hover:bg-[var(--app-warn-tint)] ${hasOverdue ? 'bg-[var(--app-warn-tint)]' : ''}`}>
                     <td className="p-3.5 font-bold flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${hasOverdue ? 'bg-amber-600 animate-ping' : 'bg-emerald-500'}`}></span>
-                      <span className={hasOverdue ? 'text-amber-950 font-black' : 'text-slate-800'}>
+                      <span className={`w-2 h-2 rounded-full ${hasOverdue ? 'bg-[var(--app-warn)] animate-ping' : 'bg-[var(--app-ok)]'}`}></span>
+                      <span className={hasOverdue ? 'text-[var(--app-warn-text)] font-black' : 'text-slate-800'}>
                         المتأخرات المستحقة على العميل
                       </span>
                     </td>
-                    <td className={`p-3.5 font-mono font-black text-center text-sm ${hasOverdue ? 'text-rose-700 bg-amber-100/60 rounded-md' : 'text-slate-700'}`}>
+                    <td className={`p-3.5 font-mono font-black text-center text-sm ${hasOverdue ? 'text-[var(--app-risk-text)] bg-[var(--app-warn-tint)] rounded-md' : 'text-slate-700'}`}>
                       {overdueDebt.toLocaleString()} ج.م
                     </td>
                     <td className="p-3.5">
                       {hasOverdue ? (
-                        <span className="text-amber-900 font-bold flex items-center gap-1.5">
-                          <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span className="text-[var(--app-warn-text)] font-bold flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-[var(--app-warn-text)] shrink-0" />
                           <span>توجد متأخرات مستحقة التحصيل الفوري على العميل لتفادي تعثر الحساب</span>
                         </span>
                       ) : (
-                        <span className="text-emerald-700 font-medium flex items-center gap-1.5">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span className="text-[var(--app-ok-text)] font-medium flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-[var(--app-ok-text)] shrink-0" />
                           <span>لا توجد أي متأخرات سابقة مسجلة على العميل - سجل السداد منتظم</span>
                         </span>
                       )}
@@ -498,15 +498,15 @@ ${
                   </tr>
 
                   {/* Row 3: Current Invoice Total */}
-                  <tr className="hover:bg-amber-50/40 bg-amber-50/10">
-                    <td className="p-3.5 font-bold flex items-center gap-2 text-amber-900">
-                      <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                  <tr className="hover:bg-[var(--app-warn-tint)] bg-[var(--app-warn-tint)]">
+                    <td className="p-3.5 font-bold flex items-center gap-2 text-[var(--app-warn-text)]">
+                      <span className="w-2 h-2 rounded-full bg-[var(--app-warn)]"></span>
                       <span>قيمة الفاتورة الحالية (الطلبية)</span>
                     </td>
-                    <td className="p-3.5 font-mono font-black text-center text-amber-900 text-sm">
+                    <td className="p-3.5 font-mono font-black text-center text-[var(--app-warn-text)] text-sm">
                       +{invoiceTotal.toLocaleString()} ج.م
                     </td>
-                    <td className="p-3.5 text-amber-900">
+                    <td className="p-3.5 text-[var(--app-warn-text)]">
                       تتضمن عدد <strong>{invoice.totalCartons} كرتونة</strong> ({invoice.totalPieces} قطعة)
                       {invoice.discountAmount > 0 ? ` بعد خصم ${invoice.discountAmount.toLocaleString()} ج.م` : ''}
                     </td>
@@ -527,41 +527,41 @@ ${
                   </tr>
 
                   {/* Row 4: Credit Limit */}
-                  <tr className="hover:bg-blue-50/40">
-                    <td className="p-3.5 font-bold flex items-center gap-2 text-blue-900">
-                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                  <tr className="hover:bg-[var(--app-navy-tint)]">
+                    <td className="p-3.5 font-bold flex items-center gap-2 text-[var(--app-navy-text)]">
+                      <span className="w-2 h-2 rounded-full bg-[var(--app-navy)]"></span>
                       <span>الحد الائتماني المعتمد للعميل</span>
                     </td>
-                    <td className="p-3.5 font-mono font-black text-center text-blue-950 text-sm">
+                    <td className="p-3.5 font-mono font-black text-center text-[var(--app-navy-text)] text-sm">
                       {formatCurrency(hasNoCredit ? 0 : creditLimit)}
                     </td>
-                    <td className="p-3.5 text-blue-800">
+                    <td className="p-3.5 text-[var(--app-navy-text)]">
                       {hasNoCredit ? 'لا يوجد حد ائتماني مسجل للعميل (سداد نقدي فوري)' : 'أقصى سقف ائتماني مسموح به لهذا العميل'}
                     </td>
                   </tr>
 
                   {/* Row 5: Difference / Status */}
-                  <tr className={isExceeded ? 'bg-rose-50/70 font-black' : 'bg-emerald-50/70 font-black'}>
+                  <tr className={isExceeded ? 'bg-[var(--app-risk-tint)] font-black' : 'bg-[var(--app-ok-tint)] font-black'}>
                     <td className="p-3.5 flex items-center gap-2">
-                      <span className={`w-2 h-2 rounded-full ${isExceeded ? 'bg-rose-600' : 'bg-emerald-600'}`}></span>
-                      <span className={isExceeded ? 'text-rose-900' : 'text-emerald-900'}>
+                      <span className={`w-2 h-2 rounded-full ${isExceeded ? 'bg-[var(--app-risk)]' : 'bg-[var(--app-ok)]'}`}></span>
+                      <span className={isExceeded ? 'text-[var(--app-risk-text)]' : 'text-[var(--app-ok-text)]'}>
                         {isExceeded ? 'مبلغ التجاوز (الدفعة المقدمة المطلوبة)' : 'الرصيد الائتماني المتبقي المتاح للشراء'}
                       </span>
                     </td>
                     <td className="p-3.5 font-mono font-black text-center text-base">
                       {isExceeded ? (
-                        <span className="text-rose-700">-{excessAmount.toLocaleString()} ج.م ⚠️</span>
+                        <span className="text-[var(--app-risk-text)]">-{excessAmount.toLocaleString()} ج.م ⚠️</span>
                       ) : (
-                        <span className="text-emerald-700">+{remainingCredit.toLocaleString()} ج.م ✅</span>
+                        <span className="text-[var(--app-ok-text)]">+{remainingCredit.toLocaleString()} ج.م ✅</span>
                       )}
                     </td>
                     <td className="p-3.5">
                       {isExceeded ? (
-                        <span className="text-rose-800">
+                        <span className="text-[var(--app-risk-text)]">
                           مطلوب سداد دفعة نقدية لا تقل عن <strong>{requiredDownPayment.toLocaleString()} ج.م</strong> لخفض المديونية للحد المسموح
                         </span>
                       ) : (
-                        <span className="text-emerald-800">
+                        <span className="text-[var(--app-ok-text)]">
                           العميل يمكنه طلب بضاعة إضافية بقيمة تصل إلى <strong>{remainingCredit.toLocaleString()} ج.م</strong> بأمان
                         </span>
                       )}
@@ -620,7 +620,7 @@ ${
                   onClose();
                   onViewInvoice(invoice);
                 }}
-                className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                className="bg-slate-900 hover:bg-slate-800 text-[#d97706] font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
               >
                 <FileText className="w-4 h-4" />
                 <span>معاينة الفاتورة الإلكترونية الكاملة</span>
@@ -630,7 +630,7 @@ ${
             {/* Export Excel */}
             <button
               onClick={() => exportElectronicInvoiceToExcel(invoice)}
-              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+              className="bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-bold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4" />
               <span>تصدير إكسل</span>
@@ -650,7 +650,7 @@ ${
                     }
                     onClose();
                   }}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-md transition cursor-pointer"
+                  className="bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-md transition cursor-pointer"
                   title="اعتماد الفاتورة وتجهيزها"
                 >
                   <CheckCircle2 className="w-4 h-4" />
@@ -664,7 +664,7 @@ ${
                     }
                     onClose();
                   }}
-                  className="bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  className="bg-[var(--app-risk-tint)] hover:bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)] font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
                   title="رفض الفاتورة"
                 >
                   <XCircle className="w-4 h-4" />

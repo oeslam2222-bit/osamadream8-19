@@ -158,7 +158,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
       className={`rounded-2xl transition-all duration-200 border overflow-hidden shadow-xs ${
         isDark
           ? 'bg-slate-900 border-slate-700/80 text-white'
-          : 'bg-amber-50/70 border-amber-200 text-slate-900'
+          : 'bg-[var(--app-warn-tint)] border-[var(--app-warn-line)] text-slate-900'
       } ${className}`}
     >
       {/* 
@@ -171,7 +171,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
         className={`p-2.5 sm:p-3 flex items-center justify-between gap-2 cursor-pointer select-none transition ${
           isDark
             ? 'hover:bg-slate-850 bg-slate-900'
-            : 'hover:bg-amber-100/70 bg-amber-50/90'
+            : 'hover:bg-[var(--app-warn-tint)] bg-[var(--app-warn-tint)]'
         }`}
         role="button"
         tabIndex={0}
@@ -183,8 +183,8 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
           <div
             className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
               isDark
-                ? 'bg-amber-400/15 text-amber-400 border border-amber-400/30'
-                : 'bg-amber-500/20 text-amber-800 border border-amber-300'
+                ? 'bg-[var(--app-warn)] text-[#d97706] border border-[var(--app-warn)]'
+                : 'bg-[var(--app-warn)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)]'
             }`}
           >
             {showCustomerDetails ? <User className="w-4 h-4" /> : <CreditCard className="w-4 h-4" />}
@@ -198,7 +198,7 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
               
               {/* Customer Code Badge */}
               <span className={`text-xs font-mono font-black px-1.5 py-0.5 rounded shrink-0 ${
-                isDark ? 'bg-slate-800 text-amber-300 border border-slate-700' : 'bg-white text-slate-800 border border-slate-200'
+                isDark ? 'bg-slate-800 text-[#d97706] border border-slate-700' : 'bg-white text-slate-800 border border-slate-200'
               }`}>
                 {code}
               </span>
@@ -207,9 +207,9 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
               <span
                 className={`text-[11px] font-black px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${
                   isExceeded
-                    ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                    ? 'bg-[var(--app-risk)] text-[#ef4444] border border-[var(--app-risk)]'
                     : hasCreditLimit
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                    ? 'bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)]'
                     : isDark
                     ? 'bg-slate-800 text-slate-300 border border-slate-700'
                     : 'bg-white text-slate-700 border border-slate-200'
@@ -217,12 +217,12 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
               >
                 {isExceeded ? (
                   <>
-                    <ShieldAlert className="w-3 h-3 text-rose-400" />
+                    <ShieldAlert className="w-3 h-3 text-[#ef4444]" />
                     <span>تجاوز الحد</span>
                   </>
                 ) : hasCreditLimit ? (
                   <>
-                    <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                    <ShieldCheck className="w-3 h-3 text-[#0d9488]" />
                     <span>ضمن الحد</span>
                   </>
                 ) : (
@@ -238,14 +238,14 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
               }`}>
                 <span>
                   المديونية الحالية:{' '}
-                  <strong className={`font-mono font-bold ${currentDebt > 0 ? (isDark ? 'text-amber-300' : 'text-amber-900') : ''}`}>
+                  <strong className={`font-mono font-bold ${currentDebt > 0 ? (isDark ? 'text-[#d97706]' : 'text-[var(--app-warn-text)]') : ''}`}>
                     {formatCurrency(currentDebt)}
                   </strong>
                 </span>
                 <span className="opacity-40">•</span>
                 <span>
                   بعد الفاتورة:{' '}
-                  <strong className={`font-mono font-black ${isExceeded ? 'text-rose-400' : isDark ? 'text-amber-400' : 'text-slate-900'}`}>
+                  <strong className={`font-mono font-black ${isExceeded ? 'text-[#ef4444]' : isDark ? 'text-[#d97706]' : 'text-slate-900'}`}>
                     {formatCurrency(debtAfterInvoice)}
                   </strong>
                 </span>
@@ -267,11 +267,11 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
               className={`px-2 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer border ${
                 isDark
                   ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
-                  : 'bg-white hover:bg-amber-100 text-slate-700 border-amber-200'
+                  : 'bg-white hover:bg-[var(--app-warn-tint)] text-slate-700 border-[var(--app-warn-line)]'
               }`}
               title="تغيير أو مسح العميل الحالي"
             >
-              <RotateCcw className="w-3 h-3 text-amber-400" />
+              <RotateCcw className="w-3 h-3 text-[#d97706]" />
               <span className="hidden sm:inline">تغيير</span>
             </button>
           )}
@@ -280,8 +280,8 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
           <div
             className={`flex items-center gap-1 px-2 py-1 rounded-xl text-xs font-black transition ${
               isDark
-                ? 'bg-slate-800/90 text-amber-400 border border-slate-700'
-                : 'bg-amber-200/70 text-amber-900 border border-amber-300/80'
+                ? 'bg-slate-800/90 text-[#d97706] border border-slate-700'
+                : 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)]'
             }`}
           >
             <span className="hidden xs:inline">
@@ -303,18 +303,18 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
         <div
           id="customer-financial-accordion-body"
           className={`px-2.5 sm:px-3 pb-3 pt-2 border-t space-y-2.5 animate-in slide-in-from-top-2 duration-150 ${
-            isDark ? 'border-slate-800 bg-slate-900/95' : 'border-amber-200/80 bg-amber-50/50'
+            isDark ? 'border-slate-800 bg-slate-900/95' : 'border-[var(--app-warn-line)] bg-[var(--app-warn-tint)]'
           }`}
         >
           {/* Section 1: Customer Contact & Delivery Info (When showCustomerDetails is enabled) */}
           {showCustomerDetails && (
             <div className={`p-2 rounded-xl text-xs border flex flex-wrap items-center gap-x-3 gap-y-1.5 ${
-              isDark ? 'bg-slate-850 border-slate-750 text-slate-300' : 'bg-white border-amber-200 text-slate-700'
+              isDark ? 'bg-slate-850 border-slate-750 text-slate-300' : 'bg-white border-[var(--app-warn-line)] text-slate-700'
             }`}>
               {phone && (
                 <div className="flex items-center gap-1">
-                  <Phone className="w-3 h-3 text-amber-400" />
-                  <a href={`tel:${phone}`} className="hover:underline font-mono font-bold text-amber-300" dir="ltr">
+                  <Phone className="w-3 h-3 text-[#d97706]" />
+                  <a href={`tel:${phone}`} className="hover:underline font-mono font-bold text-[#d97706]" dir="ltr">
                     {phone}
                   </a>
                 </div>
@@ -347,13 +347,13 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
 
           {/* Section 2: Header title and "All Customers" Data Authority indicator */}
           <div className="flex items-center justify-between text-xs font-bold px-0.5">
-            <span className={isDark ? 'text-amber-300' : 'text-slate-800'}>
+            <span className={isDark ? 'text-[#d97706]' : 'text-slate-800'}>
               {cardTitle}
             </span>
             <span className={`text-[11px] px-1.5 py-0.5 rounded flex items-center gap-1 ${
-              isDark ? 'bg-slate-800 text-emerald-300 border border-slate-700' : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              isDark ? 'bg-slate-800 text-[#0d9488] border border-slate-700' : 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
             }`}>
-              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+              <CheckCircle2 className="w-3 h-3 text-[#0d9488]" />
               <span>مطابق لقاعدة كافة العملاء</span>
             </span>
           </div>
@@ -369,13 +369,13 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
             <div className={`p-2 rounded-xl border flex flex-col justify-between transition ${
               isDark
                 ? 'bg-slate-800/90 border-slate-700/80 hover:border-slate-600'
-                : 'bg-white border-amber-200 hover:border-amber-300'
+                : 'bg-white border-[var(--app-warn-line)] hover:border-[var(--app-warn-line)]'
             }`}>
               <span className={`text-[11px] font-bold block leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 إجمالي المتأخرات والمستحق
               </span>
               <div className={`text-xs sm:text-sm font-black font-mono mt-1.5 leading-tight ${
-                overdueAmount > 0 ? (isDark ? 'text-rose-400' : 'text-rose-700') : (isDark ? 'text-slate-300' : 'text-slate-700')
+                overdueAmount > 0 ? (isDark ? 'text-[#ef4444]' : 'text-[var(--app-risk-text)]') : (isDark ? 'text-slate-300' : 'text-slate-700')
               }`}>
                 {formatCurrency(overdueAmount)}
               </div>
@@ -385,13 +385,13 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
             <div className={`p-2 rounded-xl border flex flex-col justify-between transition ${
               isDark
                 ? 'bg-slate-800/90 border-slate-700/80 hover:border-slate-600'
-                : 'bg-white border-amber-200 hover:border-amber-300'
+                : 'bg-white border-[var(--app-warn-line)] hover:border-[var(--app-warn-line)]'
             }`}>
               <span className={`text-[11px] font-bold block leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 المديونية الحالية
               </span>
               <div className={`text-xs sm:text-sm font-black font-mono mt-1.5 leading-tight ${
-                currentDebt > 0 ? (isDark ? 'text-amber-300' : 'text-amber-800') : (isDark ? 'text-slate-300' : 'text-slate-700')
+                currentDebt > 0 ? (isDark ? 'text-[#d97706]' : 'text-[var(--app-warn-text)]') : (isDark ? 'text-slate-300' : 'text-slate-700')
               }`}>
                 {formatCurrency(currentDebt)}
               </div>
@@ -401,12 +401,12 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
             <div className={`p-2 rounded-xl border flex flex-col justify-between transition ${
               isDark
                 ? 'bg-slate-800/90 border-slate-700/80 hover:border-slate-600'
-                : 'bg-white border-amber-200 hover:border-amber-300'
+                : 'bg-white border-[var(--app-warn-line)] hover:border-[var(--app-warn-line)]'
             }`}>
               <span className={`text-[11px] font-bold block leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 قيمة الفاتورة الحالية
               </span>
-              <div className={`text-xs sm:text-sm font-black font-mono mt-1.5 leading-tight ${isDark ? 'text-blue-300' : 'text-blue-700'}`}>
+              <div className={`text-xs sm:text-sm font-black font-mono mt-1.5 leading-tight ${isDark ? 'text-[#60a5fa]' : 'text-[var(--app-navy-text)]'}`}>
                 {formatCurrency(invoiceTotal)}
               </div>
             </div>
@@ -415,16 +415,16 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
             <div className={`p-2 rounded-xl border flex flex-col justify-between transition ${
               isDark
                 ? 'bg-slate-800/90 border-slate-700/80 hover:border-slate-600'
-                : 'bg-white border-amber-200 hover:border-amber-300'
+                : 'bg-white border-[var(--app-warn-line)] hover:border-[var(--app-warn-line)]'
             }`}>
               <span className={`text-[11px] font-bold block leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 المديونية بعد الفاتورة
               </span>
               <div className={`text-xs sm:text-sm font-black font-mono mt-1.5 leading-tight ${
                 isExceeded
-                  ? 'text-rose-400'
+                  ? 'text-[#ef4444]'
                   : debtAfterInvoice > 0
-                  ? (isDark ? 'text-amber-400' : 'text-amber-900')
+                  ? (isDark ? 'text-[#d97706]' : 'text-[var(--app-warn-text)]')
                   : (isDark ? 'text-slate-300' : 'text-slate-700')
               }`}>
                 {formatCurrency(debtAfterInvoice)}
@@ -435,14 +435,14 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
             <div className={`p-2 rounded-xl border flex flex-col justify-between col-span-2 sm:col-span-1 transition ${
               isDark
                 ? 'bg-slate-800/90 border-slate-700/80 hover:border-slate-600'
-                : 'bg-white border-amber-200 hover:border-amber-300'
+                : 'bg-white border-[var(--app-warn-line)] hover:border-[var(--app-warn-line)]'
             }`}>
               <span className={`text-[11px] font-bold block leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 الحد الائتماني المعتمد
               </span>
               <div className={`text-xs sm:text-sm font-black font-mono mt-1.5 leading-tight ${
                 hasCreditLimit
-                  ? (isDark ? 'text-emerald-400' : 'text-emerald-700')
+                  ? (isDark ? 'text-[#0d9488]' : 'text-[var(--app-ok-text)]')
                   : (isDark ? 'text-slate-400' : 'text-slate-600')
               }`}>
                 {hasCreditLimit ? formatCurrency(creditLimit) : 'كاش فقط (لا يوجد حد)'}
@@ -454,13 +454,13 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
           {isExceeded && (
             <div className={`p-2.5 rounded-xl text-xs font-bold flex items-start gap-2 animate-in fade-in ${
               isDark
-                ? 'bg-rose-950/70 text-rose-200 border border-rose-800'
-                : 'bg-rose-50 text-rose-900 border border-rose-200'
+                ? 'bg-[var(--app-risk)] text-[#ef4444] border border-[var(--app-risk)]'
+                : 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)]'
             }`}>
-              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+              <AlertTriangle className="w-4 h-4 text-[#ef4444] shrink-0 mt-0.5" />
               <div className="leading-relaxed">
                 <span>تنبيه ائتماني: إجمالي المديونية بعد الفاتورة يتجاوز الحد الائتماني المعتمد بمقدار </span>
-                <strong className="text-rose-300 underline font-mono">{formatCurrency(excessAmount)}</strong>
+                <strong className="text-[#ef4444] underline font-mono">{formatCurrency(excessAmount)}</strong>
                 <span>. يلزم تحصيل دفعة نقدية فورية أو موافقة المشرف لاعتماد الصرف.</span>
               </div>
             </div>

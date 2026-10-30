@@ -106,10 +106,10 @@ const ORDER_REVIEW_STATUSES = [
 ];
 
 const progressColor = (rate: number) =>
-  rate >= 90 ? 'bg-emerald-500' : rate >= 60 ? 'bg-amber-500' : 'bg-rose-500';
+  rate >= 90 ? 'bg-[var(--app-ok)]' : rate >= 60 ? 'bg-[var(--app-warn)]' : 'bg-[var(--app-risk)]';
 
 const progressTextColor = (rate: number) =>
-  rate >= 90 ? 'text-emerald-700' : rate >= 60 ? 'text-amber-700' : 'text-rose-700';
+  rate >= 90 ? 'text-[var(--app-ok-text)]' : rate >= 60 ? 'text-[var(--app-warn-text)]' : 'text-[var(--app-risk-text)]';
 
 export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
   onNavigateToTab,
@@ -216,8 +216,8 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
         value: formatCurrency(monthSales),
         sub: `من هدف ${formatCurrency(salesTarget)}`,
         icon: BarChart3,
-        accent: 'text-emerald-700',
-        iconBg: 'bg-emerald-100 text-emerald-700',
+        accent: 'text-[var(--app-ok-text)]',
+        iconBg: 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]',
         rate: salesRate,
         rateLabel: `${salesRate}%`,
       },
@@ -227,8 +227,8 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
         value: formatCurrency(monthCollections),
         sub: `من هدف ${formatCurrency(collectionTarget)}`,
         icon: Coins,
-        accent: 'text-blue-700',
-        iconBg: 'bg-blue-100 text-blue-700',
+        accent: 'text-[var(--app-navy-text)]',
+        iconBg: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]',
         rate: collectionRate,
         rateLabel: `${collectionRate}%`,
       },
@@ -238,8 +238,8 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
         value: String(todayVisits),
         sub: `${doneToday} منفذة • ${scheduledUpcoming} مجدولة قادمة`,
         icon: CalendarCheck,
-        accent: 'text-rose-700',
-        iconBg: 'bg-rose-100 text-rose-700',
+        accent: 'text-[var(--app-risk-text)]',
+        iconBg: 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]',
       },
       {
         id: 'approvals',
@@ -247,8 +247,8 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
         value: String(pendingOrders + pendingVisitReviews + pendingForecasts),
         sub: `${pendingOrders} طلبيات • ${pendingVisitReviews} زيارات • ${pendingForecasts} توقعات`,
         icon: ShieldCheck,
-        accent: 'text-amber-700',
-        iconBg: 'bg-amber-100 text-amber-700',
+        accent: 'text-[var(--app-warn-text)]',
+        iconBg: 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]',
       },
     ];
   }, [
@@ -386,16 +386,16 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
     const Icon = icon;
     return (
       <h2 className="text-[13px] font-black text-slate-700 px-1 mb-2 flex items-center gap-1.5">
-        <span className="w-1 h-3.5 rounded-full bg-amber-400 inline-block" />
-        {Icon && <Icon className="w-4 h-4 text-amber-500" />}
+        <span className="w-1 h-3.5 rounded-full bg-[var(--app-warn)] inline-block" />
+        {Icon && <Icon className="w-4 h-4 text-[var(--app-warn-text)]" />}
         {text}
       </h2>
     );
   };
 
   const toastStyles: Record<Toast['kind'], string> = {
-    success: 'bg-emerald-600 text-white',
-    error: 'bg-rose-600 text-white',
+    success: 'bg-[var(--app-ok)] text-white',
+    error: 'bg-[var(--app-risk)] text-white',
     info: 'bg-slate-800 text-white',
   };
 
@@ -407,7 +407,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
       <div className="bg-gradient-to-l from-slate-900 to-slate-800 rounded-3xl border border-slate-700 p-4 text-white shadow-md">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <span className="w-12 h-12 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-lg shrink-0 shadow">
+            <span className="w-12 h-12 rounded-2xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black text-lg shrink-0 shadow">
               {currentUser?.name?.charAt(0) || 'ق'}
             </span>
             <div className="min-w-0">
@@ -419,13 +419,13 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {isOffline && (
-              <span className="flex items-center gap-1 bg-amber-500/20 text-amber-300 border border-amber-400/40 text-[10px] font-black px-2 py-1 rounded-lg whitespace-nowrap">
+              <span className="flex items-center gap-1 bg-[var(--app-warn)] text-[#d97706] border border-[var(--app-warn)] text-[10px] font-black px-2 py-1 rounded-lg whitespace-nowrap">
                 <AlertTriangle className="w-3 h-3" />
                 أوفلاين
               </span>
             )}
             {kpis[3].value !== '0' && (
-              <span className="flex items-center gap-1 bg-rose-500/20 text-rose-300 border border-rose-400/40 text-[10px] font-black px-2 py-1 rounded-lg whitespace-nowrap">
+              <span className="flex items-center gap-1 bg-[var(--app-risk)] text-[#ef4444] border border-[var(--app-risk)] text-[10px] font-black px-2 py-1 rounded-lg whitespace-nowrap">
                 <BellRing className="w-3 h-3" />
                 {kpis[3].value} اعتماد
               </span>
@@ -486,7 +486,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 space-y-2">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[11px] font-black text-slate-700 flex items-center gap-1.5">
-                <Compass className="w-3.5 h-3.5 text-amber-500" />
+                <Compass className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
                 أداء المناطق
               </span>
               <span className="text-[10px] font-bold text-slate-400">{regionalAnalytics.length} مناطق</span>
@@ -498,7 +498,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                 <div key={r.region} className="bg-slate-50 rounded-xl p-2.5 border border-slate-100">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] font-black text-slate-800 flex items-center gap-1.5 truncate">
-                      <Navigation className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <Navigation className="w-3.5 h-3.5 text-[var(--app-warn-text)] shrink-0" />
                       {r.region}
                     </span>
                     <span className="text-[10px] font-bold text-slate-500 shrink-0">
@@ -508,13 +508,13 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                   <div className="grid grid-cols-2 gap-2 mt-2">
                     <div>
                       <div className="text-[9px] font-bold text-slate-500">مبيعات المنطقة</div>
-                      <div className="font-mono text-[11px] font-black text-emerald-700 truncate" title={formatCurrency(r.sales)}>
+                      <div className="font-mono text-[11px] font-black text-[var(--app-ok-text)] truncate" title={formatCurrency(r.sales)}>
                         {formatCurrency(r.sales)}
                       </div>
                     </div>
                     <div>
                       <div className="text-[9px] font-bold text-slate-500">مديونيات المنطقة</div>
-                      <div className="font-mono text-[11px] font-black text-rose-700 truncate" title={formatCurrency(r.balance)}>
+                      <div className="font-mono text-[11px] font-black text-[var(--app-risk-text)] truncate" title={formatCurrency(r.balance)}>
                         {formatCurrency(r.balance)}
                       </div>
                     </div>
@@ -528,13 +528,13 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-black text-slate-700 flex items-center gap-1.5">
-                <Flame className="w-3.5 h-3.5 text-rose-500" />
+                <Flame className="w-3.5 h-3.5 text-[var(--app-risk-text)]" />
                 أعلى العملاء مديونية
               </span>
               <button
                 type="button"
                 onClick={() => onNavigateToTab?.('all_customers')}
-                className="text-[10px] font-black text-amber-600 underline underline-offset-2 cursor-pointer"
+                className="text-[10px] font-black text-[var(--app-warn-text)] underline underline-offset-2 cursor-pointer"
               >
                 الكل ←
               </button>
@@ -552,11 +552,11 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                       <span
                         className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 ${
                           idx === 0
-                            ? 'bg-rose-500 text-white'
+                            ? 'bg-[var(--app-risk)] text-white'
                             : idx === 1
-                            ? 'bg-amber-500 text-white'
+                            ? 'bg-[var(--app-warn)] text-white'
                             : idx === 2
-                            ? 'bg-orange-400 text-slate-950'
+                            ? 'bg-[var(--app-warn)] text-slate-950'
                             : 'bg-slate-200 text-slate-600'
                         }`}
                       >
@@ -569,7 +569,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                         </div>
                       </div>
                     </div>
-                    <span className="font-mono text-[11px] font-black text-rose-700 shrink-0" title={formatCurrency(balance)}>
+                    <span className="font-mono text-[11px] font-black text-[var(--app-risk-text)] shrink-0" title={formatCurrency(balance)}>
                       {formatCurrency(balance)}
                     </span>
                   </div>
@@ -604,7 +604,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                   onClick={() => setQueueTab(tab.id)}
                   className={`flex items-center gap-1.5 px-4 py-2.5 text-[12px] font-black whitespace-nowrap cursor-pointer transition border-b-2 ${
                     active
-                      ? 'border-amber-500 text-amber-700 bg-amber-50/50'
+                      ? 'border-[var(--app-warn)] text-[var(--app-warn-text)] bg-[var(--app-warn-tint)]'
                       : 'border-transparent text-slate-500 hover:text-slate-700'
                   }`}
                 >
@@ -612,7 +612,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                   {tab.label}
                   {tab.count > 0 && (
                     <span className={`min-w-[20px] h-5 px-1 rounded-full text-[10px] font-black flex items-center justify-center ${
-                      active ? 'bg-amber-500 text-white' : 'bg-rose-100 text-rose-700'
+                      active ? 'bg-[var(--app-warn)] text-white' : 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]'
                     }`}>
                       {tab.count}
                     </span>
@@ -628,7 +628,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
               <div className="space-y-2">
                 {pendingOrders.length === 0 ? (
                   <div className="text-center py-8">
-                    <CheckCircle2 className="w-10 h-10 text-emerald-300 mx-auto mb-2" />
+                    <CheckCircle2 className="w-10 h-10 text-[#0d9488] mx-auto mb-2" />
                     <div className="text-[12px] font-black text-slate-600">كل الطلبيات معتمدة</div>
                     <p className="text-[10px] text-slate-400 mt-1">لا توجد طلبيات بانتظار المراجعة</p>
                   </div>
@@ -655,7 +655,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                               <span>•</span>
                               <span>{inv.date || ''}</span>
                               <span>•</span>
-                              <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-md font-bold">
+                              <span className="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] px-1.5 py-0.5 rounded-md font-bold">
                                 {inv.status}
                               </span>
                             </div>
@@ -668,7 +668,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                           <button
                             type="button"
                             onClick={() => handleApproveOrder(inv)}
-                            className="inline-flex items-center gap-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
+                            className="inline-flex items-center gap-1 bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-slate-950 text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             اعتماد
@@ -676,7 +676,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                           <button
                             type="button"
                             onClick={() => handleForwardOrder(inv)}
-                            className="inline-flex items-center gap-1 bg-blue-500 hover:bg-blue-400 text-white text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
+                            className="inline-flex items-center gap-1 bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
                           >
                             <Send className="w-3.5 h-3.5" />
                             تحويل للإدارة
@@ -684,7 +684,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                           <button
                             type="button"
                             onClick={() => handleRejectOrder(inv)}
-                            className="inline-flex items-center gap-1 bg-rose-500 hover:bg-rose-400 text-white text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
+                            className="inline-flex items-center gap-1 bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-white text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
                           >
                             <X className="w-3.5 h-3.5" />
                             رفض
@@ -714,14 +714,14 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
             {queueTab === 'visits' && (
               <div className="space-y-2">
                 {!isSupervisor && (
-                  <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-2.5 text-[11px] font-bold flex items-center gap-2">
+                  <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] text-[var(--app-navy-text)] rounded-xl p-2.5 text-[11px] font-bold flex items-center gap-2">
                     <Info className="w-4 h-4 shrink-0" />
                     اعتماد الزيارات متاح للمشرف على الفريق فقط — هذه القائمة للاطلاع على زيارات مندوبيك بانتظار المراجعة.
                   </div>
                 )}
                 {pendingVisits.length === 0 ? (
                   <div className="text-center py-8">
-                    <CheckCircle2 className="w-10 h-10 text-emerald-300 mx-auto mb-2" />
+                    <CheckCircle2 className="w-10 h-10 text-[#0d9488] mx-auto mb-2" />
                     <div className="text-[12px] font-black text-slate-600">لا توجد زيارات بانتظار المراجعة</div>
                     <p className="text-[10px] text-slate-400 mt-1">الزيارات المنفذة تظهر هنا لاعتمادها</p>
                   </div>
@@ -747,7 +747,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                             </div>
                           </div>
                           {v.collectedAmount ? (
-                            <span className="font-mono text-[12px] font-black text-emerald-600 shrink-0">
+                            <span className="font-mono text-[12px] font-black text-[var(--app-ok-text)] shrink-0">
                               {formatCurrency(v.collectedAmount)}
                             </span>
                           ) : null}
@@ -757,7 +757,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                             <button
                               type="button"
                               onClick={() => handleApproveVisit(v)}
-                              className="inline-flex items-center gap-1 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
+                              className="inline-flex items-center gap-1 bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-slate-950 text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
                               اعتماد
@@ -765,7 +765,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                             <button
                               type="button"
                               onClick={() => handleNeedsFixVisit(v)}
-                              className="inline-flex items-center gap-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
+                              className="inline-flex items-center gap-1 bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
                             >
                               <RotateCcw className="w-3.5 h-3.5" />
                               يحتاج تعديل
@@ -797,7 +797,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
               <div className="space-y-2">
                 {forecastGroups.length === 0 ? (
                   <div className="text-center py-8">
-                    <CheckCircle2 className="w-10 h-10 text-emerald-300 mx-auto mb-2" />
+                    <CheckCircle2 className="w-10 h-10 text-[#0d9488] mx-auto mb-2" />
                     <div className="text-[12px] font-black text-slate-600">لا توجد توقعات بانتظار الاعتماد</div>
                     <p className="text-[10px] text-slate-400 mt-1">التوقعات الأسبوعية المُرسلة من المناديب تظهر هنا</p>
                   </div>
@@ -816,7 +816,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                           </div>
                         </div>
                         <div className="text-left shrink-0">
-                          <div className="font-mono text-[12px] font-black text-purple-700" title={formatCurrency(group.collectionTotal)}>
+                          <div className="font-mono text-[12px] font-black text-[var(--app-navy-text)]" title={formatCurrency(group.collectionTotal)}>
                             {formatCurrency(group.collectionTotal)}
                           </div>
                           <div className="text-[9px] font-bold text-slate-400">تحصيل متوقع</div>
@@ -830,7 +830,7 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
                           type="button"
                           onClick={() => handleApproveForecast(group)}
                           disabled={busyId === group.key}
-                          className="inline-flex items-center gap-1 bg-purple-500 hover:bg-purple-400 disabled:opacity-50 text-white text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
+                          className="inline-flex items-center gap-1 bg-[var(--app-navy)] hover:bg-[var(--app-navy)] disabled:opacity-50 text-white text-[11px] font-black px-3 py-1.5 rounded-lg cursor-pointer active:scale-95 transition"
                         >
                           <CheckCheck className="w-3.5 h-3.5" />
                           {busyId === group.key ? 'جارٍ الاعتماد...' : 'اعتماد الأسبوع'}
@@ -851,12 +851,12 @@ export const RoleCommandCenter: React.FC<RoleCommandCenterProps> = ({
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2.5">
           {(
             [
-              { id: 'targets', label: 'تارجت المبيعات', icon: Target, accent: 'bg-lime-500' },
-              { id: 'forecast', label: 'توقعات التحصيل', icon: TrendingUp, accent: 'bg-orange-500' },
-              { id: 'visits', label: 'زيارات العملاء', icon: CalendarCheck, accent: 'bg-rose-500' },
-              { id: 'invoices', label: 'الفواتير والطلبيات', icon: Receipt, accent: 'bg-amber-500' },
-              { id: 'inventory', label: 'المخزون والاعتمادات', icon: Layers, accent: 'bg-sky-500' },
-              { id: 'all_customers', label: 'العملاء والتحليل', icon: Users, accent: 'bg-blue-500' },
+              { id: 'targets', label: 'تارجت المبيعات', icon: Target, accent: 'bg-[var(--app-ok)]' },
+              { id: 'forecast', label: 'توقعات التحصيل', icon: TrendingUp, accent: 'bg-[var(--app-warn)]' },
+              { id: 'visits', label: 'زيارات العملاء', icon: CalendarCheck, accent: 'bg-[var(--app-risk)]' },
+              { id: 'invoices', label: 'الفواتير والطلبيات', icon: Receipt, accent: 'bg-[var(--app-warn)]' },
+              { id: 'inventory', label: 'المخزون والاعتمادات', icon: Layers, accent: 'bg-[var(--app-navy)]' },
+              { id: 'all_customers', label: 'العملاء والتحليل', icon: Users, accent: 'bg-[var(--app-navy)]' },
             ] as const
           ).map((tile) => {
             const Icon = tile.icon;

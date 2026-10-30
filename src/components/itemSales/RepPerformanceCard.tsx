@@ -28,7 +28,7 @@ export const RepPerformanceCard: React.FC<RepPerformanceCardProps> = ({
       title="أداء فريق المبيعات"
       subtitle="ترتيب المناديب بقيمة المبيعات في الفترة"
       icon={<Users className="w-4 h-4" />}
-      iconClass="bg-teal-50 text-teal-600"
+      iconClass="bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]"
     >
       {reps.length === 0 ? (
         <ChartEmpty height={214} message="لا توجد بيانات مناديب" />
@@ -42,7 +42,7 @@ export const RepPerformanceCard: React.FC<RepPerformanceCardProps> = ({
                 type="button"
                 onClick={() => onSelectRep?.(rep.repName)}
                 className={`w-full text-right rounded-xl px-2 py-1.5 transition ${
-                  isActive ? 'bg-amber-50/70 ring-1 ring-amber-200' : 'hover:bg-slate-50'
+                  isActive ? 'bg-[var(--app-warn-tint)] ring-1 ring-[var(--app-warn)]' : 'hover:bg-slate-50'
                 } ${onSelectRep ? 'cursor-pointer' : 'cursor-default'}`}
               >
                 <div className="flex items-center justify-between gap-2">

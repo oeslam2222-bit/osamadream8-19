@@ -1020,7 +1020,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   {/* Credit/Overdue Warning Banner */}
                   {(isCreditExceeded || overdueBal > 0) && (
                     <div className={`rounded-xl border px-3 py-2.5 text-xs font-bold flex items-start gap-2 ${
-                      isCreditExceeded ? 'bg-rose-50 border-rose-200 text-rose-800' : 'bg-amber-50 border-amber-200 text-amber-800'
+                      isCreditExceeded ? 'bg-[var(--app-risk-tint)] border-[var(--app-risk-line)] text-[var(--app-risk-text)]' : 'bg-[var(--app-warn-tint)] border-[var(--app-warn-line)] text-[var(--app-warn-text)]'
                     }`}>
                       <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                       <div className="space-y-0.5">
@@ -1070,7 +1070,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     </div>
 
                     {/* KPI 5: Remaining Credit */}
-                    <div className={`ord-card p-3 rounded-[var(--app-btn-radius)] ${isCreditExceeded ? 'border-rose-200 bg-rose-50' : ''}`}>
+                    <div className={`ord-card p-3 rounded-[var(--app-btn-radius)] ${isCreditExceeded ? 'border-[var(--app-risk-line)] bg-[var(--app-risk-tint)]' : ''}`}>
                       <div className={`text-[10px] font-bold ${isCreditExceeded ? 't-risk' : 't-ok'}`}>
                         المتبقي من الحد الائتماني:
                       </div>
@@ -1239,17 +1239,17 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
                 {/* Credit Limit Warning in Step 3 */}
                 {activeCustomer && creditLimitVal > 0 && isCreditExceeded && (
-                  <div className="bg-rose-50 border border-rose-200 rounded-[var(--app-btn-radius)] p-3 text-xs">
+                  <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] rounded-[var(--app-btn-radius)] p-3 text-xs">
                     <div className="flex items-center gap-2 mb-1.5">
                       <AlertTriangle className="w-4 h-4 t-risk shrink-0" />
-                      <span className="font-black text-rose-800">تم تجاوز الحد الائتما��ي!</span>
+                      <span className="font-black text-[var(--app-risk-text)]">تم تجاوز الحد الائتما��ي!</span>
                     </div>
-                    <div className="text-[10px] text-rose-700 space-y-0.5">
+                    <div className="text-[10px] text-[var(--app-risk-text)] space-y-0.5">
                       <div>رصيد العميل الحالي: <strong>{formatCurrency(balBefore)}</strong></div>
                       <div>قيمة الفاتورة: <strong>{formatCurrency(summary.grandTotal)}</strong></div>
-                      <div>الرصيد بعد الفاتورة: <strong className="text-rose-800">{formatCurrency(balAfter)}</strong></div>
+                      <div>الرصيد بعد الفاتورة: <strong className="text-[var(--app-risk-text)]">{formatCurrency(balAfter)}</strong></div>
                       <div>الحد الائتماني المعتمد: <strong>{formatCurrency(creditLimitVal)}</strong></div>
-                      <div>تجاوز الحد بمقدار: <strong className="font-black text-rose-800">{formatCurrency(balAfter - creditLimitVal)}</strong></div>
+                      <div>تجاوز الحد بمقدار: <strong className="font-black text-[var(--app-risk-text)]">{formatCurrency(balAfter - creditLimitVal)}</strong></div>
                       <div className="text-[10px] opacity-80 mt-1">سيتم إرسال الفاتورة لاعتماد المشرف ومدير الفرع قبل التنفيذ.</div>
                     </div>
                   </div>

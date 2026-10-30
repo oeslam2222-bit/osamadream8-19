@@ -166,22 +166,22 @@ export const CustomerOrderAnalyticsModal: React.FC<CustomerOrderAnalyticsModalPr
       <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="p-4 sm:p-6 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between shrink-0 border-b border-indigo-900/50">
+        <div className="p-4 sm:p-6 bg-gradient-to-r from-slate-900 via-[var(--app-navy)] to-slate-900 text-white flex items-center justify-between shrink-0 border-b border-[var(--app-navy)]">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 flex items-center justify-center font-black">
-              <BarChart3 className="w-6 h-6 text-indigo-400" />
+            <div className="w-12 h-12 rounded-2xl bg-[var(--app-navy)] text-[#60a5fa] border border-[var(--app-navy)] flex items-center justify-center font-black">
+              <BarChart3 className="w-6 h-6 text-[#60a5fa]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-lg sm:text-xl font-black text-white">
                   تحليل مسحوبات العميل ونسب الأصناف 📊
                 </h3>
-                <span className="bg-indigo-500/30 text-indigo-200 text-[11px] font-black px-2.5 py-0.5 rounded-full border border-indigo-400/30">
+                <span className="bg-[var(--app-navy)] text-[#60a5fa] text-[11px] font-black px-2.5 py-0.5 rounded-full border border-[var(--app-navy)]">
                   ذكاء المبيعات
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5">
-                العميل: <strong className="text-amber-300">{invoice.customerName}</strong> ({invoice.branchName || 'عام'}) • فاتورة #{invoice.invoiceNumber}
+                العميل: <strong className="text-[#d97706]">{invoice.customerName}</strong> ({invoice.branchName || 'عام'}) • فاتورة #{invoice.invoiceNumber}
               </p>
             </div>
           </div>
@@ -209,32 +209,32 @@ export const CustomerOrderAnalyticsModal: React.FC<CustomerOrderAnalyticsModalPr
               </span>
             </div>
 
-            <div className="bg-indigo-50 p-3.5 rounded-2xl border border-indigo-200">
-              <span className="text-[11px] font-bold text-indigo-700 block">إجمالي كراتين الطلبية:</span>
-              <strong className="text-base sm:text-lg font-black text-indigo-950 mt-0.5 block">
+            <div className="bg-[var(--app-navy-tint)] p-3.5 rounded-2xl border border-[var(--app-navy-line)]">
+              <span className="text-[11px] font-bold text-[var(--app-navy-text)] block">إجمالي كراتين الطلبية:</span>
+              <strong className="text-base sm:text-lg font-black text-[var(--app-navy-text)] mt-0.5 block">
                 {invoice.totalCartons || invoice.items?.reduce((s, i) => s + (Number(i.cartonCount || 0)), 0) || 0} كرتونة
               </strong>
-              <span className="text-[10px] text-indigo-600 font-medium">
+              <span className="text-[10px] text-[var(--app-navy-text)] font-medium">
                 توزيع على {invoice.items?.length || 0} صنف
               </span>
             </div>
 
-            <div className="bg-emerald-50 p-3.5 rounded-2xl border border-emerald-200">
-              <span className="text-[11px] font-bold text-emerald-700 block">سجل تعاملات العميل:</span>
-              <strong className="text-base sm:text-lg font-black text-emerald-950 mt-0.5 block">
+            <div className="bg-[var(--app-ok-tint)] p-3.5 rounded-2xl border border-[var(--app-ok-line)]">
+              <span className="text-[11px] font-bold text-[var(--app-ok-text)] block">سجل تعاملات العميل:</span>
+              <strong className="text-base sm:text-lg font-black text-[var(--app-ok-text)] mt-0.5 block">
                 {customerPastInvoices.length + 1} طلبية مسجلة
               </strong>
-              <span className="text-[10px] text-emerald-600 font-medium">
+              <span className="text-[10px] text-[var(--app-ok-text)] font-medium">
                 {customerPastInvoices.length > 0 ? 'عميل منتظم ومستمر' : 'أول طلبية للعميل'}
               </span>
             </div>
 
-            <div className="bg-amber-50 p-3.5 rounded-2xl border border-amber-200">
-              <span className="text-[11px] font-bold text-amber-800 block">الصنف الأكبر قيمة:</span>
-              <strong className="text-xs sm:text-sm font-black text-amber-950 mt-0.5 block truncate" title={sortedItemAnalytics[0]?.name}>
+            <div className="bg-[var(--app-warn-tint)] p-3.5 rounded-2xl border border-[var(--app-warn-line)]">
+              <span className="text-[11px] font-bold text-[var(--app-warn-text)] block">الصنف الأكبر قيمة:</span>
+              <strong className="text-xs sm:text-sm font-black text-[var(--app-warn-text)] mt-0.5 block truncate" title={sortedItemAnalytics[0]?.name}>
                 {sortedItemAnalytics[0]?.name || '---'}
               </strong>
-              <span className="text-[10px] text-amber-700 font-bold">
+              <span className="text-[10px] text-[var(--app-warn-text)] font-bold">
                 يمثل {sortedItemAnalytics[0]?.percentageOfOrder || 0}% من قيمة الفاتورة
               </span>
             </div>
@@ -242,24 +242,24 @@ export const CustomerOrderAnalyticsModal: React.FC<CustomerOrderAnalyticsModalPr
 
           {/* Missing Frequent Items Alert (Cross-Sell Alert) */}
           {missingFrequentItems.length > 0 && (
-            <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-amber-100/60 p-4 rounded-2xl border border-amber-300 flex items-start gap-3">
-              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black shrink-0 mt-0.5 shadow-xs">
+            <div className="bg-gradient-to-r from-[var(--app-warn)] via-[var(--app-warn)] to-[var(--app-warn)] p-4 rounded-2xl border border-[var(--app-warn-line)] flex items-start gap-3">
+              <div className="w-8 h-8 rounded-xl bg-[var(--app-warn)] text-white flex items-center justify-center font-black shrink-0 mt-0.5 shadow-xs">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div className="space-y-1 leading-relaxed">
-                <h4 className="text-xs sm:text-sm font-black text-amber-950">
+                <h4 className="text-xs sm:text-sm font-black text-[var(--app-warn-text)]">
                   فرصة زيادة مبيعات: أصناف معتادة لم يطلبها العميل اليوم! 💡
                 </h4>
-                <p className="text-xs text-amber-900">
+                <p className="text-xs text-[var(--app-warn-text)]">
                   هذا العميل يطلب الأصناف التالية باستمرار في فواتيره السابقة، ولكنها <strong>غير مضافة في طلبية اليوم</strong>:
                 </p>
                 <div className="flex items-center gap-2 flex-wrap pt-1">
                   {missingFrequentItems.map((item) => (
                     <span
                       key={item.code}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white text-slate-800 text-xs font-bold border border-amber-300 shadow-xs"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white text-slate-800 text-xs font-bold border border-[var(--app-warn-line)] shadow-xs"
                     >
-                      <Package className="w-3.5 h-3.5 text-amber-600" />
+                      <Package className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
                       <span>كود: {item.code}</span>
                       <span className="text-slate-400 font-normal">({item.totalCartons} كرتونة سابقة)</span>
                     </span>
@@ -273,7 +273,7 @@ export const CustomerOrderAnalyticsModal: React.FC<CustomerOrderAnalyticsModalPr
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                <PieChart className="w-4 h-4 text-indigo-600" />
+                <PieChart className="w-4 h-4 text-[var(--app-navy-text)]" />
                 <span>تحليل تفصيلي لأصناف الطلبية ونسبة مساهمة كل صنف</span>
               </h4>
               <span className="text-xs font-bold text-slate-500">
@@ -315,11 +315,11 @@ export const CustomerOrderAnalyticsModal: React.FC<CustomerOrderAnalyticsModalPr
                           <div className="flex items-center gap-2 justify-center">
                             <div className="w-16 bg-slate-100 rounded-full h-2 overflow-hidden border border-slate-200">
                               <div
-                                className="bg-gradient-to-r from-indigo-500 to-teal-500 h-full rounded-full transition-all"
+                                className="bg-gradient-to-r from-[var(--app-navy)] to-[var(--app-ok)] h-full rounded-full transition-all"
                                 style={{ width: `${Math.min(100, analysis.percentageOfOrder)}%` }}
                               />
                             </div>
-                            <span className="font-mono font-black text-indigo-700 text-xs">
+                            <span className="font-mono font-black text-[var(--app-navy-text)] text-xs">
                               {analysis.percentageOfOrder}%
                             </span>
                           </div>
@@ -330,27 +330,27 @@ export const CustomerOrderAnalyticsModal: React.FC<CustomerOrderAnalyticsModalPr
                               متوسط {analysis.averageCartonsPerOrder} كرتونة ({analysis.historicalOrderCount} طلبية سابقة)
                             </span>
                           ) : (
-                            <span className="text-[11px] text-teal-700 bg-teal-50 px-2 py-0.5 rounded-md font-bold">
+                            <span className="text-[11px] text-[var(--app-ok-text)] bg-[var(--app-ok-tint)] px-2 py-0.5 rounded-md font-bold">
                               أول مرة يطلب الصنف ✨
                             </span>
                           )}
                         </td>
                         <td className="p-3 text-center">
                           {analysis.comparisonStatus === 'higher' && (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-800 bg-emerald-50 px-2 py-1 rounded-xl border border-emerald-200">
-                              <ArrowUpRight className="w-3.5 h-3.5 text-emerald-600" />
+                            <span className="inline-flex items-center gap-1 text-[11px] font-black text-[var(--app-ok-text)] bg-[var(--app-ok-tint)] px-2 py-1 rounded-xl border border-[var(--app-ok-line)]">
+                              <ArrowUpRight className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
                               <span>+{analysis.differencePercent}% فوق المعتاد 🔥</span>
                             </span>
                           )}
                           {analysis.comparisonStatus === 'lower' && (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-black text-amber-800 bg-amber-50 px-2 py-1 rounded-xl border border-amber-200">
-                              <ArrowDownRight className="w-3.5 h-3.5 text-amber-600" />
+                            <span className="inline-flex items-center gap-1 text-[11px] font-black text-[var(--app-warn-text)] bg-[var(--app-warn-tint)] px-2 py-1 rounded-xl border border-[var(--app-warn-line)]">
+                              <ArrowDownRight className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
                               <span>{analysis.differencePercent}% أقل من المعتاد</span>
                             </span>
                           )}
                           {analysis.comparisonStatus === 'normal' && (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-black text-sky-800 bg-sky-50 px-2 py-1 rounded-xl border border-sky-200">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-sky-600" />
+                            <span className="inline-flex items-center gap-1 text-[11px] font-black text-[var(--app-navy-text)] bg-[var(--app-navy-tint)] px-2 py-1 rounded-xl border border-[var(--app-navy-line)]">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
                               <span>سحب طبيعي ومتطابق</span>
                             </span>
                           )}
@@ -372,7 +372,7 @@ export const CustomerOrderAnalyticsModal: React.FC<CustomerOrderAnalyticsModalPr
           {topFavoriteProducts.length > 0 && (
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
               <div className="flex items-center gap-2">
-                <Award className="w-4 h-4 text-amber-600" />
+                <Award className="w-4 h-4 text-[var(--app-warn-text)]" />
                 <h4 className="text-xs sm:text-sm font-black text-slate-900">
                   أكثر 5 أصناف يطلبها هذا العميل تاريخياً:
                 </h4>
@@ -385,7 +385,7 @@ export const CustomerOrderAnalyticsModal: React.FC<CustomerOrderAnalyticsModalPr
                       <span className="font-bold text-slate-800 block">كود الصنف: {p.code}</span>
                       <span className="text-[10px] text-slate-500">طلب {p.count} مرات في فواتير سابقة</span>
                     </div>
-                    <span className="font-mono font-black text-indigo-700 bg-indigo-50 px-2 py-1 rounded-lg">
+                    <span className="font-mono font-black text-[var(--app-navy-text)] bg-[var(--app-navy-tint)] px-2 py-1 rounded-lg">
                       {p.totalCartons} كرتونة
                     </span>
                   </div>

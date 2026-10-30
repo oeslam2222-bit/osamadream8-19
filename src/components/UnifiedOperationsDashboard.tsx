@@ -58,15 +58,15 @@ export const UnifiedOperationsDashboard: React.FC<UnifiedOperationsDashboardProp
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           
           <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black shadow-inner border border-amber-500/30 shrink-0">
-              <Gauge className="w-5 h-5 text-amber-400" />
+            <div className="w-10 h-10 rounded-2xl bg-[var(--app-warn)] text-[#d97706] flex items-center justify-center font-black shadow-inner border border-[var(--app-warn)] shrink-0">
+              <Gauge className="w-5 h-5 text-[#d97706]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
                   <span>لوحة العمليات والقيادة الشاملة</span>
                 </h1>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-black">
+                <span className="px-2 py-0.5 rounded-full bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)] text-[10px] font-black">
                   مدمجة وبسيطة 🎯
                 </span>
               </div>
@@ -84,14 +84,14 @@ export const UnifiedOperationsDashboard: React.FC<UnifiedOperationsDashboardProp
               onClick={() => setSubTab('supervisor')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
                 subTab === 'supervisor'
-                  ? 'bg-amber-400 text-slate-950 shadow-md'
+                  ? 'bg-[var(--app-warn)] text-slate-950 shadow-md'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
               }`}
             >
               <LayoutDashboard className="w-3.5 h-3.5" />
               <span>متابعة واعتمادات الطلبيات 📑</span>
               {pendingOrders.length > 0 && (
-                <span className="bg-rose-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+                <span className="bg-[var(--app-risk)] text-white text-[10px] px-1.5 py-0.2 rounded-full font-mono">
                   {pendingOrders.length}
                 </span>
               )}
@@ -103,7 +103,7 @@ export const UnifiedOperationsDashboard: React.FC<UnifiedOperationsDashboardProp
               onClick={() => setSubTab('management')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
                 subTab === 'management'
-                  ? 'bg-amber-400 text-slate-950 shadow-md'
+                  ? 'bg-[var(--app-warn)] text-slate-950 shadow-md'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
               }`}
             >
@@ -117,7 +117,7 @@ export const UnifiedOperationsDashboard: React.FC<UnifiedOperationsDashboardProp
               onClick={() => setSubTab('command')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
                 subTab === 'command'
-                  ? 'bg-amber-400 text-slate-950 shadow-md'
+                  ? 'bg-[var(--app-warn)] text-slate-950 shadow-md'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
               }`}
             >
@@ -133,10 +133,10 @@ export const UnifiedOperationsDashboard: React.FC<UnifiedOperationsDashboardProp
         {/* KPI 1: إجمالي المبيعات المعتمدة */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 text-white">
           <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
-            <Receipt className="w-3 h-3 text-emerald-400" />
+            <Receipt className="w-3 h-3 text-[#0d9488]" />
             <span>المبيعات المعتمدة:</span>
           </div>
-          <div className="text-sm sm:text-base font-black text-emerald-400 font-mono mt-1">
+          <div className="text-sm sm:text-base font-black text-[#0d9488] font-mono mt-1">
             {formatCurrency(totalSalesRevenue)}
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5">
@@ -145,12 +145,12 @@ export const UnifiedOperationsDashboard: React.FC<UnifiedOperationsDashboardProp
         </div>
 
         {/* KPI 2: طلبيات بانتظار الاعتماد */}
-        <div className={`p-3 rounded-2xl border text-white ${pendingOrders.length > 0 ? 'bg-amber-950/40 border-amber-600/50' : 'bg-slate-900 border-slate-800'}`}>
-          <div className="text-[10px] text-amber-300 font-bold flex items-center gap-1">
-            <Clock className="w-3 h-3 text-amber-400" />
+        <div className={`p-3 rounded-2xl border text-white ${pendingOrders.length > 0 ? 'bg-[var(--app-warn)] border-[var(--app-warn)]' : 'bg-slate-900 border-slate-800'}`}>
+          <div className="text-[10px] text-[#d97706] font-bold flex items-center gap-1">
+            <Clock className="w-3 h-3 text-[#d97706]" />
             <span>بانتظار الاعتماد:</span>
           </div>
-          <div className="text-sm sm:text-base font-black text-amber-400 font-mono mt-1">
+          <div className="text-sm sm:text-base font-black text-[#d97706] font-mono mt-1">
             {pendingOrders.length} طلبية
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5">
@@ -160,11 +160,11 @@ export const UnifiedOperationsDashboard: React.FC<UnifiedOperationsDashboardProp
 
         {/* KPI 3: زيارات اليوم */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 text-white">
-          <div className="text-[10px] text-sky-400 font-bold flex items-center gap-1">
-            <CalendarCheck className="w-3 h-3 text-sky-400" />
+          <div className="text-[10px] text-[#60a5fa] font-bold flex items-center gap-1">
+            <CalendarCheck className="w-3 h-3 text-[#60a5fa]" />
             <span>زيارات اليوم:</span>
           </div>
-          <div className="text-sm sm:text-base font-black text-sky-300 font-mono mt-1">
+          <div className="text-sm sm:text-base font-black text-[#60a5fa] font-mono mt-1">
             {todayVisits.length} زيارة
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5">
@@ -174,11 +174,11 @@ export const UnifiedOperationsDashboard: React.FC<UnifiedOperationsDashboardProp
 
         {/* KPI 4: العملاء */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 text-white">
-          <div className="text-[10px] text-purple-400 font-bold flex items-center gap-1">
-            <Users className="w-3 h-3 text-purple-400" />
+          <div className="text-[10px] text-[#60a5fa] font-bold flex items-center gap-1">
+            <Users className="w-3 h-3 text-[#60a5fa]" />
             <span>العملاء المسجلين:</span>
           </div>
-          <div className="text-sm sm:text-base font-black text-purple-300 font-mono mt-1">
+          <div className="text-sm sm:text-base font-black text-[#60a5fa] font-mono mt-1">
             {customers.length} عميل
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5">
@@ -188,11 +188,11 @@ export const UnifiedOperationsDashboard: React.FC<UnifiedOperationsDashboardProp
 
         {/* KPI 5: كتالوج الأصناف */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 text-white">
-          <div className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
-            <Boxes className="w-3 h-3 text-amber-400" />
+          <div className="text-[10px] text-[#d97706] font-bold flex items-center gap-1">
+            <Boxes className="w-3 h-3 text-[#d97706]" />
             <span>كتالوج الأصناف:</span>
           </div>
-          <div className="text-sm sm:text-base font-black text-amber-300 font-mono mt-1">
+          <div className="text-sm sm:text-base font-black text-[#d97706] font-mono mt-1">
             {products.length} صنف
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5">
@@ -202,11 +202,11 @@ export const UnifiedOperationsDashboard: React.FC<UnifiedOperationsDashboardProp
 
         {/* KPI 6: الفروع */}
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 text-white">
-          <div className="text-[10px] text-teal-400 font-bold flex items-center gap-1">
-            <Warehouse className="w-3 h-3 text-teal-400" />
+          <div className="text-[10px] text-[#0d9488] font-bold flex items-center gap-1">
+            <Warehouse className="w-3 h-3 text-[#0d9488]" />
             <span>شبكة الفروع:</span>
           </div>
-          <div className="text-sm sm:text-base font-black text-teal-300 font-mono mt-1">
+          <div className="text-sm sm:text-base font-black text-[#0d9488] font-mono mt-1">
             {branches.length} فروع
           </div>
           <div className="text-[10px] text-slate-400 mt-0.5">

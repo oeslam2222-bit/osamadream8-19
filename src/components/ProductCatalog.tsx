@@ -45,7 +45,8 @@ import {
   ChevronsRight,
   ChevronsLeft,
   Clock,
-  Maximize2
+  Maximize2,
+  Home
 } from 'lucide-react';
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
@@ -94,6 +95,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     cloudinaryConfig,
     selectedBranchFilter,
     setSelectedBranchFilter,
+    activeSectorFilter,
+    setActiveSectorFilter,
     dataSaverMode,
     toggleDataSaverMode,
     setIsInstallModalOpen
@@ -435,6 +438,17 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   // Filtered & Sorted Products
   const filteredProducts = useMemo(() => {
     let result = getVisibleProducts().filter((p) => {
+      // 🏠⚡ فلتر القطاع (زرين كبيران أعلى الكتالوج): منزلي / كهرباء
+      const userSector = currentUser?.sector as string | undefined;
+      const multiSector = !currentUser || currentUser.role === 'admin' || currentUser.role === 'developer' || userSector === 'all' || userSector === 'both';
+      const effectiveSector = multiSector
+        ? (activeSectorFilter === 'all' ? null : activeSectorFilter)
+        : (userSector || 'home');
+      if (effectiveSector && (effectiveSector as string) !== 'all') {
+        const pSector = p.sector || 'home';
+        if (pSector !== effectiveSector && pSector !== 'both' && pSector !== 'all') return false;
+      }
+
       // Search match
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase().trim();
@@ -764,7 +778,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   };
 
   const priorityBadges: Record<SalesPriority, { bg: string; text: string; icon?: any }> = {
-    'مرتفع': { bg: 'bg-rose-500 text-white', text: 'الأكثر طلباً', icon: Flame },
+    'مرتفع': { bg: 'bg-[var(--app-risk)] text-white', text: 'الأكثر طلباً', icon: Flame },
     'متوسط': { bg: 'bg-[var(--app-accent)] text-slate-950', text: 'طلب متكرر', icon: Zap },
     'عادي': { bg: 'bg-slate-700 text-slate-200', text: 'منتج معتمد' },
     'منخفض': { bg: 'bg-zinc-600 text-zinc-200', text: 'عادي' },
@@ -791,7 +805,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           />
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black tracking-wider uppercase text-warn bg-amber-light dark:bg-amber-900/30 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-900/50">
+              <span className="text-[10px] font-black tracking-wider uppercase text-warn bg-amber-light dark:bg-[var(--app-warn)] px-2 py-0.5 rounded border border-[var(--app-warn-line)] dark:border-[var(--app-warn)]">
                 OPS CONSOLE / CATALOG
               </span>
               <span className="text-[11px] font-bold text-slate-400 dark:text-slate-300">
@@ -895,9 +909,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
       {/* Stock Error Notification Toast when double booking / depleted */}
       {stockErrorToast && (
-        <div className="fixed top-20 left-4 right-4 md:left-auto md:right-6 z-50 max-w-md bg-rose-900 text-white px-4 py-3.5 rounded-2xl shadow-2xl border-2 border-rose-400 flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-4">
+        <div className="fixed top-20 left-4 right-4 md:left-auto md:right-6 z-50 max-w-md bg-[var(--app-risk)] text-white px-4 py-3.5 rounded-2xl shadow-2xl border-2 border-[var(--app-risk)] flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center font-black shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[var(--app-risk)] text-white flex items-center justify-center font-black shrink-0">
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
@@ -959,6 +973,56 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             {isDark ? '☀️' : '🌙'}
           </button>
         </div>
+      </div>
+
+      {/* 🏠⚡ اختيار القطاع – زران كبيران وواضحان (المنزلي / الكهرباء) */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl border border-[color:var(--app-line)] p-2.5 sm:p-3 shadow-xs">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <span className="text-xs font-black text-slate-600 dark:text-slate-300 sm:ml-2">اختر القطاع:</span>
+          {(() => {
+            const userSector = currentUser?.sector as string | undefined;
+            const multiSector = !currentUser || currentUser.role === 'admin' || currentUser.role === 'developer' || userSector === 'all' || userSector === 'both';
+            const homeLocked = !multiSector && userSector === 'electrical';
+            const elecLocked = !multiSector && userSector !== 'electrical' && userSector !== 'all' && userSector !== 'both';
+            return (
+              <>
+                <button
+                  type="button"
+                  disabled={homeLocked}
+                  onClick={() => multiSector && setActiveSectorFilter(activeSectorFilter === 'home' ? 'all' : 'home')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black transition cursor-pointer border-2 ${
+                    (multiSector ? (activeSectorFilter === 'home' || activeSectorFilter === 'all') : (userSector !== 'electrical'))
+                      ? 'bg-[var(--app-navy)] text-white border-[var(--app-navy)] shadow-md'
+                      : 'bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-[var(--app-navy)]'
+                  } ${homeLocked ? 'opacity-40 cursor-not-allowed' : ''}`}
+                >
+                  <Home className="w-5 h-5" />
+                  <span>القطاع المنزلي</span>
+                  {!multiSector && userSector !== 'electrical' && <span className="text-[10px] opacity-70">(قطاعك)</span>}
+                </button>
+                <button
+                  type="button"
+                  disabled={elecLocked}
+                  onClick={() => multiSector && setActiveSectorFilter(activeSectorFilter === 'electrical' ? 'all' : 'electrical')}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black transition cursor-pointer border-2 ${
+                    (multiSector ? (activeSectorFilter === 'electrical') : (userSector === 'electrical'))
+                      ? 'bg-[var(--app-warn)] text-slate-900 border-[var(--app-warn)] shadow-md'
+                      : 'bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-[var(--app-warn)]'
+                  } ${elecLocked ? 'opacity-40 cursor-not-allowed' : ''}`}
+                >
+                  <Zap className="w-5 h-5" />
+                  <span>قطاع الكهرباء</span>
+                  {!multiSector && userSector === 'electrical' && <span className="text-[10px] opacity-70">(قطاعك)</span>}
+                </button>
+              </>
+            );
+          })()}
+        </div>
+        <p className="text-[10px] text-slate-400 mt-2 text-center">
+          {currentUser?.role === 'sales_rep'
+            ? 'أنت ترى منتجات ومخزون قطاعك فقط (فرعك + مخزن أكتوبر).'
+            : 'اختر قطاعاً لتصفية المنتجات والمخزون. المندوبون يرون قطاعهم تلقائياً.'}
+        </p>
       </div>
 
       {/* Main Search & Modern Controls Bar (Amazon / Noon Clean Layout) */}
@@ -1146,7 +1210,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               type="button"
               onClick={() => setStockAvailabilityFilter('in_warehouse')}
               className={`px-2.5 py-1 rounded-md text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
-                stockAvailabilityFilter === 'in_warehouse' ? 'bg-slate-soft7 text-[var(--app-navy)]' : 'text-slate-600 hover:text-blue-700'
+                stockAvailabilityFilter === 'in_warehouse' ? 'bg-slate-soft7 text-[var(--app-navy)]' : 'text-slate-600 hover:text-[var(--app-navy-text)]'
               }`}
             >
               مخزن أكتوبر ({stockCounts.inWarehouse})
@@ -1202,7 +1266,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {!isFiltered ? (
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 animate-in fade-in">
           <div className="text-center max-w-xl mx-auto space-y-2">
-            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/30 flex items-center justify-center mx-auto shadow-sm">
+            <div className="w-14 h-14 rounded-2xl bg-[var(--app-warn)] text-[var(--app-warn-text)] border border-[var(--app-warn)] flex items-center justify-center mx-auto shadow-sm">
               <Sparkles className="w-7 h-7" />
             </div>
             <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">
@@ -1221,7 +1285,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="ابحث بالاسم أو الكود أو الماركة مباشرة..."
-              className="w-full pr-10 pl-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-900 dark:text-slate-100"
+              className="w-full pr-10 pl-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] text-slate-900 dark:text-slate-100"
             />
           </div>
 
@@ -1232,7 +1296,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <button
                 type="button"
                 onClick={() => setShowAllExplicitly(true)}
-                className="text-amber-600 dark:text-amber-400 hover:underline cursor-pointer flex items-center gap-1 font-bold"
+                className="text-[var(--app-warn-text)] dark:text-[#d97706] hover:underline cursor-pointer flex items-center gap-1 font-bold"
               >
                 <span>عرض كافة المنتجات دفعة واحدة ({products.length})</span>
                 <ArrowRight className="w-3.5 h-3.5 rotate-180" />
@@ -1250,13 +1314,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       setSelectedOfficialDept(group);
                       setSelectedSubCategory('الكل');
                     }}
-                    className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 hover:bg-amber-500/10 dark:hover:bg-amber-500/10 border border-slate-200 dark:border-slate-800 hover:border-amber-500/50 text-right transition cursor-pointer group flex flex-col justify-between min-h-[92px] active:scale-98 shadow-2xs"
+                    className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 hover:bg-[var(--app-warn)] dark:hover:bg-[var(--app-warn)] border border-slate-200 dark:border-slate-800 hover:border-[var(--app-warn)] text-right transition cursor-pointer group flex flex-col justify-between min-h-[92px] active:scale-98 shadow-2xs"
                   >
                     <div className="flex items-start justify-between gap-1">
-                      <span className="text-xs font-black text-slate-900 dark:text-slate-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 line-clamp-2">
+                      <span className="text-xs font-black text-slate-900 dark:text-slate-100 group-hover:text-[var(--app-warn-text)] dark:group-hover:text-[#d97706] line-clamp-2">
                         {group}
                       </span>
-                      <span className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 text-slate-400 group-hover:text-amber-500 flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700">
+                      <span className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 text-slate-400 group-hover:text-[var(--app-warn-text)] flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700">
                         <Package className="w-3.5 h-3.5" />
                       </span>
                     </div>
@@ -1277,7 +1341,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 setStockAvailabilityFilter('in_branch');
                 setShowAllExplicitly(true);
               }}
-              className="px-4 py-2 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-black hover:bg-emerald-500/20 transition cursor-pointer flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-[var(--app-ok)] text-[var(--app-ok-text)] dark:text-[#0d9488] border border-[var(--app-ok)] text-xs font-black hover:bg-[var(--app-ok)] transition cursor-pointer flex items-center gap-1.5"
             >
               <span>المتوفر بالفرع فقط ({stockCounts.inBranch})</span>
             </button>
@@ -1288,9 +1352,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 setStockAvailabilityFilter('offers');
                 setShowAllExplicitly(true);
               }}
-              className="px-4 py-2 rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/30 text-xs font-black hover:bg-rose-500/20 transition cursor-pointer flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-[var(--app-risk)] text-[var(--app-risk-text)] dark:text-[#ef4444] border border-[var(--app-risk)] text-xs font-black hover:bg-[var(--app-risk)] transition cursor-pointer flex items-center gap-1.5"
             >
-              <Flame className="w-3.5 h-3.5 text-rose-500" />
+              <Flame className="w-3.5 h-3.5 text-[var(--app-risk-text)]" />
               <span>العروض والخصومات ({stockCounts.offers})</span>
             </button>
 
@@ -1359,7 +1423,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
                     {/* Single Promo or Priority Badge */}
                     {isPromo ? (
-                      <div className="absolute top-2 left-2 z-10 bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-xs">
+                      <div className="absolute top-2 left-2 z-10 bg-[var(--app-risk)] text-white text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-xs">
                         <Flame className="w-2.5 h-2.5" />
                         <span>عرض</span>
                       </div>
@@ -1418,7 +1482,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       </div>
 
                       {/* Pricing Row */}
-                      <div className="bg-amber-50/30 rounded-xl p-2.5 border border-[color:var(--app-line)] flex items-baseline justify-between">
+                      <div className="bg-[var(--app-warn-tint)] rounded-xl p-2.5 border border-[color:var(--app-line)] flex items-baseline justify-between">
                         <div>
                           <span className="text-[10px] text-slate-400 font-bold block leading-none">الكرتونة</span>
                           <span className="cat-ink font-black text-sm sm:text-base tabular-nums">
@@ -1834,7 +1898,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {isAdminOrDev && isWipeModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-[var(--app-risk)] flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-2xl bg-[var(--app-risk-tint)] text-[var(--app-risk)] flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
 
@@ -1852,7 +1916,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   type="checkbox"
                   checked={wipeInvoicesToo}
                   onChange={(e) => setWipeInvoicesToo(e.target.checked)}
-                  className="rounded text-amber-500 focus:ring-amber-400 w-4 h-4"
+                  className="rounded text-[var(--app-warn-text)] focus:ring-[var(--app-warn)] w-4 h-4"
                 />
                 <span>مسح سجل الفواتير والطلبيات التجريبية أيضاً</span>
               </label>
@@ -1935,7 +1999,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     className="w-full h-full object-contain"
                   />
                   {selectedProductForModal.promoPrice && (
-                    <div className="absolute top-3 right-3 bg-purple-600 text-white font-bold text-xs px-2.5 py-1 rounded-xl shadow z-10">
+                    <div className="absolute top-3 right-3 bg-[var(--app-navy)] text-white font-bold text-xs px-2.5 py-1 rounded-xl shadow z-10">
                       عرض ترويجي نشط
                     </div>
                   )}
@@ -2250,7 +2314,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   {rightPanelType === 'product' ? <Package /> : rightPanelType === 'cart' ? <ShoppingCart /> : <User />}
                 </div>
                 <div>
-                  <span className="text-[10px] font-black tracking-wider uppercase text-warn bg-amber-light px-2 py-0.5 rounded border border-amber-200">
+                  <span className="text-[10px] font-black tracking-wider uppercase text-warn bg-amber-light px-2 py-0.5 rounded border border-[var(--app-warn-line)]">
                     {rightPanelType === 'product' ? 'تفاصيل الصنف' : rightPanelType === 'cart' ? 'سلة الطلبية' : 'معلومات العميل'}
                   </span>
                   <h3 className="text-sm font-black text-slate-900 dark:text-slate-100 leading-tight">

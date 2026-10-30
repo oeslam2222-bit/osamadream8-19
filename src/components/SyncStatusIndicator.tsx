@@ -29,10 +29,10 @@ export const SyncStatusIndicator: React.FC = () => {
   }
 
   const styles: Record<typeof state, string> = {
-    offline: 'bg-amber-500/20 text-amber-300 border-amber-400/50',
-    syncing: 'bg-sky-500/20 text-sky-300 border-sky-400/50',
-    pending: 'bg-amber-500/20 text-amber-300 border-amber-400/50',
-    synced: 'bg-emerald-500/15 text-emerald-300 border-emerald-400/40',
+    offline: 'bg-[var(--app-warn)] text-[#d97706] border-[var(--app-warn)]',
+    syncing: 'bg-[var(--app-navy)] text-[#60a5fa] border-[var(--app-navy)]',
+    pending: 'bg-[var(--app-warn)] text-[#d97706] border-[var(--app-warn)]',
+    synced: 'bg-[var(--app-ok)] text-[#0d9488] border-[var(--app-ok)]',
   };
 
   return (

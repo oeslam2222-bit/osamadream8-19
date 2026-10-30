@@ -101,9 +101,9 @@ import { isArabicNameMatch } from '../services/arabicMatchingService';
 
 const STATUS_STYLE: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-600 border-slate-300',
-  submitted: 'bg-sky-100 text-sky-800 border-sky-300',
-  approved: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-  change_requested: 'bg-amber-100 text-amber-900 border-amber-400',
+  submitted: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border-[var(--app-navy-line)]',
+  approved: 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)]',
+  change_requested: 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border-[var(--app-warn)]',
 };
 const parseAmount = (rawAmount: string) => {
   const amount = parseCleanNumber(rawAmount);
@@ -1398,12 +1398,12 @@ export default function CollectionForecastView() {
       {/* ========================================================================= */}
       {/* 1. Header with Month Navigator & Actions                                  */}
       {/* ========================================================================= */}
-      <section className="bg-gradient-to-r from-emerald-950 via-slate-900 to-indigo-950 text-white rounded-3xl p-4 sm:p-5 shadow-lg border border-emerald-500/25 space-y-3">
+      <section className="bg-gradient-to-r from-[var(--app-ok)] via-slate-900 to-[var(--app-navy)] text-white rounded-3xl p-4 sm:p-5 shadow-lg border border-[var(--app-ok)] space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-black flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="px-2.5 py-0.5 rounded-full bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)] text-xs font-black flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-[#0d9488]" />
                 <span>توقعات التحصيل</span>
               </span>
               <span className="px-2 py-0.5 rounded-md bg-white/10 text-slate-300 text-xs font-bold">
@@ -1412,7 +1412,7 @@ export default function CollectionForecastView() {
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
               <span>جدول التوقع الأسبوعي والشهري</span>
-              <span className="text-emerald-400 font-mono text-base">({formatMonthLabel(monthKey)})</span>
+              <span className="text-[#0d9488] font-mono text-base">({formatMonthLabel(monthKey)})</span>
             </h1>
             <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
               من جدول العملاء: الاسم والكود والمديونية وإجمالي المستحقات، مع التوقع الأسبوعي والتقسيم الشهري المستقل للأدمن.
@@ -1421,9 +1421,9 @@ export default function CollectionForecastView() {
 
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900/90 px-3 py-2 shadow-sm" aria-label="شهر التوقع الحالي">
-              <CalendarDays className="h-4 w-4 text-emerald-300" />
+              <CalendarDays className="h-4 w-4 text-[#0d9488]" />
               <span className="text-xs font-black text-white">{formatMonthLabel(monthKey)}</span>
-              <span className="rounded-lg bg-emerald-500/15 px-2 py-1 text-[10px] font-black text-emerald-300">الشهر الحالي</span>
+              <span className="rounded-lg bg-[var(--app-ok)] px-2 py-1 text-[10px] font-black text-[#0d9488]">الشهر الحالي</span>
             </div>
 
             {isAdmin && (
@@ -1432,7 +1432,7 @@ export default function CollectionForecastView() {
                 onClick={togglePlanClosed}
                 title={plan.isClosed ? 'فتح الشهر من جديد للكل' : 'قفل الشهر ومنع التعديل على كل الأدوار'}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-xs font-black shadow-sm transition cursor-pointer ${
-                  plan.isClosed ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-slate-600 hover:bg-slate-500'
+                  plan.isClosed ? 'bg-[var(--app-ok)] hover:bg-[var(--app-ok)]' : 'bg-slate-600 hover:bg-slate-500'
                 }`}
               >
                 {plan.isClosed ? <LockOpen className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
@@ -1444,7 +1444,7 @@ export default function CollectionForecastView() {
               <button
                 type="button"
                 onClick={openPlanEditor}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-black shadow-sm transition cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white text-xs font-black shadow-sm transition cursor-pointer"
                 title="تحديد بداية ونهاية الشهر ونهاية كل أسبوع (الأدمن والمطوّر فقط)"
               >
                 <CalendarDays className="w-4 h-4" />
@@ -1460,7 +1460,7 @@ export default function CollectionForecastView() {
                   setPasteWeekIndex(String(suggestedPasteWeek || ''));
                   setShowPasteMonthly(true);
                 }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black shadow-sm transition cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 text-xs font-black shadow-sm transition cursor-pointer"
                 title="لصق ومطابقة أكواد العملاء لتوقع الشهر الحالي أو إحدى فتراته الأسبوعية"
               >
                 <ClipboardPaste className="w-4 h-4" />
@@ -1471,7 +1471,7 @@ export default function CollectionForecastView() {
             <button
               type="button"
               onClick={handleExport}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-sm transition cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white text-xs font-black shadow-sm transition cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4" />
               <span>تصدير Excel 📥</span>
@@ -1483,7 +1483,7 @@ export default function CollectionForecastView() {
                 type="button"
                 onClick={handleApproveAllPending}
                 disabled={isApprovingScope || !!approvingSlot || planLocked || totalPendingApprovalCount === 0}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs shadow-md transition cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[var(--app-ok)] to-[var(--app-ok)] hover:from-[var(--app-ok)] hover:to-[var(--app-ok)] text-slate-950 font-black text-xs shadow-md transition cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                 title="اعتماد كافة توقعات المناديب لهذا الشهر بنقرة واحدة مباشرة دون خطوات إضافية"
               >
                 {isApprovingScope ? <LoaderCircle className="w-4 h-4 animate-spin text-slate-950" /> : <CheckCircle2 className="w-4 h-4 text-slate-950" />}
@@ -1515,7 +1515,7 @@ export default function CollectionForecastView() {
                 key={w.index}
                 className={`px-2.5 py-1 rounded-xl text-[11px] font-black border transition ${
                   isCurrent
-                    ? 'bg-emerald-500 text-slate-950 border-emerald-300 shadow-xs'
+                    ? 'bg-[var(--app-ok)] text-slate-950 border-[var(--app-ok-line)] shadow-xs'
                     : 'bg-slate-800/80 text-slate-300 border-slate-700'
                 }`}
               >
@@ -1532,13 +1532,13 @@ export default function CollectionForecastView() {
       <section className="bg-slate-900 border border-slate-800 rounded-3xl p-4 shadow-md text-xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black">
+            <div className="w-7 h-7 rounded-xl bg-[var(--app-warn)] text-[#d97706] flex items-center justify-center font-black">
               <Info className="w-4 h-4" />
             </div>
             <div>
               <h3 className="font-black text-white text-xs sm:text-sm flex items-center gap-2">
                 <span>دليل دورة اعتماد التوقعات ومصفوفة الأدوار</span>
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                <span className="text-[10px] bg-[var(--app-ok)] text-[#0d9488] px-2 py-0.5 rounded-full border border-[var(--app-ok)]">
                   دورك الحالي: {currentUser.role === 'admin' ? 'مدير عام 👑' : currentUser.role === 'developer' ? 'مطور 💻' : currentUser.role === 'branch_manager' ? 'مدير فرع 🏢' : currentUser.role === 'supervisor' ? 'مشرف 📋' : 'مندوب مبيعات 💼'} ({currentUser.name})
                 </span>
               </h3>
@@ -1554,8 +1554,8 @@ export default function CollectionForecastView() {
           {/* Rep */}
           <div className="p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-[11px] space-y-1">
             <div className="flex items-center justify-between">
-              <span className="font-black text-emerald-400">💼 المندوب (Sales Rep):</span>
-              <span className="text-[9px] bg-emerald-950 text-emerald-300 px-1.5 py-0.5 rounded border border-emerald-800">بياناته فقط</span>
+              <span className="font-black text-[#0d9488]">💼 المندوب (Sales Rep):</span>
+              <span className="text-[9px] bg-[var(--app-ok)] text-[#0d9488] px-1.5 py-0.5 rounded border border-[var(--app-ok)]">بياناته فقط</span>
             </div>
             <p className="text-slate-300 leading-relaxed text-[10.5px]">
               يرى ويعدل عملاء خط سيره فقط. يسجل المبالغ المتوقعة (حالة: مسودة 📝). بعد الانتهاء يضغط "إرسال للمشرف 📤".
@@ -1565,8 +1565,8 @@ export default function CollectionForecastView() {
           {/* Supervisor */}
           <div className="p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-[11px] space-y-1">
             <div className="flex items-center justify-between">
-              <span className="font-black text-blue-400">📋 المشرف (Supervisor):</span>
-              <span className="text-[9px] bg-blue-950 text-blue-300 px-1.5 py-0.5 rounded border border-blue-800">فريق الفرع</span>
+              <span className="font-black text-[#60a5fa]">📋 المشرف (Supervisor):</span>
+              <span className="text-[9px] bg-[var(--app-navy)] text-[#60a5fa] px-1.5 py-0.5 rounded border border-[var(--app-navy)]">فريق الفرع</span>
             </div>
             <p className="text-slate-300 leading-relaxed text-[10.5px]">
               يراجع توقعات مناديب فريقه بالفرع. يضغط "اعتماد التوقع 🔒" لقفل الأرقام نهائياً، أو "طلب تعديل ↩️" لكتابة ملاحظة تصحيح.
@@ -1576,8 +1576,8 @@ export default function CollectionForecastView() {
           {/* Branch Manager */}
           <div className="p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-[11px] space-y-1">
             <div className="flex items-center justify-between">
-              <span className="font-black text-purple-400">🏢 مدير الفرع (Manager):</span>
-              <span className="text-[9px] bg-purple-950 text-purple-300 px-1.5 py-0.5 rounded border border-purple-800">الفرع كاملاً</span>
+              <span className="font-black text-[#60a5fa]">🏢 مدير الفرع (Manager):</span>
+              <span className="text-[9px] bg-[var(--app-navy)] text-[#60a5fa] px-1.5 py-0.5 rounded border border-[var(--app-navy)]">الفرع كاملاً</span>
             </div>
             <p className="text-slate-300 leading-relaxed text-[10.5px]">
               يشرف على إجمالي تحصيلات ومستهدفات الفرع ككل، ونسبة التغطية مقابل التارجت، ومتابعة اعتماد المشرفين.
@@ -1587,8 +1587,8 @@ export default function CollectionForecastView() {
           {/* Admin & Dev */}
           <div className="p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-[11px] space-y-1">
             <div className="flex items-center justify-between">
-              <span className="font-black text-amber-400">👑 الإدارة والمطور:</span>
-              <span className="text-[9px] bg-amber-950 text-amber-300 px-1.5 py-0.5 rounded border border-amber-800">كل الفروع الـ 7</span>
+              <span className="font-black text-[#d97706]">👑 الإدارة والمطور:</span>
+              <span className="text-[9px] bg-[var(--app-warn)] text-[#d97706] px-1.5 py-0.5 rounded border border-[var(--app-warn)]">كل الفروع الـ 7</span>
             </div>
             <p className="text-slate-300 leading-relaxed text-[10.5px]">
               رؤية مركزية شاملة لكافة الفروع الـ 7، قفل الشهر بالكامل، تقسيم الفترات، واعتماد جماعي وتصدير شيتات الإكسل.
@@ -1599,16 +1599,16 @@ export default function CollectionForecastView() {
         {/* Status Legend Pills */}
         <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-800/80 text-[10.5px]">
           <span className="font-bold text-slate-400">معاني الحالات:</span>
-          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold">
+          <span className="px-2 py-0.5 rounded-full bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)] font-bold">
             🟢 معتمد: تم تدقيقه واعتماده رسمياً وقفل أرقامه من التعديل العشوائي
           </span>
-          <span className="px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40 font-bold">
+          <span className="px-2 py-0.5 rounded-full bg-[var(--app-navy)] text-[#60a5fa] border border-[var(--app-navy)] font-bold">
             🔵 مُرسل للمشرف: أرسله المندوب وبانتظار اعتماد المشرف
           </span>
           <span className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-bold">
             ⚪ مسودة: قيد الكتابة بواسطة المندوب ولم تُرسل بعد
           </span>
-          <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold">
+          <span className="px-2 py-0.5 rounded-full bg-[var(--app-warn)] text-[#d97706] border border-[var(--app-warn)] font-bold">
             🟠 مطلوب تعديل: أرجعه المشرف لوجود ملاحظة يلزم تصحيحها
           </span>
         </div>
@@ -1616,8 +1616,8 @@ export default function CollectionForecastView() {
 
       {/* Notification Toast */}
       {savedFlash && (
-        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-emerald-100 text-emerald-950 border border-emerald-300 text-xs font-black shadow-sm animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-700" />
+        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)] text-xs font-black shadow-sm animate-in fade-in">
+          <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)]" />
           <span>{savedFlash}</span>
         </div>
       )}
@@ -1625,7 +1625,7 @@ export default function CollectionForecastView() {
       {/* شهر مقفول — العرض بيفضل موجود والكتابة مقفولة */}
       {plan.isClosed && (
         <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-2xl bg-slate-900 text-slate-100 border border-slate-700 text-xs font-bold shadow-sm">
-          <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <Lock className="w-4 h-4 text-[#d97706] shrink-0 mt-0.5" />
           <div className="space-y-1">
             <span className="font-black">
               شهر {formatMonthLabel(monthKey)} مقفول {isAdmin ? '' : '— التعديل متوقف'}
@@ -1641,13 +1641,13 @@ export default function CollectionForecastView() {
 
       {/* سطور معلّقة: أ��قام كتبت في أسبوع بقى خارج التقسيم الحالي */}
       {orphanForecasts.length > 0 && (
-        <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-2xl bg-amber-50 text-amber-950 border border-amber-300 text-xs font-bold shadow-sm">
-          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2.5 px-3.5 py-3 rounded-2xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)] text-xs font-bold shadow-sm">
+          <AlertTriangle className="w-4 h-4 text-[var(--app-warn-text)] shrink-0 mt-0.5" />
           <div className="space-y-1">
             <span className="font-black">
               في {orphanForecasts.length} سطر توقّع ({formatCurrency(orphanTotal)}) لفترة مش داخل في تقسيم الشهر الحالي
             </span>
-            <p className="text-[10.5px] text-amber-800 leading-relaxed">
+            <p className="text-[10.5px] text-[var(--app-warn-text)] leading-relaxed">
               غالباً ده لأن التقسيم اتصغّر أو اتشال بعد ما الأرقام كتبت. السطور دي مش متحسبة في
               أي رقم بالصفحة عشان متظهرش أرقام مش موجودة للعين. لو عايز ترجّعها، افتح «تقسيم
               الفترات» ووسّع الشهر تاني.
@@ -1663,9 +1663,9 @@ export default function CollectionForecastView() {
         <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
           <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
             <span>إجمالي المتوقع للتحصيل</span>
-            <CalendarCheck className="w-4 h-4 text-teal-600" />
+            <CalendarCheck className="w-4 h-4 text-[var(--app-ok-text)]" />
           </div>
-          <div className="text-base sm:text-lg font-black text-teal-800 mt-1 font-mono">
+          <div className="text-base sm:text-lg font-black text-[var(--app-ok-text)] mt-1 font-mono">
             {formatCurrency(kpiTotals.plannedTotal)}
           </div>
           <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
@@ -1677,7 +1677,7 @@ export default function CollectionForecastView() {
               {' · '}{filteredCustomers.length} عميل حسب الفلاتر الحالية
             </span>
             {kpiTotals.customersAboveDues > 0 && (
-              <span className="block mt-1 text-amber-700">
+              <span className="block mt-1 text-[var(--app-warn-text)]">
                 تنبيه: توقع {kpiTotals.customersAboveDues} عميل أعلى من مستحقاته بإجمالي {formatCurrency(kpiTotals.plannedAboveDues)}.
               </span>
             )}
@@ -1687,9 +1687,9 @@ export default function CollectionForecastView() {
         <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
           <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
             <span>إجمالي المستحقات في النطاق</span>
-            <Wallet className="w-4 h-4 text-amber-600" />
+            <Wallet className="w-4 h-4 text-[var(--app-warn-text)]" />
           </div>
-          <div className="text-base sm:text-lg font-black text-amber-800 mt-1 font-mono">
+          <div className="text-base sm:text-lg font-black text-[var(--app-warn-text)] mt-1 font-mono">
             {formatCurrency(kpiTotals.dueTotal)}
           </div>
           <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
@@ -1700,22 +1700,22 @@ export default function CollectionForecastView() {
         <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
           <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
             <span>هدف التحصيل المطلوب</span>
-            <Target className="w-4 h-4 text-blue-600" />
+            <Target className="w-4 h-4 text-[var(--app-navy-text)]" />
           </div>
-          <div className="text-base sm:text-lg font-black text-blue-800 mt-1 font-mono">
+          <div className="text-base sm:text-lg font-black text-[var(--app-navy-text)] mt-1 font-mono">
             {formatCurrency(kpiTotals.targetCollection)}
           </div>
           <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
-            نسبة التغطية: <span className="text-emerald-700 font-black">{kpiTotals.coverage}%</span>
+            نسبة التغطية: <span className="text-[var(--app-ok-text)] font-black">{kpiTotals.coverage}%</span>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
           <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
             <span>المحقق الفعلي حتى الآن</span>
-            <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+            <CheckCircle2 className="w-4 h-4 text-[var(--app-navy-text)]" />
           </div>
-          <div className="text-base sm:text-lg font-black text-indigo-800 mt-1 font-mono">
+          <div className="text-base sm:text-lg font-black text-[var(--app-navy-text)] mt-1 font-mono">
             {formatCurrency(kpiTotals.actualCollection)}
           </div>
           <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
@@ -1726,7 +1726,7 @@ export default function CollectionForecastView() {
         <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
           <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
             <span>الفروع في النطاق</span>
-            <MapPin className="w-4 h-4 text-purple-600" />
+            <MapPin className="w-4 h-4 text-[var(--app-navy-text)]" />
           </div>
           <div className="text-base sm:text-lg font-black text-slate-900 mt-1 font-mono">
             {kpiTotals.branchCount.toLocaleString('ar-EG')}
@@ -1739,7 +1739,7 @@ export default function CollectionForecastView() {
         <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
           <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
             <span>المشرفون في النطاق</span>
-            <UserCheck className="w-4 h-4 text-sky-600" />
+            <UserCheck className="w-4 h-4 text-[var(--app-navy-text)]" />
           </div>
           <div className="text-base sm:text-lg font-black text-slate-900 mt-1 font-mono">
             {kpiTotals.supervisorCount.toLocaleString('ar-EG')}
@@ -1752,13 +1752,13 @@ export default function CollectionForecastView() {
         <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
           <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
             <span>المناديب والعملاء</span>
-            <Users className="w-4 h-4 text-purple-600" />
+            <Users className="w-4 h-4 text-[var(--app-navy-text)]" />
           </div>
           <div className="flex items-baseline gap-3 mt-1">
             <span className="text-base sm:text-lg font-black text-slate-900 font-mono">
               {kpiTotals.repCount.toLocaleString('ar-EG')} <span className="text-[10px] text-slate-400">مندوب</span>
             </span>
-            <span className="text-sm font-black text-purple-700 font-mono">
+            <span className="text-sm font-black text-[var(--app-navy-text)] font-mono">
               {filteredCustomers.length.toLocaleString('ar-EG')} <span className="text-[10px] text-slate-400">عميل</span>
             </span>
           </div>
@@ -1778,7 +1778,7 @@ export default function CollectionForecastView() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="بحث فوري باسم العميل أو الكود أو المندوب أو الفرع..."
-            className="w-full px-3 py-2 pl-8 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-emerald-500"
+            className="w-full px-3 py-2 pl-8 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-[var(--app-ok)]"
           />
           <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
         </div>
@@ -1855,7 +1855,7 @@ export default function CollectionForecastView() {
           title="عرض العملاء الذين مديونيتهم أكبر من صفر، حتى لو كانت المستحقات غير مسجلة في الشيت"
           className={`px-3 py-2 rounded-xl text-xs font-black border transition cursor-pointer flex items-center gap-1.5 ${
             debtOnly
-              ? 'bg-rose-600 text-white border-rose-700'
+              ? 'bg-[var(--app-risk)] text-white border-[var(--app-risk)]'
               : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
           }`}
         >
@@ -1894,7 +1894,7 @@ export default function CollectionForecastView() {
       <section className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-emerald-700" />
+            <Users className="w-4 h-4 text-[var(--app-ok-text)]" />
             <span className="text-xs font-black text-slate-900">
               قائمة العملاء وبيانات المديونية والمستحقات والتوقع
             </span>
@@ -1916,8 +1916,8 @@ export default function CollectionForecastView() {
                 <th className="p-3">كود العميل</th>
                 <th className="p-3 min-w-[200px]">اسم العميل</th>
                 <th className="p-3">المندوب والفرع</th>
-                <th className="p-3 text-rose-300">المديونية</th>
-                <th className="p-3 text-amber-300">إجمالي المستحقات</th>
+                <th className="p-3 text-[#ef4444]">المديونية</th>
+                <th className="p-3 text-[#d97706]">إجمالي المستحقات</th>
                 <th className="p-3 text-center whitespace-nowrap">قابل / غير</th>
                 <th className="p-3 text-center whitespace-nowrap min-w-[110px]">
                   <div>عدد الزيارات</div>
@@ -1936,7 +1936,7 @@ export default function CollectionForecastView() {
                     </span>
                   </th>
                 ))}
-                <th className="p-3 text-teal-300 text-center whitespace-nowrap min-w-[130px]">
+                <th className="p-3 text-[#0d9488] text-center whitespace-nowrap min-w-[130px]">
                   <div className="flex items-center justify-center gap-1">
                     <CalendarCheck className="w-3.5 h-3.5" />
                     <span>توقع شهري مستقل</span>
@@ -1945,7 +1945,7 @@ export default function CollectionForecastView() {
                     رقم لوحده — مش مجموع الأسابيع
                   </span>
                 </th>
-                <th className="p-3 text-emerald-300 text-center">مجموع الأسابيع</th>
+                <th className="p-3 text-[#0d9488] text-center">مجموع الأسابيع</th>
                 <th className="p-3 text-center">الإجراءات</th>
               </tr>
             </thead>
@@ -1990,14 +1990,14 @@ const visitStats = visitStatsByCustomer.get(c.id);
                         <button
                           type="button"
                           onClick={() => setSelectedCustomerDetail(c)}
-                          className="hover:text-emerald-700 hover:underline cursor-pointer text-right flex items-center gap-1"
+                          className="hover:text-[var(--app-ok-text)] hover:underline cursor-pointer text-right flex items-center gap-1"
                           title="عرض الملف الشامل والزيارات والنوتي"
                         >
                           <span>{c.name}</span>
-                          <Eye className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-600 transition" />
+                          <Eye className="w-3.5 h-3.5 text-slate-400 group-hover:text-[var(--app-ok-text)] transition" />
                         </button>
                         {returnInfo && (
-                          <span className="text-[10px] bg-rose-100 text-rose-800 px-1.5 py-0.2 rounded font-black border border-rose-300" title={`مرتجع بقيمة ${formatCurrency(returnInfo.amount)}`}>
+                          <span className="text-[10px] bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] px-1.5 py-0.2 rounded font-black border border-[var(--app-risk-line)]" title={`مرتجع بقيمة ${formatCurrency(returnInfo.amount)}`}>
                             مرتجع
                           </span>
                         )}
@@ -2012,12 +2012,12 @@ const visitStats = visitStatsByCustomer.get(c.id);
                     </td>
 
                     {/* Current Balance */}
-                    <td className="p-3 font-mono font-black text-rose-700 whitespace-nowrap">
+                    <td className="p-3 font-mono font-black text-[var(--app-risk-text)] whitespace-nowrap">
                       {formatCurrency(balance || 0)}
                     </td>
 
                     {/* Total Dues */}
-                    <td className="p-3 font-mono font-black text-amber-800 whitespace-nowrap">
+                    <td className="p-3 font-mono font-black text-[var(--app-warn-text)] whitespace-nowrap">
                       {formatCurrency(dues || 0)}
                     </td>
 
@@ -2030,8 +2030,8 @@ const visitStats = visitStatsByCustomer.get(c.id);
                       <span
                         className={`px-2.5 py-1 rounded-lg font-black text-[11px] border inline-block ${
                           fin.isEligible
-                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                            : 'bg-rose-100 text-rose-800 border-rose-300'
+                            ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)]'
+                            : 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border-[var(--app-risk-line)]'
                         }`}
                         title={`تصنيف الشيت: ${sheetClassificationText}`}
                       >
@@ -2046,7 +2046,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                         <span
                           className={`px-2 py-0.5 rounded-lg font-black text-[11px] font-mono border inline-block ${
                             visitStats.completed > 0
-                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)]'
                               : 'bg-slate-100 text-slate-600 border-slate-300'
                           }`}
                           title={`${visitStats.completed} زيارة منفّذة من إجمالي ${visitStats.count}`}
@@ -2104,14 +2104,14 @@ const visitStats = visitStatsByCustomer.get(c.id);
                                   locked
                                     ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
                                     : Number(currentVal) > 0
-                                    ? 'bg-emerald-50 text-emerald-900 border-emerald-400'
-                                    : 'bg-white text-slate-800 border-slate-300 focus:border-emerald-500 focus:outline-none'
+                                    ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok)]'
+                                    : 'bg-white text-slate-800 border-slate-300 focus:border-[var(--app-ok)] focus:outline-none'
                                 }`}
                               />
                               <span className="text-[9px] font-black text-slate-500">ج.م</span>
                             </div>
                             {Number(currentVal) > 0 && (
-                              <span className="block text-[9.5px] font-mono font-black text-emerald-700">
+                              <span className="block text-[9.5px] font-mono font-black text-[var(--app-ok-text)]">
                                 {formatCurrency(Number(currentVal))}
                               </span>
                             )}
@@ -2134,7 +2134,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                       const isDerived = !rec && weekSum > 0;
 
                       return (
-                        <td className="p-2 text-center whitespace-nowrap bg-teal-50/30">
+                        <td className="p-2 text-center whitespace-nowrap bg-[var(--app-ok-tint)]">
                           <div className="inline-flex flex-col items-center gap-0.5">
                             <div className="inline-flex items-center gap-1">
                               <input
@@ -2157,18 +2157,18 @@ const visitStats = visitStatsByCustomer.get(c.id);
                                   locked
                                     ? 'bg-slate-100 text-slate-500 border-slate-200 cursor-not-allowed'
                                     : isDerived
-                                    ? 'bg-teal-50 text-teal-900 border-teal-300 border-dashed'
-                                    : 'bg-teal-100 text-teal-950 border-teal-400 focus:outline-none'
+                                    ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)] border-dashed'
+                                    : 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok)] focus:outline-none'
                                 }`}
                               />
-                              <span className="text-[9px] font-black text-teal-700">ج.م</span>
+                              <span className="text-[9px] font-black text-[var(--app-ok-text)]">ج.م</span>
                             </div>
                             {Number(currentVal) > 0 ? (
-                              <span className="block text-[9.5px] font-mono font-black text-teal-800">
+                              <span className="block text-[9.5px] font-mono font-black text-[var(--app-ok-text)]">
                                 {formatCurrency(Number(currentVal))}
                               </span>
                             ) : isDerived ? (
-                              <span className="block text-[9px] font-bold text-teal-600 mt-0.5" title="لسه مجموع الأسابيع — اكتب رقمك المستقل">
+                              <span className="block text-[9px] font-bold text-[var(--app-ok-text)] mt-0.5" title="لسه مجموع الأسابيع — اكتب رقمك المستقل">
                                 محسوب: {formatCurrency(weekSum)}
                               </span>
                             ) : null}
@@ -2178,7 +2178,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                     })()}
 
                     {/* مجموع الأسابيع — مقارنة صريحة بالرقم الشهري المكتوب */}
-                    <td className="p-3 text-center font-mono font-black text-emerald-700 whitespace-nowrap bg-emerald-50/40">
+                    <td className="p-3 text-center font-mono font-black text-[var(--app-ok-text)] whitespace-nowrap bg-[var(--app-ok-tint)]">
                       {weekSum > 0 ? formatCurrency(weekSum) : '—'}
                     </td>
 
@@ -2292,7 +2292,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
       <section className="bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
         <div className="px-4 py-3 bg-slate-900 text-slate-100 flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
+            <ShieldCheck className="w-4 h-4 text-[#0d9488]" />
             <span className="text-xs font-black">اعتماد التوقعات حسب الفرع والمشرف والمندوب</span>
             <span className="text-[11px] font-bold text-slate-400 font-mono">({progress.length} مندوب لديه توقعات)</span>
           </div>
@@ -2304,7 +2304,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
         </div>
 
         {canApprove && (
-          <div className="flex flex-col gap-3 border-b border-slate-200 bg-gradient-to-l from-emerald-50 via-white to-sky-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-b border-slate-200 bg-gradient-to-l from-[var(--app-ok)] via-white to-[var(--app-navy)] p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-black text-slate-900">اعتماد جماعي للنطاق المحدد</p>
               <p className="mt-1 text-[10.5px] font-bold leading-relaxed text-slate-500">
@@ -2326,7 +2326,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                 type="button"
                 onClick={handleApproveAllPending}
                 disabled={isApprovingScope || !!approvingSlot || planLocked || totalPendingApprovalCount === 0}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 px-5 py-2.5 text-xs font-black text-white shadow-md transition cursor-pointer active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--app-ok)] to-[var(--app-ok)] hover:from-[var(--app-ok)] hover:to-[var(--app-ok)] px-5 py-2.5 text-xs font-black text-white shadow-md transition cursor-pointer active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
                 title="اعتماد كافة التوقعات المُرسلة للمشرف بنقرة واحدة مباشرة"
               >
                 {isApprovingScope ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <CheckCircle2 className="h-4 w-4" />}
@@ -2402,28 +2402,28 @@ const visitStats = visitStatsByCustomer.get(c.id);
                     <td className="p-2.5 font-black text-slate-900 whitespace-nowrap">
                       {p.repName}
                     </td>
-                    <td className="p-2.5 text-center font-mono font-black text-teal-700 whitespace-nowrap">
+                    <td className="p-2.5 text-center font-mono font-black text-[var(--app-ok-text)] whitespace-nowrap">
                       {weakestStatusForPeriod(p.repId, MONTH_FORECAST_INDEX)
                         ? formatCurrency(p.monthCollection)
                         : 'لم يُكتب'}
                     </td>
-                    <td className="p-2.5 text-center font-mono font-black text-emerald-700 whitespace-nowrap">
+                    <td className="p-2.5 text-center font-mono font-black text-[var(--app-ok-text)] whitespace-nowrap">
                       {weeks.some((week) => statusesByRepAndPeriod.has(`${p.repId}::${week.index}`))
                         ? formatCurrency(p.weeklyCollection)
                         : '—'}
                     </td>
-                    <td className="p-2.5 text-center font-mono font-bold text-blue-700 whitespace-nowrap">
+                    <td className="p-2.5 text-center font-mono font-bold text-[var(--app-navy-text)] whitespace-nowrap">
                       {p.targetCollection > 0 ? formatCurrency(p.targetCollection) : 'غير محدد'}
                     </td>
                     <td className="p-2.5 text-center whitespace-nowrap">
                       <span
                         className={`px-2 py-0.5 rounded-lg font-black text-[10px] border inline-block ${
                           p.status === 'ahead'
-                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)]'
                             : p.status === 'on_track'
-                            ? 'bg-sky-100 text-sky-800 border-sky-300'
+                            ? 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border-[var(--app-navy-line)]'
                             : p.status === 'behind'
-                            ? 'bg-rose-100 text-rose-800 border-rose-300'
+                            ? 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border-[var(--app-risk-line)]'
                             : 'bg-slate-100 text-slate-500 border-slate-300'
                         }`}
                       >
@@ -2489,7 +2489,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                                   <button
                                     type="button"
                                     onClick={() => handleSubmitWeek(p.repId, w)}
-                                    className="px-1.5 py-0.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-black cursor-pointer"
+                                    className="px-1.5 py-0.5 rounded-lg bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white text-[10px] font-black cursor-pointer"
                                     title="إرسال المسودة أو التعديل المطلوب للمشرف"
                                   >
                                     <Send className="w-3 h-3" />
@@ -2502,7 +2502,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                                         type="button"
                                         onClick={() => handleApproveWeek(p.repId, w)}
                                         disabled={!!approvingSlot}
-                                        className="px-1.5 py-0.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black cursor-pointer disabled:opacity-50"
+                                        className="px-1.5 py-0.5 rounded-lg bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white text-[10px] font-black cursor-pointer disabled:opacity-50"
                                         title="اعتماد توقعات العملاء المُرسلة فقط وقفلها"
                                       >
                                         {approvingSlot === `${p.repId}::${w}`
@@ -2517,7 +2517,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                                           setChangeNoteTarget({ repId: p.repId, weekIndex: w });
                                           setChangeNote('');
                                         }}
-                                        className="px-1.5 py-0.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-black cursor-pointer"
+                                        className="px-1.5 py-0.5 rounded-lg bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 text-[10px] font-black cursor-pointer"
                                         title="طلب تعديل من المندوب"
                                       >
                                         <RotateCcw className="w-3 h-3" />
@@ -2553,7 +2553,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
               </button>
             </div>
             <div className="p-5 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 p-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-[var(--app-ok-line)] bg-[var(--app-ok-tint)] p-3">
                 <div>
                   <p className="text-xs font-black text-slate-900">نوع التوقع الذي سيتم تعبئته</p>
                   <p className="mt-1 text-[11px] text-slate-500">
@@ -2562,10 +2562,10 @@ const visitStats = visitStatsByCustomer.get(c.id);
                       : `سيتم الحفظ للشهر الحالي: ${formatMonthLabel(monthKey)}`}
                   </p>
                 </div>
-                <div className="flex items-center gap-1 rounded-xl bg-white border border-emerald-200 p-1" role="group" aria-label="نوع التوقع">
-                  <button type="button" disabled={isSavingPastedMonthly} onClick={() => setPasteFrequency('monthly')} aria-pressed={pasteFrequency === 'monthly'} className={`px-3 py-2 rounded-lg text-xs font-black transition disabled:opacity-50 ${pasteFrequency === 'monthly' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-emerald-50'}`}>شهري</button>
+                <div className="flex items-center gap-1 rounded-xl bg-white border border-[var(--app-ok-line)] p-1" role="group" aria-label="نوع التوقع">
+                  <button type="button" disabled={isSavingPastedMonthly} onClick={() => setPasteFrequency('monthly')} aria-pressed={pasteFrequency === 'monthly'} className={`px-3 py-2 rounded-lg text-xs font-black transition disabled:opacity-50 ${pasteFrequency === 'monthly' ? 'bg-[var(--app-ok)] text-white shadow-sm' : 'text-slate-600 hover:bg-[var(--app-ok-tint)]'}`}>شهري</button>
                   {weeksCount > 0 && (
-                    <button type="button" disabled={isSavingPastedMonthly} onClick={() => setPasteFrequency('weekly')} aria-pressed={pasteFrequency === 'weekly'} className={`px-3 py-2 rounded-lg text-xs font-black transition disabled:opacity-50 ${pasteFrequency === 'weekly' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-emerald-50'}`}>أسبوعي</button>
+                    <button type="button" disabled={isSavingPastedMonthly} onClick={() => setPasteFrequency('weekly')} aria-pressed={pasteFrequency === 'weekly'} className={`px-3 py-2 rounded-lg text-xs font-black transition disabled:opacity-50 ${pasteFrequency === 'weekly' ? 'bg-[var(--app-ok)] text-white shadow-sm' : 'text-slate-600 hover:bg-[var(--app-ok-tint)]'}`}>أسبوعي</button>
                   )}
                 </div>
               </div>
@@ -2576,7 +2576,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                     value={String(selectedPasteWeek)}
                     onChange={(e) => setPasteWeekIndex(e.target.value)}
                     disabled={isSavingPastedMonthly}
-                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-800 focus:border-emerald-500 focus:outline-none disabled:bg-slate-100"
+                    className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs font-bold text-slate-800 focus:border-[var(--app-ok)] focus:outline-none disabled:bg-slate-100"
                   >
                     {weeks.map((week) => (
                       <option key={week.index} value={week.index}>
@@ -2590,7 +2590,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                 value={pasteMonthlyText}
                 onChange={(e) => handlePasteMonthlyPreview(e.target.value)}
                 placeholder={'مثال:\n10025\t15000\n10026\t8500'}
-                className="w-full min-h-36 rounded-2xl border border-slate-300 p-3 text-sm font-mono focus:outline-none focus:border-amber-500"
+                className="w-full min-h-36 rounded-2xl border border-slate-300 p-3 text-sm font-mono focus:outline-none focus:border-[var(--app-warn)]"
                 aria-label="بيانات التوقعات المنسوخة"
               />
               {pasteMonthlyPreview.length > 0 && (
@@ -2600,7 +2600,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                     {pasteMonthlyPreview.map((row, index) => (
                       <div key={`${row.code}-${index}`} className="px-3 py-2 flex items-center justify-between text-xs">
                         <span className="font-mono font-bold">{row.code}</span>
-                        <span className={row.customer && row.amountValid ? 'text-emerald-700 font-black' : 'text-rose-700 font-black'}>
+                        <span className={row.customer && row.amountValid ? 'text-[var(--app-ok-text)] font-black' : 'text-[var(--app-risk-text)] font-black'}>
                           {row.customer && row.amountValid
                             ? `${row.customer.name} — ${formatCurrency(row.amount)}`
                             : `${row.customer ? `${row.customer.name} — ` : ''}${row.matchIssue || 'المبلغ غير واضح أو سالب'}`}
@@ -2612,7 +2612,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
               )}
               <div className="flex justify-end gap-2">
                 <button type="button" disabled={isSavingPastedMonthly} onClick={() => setShowPasteMonthly(false)} className="px-4 py-2 rounded-xl border border-slate-300 text-xs font-black cursor-pointer disabled:opacity-50">إلغاء</button>
-                <button type="button" disabled={isSavingPastedMonthly || !pasteMonthlyPreview.some((row) => row.customer && row.amountValid)} onClick={handleSavePastedMonthly} className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-black cursor-pointer inline-flex items-center gap-2" aria-live="polite">
+                <button type="button" disabled={isSavingPastedMonthly || !pasteMonthlyPreview.some((row) => row.customer && row.amountValid)} onClick={handleSavePastedMonthly} className="px-4 py-2 rounded-xl bg-[var(--app-ok)] hover:bg-[var(--app-ok)] disabled:opacity-40 text-white text-xs font-black cursor-pointer inline-flex items-center gap-2" aria-live="polite">
                   {isSavingPastedMonthly ? <><LoaderCircle className="w-4 h-4 animate-spin" aria-hidden="true" /> جاري حفظ التوقعات...</> : `مطابقة وحفظ التوقع ${pasteFrequency === 'weekly' ? 'الأسبوعي' : 'الشهري'}`}
                 </button>
               </div>
@@ -2623,7 +2623,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm" role="status" aria-live="polite" aria-busy="true" dir="rtl">
             <div className="w-full max-w-md rounded-3xl border border-white/70 bg-white p-6 shadow-2xl">
               <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-700">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]">
                   <LoaderCircle className="h-6 w-6 animate-spin" aria-hidden="true" />
                 </div>
                 <div className="min-w-0">
@@ -2641,7 +2641,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                 aria-label="جاري حفظ التوقعات"
               >
                 <div
-                  className="h-full w-1/3 animate-pulse rounded-full bg-gradient-to-l from-emerald-500 via-teal-500 to-cyan-500"
+                  className="h-full w-1/3 animate-pulse rounded-full bg-gradient-to-l from-[var(--app-ok)] via-[var(--app-ok)] to-[var(--app-ok)]"
                 />
               </div>
               <p className="mt-3 text-center text-[11px] font-semibold text-slate-400">يرجى الانتظار — لا تغلق الصفحة أثناء الحفظ</p>
@@ -2686,13 +2686,13 @@ const visitStats = visitStatsByCustomer.get(c.id);
               {/* Modal Header */}
               <div className="sticky top-0 bg-slate-900 text-white px-5 py-4 flex items-center justify-between rounded-t-3xl z-10 border-b border-slate-800">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black">
+                  <div className="w-9 h-9 rounded-2xl bg-[var(--app-ok)] text-[#0d9488] flex items-center justify-center font-black">
                     <Users className="w-5 h-5" />
                   </div>
                   <div>
                     <h3 className="font-black text-base text-white flex items-center gap-2">
                       <span>{c.name}</span>
-                      <span className="text-xs font-mono font-bold text-emerald-400 bg-white/10 px-2 py-0.5 rounded-md">
+                      <span className="text-xs font-mono font-bold text-[#0d9488] bg-white/10 px-2 py-0.5 rounded-md">
                         كود: {c.code || '—'}
                       </span>
                     </h3>
@@ -2734,24 +2734,24 @@ const visitStats = visitStatsByCustomer.get(c.id);
 
                 {/* Financial Summary Strip */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200">
-                    <span className="text-[11px] font-bold text-rose-800 block">المديونية الحالية</span>
-                    <span className="font-mono text-base font-black text-rose-900">{formatCurrency(fin.balance)}</span>
+                  <div className="p-3 rounded-2xl bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)]">
+                    <span className="text-[11px] font-bold text-[var(--app-risk-text)] block">المديونية الحالية</span>
+                    <span className="font-mono text-base font-black text-[var(--app-risk-text)]">{formatCurrency(fin.balance)}</span>
                   </div>
 
-                  <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200">
-                    <span className="text-[11px] font-bold text-amber-800 block">إجمالي المستحقات</span>
-                    <span className="font-mono text-base font-black text-amber-900">{formatCurrency(fin.overdue)}</span>
+                  <div className="p-3 rounded-2xl bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)]">
+                    <span className="text-[11px] font-bold text-[var(--app-warn-text)] block">إجمالي المستحقات</span>
+                    <span className="font-mono text-base font-black text-[var(--app-warn-text)]">{formatCurrency(fin.overdue)}</span>
                   </div>
 
-                  <div className="p-3 rounded-2xl bg-blue-50 border border-blue-200">
-                    <span className="text-[11px] font-bold text-blue-800 block">مبيعات 2026</span>
-                    <span className="font-mono text-base font-black text-blue-900">{formatCurrency(fin.sales2026)}</span>
+                  <div className="p-3 rounded-2xl bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)]">
+                    <span className="text-[11px] font-bold text-[var(--app-navy-text)] block">مبيعات 2026</span>
+                    <span className="font-mono text-base font-black text-[var(--app-navy-text)]">{formatCurrency(fin.sales2026)}</span>
                   </div>
 
-                  <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200">
-                    <span className="text-[11px] font-bold text-emerald-800 block">تحصيلات 2026</span>
-                    <span className="font-mono text-base font-black text-emerald-900">{formatCurrency(fin.collections2026)}</span>
+                  <div className="p-3 rounded-2xl bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)]">
+                    <span className="text-[11px] font-bold text-[var(--app-ok-text)] block">تحصيلات 2026</span>
+                    <span className="font-mono text-base font-black text-[var(--app-ok-text)]">{formatCurrency(fin.collections2026)}</span>
                   </div>
                 </div>
 
@@ -2759,15 +2759,15 @@ const visitStats = visitStatsByCustomer.get(c.id);
                 <div className="rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
                   <div className="p-3 bg-slate-100 border-b border-slate-200 font-black text-slate-800 flex items-center justify-between">
                     <span>حركة مبيعات وتحصيلات أشهر 2026</span>
-                    <span className="text-emerald-700">نسبة السداد العامة: {fin.collectionRate}%</span>
+                    <span className="text-[var(--app-ok-text)]">نسبة السداد العامة: {fin.collectionRate}%</span>
                   </div>
                   <div className="overflow-x-auto">
                     <table className="w-full text-center text-xs border-collapse">
                       <thead>
                         <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200 text-[11px]">
                           <th className="p-2.5 text-right">الشهر</th>
-                          <th className="p-2.5 text-blue-800">المبيعات (ج.م)</th>
-                          <th className="p-2.5 text-emerald-800">التحصيلات (ج.م)</th>
+                          <th className="p-2.5 text-[var(--app-navy-text)]">المبيعات (ج.م)</th>
+                          <th className="p-2.5 text-[var(--app-ok-text)]">التحصيلات (ج.م)</th>
                           <th className="p-2.5 text-center">نسبة السداد</th>
                         </tr>
                       </thead>
@@ -2784,16 +2784,16 @@ const visitStats = visitStatsByCustomer.get(c.id);
                               <td className="p-2 text-right font-black text-slate-900">
                                 {mName} (شهر {mNum})
                               </td>
-                              <td className="p-2 font-mono font-bold text-blue-900">
+                              <td className="p-2 font-mono font-bold text-[var(--app-navy-text)]">
                                 {s > 0 ? formatCurrency(s) : '—'}
                               </td>
-                              <td className="p-2 font-mono font-bold text-emerald-900">
+                              <td className="p-2 font-mono font-bold text-[var(--app-ok-text)]">
                                 {col > 0 ? formatCurrency(col) : '—'}
                               </td>
                               <td className="p-2 text-center">
                                 {hasData ? (
                                   <span className={`px-2 py-0.5 rounded-full font-black text-[10px] inline-block ${
-                                    rate >= 90 ? 'bg-emerald-100 text-emerald-800' : rate >= 50 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                                    rate >= 90 ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]' : rate >= 50 ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]' : 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]'
                                   }`}>
                                     {rate}%
                                   </span>
@@ -2813,7 +2813,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                 <div className="rounded-2xl border border-slate-200 p-4 space-y-3 shadow-2xs">
                   <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                     <div className="flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-blue-700" />
+                      <Clock className="w-4 h-4 text-[var(--app-navy-text)]" />
                       <span className="font-black text-sm text-slate-900">سجل وملاحظات الزيارات الميدانية للعميل</span>
                       <span className="text-xs font-bold text-slate-400 font-mono">({customerVisitsList.length})</span>
                     </div>
@@ -2828,10 +2828,10 @@ const visitStats = visitStatsByCustomer.get(c.id);
                               <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-mono">
                                 📅 {v.date} {v.time ? `• ${v.time}` : ''}
                               </span>
-                              <span className="bg-indigo-50 text-indigo-900 px-2 py-0.5 rounded font-bold border border-indigo-200">
+                              <span className="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] px-2 py-0.5 rounded font-bold border border-[var(--app-navy-line)]">
                                 المندوب: {v.repName || 'المندوب'}
                               </span>
-                              <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-black border border-emerald-300">
+                              <span className="bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] px-2 py-0.5 rounded font-black border border-[var(--app-ok-line)]">
                                 الإفادة: {v.outcome || 'متابعة'}
                               </span>
                             </div>
@@ -2842,7 +2842,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                             )}
                           </div>
                           {v.collectedAmount && v.collectedAmount > 0 ? (
-                            <div className="font-mono font-black text-sm text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 shrink-0">
+                            <div className="font-mono font-black text-sm text-[var(--app-ok-text)] bg-[var(--app-ok-tint)] px-2.5 py-1 rounded-lg border border-[var(--app-ok-line)] shrink-0">
                               +{formatCurrency(v.collectedAmount)}
                             </div>
                           ) : null}
@@ -2867,7 +2867,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] overflow-y-auto border border-slate-200 space-y-4">
             <div className="sticky top-0 bg-slate-900 text-white px-5 py-4 flex items-center justify-between rounded-t-3xl z-10 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-2xl bg-violet-500/20 text-violet-400 flex items-center justify-center">
+                <div className="w-9 h-9 rounded-2xl bg-[var(--app-navy)] text-[#60a5fa] flex items-center justify-center">
                   <CalendarDays className="w-5 h-5" />
                 </div>
                 <div>
@@ -2902,7 +2902,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                       setPlanDraft((p) => (p ? { ...p, monthStart: e.target.value } : p));
                       setPlanErrors([]);
                     }}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold focus:outline-none focus:border-violet-500"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold focus:outline-none focus:border-[var(--app-navy)]"
                   />
                 </label>
                 <label className="block">
@@ -2914,19 +2914,19 @@ const visitStats = visitStatsByCustomer.get(c.id);
                       setPlanDraft((p) => (p ? { ...p, monthEnd: e.target.value } : p));
                       setPlanErrors([]);
                     }}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold focus:outline-none focus:border-violet-500"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold focus:outline-none focus:border-[var(--app-navy)]"
                   />
                 </label>
               </div>
 
               {/* Flexible week-count picker — أي عدد من 1 لغاية MAX */}
-              <div className="rounded-2xl border border-violet-200 bg-violet-50/60 p-3 space-y-2">
+              <div className="rounded-2xl border border-[var(--app-navy-line)] bg-[var(--app-navy-tint)] p-3 space-y-2">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
-                    <span className="font-black text-violet-900 block">
+                    <span className="font-black text-[var(--app-navy-text)] block">
                       عدد فترات الشهر (مش لازم 4)
                     </span>
-                    <span className="text-[11px] text-violet-700">
+                    <span className="text-[11px] text-[var(--app-navy-text)]">
                       {/* المقترح بيتحسب من المدى اللي ظاهر فوق مش من الشهر التقويمي —
                           لو الأدمن غيّر بداية/نهاية الشهر، المقترح لازم يتبعه. */}
                       مقترح تلقائياً: {weekCountLabel(suggestedCount)} — المدى {spanLength} يوم
@@ -2953,8 +2953,8 @@ const visitStats = visitStatsByCustomer.get(c.id);
                         onClick={() => applyWeekCount(n)}
                         className={`px-3 py-1.5 rounded-xl font-black transition cursor-pointer border ${
                           planDraft.weeks.length === n
-                            ? 'bg-violet-600 text-white border-violet-700'
-                            : 'bg-white text-violet-700 border-violet-300 hover:bg-violet-100'
+                            ? 'bg-[var(--app-navy)] text-white border-[var(--app-navy)]'
+                            : 'bg-white text-[var(--app-navy-text)] border-[var(--app-navy-line)] hover:bg-[var(--app-navy-tint)]'
                         }`}
                         title={
                           n === 1
@@ -2980,9 +2980,9 @@ const visitStats = visitStatsByCustomer.get(c.id);
                 </div>
 
                 {/* أي رقم تاني: خانة عدد حرة بين 1 و MAX */}
-                <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-violet-200/70">
+                <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-[var(--app-navy-line)]">
                   <label className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-black text-violet-900">أي عدد تاني:</span>
+                    <span className="text-[11px] font-black text-[var(--app-navy-text)]">أي عدد تاني:</span>
                     <input
                       type="number"
                       inputMode="numeric"
@@ -2996,16 +2996,16 @@ const visitStats = visitStatsByCustomer.get(c.id);
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') applyWeekCountInput();
                       }}
-                      className="w-20 px-2 py-1.5 rounded-lg border border-violet-300 text-xs font-black text-center focus:outline-none focus:border-violet-500"
+                      className="w-20 px-2 py-1.5 rounded-lg border border-[var(--app-navy-line)] text-xs font-black text-center focus:outline-none focus:border-[var(--app-navy)]"
                     />
-                    <span className="text-[11px] font-bold text-violet-700">
+                    <span className="text-[11px] font-bold text-[var(--app-navy-text)]">
                       0 = بلا تقسيم، ومن {MIN_WEEKS_PER_MONTH} لغاية {MAX_WEEKS_PER_MONTH}
                     </span>
                   </label>
                   <button
                     type="button"
                     onClick={applyWeekCountInput}
-                    className="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-black transition cursor-pointer"
+                    className="px-3 py-1.5 rounded-xl bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white font-black transition cursor-pointer"
                   >
                     تطبيق
                   </button>
@@ -3013,7 +3013,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                     className={`text-[11px] font-black rounded-lg px-2 py-1 border ${
                       planDraft.weeks.length === 0
                         ? 'bg-slate-800 text-white border-slate-900'
-                        : 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                        : 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)]'
                     }`}
                   >
                     {planDraft.weeks.length === 0
@@ -3022,7 +3022,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                   </span>
                 </div>
 
-                <p className="text-[10.5px] text-violet-700 leading-relaxed">
+                <p className="text-[10.5px] text-[var(--app-navy-text)] leading-relaxed">
                   أي عدد بيعمل بالتساوي على مدى الشهر، وبعدين تقدر تزحزح بداية ونهاية أي فترة
                   بالأسفل. التقسيم اختياري بالكامل: «بلا تقسيم» أو 0 بيخلي الصفحة تشتغل على
                   التوقع الشهري المستقل لوحده، ومش لازم الفترات تغطي أيام الشهر كلها.
@@ -3037,7 +3037,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                     type="button"
                     onClick={addPlanWeek}
                     disabled={planDraft.weeks.length >= MAX_WEEKS_PER_MONTH}
-                    className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-black transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                    className="px-2.5 py-1 rounded-lg bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white text-[11px] font-black transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
                     title={`بيقسّص آخر فترة نصين (الحد الأقصى ${MAX_WEEKS_PER_MONTH} فترات)`}
                   >
                     <CalendarCheck className="w-3.5 h-3.5" />
@@ -3067,7 +3067,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                           (new Date(w.end).getTime() - new Date(w.start).getTime()) / 86400000 + 1;
                         return (
                           <tr key={w.index} className="hover:bg-slate-50/70">
-                            <td className="p-2.5 font-black text-violet-700">أ{w.index}</td>
+                            <td className="p-2.5 font-black text-[var(--app-navy-text)]">أ{w.index}</td>
                             <td className="p-2">
                               <input
                                 type="text"
@@ -3075,7 +3075,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                                 maxLength={MAX_WEEK_LABEL_LENGTH}
                                 placeholder={`أسبوع ${w.index}`}
                                 onChange={(e) => updatePlanWeekLabel(w.index, e.target.value)}
-                                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-bold focus:outline-none focus:border-violet-500"
+                                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-bold focus:outline-none focus:border-[var(--app-navy)]"
                               />
                             </td>
                             <td className="p-2">
@@ -3083,7 +3083,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                                 type="date"
                                 value={w.start}
                                 onChange={(e) => updatePlanWeek(w.index, 'start', e.target.value)}
-                                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-bold focus:outline-none focus:border-violet-500"
+                                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-bold focus:outline-none focus:border-[var(--app-navy)]"
                               />
                             </td>
                             <td className="p-2">
@@ -3091,7 +3091,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                                 type="date"
                                 value={w.end}
                                 onChange={(e) => updatePlanWeek(w.index, 'end', e.target.value)}
-                                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-bold focus:outline-none focus:border-violet-500"
+                                className="w-full px-2 py-1.5 rounded-lg border border-slate-300 text-[11px] font-bold focus:outline-none focus:border-[var(--app-navy)]"
                               />
                             </td>
                             <td className="p-2.5 text-center font-mono font-bold text-slate-600">{len}</td>
@@ -3100,7 +3100,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                                 type="button"
                                 onClick={() => removePlanWeek(w.index)}
                                 disabled={planDraft.weeks.length <= 1}
-                                className="p-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-700 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                className="p-1 rounded-lg bg-[var(--app-risk-tint)] hover:bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                                 title="حذف هذا الأسبوع (آخر أسبوع يتمدد لتغطية فترته)"
                               >
                                 <X className="w-3.5 h-3.5" />
@@ -3115,12 +3115,12 @@ const visitStats = visitStatsByCustomer.get(c.id);
               </div>
 
               {planErrors.length > 0 && (
-                <div className="rounded-2xl bg-rose-50 border border-rose-300 p-3 space-y-1">
-                  <div className="flex items-center gap-2 text-rose-900 font-black">
+                <div className="rounded-2xl bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] p-3 space-y-1">
+                  <div className="flex items-center gap-2 text-[var(--app-risk-text)] font-black">
                     <AlertTriangle className="w-4 h-4" />
                     <span>لازم تصحّح قبل الحفظ:</span>
                   </div>
-                  <ul className="list-disc pr-5 space-y-0.5 text-rose-800">
+                  <ul className="list-disc pr-5 space-y-0.5 text-[var(--app-risk-text)]">
                     {planErrors.map((e, i) => (
                       <li key={i} className="text-[11px] font-bold">{e}</li>
                     ))}
@@ -3148,7 +3148,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                   <button
                     type="button"
                     onClick={handleSavePlan}
-                    className="px-4 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-black cursor-pointer shadow-sm flex items-center gap-1.5"
+                    className="px-4 py-1.5 rounded-xl bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white font-black cursor-pointer shadow-sm flex items-center gap-1.5"
                   >
                     <Save className="w-4 h-4" />
                     <span>حفظ التقسيم</span>
@@ -3186,7 +3186,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                 value={changeNote}
                 onChange={(e) => setChangeNote(e.target.value)}
                 placeholder="اكتب للالمندوب إيه اللي محتاج يتظبط في الرقم..."
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:border-amber-500"
+                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:border-[var(--app-warn)]"
               />
             </div>
 
@@ -3202,7 +3202,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                 type="button"
                 onClick={handleRequestChange}
                 disabled={!changeNote.trim()}
-                className="px-4 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
+                className="px-4 py-1.5 rounded-xl bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black cursor-pointer shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 رجوع للمندوب للتعديل
               </button>
@@ -3250,7 +3250,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                 value={commentBody}
                 onChange={(e) => setCommentBody(e.target.value)}
                 placeholder="اكتب الملاحظة هنا بدقة لتظهر للفريق والمشرفين..."
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:border-emerald-500"
+                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:outline-none focus:border-[var(--app-ok)]"
               />
             </div>
 
@@ -3265,7 +3265,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
               <button
                 type="button"
                 onClick={handleSaveComment}
-                className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black cursor-pointer shadow-sm"
+                className="px-4 py-1.5 rounded-xl bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black cursor-pointer shadow-sm"
               >
                 حفظ الملاحظة ✅
               </button>

@@ -98,9 +98,9 @@ export const CustomerSnapshotCard: React.FC<CustomerSnapshotCardProps> = ({
         </div>
 
         {alert && (
-          <div className="rounded-xl bg-amber-50 border border-amber-200 px-2.5 py-1.5">
-            <div className="text-[9.5px] font-black text-amber-800">{alert.title}</div>
-            <div className="text-[9px] font-bold text-amber-700 mt-0.5">{alert.detail}</div>
+          <div className="rounded-xl bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] px-2.5 py-1.5">
+            <div className="text-[9.5px] font-black text-[var(--app-warn-text)]">{alert.title}</div>
+            <div className="text-[9px] font-bold text-[var(--app-warn-text)] mt-0.5">{alert.detail}</div>
           </div>
         )}
 

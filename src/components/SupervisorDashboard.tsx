@@ -236,7 +236,8 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
         const phoneMatch = inv.customerPhone?.includes(q);
         const repMatch = inv.repName?.toLowerCase().includes(q);
         const branchMatch = inv.branchName?.toLowerCase().includes(q);
-        if (!numMatch && !nameMatch && !phoneMatch && !repMatch && !branchMatch) {
+        const codeMatch = (inv as any).customerCode?.toLowerCase().includes(q);
+        if (!numMatch && !nameMatch && !phoneMatch && !repMatch && !branchMatch && !codeMatch) {
           return false;
         }
       }

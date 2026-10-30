@@ -59,6 +59,8 @@ export const InventoryStockView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('الكل');
   const [stockLevelFilter, setStockLevelFilter] = useState<'all' | 'offers' | 'in_branch' | 'needs_transfer' | 'low_stock' | 'out_of_stock'>('all');
+  // 🏠⚡ فلتر القطاع: المخزون مقسوم لمنزلي / كهربائي
+  const [sectorTab, setSectorTab] = useState<'all' | 'home' | 'electrical'>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewLayout, setViewLayout] = useState<'table' | 'cards'>('cards');
@@ -119,6 +121,37 @@ export const InventoryStockView: React.FC = () => {
     return getBranchStockForProduct(p, currentActiveBranch);
   };
 
+  // 🏠⚡ قطاع المستخدم: لو حسابه مربوط بقطاع واحد يشوفه فقط، وإلا يقدر يتنقل بينهم
+  const canSwitchSector = useMemo(() => {
+    const role = currentUser?.role;
+    if (role === 'admin' || role === 'developer') return true;
+    const s = currentUser?.sector;
+    return !s || s === 'all' || s === 'both';
+  }, [currentUser]);
+
+  const effectiveSector: 'all' | 'home' | 'electrical' = canSwitchSector
+    ? sectorTab
+    : currentUser?.sector === 'electrical'
+      ? 'electrical'
+      : 'home';
+
+  const matchesSector = (p: Product) => {
+    if (effectiveSector === 'all') return true;
+    const s = p.sector;
+    return !s || s === 'all' || s === 'both' || s === effectiveSector;
+  };
+
+  const sectorCounts = useMemo(() => {
+    const cnt = { all: 0, home: 0, electrical: 0 };
+    visibleProducts.forEach((p) => {
+      cnt.all += 1;
+      const s = p.sector;
+      if (!s || s === 'all' || s === 'both' || s === 'home') cnt.home += 1;
+      if (!s || s === 'all' || s === 'both' || s === 'electrical') cnt.electrical += 1;
+    });
+    return cnt;
+  }, [visibleProducts]);
+
   // Filtered Products Matrix
   const visibleBranch = currentUser && currentUser.role !== 'admin' && currentUser.role !== 'developer'
     ? currentUser.branchName
@@ -126,6 +159,8 @@ export const InventoryStockView: React.FC = () => {
 
   const filteredProducts = useMemo(() => {
     return visibleProducts.filter((p) => {
+      // 🏠⚡ فلتر القطاع (منزلي / كهربائي)
+      if (!matchesSector(p)) return false;
       // Operating-branch stock is dynamically resolved for the active branch via getProductBranchStock.
       // October central warehouse balance is also visible for stock transfers and reserves.
       const bStock = getProductBranchStock(p);
@@ -159,7 +194,7 @@ export const InventoryStockView: React.FC = () => {
 
       return true;
     });
-  }, [products, searchTerm, selectedCategory, stockLevelFilter, visibleBranch, currentActiveBranch]);
+  }, [products, searchTerm, selectedCategory, stockLevelFilter, visibleBranch, currentActiveBranch, effectiveSector]);
 
   // Paginated products
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
@@ -508,7 +543,7 @@ export const InventoryStockView: React.FC = () => {
             {/* Branch scope: non-admin users are locked to their assigned branch */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3">
               <div className="flex items-center gap-2 text-xs font-black text-slate-700">
-                <Building className="h-4 w-4 text-amber-600" />
+                <Building className="h-4 w-4 text-[var(--app-warn-text)]" />
                 <span>المخزون المعروض</span>
               </div>
               {currentUser?.role === 'admin' || currentUser?.role === 'developer' ? (
@@ -531,13 +566,40 @@ export const InventoryStockView: React.FC = () => {
               <span className="text-[11px] font-semibold text-slate-500">الفرع ثم المخزن الرئيسي عند اعتماد الطلبية</span>
             </div>
 
+            {/* 🏠⚡ Sector Tabs: المخزون بقطاعين (منزلي / كهربائي) */}
+            {canSwitchSector && (
+              <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-2xl p-1.5 w-full sm:w-auto overflow-x-auto">
+                {([
+                  { key: 'all', label: 'كل القطاعات', icon: null, count: sectorCounts.all },
+                  { key: 'home', label: '🏠 منزلي', icon: null, count: sectorCounts.home },
+                  { key: 'electrical', label: '⚡ كهربائي', icon: null, count: sectorCounts.electrical },
+                ] as const).map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => {
+                      setSectorTab(tab.key);
+                      setCurrentPage(1);
+                    }}
+                    className={`flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-xs font-black whitespace-nowrap transition cursor-pointer min-h-[40px] ${
+                      effectiveSector === tab.key
+                        ? 'bg-[var(--app-navy)] text-white shadow'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {tab.label} <span className="opacity-70">({tab.count})</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Quick Filter Buttons (Pills) */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
               <button
                 onClick={() => setStockLevelFilter('all')}
                 className={`pill-filter px-3 py-1.5 whitespace-nowrap ${stockLevelFilter === 'all' ? 'on' : ''}`}
               >
-                الكل ({products.length})
+                الكل ({sectorCounts[effectiveSector]})
               </button>
               <button
                 onClick={() => setStockLevelFilter('offers')}

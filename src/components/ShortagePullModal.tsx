@@ -376,9 +376,9 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
         className="relative z-[60] bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-300 w-full max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] xl:max-w-6xl max-h-[95vh] flex flex-col overflow-hidden text-slate-900"
       >
         {/* Top Header Ribbon */}
-        <div className="bg-slate-900 text-white p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 border-b-2 border-amber-500 shrink-0">
+        <div className="bg-slate-900 text-white p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--app-warn)] shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-md shrink-0">
+            <div className="w-10 h-10 rounded-xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black shadow-md shrink-0">
               <Truck className="w-6 h-6" />
             </div>
             <div>
@@ -386,11 +386,11 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
                 <h3 className="text-base sm:text-lg font-black text-white">
                   سحب فواتير النواقص لمخزن 6 أكتوبر المركزي
                 </h3>
-                <span className="bg-amber-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full shadow-2xs">
+                <span className="bg-[var(--app-warn)] text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full shadow-2xs">
                   متابعة وتوريد النواقص 🚚
                 </span>
               </div>
-              <p className="text-xs text-amber-300 font-bold mt-0.5 flex items-center gap-1.5">
+              <p className="text-xs text-[#d97706] font-bold mt-0.5 flex items-center gap-1.5">
                 <span>{roleScopeLabel}</span>
               </p>
             </div>
@@ -408,26 +408,26 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
 
         {/* Success Toast Notice */}
         {successNotice && (
-          <div className="bg-emerald-600 text-white p-3 text-xs sm:text-sm font-black flex items-center justify-between shadow-inner animate-in fade-in shrink-0">
+          <div className="bg-[var(--app-ok)] text-white p-3 text-xs sm:text-sm font-black flex items-center justify-between shadow-inner animate-in fade-in shrink-0">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-emerald-200 shrink-0" />
+              <CheckCircle2 className="w-5 h-5 text-[#0d9488] shrink-0" />
               <span>{successNotice}</span>
             </div>
-            <button onClick={() => setSuccessNotice(null)} className="text-emerald-100 hover:text-white p-1">
+            <button onClick={() => setSuccessNotice(null)} className="text-[#0d9488] hover:text-white p-1">
               <X className="w-4 h-4" />
             </button>
           </div>
         )}
 
         {/* Informative Guidance Banner */}
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-amber-950 font-medium shrink-0">
+        <div className="bg-[var(--app-warn-tint)] border-b border-[var(--app-warn-line)] px-4 py-2.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-[var(--app-warn-text)] font-medium shrink-0">
           <div className="flex items-center gap-2">
-            <Warehouse className="w-4 h-4 text-amber-700 shrink-0" />
+            <Warehouse className="w-4 h-4 text-[var(--app-warn-text)] shrink-0" />
             <span>
               <strong>دورة سحب النواقص المعتمدة:</strong> الفواتير لا تنقسم إلى فاتورتين بل تظل فاتورة واحدة معتمدة للعميل، ويتم سحب النواقص من مخزن 6 أكتوبر وإرسال الميل الرسمي للسيستم لتجهيز البضاعة.
             </span>
           </div>
-          <div className="text-[11px] font-bold text-amber-900 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full shrink-0">
+          <div className="text-[11px] font-bold text-[var(--app-warn-text)] bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] px-2.5 py-0.5 rounded-full shrink-0">
             المشرف يسحب لمناديبه • مدير الفرع يسحب للفرع بالكامل
           </div>
         </div>
@@ -443,7 +443,7 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="ابحث بكود الصنف، الكود الموحد، اسم الصنف..."
-                className="w-full pl-3 pr-8 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="w-full pl-3 pr-8 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)]"
               />
             </div>
 
@@ -451,19 +451,19 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
             <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shrink-0 font-bold">
               <button
                 onClick={() => setDateFilter('all')}
-                className={`px-2 py-1 rounded-lg transition ${dateFilter === 'all' ? 'bg-slate-900 text-amber-400' : 'text-slate-600 hover:bg-slate-100'}`}
+                className={`px-2 py-1 rounded-lg transition ${dateFilter === 'all' ? 'bg-slate-900 text-[#d97706]' : 'text-slate-600 hover:bg-slate-100'}`}
               >
                 كافة الأيام
               </button>
               <button
                 onClick={() => setDateFilter('today')}
-                className={`px-2 py-1 rounded-lg transition ${dateFilter === 'today' ? 'bg-slate-900 text-amber-400' : 'text-slate-600 hover:bg-slate-100'}`}
+                className={`px-2 py-1 rounded-lg transition ${dateFilter === 'today' ? 'bg-slate-900 text-[#d97706]' : 'text-slate-600 hover:bg-slate-100'}`}
               >
                 اليوم فقط
               </button>
               <button
                 onClick={() => setDateFilter('custom')}
-                className={`px-2 py-1 rounded-lg transition ${dateFilter === 'custom' ? 'bg-slate-900 text-amber-400' : 'text-slate-600 hover:bg-slate-100'}`}
+                className={`px-2 py-1 rounded-lg transition ${dateFilter === 'custom' ? 'bg-slate-900 text-[#d97706]' : 'text-slate-600 hover:bg-slate-100'}`}
               >
                 تاريخ مخصص
               </button>
@@ -499,7 +499,7 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
             <button
               onClick={handleSendEmail}
               disabled={scopedInvoices.length === 0}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-3.5 py-2 rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
+              className="bg-gradient-to-r from-[var(--app-navy)] to-[var(--app-navy)] hover:from-[var(--app-navy)] hover:to-[var(--app-navy)] text-white px-3.5 py-2 rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed active:scale-95"
               title="إرسال إيميل رسمي منسق لمخزن 6 أكتوبر مباشرة عبر برنامج البريد"
             >
               <Mail className="w-3.5 h-3.5" />
@@ -513,7 +513,7 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
               className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40"
               title="نسخ نص الإيميل والبيانات كاملة للحافظة"
             >
-              {copiedEmail ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedEmail ? <Check className="w-3.5 h-3.5 text-[#0d9488]" /> : <Copy className="w-3.5 h-3.5" />}
               <span>{copiedEmail ? 'تم النسخ! ✓' : 'نسخ نص الإيميل'}</span>
             </button>
 
@@ -521,7 +521,7 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
             <button
               onClick={handleExportExcel}
               disabled={isExportingExcel || scopedInvoices.length === 0}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 active:scale-95"
+              className="bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white px-3 py-2 rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 active:scale-95"
               title="تصدير شيت إكسيل بصيغة ERP 25 عمود المعتمدة للسيستم"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
@@ -532,7 +532,7 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
             <button
               onClick={handleConfirmSystemDispatch}
               disabled={isConfirmingSystem || scopedInvoices.length === 0}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-2 rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 active:scale-95"
+              className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 px-3 py-2 rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 active:scale-95"
               title="تأكيد واعتماد طلب التوريد رسمياً على السيستم"
             >
               <Sparkles className="w-3.5 h-3.5 text-slate-950" />
@@ -543,21 +543,21 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
 
         {/* Aggregate Stat Metric Badges */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 sm:px-5 bg-white border-b border-slate-200 shrink-0 text-xs">
-          <div className="bg-amber-50/80 p-2.5 rounded-xl border border-amber-200">
-            <span className="text-amber-800 font-bold block text-[10px]">فواتير بها نواقص:</span>
-            <strong className="text-amber-950 font-black text-sm">{scopedInvoices.length} فاتورة</strong>
+          <div className="bg-[var(--app-warn-tint)] p-2.5 rounded-xl border border-[var(--app-warn-line)]">
+            <span className="text-[var(--app-warn-text)] font-bold block text-[10px]">فواتير بها نواقص:</span>
+            <strong className="text-[var(--app-warn-text)] font-black text-sm">{scopedInvoices.length} فاتورة</strong>
           </div>
-          <div className="bg-blue-50/80 p-2.5 rounded-xl border border-blue-200">
-            <span className="text-blue-800 font-bold block text-[10px]">إجمالي كراتين النواقص:</span>
-            <strong className="text-blue-950 font-black text-sm font-mono">{totalShortageCartons} كرتونة</strong>
+          <div className="bg-[var(--app-navy-tint)] p-2.5 rounded-xl border border-[var(--app-navy-line)]">
+            <span className="text-[var(--app-navy-text)] font-bold block text-[10px]">إجمالي كراتين النواقص:</span>
+            <strong className="text-[var(--app-navy-text)] font-black text-sm font-mono">{totalShortageCartons} كرتونة</strong>
           </div>
-          <div className="bg-purple-50/80 p-2.5 rounded-xl border border-purple-200">
-            <span className="text-purple-800 font-bold block text-[10px]">عدد الأصناف المطلوبة:</span>
-            <strong className="text-purple-950 font-black text-sm">{aggregatedProducts.length} صنف</strong>
+          <div className="bg-[var(--app-navy-tint)] p-2.5 rounded-xl border border-[var(--app-navy-line)]">
+            <span className="text-[var(--app-navy-text)] font-bold block text-[10px]">عدد الأصناف المطلوبة:</span>
+            <strong className="text-[var(--app-navy-text)] font-black text-sm">{aggregatedProducts.length} صنف</strong>
           </div>
-          <div className="bg-emerald-50/80 p-2.5 rounded-xl border border-emerald-200">
-            <span className="text-emerald-800 font-bold block text-[10px]">القيمة التقديرية للنواقص:</span>
-            <strong className="text-emerald-950 font-black text-sm font-mono">{formatCurrency(totalEstimatedValue)}</strong>
+          <div className="bg-[var(--app-ok-tint)] p-2.5 rounded-xl border border-[var(--app-ok-line)]">
+            <span className="text-[var(--app-ok-text)] font-bold block text-[10px]">القيمة التقديرية للنواقص:</span>
+            <strong className="text-[var(--app-ok-text)] font-black text-sm font-mono">{formatCurrency(totalEstimatedValue)}</strong>
           </div>
         </div>
 
@@ -567,11 +567,11 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
             onClick={() => setActiveTab('aggregate')}
             className={`px-4 py-2 text-xs font-black rounded-t-xl transition cursor-pointer flex items-center gap-2 border-t-2 ${
               activeTab === 'aggregate'
-                ? 'bg-white text-amber-900 border-amber-500 shadow-xs'
+                ? 'bg-white text-[var(--app-warn-text)] border-[var(--app-warn)] shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 border-transparent hover:bg-slate-200/70'
             }`}
           >
-            <Layers className="w-3.5 h-3.5 text-amber-600" />
+            <Layers className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
             <span>بيان تجميع النواقص لمخزن 6 أكتوبر ({filteredProducts.length} صنف)</span>
           </button>
 
@@ -579,11 +579,11 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
             onClick={() => setActiveTab('invoices')}
             className={`px-4 py-2 text-xs font-black rounded-t-xl transition cursor-pointer flex items-center gap-2 border-t-2 ${
               activeTab === 'invoices'
-                ? 'bg-white text-amber-900 border-amber-500 shadow-xs'
+                ? 'bg-white text-[var(--app-warn-text)] border-[var(--app-warn)] shadow-xs'
                 : 'text-slate-600 hover:text-slate-900 border-transparent hover:bg-slate-200/70'
             }`}
           >
-            <Package className="w-3.5 h-3.5 text-blue-600" />
+            <Package className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
             <span>تفاصيل الفواتير والمناديب والعملاء ({scopedInvoices.length} فاتورة)</span>
           </button>
         </div>
@@ -592,7 +592,7 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
         <div className="flex-1 overflow-auto p-3 sm:p-5 bg-slate-50">
           {scopedInvoices.length === 0 ? (
             <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3 max-w-md mx-auto my-6">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto">
+              <div className="w-12 h-12 rounded-2xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] flex items-center justify-center mx-auto">
                 <CheckCircle2 className="w-6 h-6" />
               </div>
               <h4 className="text-sm font-black text-slate-800">لا توجد فواتير بها نواقص في النطاق المحدد</h4>
@@ -612,10 +612,10 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
                       <th className="p-3 border-l border-slate-700">الكود الموحد</th>
                       <th className="p-3 border-l border-slate-700 min-w-[180px]">اسم الصنف والبيان التفصيلي</th>
                       <th className="p-3 text-center border-l border-slate-700">شدة</th>
-                      <th className="p-3 text-center border-l border-slate-700 bg-amber-900/70 text-amber-200">
+                      <th className="p-3 text-center border-l border-slate-700 bg-[var(--app-warn)] text-[#d97706]">
                         الكراتين المطلوبة
                       </th>
-                      <th className="p-3 text-center border-l border-slate-700 bg-blue-950 text-blue-200">
+                      <th className="p-3 text-center border-l border-slate-700 bg-[var(--app-navy)] text-[#60a5fa]">
                         رصيد مخزن 6 أكتوبر
                       </th>
                       <th className="p-3 text-center border-l border-slate-700">موقف التغطية بأكتوبر</th>
@@ -628,14 +628,14 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
                       const isExpanded = expandedProductKey === p.productCode;
                       return (
                         <React.Fragment key={p.productCode + idx}>
-                          <tr className={`hover:bg-amber-50/40 transition ${idx % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'}`}>
+                          <tr className={`hover:bg-[var(--app-warn-tint)] transition ${idx % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'}`}>
                             <td className="p-2.5 text-center border-l border-slate-200 font-bold text-slate-500">{idx + 1}</td>
                             <td className="p-2.5 border-l border-slate-200 font-mono font-black text-slate-900">
                               {p.productCode}
                             </td>
-                            <td className="p-2.5 border-l border-slate-200 font-mono font-bold text-blue-700">
+                            <td className="p-2.5 border-l border-slate-200 font-mono font-bold text-[var(--app-navy-text)]">
                               {p.unifiedCode !== '---' ? (
-                                <span className="bg-blue-50 px-1.5 py-0.5 rounded text-blue-800">
+                                <span className="bg-[var(--app-navy-tint)] px-1.5 py-0.5 rounded text-[var(--app-navy-text)]">
                                   #{p.unifiedCode.replace('#', '')}
                                 </span>
                               ) : '---'}
@@ -647,24 +647,24 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
                             <td className="p-2.5 text-center border-l border-slate-200 font-bold text-slate-600">
                               {p.cartonQuantity} ق
                             </td>
-                            <td className="p-2.5 text-center border-l border-slate-200 font-black text-amber-950 bg-amber-50/80 text-sm">
+                            <td className="p-2.5 text-center border-l border-slate-200 font-black text-[var(--app-warn-text)] bg-[var(--app-warn-tint)] text-sm">
                               {p.totalRequestedCartons} ك
                             </td>
-                            <td className="p-2.5 text-center border-l border-slate-200 font-black text-blue-950 bg-blue-50/70">
+                            <td className="p-2.5 text-center border-l border-slate-200 font-black text-[var(--app-navy-text)] bg-[var(--app-navy-tint)]">
                               {p.octoberStock > 0 ? (
-                                <span className="text-blue-900 font-mono">{p.octoberStock} ك</span>
+                                <span className="text-[var(--app-navy-text)] font-mono">{p.octoberStock} ك</span>
                               ) : (
-                                <span className="text-rose-700 font-bold">0 (نفاد)</span>
+                                <span className="text-[var(--app-risk-text)] font-bold">0 (نفاد)</span>
                               )}
                             </td>
                             <td className="p-2.5 text-center border-l border-slate-200">
                               <span
                                 className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black ${
                                   p.coverageStatus.includes('✅')
-                                    ? 'bg-emerald-100 text-emerald-900'
+                                    ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]'
                                     : p.coverageStatus.includes('⚠️')
-                                    ? 'bg-amber-100 text-amber-900'
-                                    : 'bg-rose-100 text-rose-900'
+                                    ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]'
+                                    : 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]'
                                 }`}
                               >
                                 {p.coverageStatus}
@@ -677,7 +677,7 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
                               <button
                                 type="button"
                                 onClick={() => setExpandedProductKey(isExpanded ? null : p.productCode)}
-                                className="text-amber-700 hover:text-amber-900 font-bold text-[11px] underline cursor-pointer"
+                                className="text-[var(--app-warn-text)] hover:text-[var(--app-warn-text)] font-bold text-[11px] underline cursor-pointer"
                               >
                                 {isExpanded ? 'إخفاء ▲' : 'عرض الفواتير ▼'}
                               </button>
@@ -686,21 +686,21 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
 
                           {/* Expanded Invoices breakdown */}
                           {isExpanded && (
-                            <tr className="bg-amber-50/20">
-                              <td colSpan={10} className="p-3 bg-amber-50/30 border-b border-amber-200">
+                            <tr className="bg-[var(--app-warn-tint)]">
+                              <td colSpan={10} className="p-3 bg-[var(--app-warn-tint)] border-b border-[var(--app-warn-line)]">
                                 <div className="space-y-1.5 text-xs">
-                                  <div className="font-bold text-amber-900">
+                                  <div className="font-bold text-[var(--app-warn-text)]">
                                     تفاصيل الفواتير الطالبة لهذا الصنف ({p.productName}):
                                   </div>
                                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                                     {p.invoicesList.map((inv, invIdx) => (
                                       <div
                                         key={invIdx}
-                                        className="bg-white p-2.5 rounded-xl border border-amber-200 shadow-2xs space-y-1"
+                                        className="bg-white p-2.5 rounded-xl border border-[var(--app-warn-line)] shadow-2xs space-y-1"
                                       >
                                         <div className="flex items-center justify-between text-[11px]">
                                           <span className="font-mono font-bold text-slate-800">#{inv.invoiceNumber}</span>
-                                          <span className="font-black text-amber-800">{inv.cartons} كرتونة</span>
+                                          <span className="font-black text-[var(--app-warn-text)]">{inv.cartons} كرتونة</span>
                                         </div>
                                         <div className="text-slate-900 font-bold truncate">العميل: {inv.customerName}</div>
                                         <div className="text-slate-500 text-[10px] flex items-center justify-between">
@@ -749,7 +749,7 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
                       </div>
 
                       <div className="flex items-center gap-2 text-xs">
-                        <span className="bg-amber-100 text-amber-950 font-black px-2.5 py-0.5 rounded-full">
+                        <span className="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] font-black px-2.5 py-0.5 rounded-full">
                           {shortageItems.length} صنف نواقص ({shortageCartonsCount} كرتونة)
                         </span>
                         <span className="text-slate-500 font-bold">{inv.branchName}</span>
@@ -770,14 +770,14 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
                           >
                             <div className="flex items-center justify-between">
                               <span className="font-mono font-bold text-slate-700">{cleanProductCode(item.productCode)}</span>
-                              <span className="font-black text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded font-sans">
+                              <span className="font-black text-[var(--app-warn-text)] bg-[var(--app-warn-tint)] px-1.5 py-0.2 rounded font-sans">
                                 {cCount} كرتونة
                               </span>
                             </div>
                             <div className="font-bold text-slate-900 truncate">{item.productName}</div>
                             <div className="flex items-center justify-between text-[11px] text-slate-500 pt-0.5">
-                              <span>بمخزن أكتوبر: <strong className="text-blue-700">{oStock} ك</strong></span>
-                              <span className="text-amber-700 font-bold">طلب توريد 🚚</span>
+                              <span>بمخزن أكتوبر: <strong className="text-[var(--app-navy-text)]">{oStock} ك</strong></span>
+                              <span className="text-[var(--app-warn-text)] font-bold">طلب توريد 🚚</span>
                             </div>
                           </div>
                         );
@@ -810,7 +810,7 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
             <button
               onClick={handleSendEmail}
               disabled={scopedInvoices.length === 0}
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-black px-4 py-2 rounded-xl text-xs transition flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-40"
+              className="bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white font-black px-4 py-2 rounded-xl text-xs transition flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-40"
             >
               <Send className="w-3.5 h-3.5" />
               <span>إرسال الميل فوراً ✉️</span>

@@ -55,10 +55,10 @@ export const ReturnsManagementView: React.FC<ReturnsManagementViewProps> = ({
 
   const statusColor = (status: string) => {
     switch (status) {
-      case 'مرتجع': return 'text-emerald-600 bg-emerald-50';
-      case 'مرفوضة / ملغاة': return 'text-rose-600 bg-rose-50';
-      case 'بانتظار المشرف': return 'text-amber-600 bg-amber-50';
-      case 'تم الإرسال لأمين المخزن': return 'text-blue-600 bg-blue-50';
+      case 'مرتجع': return 'text-[var(--app-ok-text)] bg-[var(--app-ok-tint)]';
+      case 'مرفوضة / ملغاة': return 'text-[var(--app-risk-text)] bg-[var(--app-risk-tint)]';
+      case 'بانتظار المشرف': return 'text-[var(--app-warn-text)] bg-[var(--app-warn-tint)]';
+      case 'تم الإرسال لأمين المخزن': return 'text-[var(--app-navy-text)] bg-[var(--app-navy-tint)]';
       default: return 'text-slate-600 bg-slate-50';
     }
   };
@@ -68,7 +68,7 @@ export const ReturnsManagementView: React.FC<ReturnsManagementViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-            <Package className="w-5 h-5 text-amber-600" />
+            <Package className="w-5 h-5 text-[var(--app-warn-text)]" />
             إدارة المرتجعات
           </h1>
           <p className="text-xs text-slate-500">متابعة طلبات المرتجعات من المندوب حتى الإغلاق</p>
@@ -81,12 +81,12 @@ export const ReturnsManagementView: React.FC<ReturnsManagementViewProps> = ({
           <div className="text-2xl font-black text-slate-900">{stats.open}</div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-3 text-center">
-          <div className="text-[10px] text-amber-600 font-bold uppercase">قيد الانتظار</div>
-          <div className="text-2xl font-black text-amber-600">{stats.pending}</div>
+          <div className="text-[10px] text-[var(--app-warn-text)] font-bold uppercase">قيد الانتظار</div>
+          <div className="text-2xl font-black text-[var(--app-warn-text)]">{stats.pending}</div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-3 text-center">
-          <div className="text-[10px] text-emerald-600 font-bold uppercase">طلبات مغلقة</div>
-          <div className="text-2xl font-black text-emerald-600">{stats.closed}</div>
+          <div className="text-[10px] text-[var(--app-ok-text)] font-bold uppercase">طلبات مغلقة</div>
+          <div className="text-2xl font-black text-[var(--app-ok-text)]">{stats.closed}</div>
         </div>
       </div>
 
@@ -98,13 +98,13 @@ export const ReturnsManagementView: React.FC<ReturnsManagementViewProps> = ({
             placeholder="ابحث باسم العميل أو رقم الفاتورة..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+            className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)]"
           />
         </div>
         <select
           value={selectedStatus}
           onChange={(e) => setSelectedStatus(e.target.value)}
-          className="w-full sm:w-auto pr-8 pl-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400 appearance-none cursor-pointer"
+          className="w-full sm:w-auto pr-8 pl-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] appearance-none cursor-pointer"
         >
           <option value="الكل">الكل</option>
           <option value="بانتظار المشرف">قيد الانتظار</option>
@@ -159,7 +159,7 @@ export const ReturnsManagementView: React.FC<ReturnsManagementViewProps> = ({
                         <button
                           type="button"
                           onClick={() => handleCloseReturn(inv.id)}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[10px] font-bold hover:bg-emerald-700 transition"
+                          className="px-3 py-1.5 rounded-lg bg-[var(--app-ok)] text-white text-[10px] font-bold hover:bg-[var(--app-ok)] transition"
                         >
                           إغلاق الطلب
                         </button>

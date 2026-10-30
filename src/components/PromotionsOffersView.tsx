@@ -129,7 +129,8 @@ export const PromotionsOffersView: React.FC = () => {
         const unifiedMatch = p.unifiedCode?.toLowerCase().includes(q);
         const nameMatch = p.productName.toLowerCase().includes(q);
         const titleMatch = p.title.toLowerCase().includes(q);
-        if (!codeMatch && !unifiedMatch && !nameMatch && !titleMatch) return false;
+        const branchMatch = p.branchName?.toLowerCase().includes(q);
+        if (!codeMatch && !unifiedMatch && !nameMatch && !titleMatch && !branchMatch) return false;
       }
 
       if (selectedBranchFilter !== 'الكل' && p.branchName !== 'كل الفروع' && p.branchName !== selectedBranchFilter) {
@@ -397,30 +398,30 @@ export const PromotionsOffersView: React.FC = () => {
       
       {/* Success Toast */}
       {successToast && (
-        <div className="bg-emerald-600 text-white p-3.5 rounded-2xl shadow-xl flex items-center justify-between text-xs font-black animate-in fade-in sticky top-20 z-30">
+        <div className="bg-[var(--app-ok)] text-white p-3.5 rounded-2xl shadow-xl flex items-center justify-between text-xs font-black animate-in fade-in sticky top-20 z-30">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-emerald-200" />
+            <CheckCircle2 className="w-5 h-5 text-[#0d9488]" />
             <span>{successToast}</span>
           </div>
-          <button onClick={() => setSuccessToast(null)} className="text-white hover:text-emerald-200">
+          <button onClick={() => setSuccessToast(null)} className="text-white hover:text-[#0d9488]">
             <X className="w-4 h-4" />
           </button>
         </div>
       )}
 
       {/* Header & Quick Action Bar */}
-      <section className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-xl border border-slate-800">
+      <section className="bg-gradient-to-r from-slate-900 via-[var(--app-navy)] to-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-xl border border-slate-800">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center font-black shadow-inner shrink-0">
-              <Flame className="w-6 h-6 text-amber-400" />
+            <div className="w-12 h-12 rounded-2xl bg-[var(--app-warn)] text-[#d97706] border border-[var(--app-warn)] flex items-center justify-center font-black shadow-inner shrink-0">
+              <Flame className="w-6 h-6 text-[#d97706]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-lg sm:text-xl font-black text-white">
                   مركز العروض والخصومات الترويجية 🎁
                 </h1>
-                <span className="bg-amber-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full">
+                <span className="bg-[var(--app-warn)] text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full">
                   {stats.active} عرض نشط 🔥
                 </span>
               </div>
@@ -437,7 +438,7 @@ export const PromotionsOffersView: React.FC = () => {
               <button
                 type="button"
                 onClick={handleClearAllOffers}
-                className="bg-rose-600/90 hover:bg-rose-600 text-white font-bold px-3 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-md"
+                className="bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-white font-bold px-3 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-md"
                 title="مسح كافة العروض وإلغاء الخصومات عن كافة الأصناف"
               >
                 <Trash2 className="w-4 h-4" />
@@ -450,7 +451,7 @@ export const PromotionsOffersView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setIsUploadModalOpen(true)}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
+                className="bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
                 title="رفع شيت عروض إكسل أو جوجل شيتس"
               >
                 <Upload className="w-4 h-4" />
@@ -462,7 +463,7 @@ export const PromotionsOffersView: React.FC = () => {
             <button
               type="button"
               onClick={handleApplyDiscountsToCatalog}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
+              className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
               title="تطبيق وتثبيت الخصومات على كافة المنتجات بالكتالوج ونظام الفواتير"
             >
               <Zap className="w-4 h-4" />
@@ -489,9 +490,9 @@ export const PromotionsOffersView: React.FC = () => {
                   });
                   setIsEditModalOpen(true);
                 }}
-                className="bg-slate-800 hover:bg-slate-700 text-amber-300 border border-amber-500/30 font-bold px-3 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+                className="bg-slate-800 hover:bg-slate-700 text-[#d97706] border border-[var(--app-warn)] font-bold px-3 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
               >
-                <Plus className="w-4 h-4 text-amber-400" />
+                <Plus className="w-4 h-4 text-[#d97706]" />
                 <span>إضافة عرض يدوي</span>
               </button>
             )}
@@ -503,7 +504,7 @@ export const PromotionsOffersView: React.FC = () => {
               className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-3 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
               title="تصدير كشف العروض إكسل"
             >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <FileSpreadsheet className="w-4 h-4 text-[#0d9488]" />
               <span>تصدير إكسل</span>
             </button>
           </div>
@@ -514,40 +515,40 @@ export const PromotionsOffersView: React.FC = () => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
           <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1">
-            <Flame className="w-3.5 h-3.5 text-amber-500" />
+            <Flame className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
             <span>العروض النشطة:</span>
           </div>
-          <div className="text-base sm:text-lg font-black text-amber-600 font-mono">
+          <div className="text-base sm:text-lg font-black text-[var(--app-warn-text)] font-mono">
             {stats.active} عرض ساري
           </div>
         </div>
 
         <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
           <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1">
-            <Percent className="w-3.5 h-3.5 text-rose-500" />
+            <Percent className="w-3.5 h-3.5 text-[var(--app-risk-text)]" />
             <span>متوسط نسبة الخصم:</span>
           </div>
-          <div className="text-base sm:text-lg font-black text-rose-600 font-mono">
+          <div className="text-base sm:text-lg font-black text-[var(--app-risk-text)] font-mono">
             %{stats.avgDiscount} تخفيض
           </div>
         </div>
 
         <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
           <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1">
-            <Boxes className="w-3.5 h-3.5 text-indigo-500" />
+            <Boxes className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
             <span>إجمالي الأصناف المشمولة:</span>
           </div>
-          <div className="text-base sm:text-lg font-black text-indigo-600 font-mono">
+          <div className="text-base sm:text-lg font-black text-[var(--app-navy-text)] font-mono">
             {promotions.length} صنف
           </div>
         </div>
 
         <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
           <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1">
-            <Zap className="w-3.5 h-3.5 text-emerald-500" />
+            <Zap className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
             <span>حالة التطبيق على الفاتورة:</span>
           </div>
-          <div className="text-base sm:text-lg font-black text-emerald-600 flex items-center gap-1">
+          <div className="text-base sm:text-lg font-black text-[var(--app-ok-text)] flex items-center gap-1">
             <span>مفعل تلقائياً 🟢</span>
           </div>
         </div>
@@ -563,7 +564,7 @@ export const PromotionsOffersView: React.FC = () => {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="ابحث بكود الصنف، الكود الموحد (#)، أو اسم المنتج..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)]"
           />
         </div>
 
@@ -575,7 +576,7 @@ export const PromotionsOffersView: React.FC = () => {
               type="button"
               onClick={() => setStatusFilter('all')}
               className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
-                statusFilter === 'all' ? 'bg-amber-500 text-slate-950 font-black' : 'text-slate-600'
+                statusFilter === 'all' ? 'bg-[var(--app-warn)] text-slate-950 font-black' : 'text-slate-600'
               }`}
             >
               الكل ({promotions.length})
@@ -584,7 +585,7 @@ export const PromotionsOffersView: React.FC = () => {
               type="button"
               onClick={() => setStatusFilter('active')}
               className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
-                statusFilter === 'active' ? 'bg-emerald-600 text-white font-black' : 'text-slate-600'
+                statusFilter === 'active' ? 'bg-[var(--app-ok)] text-white font-black' : 'text-slate-600'
               }`}
             >
               النشطة ({stats.active})
@@ -629,10 +630,10 @@ export const PromotionsOffersView: React.FC = () => {
             return (
               <div
                 key={promo.id}
-                className="bg-white rounded-2xl border border-slate-200 hover:border-amber-400/80 shadow-xs hover:shadow-md transition p-3.5 flex flex-col justify-between space-y-3 relative overflow-hidden"
+                className="bg-white rounded-2xl border border-slate-200 hover:border-[var(--app-warn)] shadow-xs hover:shadow-md transition p-3.5 flex flex-col justify-between space-y-3 relative overflow-hidden"
               >
                 {/* Promo Badge Corner */}
-                <div className="absolute top-0 left-0 bg-gradient-to-r from-rose-600 to-amber-500 text-white font-black text-[11px] px-3 py-1 rounded-br-2xl shadow-sm flex items-center gap-1">
+                <div className="absolute top-0 left-0 bg-gradient-to-r from-[var(--app-risk)] to-[var(--app-warn)] text-white font-black text-[11px] px-3 py-1 rounded-br-2xl shadow-sm flex items-center gap-1">
                   <Flame className="w-3 h-3" />
                   <span>خصم {promo.discountPercentage}%</span>
                 </div>
@@ -647,7 +648,7 @@ export const PromotionsOffersView: React.FC = () => {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-16 h-16 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-black shrink-0 text-xl">
+                    <div className="w-16 h-16 rounded-xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)] flex items-center justify-center font-black shrink-0 text-xl">
                       🎁
                     </div>
                   )}
@@ -660,11 +661,11 @@ export const PromotionsOffersView: React.FC = () => {
                       {promo.productName}
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
-                      <span className="bg-slate-100 text-amber-900 font-mono font-bold px-1.5 py-0.5 rounded border border-slate-200">
+                      <span className="bg-slate-100 text-[var(--app-warn-text)] font-mono font-bold px-1.5 py-0.5 rounded border border-slate-200">
                         كود: {promo.productCode}
                       </span>
                       {promo.unifiedCode && (
-                        <span className="bg-indigo-50 text-indigo-900 font-mono font-bold px-1.5 py-0.5 rounded border border-indigo-200">
+                        <span className="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] font-mono font-bold px-1.5 py-0.5 rounded border border-[var(--app-navy-line)]">
                           #{promo.unifiedCode}
                         </span>
                       )}
@@ -678,7 +679,7 @@ export const PromotionsOffersView: React.FC = () => {
                     <span className="text-[10px] text-slate-400 block line-through">
                       السعر الأصلي: {formatCurrency(cartonPrice)}
                     </span>
-                    <span className="text-xs sm:text-sm font-black text-rose-600 font-mono">
+                    <span className="text-xs sm:text-sm font-black text-[var(--app-risk-text)] font-mono">
                       سعر العرض: {formatCurrency(promoPrice)}
                     </span>
                   </div>
@@ -704,7 +705,7 @@ export const PromotionsOffersView: React.FC = () => {
                 {/* Card Actions */}
                 <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                    promo.status === 'نشط' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+                    promo.status === 'نشط' ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]' : 'bg-slate-100 text-slate-600'
                   }`}>
                     {promo.status === 'نشط' ? 'ساري ونشط 🟢' : 'منتهي الصلاحية'}
                   </span>
@@ -718,7 +719,7 @@ export const PromotionsOffersView: React.FC = () => {
                           setFormData(promo);
                           setIsEditModalOpen(true);
                         }}
-                        className="p-1 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-slate-100 transition cursor-pointer"
+                        className="p-1 rounded-lg text-slate-500 hover:text-[var(--app-warn-text)] hover:bg-slate-100 transition cursor-pointer"
                         title="تعديل العرض"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
@@ -726,7 +727,7 @@ export const PromotionsOffersView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleDeleteOffer(promo.id)}
-                        className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                        className="p-1 rounded-lg text-slate-400 hover:text-[var(--app-risk-text)] hover:bg-[var(--app-risk-tint)] transition cursor-pointer"
                         title="حذف العرض"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -747,7 +748,7 @@ export const PromotionsOffersView: React.FC = () => {
           <div className="bg-white rounded-3xl w-full max-w-lg p-5 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <FileSpreadsheet className="w-5 h-5 text-emerald-600" />
+                <FileSpreadsheet className="w-5 h-5 text-[var(--app-ok-text)]" />
                 <h3 className="font-black text-slate-900 text-sm sm:text-base">
                   رفع شيت عروض ترويجية من Excel أو Google Sheets
                 </h3>
@@ -761,8 +762,8 @@ export const PromotionsOffersView: React.FC = () => {
               يقوم النظام تلقائياً بالتعرف على أعمدة الشيت ومطابقة الأصناف عبر <strong>كود الصنف</strong> أو <strong>الكود الموحد (#)</strong> أو <strong>اسم المنتج</strong>، وتطبيق نسبة الخصم وسعر العرض على الكتالوج والفواتير فوراً.
             </p>
 
-            <div className="border-2 border-dashed border-emerald-300 bg-emerald-50/50 rounded-2xl p-6 text-center space-y-3">
-              <Upload className="w-8 h-8 text-emerald-600 mx-auto" />
+            <div className="border-2 border-dashed border-[var(--app-ok-line)] bg-[var(--app-ok-tint)] rounded-2xl p-6 text-center space-y-3">
+              <Upload className="w-8 h-8 text-[var(--app-ok-text)] mx-auto" />
               <div className="space-y-1">
                 <div className="font-bold text-xs text-slate-800">اختر ملف إكسل (.xlsx أو .csv)</div>
                 <div className="text-[11px] text-slate-500">الأعمدة الموصى بها: كود الصنف، الكود الموحد، نسبة الخصم، سعر العرض</div>
@@ -778,7 +779,7 @@ export const PromotionsOffersView: React.FC = () => {
               />
               <label
                 htmlFor="promo-file-input"
-                className="inline-block bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-2 rounded-xl text-xs shadow-md transition cursor-pointer"
+                className="inline-block bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black px-4 py-2 rounded-xl text-xs shadow-md transition cursor-pointer"
               >
                 {isUploading ? 'جاري القراءة والمطابقة...' : 'استعراض واختيار الملف 📂'}
               </label>
@@ -803,7 +804,7 @@ export const PromotionsOffersView: React.FC = () => {
           <div className="bg-white rounded-3xl w-full max-w-lg p-5 shadow-2xl border border-slate-200 space-y-4 max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <Flame className="w-5 h-5 text-amber-500" />
+                <Flame className="w-5 h-5 text-[var(--app-warn-text)]" />
                 <h3 className="font-black text-slate-900 text-sm sm:text-base">
                   {editingPromo ? 'تعديل العرض الترويجي' : 'إضافة عرض ترويجي جديد'}
                 </h3>
@@ -822,7 +823,7 @@ export const PromotionsOffersView: React.FC = () => {
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="مثال: خصم 15% على كرتونة بسكويت شاي 🍪"
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:ring-2 focus:ring-amber-400"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:ring-2 focus:ring-[var(--app-warn)]"
                 />
               </div>
 
@@ -927,7 +928,7 @@ export const PromotionsOffersView: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2 rounded-xl text-xs shadow-md"
+                  className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black px-5 py-2 rounded-xl text-xs shadow-md"
                 >
                   حفظ العرض وتطبيقه 💾
                 </button>

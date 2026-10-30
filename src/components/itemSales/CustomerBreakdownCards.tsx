@@ -39,7 +39,7 @@ export const TopCustomersTable: React.FC<TopCustomersTableProps> = ({
       title="أهم العملاء شراءً"
       subtitle={`${customers.length.toLocaleString('en-US')} عميل • أعلى ${rows.length} في الفترة`}
       icon={<Trophy className="w-4 h-4" />}
-      iconClass="bg-amber-50 text-amber-600"
+      iconClass="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]"
       action={
         onOpenAll ? (
           <button
@@ -74,7 +74,7 @@ export const TopCustomersTable: React.FC<TopCustomersTableProps> = ({
                   onClick={() => onSelectCustomer(customer.customerAccount)}
                   className={`border-b border-slate-50 last:border-0 cursor-pointer transition ${
                     customer.customerAccount === selectedAccount
-                      ? 'bg-amber-50/60'
+                      ? 'bg-[var(--app-warn-tint)]'
                       : 'hover:bg-slate-50/80'
                   }`}
                 >
@@ -82,11 +82,11 @@ export const TopCustomersTable: React.FC<TopCustomersTableProps> = ({
                     <span
                       className={`w-4 h-4 rounded-md text-[9px] font-black flex items-center justify-center ${
                         index === 0
-                          ? 'bg-amber-500 text-white'
+                          ? 'bg-[var(--app-warn)] text-white'
                           : index === 1
                             ? 'bg-slate-300 text-slate-700'
                             : index === 2
-                              ? 'bg-orange-200 text-orange-800'
+                              ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]'
                               : 'bg-slate-100 text-slate-500'
                       }`}
                     >
@@ -153,7 +153,7 @@ export const MonthlyCustomerAnalysisTable: React.FC<MonthlyCustomerAnalysisTable
       title="تحليل شهري للعملاء"
       subtitle="عدد الطلبات وقيمة المبيعات وعدد الأصناف ونسبة النمو لكل شهر"
       icon={<CalendarRange className="w-4 h-4" />}
-      iconClass="bg-violet-50 text-violet-600"
+      iconClass="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]"
       action={
         <span className="text-[9.5px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-500">
           {rows.length.toLocaleString('en-US')} شهر

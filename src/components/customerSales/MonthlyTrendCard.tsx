@@ -22,7 +22,7 @@ const TrendTooltip: React.FC<any> = ({ active, payload, label }) => {
   return (
     <div className="bg-slate-950 text-white rounded-xl px-3 py-2 shadow-xl border border-slate-700 text-right" dir="rtl">
       <div className="text-[10px] font-black">{label}</div>
-      <div className="text-[11px] font-bold font-mono text-amber-300 mt-1">
+      <div className="text-[11px] font-bold font-mono text-[#d97706] mt-1">
         {formatCurrency(payload[0].value)}
       </div>
     </div>
@@ -45,7 +45,7 @@ export const MonthlyTrendCard: React.FC<MonthlyTrendCardProps> = ({ trend, selec
           </p>
         </div>
         {selectedMonth !== 'all' && (
-          <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200">
+          <span className="text-[10px] font-bold px-2 py-1 rounded-lg bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)]">
             الشهر المحدد: {MONTH_LABELS[selectedMonth]}
           </span>
         )}

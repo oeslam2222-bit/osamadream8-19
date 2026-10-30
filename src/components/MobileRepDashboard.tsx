@@ -432,7 +432,7 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
     const Icon = icon;
     return (
       <h2 className="text-[13px] font-black text-slate-700 px-1 mb-2 flex items-center gap-1.5">
-        <span className="w-1 h-3.5 rounded-full bg-amber-400 inline-block" />
+        <span className="w-1 h-3.5 rounded-full bg-[var(--app-warn)] inline-block" />
         {Icon && <Icon className="w-4 h-4 t-navy" opacity={0.75} />}
         {text}
       </h2>
@@ -465,7 +465,7 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
             <img
               src={currentUser?.avatar || '/pwa-192x192.png'}
               alt={currentUser?.name || 'المندوب'}
-              className="w-12 h-12 rounded-2xl object-cover border-2 border-amber-400 shadow-sm shrink-0"
+              className="w-12 h-12 rounded-2xl object-cover border-2 border-[var(--app-warn)] shadow-sm shrink-0"
             />
             <div className="min-w-0">
               <h1 className="font-black text-slate-900 text-base truncate">{currentUser?.name || 'المندوب'}</h1>
@@ -776,7 +776,7 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigate('all_customers')}
-                className="text-[10px] font-black text-amber-600 underline underline-offset-2 cursor-pointer"
+                className="text-[10px] font-black text-[var(--app-warn-text)] underline underline-offset-2 cursor-pointer"
               >
                 الكل ←
               </button>
@@ -950,22 +950,22 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
         <div className="space-y-2">
           <div className="navy-panel rounded-2xl p-3.5 text-white border border-white/10">
             <div className="flex items-center gap-2 mb-2">
-              <span className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black">
+              <span className="w-8 h-8 rounded-xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black">
                 <User className="w-4 h-4" />
               </span>
               <span className="text-[12px] font-black">للمندوب الميداني</span>
             </div>
             <ul className="space-y-1.5 text-[11px] text-slate-300 leading-relaxed">
               <li className="flex items-start gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#0d9488] shrink-0 mt-0.5" />
                 <span>سجّل التحصيل فوراً عند الاستلام — كل زيارة تُنقص رصيد العميل تلقائياً</span>
               </li>
               <li className="flex items-start gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#0d9488] shrink-0 mt-0.5" />
                 <span>لا تُنشئ طلبيات لعميل تجاوز حد الائتمان دون موافقة المشرف</span>
               </li>
               <li className="flex items-start gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#0d9488] shrink-0 mt-0.5" />
                 <span>أرسل توقعك الأسبوعي قبل نهاية الفترة ليظهر للمشرف للاعتماد</span>
               </li>
             </ul>
@@ -980,15 +980,15 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
             </div>
             <ul className="space-y-1.5 text-[11px] text-slate-300 leading-relaxed">
               <li className="flex items-start gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#0d9488] shrink-0 mt-0.5" />
                 <span>اعتمد الطلبيات المعلقة خلال ساعات العمل لمنع توقف دورة الصرف</span>
               </li>
               <li className="flex items-start gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#0d9488] shrink-0 mt-0.5" />
                 <span>راجع المرتجعات المحتجزة وحوّلها لأمين المخزن لاسترداد الأرصدة</span>
               </li>
               <li className="flex items-start gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#0d9488] shrink-0 mt-0.5" />
                 <span>تابع مندوبيك المتعثرين في التحصيل من لوحة الزيارات الميدانية</span>
               </li>
             </ul>
@@ -1003,15 +1003,15 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
             </div>
             <ul className="space-y-1.5 text-[11px] text-slate-300 leading-relaxed">
               <li className="flex items-start gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#0d9488] shrink-0 mt-0.5" />
                 <span>اعتمد الطلبيات المعلقة بانتظار الفرع لإغلاق دورة الطلب</span>
               </li>
               <li className="flex items-start gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#0d9488] shrink-0 mt-0.5" />
                 <span>رصد مديونيات الفرع وتوزيعها على المناطق لمعرفة الأولويات</span>
               </li>
               <li className="flex items-start gap-1.5">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#0d9488] shrink-0 mt-0.5" />
                 <span>قارن أداء المناطق شهرياً من لوحة الإدارة والتحليلات</span>
               </li>
             </ul>

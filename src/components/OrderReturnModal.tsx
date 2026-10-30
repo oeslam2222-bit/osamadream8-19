@@ -268,7 +268,7 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
         {/* Modal Header */}
         <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+            <div className="w-10 h-10 rounded-2xl bg-[var(--app-warn)] border border-[var(--app-warn)] flex items-center justify-center text-[#d97706]">
               <RotateCcw className="w-5 h-5" />
             </div>
             <div>
@@ -276,21 +276,21 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
                 <h2 className="text-base sm:text-lg font-black text-white">
                   تسجيل إذن مرتجع مبيعات (كلي / جزئي)
                 </h2>
-                <span className="text-[11px] bg-amber-500/20 text-amber-300 font-mono font-black px-2 py-0.5 rounded-lg border border-amber-500/30">
+                <span className="text-[11px] bg-[var(--app-warn)] text-[#d97706] font-mono font-black px-2 py-0.5 rounded-lg border border-[var(--app-warn)]">
                   {invoice.invoiceNumber}
                 </span>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
                   invoice.status === 'إغلاق الطلبية'
                     ? 'bg-slate-800 text-slate-300 border border-slate-700'
                     : invoice.status === 'تم التسليم'
-                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    : 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                    ? 'bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)]'
+                    : 'bg-[var(--app-navy)] text-[#60a5fa] border border-[var(--app-navy)]'
                 }`}>
                   الحالة: {invoice.status}
                 </span>
               </div>
               <p className="text-xs text-slate-300 mt-0.5 flex items-center gap-3">
-                <span className="flex items-center gap-1 font-bold text-amber-300">
+                <span className="flex items-center gap-1 font-bold text-[#d97706]">
                   <User className="w-3.5 h-3.5" />
                   {invoice.customerName}
                 </span>
@@ -343,7 +343,7 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
                   }}
                   className={`px-3 py-1.5 rounded-lg font-black transition cursor-pointer ${
                     returnMode === 'full'
-                      ? 'bg-amber-500 text-slate-950 shadow-xs'
+                      ? 'bg-[var(--app-warn)] text-slate-950 shadow-xs'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
@@ -374,10 +374,10 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
 
           {/* Previous Returns Alert if exists */}
           {invoice.returnRecords && invoice.returnRecords.length > 0 && (
-            <div className="bg-purple-50 border border-purple-200 rounded-2xl p-3 text-purple-950">
+            <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] rounded-2xl p-3 text-[var(--app-navy-text)]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 font-bold">
-                  <RotateCcw className="w-4 h-4 text-purple-700" />
+                  <RotateCcw className="w-4 h-4 text-[var(--app-navy-text)]" />
                   <span>
                     هذه الطلبية مسجل عليها مسبقاً {invoice.returnRecords.length} إذن مرتجع بقيمة{' '}
                     <strong>{formatCurrency(prevTotalRefunded)}</strong>.
@@ -386,7 +386,7 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowHistory(!showHistory)}
-                  className="text-purple-700 hover:text-purple-900 font-black text-[11px] flex items-center gap-1 cursor-pointer"
+                  className="text-[var(--app-navy-text)] hover:text-[var(--app-navy-text)] font-black text-[11px] flex items-center gap-1 cursor-pointer"
                 >
                   <span>{showHistory ? 'إخفاء الأذونات السابقة' : 'عرض تفاصيل الأذونات السابقة'}</span>
                   {showHistory ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -394,21 +394,21 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
               </div>
 
               {showHistory && (
-                <div className="mt-3 pt-3 border-t border-purple-200 space-y-2">
+                <div className="mt-3 pt-3 border-t border-[var(--app-navy-line)] space-y-2">
                   {invoice.returnRecords.map((rec) => (
                     <div
                       key={rec.id}
-                      className="bg-white/80 p-2.5 rounded-xl border border-purple-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2"
+                      className="bg-white/80 p-2.5 rounded-xl border border-[var(--app-navy-line)] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2"
                     >
                       <div className="space-y-0.5">
-                        <div className="font-mono font-bold text-purple-900">
+                        <div className="font-mono font-bold text-[var(--app-navy-text)]">
                           إذن #{rec.returnVoucherNumber} • {rec.date} {rec.time}
                         </div>
                         <div className="text-[11px] text-slate-600">
                           بواسطة: {rec.handledBy} • السبب: {rec.reason}
                         </div>
                       </div>
-                      <div className="font-black text-purple-900 bg-purple-100 px-2.5 py-1 rounded-lg">
+                      <div className="font-black text-[var(--app-navy-text)] bg-[var(--app-navy-tint)] px-2.5 py-1 rounded-lg">
                         {formatCurrency(rec.totalRefundAmount)} ({rec.totalReturnedCartons} كرتونة)
                       </div>
                     </div>
@@ -422,7 +422,7 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
           <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs">
             <div className="bg-slate-100 px-4 py-2.5 font-black text-slate-800 flex items-center justify-between border-b border-slate-200">
               <span className="flex items-center gap-1.5">
-                <Boxes className="w-4 h-4 text-amber-600" />
+                <Boxes className="w-4 h-4 text-[var(--app-warn-text)]" />
                 <span>أصناف الفاتورة وتحديد الكمية المرتجعة:</span>
               </span>
               <span className="text-[11px] text-slate-500 font-normal">
@@ -438,8 +438,8 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
                     <th className="p-2.5 text-center">الكمية الأصلية</th>
                     <th className="p-2.5 text-center">مرتجع سابق</th>
                     <th className="p-2.5 text-center">المتبقي الصافي</th>
-                    <th className="p-2.5 text-center bg-amber-50/50 text-amber-950">الكراتين المرتجعة</th>
-                    <th className="p-2.5 text-center bg-amber-50/50 text-amber-950">القطع المرتجعة</th>
+                    <th className="p-2.5 text-center bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]">الكراتين المرتجعة</th>
+                    <th className="p-2.5 text-center bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]">القطع المرتجعة</th>
                     <th className="p-2.5 text-center">حالة البضاعة</th>
                     <th className="p-2.5 text-left">قيمة المرتجع</th>
                   </tr>
@@ -469,7 +469,7 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
                         key={item.productId}
                         className={`transition ${
                           isBeingReturned
-                            ? 'bg-amber-50/40 font-bold text-slate-900'
+                            ? 'bg-[var(--app-warn-tint)] font-bold text-slate-900'
                             : isFullyReturnedPreviously
                             ? 'bg-slate-50 opacity-60'
                             : 'hover:bg-slate-50 text-slate-800'
@@ -498,7 +498,7 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
                         {/* Previously Returned */}
                         <td className="p-2.5 text-center">
                           {prev.cartons > 0 || prev.pieces > 0 ? (
-                            <span className="bg-purple-100 text-purple-900 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                            <span className="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] px-1.5 py-0.5 rounded text-[10px] font-bold">
                               {prev.cartons} ك {prev.pieces ? `+ ${prev.pieces} ق` : ''}
                             </span>
                           ) : (
@@ -513,7 +513,7 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
                         </td>
 
                         {/* Cartons Input */}
-                        <td className="p-2 text-center bg-amber-50/30">
+                        <td className="p-2 text-center bg-[var(--app-warn-tint)]">
                           <input
                             type="number"
                             min={0}
@@ -527,16 +527,16 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
                                 remainingCartons
                               )
                             }
-                            className={`w-16 p-1.5 border rounded-lg text-center font-black text-xs focus:ring-2 focus:ring-amber-500 ${
+                            className={`w-16 p-1.5 border rounded-lg text-center font-black text-xs focus:ring-2 focus:ring-[var(--app-warn)] ${
                               currentReturn.returnCartons > 0
-                                ? 'bg-amber-100 border-amber-400 text-slate-950 font-black'
+                                ? 'bg-[var(--app-warn-tint)] border-[var(--app-warn)] text-slate-950 font-black'
                                 : 'bg-white border-slate-300 text-slate-700'
                             }`}
                           />
                         </td>
 
                         {/* Pieces Input */}
-                        <td className="p-2 text-center bg-amber-50/30">
+                        <td className="p-2 text-center bg-[var(--app-warn-tint)]">
                           <input
                             type="number"
                             min={0}
@@ -550,9 +550,9 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
                                 remainingPieces || item.cartonQuantity
                               )
                             }
-                            className={`w-16 p-1.5 border rounded-lg text-center font-black text-xs focus:ring-2 focus:ring-amber-500 ${
+                            className={`w-16 p-1.5 border rounded-lg text-center font-black text-xs focus:ring-2 focus:ring-[var(--app-warn)] ${
                               currentReturn.returnPieces > 0
-                                ? 'bg-amber-100 border-amber-400 text-slate-950 font-black'
+                                ? 'bg-[var(--app-warn-tint)] border-[var(--app-warn)] text-slate-950 font-black'
                                 : 'bg-white border-slate-300 text-slate-700'
                             }`}
                           />
@@ -571,10 +571,10 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
                             }
                             className={`p-1.5 rounded-lg border text-[11px] font-bold focus:outline-hidden ${
                               currentReturn.condition === 'good_condition'
-                                ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                                ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)]'
                                 : currentReturn.condition === 'damaged'
-                                ? 'bg-rose-50 text-rose-900 border-rose-300'
-                                : 'bg-amber-50 text-amber-900 border-amber-300'
+                                ? 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border-[var(--app-risk-line)]'
+                                : 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border-[var(--app-warn-line)]'
                             }`}
                           >
                             <option value="good_condition">🔄 سليم (يعود للمخزن)</option>
@@ -586,7 +586,7 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
                         {/* Item Refund Subtotal */}
                         <td className="p-2.5 text-left font-black text-slate-900 font-mono">
                           {itemRefundAmount > 0 ? (
-                            <span className="text-amber-900 bg-amber-100 px-2 py-1 rounded-md">
+                            <span className="text-[var(--app-warn-text)] bg-[var(--app-warn-tint)] px-2 py-1 rounded-md">
                               {formatCurrency(itemRefundAmount)}
                             </span>
                           ) : (
@@ -613,35 +613,35 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
               </div>
             </div>
 
-            <div className="bg-amber-50 border border-amber-300 p-3 rounded-2xl">
-              <div className="text-[11px] text-amber-900 font-bold flex items-center gap-1">
-                <Coins className="w-3.5 h-3.5 text-amber-600" />
+            <div className="bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] p-3 rounded-2xl">
+              <div className="text-[11px] text-[var(--app-warn-text)] font-bold flex items-center gap-1">
+                <Coins className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
                 <span>المبلغ المرتجع للعميل الآن</span>
               </div>
-              <div className="text-base font-black text-amber-950 mt-0.5">
+              <div className="text-base font-black text-[var(--app-warn-text)] mt-0.5">
                 {formatCurrency(totalRefundAmount)}
               </div>
-              <div className="text-[10px] text-amber-800 mt-0.5 font-bold">
+              <div className="text-[10px] text-[var(--app-warn-text)] mt-0.5 font-bold">
                 يخصم فوراً من مديونية وحساب العميل
               </div>
             </div>
 
-            <div className="bg-emerald-50 border border-emerald-300 p-3 rounded-2xl">
-              <div className="text-[11px] text-emerald-900 font-bold flex items-center gap-1">
-                <Boxes className="w-3.5 h-3.5 text-emerald-600" />
+            <div className="bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] p-3 rounded-2xl">
+              <div className="text-[11px] text-[var(--app-ok-text)] font-bold flex items-center gap-1">
+                <Boxes className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
                 <span>الكمية المسترجعة للمخزن</span>
               </div>
-              <div className="text-base font-black text-emerald-950 mt-0.5">
+              <div className="text-base font-black text-[var(--app-ok-text)] mt-0.5">
                 +{totalReturnedCartons} كرتونة
               </div>
-              <div className="text-[10px] text-emerald-800 mt-0.5 font-bold">
+              <div className="text-[10px] text-[var(--app-ok-text)] mt-0.5 font-bold">
                 +{totalReturnedPieces} قطعة تعود لرصيد البيع
               </div>
             </div>
 
             <div className="bg-slate-900 text-white p-3 rounded-2xl">
               <div className="text-[11px] text-slate-400 font-bold">صافي قيمة الفاتورة المتبقية</div>
-              <div className="text-base font-black text-amber-300 mt-0.5">
+              <div className="text-base font-black text-[#d97706] mt-0.5">
                 {formatCurrency(netEstimatedTotalAfterThisReturn)}
               </div>
               <div className="text-[10px] text-slate-400 mt-0.5">
@@ -671,7 +671,7 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
                     onClick={() => setReturnReason(reasonText)}
                     className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
                       returnReason === reasonText
-                        ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-xs'
+                        ? 'bg-[var(--app-warn)] text-slate-950 border-[var(--app-warn)] shadow-xs'
                         : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                     }`}
                   >
@@ -684,7 +684,7 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
                 value={returnReason}
                 onChange={(e) => setReturnReason(e.target.value)}
                 placeholder="اكتب سبب المرتجع بالتفصيل..."
-                className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-amber-500"
+                className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-[var(--app-warn)]"
               />
             </div>
 
@@ -695,7 +695,7 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
                 id="restockCheckbox"
                 checked={restockToInventory}
                 onChange={(e) => setRestockToInventory(e.target.checked)}
-                className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500 cursor-pointer"
+                className="w-4 h-4 text-[var(--app-warn-text)] rounded border-slate-300 focus:ring-[var(--app-warn)] cursor-pointer"
               />
               <label htmlFor="restockCheckbox" className="font-bold text-slate-800 cursor-pointer">
                 إعادة البضاعة السليمة فوراً إلى رصيد المخزن الفعلي للفرع وتحديث بطاقة الصنف 🔄
@@ -708,7 +708,7 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
         {/* Modal Footer Actions */}
         <div className="bg-slate-100 p-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="text-xs text-slate-600 flex items-center gap-1.5 font-bold">
-            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            <ShieldCheck className="w-4 h-4 text-[var(--app-ok-text)]" />
             <span>
               سيتم إنشاء إذن مرتجع رسمي وخصم {formatCurrency(totalRefundAmount)} من حساب العميل فوراً.
             </span>
@@ -719,7 +719,7 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
               type="button"
               disabled={isSubmitting || calculatedItems.length === 0}
               onClick={handleSubmitReturn}
-              className="flex-1 sm:flex-none bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
+              className="flex-1 sm:flex-none bg-[var(--app-warn)] hover:bg-[var(--app-warn)] disabled:opacity-50 text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
             >
               <RotateCcw className="w-4 h-4" />
               <span>

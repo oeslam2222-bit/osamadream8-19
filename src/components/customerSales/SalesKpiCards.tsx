@@ -67,7 +67,7 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({
       <CardShell
         title="إجمالي المبيعات"
         icon={<Wallet className="w-5 h-5" />}
-        iconClass="bg-amber-50 text-amber-600"
+        iconClass="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]"
       >
         <div className="mt-3">
           <div className="text-[22px] leading-tight font-black text-slate-900 font-mono">
@@ -83,7 +83,7 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({
       <CardShell
         title="عدد فواتير البيع"
         icon={<Receipt className="w-5 h-5" />}
-        iconClass="bg-sky-50 text-sky-600"
+        iconClass="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]"
       >
         <div className="mt-3">
           <div className="text-[22px] leading-tight font-black text-slate-900 font-mono">
@@ -98,7 +98,7 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({
       <CardShell
         title="العملاء المتعاملون"
         icon={<Users className="w-5 h-5" />}
-        iconClass="bg-emerald-50 text-emerald-600"
+        iconClass="bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]"
       >
         <div className="mt-3">
           <div className="text-[22px] leading-tight font-black text-slate-900 font-mono">
@@ -114,7 +114,7 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({
       <CardShell
         title="أعلى صنف مبيعًا"
         icon={<Package className="w-5 h-5" />}
-        iconClass="bg-violet-50 text-violet-600"
+        iconClass="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]"
       >
         <div className="mt-3">
           <div className="text-sm leading-tight font-black text-slate-900 truncate" title={topItem?.itemName}>
@@ -122,7 +122,7 @@ export const SalesKpiCards: React.FC<SalesKpiCardsProps> = ({
           </div>
           <div className="mt-1 flex items-center gap-2 flex-wrap">
             {topItem && (
-              <span className="text-[11px] font-black text-emerald-700 font-mono">
+              <span className="text-[11px] font-black text-[var(--app-ok-text)] font-mono">
                 {formatCurrency(topItem.amount)}
               </span>
             )}

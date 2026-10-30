@@ -39,7 +39,7 @@ const ChartTooltip: React.FC<any> = ({ active, payload }) => {
     <div className="bg-slate-950 text-white rounded-xl px-3 py-2.5 shadow-xl border border-slate-700 text-right" dir="rtl">
       <div className="text-[11px] font-black">{item.fullName}</div>
       <div className="text-[10px] text-slate-400 mb-1.5">{item.itemGroup}</div>
-      <div className="text-[11px] font-bold text-amber-300 font-mono">{formatCurrency(item.amount)}</div>
+      <div className="text-[11px] font-bold text-[#d97706] font-mono">{formatCurrency(item.amount)}</div>
       {item.previousAmount > 0 && (
         <div className="text-[10px] text-slate-300 mt-1 font-mono">
           السابق: {formatCurrency(item.previousAmount)} • {formatGrowth(item.growthPct)}
@@ -72,7 +72,7 @@ export const TopItemsChartCard: React.FC<TopItemsChartCardProps> = ({
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-            <BarChart3 className="w-4 h-4 text-amber-500" />
+            <BarChart3 className="w-4 h-4 text-[var(--app-warn-text)]" />
             أعلى 5 أصناف (قيمة المبيعات)
           </h3>
           <p className="text-[11px] text-slate-500 mt-1">
@@ -164,8 +164,8 @@ export const TopItemsChartCard: React.FC<TopItemsChartCardProps> = ({
                 item.growthPct === null
                   ? 'text-slate-400'
                   : item.growthPct >= 0
-                    ? 'text-emerald-600'
-                    : 'text-rose-600'
+                    ? 'text-[var(--app-ok-text)]'
+                    : 'text-[var(--app-risk-text)]'
               }`}
             >
               {formatGrowth(item.growthPct)}

@@ -29,7 +29,7 @@ const PerformanceTooltip: React.FC<any> = ({ active, payload }) => {
   return (
     <div className="bg-slate-950 text-white rounded-xl px-3 py-2.5 shadow-xl border border-slate-700 text-right" dir="rtl">
       <div className="text-[11px] font-black">{point.label}</div>
-      <div className="text-[11px] font-bold font-mono text-amber-300 mt-1">
+      <div className="text-[11px] font-bold font-mono text-[#d97706] mt-1">
         {formatCurrency(point.amount)}
       </div>
       <div className="text-[10px] text-slate-300 mt-0.5 font-mono">
@@ -52,7 +52,7 @@ export const MonthlyPerformanceCard: React.FC<MonthlyPerformanceCardProps> = ({
       title="مؤشرات الأداء الشهرية (آخر 6 أشهر)"
       subtitle={`إجمالي ${formatCurrency(total)} خلال الفترة المعروضة`}
       icon={<Activity className="w-4 h-4" />}
-      iconClass="bg-sky-50 text-sky-600"
+      iconClass="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]"
       action={<GrowthPill growth={growth} emptyLabel="لا توجد مقارنة" />}
     >
       {points.length === 0 ? (
@@ -122,7 +122,7 @@ export const MonthlyPerformanceCard: React.FC<MonthlyPerformanceCardProps> = ({
           <span className="w-2 h-2 rounded-full bg-blue-deep7" /> قيمة المبيعات
         </span>
         {selectedMonth !== 'all' && (
-          <span className="text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-1.5 py-0.5">
+          <span className="text-[var(--app-warn-text)] bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] rounded-md px-1.5 py-0.5">
             الشهر المحدد: {MONTH_LABELS[selectedMonth]}
           </span>
         )}

@@ -68,7 +68,7 @@ const CustomerCard: React.FC<{
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4 space-y-3">
       <div className="flex items-start gap-3">
-        <div className="w-11 h-11 rounded-2xl bg-navy-deep text-amber-300 flex items-center justify-center font-black text-base shrink-0">
+        <div className="w-11 h-11 rounded-2xl bg-navy-deep text-[#d97706] flex items-center justify-center font-black text-base shrink-0">
           {(customer.customerName || 'ع').trim().charAt(0)}
         </div>
         <div className="min-w-0 flex-1">
@@ -76,16 +76,16 @@ const CustomerCard: React.FC<{
             {customer.customerName}
           </div>
           <div className="text-[10px] text-slate-500 font-mono mt-0.5 flex items-center gap-1.5 flex-wrap">
-            <span className="font-bold text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+            <span className="font-bold text-[var(--app-warn-text)] bg-[var(--app-warn-tint)] px-1.5 py-0.5 rounded border border-[var(--app-warn-line)]">
               {customer.customerAccount || '---'}
             </span>
             <span>•</span>
-            <span className="font-sans inline-flex items-center gap-1 font-bold text-blue-900">
-              <Building2 className="w-2.5 h-2.5 text-blue-600 shrink-0" />
+            <span className="font-sans inline-flex items-center gap-1 font-bold text-[var(--app-navy-text)]">
+              <Building2 className="w-2.5 h-2.5 text-[var(--app-navy-text)] shrink-0" />
               {customer.summary.linkedBranch || customer.warehouse}
             </span>
             {customer.summary.isCustomerLinked && (
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold border border-emerald-300">
+              <span className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] font-bold border border-[var(--app-ok-line)]">
                 مربوط ✓
               </span>
             )}
@@ -127,7 +127,7 @@ const CustomerCard: React.FC<{
                     style={{ height: `${height}%` }}
                   />
                 </div>
-                <span className={`text-[8px] font-bold ${isActive ? 'text-amber-700' : 'text-slate-400'}`}>
+                <span className={`text-[8px] font-bold ${isActive ? 'text-[var(--app-warn-text)]' : 'text-slate-400'}`}>
                   {MONTH_LABELS[month].slice(0, 3)}
                 </span>
               </div>
@@ -149,7 +149,7 @@ const CustomerCard: React.FC<{
           <button
             type="button"
             onClick={() => onStartOrder(customer.customerAccount)}
-            className="h-9 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black transition cursor-pointer inline-flex items-center gap-1"
+            className="h-9 px-3 rounded-xl bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 text-[11px] font-black transition cursor-pointer inline-flex items-center gap-1"
           >
             <Plus className="w-3.5 h-3.5" />
             طلب
@@ -199,7 +199,7 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
       {/* البحث السريع عن عميل */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4">
         <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5 mb-2.5">
-          <Search className="w-3.5 h-3.5 text-amber-500" />
+          <Search className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
           بحث عن عميل
         </h3>
         <div className="relative">
@@ -209,7 +209,7 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="اسم العميل أو الكود..."
-            className="w-full h-9 pr-8 pl-8 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+            className="w-full h-9 pr-8 pl-8 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)]"
           />
           {query && (
             <button
@@ -237,7 +237,7 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
                     onSelectCustomer(customer.customerAccount);
                     setQuery('');
                   }}
-                  className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl hover:bg-amber-50 transition text-right cursor-pointer"
+                  className="w-full flex items-center justify-between gap-2 px-2.5 py-2 rounded-xl hover:bg-[var(--app-warn-tint)] transition text-right cursor-pointer"
                 >
                   <span className="min-w-0">
                     <span className="block text-[11px] font-black text-slate-800 truncate">
@@ -247,7 +247,7 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
                       {customer.customerAccount || '---'} • {customer.warehouse}
                     </span>
                   </span>
-                  <span className="text-[10px] font-black text-emerald-700 font-mono shrink-0">
+                  <span className="text-[10px] font-black text-[var(--app-ok-text)] font-mono shrink-0">
                     {formatCurrency(customer.amount)}
                   </span>
                 </button>
@@ -271,11 +271,11 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
             <div className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4">
               <div className="flex items-center justify-between mb-2.5">
                 <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                  <Wallet className="w-3.5 h-3.5 text-emerald-500" />
+                  <Wallet className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
                   الموقف المالي
                 </h3>
                 {financial.overdue > 0 && (
-                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)]">
                     متأخرات
                   </span>
                 )}
@@ -291,7 +291,7 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
                   <div className="text-[9px] text-slate-400 font-bold">المتأخرات والمستحق</div>
                   <div
                     className={`text-[11px] font-black font-mono mt-0.5 ${
-                      financial.overdue > 0 ? 'text-rose-600' : 'text-slate-900'
+                      financial.overdue > 0 ? 'text-[var(--app-risk-text)]' : 'text-slate-900'
                     }`}
                   >
                     {formatCurrency(financial.overdue)}
@@ -299,7 +299,7 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
                 </div>
                 <div className="rounded-xl bg-slate-50 border border-slate-100 px-2 py-1.5">
                   <div className="text-[9px] text-slate-400 font-bold">إجمالي التحصيلات</div>
-                  <div className="text-[11px] font-black text-emerald-700 font-mono mt-0.5">
+                  <div className="text-[11px] font-black text-[var(--app-ok-text)] font-mono mt-0.5">
                     {formatCurrency(financial.collections)}
                   </div>
                 </div>
@@ -324,7 +324,7 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4">
             <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5 mb-3">
-              <ShoppingBag className="w-3.5 h-3.5 text-violet-500" />
+              <ShoppingBag className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
               أعلى أصناف العميل
             </h3>
             {topItems.length === 0 ? (
@@ -358,7 +358,7 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
           {recentOrders.length > 0 && (
             <div className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4">
               <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5 mb-3">
-                <BellRing className="w-3.5 h-3.5 text-sky-500" />
+                <BellRing className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
                 آخر أوامر البيع
               </h3>
               <div className="space-y-2">
@@ -375,7 +375,7 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
                         {order.date || 'بدون تاريخ'} • {order.itemsCount} صنف
                       </span>
                     </div>
-                    <span className="font-black text-emerald-700 font-mono">
+                    <span className="font-black text-[var(--app-ok-text)] font-mono">
                       {formatCurrency(order.amount)}
                     </span>
                   </div>
@@ -387,10 +387,10 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
           <div className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                <BellRing className="w-3.5 h-3.5 text-rose-500" />
+                <BellRing className="w-3.5 h-3.5 text-[var(--app-risk-text)]" />
                 متابعة مطلوبة
               </h3>
-              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200">
+              <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)]">
                 {alerts.length} تنبيه
               </span>
             </div>
@@ -409,7 +409,7 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
                       key={`${alert.account}-${alert.kind}`}
                       type="button"
                       onClick={() => onSelectCustomer(alert.account)}
-                      className="w-full text-right rounded-xl border border-slate-100 hover:border-amber-200 hover:bg-amber-50/50 px-2.5 py-2 transition cursor-pointer"
+                      className="w-full text-right rounded-xl border border-slate-100 hover:border-[var(--app-warn-line)] hover:bg-[var(--app-warn-tint)] px-2.5 py-2 transition cursor-pointer"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[10px] font-black text-slate-800 truncate">
@@ -418,10 +418,10 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
                         <span
                           className={`text-[9px] font-black inline-flex items-center gap-0.5 ${
                             isPositive
-                              ? 'text-emerald-600'
+                              ? 'text-[var(--app-ok-text)]'
                               : isConcentration
-                                ? 'text-amber-600'
-                                : 'text-rose-600'
+                                ? 'text-[var(--app-warn-text)]'
+                                : 'text-[var(--app-risk-text)]'
                           }`}
                         >
                           {!isConcentration && <Icon className="w-3 h-3" />}
@@ -438,7 +438,7 @@ export const CustomerInsightRail: React.FC<CustomerInsightRailProps> = ({
         </>
       ) : (
         <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-6 text-center space-y-2">
-          <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto">
+          <div className="w-10 h-10 rounded-2xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] flex items-center justify-center mx-auto">
             <UserRound className="w-5 h-5" />
           </div>
           <p className="text-[11px] font-black text-slate-700">اختر عميلاً من الجدول</p>

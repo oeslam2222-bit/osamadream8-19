@@ -108,20 +108,20 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
         {/* ================= MODAL HEADER ================= */}
         <div className="p-3.5 sm:p-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/40 flex items-center justify-center font-black shadow-inner shrink-0">
-              <Boxes className="w-6 h-6 text-amber-400" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-[var(--app-warn)] text-[#d97706] border border-[var(--app-warn)] flex items-center justify-center font-black shadow-inner shrink-0">
+              <Boxes className="w-6 h-6 text-[#d97706]" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-base sm:text-lg font-black text-white">
                   دمج الفواتير وتحليل طلبية مخزن 6 أكتوبر المركزي
                 </h2>
-                <span className="bg-amber-400 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full">
+                <span className="bg-[var(--app-warn)] text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full">
                   {summary.invoicesCount} فواتير مدمجة
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                الفرع: <strong className="text-amber-300">{summary.branchName}</strong> • عدد العملاء: <strong className="text-sky-300">{summary.uniqueCustomersCount}</strong> عميل • تاريخ البيان: <span className="font-mono">{summary.dateLabel}</span>
+                الفرع: <strong className="text-[#d97706]">{summary.branchName}</strong> • عدد العملاء: <strong className="text-[#60a5fa]">{summary.uniqueCustomersCount}</strong> عميل • تاريخ البيان: <span className="font-mono">{summary.dateLabel}</span>
               </p>
             </div>
           </div>
@@ -131,7 +131,7 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
               type="button"
               onClick={handleExportExcel}
               disabled={isExporting || summary.lines.length === 0}
-              className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-3.5 py-2 rounded-xl text-xs transition flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-40"
+              className="bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black px-3.5 py-2 rounded-xl text-xs transition flex items-center gap-1.5 shadow-md cursor-pointer disabled:opacity-40"
               title="تصدير شيت إكسل منسق ومميز (منتجات، أكواد، كراتين، قطع، شدة، وإجمالي)"
             >
               <FileSpreadsheet className="w-4 h-4" />
@@ -161,12 +161,12 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
 
         {/* Success / Alert Toast */}
         {exportNotice && (
-          <div className="bg-emerald-600 text-white p-2.5 px-4 text-xs font-black flex items-center justify-between border-b border-emerald-500 shrink-0 animate-in fade-in">
+          <div className="bg-[var(--app-ok)] text-white p-2.5 px-4 text-xs font-black flex items-center justify-between border-b border-[var(--app-ok)] shrink-0 animate-in fade-in">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-200 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-[#0d9488] shrink-0" />
               <span>{exportNotice}</span>
             </div>
-            <button onClick={() => setExportNotice(null)} className="text-emerald-100 hover:text-white p-1">
+            <button onClick={() => setExportNotice(null)} className="text-[#0d9488] hover:text-white p-1">
               <X className="w-3.5 h-3.5" />
             </button>
           </div>
@@ -180,10 +180,10 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
             {/* 1. Total Invoices & Customers */}
             <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
               <div className="text-[10px] text-slate-400 font-bold flex items-center gap-1">
-                <Receipt className="w-3 h-3 text-sky-400" />
+                <Receipt className="w-3 h-3 text-[#60a5fa]" />
                 <span>الفواتير والعملاء:</span>
               </div>
-              <div className="text-sm sm:text-base font-black text-sky-300 font-mono mt-1">
+              <div className="text-sm sm:text-base font-black text-[#60a5fa] font-mono mt-1">
                 {summary.invoicesCount} فواتير / {summary.uniqueCustomersCount} عميل
               </div>
               <div className="text-[10px] text-slate-400 mt-0.5">
@@ -193,11 +193,11 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
 
             {/* 2. Total Requested Cartons */}
             <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
-              <div className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
-                <Boxes className="w-3 h-3 text-amber-400" />
+              <div className="text-[10px] text-[#d97706] font-bold flex items-center gap-1">
+                <Boxes className="w-3 h-3 text-[#d97706]" />
                 <span>إجمالي الكراتين المطلوبة:</span>
               </div>
-              <div className="text-sm sm:text-base font-black text-amber-300 font-mono mt-1">
+              <div className="text-sm sm:text-base font-black text-[#d97706] font-mono mt-1">
                 {summary.totalCartons} كرتونة
               </div>
               <div className="text-[10px] text-slate-400 mt-0.5">
@@ -207,11 +207,11 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
 
             {/* 3. Branch Covered Stock */}
             <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800">
-              <div className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                <Warehouse className="w-3 h-3 text-emerald-400" />
+              <div className="text-[10px] text-[#0d9488] font-bold flex items-center gap-1">
+                <Warehouse className="w-3 h-3 text-[#0d9488]" />
                 <span>المتوفر بمخزن الفرع:</span>
               </div>
-              <div className="text-sm sm:text-base font-black text-emerald-400 font-mono mt-1">
+              <div className="text-sm sm:text-base font-black text-[#0d9488] font-mono mt-1">
                 {summary.totalBranchAvailableCartons} كرتونة
               </div>
               <div className="text-[10px] text-slate-400 mt-0.5">
@@ -220,25 +220,25 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
             </div>
 
             {/* 4. Required from October Central Warehouse */}
-            <div className="bg-amber-500/10 p-3 rounded-2xl border border-amber-500/40">
-              <div className="text-[10px] text-amber-300 font-black flex items-center gap-1">
-                <Truck className="w-3 h-3 text-amber-400" />
+            <div className="bg-[var(--app-warn)] p-3 rounded-2xl border border-[var(--app-warn)]">
+              <div className="text-[10px] text-[#d97706] font-black flex items-center gap-1">
+                <Truck className="w-3 h-3 text-[#d97706]" />
                 <span>المطلوب توريده من أكتوبر:</span>
               </div>
-              <div className="text-sm sm:text-base font-black text-amber-400 font-mono mt-1">
+              <div className="text-sm sm:text-base font-black text-[#d97706] font-mono mt-1">
                 {summary.totalRequiredFromOctober} كرتونة
               </div>
-              <div className="text-[10px] text-amber-300/80 mt-0.5">
+              <div className="text-[10px] text-[#d97706] mt-0.5">
                 نواقص الفرع المحولة لأكتوبر
               </div>
             </div>
 
             {/* 5. Total Financial Revenue */}
             <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 col-span-2 sm:col-span-1">
-              <div className="text-[10px] text-purple-400 font-bold flex items-center gap-1">
+              <div className="text-[10px] text-[#60a5fa] font-bold flex items-center gap-1">
                 <span>القيمة المالية الإجمالية:</span>
               </div>
-              <div className="text-sm sm:text-base font-black text-purple-300 font-mono mt-1 truncate">
+              <div className="text-sm sm:text-base font-black text-[#60a5fa] font-mono mt-1 truncate">
                 {formatCurrency(summary.totalAmount)}
               </div>
               <div className="text-[10px] text-slate-400 mt-0.5">
@@ -249,8 +249,8 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
 
           {/* October Stock Deficit Alert Banner if any */}
           {summary.octoberDeficitCount > 0 && (
-            <div className="bg-rose-950/40 border border-rose-800/60 p-3 rounded-2xl flex items-center gap-2 text-xs text-rose-200">
-              <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            <div className="bg-[var(--app-risk)] border border-[var(--app-risk)] p-3 rounded-2xl flex items-center gap-2 text-xs text-[#ef4444]">
+              <AlertTriangle className="w-4 h-4 text-[#ef4444] shrink-0" />
               <span>
                 تنبيه تشغيلي: يوجد ({summary.octoberDeficitCount}) صنف مطلوب يتجاوز رصيد مخزن 6 أكتوبر الحالي، مما يستلزم أمر إنتاج أو شراء عاجل.
               </span>
@@ -267,7 +267,7 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="البحث باسم المنتج، الكود، أو الكود الموحد..."
-                className="w-full bg-slate-900 border border-slate-750 rounded-xl pr-9 pl-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="w-full bg-slate-900 border border-slate-750 rounded-xl pr-9 pl-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)]"
               />
             </div>
 
@@ -277,7 +277,7 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
                 type="button"
                 onClick={() => setFilterMode('all')}
                 className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                  filterMode === 'all' ? 'bg-amber-400 text-slate-950 font-black' : 'text-slate-300 hover:text-white'
+                  filterMode === 'all' ? 'bg-[var(--app-warn)] text-slate-950 font-black' : 'text-slate-300 hover:text-white'
                 }`}
               >
                 كافة الأصناف ({summary.lines.length})
@@ -286,7 +286,7 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
                 type="button"
                 onClick={() => setFilterMode('october_only')}
                 className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                  filterMode === 'october_only' ? 'bg-amber-400 text-slate-950 font-black' : 'text-slate-300 hover:text-white'
+                  filterMode === 'october_only' ? 'bg-[var(--app-warn)] text-slate-950 font-black' : 'text-slate-300 hover:text-white'
                 }`}
               >
                 طلب توريد أكتوبر ({summary.lines.filter((l) => l.requiredFromOctober > 0).length})
@@ -295,7 +295,7 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
                 type="button"
                 onClick={() => setFilterMode('branch_covered')}
                 className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                  filterMode === 'branch_covered' ? 'bg-amber-400 text-slate-950 font-black' : 'text-slate-300 hover:text-white'
+                  filterMode === 'branch_covered' ? 'bg-[var(--app-warn)] text-slate-950 font-black' : 'text-slate-300 hover:text-white'
                 }`}
               >
                 متوفر بالفرع ({summary.lines.filter((l) => l.requiredFromOctober === 0).length})
@@ -305,7 +305,7 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
                   type="button"
                   onClick={() => setFilterMode('october_deficit')}
                   className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer ${
-                    filterMode === 'october_deficit' ? 'bg-rose-600 text-white font-black' : 'text-rose-400 hover:text-rose-300'
+                    filterMode === 'october_deficit' ? 'bg-[var(--app-risk)] text-white font-black' : 'text-[#ef4444] hover:text-[#ef4444]'
                   }`}
                 >
                   عجز بأكتوبر ({summary.octoberDeficitCount})
@@ -328,7 +328,7 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
                     <th className="py-3 px-2 text-center">إجمالي القطع</th>
                     <th className="py-3 px-2 text-center">رصيد الفرع</th>
                     <th className="py-3 px-2 text-center">رصيد أكتوبر</th>
-                    <th className="py-3 px-2 text-center bg-amber-500/10 text-amber-300">المطلوب من أكتوبر (ك)</th>
+                    <th className="py-3 px-2 text-center bg-[var(--app-warn)] text-[#d97706]">المطلوب من أكتوبر (ك)</th>
                     <th className="py-3 px-2 text-center">حالة الصرف والتوريد</th>
                     <th className="py-3 px-2 text-center">تغطية أكتوبر</th>
                     <th className="py-3 px-3 text-left">الإجمالي (ج.م)</th>
@@ -349,7 +349,7 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
 
                       return (
                         <React.Fragment key={line.id}>
-                          <tr className={`hover:bg-slate-900/70 transition ${line.requiredFromOctober > 0 ? 'bg-amber-950/10' : ''}`}>
+                          <tr className={`hover:bg-slate-900/70 transition ${line.requiredFromOctober > 0 ? 'bg-[var(--app-warn)]' : ''}`}>
                             <td className="py-2.5 px-2 text-center font-mono text-slate-400 text-[11px]">
                               {idx + 1}
                             </td>
@@ -358,11 +358,11 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
                             <td className="py-2.5 px-3 min-w-[200px]">
                               <div className="font-bold text-white text-xs">{line.productName}</div>
                               <div className="flex items-center gap-1.5 flex-wrap text-[10px] mt-0.5">
-                                <span className="bg-slate-900 text-amber-300 font-mono font-bold px-1.5 py-0.2 rounded border border-slate-800">
+                                <span className="bg-slate-900 text-[#d97706] font-mono font-bold px-1.5 py-0.2 rounded border border-slate-800">
                                   {line.productCode}
                                 </span>
                                 {line.unifiedCode !== '---' && (
-                                  <span className="bg-indigo-950 text-indigo-300 font-mono font-bold px-1.5 py-0.2 rounded border border-indigo-800">
+                                  <span className="bg-[var(--app-navy)] text-[#60a5fa] font-mono font-bold px-1.5 py-0.2 rounded border border-[var(--app-navy)]">
                                     الموحد: {line.unifiedCode}
                                   </span>
                                 )}
@@ -375,12 +375,12 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
                             </td>
 
                             {/* Carton Count (عدد الكرتون) */}
-                            <td className="py-2.5 px-2 text-center font-mono font-black text-amber-300">
+                            <td className="py-2.5 px-2 text-center font-mono font-black text-[#d97706]">
                               {line.cartonCount} ك
                             </td>
 
                             {/* Piece Count (عدد القطع) */}
-                            <td className="py-2.5 px-2 text-center font-mono text-sky-300">
+                            <td className="py-2.5 px-2 text-center font-mono text-[#60a5fa]">
                               {line.pieceCount > 0 ? `${line.pieceCount} ق` : '---'}
                             </td>
 
@@ -391,37 +391,37 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
 
                             {/* Branch Stock */}
                             <td className="py-2.5 px-2 text-center font-mono font-bold">
-                              <span className={line.branchStock > 0 ? 'text-emerald-400' : 'text-slate-400'}>
+                              <span className={line.branchStock > 0 ? 'text-[#0d9488]' : 'text-slate-400'}>
                                 {line.branchStock} ك
                               </span>
                             </td>
 
                             {/* October Stock */}
                             <td className="py-2.5 px-2 text-center font-mono font-bold">
-                              <span className={line.octoberStock >= line.requiredFromOctober ? 'text-sky-300' : 'text-rose-400'}>
+                              <span className={line.octoberStock >= line.requiredFromOctober ? 'text-[#60a5fa]' : 'text-[#ef4444]'}>
                                 {line.octoberStock} ك
                               </span>
                             </td>
 
                             {/* Required from October */}
-                            <td className="py-2.5 px-2 text-center font-mono font-black bg-amber-500/10">
+                            <td className="py-2.5 px-2 text-center font-mono font-black bg-[var(--app-warn)]">
                               {line.requiredFromOctober > 0 ? (
-                                <span className="text-amber-400 bg-amber-400/20 px-2 py-0.5 rounded-full border border-amber-400/30">
+                                <span className="text-[#d97706] bg-[var(--app-warn)] px-2 py-0.5 rounded-full border border-[var(--app-warn)]">
                                   {line.requiredFromOctober} ك
                                 </span>
                               ) : (
-                                <span className="text-emerald-400 text-[10px]">مغطى بالفرع</span>
+                                <span className="text-[#0d9488] text-[10px]">مغطى بالفرع</span>
                               )}
                             </td>
 
                             {/* Supply Status */}
                             <td className="py-2.5 px-2 text-center text-[10.5px]">
                               {line.supplyStatus === 'متوفر بالفرع بالكامل' ? (
-                                <span className="text-emerald-400 font-bold">متوفر بالفرع 🟢</span>
+                                <span className="text-[#0d9488] font-bold">متوفر بالفرع 🟢</span>
                               ) : line.supplyStatus === 'عجز جزئي - توريد من أكتوبر' ? (
-                                <span className="text-amber-300 font-bold">عجز جزئي (أكتوبر) 🟡</span>
+                                <span className="text-[#d97706] font-bold">عجز جزئي (أكتوبر) 🟡</span>
                               ) : (
-                                <span className="text-rose-400 font-bold">نواقص بالكامل (أكتوبر) 🔴</span>
+                                <span className="text-[#ef4444] font-bold">نواقص بالكامل (أكتوبر) 🔴</span>
                               )}
                             </td>
 
@@ -430,18 +430,18 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
                               {line.requiredFromOctober === 0 ? (
                                 <span className="text-slate-400">---</span>
                               ) : line.octoberCoverageStatus.includes('عجز') ? (
-                                <span className="text-rose-400 bg-rose-950/60 px-1.5 py-0.5 rounded border border-rose-800">
+                                <span className="text-[#ef4444] bg-[var(--app-risk)] px-1.5 py-0.5 rounded border border-[var(--app-risk)]">
                                   عجز بأكتوبر 🔴
                                 </span>
                               ) : (
-                                <span className="text-emerald-300 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800">
+                                <span className="text-[#0d9488] bg-[var(--app-ok)] px-1.5 py-0.5 rounded border border-[var(--app-ok)]">
                                   جاهز للصرف 🟢
                                 </span>
                               )}
                             </td>
 
                             {/* Line Total Price */}
-                            <td className="py-2.5 px-3 text-left font-mono font-black text-amber-400">
+                            <td className="py-2.5 px-3 text-left font-mono font-black text-[#d97706]">
                               {formatCurrency(line.totalPrice)}
                             </td>
 
@@ -453,7 +453,7 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
                                 className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
                                 title="عرض تفاصيل الفواتير الطالبة لهذا الصنف"
                               >
-                                {isExpanded ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4" />}
+                                {isExpanded ? <ChevronUp className="w-4 h-4 text-[#d97706]" /> : <ChevronDown className="w-4 h-4" />}
                               </button>
                             </td>
                           </tr>
@@ -463,21 +463,21 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
                             <tr className="bg-slate-950/90 border-y border-slate-800">
                               <td colSpan={13} className="p-3 text-xs">
                                 <div className="space-y-1.5 pr-6">
-                                  <div className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
-                                    <Receipt className="w-3.5 h-3.5 text-amber-400" />
+                                  <div className="text-[11px] font-bold text-[#d97706] flex items-center gap-1.5">
+                                    <Receipt className="w-3.5 h-3.5 text-[#d97706]" />
                                     <span>تفاصيل طلبات الصنف عبر ({line.sources.length}) فواتير:</span>
                                   </div>
                                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
                                     {line.sources.map((src, sIdx) => (
                                       <div key={sIdx} className="bg-slate-900 p-2 rounded-xl border border-slate-800 text-[11px] space-y-0.5">
                                         <div className="flex items-center justify-between">
-                                          <span className="font-mono text-amber-300 font-bold">#{src.invoiceNumber}</span>
+                                          <span className="font-mono text-[#d97706] font-bold">#{src.invoiceNumber}</span>
                                           <span className="text-slate-400 font-mono text-[10px]">{src.date || ''}</span>
                                         </div>
                                         <div className="font-bold text-white truncate">{src.customerName}</div>
                                         <div className="flex items-center justify-between text-slate-300 text-[10px] pt-0.5">
                                           <span>المندوب: {src.repName || '---'}</span>
-                                          <span className="font-bold text-amber-400 font-mono">
+                                          <span className="font-bold text-[#d97706] font-mono">
                                             {src.cartons} ك {src.pieces > 0 ? `+ ${src.pieces} ق` : ''}
                                           </span>
                                         </div>
@@ -500,26 +500,26 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
                     <td colSpan={3} className="py-3 px-3">
                       إجمالي الفاتورة المجمعة ({summary.productCount} صنف)
                     </td>
-                    <td className="py-3 px-2 text-center font-mono text-amber-300 text-sm">
+                    <td className="py-3 px-2 text-center font-mono text-[#d97706] text-sm">
                       {summary.totalCartons} ك
                     </td>
-                    <td className="py-3 px-2 text-center font-mono text-sky-300">
+                    <td className="py-3 px-2 text-center font-mono text-[#60a5fa]">
                       {summary.totalPieces} ق
                     </td>
                     <td className="py-3 px-2 text-center font-mono text-slate-200">
                       {summary.grandTotalPieces}
                     </td>
-                    <td className="py-3 px-2 text-center font-mono text-emerald-400">
+                    <td className="py-3 px-2 text-center font-mono text-[#0d9488]">
                       {summary.totalBranchAvailableCartons} ك
                     </td>
                     <td className="py-3 px-2 text-center text-slate-400">---</td>
-                    <td className="py-3 px-2 text-center font-mono text-amber-400 text-sm bg-amber-500/10">
+                    <td className="py-3 px-2 text-center font-mono text-[#d97706] text-sm bg-[var(--app-warn)]">
                       {summary.totalRequiredFromOctober} ك
                     </td>
-                    <td colSpan={2} className="py-3 px-2 text-center text-[11px] text-amber-300">
+                    <td colSpan={2} className="py-3 px-2 text-center text-[11px] text-[#d97706]">
                       {summary.totalRequiredFromOctober > 0 ? `تحويل ${summary.totalRequiredFromOctober} كرتونة من أكتوبر` : 'مغطى محلياً بالكامل'}
                     </td>
-                    <td className="py-3 px-3 text-left font-mono text-amber-400 text-sm">
+                    <td className="py-3 px-3 text-left font-mono text-[#d97706] text-sm">
                       {formatCurrency(summary.totalAmount)}
                     </td>
                     <td></td>
@@ -535,7 +535,7 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
         <div className="p-3.5 sm:p-4 bg-slate-950 border-t border-slate-800 flex items-center justify-between flex-wrap gap-2 shrink-0">
           <div className="text-xs text-slate-400">
             <span>ملخص التحويل: </span>
-            <strong className="text-white">{summary.totalCartons}</strong> كرتونة مطلوبة • منها <strong className="text-emerald-400">{summary.totalBranchAvailableCartons}</strong> كرتونة بالفرع • و <strong className="text-amber-400">{summary.totalRequiredFromOctober}</strong> كرتونة من مخزن 6 أكتوبر
+            <strong className="text-white">{summary.totalCartons}</strong> كرتونة مطلوبة • منها <strong className="text-[#0d9488]">{summary.totalBranchAvailableCartons}</strong> كرتونة بالفرع • و <strong className="text-[#d97706]">{summary.totalRequiredFromOctober}</strong> كرتونة من مخزن 6 أكتوبر
           </div>
 
           <div className="flex items-center gap-2">
@@ -543,7 +543,7 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
               type="button"
               onClick={handleExportExcel}
               disabled={isExporting || summary.lines.length === 0}
-              className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-md transition flex items-center gap-2 cursor-pointer disabled:opacity-40"
+              className="bg-gradient-to-r from-[var(--app-ok)] via-[var(--app-ok)] to-[var(--app-ok)] hover:from-[var(--app-ok)] hover:to-[var(--app-ok)] text-white font-black px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-md transition flex items-center gap-2 cursor-pointer disabled:opacity-40"
             >
               <FileSpreadsheet className="w-4 h-4" />
               <span>تصدير تقرير الإكسل المنسق والمميز 📊</span>

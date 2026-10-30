@@ -73,33 +73,33 @@ export const CreditStatusBadge: React.FC<CreditStatusBadgeProps> = ({
         onClick={onClick}
         className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold border transition shadow-2xs cursor-pointer active:scale-95 ${
           isExceeded
-            ? 'bg-rose-100 hover:bg-rose-200 text-rose-900 border-rose-300'
+            ? 'bg-[var(--app-risk-tint)] hover:bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border-[var(--app-risk-line)]'
             : hasOverdue
-            ? 'bg-amber-100 hover:bg-amber-200 text-amber-900 border-amber-400'
+            ? 'bg-[var(--app-warn-tint)] hover:bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border-[var(--app-warn)]'
             : hasNoCredit
-            ? 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-300'
-            : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-900 border-emerald-300'
+            ? 'bg-[var(--app-warn-tint)] hover:bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border-[var(--app-warn-line)]'
+            : 'bg-[var(--app-ok-tint)] hover:bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)]'
         }`}
         title={`تدقيق الائتمان: قبل ${debtBefore.toLocaleString()} | متأخرات ${overdueDebt.toLocaleString()} | الفاتورة ${invoiceTotal.toLocaleString()} | بعد ${debtAfter.toLocaleString()} | الحد ${creditLimit.toLocaleString()}`}
       >
         {isExceeded ? (
           <>
-            <ShieldAlert className="w-3 h-3 text-rose-600 shrink-0" />
+            <ShieldAlert className="w-3 h-3 text-[var(--app-risk-text)] shrink-0" />
             <span>متجاوز (+{excessAmount.toLocaleString()} ج.م)</span>
           </>
         ) : hasOverdue ? (
           <>
-            <AlertTriangle className="w-3 h-3 text-amber-700 shrink-0" />
+            <AlertTriangle className="w-3 h-3 text-[var(--app-warn-text)] shrink-0" />
             <span>متأخرات ({overdueDebt.toLocaleString()} ج.م)</span>
           </>
         ) : hasNoCredit ? (
           <>
-            <Wallet className="w-3 h-3 text-amber-700 shrink-0" />
+            <Wallet className="w-3 h-3 text-[var(--app-warn-text)] shrink-0" />
             <span>نقدي (0 حد)</span>
           </>
         ) : (
           <>
-            <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+            <ShieldCheck className="w-3 h-3 text-[var(--app-ok-text)] shrink-0" />
             <span>ائتمان آمن</span>
           </>
         )}
@@ -113,12 +113,12 @@ export const CreditStatusBadge: React.FC<CreditStatusBadgeProps> = ({
       onClick={onClick}
       className={`group w-full text-right p-2.5 rounded-xl border transition-all shadow-2xs hover:shadow-md cursor-pointer active:scale-[0.99] flex flex-col gap-1.5 ${
         isExceeded
-          ? 'bg-rose-50/90 hover:bg-rose-100/90 border-rose-300 text-rose-950'
+          ? 'bg-[var(--app-risk-tint)] hover:bg-[var(--app-risk-tint)] border-[var(--app-risk-line)] text-[var(--app-risk-text)]'
           : hasOverdue
-          ? 'bg-amber-50/90 hover:bg-amber-100/90 border-amber-300 text-amber-950'
+          ? 'bg-[var(--app-warn-tint)] hover:bg-[var(--app-warn-tint)] border-[var(--app-warn-line)] text-[var(--app-warn-text)]'
           : hasNoCredit
           ? 'bg-slate-50/90 hover:bg-slate-100/90 border-slate-300 text-slate-900'
-          : 'bg-emerald-50/90 hover:bg-emerald-100/90 border-emerald-300 text-emerald-950'
+          : 'bg-[var(--app-ok-tint)] hover:bg-[var(--app-ok-tint)] border-[var(--app-ok-line)] text-[var(--app-ok-text)]'
       }`}
       title="انقر لفتح جدول التدقيق الائتماني والمديونيات التفصيلي"
     >
@@ -127,13 +127,13 @@ export const CreditStatusBadge: React.FC<CreditStatusBadgeProps> = ({
         <div className="flex items-center gap-1.5 font-black text-[11px]">
           {isExceeded ? (
             <>
-              <ShieldAlert className="w-3.5 h-3.5 text-rose-600 animate-pulse shrink-0" />
-              <span className="text-rose-700">🚨 متجاوزة الحد الائتماني</span>
+              <ShieldAlert className="w-3.5 h-3.5 text-[var(--app-risk-text)] animate-pulse shrink-0" />
+              <span className="text-[var(--app-risk-text)]">🚨 متجاوزة الحد الائتماني</span>
             </>
           ) : hasOverdue ? (
             <>
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-              <span className="text-amber-800">⚠️ عليه متأخرات مستحقة</span>
+              <AlertTriangle className="w-3.5 h-3.5 text-[var(--app-warn-text)] shrink-0" />
+              <span className="text-[var(--app-warn-text)]">⚠️ عليه متأخرات مستحقة</span>
             </>
           ) : hasNoCredit ? (
             <>
@@ -142,8 +142,8 @@ export const CreditStatusBadge: React.FC<CreditStatusBadgeProps> = ({
             </>
           ) : (
             <>
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-              <span className="text-emerald-800">✅ ائتمان سليم ومعتمد</span>
+              <ShieldCheck className="w-3.5 h-3.5 text-[var(--app-ok-text)] shrink-0" />
+              <span className="text-[var(--app-ok-text)]">✅ ائتمان سليم ومعتمد</span>
             </>
           )}
         </div>
@@ -155,12 +155,12 @@ export const CreditStatusBadge: React.FC<CreditStatusBadgeProps> = ({
 
       {/* Overdue alert strip if customer has overdue debt */}
       {hasOverdue && (
-        <div className="flex items-center justify-between bg-amber-500/15 border border-amber-400/40 text-amber-950 px-2 py-0.5 rounded-lg text-[10px] font-black">
+        <div className="flex items-center justify-between bg-[var(--app-warn)] border border-[var(--app-warn)] text-[var(--app-warn-text)] px-2 py-0.5 rounded-lg text-[10px] font-black">
           <span className="flex items-center gap-1">
-            <Clock className="w-3 h-3 text-amber-700 shrink-0" />
+            <Clock className="w-3 h-3 text-[var(--app-warn-text)] shrink-0" />
             <span>المتأخرات المستحقة:</span>
           </span>
-          <span className="font-mono text-rose-700 bg-white/90 px-1.5 rounded border border-amber-300 font-black">
+          <span className="font-mono text-[var(--app-risk-text)] bg-white/90 px-1.5 rounded border border-[var(--app-warn-line)] font-black">
             {overdueDebt.toLocaleString()} ج.م
           </span>
         </div>
@@ -175,24 +175,24 @@ export const CreditStatusBadge: React.FC<CreditStatusBadgeProps> = ({
 
         <div className="flex items-center justify-between">
           <span className="text-[9px] font-medium text-slate-500">المتأخرات:</span>
-          <strong className={`font-mono font-bold ${hasOverdue ? 'text-rose-700' : 'text-slate-600'}`}>
+          <strong className={`font-mono font-bold ${hasOverdue ? 'text-[var(--app-risk-text)]' : 'text-slate-600'}`}>
             {hasOverdue ? `${overdueDebt.toLocaleString()} ⚠️` : '0'}
           </strong>
         </div>
 
-        <div className="flex items-center justify-between text-amber-900">
-          <span className="text-[9px] text-amber-700 font-medium">الفاتورة:</span>
+        <div className="flex items-center justify-between text-[var(--app-warn-text)]">
+          <span className="text-[9px] text-[var(--app-warn-text)] font-medium">الفاتورة:</span>
           <strong className="font-mono font-bold">+{invoiceTotal.toLocaleString()}</strong>
         </div>
 
-        <div className="flex items-center justify-between text-blue-900">
-          <span className="text-[9px] text-blue-700 font-medium">الحد:</span>
+        <div className="flex items-center justify-between text-[var(--app-navy-text)]">
+          <span className="text-[9px] text-[var(--app-navy-text)] font-medium">الحد:</span>
           <strong className="font-mono">{hasNoCredit ? '0' : creditLimit.toLocaleString()}</strong>
         </div>
 
         <div className="col-span-2 flex items-center justify-between pt-0.5 border-t border-current/10">
           <span className="text-[9px] font-black">بعد الفاتورة:</span>
-          <strong className={`font-mono font-black text-[11px] ${isExceeded ? 'text-rose-700' : 'text-emerald-800'}`}>
+          <strong className={`font-mono font-black text-[11px] ${isExceeded ? 'text-[var(--app-risk-text)]' : 'text-[var(--app-ok-text)]'}`}>
             {debtAfter.toLocaleString()} ج.م
           </strong>
         </div>
@@ -200,17 +200,17 @@ export const CreditStatusBadge: React.FC<CreditStatusBadgeProps> = ({
 
       {/* Excess / Remaining note */}
       {isExceeded && (
-        <div className="text-[9px] font-black text-rose-900 bg-rose-200/80 px-1.5 py-0.5 rounded-md text-center border border-rose-300">
+        <div className="text-[9px] font-black text-[var(--app-risk-text)] bg-[var(--app-risk-tint)] px-1.5 py-0.5 rounded-md text-center border border-[var(--app-risk-line)]">
           مطلوب دفعة: {excessAmount.toLocaleString()} ج.م
         </div>
       )}
       {!isExceeded && hasOverdue && (
-        <div className="text-[9px] font-bold text-amber-900 bg-amber-200/70 px-1.5 py-0.5 rounded-md text-center border border-amber-300">
+        <div className="text-[9px] font-bold text-[var(--app-warn-text)] bg-[var(--app-warn-tint)] px-1.5 py-0.5 rounded-md text-center border border-[var(--app-warn-line)]">
           يلزم تحصيل المتأخرات ({overdueDebt.toLocaleString()} ج.م)
         </div>
       )}
       {!isExceeded && !hasOverdue && !hasNoCredit && (
-        <div className="text-[9px] font-bold text-emerald-800 bg-emerald-200/70 px-1.5 py-0.5 rounded-md text-center border border-emerald-300">
+        <div className="text-[9px] font-bold text-[var(--app-ok-text)] bg-[var(--app-ok-tint)] px-1.5 py-0.5 rounded-md text-center border border-[var(--app-ok-line)]">
           متاح للشراء: {remainingCredit.toLocaleString()} ج.م
         </div>
       )}

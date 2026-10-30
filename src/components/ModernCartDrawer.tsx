@@ -190,13 +190,13 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
           {/* Header */}
           <div className="bg-navy-panel text-white p-4 sm:p-5 flex items-center justify-between shadow-md shrink-0">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-sm shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black shadow-sm shrink-0">
                 <ShoppingCart className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="text-base font-black flex items-center gap-2">
                   <span>سلة المشتريات والطلبية</span>
-                  <span className="bg-amber-400 text-slate-950 text-xs px-2 py-0.5 rounded-full font-black tabular-nums">
+                  <span className="bg-[var(--app-warn)] text-slate-950 text-xs px-2 py-0.5 rounded-full font-black tabular-nums">
                     {cart.length}
                   </span>
                 </h3>
@@ -216,7 +216,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
 
           {/* Error Banner */}
           {errorMessage && (
-            <div className="bg-rose-50 border-b border-rose-200 text-rose-700 p-3 text-xs font-bold flex items-center gap-2 shrink-0">
+            <div className="bg-[var(--app-risk-tint)] border-b border-[var(--app-risk-line)] text-[var(--app-risk-text)] p-3 text-xs font-bold flex items-center gap-2 shrink-0">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorMessage}</span>
             </div>
@@ -227,7 +227,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
             {activeCustomer ? (
               <div className="bg-white rounded-2xl p-3 border border-[var(--app-line)] shadow-xs flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-black shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] flex items-center justify-center font-black shrink-0">
                     <User className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
@@ -238,7 +238,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
                     <div className="text-[10px] text-slate-500 flex items-center gap-2">
                       <span>كود: {activeCustomer.code || 'N/A'}</span>
                       <span>•</span>
-                      <span>المديونية: <strong className="text-rose-600 font-black">{formatCurrency(activeCustomer.currentBalance ?? activeCustomer.balance ?? 0)} ج</strong></span>
+                      <span>المديونية: <strong className="text-[var(--app-risk-text)] font-black">{formatCurrency(activeCustomer.currentBalance ?? activeCustomer.balance ?? 0)} ج</strong></span>
                     </div>
                   </div>
                 </div>
@@ -246,7 +246,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
                 <button
                   type="button"
                   onClick={handleClearCustomer}
-                  className="text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2.5 py-1.5 rounded-lg border border-amber-200 transition shrink-0 cursor-pointer"
+                  className="text-xs font-bold text-[var(--app-warn-text)] hover:text-[var(--app-warn-text)] bg-[var(--app-warn-tint)] hover:bg-[var(--app-warn-tint)] px-2.5 py-1.5 rounded-lg border border-[var(--app-warn-line)] transition shrink-0 cursor-pointer"
                 >
                   تغيير
                 </button>
@@ -255,10 +255,10 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5 text-amber-600" />
+                    <User className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
                     <span>حدد العميل الموجه له الطلبية:</span>
                   </label>
-                  <span className="text-[10px] text-rose-600 font-bold">* إلزامي للحفظ</span>
+                  <span className="text-[10px] text-[var(--app-risk-text)] font-bold">* إلزامي للحفظ</span>
                 </div>
 
                 <div className="relative">
@@ -288,7 +288,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
                             key={c.id}
                             type="button"
                             onClick={() => handleSelectCustomer(c)}
-                            className="w-full text-right p-2.5 hover:bg-amber-50/60 transition flex items-center justify-between text-xs cursor-pointer"
+                            className="w-full text-right p-2.5 hover:bg-[var(--app-warn-tint)] transition flex items-center justify-between text-xs cursor-pointer"
                           >
                             <div className="min-w-0">
                               <div className="font-bold text-slate-900 truncate">{c.name}</div>
@@ -297,7 +297,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
                               </div>
                             </div>
                             <div className="text-left shrink-0">
-                              <span className="text-[11px] font-black text-rose-600">
+                              <span className="text-[11px] font-black text-[var(--app-risk-text)]">
                                 {formatCurrency(c.currentBalance ?? c.balance ?? 0)} ج
                               </span>
                             </div>
@@ -354,7 +354,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
                       <div className="text-[10px] text-slate-400 font-mono mt-0.5">
                         كود: {p.code} • {p.cartonQuantity ? `كرتونة ${p.cartonQuantity} قطعة` : 'قطعة'}
                       </div>
-                      <div className="text-xs font-black text-amber-700 mt-1 tabular-nums">
+                      <div className="text-xs font-black text-[var(--app-warn-text)] mt-1 tabular-nums">
                         {formatCurrency(item.unitPrice)} ج <span className="text-[10px] text-slate-400 font-normal">/ {unitLabel}</span>
                       </div>
                     </div>
@@ -364,7 +364,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
                       <button
                         type="button"
                         onClick={() => removeFromCart(p.id)}
-                        className="text-slate-400 hover:text-rose-600 p-1 transition cursor-pointer"
+                        className="text-slate-400 hover:text-[var(--app-risk-text)] p-1 transition cursor-pointer"
                         title="حذف من السلة"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -392,7 +392,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
                           onClick={() => {
                             updateCartItem(p.id, isPiece ? { pieceCount: count + 1 } : { cartonCount: count + 1 });
                           }}
-                          className="w-7 h-7 rounded-lg bg-navy-panel text-amber-300 hover:bg-navy-hover flex items-center justify-center font-black active:scale-90 cursor-pointer"
+                          className="w-7 h-7 rounded-lg bg-navy-panel text-[#d97706] hover:bg-navy-hover flex items-center justify-center font-black active:scale-90 cursor-pointer"
                         >
                           <Plus className="w-3 h-3" />
                         </button>
@@ -438,7 +438,7 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
                 </div>
                 <div className="flex justify-between text-sm font-black text-slate-900 pt-1 border-t border-slate-200">
                   <span>الإجمالي الصافي:</span>
-                  <span className="text-base text-amber-700 tabular-nums">
+                  <span className="text-base text-[var(--app-warn-text)] tabular-nums">
                     {formatCurrency(cartSummary.grandTotal)} جنيه
                   </span>
                 </div>
@@ -448,11 +448,11 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
                 type="button"
                 onClick={handleCheckout}
                 disabled={isSubmitting || cart.length === 0}
-                className="w-full h-12 bg-gradient-to-l from-[#0f233d] to-[#1a3a63] hover:brightness-110 active:scale-98 text-amber-300 font-black rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg transition cursor-pointer disabled:opacity-50"
+                className="w-full h-12 bg-gradient-to-l from-[#0f233d] to-[#1a3a63] hover:brightness-110 active:scale-98 text-[#d97706] font-black rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg transition cursor-pointer disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-amber-300 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-[var(--app-warn-line)] border-t-transparent rounded-full animate-spin" />
                     <span>جاري تسجيل وإرسال الطلبية...</span>
                   </>
                 ) : (

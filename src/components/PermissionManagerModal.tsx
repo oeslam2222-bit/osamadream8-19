@@ -214,10 +214,10 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
                       <span>{tab.label}</span>
                       <div className="flex items-center gap-1.5">
                         {!isDefault && isAllowed && (
-                          <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold">+مخصص</span>
+                          <span className="text-[9px] bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] px-1.5 py-0.5 rounded font-bold">+مخصص</span>
                         )}
                         {isDefault && !isAllowed && (
-                          <span className="text-[9px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded font-bold">-محذوف</span>
+                          <span className="text-[9px] bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] px-1.5 py-0.5 rounded font-bold">-محذوف</span>
                         )}
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
                           isAllowed ? 'bg-teal-main text-white' : 'bg-slate-200 text-slate-500'

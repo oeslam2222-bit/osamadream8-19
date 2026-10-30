@@ -149,8 +149,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         const custMatch = inv.customerName.toLowerCase().includes(q);
         const repMatch = inv.repName.toLowerCase().includes(q);
         const phoneMatch = inv.customerPhone?.includes(q);
+        const branchMatch = inv.branchName?.toLowerCase().includes(q);
+        const codeMatch = (inv as any).customerCode?.toLowerCase().includes(q);
 
-        if (!numMatch && !custMatch && !repMatch && !phoneMatch) return false;
+        if (!numMatch && !custMatch && !repMatch && !phoneMatch && !branchMatch && !codeMatch) return false;
       }
 
       // 3. Status filter
@@ -387,7 +389,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               className="app-btn app-btn-ghost px-3 text-xs active:scale-95"
               title="تحديث ومزامنة الفواتير مباشرة من قاعدة بيانات السيرفر"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-amber-600' : 'text-slate-500'}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[var(--app-warn-text)]' : 'text-slate-500'}`} />
               <span>{isRefreshing ? 'جاري التحديث...' : 'تحديث من السيرفر'}</span>
             </button>
 
@@ -408,7 +410,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               type="button"
               onClick={() => setViewSegment('invoices')}
               className={`px-4 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                viewSegment === 'invoices' ? 'bg-teal-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                viewSegment === 'invoices' ? 'bg-[var(--app-ok)] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               الفواتير
@@ -417,7 +419,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               type="button"
               onClick={() => setViewSegment('collections')}
               className={`px-4 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                viewSegment === 'collections' ? 'bg-teal-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                viewSegment === 'collections' ? 'bg-[var(--app-ok)] text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               التحصيلات
@@ -544,7 +546,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="ابحث برقم الفاتورة، اسم العميل، الهاتف، المندوب..."
+              placeholder="ابحث برقم الفاتورة، اسم العميل، الهاتف، المندوب، الفرع، كود العميل..."
               className="w-full pl-3 pr-9 py-2 bg-white border border-slate-200 rounded-xl text-xs"
             />
           </div>
@@ -662,7 +664,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 return (
                   <div
                     key={invoice.id}
-                    className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 space-y-3 hover:border-teal-500/50 transition"
+                    className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 space-y-3 hover:border-[var(--app-ok)] transition"
                   >
                     {/* Header: Number + Status */}
                     <div className="flex items-start justify-between gap-2">
@@ -671,7 +673,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           #{invoice.invoiceNumber}
                         </span>
                         {invoice.isShortageInvoice && (
-                          <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)]">
                             نواقص
                           </span>
                         )}
@@ -684,7 +686,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                     {/* Customer & Rep Details */}
                     <div>
                       <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
-                        <Building2 className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                        <Building2 className="w-3.5 h-3.5 text-[var(--app-ok-text)] shrink-0" />
                         <span className="truncate">{invoice.customerName}</span>
                       </div>
                       <div className="text-[11px] text-slate-500 font-medium mt-1 flex items-center gap-2 flex-wrap">
@@ -706,7 +708,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                       </div>
                       <div className="text-left">
                         <div className="text-[10px] text-slate-400 font-bold">إجمالي الفاتورة</div>
-                        <div className="text-sm font-black text-teal-700 mt-0.5 font-mono">
+                        <div className="text-sm font-black text-[var(--app-ok-text)] mt-0.5 font-mono">
                           {formatCurrency(invoice.estimatedGrandTotal)}
                         </div>
                       </div>
@@ -718,7 +720,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         <button
                           type="button"
                           onClick={() => onViewInvoice(invoice)}
-                          className="h-8 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1 transition shadow-xs cursor-pointer"
+                          className="h-8 px-3 rounded-xl bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-bold text-xs flex items-center gap-1 transition shadow-xs cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           <span>عرض</span>
@@ -728,7 +730,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => onEditInvoice(invoice)}
-                            className="h-8 px-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                            className="h-8 px-2.5 rounded-xl bg-[var(--app-warn-tint)] hover:bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)] font-bold text-xs flex items-center gap-1 transition cursor-pointer"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                             <span>تعديل</span>
@@ -739,7 +741,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => handleApproveClick(invoice.id)}
-                            className="h-8 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                            className="h-8 px-2.5 rounded-xl bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-bold text-xs flex items-center gap-1 transition cursor-pointer"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             <span>اعتماد</span>
@@ -912,10 +914,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                       {/* تعليق المندوب الأصلي - يظهر للموافقين (مشرف / مدير فرع / إدارة) */}
                       {invoice.repComment && (
                         <td className="p-3">
-                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-2 mb-1">
+                          <div className="bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] rounded-xl p-2 mb-1">
                             <div className="flex items-center gap-1 mb-1">
-                              <span className="text-[9px] font-black text-amber-700">💬</span>
-                              <span className="text-[9px] font-bold text-amber-700 uppercase">تعليق المندوب</span>
+                              <span className="text-[9px] font-black text-[var(--app-warn-text)]">💬</span>
+                              <span className="text-[9px] font-bold text-[var(--app-warn-text)] uppercase">تعليق المندوب</span>
                             </div>
                             <div className="text-[10px] text-slate-700 italic max-w-[200px] truncate" title={invoice.repComment}>
                               {invoice.repComment}
@@ -1013,7 +1015,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             <>
                               <button
                                 onClick={() => handleBranchManagerApprove(invoice.id)}
-                                className="app-btn app-btn-ok px-2.5 py-1 text-xs font-black shadow-xs bg-sky-600 hover:bg-sky-500 text-white"
+                                className="app-btn app-btn-ok px-2.5 py-1 text-xs font-black shadow-xs bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white"
                                 title="اعتماد مدير الفرع وتوجيه الطلبية للإدارة العامة للاعتماد النهائي"
                               >
                                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1035,7 +1037,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             <>
                               <button
                                 onClick={() => handleAdminFinalApprove(invoice.id)}
-                                className="app-btn px-3 py-1 text-xs font-black shadow-md bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center gap-1.5 active:scale-95"
+                                className="app-btn px-3 py-1 text-xs font-black shadow-md bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 flex items-center gap-1.5 active:scale-95"
                                 title="الاعتماد النهائي للطلبية بقرار الإدارة العامة وصرف المخزون"
                               >
                                 <ShieldCheck className="w-4 h-4 text-slate-950" />
@@ -1056,7 +1058,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           {(invoice.status === 'مرفوضة / ملغاة' || invoice.status === 'ملغاة') && (currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
                             <button
                               onClick={() => handleAdminOverrideApprove(invoice)}
-                              className="app-btn px-3 py-1.5 text-xs font-black shadow-lg bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center gap-1.5 active:scale-95 border border-amber-600/40 animate-pulse"
+                              className="app-btn px-3 py-1.5 text-xs font-black shadow-lg bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 flex items-center gap-1.5 active:scale-95 border border-[var(--app-warn)] animate-pulse"
                               title="تجاوز قرار الرفض السابق واعتماد الفاتورة نهائياً بقرار الإدارة العامة"
                             >
                               <ShieldCheck className="w-4 h-4 text-slate-950" />
@@ -1119,7 +1121,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                                   alert(res.message);
                                 }
                               }}
-                              className="app-btn app-btn-info px-2.5 py-1 text-xs font-black shadow-2xs bg-sky-600 hover:bg-sky-500 text-white"
+                              className="app-btn app-btn-info px-2.5 py-1 text-xs font-black shadow-2xs bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white"
                               title="تأكيد خروج المنتجات للتوصيل مع المندوب"
                             >
                               <Truck className="w-3.5 h-3.5" />
@@ -1310,7 +1312,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         <button
           type="button"
           onClick={onOpenNewOrder}
-          className="w-12 h-12 rounded-full bg-teal-600 hover:bg-teal-700 text-white shadow-xl flex items-center justify-center cursor-pointer active:scale-95 transition"
+          className="w-12 h-12 rounded-full bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white shadow-xl flex items-center justify-center cursor-pointer active:scale-95 transition"
           aria-label="فاتورة جديدة"
         >
           <Plus className="w-6 h-6" />

@@ -50,6 +50,8 @@ export const UnifiedReturnsView: React.FC = () => {
     products,
     visits,
     getVisibleVisits,
+    getVisibleCustomers,
+    getVisibleProducts,
     addVisit,
     updateVisit,
     activeSectorFilter,
@@ -169,16 +171,36 @@ export const UnifiedReturnsView: React.FC = () => {
   }, [returnVisits]);
 
   // Filtered Customers for Search in Create Modal
+  // 🔒 الفلترة حسب الصلاحية: المندوب يرى عملاءه فقط، المشرف يرى عملاء مناديبه،
+  //    مدير الفرع يرى فرعه، والقطاع (منزلي/كهربائي) مطبّق تلقائياً.
   const matchedCustomers = useMemo(() => {
-    if (!customerSearch.trim()) return customers.slice(0, 15);
+    const pool = getVisibleCustomers();
+    if (!customerSearch.trim()) return pool.slice(0, 15);
     const q = customerSearch.trim().toLowerCase();
-    return customers.filter(
+    return pool.filter(
       (c) =>
         (c.name && c.name.toLowerCase().includes(q)) ||
         (c.code && c.code.toLowerCase().includes(q)) ||
-        (c.phone && c.phone.includes(q))
+        (c.phone && c.phone.includes(q)) ||
+        (c.branchName && c.branchName.toLowerCase().includes(q))
     ).slice(0, 20);
-  }, [customers, customerSearch]);
+  }, [customers, customerSearch, currentUser, getVisibleCustomers]);
+
+  // 🔎 البحث الذكي في الأصناف (مقيّد بـ sector/فرع الموظف من getVisibleProducts)
+  const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
+  const editingDraft = itemsDraft.find((d) => d.id === editingDraftId);
+  const productSuggestions = useMemo(() => {
+    const q = (editingDraft?.productName || '').trim().toLowerCase();
+    if (q.length < 1) return [];
+    return getVisibleProducts()
+      .filter(
+        (p) =>
+          (p.name && p.name.toLowerCase().includes(q)) ||
+          (p.code && p.code.toLowerCase().includes(q)) ||
+          (p.unifiedCode && p.unifiedCode.toLowerCase().includes(q))
+      )
+      .slice(0, 6);
+  }, [editingDraftId, editingDraft?.productName, products, currentUser, getVisibleProducts]);
 
   // Handler: Add Item Draft Row
   const handleAddItemRow = () => {
@@ -350,7 +372,7 @@ export const UnifiedReturnsView: React.FC = () => {
       {flashMsg && (
         <div
           className={`p-3.5 rounded-2xl text-xs font-black shadow-lg flex items-center justify-between animate-in fade-in sticky top-16 z-30 ${
-            flashMsg.type === 'ok' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+            flashMsg.type === 'ok' ? 'bg-[var(--app-ok)] text-white' : 'bg-[var(--app-risk)] text-white'
           }`}
         >
           <div className="flex items-center gap-2">
@@ -367,7 +389,7 @@ export const UnifiedReturnsView: React.FC = () => {
       <section className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 flex items-center justify-center shrink-0 shadow-xs">
+            <div className="w-12 h-12 rounded-2xl bg-[var(--app-warn)] border border-[var(--app-warn)] text-[var(--app-warn-text)] flex items-center justify-center shrink-0 shadow-xs">
               <RotateCcw className="w-6 h-6" />
             </div>
             <div>
@@ -375,7 +397,7 @@ export const UnifiedReturnsView: React.FC = () => {
                 <h1 className="text-xl sm:text-2xl font-black text-slate-900">
                   إدارة ومتابعة المرتجعات الموحدة
                 </h1>
-                <span className="bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full text-[11px] font-black border border-amber-200">
+                <span className="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] px-2.5 py-0.5 rounded-full text-[11px] font-black border border-[var(--app-warn-line)]">
                   شاشة شاملة
                 </span>
               </div>
@@ -390,7 +412,7 @@ export const UnifiedReturnsView: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs shadow-md transition cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--app-warn)] hover:bg-[var(--app-warn)] active:scale-95 text-slate-950 font-black text-xs shadow-md transition cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
               <span>تسجيل مرتجع جديد لعميل 📝</span>
@@ -409,45 +431,45 @@ export const UnifiedReturnsView: React.FC = () => {
               {metrics.totalCount} <span className="text-xs font-bold text-slate-400">إذن</span>
             </div>
             <div className="text-[10px] text-slate-500 mt-0.5">
-              قيمة: <strong className="text-amber-700">{formatCurrency(metrics.totalValue)}</strong>
+              قيمة: <strong className="text-[var(--app-warn-text)]">{formatCurrency(metrics.totalValue)}</strong>
             </div>
           </div>
 
-          <div className="bg-amber-50/70 rounded-2xl p-3.5 border border-amber-200/80">
-            <div className="text-[11px] text-amber-800 font-bold flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-amber-600" />
+          <div className="bg-[var(--app-warn-tint)] rounded-2xl p-3.5 border border-[var(--app-warn-line)]">
+            <div className="text-[11px] text-[var(--app-warn-text)] font-bold flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
               <span>عند العميل (بانتظار الاستلام)</span>
             </div>
-            <div className="text-lg sm:text-xl font-black text-amber-900 mt-1">
-              {metrics.pendingCount} <span className="text-xs font-bold text-amber-700">عميل</span>
+            <div className="text-lg sm:text-xl font-black text-[var(--app-warn-text)] mt-1">
+              {metrics.pendingCount} <span className="text-xs font-bold text-[var(--app-warn-text)]">عميل</span>
             </div>
-            <div className="text-[10px] text-amber-700 mt-0.5">
+            <div className="text-[10px] text-[var(--app-warn-text)] mt-0.5">
               تنتظر سيارة المخزن أو المندوب
             </div>
           </div>
 
-          <div className="bg-sky-50 rounded-2xl p-3.5 border border-sky-200/80">
-            <div className="text-[11px] text-sky-800 font-bold flex items-center gap-1.5">
-              <Warehouse className="w-3.5 h-3.5 text-sky-600" />
+          <div className="bg-[var(--app-navy-tint)] rounded-2xl p-3.5 border border-[var(--app-navy-line)]">
+            <div className="text-[11px] text-[var(--app-navy-text)] font-bold flex items-center gap-1.5">
+              <Warehouse className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
               <span>بالمخزن (قيد الفحص)</span>
             </div>
-            <div className="text-lg sm:text-xl font-black text-sky-900 mt-1">
-              {metrics.inWarehouseCount} <span className="text-xs font-bold text-sky-700">شحنة</span>
+            <div className="text-lg sm:text-xl font-black text-[var(--app-navy-text)] mt-1">
+              {metrics.inWarehouseCount} <span className="text-xs font-bold text-[var(--app-navy-text)]">شحنة</span>
             </div>
-            <div className="text-[10px] text-sky-700 mt-0.5">
+            <div className="text-[10px] text-[var(--app-navy-text)] mt-0.5">
               تم تسليمها لأمين المخزن
             </div>
           </div>
 
-          <div className="bg-emerald-50 rounded-2xl p-3.5 border border-emerald-200/80">
-            <div className="text-[11px] text-emerald-800 font-bold flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+          <div className="bg-[var(--app-ok-tint)] rounded-2xl p-3.5 border border-[var(--app-ok-line)]">
+            <div className="text-[11px] text-[var(--app-ok-text)] font-bold flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
               <span>مغلقة ومعتمدة</span>
             </div>
-            <div className="text-lg sm:text-xl font-black text-emerald-900 mt-1">
-              {metrics.closedCount} <span className="text-xs font-bold text-emerald-700">طلب</span>
+            <div className="text-lg sm:text-xl font-black text-[var(--app-ok-text)] mt-1">
+              {metrics.closedCount} <span className="text-xs font-bold text-[var(--app-ok-text)]">طلب</span>
             </div>
-            <div className="text-[10px] text-emerald-700 mt-0.5">
+            <div className="text-[10px] text-[var(--app-ok-text)] mt-0.5">
               تمت التسوية وإرجاع الرصيد
             </div>
           </div>
@@ -473,8 +495,8 @@ export const UnifiedReturnsView: React.FC = () => {
               onClick={() => setActiveTabFilter('at_customer')}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
                 activeTabFilter === 'at_customer'
-                  ? 'bg-amber-600 text-white shadow-xs'
-                  : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                  ? 'bg-[var(--app-warn)] text-white shadow-xs'
+                  : 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] hover:bg-[var(--app-warn-tint)]'
               }`}
             >
               لدى العميل ({metrics.pendingCount})
@@ -484,8 +506,8 @@ export const UnifiedReturnsView: React.FC = () => {
               onClick={() => setActiveTabFilter('at_warehouse')}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
                 activeTabFilter === 'at_warehouse'
-                  ? 'bg-sky-600 text-white shadow-xs'
-                  : 'bg-sky-50 text-sky-800 hover:bg-sky-100'
+                  ? 'bg-[var(--app-navy)] text-white shadow-xs'
+                  : 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] hover:bg-[var(--app-navy-tint)]'
               }`}
             >
               بالمخزن ({metrics.inWarehouseCount})
@@ -495,8 +517,8 @@ export const UnifiedReturnsView: React.FC = () => {
               onClick={() => setActiveTabFilter('closed')}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
                 activeTabFilter === 'closed'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
+                  ? 'bg-[var(--app-ok)] text-white shadow-xs'
+                  : 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] hover:bg-[var(--app-ok-tint)]'
               }`}
             >
               المغلقة ({metrics.closedCount})
@@ -512,7 +534,7 @@ export const UnifiedReturnsView: React.FC = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="بحث باسم العميل، الكود، الصنف..."
-                className="w-full pr-9 pl-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold focus:outline-none focus:border-amber-500 bg-slate-50"
+                className="w-full pr-9 pl-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold focus:outline-none focus:border-[var(--app-warn)] bg-slate-50"
               />
             </div>
 
@@ -537,7 +559,7 @@ export const UnifiedReturnsView: React.FC = () => {
       {/* Returns Cards / List */}
       {filteredReturns.length === 0 ? (
         <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center space-y-3 shadow-xs">
-          <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto shadow-xs">
+          <div className="w-16 h-16 rounded-2xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] flex items-center justify-center mx-auto shadow-xs">
             <RotateCcw className="w-8 h-8" />
           </div>
           <h3 className="text-base font-black text-slate-900">لا توجد أذونات مرتجعات تطابق الفلترة الحالية</h3>
@@ -563,8 +585,8 @@ export const UnifiedReturnsView: React.FC = () => {
                   isClosed
                     ? 'border-slate-200/80 bg-slate-50/40'
                     : isAtWarehouse
-                    ? 'border-sky-200 ring-1 ring-sky-50'
-                    : 'border-amber-200 ring-1 ring-amber-50'
+                    ? 'border-[var(--app-navy-line)] ring-1 ring-[var(--app-navy)]'
+                    : 'border-[var(--app-warn-line)] ring-1 ring-[var(--app-warn)]'
                 }`}
               >
                 {/* Header: Customer Name, Status Badge, Handled info */}
@@ -573,10 +595,10 @@ export const UnifiedReturnsView: React.FC = () => {
                     <div
                       className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-black ${
                         isClosed
-                          ? 'bg-emerald-100 text-emerald-800'
+                          ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]'
                           : isAtWarehouse
-                          ? 'bg-sky-100 text-sky-800'
-                          : 'bg-amber-100 text-amber-900'
+                          ? 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]'
+                          : 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]'
                       }`}
                     >
                       <RotateCcw className="w-5 h-5" />
@@ -594,10 +616,10 @@ export const UnifiedReturnsView: React.FC = () => {
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
                             isClosed
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
                               : isAtWarehouse
-                              ? 'bg-sky-100 text-sky-800 border border-sky-200 animate-pulse'
-                              : 'bg-amber-100 text-amber-900 border border-amber-200 animate-pulse'
+                              ? 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)] animate-pulse'
+                              : 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)] animate-pulse'
                           }`}
                         >
                           {status === 'عند العميل' ? '📍 عميل لديه مرتجع (عند العميل)' : status}
@@ -617,7 +639,7 @@ export const UnifiedReturnsView: React.FC = () => {
                   <div className="flex items-center gap-3 sm:self-center">
                     <div className="text-left sm:text-right">
                       <div className="text-[10px] text-slate-400 font-bold">إجمالي قيمة المرتجع</div>
-                      <div className="text-base sm:text-lg font-black text-amber-800 app-num">
+                      <div className="text-base sm:text-lg font-black text-[var(--app-warn-text)] app-num">
                         {formatCurrency(Number(visit.returnValue) || 0)}
                       </div>
                     </div>
@@ -673,7 +695,7 @@ export const UnifiedReturnsView: React.FC = () => {
                 {photos.length > 0 && (
                   <div className="space-y-1.5 pt-1">
                     <div className="text-[11px] font-black text-slate-700 flex items-center gap-1.5">
-                      <ImageIcon className="w-3.5 h-3.5 text-amber-600" />
+                      <ImageIcon className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
                       <span>صور المرتجع المرفقة من المندوب ({photos.length} صورة) - انقر للتكبير:</span>
                     </div>
                     <div className="flex items-center gap-2 overflow-x-auto pb-1">
@@ -717,7 +739,7 @@ export const UnifiedReturnsView: React.FC = () => {
                             'تم استلام بضاعة المرتجع بالمخزن المركزي/الفرعي وجاري الفحص والمعاينة'
                           )
                         }
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-black text-[11px] shadow-xs transition cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white font-black text-[11px] shadow-xs transition cursor-pointer"
                         title="تأكيد وصول واستلام بضاعة المرتجع إلى المخزن"
                       >
                         <Warehouse className="w-3.5 h-3.5" />
@@ -738,7 +760,7 @@ export const UnifiedReturnsView: React.FC = () => {
                             );
                           }
                         }}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] shadow-xs transition cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black text-[11px] shadow-xs transition cursor-pointer"
                         title="إغلاق وتسوية إذن المرتجع نهائياً وتحديث الحسابات والمخزن"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
@@ -756,7 +778,7 @@ export const UnifiedReturnsView: React.FC = () => {
                             handleUpdateReturnStage(visit.id, 'مرفوض', `تم رفض المرتجع: ${reason}`);
                           }
                         }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-rose-200 text-rose-700 hover:bg-rose-50 font-black text-[11px] transition cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-[var(--app-risk-line)] text-[var(--app-risk-text)] hover:bg-[var(--app-risk-tint)] font-black text-[11px] transition cursor-pointer"
                         title="رفض إذن المرتجع"
                       >
                         <XCircle className="w-3.5 h-3.5" />
@@ -809,7 +831,7 @@ export const UnifiedReturnsView: React.FC = () => {
         >
           <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-6 animate-in zoom-in-95 duration-150">
             {/* Modal Header */}
-            <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 p-4 sm:p-5 flex items-center justify-between">
+            <div className="bg-gradient-to-r from-[var(--app-warn)] to-[var(--app-warn)] text-slate-950 p-4 sm:p-5 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-xl bg-slate-950/15 flex items-center justify-center">
                   <RotateCcw className="w-5 h-5 text-slate-950" />
@@ -842,7 +864,7 @@ export const UnifiedReturnsView: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setSelectedCustomer(null)}
-                      className="text-amber-700 hover:underline font-bold text-[11px]"
+                      className="text-[var(--app-warn-text)] hover:underline font-bold text-[11px]"
                     >
                       تغيير العميل
                     </button>
@@ -850,14 +872,14 @@ export const UnifiedReturnsView: React.FC = () => {
                 </label>
 
                 {selectedCustomer ? (
-                  <div className="bg-amber-50 rounded-2xl p-3 border border-amber-200 flex items-center justify-between gap-3">
+                  <div className="bg-[var(--app-warn-tint)] rounded-2xl p-3 border border-[var(--app-warn-line)] flex items-center justify-between gap-3">
                     <div>
                       <div className="font-black text-slate-900 text-sm">{selectedCustomer.name}</div>
                       <div className="text-[11px] text-slate-600 font-bold">
                         كود: {selectedCustomer.code} • الفرع: {selectedCustomer.branchName} • الهاتف: {selectedCustomer.phone}
                       </div>
                     </div>
-                    <span className="bg-amber-500 text-slate-950 px-2 py-0.5 rounded font-black text-[10px]">
+                    <span className="bg-[var(--app-warn)] text-slate-950 px-2 py-0.5 rounded font-black text-[10px]">
                       محدد
                     </span>
                   </div>
@@ -868,23 +890,29 @@ export const UnifiedReturnsView: React.FC = () => {
                       value={customerSearch}
                       onChange={(e) => setCustomerSearch(e.target.value)}
                       placeholder="ابحث باسم العميل أو الكود لاختياره..."
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:outline-none focus:border-amber-500 bg-slate-50"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:outline-none focus:border-[var(--app-warn)] bg-slate-50"
                     />
                     <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 bg-white">
+                      {matchedCustomers.length === 0 && (
+                        <div className="p-3 text-center text-[11px] font-bold text-slate-500">
+                          لا توجد عملاء متاحين ضمن صلاحيتك{customerSearch.trim() ? ' بهذا البحث' : ''}.
+                        </div>
+                      )}
                       {matchedCustomers.map((cust) => (
                         <button
                           key={cust.id}
                           type="button"
                           onClick={() => setSelectedCustomer(cust)}
-                          className="w-full text-right p-2.5 hover:bg-amber-50/80 transition flex items-center justify-between text-xs cursor-pointer"
+                          className="w-full text-right p-2.5 hover:bg-[var(--app-warn-tint)] transition flex items-center justify-between text-xs cursor-pointer"
                         >
-                          <div>
-                            <div className="font-black text-slate-900">{cust.name}</div>
+                          <div className="min-w-0">
+                            <div className="font-black text-slate-900 truncate">{cust.name}</div>
                             <div className="text-[10px] text-slate-500">
-                              كود: {cust.code} • {cust.branchName}
+                              كود: {cust.code} • فرع: {cust.branchName || '—'}
+                              {cust.repName ? ` • مندوب: ${cust.repName}` : ''}
                             </div>
                           </div>
-                          <span className="text-[11px] font-black text-amber-700">اختيار ←</span>
+                          <span className="text-[11px] font-black text-[var(--app-warn-text)]">اختيار ←</span>
                         </button>
                       ))}
                     </div>
@@ -900,7 +928,7 @@ export const UnifiedReturnsView: React.FC = () => {
                   value={generalReason}
                   onChange={(e) => setGeneralReason(e.target.value)}
                   placeholder="مثال: مرتجع بضاعة بطلب العميل / تالف نقل / زيادة مخزون"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:outline-none focus:border-amber-500 bg-slate-50"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:outline-none focus:border-[var(--app-warn)] bg-slate-50"
                 />
               </div>
 
@@ -908,13 +936,13 @@ export const UnifiedReturnsView: React.FC = () => {
               <div className="space-y-2.5">
                 <div className="flex items-center justify-between">
                   <label className="font-black text-slate-800 flex items-center gap-1.5">
-                    <Boxes className="w-4 h-4 text-amber-600" />
+                    <Boxes className="w-4 h-4 text-[var(--app-warn-text)]" />
                     <span>٣. قائمة الأصناف المرتجعة ({itemsDraft.length} صنف):</span>
                   </label>
                   <button
                     type="button"
                     onClick={handleAddItemRow}
-                    className="inline-flex items-center gap-1 text-amber-700 hover:text-amber-800 font-black text-[11px] cursor-pointer"
+                    className="inline-flex items-center gap-1 text-[var(--app-warn-text)] hover:text-[var(--app-warn-text)] font-black text-[11px] cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>إضافة صنف آخر +</span>
@@ -933,7 +961,7 @@ export const UnifiedReturnsView: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleRemoveItemRow(item.id)}
-                            className="text-rose-600 hover:text-rose-700 cursor-pointer font-bold flex items-center gap-0.5"
+                            className="text-[var(--app-risk-text)] hover:text-[var(--app-risk-text)] cursor-pointer font-bold flex items-center gap-0.5"
                           >
                             <Trash2 className="w-3 h-3" />
                             <span>حذف</span>
@@ -944,18 +972,49 @@ export const UnifiedReturnsView: React.FC = () => {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <div>
                           <label className="text-[10px] text-slate-500 font-bold block mb-1">اسم الصنف أو كوده:</label>
+                          <div className="relative">
                           <input
                             type="text"
                             value={item.productName}
+                            onFocus={() => setEditingDraftId(item.id)}
                             onChange={(e) => {
                               const val = e.target.value;
+                              setEditingDraftId(item.id);
                               setItemsDraft((prev) =>
                                 prev.map((i) => (i.id === item.id ? { ...i, productName: val } : i))
                               );
                             }}
-                            placeholder="اكتب اسم الصنف أو ابحث..."
-                            className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold focus:outline-none bg-white"
+                            placeholder="اكتب اسم الصنف أو الكود... (اقتراحات ذكية)"
+                            className="w-full px-2.5 py-2 rounded-lg border border-slate-200 text-xs font-bold focus:outline-none focus:border-[var(--app-warn)] bg-white"
                           />
+                          {editingDraftId === item.id && productSuggestions.length > 0 && (
+                            <div className="absolute z-30 mt-1 w-full max-h-52 overflow-y-auto rounded-xl border border-[var(--app-warn-line)] bg-white shadow-xl divide-y divide-slate-100">
+                              {productSuggestions.map((prod) => (
+                                <button
+                                  key={prod.id}
+                                  type="button"
+                                  onClick={() => {
+                                    handleSelectProductForDraft(item.id, prod);
+                                    setEditingDraftId(null);
+                                  }}
+                                  className="w-full text-right p-2 hover:bg-[var(--app-warn-tint)] transition flex items-center justify-between gap-2 text-xs cursor-pointer"
+                                >
+                                  <div className="min-w-0">
+                                    <div className="font-black text-slate-900 truncate">{prod.name}</div>
+                                    <div className="text-[10px] text-slate-500">
+                                      كود: {prod.code}
+                                      {prod.unifiedCode ? ` • موحّد: ${prod.unifiedCode}` : ''}
+                                      {prod.branchName ? ` • ${prod.branchName}` : ''}
+                                    </div>
+                                  </div>
+                                  <span className="shrink-0 text-[10px] font-black text-[var(--app-ok-text)]">
+                                    {(prod.branchStockActual || 0) > 0 ? `${prod.branchStockActual} كرتونة` : 'غير متوفر'}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                          </div>
                         </div>
 
                         <div>
@@ -1028,9 +1087,9 @@ export const UnifiedReturnsView: React.FC = () => {
                   ))}
                 </div>
 
-                <div className="flex items-center justify-between bg-amber-50/70 p-3 rounded-2xl border border-amber-200">
+                <div className="flex items-center justify-between bg-[var(--app-warn-tint)] p-3 rounded-2xl border border-[var(--app-warn-line)]">
                   <span className="font-black text-slate-800">إجمالي قيمة المرتجع التقديرية:</span>
-                  <span className="text-sm font-black text-amber-900 app-num">
+                  <span className="text-sm font-black text-[var(--app-warn-text)] app-num">
                     {formatCurrency(draftTotalValue)}
                   </span>
                 </div>
@@ -1039,12 +1098,12 @@ export const UnifiedReturnsView: React.FC = () => {
               {/* 4. Multi-Photo Attachments */}
               <div className="space-y-2">
                 <label className="font-black text-slate-800 flex items-center gap-1.5">
-                  <Camera className="w-4 h-4 text-amber-600" />
+                  <Camera className="w-4 h-4 text-[var(--app-warn-text)]" />
                   <span>٤. إرفاق صور المرتجعات (كاميرا الهاتف أو المعرض):</span>
                 </label>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-amber-400 bg-amber-50 hover:bg-amber-100/80 text-amber-950 font-black text-xs transition cursor-pointer">
+                  <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-[var(--app-warn)] bg-[var(--app-warn-tint)] hover:bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] font-black text-xs transition cursor-pointer">
                     <Upload className="w-4 h-4" />
                     <span>اختيار أو التقاط صور (متعدد)</span>
                     <input
@@ -1072,7 +1131,7 @@ export const UnifiedReturnsView: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleRemovePhoto(pIdx)}
-                          className="absolute top-1 left-1 w-6 h-6 rounded-full bg-rose-600 text-white flex items-center justify-center cursor-pointer shadow"
+                          className="absolute top-1 left-1 w-6 h-6 rounded-full bg-[var(--app-risk)] text-white flex items-center justify-center cursor-pointer shadow"
                           title="حذف هذه الصورة"
                         >
                           <X className="w-3.5 h-3.5" />
@@ -1099,7 +1158,7 @@ export const UnifiedReturnsView: React.FC = () => {
                 type="button"
                 disabled={isSubmitting || !selectedCustomer}
                 onClick={handleSubmitReturn}
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-black text-xs shadow-md transition cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[var(--app-warn)] hover:bg-[var(--app-warn)] active:scale-95 text-slate-950 font-black text-xs shadow-md transition cursor-pointer disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <>

@@ -37,31 +37,31 @@ export const ExcelTargetsSection: React.FC<Props> = ({ saveTargets }) => {
     <div className="space-y-6">
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
         <div className="flex items-center gap-3 mb-6">
-          <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-xs font-bold">🎯</span>
+          <span className="w-6 h-6 rounded-full bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] flex items-center justify-center text-xs font-bold">🎯</span>
           <h3 className="text-lg font-black text-slate-900">التارجت (أهداف المبيعات والتحصيل)</h3>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           <label className="flex items-center gap-3 p-4 rounded-2xl border-2 cursor-pointer transition bg-white">
-            <input type="radio" name="tSrc" value="file" checked={src==='file'} onChange={()=>setSrc('file')} className="w-4 h-4 text-amber-600"/>
+            <input type="radio" name="tSrc" value="file" checked={src==='file'} onChange={()=>setSrc('file')} className="w-4 h-4 text-[var(--app-warn-text)]"/>
             <div><div className="font-bold text-slate-900">رفع ملف التارجت من الجهاز</div><div className="text-xs text-slate-500">اختر ملف .xlsx من جهازك</div></div>
           </label>
           <label className="flex items-center gap-3 p-4 rounded-2xl border-2 cursor-pointer transition bg-white">
-            <input type="radio" name="tSrc" value="sheets" checked={src==='sheets'} onChange={()=>setSrc('sheets')} className="w-4 h-4 text-amber-600"/>
+            <input type="radio" name="tSrc" value="sheets" checked={src==='sheets'} onChange={()=>setSrc('sheets')} className="w-4 h-4 text-[var(--app-warn-text)]"/>
             <div><div className="font-bold text-slate-900">جلب من Google Sheets</div><div className="text-xs text-slate-500">لصق رابط الشيت المنشور للعامة</div></div>
           </label>
         </div>
 
         {src==='file' ? (
-          <div className="border-2 border-dashed border-slate-300 rounded-3xl p-8 text-center hover:border-amber-400 hover:bg-amber-50/50 transition cursor-pointer">
-            <Upload className="w-10 h-10 text-amber-600 mx-auto mb-3"/>
+          <div className="border-2 border-dashed border-slate-300 rounded-3xl p-8 text-center hover:border-[var(--app-warn)] hover:bg-[var(--app-warn-tint)] transition cursor-pointer">
+            <Upload className="w-10 h-10 text-[var(--app-warn-text)] mx-auto mb-3"/>
             <p className="text-sm text-slate-600">اسحب ملف إكسل هنا أو انقر لاختيار ملف</p>
             <input type="file" accept=".xlsx,.csv" className="hidden" onChange={(e)=>setFile(e.target.files?.[0]||null)}/>
           </div>
         ) : (
           <div className="space-y-3">
-            <input type="text" placeholder="لصق رابط Google Sheet للتارجت..." value={url} onChange={(e)=>setUrl(e.target.value)} className="w-full bg-slate-50 border rounded-xl px-4 py-3 text-xs font-medium focus:ring-2 focus:ring-amber-500 outline-none"/>
-            <button type="button" onClick={generateSampleCustomerTargetTemplate} className="w-full py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 hover:bg-amber-50 hover:border-amber-300 transition"><Download className="w-4 h-4 inline mr-2"/> تحميل نموذج فارغ للتارجت</button>
+            <input type="text" placeholder="لصق رابط Google Sheet للتارجت..." value={url} onChange={(e)=>setUrl(e.target.value)} className="w-full bg-slate-50 border rounded-xl px-4 py-3 text-xs font-medium focus:ring-2 focus:ring-[var(--app-warn)] outline-none"/>
+            <button type="button" onClick={generateSampleCustomerTargetTemplate} className="w-full py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold text-slate-700 hover:bg-[var(--app-warn-tint)] hover:border-[var(--app-warn-line)] transition"><Download className="w-4 h-4 inline mr-2"/> تحميل نموذج فارغ للتارجت</button>
           </div>
         )}
 
@@ -75,11 +75,11 @@ export const ExcelTargetsSection: React.FC<Props> = ({ saveTargets }) => {
       {s.data.length>0 && (
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 animate-in fade-in">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-amber-500"/><h4 className="font-bold text-slate-900">معاينة التارجت ({s.data.length} سجل)</h4></div>
+            <div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-[var(--app-warn)]"/><h4 className="font-bold text-slate-900">معاينة التارجت ({s.data.length} سجل)</h4></div>
           </div>
 
           {s.errors.length>0 && (
-            <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 mb-4 text-xs text-rose-800"><AlertCircle className="w-4 h-4 mr-1.5"/> {s.errors.join(' | ')}</div>
+            <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] rounded-xl p-3 mb-4 text-xs text-[var(--app-risk-text)]"><AlertCircle className="w-4 h-4 mr-1.5"/> {s.errors.join(' | ')}</div>
           )}
 
           <div className="overflow-x-auto max-h-96 border border-slate-200 rounded-2xl">
@@ -105,7 +105,7 @@ export const ExcelTargetsSection: React.FC<Props> = ({ saveTargets }) => {
       )}
 
       {s.success&&(
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-4 text-xs text-emerald-800 flex items-center gap-2"><CheckCircle2 className="w-5 h-5"/> {s.success}</div>
+        <div className="bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] rounded-xl p-4 mb-4 text-xs text-[var(--app-ok-text)] flex items-center gap-2"><CheckCircle2 className="w-5 h-5"/> {s.success}</div>
       )}
     </div>
   );

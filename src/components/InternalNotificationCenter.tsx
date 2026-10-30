@@ -59,14 +59,14 @@ const priorityOrder: Record<AppNotification['priority'], number> = {
 };
 
 const priorityStyles: Record<AppNotification['priority'], string> = {
-  high: 'border-rose-300/80 bg-rose-50/90 hover:bg-rose-100/90 dark:bg-slate-900 dark:border-rose-500/50 dark:hover:bg-slate-850 shadow-xs',
-  medium: 'border-amber-300/80 bg-amber-50/90 hover:bg-amber-100/90 dark:bg-slate-900 dark:border-amber-500/50 dark:hover:bg-slate-850 shadow-xs',
+  high: 'border-[var(--app-risk-line)] bg-[var(--app-risk-tint)] hover:bg-[var(--app-risk-tint)] dark:bg-slate-900 dark:border-[var(--app-risk)] dark:hover:bg-slate-850 shadow-xs',
+  medium: 'border-[var(--app-warn-line)] bg-[var(--app-warn-tint)] hover:bg-[var(--app-warn-tint)] dark:bg-slate-900 dark:border-[var(--app-warn)] dark:hover:bg-slate-850 shadow-xs',
   low: 'border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:hover:bg-slate-850 shadow-xs',
 };
 
 const priorityDot: Record<AppNotification['priority'], string> = {
-  high: 'bg-rose-500',
-  medium: 'bg-amber-500',
+  high: 'bg-[var(--app-risk)]',
+  medium: 'bg-[var(--app-warn)]',
   low: 'bg-slate-400',
 };
 
@@ -176,8 +176,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
         title: `متبقي التارجت: ${formatCurrency(remainingSales)}`,
         detail: `إنجاز البيع ${salesRate}% • متبقي للتحصيل ${formatCurrency(remainingCollection)}`,
         icon: Target,
-        accent: 'text-lime-700',
-        iconBg: 'bg-lime-100 text-lime-700',
+        accent: 'text-[var(--app-ok-text)]',
+        iconBg: 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]',
         actionTab: 'targets',
         actionLabel: 'التارجت',
       });
@@ -202,8 +202,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
             ? `${overdueVisits.length} متأخرة عن موعدها • ${todayVisits.length} مجدولة اليوم`
             : `${todayVisits.length} مجدولة اليوم`,
         icon: CalendarClock,
-        accent: 'text-rose-700',
-        iconBg: 'bg-rose-100 text-rose-700',
+        accent: 'text-[var(--app-risk-text)]',
+        iconBg: 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]',
         actionTab: 'visits',
         actionLabel: 'الزيارات',
       });
@@ -233,8 +233,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
           title: `${pendingReturns.length} مرتجع بانتظار الموافقة`,
           detail: `إجمالي قيمة المرتجعات ${formatCurrency(pendingReturnValue)} — بعد الموافقة تتحوّل لأمين المخزن للتنسيق والاستلام`,
           icon: Package,
-          accent: 'text-amber-700',
-          iconBg: 'bg-amber-100 text-amber-700',
+          accent: 'text-[var(--app-warn-text)]',
+          iconBg: 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]',
           actionTab: 'visits',
           actionLabel: 'الزيارات والمرتجعات',
         });
@@ -255,8 +255,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
           title: `تم تنفيذ ${completedTodayVisits.length} زيارة ميدانية اليوم 🚗`,
           detail: `زيارات مسجلة من المناديب • تحصيلات مسجلة بالزيارات: ${formatCurrency(collectedToday)}`,
           icon: CalendarCheck,
-          accent: 'text-teal-700',
-          iconBg: 'bg-teal-100 text-teal-700',
+          accent: 'text-[var(--app-ok-text)]',
+          iconBg: 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]',
           actionTab: 'visits',
           actionLabel: 'مراجعة الزيارات',
         });
@@ -278,8 +278,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
           title: 'تم تحديث قاعدة البيانات والمزامنة بنجاح ⚡',
           detail: 'تم استقبال أحدث البيانات من الخادم ومزامنة السجلات المحلية.',
           icon: Database,
-          accent: 'text-sky-700',
-          iconBg: 'bg-sky-100 text-sky-700',
+          accent: 'text-[var(--app-navy-text)]',
+          iconBg: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]',
           actionTab: 'command',
           actionLabel: 'اللوحة',
         });
@@ -293,8 +293,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
           title: 'تم تحديث تارجت المبيعات والتحصيل 🎯',
           detail: 'تم اعتماد وتحديث أهداف المبيعات والتحصيل للفترة الحالية.',
           icon: Target,
-          accent: 'text-lime-700',
-          iconBg: 'bg-lime-100 text-lime-700',
+          accent: 'text-[var(--app-ok-text)]',
+          iconBg: 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]',
           actionTab: 'targets',
           actionLabel: 'التارجت',
         });
@@ -308,8 +308,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
           title: 'تم تحديث قائمة الأصناف والأسعار 📦',
           detail: 'كتالوج المنتجات والأسعار محدث بأحدث بيانات المخزون والتسعير.',
           icon: Package,
-          accent: 'text-emerald-700',
-          iconBg: 'bg-emerald-100 text-emerald-700',
+          accent: 'text-[var(--app-ok-text)]',
+          iconBg: 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]',
           actionTab: 'catalog',
           actionLabel: 'الكتالوج',
         });
@@ -332,8 +332,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
         title: `${overLimit.length} عميل تجاوز حد الائتمان`,
         detail: 'تجاوز حدود السحب الائتماني — راجع الكشف قبل اعتماد طلبيات جديدة',
         icon: ShieldAlert,
-        accent: 'text-rose-700',
-        iconBg: 'bg-rose-100 text-rose-700',
+        accent: 'text-[var(--app-risk-text)]',
+        iconBg: 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]',
         actionTab: 'all_customers',
         actionLabel: 'العملاء',
       });
@@ -349,8 +349,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
         title: `طلب توريد من مخزن أكتوبر — فاتورة #${invoice.invoiceNumber}`,
         detail: `${invoice.branchName} • ${invoice.shortageItemsCount || 0} أصناف ناقصة • مطلوب مراجعة المشرف ومدير الفرع`,
         icon: Truck,
-        accent: 'text-rose-700',
-        iconBg: 'bg-rose-100 text-rose-700',
+        accent: 'text-[var(--app-risk-text)]',
+        iconBg: 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]',
         actionTab: 'invoices',
         actionLabel: 'الفواتير',
       });
@@ -366,8 +366,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
         title: `${shortage.length} صنف ناقص (نواقص)`,
         detail: 'أصناف تحتاج توريدًا من المخزن الرئيسي',
         icon: Package,
-        accent: 'text-amber-700',
-        iconBg: 'bg-amber-100 text-amber-700',
+        accent: 'text-[var(--app-warn-text)]',
+        iconBg: 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]',
         actionTab: 'inventory',
         actionLabel: 'المخزون',
       });
@@ -383,8 +383,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
         title: `${promo.length} صنف بعرض ترويجي`,
         detail: 'أصناف مميزة بأسعار خاصة — روّج لها للعملاء',
         icon: Flame,
-        accent: 'text-orange-700',
-        iconBg: 'bg-orange-100 text-orange-700',
+        accent: 'text-[var(--app-warn-text)]',
+        iconBg: 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]',
         actionTab: 'catalog',
         actionLabel: 'الكتالوج',
       });
@@ -417,8 +417,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
         title: `${pendingReturns.length} مرتجع معلق`,
         detail: 'مرتجعات بانتظار المعالجة — أمين المخزن',
         icon: RotateCcw,
-        accent: 'text-rose-600',
-        iconBg: 'bg-rose-50 text-rose-600',
+        accent: 'text-[var(--app-risk-text)]',
+        iconBg: 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]',
         actionTab: 'returns',
         actionLabel: 'المرتجعات',
       });
@@ -446,8 +446,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
           title: `${pendingSupervisorReview.length} فاتورة بانتظار مراجعة المشرف`,
           detail: `إجمالي قيمة الفواتير ${formatCurrency(pendingValue)} — تتطلب المراجعة والاعتماد قبل التحويل لمدير الفرع`,
           icon: ShieldAlert,
-          accent: 'text-amber-700',
-          iconBg: 'bg-amber-100 text-amber-700',
+          accent: 'text-[var(--app-warn-text)]',
+          iconBg: 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]',
           actionTab: 'invoices',
           actionLabel: 'مراجعة الفواتير',
         });
@@ -468,8 +468,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
           title: `${pendingBranchApproval.length} فاتورة بانتظار اعتماد الفرع`,
           detail: `إجمالي القيمة ${formatCurrency(pendingValue)} — بعد اعتماد مدير الفرع تتحول للإدارة للمراجعة النهائية`,
           icon: ShieldAlert,
-          accent: 'text-rose-700',
-          iconBg: 'bg-rose-100 text-rose-700',
+          accent: 'text-[var(--app-risk-text)]',
+          iconBg: 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]',
           actionTab: 'invoices',
           actionLabel: 'اعتماد الفواتير',
         });
@@ -490,8 +490,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
           title: `${overCreditInvoices.length} فاتورة dépasseت حد الائتمان للعميل`,
           detail: `إجمالي الفواتير ${formatCurrency(overValue)} — يتطلب مراجعة موقف العميل المالي قبل الاعتماد`,
           icon: Wallet,
-          accent: 'text-rose-700',
-          iconBg: 'bg-rose-100 text-rose-700',
+          accent: 'text-[var(--app-risk-text)]',
+          iconBg: 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]',
           actionTab: 'invoices',
           actionLabel: 'الفواتير',
         });
@@ -508,8 +508,8 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
         title: `${legalCustomers.length} قضية قانونية`,
         detail: 'عملاء محولون للشؤون القانونية',
         icon: Scale,
-        accent: 'text-indigo-600',
-        iconBg: 'bg-indigo-50 text-indigo-600',
+        accent: 'text-[var(--app-navy-text)]',
+        iconBg: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]',
         actionTab: 'legal_advisor',
         actionLabel: 'الشؤون القانونية',
       });
@@ -664,14 +664,14 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
         title={hasUnread ? `${unreadCount} إشعار جديد غير مقروء` : 'الإشعارات (جميعها مقروءة)'}
       >
         {hasUnread ? (
-          <BellRing className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-600 animate-pulse" />
+          <BellRing className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-[var(--app-warn-text)] animate-pulse" />
         ) : (
           <Bell className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-slate-500" />
         )}
         {hasUnread && (
           <span
             className={`absolute -top-1 -left-1 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-black text-white flex items-center justify-center shadow-md animate-in zoom-in ${
-              highUnreadCount > 0 ? 'bg-rose-500 ring-2 ring-white' : 'bg-amber-500 ring-2 ring-white'
+              highUnreadCount > 0 ? 'bg-[var(--app-risk)] ring-2 ring-white' : 'bg-[var(--app-warn)] ring-2 ring-white'
             }`}
           >
             {unreadCount}
@@ -699,7 +699,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
             <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/90 dark:bg-slate-900/90 space-y-2.5">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center shrink-0 shadow-xs font-black">
+                  <span className="w-8 h-8 rounded-xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center shrink-0 shadow-xs font-black">
                     <BellRing className="w-4 h-4" />
                   </span>
                   <div className="min-w-0">
@@ -715,7 +715,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                     <button
                       type="button"
                       onClick={markAllRead}
-                      className="flex items-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10.5px] font-black px-2.5 py-1.5 rounded-xl cursor-pointer transition shadow-xs active:scale-95"
+                      className="flex items-center gap-1 bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white text-[10.5px] font-black px-2.5 py-1.5 rounded-xl cursor-pointer transition shadow-xs active:scale-95"
                       title="تعيين كافة الإشعارات كمقروءة وإخفاء علامة التنبيه (زي فيسبوك)"
                     >
                       <CheckCheck className="w-3.5 h-3.5" />
@@ -764,7 +764,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                   <button
                     type="button"
                     onClick={clearAllRead}
-                    className="text-[10px] font-bold text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 px-2 py-1 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
+                    className="text-[10px] font-bold text-slate-500 hover:text-[var(--app-risk-text)] dark:text-slate-400 dark:hover:text-[#ef4444] px-2 py-1 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-800 transition cursor-pointer shrink-0"
                     title="مسح الإشعارات المقروءة من القائمة"
                   >
                     مسح المقروء
@@ -777,7 +777,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
             <div className="flex-1 overflow-y-auto p-2.5 space-y-2 max-h-[60vh] dark:bg-navy-dark2">
               {displayedNotifications.length === 0 ? (
                 <div className="text-center py-10 px-4 space-y-2">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-xs">
+                  <div className="w-12 h-12 rounded-2xl bg-[var(--app-ok-tint)] dark:bg-[var(--app-ok)] text-[var(--app-ok-text)] dark:text-[#0d9488] flex items-center justify-center mx-auto shadow-xs">
                     <CheckCheck className="w-6 h-6 stroke-[2.5]" />
                   </div>
                   <div className="text-sm font-black text-slate-800 dark:text-slate-100">
@@ -792,7 +792,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                     <button
                       type="button"
                       onClick={() => setFilterMode('all')}
-                      className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline pt-1 cursor-pointer block mx-auto"
+                      className="text-xs font-bold text-[var(--app-navy-text)] dark:text-[#60a5fa] hover:underline pt-1 cursor-pointer block mx-auto"
                     >
                       استعراض الإشعارات السابقة ({notifications.length})
                     </button>
@@ -844,7 +844,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                                 <button
                                   type="button"
                                   onClick={(e) => markSingleRead(n, e)}
-                                  className="text-[10.5px] font-black text-white bg-emerald-600 hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:text-slate-950 px-2.5 py-0.5 rounded-lg shrink-0 cursor-pointer transition active:scale-95 shadow-sm"
+                                  className="text-[10.5px] font-black text-white bg-[var(--app-ok)] hover:bg-[var(--app-ok)] dark:bg-[var(--app-ok)] dark:hover:bg-[var(--app-ok)] dark:text-slate-950 px-2.5 py-0.5 rounded-lg shrink-0 cursor-pointer transition active:scale-95 shadow-sm"
                                   title="تحديد هذا الإشعار كمقروء وإخفاؤه من التنبيهات"
                                 >
                                   تم القراءة ✓
@@ -859,7 +859,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                               <button
                                 type="button"
                                 onClick={(e) => dismissNotification(n, e)}
-                                className="w-5 h-5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-850 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 flex items-center justify-center transition cursor-pointer"
+                                className="w-5 h-5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-850 text-slate-400 hover:text-[var(--app-risk-text)] dark:hover:text-[#ef4444] flex items-center justify-center transition cursor-pointer"
                                 title="إخفاء هذا الإشعار تماماً"
                               >
                                 <X className="w-3.5 h-3.5" />
@@ -873,7 +873,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
 
                           <div className="flex items-center justify-between gap-2 mt-2 pt-1 border-t border-slate-200/70 dark:border-slate-800">
                             {n.actionTab && n.actionLabel ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-amber-700 dark:text-amber-300 hover:underline underline-offset-2">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-black text-[var(--app-warn-text)] dark:text-[#d97706] hover:underline underline-offset-2">
                                 {n.actionLabel}
                                 <ChevronDown className="w-3 h-3 -rotate-90" />
                               </span>
@@ -899,7 +899,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
                 طنطاوي دريم جروب • إشعارات ذكية
               </span>
               <span className="flex items-center gap-1 shrink-0">
-                <TrendingUp className="w-3 h-3 text-emerald-500" />
+                <TrendingUp className="w-3 h-3 text-[var(--app-ok-text)]" />
                 تحفظ القراءة والإخفاء فورياً
               </span>
             </div>

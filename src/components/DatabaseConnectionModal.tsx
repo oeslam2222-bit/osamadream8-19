@@ -87,7 +87,7 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
         <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white p-5 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg ${
-              isConnected ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+              isConnected ? 'bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)]' : 'bg-[var(--app-warn)] text-[#d97706] border border-[var(--app-warn)]'
             }`}>
               <Database className="w-5 h-5" />
             </div>
@@ -96,8 +96,8 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
                 <span>حالة قاعدة البيانات والمزامنة</span>
                 <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold border ${
                   isConnected
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                    ? 'bg-[var(--app-ok)] text-[#0d9488] border-[var(--app-ok)]'
+                    : 'bg-[var(--app-warn)] text-[#d97706] border-[var(--app-warn)]'
                 }`}>
                   {isConnected ? 'متصل بالسحابة 🟢' : 'وضع أوفلاين 🟡'}
                 </span>
@@ -120,13 +120,13 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
           {/* Main Status Banner */}
           <div className={`p-4 rounded-2xl border flex items-start gap-3 ${
             isConnected
-              ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
-              : 'bg-amber-50/80 border-amber-200 text-amber-950'
+              ? 'bg-[var(--app-ok-tint)] border-[var(--app-ok-line)] text-[var(--app-ok-text)]'
+              : 'bg-[var(--app-warn-tint)] border-[var(--app-warn-line)] text-[var(--app-warn-text)]'
           }`}>
             {isConnected ? (
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+              <CheckCircle2 className="w-5 h-5 text-[var(--app-ok-text)] shrink-0 mt-0.5" />
             ) : (
-              <WifiOff className="w-5 h-5 text-amber-600 shrink-0 mt-0.5 animate-pulse" />
+              <WifiOff className="w-5 h-5 text-[var(--app-warn-text)] shrink-0 mt-0.5 animate-pulse" />
             )}
             <div className="flex-1">
               <div className="font-black text-sm">
@@ -140,7 +140,7 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
               {supabaseStatus.pingMs && (
                 <div className="flex items-center gap-3 mt-2 text-[11px] font-mono font-bold text-slate-500">
                   <span className="flex items-center gap-1">
-                    <Activity className="w-3.5 h-3.5 text-emerald-600" />
+                    <Activity className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
                     استجابة السيرفر: {supabaseStatus.pingMs} ms
                   </span>
                   {supabaseStatus.lastSyncTime && (
@@ -175,7 +175,7 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
             </h4>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center shrink-0">
                   <Users className="w-4 h-4" />
                 </div>
                 <div>
@@ -187,7 +187,7 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
               </div>
 
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] flex items-center justify-center shrink-0">
                   <CalendarCheck className="w-4 h-4" />
                 </div>
                 <div>
@@ -199,7 +199,7 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
               </div>
 
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] flex items-center justify-center shrink-0">
                   <Package className="w-4 h-4" />
                 </div>
                 <div>
@@ -211,7 +211,7 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
               </div>
 
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center shrink-0">
                   <Receipt className="w-4 h-4" />
                 </div>
                 <div>
@@ -223,7 +223,7 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
               </div>
 
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] flex items-center justify-center shrink-0">
                   <Users className="w-4 h-4" />
                 </div>
                 <div>
@@ -235,7 +235,7 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
               </div>
 
               <div className="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] flex items-center justify-center shrink-0">
                   <Target className="w-4 h-4" />
                 </div>
                 <div>
@@ -251,12 +251,12 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
           {/* Offline Queue Status */}
           <div className="p-4 rounded-2xl bg-slate-900 text-white flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-black">
+              <div className="w-9 h-9 rounded-xl bg-[var(--app-warn)] text-[#d97706] flex items-center justify-center font-black">
                 <HardDrive className="w-5 h-5" />
               </div>
               <div>
                 <div className="text-xs font-bold text-slate-300">طابور التغييرات الأوفلاين (IndexedDB)</div>
-                <div className="text-sm font-black text-amber-400">
+                <div className="text-sm font-black text-[#d97706]">
                   {offlineQueueCount === 0 ? 'لا توجد عمليات معلقة • كل شيء متزامن ✅' : `${offlineQueueCount} عملية مسجلة بانتظار المزامنة ⏳`}
                 </div>
               </div>
@@ -265,7 +265,7 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
               <button
                 onClick={handleFullSync}
                 disabled={isTesting}
-                className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs transition cursor-pointer flex items-center gap-1.5 shadow"
+                className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs transition cursor-pointer flex items-center gap-1.5 shadow"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
                 <span>مزامنة الآن</span>
@@ -275,12 +275,12 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
 
           {/* Role Scoping Assurance */}
           {currentUser && (
-            <div className="p-4 rounded-2xl bg-blue-50/70 border border-blue-200 text-blue-950 space-y-2">
-              <div className="flex items-center gap-2 font-black text-xs text-blue-900">
-                <ShieldCheck className="w-4 h-4 text-blue-600" />
+            <div className="p-4 rounded-2xl bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] text-[var(--app-navy-text)] space-y-2">
+              <div className="flex items-center gap-2 font-black text-xs text-[var(--app-navy-text)]">
+                <ShieldCheck className="w-4 h-4 text-[var(--app-navy-text)]" />
                 <span>عزل البيانات والصلاحيات لحسابك ({currentUser.name})</span>
               </div>
-              <p className="text-xs text-blue-900/80 leading-relaxed">
+              <p className="text-xs text-[var(--app-navy-text)] leading-relaxed">
                 {currentUser.role === 'sales_rep' &&
                   'أنت مسجل كمندوب مبيعات: الواجهة مقيدة بصلاحية صارمة، ترى فقط أرقامك الشخصية، عملاءك المسجلين باسمك، مخزن فرعك المتاح، وزياراتك الخاصة دون رؤية مناديب آخرين.'}
                 {currentUser.role === 'supervisor' &&
@@ -302,7 +302,7 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
             disabled={isTesting}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-slate-900 hover:bg-slate-800 text-white transition cursor-pointer active:scale-95 disabled:opacity-50"
           >
-            <Zap className={`w-3.5 h-3.5 text-amber-400 ${isTesting ? 'animate-pulse' : ''}`} />
+            <Zap className={`w-3.5 h-3.5 text-[#d97706] ${isTesting ? 'animate-pulse' : ''}`} />
             <span>اختبار الاتصال السحابي ⚡</span>
           </button>
 
@@ -310,7 +310,7 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
             type="button"
             onClick={handleFullSync}
             disabled={isTesting}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-400 text-slate-950 transition cursor-pointer active:scale-95 disabled:opacity-50"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 transition cursor-pointer active:scale-95 disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
             <span>مزامنة شاملة 🔄</span>

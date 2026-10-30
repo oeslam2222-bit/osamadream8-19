@@ -933,7 +933,7 @@ function onEdit(e) {
   if (!isAdminOrDev) {
     return (
       <div className="bg-white rounded-3xl p-8 border border-slate-200 text-center space-y-3 my-6 shadow-sm" dir="rtl">
-        <div className="w-14 h-14 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mx-auto shadow-inner">
+        <div className="w-14 h-14 rounded-2xl bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] flex items-center justify-center mx-auto shadow-inner">
           <ShieldAlert className="w-8 h-8" />
         </div>
         <h3 className="text-lg font-black text-slate-900">غير مصرح لك بالدخول</h3>
@@ -981,13 +981,13 @@ function onEdit(e) {
       <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-[#12283e] text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 space-y-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-400/10 border border-amber-400/30 text-amber-300 rounded-xl text-xs font-black">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[var(--app-warn)] border border-[var(--app-warn)] text-[#d97706] rounded-xl text-xs font-black">
               <Sparkles className="w-4 h-4" />
               <span>مركز إدارة الشيتات السحابية الخمس المركزية (صفحة واحدة موحدة)</span>
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
-              <FileSpreadsheet className="w-8 h-8 text-amber-400" />
+              <FileSpreadsheet className="w-8 h-8 text-[#d97706]" />
               <span>لوحة الربط والمزامنة المركزية لملفات الإكسل وجوجل شيت</span>
             </h1>
 
@@ -1000,15 +1000,15 @@ function onEdit(e) {
           <div className="flex items-center gap-3 shrink-0 flex-wrap">
             <div className="bg-white/10 backdrop-blur-xs border border-white/10 rounded-2xl p-4 text-center min-w-[120px]">
               <div className="text-[11px] text-slate-300 font-bold">الشيتات المتصلة</div>
-              <div className="text-2xl font-black text-emerald-300 font-mono mt-0.5">
+              <div className="text-2xl font-black text-[#0d9488] font-mono mt-0.5">
                 {metrics.connectedSheetsCount} / 5
               </div>
-              <div className="text-[10px] text-emerald-400 font-bold mt-1">🟢 سحابية Live</div>
+              <div className="text-[10px] text-[#0d9488] font-bold mt-1">🟢 سحابية Live</div>
             </div>
 
             <div className="bg-white/10 backdrop-blur-xs border border-white/10 rounded-2xl p-4 text-center min-w-[120px]">
               <div className="text-[11px] text-slate-300 font-bold">قاعدة العملاء</div>
-              <div className="text-2xl font-black text-amber-300 font-mono mt-0.5">
+              <div className="text-2xl font-black text-[#d97706] font-mono mt-0.5">
                 {metrics.totalCustomers.toLocaleString('ar-EG')}
               </div>
               <div className="text-[10px] text-slate-300 mt-1">عميل فريد (0 تكرار)</div>
@@ -1023,7 +1023,7 @@ function onEdit(e) {
               type="button"
               onClick={handleSyncAllSheets}
               disabled={syncingKey !== null}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs sm:text-sm shadow-lg transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs sm:text-sm shadow-lg transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
               {syncingKey === 'all' ? (
                 <>
@@ -1041,9 +1041,9 @@ function onEdit(e) {
             <button
               type="button"
               onClick={handleRunDedupAudit}
-              className="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer"
+              className="bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)] font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer"
             >
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <ShieldCheck className="w-4 h-4 text-[#0d9488]" />
               <span>فحص ومنع التكرار الشامل (0 تكرار)</span>
             </button>
           </div>
@@ -1052,7 +1052,7 @@ function onEdit(e) {
             <button
               type="button"
               onClick={() => setIsWipeModalOpen(true)}
-              className="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 font-bold px-3.5 py-2 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+              className="bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-[#ef4444] border border-[var(--app-risk)] font-bold px-3.5 py-2 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>تصفير ومسح البيانات للبدء من جديد</span>
@@ -1062,23 +1062,23 @@ function onEdit(e) {
 
         {/* Master Sync Progress Alert */}
         {masterSyncProgress && (
-          <div className="bg-emerald-950/80 border border-emerald-400 text-emerald-200 p-4 rounded-2xl text-xs sm:text-sm flex items-center gap-3 animate-in fade-in">
-            <RefreshCw className="w-5 h-5 text-emerald-400 animate-spin shrink-0" />
+          <div className="bg-[var(--app-ok)] border border-[var(--app-ok)] text-[#0d9488] p-4 rounded-2xl text-xs sm:text-sm flex items-center gap-3 animate-in fade-in">
+            <RefreshCw className="w-5 h-5 text-[#0d9488] animate-spin shrink-0" />
             <span className="font-bold">{masterSyncProgress}</span>
           </div>
         )}
 
         {/* Dedup Audit Notice */}
         {dedupNotice && (
-          <div className="bg-emerald-900/90 border border-emerald-400 text-emerald-100 p-4 rounded-2xl text-xs sm:text-sm flex items-center justify-between gap-3 animate-in fade-in">
+          <div className="bg-[var(--app-ok)] border border-[var(--app-ok)] text-[#0d9488] p-4 rounded-2xl text-xs sm:text-sm flex items-center justify-between gap-3 animate-in fade-in">
             <div className="flex items-center gap-2.5 font-bold">
-              <ShieldCheck className="w-5 h-5 text-emerald-300 shrink-0" />
+              <ShieldCheck className="w-5 h-5 text-[#0d9488] shrink-0" />
               <span>{dedupNotice.message}</span>
             </div>
             <button
               type="button"
               onClick={() => setDedupNotice(null)}
-              className="text-emerald-300 hover:text-white p-1"
+              className="text-[#0d9488] hover:text-white p-1"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1087,25 +1087,25 @@ function onEdit(e) {
       </div>
 
       {/* Reassurance & Zero-Duplication Guarantee Banner */}
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-950 text-xs">
+      <div className="bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[var(--app-warn-text)] text-xs">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black shrink-0">
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <strong className="block text-sm font-black text-amber-900">
+            <strong className="block text-sm font-black text-[var(--app-warn-text)]">
               ضمان عدم تكرار البيانات وتحديث المناديب فورياً (Strict In-Place Deduplication)
             </strong>
-            <p className="text-amber-800 text-[11px] mt-0.5">
+            <p className="text-[var(--app-warn-text)] text-[11px] mt-0.5">
               كل شيت يتم مزامنته أو رفعه يمر تلقائياً عبر محرك الفحص الذكي (المطابقة بالكود الموحد، رقم الهاتف، واسم النشاط). يتم تحديث بيانات نفس العميل والصنف في مكانه بدون مضاعفة السجلات أو خلق صفوف مكررة.
             </p>
           </div>
         </div>
         <div className="shrink-0 flex items-center gap-2">
-          <span className="px-3 py-1.5 rounded-xl bg-white border border-amber-300 font-bold text-[11px] text-amber-900">
+          <span className="px-3 py-1.5 rounded-xl bg-white border border-[var(--app-warn-line)] font-bold text-[11px] text-[var(--app-warn-text)]">
             ✓ كود موحد
           </span>
-          <span className="px-3 py-1.5 rounded-xl bg-white border border-amber-300 font-bold text-[11px] text-amber-900">
+          <span className="px-3 py-1.5 rounded-xl bg-white border border-[var(--app-warn-line)] font-bold text-[11px] text-[var(--app-warn-text)]">
             ✓ تحديث لحظي للموظفين
           </span>
         </div>
@@ -1118,7 +1118,7 @@ function onEdit(e) {
           onClick={() => setActiveSectorTab('home')}
           className={`flex-1 py-3 px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2.5 transition cursor-pointer ${
             activeSectorTab === 'home'
-              ? 'bg-amber-500 text-slate-950 shadow-md ring-2 ring-amber-300'
+              ? 'bg-[var(--app-warn)] text-slate-950 shadow-md ring-2 ring-[var(--app-warn)]'
               : 'text-slate-300 hover:text-white hover:bg-slate-800'
           }`}
         >
@@ -1142,7 +1142,7 @@ function onEdit(e) {
             <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="flex items-start sm:items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-black shrink-0">
+                  <div className="w-12 h-12 rounded-2xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)] flex items-center justify-center font-black shrink-0">
                     <Users className="w-6 h-6" />
                   </div>
                   <div>
@@ -1152,7 +1152,7 @@ function onEdit(e) {
                       </h3>
                       <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
                         isConnected
-                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                          ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
                           : 'bg-slate-100 text-slate-600 border border-slate-300'
                       }`}>
                         {isConnected ? '● متصل سحابياً' : '○ غير متصل'}
@@ -1175,9 +1175,9 @@ function onEdit(e) {
                       {customers.filter((c) => activeSectorTab === 'electrical' ? c.sector === 'electrical' : (!c.sector || c.sector === 'home')).length.toLocaleString('ar-EG')} عميل
                     </div>
                   </div>
-                  <div className="bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl text-center">
-                    <div className="text-[10px] text-rose-600 font-bold">إجمالي المديونيات</div>
-                    <div className="text-sm font-black text-rose-700 font-mono">
+                  <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] px-3 py-1.5 rounded-xl text-center">
+                    <div className="text-[10px] text-[var(--app-risk-text)] font-bold">إجمالي المديونيات</div>
+                    <div className="text-sm font-black text-[var(--app-risk-text)] font-mono">
                       {formatCurrency(customers.filter((c) => activeSectorTab === 'electrical' ? c.sector === 'electrical' : (!c.sector || c.sector === 'home')).reduce((sum, c) => sum + (c.currentBalance ?? c.balance ?? 0), 0))}
                     </div>
                   </div>
@@ -1188,7 +1188,7 @@ function onEdit(e) {
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
                 <div className="flex items-center justify-between">
                   <label htmlFor="customer-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                    <Globe className="w-3.5 h-3.5 text-emerald-600" />
+                    <Globe className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
                     <span>رابط Google Sheet الخاص بعملاء {sectorTitle} (Anyone with the link can view):</span>
                   </label>
                   {sourceUrls[custKey] && (
@@ -1196,7 +1196,7 @@ function onEdit(e) {
                       href={sourceUrls[custKey]}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-emerald-700 hover:underline flex items-center gap-1 font-bold"
+                      className="text-xs text-[var(--app-ok-text)] hover:underline flex items-center gap-1 font-bold"
                     >
                       <span>فتح شيت {sectorTitle} في Google Sheets</span>
                       <ExternalLink className="w-3.5 h-3.5" />
@@ -1213,7 +1213,7 @@ function onEdit(e) {
                       value={sourceUrls[custKey] || ''}
                       onChange={(e) => setSourceUrls((prev) => ({ ...prev, [custKey]: e.target.value }))}
                       placeholder={`رابط شيت Google Sheet لعملاء ${sectorTitle}...`}
-                      className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-medium"
+                      className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-ok)] font-medium"
                     />
                   </div>
 
@@ -1224,7 +1224,7 @@ function onEdit(e) {
                   >
                     {savedUrlNotice === custKey ? (
                       <>
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <Check className="w-3.5 h-3.5 text-[#0d9488]" />
                         <span>تم حفظ الرابط ✓</span>
                       </>
                     ) : (
@@ -1236,7 +1236,7 @@ function onEdit(e) {
                     type="button"
                     onClick={() => handleSyncCustomers()}
                     disabled={syncingKey === custKey || !(sourceUrls[custKey] || '').trim()}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+                    className="bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
                   >
                     {syncingKey === custKey ? (
                       <>
@@ -1254,14 +1254,14 @@ function onEdit(e) {
 
                 {/* Notifications */}
                 {sheetSuccess[custKey] && (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)] shrink-0" />
                     <span>{sheetSuccess[custKey]}</span>
                   </div>
                 )}
                 {sheetErrors[custKey] && (
-                  <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <div className="p-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-xl text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-[var(--app-risk-text)] shrink-0" />
                     <span>{sheetErrors[custKey]}</span>
                   </div>
                 )}
@@ -1297,7 +1297,7 @@ function onEdit(e) {
               onClick={() => exportCustomersToExcel(customers, selectedBranchFilter)}
               className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-amber-300" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-[#d97706]" />
               <span>تصدير قاعدة العملاء الحالية ({customers.length})</span>
             </button>
           </div>
@@ -1307,7 +1307,7 @@ function onEdit(e) {
         <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-black shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)] flex items-center justify-center font-black shrink-0">
                 <BarChart3 className="w-6 h-6" />
               </div>
               <div>
@@ -1317,12 +1317,12 @@ function onEdit(e) {
                   </h3>
                   <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
                     isValidPublishedSource(sources.customerSales)
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
                       : 'bg-slate-100 text-slate-600 border border-slate-300'
                   }`}>
                     {isValidPublishedSource(sources.customerSales) ? '● متصل سحابياً' : '○ غير متصل'}
                   </span>
-                  <span className="bg-amber-100 text-amber-900 text-[10px] px-2 py-0.5 rounded-lg font-bold">
+                  <span className="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] text-[10px] px-2 py-0.5 rounded-lg font-bold">
                     مبيعات الأصناف وأوامر البيع 2026
                   </span>
                 </div>
@@ -1334,15 +1334,15 @@ function onEdit(e) {
 
             {/* Quick Metrics */}
             <div className="flex items-center gap-2.5 flex-wrap">
-              <div className="bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl text-center">
-                <div className="text-[10px] text-emerald-700 font-bold">مبيعات 2026 المسجلة</div>
-                <div className="text-sm font-black text-emerald-800 font-mono">
+              <div className="bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] px-3 py-1.5 rounded-xl text-center">
+                <div className="text-[10px] text-[var(--app-ok-text)] font-bold">مبيعات 2026 المسجلة</div>
+                <div className="text-sm font-black text-[var(--app-ok-text)] font-mono">
                   {formatCurrency(metrics.totalSales2026)}
                 </div>
               </div>
-              <div className="bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-center">
-                <div className="text-[10px] text-blue-700 font-bold">تحصيلات 2026</div>
-                <div className="text-sm font-black text-blue-800 font-mono">
+              <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-3 py-1.5 rounded-xl text-center">
+                <div className="text-[10px] text-[var(--app-navy-text)] font-bold">تحصيلات 2026</div>
+                <div className="text-sm font-black text-[var(--app-navy-text)] font-mono">
                   {formatCurrency(metrics.totalCollections2026)}
                 </div>
               </div>
@@ -1353,7 +1353,7 @@ function onEdit(e) {
           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
             <div className="flex items-center justify-between">
               <label htmlFor="customer-sales-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5 text-amber-600" />
+                <Globe className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
                 <span>رابط Google Sheet الخاص بمبيعات العملاء الشهرية والتحصيل (دمج مباشر بدون تكرار):</span>
               </label>
               {sourceUrls.customerSales && (
@@ -1361,7 +1361,7 @@ function onEdit(e) {
                   href={sourceUrls.customerSales}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-amber-700 hover:underline flex items-center gap-1 font-bold"
+                  className="text-xs text-[var(--app-warn-text)] hover:underline flex items-center gap-1 font-bold"
                 >
                   <span>فتح ا��شيت في Google Sheets</span>
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -1378,7 +1378,7 @@ function onEdit(e) {
                   value={sourceUrls.customerSales}
                   onChange={(e) => setSourceUrls((prev) => ({ ...prev, customerSales: e.target.value }))}
                   placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] font-medium"
                 />
               </div>
 
@@ -1389,7 +1389,7 @@ function onEdit(e) {
               >
                 {savedUrlNotice === 'customerSales' ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-amber-400" />
+                    <Check className="w-3.5 h-3.5 text-[#d97706]" />
                     <span>تم حفظ الرابط ✓</span>
                   </>
                 ) : (
@@ -1401,7 +1401,7 @@ function onEdit(e) {
                 type="button"
                 onClick={() => handleSyncCustomerSales()}
                 disabled={syncingKey === 'customerSales' || !sourceUrls.customerSales.trim()}
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+                className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
               >
                 {syncingKey === 'customerSales' ? (
                   <>
@@ -1419,14 +1419,14 @@ function onEdit(e) {
 
             {/* Notifications */}
             {sheetSuccess.customerSales && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)] shrink-0" />
                 <span>{sheetSuccess.customerSales}</span>
               </div>
             )}
             {sheetErrors.customerSales && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <div className="p-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-xl text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-[var(--app-risk-text)] shrink-0" />
                 <span>{sheetErrors.customerSales}</span>
               </div>
             )}
@@ -1460,7 +1460,7 @@ function onEdit(e) {
                 onClick={() => exportCustomerAnalyticsToExcel(customers, 'تقرير_مبيعات_كافة_العملاء_2026')}
                 className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400" />
+                <FileSpreadsheet className="w-3.5 h-3.5 text-[#d97706]" />
                 <span>تصدير إكسل (مبيعات العملاء)</span>
               </button>
             </div>
@@ -1471,7 +1471,7 @@ function onEdit(e) {
         <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-700 border border-blue-200 flex items-center justify-center font-black shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)] flex items-center justify-center font-black shrink-0">
                 <Package className="w-6 h-6" />
               </div>
               <div>
@@ -1481,12 +1481,12 @@ function onEdit(e) {
                   </h3>
                   <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
                     isValidPublishedSource(sources.products)
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
                       : 'bg-slate-100 text-slate-600 border border-slate-300'
                   }`}>
                     {isValidPublishedSource(sources.products) ? '● متصل سحابياً' : '○ غير متصل'}
                   </span>
-                  <span className="bg-blue-100 text-blue-900 text-[10px] px-2 py-0.5 rounded-lg font-bold">
+                  <span className="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] text-[10px] px-2 py-0.5 rounded-lg font-bold">
                     الكتالوج والمخازن والكرتونة
                   </span>
                 </div>
@@ -1498,9 +1498,9 @@ function onEdit(e) {
 
             {/* Quick Metrics */}
             <div className="flex items-center gap-2.5 flex-wrap">
-              <div className="bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl text-center">
-                <div className="text-[10px] text-blue-700 font-bold">الأصناف المسجلة</div>
-                <div className="text-sm font-black text-blue-800 font-mono">
+              <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-3 py-1.5 rounded-xl text-center">
+                <div className="text-[10px] text-[var(--app-navy-text)] font-bold">الأصناف المسجلة</div>
+                <div className="text-sm font-black text-[var(--app-navy-text)] font-mono">
                   {metrics.totalProducts.toLocaleString('ar-EG')} صنف
                 </div>
               </div>
@@ -1517,7 +1517,7 @@ function onEdit(e) {
           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
             <div className="flex items-center justify-between">
               <label htmlFor="products-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5 text-blue-600" />
+                <Globe className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
                 <span>رابط Google Sheet الخاص بالأصناف والمخزون والأسعار:</span>
               </label>
               {sourceUrls.products && (
@@ -1525,7 +1525,7 @@ function onEdit(e) {
                   href={sourceUrls.products}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-blue-700 hover:underline flex items-center gap-1 font-bold"
+                  className="text-xs text-[var(--app-navy-text)] hover:underline flex items-center gap-1 font-bold"
                 >
                   <span>فتح الشيت في Google Sheets</span>
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -1542,7 +1542,7 @@ function onEdit(e) {
                   value={sourceUrls.products}
                   onChange={(e) => setSourceUrls((prev) => ({ ...prev, products: e.target.value }))}
                   placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-navy)] font-medium"
                 />
               </div>
 
@@ -1553,7 +1553,7 @@ function onEdit(e) {
               >
                 {savedUrlNotice === 'products' ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-blue-400" />
+                    <Check className="w-3.5 h-3.5 text-[#60a5fa]" />
                     <span>تم حفظ الرابط ✓</span>
                   </>
                 ) : (
@@ -1565,7 +1565,7 @@ function onEdit(e) {
                 type="button"
                 onClick={() => handleSyncProducts()}
                 disabled={syncingKey === 'products' || !sourceUrls.products.trim()}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+                className="bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
               >
                 {syncingKey === 'products' ? (
                   <>
@@ -1583,14 +1583,14 @@ function onEdit(e) {
 
             {/* Notifications */}
             {sheetSuccess.products && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)] shrink-0" />
                 <span>{sheetSuccess.products}</span>
               </div>
             )}
             {sheetErrors.products && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <div className="p-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-xl text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-[var(--app-risk-text)] shrink-0" />
                 <span>{sheetErrors.products}</span>
               </div>
             )}
@@ -1623,7 +1623,7 @@ function onEdit(e) {
               onClick={() => exportProductsToExcel(products, selectedBranchFilter)}
               className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-blue-300" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-[#60a5fa]" />
               <span>تصدير المخزون الحالي ({products.length} صنف)</span>
             </button>
           </div>
@@ -1633,7 +1633,7 @@ function onEdit(e) {
         <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center font-black shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)] flex items-center justify-center font-black shrink-0">
                 <Target className="w-6 h-6" />
               </div>
               <div>
@@ -1643,12 +1643,12 @@ function onEdit(e) {
                   </h3>
                   <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
                     isValidPublishedSource(sources.targets)
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
                       : 'bg-slate-100 text-slate-600 border border-slate-300'
                   }`}>
                     {isValidPublishedSource(sources.targets) ? '● متصل سحابياً' : '○ غير متصل'}
                   </span>
-                  <span className="bg-purple-100 text-purple-900 text-[10px] px-2 py-0.5 rounded-lg font-bold">
+                  <span className="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] text-[10px] px-2 py-0.5 rounded-lg font-bold">
                     تارجت المناديب والمشرفين
                   </span>
                 </div>
@@ -1660,9 +1660,9 @@ function onEdit(e) {
 
             {/* Quick Metrics */}
             <div className="flex items-center gap-2.5 flex-wrap">
-              <div className="bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-xl text-center">
-                <div className="text-[10px] text-purple-700 font-bold">سجلات الأهداف</div>
-                <div className="text-sm font-black text-purple-800 font-mono">
+              <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-3 py-1.5 rounded-xl text-center">
+                <div className="text-[10px] text-[var(--app-navy-text)] font-bold">سجلات الأهداف</div>
+                <div className="text-sm font-black text-[var(--app-navy-text)] font-mono">
                   {metrics.totalTargets.toLocaleString('ar-EG')} سجل
                 </div>
               </div>
@@ -1679,7 +1679,7 @@ function onEdit(e) {
           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
             <div className="flex items-center justify-between">
               <label htmlFor="targets-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5 text-purple-600" />
+                <Globe className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
                 <span>رابط Google Sheet الخاص بأهداف ومبيعات المناديب:</span>
               </label>
               {sourceUrls.targets && (
@@ -1687,7 +1687,7 @@ function onEdit(e) {
                   href={sourceUrls.targets}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-purple-700 hover:underline flex items-center gap-1 font-bold"
+                  className="text-xs text-[var(--app-navy-text)] hover:underline flex items-center gap-1 font-bold"
                 >
                   <span>فتح الشيت في Google Sheets</span>
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -1704,7 +1704,7 @@ function onEdit(e) {
                   value={sourceUrls.targets}
                   onChange={(e) => setSourceUrls((prev) => ({ ...prev, targets: e.target.value }))}
                   placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium"
+                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-navy)] font-medium"
                 />
               </div>
 
@@ -1715,7 +1715,7 @@ function onEdit(e) {
               >
                 {savedUrlNotice === 'targets' ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-purple-400" />
+                    <Check className="w-3.5 h-3.5 text-[#60a5fa]" />
                     <span>تم حفظ الرابط ✓</span>
                   </>
                 ) : (
@@ -1727,7 +1727,7 @@ function onEdit(e) {
                 type="button"
                 onClick={() => handleSyncTargets()}
                 disabled={syncingKey === 'targets' || !sourceUrls.targets.trim()}
-                className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+                className="bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
               >
                 {syncingKey === 'targets' ? (
                   <>
@@ -1745,14 +1745,14 @@ function onEdit(e) {
 
             {/* Notifications */}
             {sheetSuccess.targets && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)] shrink-0" />
                 <span>{sheetSuccess.targets}</span>
               </div>
             )}
             {sheetErrors.targets && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <div className="p-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-xl text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-[var(--app-risk-text)] shrink-0" />
                 <span>{sheetErrors.targets}</span>
               </div>
             )}
@@ -1783,9 +1783,9 @@ function onEdit(e) {
             <button
               type="button"
               onClick={exportTargetsReport}
-              className="bg-purple-900 hover:bg-purple-800 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+              className="bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-amber-300" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-[#d97706]" />
               <span>تصدير تقرير أهداف المناديب ({targets.length})</span>
             </button>
           </div>
@@ -1795,7 +1795,7 @@ function onEdit(e) {
         <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-700 border border-rose-200 flex items-center justify-center font-black shrink-0">
+              <div className="w-12 h-12 rounded-2xl bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)] flex items-center justify-center font-black shrink-0">
                 <Tag className="w-6 h-6" />
               </div>
               <div>
@@ -1805,12 +1805,12 @@ function onEdit(e) {
                   </h3>
                   <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
                     isValidPublishedSource(sources.offers)
-                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                      ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
                       : 'bg-slate-100 text-slate-600 border border-slate-300'
                   }`}>
                     {isValidPublishedSource(sources.offers) ? '● متصل سحابياً' : '○ غير متصل'}
                   </span>
-                  <span className="bg-rose-100 text-rose-900 text-[10px] px-2 py-0.5 rounded-lg font-bold">
+                  <span className="bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] text-[10px] px-2 py-0.5 rounded-lg font-bold">
                     الأسعار الترويجية الفورية
                   </span>
                 </div>
@@ -1822,9 +1822,9 @@ function onEdit(e) {
 
             {/* Quick Metrics */}
             <div className="flex items-center gap-2.5 flex-wrap">
-              <div className="bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl text-center">
-                <div className="text-[10px] text-rose-700 font-bold">العروض النشطة بالكتالوج</div>
-                <div className="text-sm font-black text-rose-800 font-mono">
+              <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] px-3 py-1.5 rounded-xl text-center">
+                <div className="text-[10px] text-[var(--app-risk-text)] font-bold">العروض النشطة بالكتالوج</div>
+                <div className="text-sm font-black text-[var(--app-risk-text)] font-mono">
                   {metrics.activeOffersCount} عرض مفعل
                 </div>
               </div>
@@ -1835,7 +1835,7 @@ function onEdit(e) {
           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
             <div className="flex items-center justify-between">
               <label htmlFor="offers-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5 text-rose-600" />
+                <Globe className="w-3.5 h-3.5 text-[var(--app-risk-text)]" />
                 <span>رابط Google Sheet الخاص بجدول العروض والخصومات الترويجية:</span>
               </label>
               {sourceUrls.offers && (
@@ -1843,7 +1843,7 @@ function onEdit(e) {
                   href={sourceUrls.offers}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-rose-700 hover:underline flex items-center gap-1 font-bold"
+                  className="text-xs text-[var(--app-risk-text)] hover:underline flex items-center gap-1 font-bold"
                 >
                   <span>فتح الشيت في Google Sheets</span>
                   <ExternalLink className="w-3.5 h-3.5" />
@@ -1860,7 +1860,7 @@ function onEdit(e) {
                   value={sourceUrls.offers}
                   onChange={(e) => setSourceUrls((prev) => ({ ...prev, offers: e.target.value }))}
                   placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500 font-medium"
+                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-risk)] font-medium"
                 />
               </div>
 
@@ -1871,7 +1871,7 @@ function onEdit(e) {
               >
                 {savedUrlNotice === 'offers' ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-rose-400" />
+                    <Check className="w-3.5 h-3.5 text-[#ef4444]" />
                     <span>تم حفظ الرابط ✓</span>
                   </>
                 ) : (
@@ -1883,7 +1883,7 @@ function onEdit(e) {
                 type="button"
                 onClick={() => handleSyncOffers()}
                 disabled={syncingKey === 'offers' || !sourceUrls.offers.trim()}
-                className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+                className="bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
               >
                 {syncingKey === 'offers' ? (
                   <>
@@ -1901,14 +1901,14 @@ function onEdit(e) {
 
             {/* Notifications */}
             {sheetSuccess.offers && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)] shrink-0" />
                 <span>{sheetSuccess.offers}</span>
               </div>
             )}
             {sheetErrors.offers && (
-              <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <div className="p-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-xl text-xs flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-[var(--app-risk-text)] shrink-0" />
                 <span>{sheetErrors.offers}</span>
               </div>
             )}
@@ -1919,8 +1919,8 @@ function onEdit(e) {
       <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
-            <FileCheck className="w-5 h-5 text-amber-400" />
-            <h4 className="font-extrabold text-sm text-amber-300">
+            <FileCheck className="w-5 h-5 text-[#d97706]" />
+            <h4 className="font-extrabold text-sm text-[#d97706]">
               الأعمدة الأساسية المقروءة والمدعومة تلقائياً في الشيتات الخمس:
             </h4>
           </div>
@@ -1931,21 +1931,21 @@ function onEdit(e) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
           <div className="bg-white/5 p-3 rounded-2xl border border-white/10 space-y-1.5">
-            <strong className="text-emerald-400 block font-black">شيت العملاء والمديونيات:</strong>
+            <strong className="text-[#0d9488] block font-black">شيت العملاء والمديونيات:</strong>
             <p className="text-slate-300 text-[11px] leading-5">
               كود العميل، اسم العميل، الفرع، اسم المندوب، المشرف، المنطقة، رقم الهاتف، المديونية الحالية، الحد الائتماني، حالة الدين، صلاحية التعامل.
             </p>
           </div>
 
           <div className="bg-white/5 p-3 rounded-2xl border border-white/10 space-y-1.5">
-            <strong className="text-amber-400 block font-black">شيت مبيعات العملاء والتارجت:</strong>
+            <strong className="text-[#d97706] block font-black">شيت مبيعات العملاء والتارجت:</strong>
             <p className="text-slate-300 text-[11px] leading-5">
               كود العميل، اسم العميل، مبيعات 2026، مبيعات 2025، نسبة النمو %، تحصيلات 2026، مبيعات الشهور 1 إلى 12، تحصيلات الشهور 1 إلى 12، تارجت العميل.
             </p>
           </div>
 
           <div className="bg-white/5 p-3 rounded-2xl border border-white/10 space-y-1.5">
-            <strong className="text-blue-400 block font-black">شيت الأصناف والمخزون:</strong>
+            <strong className="text-[#60a5fa] block font-black">شيت الأصناف والمخزون:</strong>
             <p className="text-slate-300 text-[11px] leading-5">
               الكود الموحد، كود المنتج، اسم المنتج، الحجم، عدد القطع بالكرتونة، سعر الكرتونة، سعر القطعة، رصيد الفروع (المنيا، الفيوم، البحيرة...)، مخزون أكتوبر، لينك الصورة.
             </p>
@@ -1976,7 +1976,7 @@ function onEdit(e) {
             </p>
 
             <div className="relative">
-              <pre className="bg-slate-950 text-emerald-400 p-4 rounded-2xl overflow-x-auto text-[11px] font-mono leading-relaxed" dir="ltr">
+              <pre className="bg-slate-950 text-[#0d9488] p-4 rounded-2xl overflow-x-auto text-[11px] font-mono leading-relaxed" dir="ltr">
                 {sampleAppsScript}
               </pre>
               <button
@@ -1986,7 +1986,7 @@ function onEdit(e) {
               >
                 {copiedScript ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-emerald-300" />
+                    <Check className="w-3.5 h-3.5 text-[#0d9488]" />
                     <span>تم النسخ ✓</span>
                   </>
                 ) : (
@@ -2005,7 +2005,7 @@ function onEdit(e) {
       {isWipeModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-2xl bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)] flex items-center justify-center mx-auto">
               <Trash2 className="w-6 h-6" />
             </div>
 
@@ -2022,7 +2022,7 @@ function onEdit(e) {
                   type="checkbox"
                   checked={wipeInvoicesToo}
                   onChange={(e) => setWipeInvoicesToo(e.target.checked)}
-                  className="rounded text-amber-500 focus:ring-amber-400 w-4 h-4"
+                  className="rounded text-[var(--app-warn-text)] focus:ring-[var(--app-warn)] w-4 h-4"
                 />
                 <span>مسح سجل الفواتير والطلبيات السابقة أيضاً</span>
               </label>
@@ -2053,7 +2053,7 @@ function onEdit(e) {
                   }
                 }}
                 disabled={isWiping}
-                className="bg-rose-600 hover:bg-rose-700 text-white font-bold flex-1 py-2.5 text-xs rounded-xl shadow-md cursor-pointer disabled:opacity-50"
+                className="bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-white font-bold flex-1 py-2.5 text-xs rounded-xl shadow-md cursor-pointer disabled:opacity-50"
               >
                 {isWiping ? 'جاري المسح...' : 'نعم، مسح والبدء من جديد'}
               </button>

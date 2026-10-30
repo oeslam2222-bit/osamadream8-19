@@ -133,19 +133,19 @@ export const OffersSheetModal: React.FC<OffersSheetModalProps> = ({
         dir="rtl"
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-rose-900 via-rose-800 to-amber-900 text-white flex items-center justify-between shrink-0">
+        <div className="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-[var(--app-risk)] via-[var(--app-risk)] to-[var(--app-warn)] text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shadow-md shrink-0">
+            <div className="w-10 h-10 rounded-2xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black shadow-md shrink-0">
               <Flame className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
                 <span>رفع شيت العروض والخصومات</span>
-                <span className="text-[10px] bg-amber-400/20 text-amber-300 border border-amber-400/40 px-2 py-0.5 rounded-full font-bold">
+                <span className="text-[10px] bg-[var(--app-warn)] text-[#d97706] border border-[var(--app-warn)] px-2 py-0.5 rounded-full font-bold">
                   ربط تلقائي بالأكواد
                 </span>
               </h2>
-              <p className="text-xs text-rose-100/90 mt-0.5">
+              <p className="text-xs text-[#ef4444] mt-0.5">
                 ارفع شيت العروض (Excel أو Google Sheet) وسيتم تطبيق الخصومات تلقائياً على كل كود متطابق
               </p>
             </div>
@@ -174,7 +174,7 @@ export const OffersSheetModal: React.FC<OffersSheetModalProps> = ({
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                <FileSpreadsheet className="w-4 h-4 text-[var(--app-ok-text)]" />
                 <span>رفع ملف Excel (.xlsx / .csv)</span>
               </button>
               <button
@@ -186,7 +186,7 @@ export const OffersSheetModal: React.FC<OffersSheetModalProps> = ({
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <Link2 className="w-4 h-4 text-blue-600" />
+                <Link2 className="w-4 h-4 text-[var(--app-navy-text)]" />
                 <span>رابط Google Sheets مباشر</span>
               </button>
             </div>
@@ -194,7 +194,7 @@ export const OffersSheetModal: React.FC<OffersSheetModalProps> = ({
 
           {/* Error notice */}
           {errorText && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-2xl font-bold flex items-center gap-2">
+            <div className="p-3.5 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] text-xs rounded-2xl font-bold flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>{errorText}</span>
             </div>
@@ -203,21 +203,21 @@ export const OffersSheetModal: React.FC<OffersSheetModalProps> = ({
           {/* Success Report */}
           {report ? (
             <div className="space-y-4 animate-in fade-in">
-              <div className="p-4 bg-emerald-50 border-2 border-emerald-300 rounded-2xl text-emerald-900 space-y-2">
-                <div className="flex items-center gap-2 font-black text-sm text-emerald-800">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+              <div className="p-4 bg-[var(--app-ok-tint)] border-2 border-[var(--app-ok-line)] rounded-2xl text-[var(--app-ok-text)] space-y-2">
+                <div className="flex items-center gap-2 font-black text-sm text-[var(--app-ok-text)]">
+                  <CheckCircle2 className="w-5 h-5 text-[var(--app-ok-text)] shrink-0" />
                   <span>تم تطبيق وربط شيت العروض بنجاح تام! 🎉</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
-                  <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-200">
+                  <div className="bg-white/80 p-2.5 rounded-xl border border-[var(--app-ok-line)]">
                     <span className="text-slate-500 block text-[11px]">إجمالي العروض بالشيت:</span>
-                    <strong className="text-emerald-700 font-mono text-base font-black">
+                    <strong className="text-[var(--app-ok-text)] font-mono text-base font-black">
                       {report.totalPromotions} عرض
                     </strong>
                   </div>
-                  <div className="bg-white/80 p-2.5 rounded-xl border border-emerald-200">
+                  <div className="bg-white/80 p-2.5 rounded-xl border border-[var(--app-ok-line)]">
                     <span className="text-slate-500 block text-[11px]">الأصناف التي تم تحديث أسعارها:</span>
-                    <strong className="text-indigo-700 font-mono text-base font-black">
+                    <strong className="text-[var(--app-navy-text)] font-mono text-base font-black">
                       {report.updatedCount} صنف مطابق
                     </strong>
                   </div>
@@ -249,7 +249,7 @@ export const OffersSheetModal: React.FC<OffersSheetModalProps> = ({
                           </div>
                         </div>
                         <div className="text-left shrink-0">
-                          <span className="text-rose-600 font-black font-mono">
+                          <span className="text-[var(--app-risk-text)] font-black font-mono">
                             {formatCurrency(promo.promoPrice)}
                           </span>
                           {promo.originalPrice && promo.originalPrice > promo.promoPrice && (
@@ -273,16 +273,16 @@ export const OffersSheetModal: React.FC<OffersSheetModalProps> = ({
                       onFilterOffersOnly();
                       onClose();
                     }}
-                    className="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-black py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer transition active:scale-95"
+                    className="flex-1 bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-white font-black py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md cursor-pointer transition active:scale-95"
                   >
-                    <Flame className="w-4 h-4 text-amber-300" />
+                    <Flame className="w-4 h-4 text-[#d97706]" />
                     <span>عرض الأصناف الخاضعة للعروض فقط 🔥</span>
                   </button>
                 )}
                 <button
                   type="button"
                   onClick={onClose}
-                  className="bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold px-5 py-2.5 rounded-xl text-xs transition cursor-pointer"
+                  className="bg-slate-900 hover:bg-slate-800 text-[#d97706] font-bold px-5 py-2.5 rounded-xl text-xs transition cursor-pointer"
                 >
                   إغلاق
                 </button>
@@ -297,7 +297,7 @@ export const OffersSheetModal: React.FC<OffersSheetModalProps> = ({
                     className={`border-2 border-dashed rounded-3xl p-6 flex flex-col items-center justify-center gap-3 cursor-pointer transition text-center ${
                       isProcessing
                         ? 'bg-slate-50 border-slate-300 opacity-60 cursor-not-allowed'
-                        : 'border-rose-300 hover:border-rose-500 hover:bg-rose-50/30 bg-gradient-to-b from-white to-rose-50/20'
+                        : 'border-[var(--app-risk-line)] hover:border-[var(--app-risk)] hover:bg-[var(--app-risk-tint)] bg-gradient-to-b from-white to-[var(--app-risk)]'
                     }`}
                   >
                     <input
@@ -308,7 +308,7 @@ export const OffersSheetModal: React.FC<OffersSheetModalProps> = ({
                       disabled={isProcessing}
                       className="hidden"
                     />
-                    <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shadow-xs">
+                    <div className="w-14 h-14 rounded-2xl bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] flex items-center justify-center shadow-xs">
                       {isProcessing ? (
                         <Loader2 className="w-7 h-7 animate-spin" />
                       ) : (
@@ -337,13 +337,13 @@ export const OffersSheetModal: React.FC<OffersSheetModalProps> = ({
                       onChange={(e) => setGoogleSheetUrl(e.target.value)}
                       placeholder="https://docs.google.com/spreadsheets/d/..."
                       disabled={isProcessing}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-rose-500"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono focus:outline-none focus:ring-2 focus:ring-[var(--app-risk)]"
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={isProcessing || !googleSheetUrl.trim()}
-                    className="w-full bg-rose-600 hover:bg-rose-500 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
+                    className="w-full bg-[var(--app-risk)] hover:bg-[var(--app-risk)] disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition cursor-pointer"
                   >
                     {isProcessing ? (
                       <>
@@ -352,7 +352,7 @@ export const OffersSheetModal: React.FC<OffersSheetModalProps> = ({
                       </>
                     ) : (
                       <>
-                        <Sparkles className="w-4 h-4 text-amber-300" />
+                        <Sparkles className="w-4 h-4 text-[#d97706]" />
                         <span>جلب العروض وربطها بالأكواد الآن</span>
                       </>
                     )}
@@ -361,12 +361,12 @@ export const OffersSheetModal: React.FC<OffersSheetModalProps> = ({
               )}
 
               {/* Explanatory guidelines */}
-              <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-3.5 text-xs text-amber-900 space-y-2">
-                <div className="font-black flex items-center gap-1.5 text-amber-950">
-                  <Tag className="w-4 h-4 text-amber-700" />
+              <div className="bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] rounded-2xl p-3.5 text-xs text-[var(--app-warn-text)] space-y-2">
+                <div className="font-black flex items-center gap-1.5 text-[var(--app-warn-text)]">
+                  <Tag className="w-4 h-4 text-[var(--app-warn-text)]" />
                   <span>كيف يتم الربط التلقائي في النظام؟</span>
                 </div>
-                <ul className="list-disc list-inside space-y-1 text-[11.5px] leading-relaxed text-amber-900/90 pr-1">
+                <ul className="list-disc list-inside space-y-1 text-[11.5px] leading-relaxed text-[var(--app-warn-text)] pr-1">
                   <li>
                     يقرأ النظام تلقائياً أعمدة: <strong>كود الصنف</strong> أو <strong>الكود الموحد</strong> أو <strong>اسم الصنف</strong>.
                   </li>

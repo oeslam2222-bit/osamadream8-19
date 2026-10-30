@@ -41,7 +41,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
           </span>
         </div>
         {isPromo && (
-          <div className="absolute top-2 left-2 z-10 bg-rose-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-xs">
+          <div className="absolute top-2 left-2 z-10 bg-[var(--app-risk)] text-white text-[9px] font-black px-1.5 py-0.5 rounded flex items-center gap-0.5 shadow-xs">
             عرض
           </div>
         )}
@@ -58,7 +58,7 @@ const ProductCard: React.FC<ProductCardProps> = ({
             {product.cartonPrice.toLocaleString('ar-EG')} ج.م
           </span>
           {isPromo && (
-            <span className="text-[10px] text-rose-600 font-black line-through">
+            <span className="text-[10px] text-[var(--app-risk-text)] font-black line-through">
               {product.price.toLocaleString('ar-EG')} ج.م
             </span>
           )}
@@ -144,7 +144,7 @@ export const SectoredCatalog = ({ className }: SectoredCatalogProps) => {
       result.push({ key: 'home', title: 'القطاع المنزلي (Household)', icon: <Home className="w-4 h-4" />, items: home });
     }
     if (electrical.length > 0) {
-      result.push({ key: 'electrical', title: 'القطاع الكهربائي (Electrical)', icon: <Zap className="w-4 h-4 text-amber-950" />, items: electrical });
+      result.push({ key: 'electrical', title: 'القطاع الكهربائي (Electrical)', icon: <Zap className="w-4 h-4 text-[var(--app-warn-text)]" />, items: electrical });
     }
     return result;
   }, [filteredProducts]);
@@ -178,11 +178,11 @@ export const SectoredCatalog = ({ className }: SectoredCatalogProps) => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div className="space-y-1">
           <h2 className="font-black text-slate-900 flex items-center gap-2">
-            <Package className="w-5 h-5 text-amber-600" />
+            <Package className="w-5 h-5 text-[var(--app-warn-text)]" />
             الكتالوج حسب القطاع والفرع
           </h2>
           <p className="text-sm text-slate-500">
-            إجمالي الأصناف الظاهرة: <span className="font-black text-amber-600">{totalCount}</span> صنف
+            إجمالي الأصناف الظاهرة: <span className="font-black text-[var(--app-warn-text)]">{totalCount}</span> صنف
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

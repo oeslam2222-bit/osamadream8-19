@@ -223,12 +223,12 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
         <div className="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white shrink-0">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shadow-md shrink-0">
+              <div className="w-11 h-11 rounded-2xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black shadow-md shrink-0">
                 <Search className="w-6 h-6" />
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-amber-300 font-bold">فحص دقيق لكود الصنف في الشيت:</span>
+                  <span className="text-xs text-[#d97706] font-bold">فحص دقيق لكود الصنف في الشيت:</span>
                   <span className="font-mono bg-slate-800 text-white px-2.5 py-0.5 rounded-lg text-sm font-black border border-slate-700">
                     {productCode}
                   </span>
@@ -252,7 +252,7 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
                     onClose();
                     onOpenCart();
                   }}
-                  className="hidden sm:flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-black shadow transition cursor-pointer"
+                  className="hidden sm:flex items-center gap-1.5 bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 px-3 py-1.5 rounded-xl text-xs font-black shadow transition cursor-pointer"
                 >
                   <ShoppingCart className="w-4 h-4" />
                   <span>السلة ({cart.length})</span>
@@ -275,9 +275,9 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
           {/* Success Notice */}
           {successNotice && (
-            <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-2xl p-3 text-xs font-bold flex items-center justify-between shadow-xs animate-in fade-in">
+            <div className="bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-2xl p-3 text-xs font-bold flex items-center justify-between shadow-xs animate-in fade-in">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)] shrink-0" />
                 <span>{successNotice}</span>
               </div>
               {onOpenCart && (
@@ -287,7 +287,7 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
                     onClose();
                     onOpenCart();
                   }}
-                  className="bg-emerald-600 text-white px-2.5 py-1 rounded-lg text-xs font-black hover:bg-emerald-700 cursor-pointer"
+                  className="bg-[var(--app-ok)] text-white px-2.5 py-1 rounded-lg text-xs font-black hover:bg-[var(--app-ok)] cursor-pointer"
                 >
                   عرض السلة ⬅️
                 </button>
@@ -299,13 +299,13 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
           <div
             className={`p-4 rounded-2xl border-2 flex items-start gap-3 shadow-xs ${
               isRepeated
-                ? 'bg-amber-50/90 border-amber-300 text-amber-950'
-                : 'bg-emerald-50/90 border-emerald-300 text-emerald-950'
+                ? 'bg-[var(--app-warn-tint)] border-[var(--app-warn-line)] text-[var(--app-warn-text)]'
+                : 'bg-[var(--app-ok-tint)] border-[var(--app-ok-line)] text-[var(--app-ok-text)]'
             }`}
           >
             <div
               className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 font-black ${
-                isRepeated ? 'bg-amber-500 text-slate-950' : 'bg-emerald-600 text-white'
+                isRepeated ? 'bg-[var(--app-warn)] text-slate-950' : 'bg-[var(--app-ok)] text-white'
               }`}
             >
               {isRepeated ? <AlertTriangle className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5" />}
@@ -319,7 +319,7 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
                 </h3>
                 <span
                   className={`text-xs px-2.5 py-0.5 rounded-full font-black ${
-                    isRepeated ? 'bg-amber-200 text-amber-950' : 'bg-emerald-200 text-emerald-900'
+                    isRepeated ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]' : 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]'
                   }`}
                 >
                   {isRepeated ? `${count} صفوف مسجلة` : 'صف واحد فقط'}
@@ -336,9 +336,9 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
           {/* Active Branch Indicator */}
           <div className="flex items-center justify-between bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs text-slate-700">
             <div className="flex items-center gap-1.5 font-bold">
-              <Building2 className="w-4 h-4 text-amber-600" />
+              <Building2 className="w-4 h-4 text-[var(--app-warn-text)]" />
               <span>الفرع النشط لعرض الكميات:</span>
-              <span className="text-amber-900 font-black">{activeBranchName}</span>
+              <span className="text-[var(--app-warn-text)] font-black">{activeBranchName}</span>
             </div>
             <span className="text-[11px] text-slate-500 font-medium">
               يتم احتساب الكمية المتاحة بالكرتونة لكل تفريعة
@@ -348,7 +348,7 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
           {/* List of Occurrences / Variants in Sheet */}
           <div className="space-y-3">
             <h4 className="font-black text-xs sm:text-sm text-slate-800 flex items-center gap-2">
-              <Layers className="w-4 h-4 text-indigo-600" />
+              <Layers className="w-4 h-4 text-[var(--app-navy-text)]" />
               <span>بيانات كافة الصفوف المسجلة في الشيت لهذا الكود ({count}):</span>
             </h4>
 
@@ -369,7 +369,7 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
                 return (
                   <div
                     key={prod.id}
-                    className="bg-white rounded-2xl border-2 border-slate-200 hover:border-amber-400 p-4 shadow-2xs transition-all space-y-3"
+                    className="bg-white rounded-2xl border-2 border-slate-200 hover:border-[var(--app-warn)] p-4 shadow-2xs transition-all space-y-3"
                   >
                     {/* Top Row: Title, Codes & Actions */}
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
@@ -401,7 +401,7 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
                               title="نسخ كود الصنف"
                             >
                               {copiedKey === `code-${prod.id}` ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                                <Check className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
                               ) : (
                                 <Copy className="w-3.5 h-3.5" />
                               )}
@@ -419,7 +419,7 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
                           type="button"
                           onClick={() => handleDirectAdd(prod, 'carton')}
                           disabled={totalStock <= 0}
-                          className="bg-amber-400 hover:bg-amber-500 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shadow-2xs flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer shadow-2xs flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           <span>إضافة كرتونة</span>
@@ -439,23 +439,23 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
                     {/* Detailed Attributes Grid: Requested by User */}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
                       {/* 1. الكود الموحد */}
-                      <div className="bg-blue-50/80 border border-blue-200 p-2.5 rounded-xl">
-                        <span className="text-[10px] text-blue-700 font-bold block mb-0.5">
+                      <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] p-2.5 rounded-xl">
+                        <span className="text-[10px] text-[var(--app-navy-text)] font-bold block mb-0.5">
                           الكود الموحد:
                         </span>
                         <div className="flex items-center justify-between">
-                          <span className="font-mono font-black text-blue-950 text-xs truncate">
+                          <span className="font-mono font-black text-[var(--app-navy-text)] text-xs truncate">
                             {unifiedVal}
                           </span>
                           {unifiedVal !== '---' && (
                             <button
                               type="button"
                               onClick={() => handleCopy(unifiedVal, `uni-${prod.id}`)}
-                              className="text-blue-500 hover:text-blue-800 cursor-pointer ml-1"
+                              className="text-[var(--app-navy-text)] hover:text-[var(--app-navy-text)] cursor-pointer ml-1"
                               title="نسخ الكود الموحد"
                             >
                               {copiedKey === `uni-${prod.id}` ? (
-                                <Check className="w-3 h-3 text-emerald-600" />
+                                <Check className="w-3 h-3 text-[var(--app-ok-text)]" />
                               ) : (
                                 <Copy className="w-3 h-3" />
                               )}
@@ -465,13 +465,13 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
                       </div>
 
                       {/* 2. اللون */}
-                      <div className="bg-amber-50/80 border border-amber-200 p-2.5 rounded-xl">
-                        <span className="text-[10px] text-amber-700 font-bold block mb-0.5">
+                      <div className="bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] p-2.5 rounded-xl">
+                        <span className="text-[10px] text-[var(--app-warn-text)] font-bold block mb-0.5">
                           اللون (لو مكتوب):
                         </span>
                         <span
                           className={`font-black text-xs ${
-                            colorVal !== 'غير محدد بالشيت' ? 'text-amber-950' : 'text-slate-400'
+                            colorVal !== 'غير محدد بالشيت' ? 'text-[var(--app-warn-text)]' : 'text-slate-400'
                           }`}
                         >
                           {colorVal}
@@ -479,13 +479,13 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
                       </div>
 
                       {/* 3. الحجم */}
-                      <div className="bg-purple-50/80 border border-purple-200 p-2.5 rounded-xl">
-                        <span className="text-[10px] text-purple-700 font-bold block mb-0.5">
+                      <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] p-2.5 rounded-xl">
+                        <span className="text-[10px] text-[var(--app-navy-text)] font-bold block mb-0.5">
                           الحجم (لو مكتوب):
                         </span>
                         <span
                           className={`font-black text-xs ${
-                            sizeVal !== 'غير محدد بالشيت' ? 'text-purple-950' : 'text-slate-400'
+                            sizeVal !== 'غير محدد بالشيت' ? 'text-[var(--app-navy-text)]' : 'text-slate-400'
                           }`}
                         >
                           {sizeVal}
@@ -493,12 +493,12 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
                       </div>
 
                       {/* 4. الكمية بالفرع والرئيسي */}
-                      <div className="bg-emerald-50/80 border border-emerald-200 p-2.5 rounded-xl">
-                        <span className="text-[10px] text-emerald-700 font-bold block mb-0.5">
+                      <div className="bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] p-2.5 rounded-xl">
+                        <span className="text-[10px] text-[var(--app-ok-text)] font-bold block mb-0.5">
                           الكمية المتاحة:
                         </span>
                         <div className="flex items-center justify-between font-mono">
-                          <span className="font-black text-emerald-900 text-xs">
+                          <span className="font-black text-[var(--app-ok-text)] text-xs">
                             الفرع: {branchStock} ك
                           </span>
                           <span className="text-[10.5px] text-slate-500">
@@ -516,7 +516,7 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
                       <div className="flex items-center gap-3">
                         <span>
                           سعر الكرتونة:{' '}
-                          <strong className="text-amber-900 font-mono">
+                          <strong className="text-[var(--app-warn-text)] font-mono">
                             {isConfidentialMode ? '••••••' : formatCurrency(cartonPrice)}
                           </strong>
                         </span>

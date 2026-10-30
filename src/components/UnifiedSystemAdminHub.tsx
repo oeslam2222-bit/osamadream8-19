@@ -31,7 +31,7 @@ export const UnifiedSystemAdminHub: React.FC<UnifiedSystemAdminHubProps> = ({
       {/* Top Header Hub Navigation Pills */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-2 sm:p-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black">
+          <div className="w-8 h-8 rounded-xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black">
             <Settings className="w-4 h-4" />
           </div>
           <div>
@@ -49,7 +49,7 @@ export const UnifiedSystemAdminHub: React.FC<UnifiedSystemAdminHubProps> = ({
             onClick={() => setSubTab('users')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-black transition cursor-pointer whitespace-nowrap ${
               subTab === 'users'
-                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                ? 'bg-[var(--app-warn)] text-slate-950 shadow-sm'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
             }`}
           >
@@ -62,7 +62,7 @@ export const UnifiedSystemAdminHub: React.FC<UnifiedSystemAdminHubProps> = ({
             onClick={() => setSubTab('excel')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-black transition cursor-pointer whitespace-nowrap ${
               subTab === 'excel'
-                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                ? 'bg-[var(--app-warn)] text-slate-950 shadow-sm'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
             }`}
           >
@@ -75,7 +75,7 @@ export const UnifiedSystemAdminHub: React.FC<UnifiedSystemAdminHubProps> = ({
             onClick={() => setSubTab('guide')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-black transition cursor-pointer whitespace-nowrap ${
               subTab === 'guide'
-                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                ? 'bg-[var(--app-warn)] text-slate-950 shadow-sm'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
             }`}
           >
@@ -89,7 +89,7 @@ export const UnifiedSystemAdminHub: React.FC<UnifiedSystemAdminHubProps> = ({
               onClick={() => setSubTab('developer')}
               className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-black transition cursor-pointer whitespace-nowrap ${
                 subTab === 'developer'
-                  ? 'bg-indigo-600 text-white shadow-sm'
+                  ? 'bg-[var(--app-navy)] text-white shadow-sm'
                   : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
               }`}
             >

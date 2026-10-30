@@ -55,9 +55,9 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
       subtitle: 'إنشاء الفاتورة من المندوب في موقع العميل',
       executedBy: 'مندوب المبيعات (Sales Rep)',
       badge: 'قيد مراجعة المشرف',
-      badgeColor: 'bg-amber-100 text-amber-900 border-amber-300',
+      badgeColor: 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border-[var(--app-warn-line)]',
       icon: Receipt,
-      iconBg: 'bg-amber-500 text-slate-950',
+      iconBg: 'bg-[var(--app-warn)] text-slate-950',
       summary: 'يقوم المندوب باختيار العميل والأصناف المطلوبة وتحديد نوع الدفع (كاش / آجل) ثم يضغط "حجز واعتماد الطلبية".',
       whatHappens: [
         'يقوم النظام بحجز الكميات مؤقتاً كـ (Pending) لحماية الأصناف من البيع المزدوج لمندوب آخر.',
@@ -74,9 +74,9 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
       subtitle: 'موافقة المشرف وتأكيد الخصم المباشر من المخزن',
       executedBy: 'مشرف القطاع / مدير الفرع / الأدمن',
       badge: 'معتمدة ومصروفة',
-      badgeColor: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+      badgeColor: 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)]',
       icon: CheckCircle2,
-      iconBg: 'bg-emerald-600 text-white',
+      iconBg: 'bg-[var(--app-ok)] text-white',
       summary: 'يراجع المشرف تفاصيل الطلبية وأسعار الأصناف وحد الائتمان للعميل ثم يضغط زر "اعتماد وصرف المخزون".',
       whatHappens: [
         'يتم خصم الكميات نهائياً من رصيد المخزن الفعلي في الفرع وتحديث الكميات المتاحة لحظياً.',
@@ -93,9 +93,9 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
       subtitle: 'تجهيز الكراتين في المخزن وتحميل سيارة التوزيع',
       executedBy: 'أمين المخزن / المشرف / مسؤول التجهيز',
       badge: 'جاري التجهيز',
-      badgeColor: 'bg-blue-100 text-blue-900 border-blue-300',
+      badgeColor: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border-[var(--app-navy-line)]',
       icon: Package,
-      iconBg: 'bg-blue-600 text-white',
+      iconBg: 'bg-[var(--app-navy)] text-white',
       summary: 'بعد الاعتماد، يقوم فريق المخزن بفرز البضاعة من الأرفف وطباعة إذن التحميل لسيارة التوزيع.',
       whatHappens: [
         'تتحول الحالة إلى (جاري التجهيز) لتوضيح أن الشحنة قيد التعبئة.',
@@ -111,9 +111,9 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
       subtitle: 'استلام البضاعة وتوريد النقدية أو تسجيل الآجل',
       executedBy: 'مندوب المبيعات / مسؤول التوزيع',
       badge: 'تم التسليم للعميل',
-      badgeColor: 'bg-indigo-100 text-indigo-900 border-indigo-300',
+      badgeColor: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border-[var(--app-navy-line)]',
       icon: Truck,
-      iconBg: 'bg-indigo-600 text-white',
+      iconBg: 'bg-[var(--app-navy)] text-white',
       summary: 'وصول الشحنة للعميل ومراجعة البضاعة والتوقيع على إيصال الاستلام وتحصيل القيمة المالية.',
       whatHappens: [
         'تأكيد استلام العميل وتحويل الحالة إلى (تم التسليم).',
@@ -129,9 +129,9 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
       subtitle: 'إعادة البضاعة فورياً للمخزن وتوثيق أسباب الإلغاء',
       executedBy: 'مشرف القطاع / مدير الفرع / الأدمن',
       badge: 'ملغاة / مرتجع',
-      badgeColor: 'bg-rose-100 text-rose-900 border-rose-300',
+      badgeColor: 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border-[var(--app-risk-line)]',
       icon: RotateCcw,
-      iconBg: 'bg-rose-600 text-white',
+      iconBg: 'bg-[var(--app-risk)] text-white',
       summary: 'في حالة اعتذار العميل عن الاستلام (لظروف سيولة، خطأ في الأصناف، إلغاء الموعد)، يقوم المشرف برفض الطلبية أو تسجيل المرتجع.',
       whatHappens: [
         'إعادة فورية للمخزون: يقوم النظام تلقائياً بإرجاع كامل كميات الفاتورة إلى الرصيد المتاح للفرع.',
@@ -146,8 +146,8 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
   const rolesMatrix = [
     {
       role: 'مندوب المبيعات (Sales Rep)',
-      color: 'border-emerald-300 bg-emerald-50/60 text-emerald-900',
-      badge: 'bg-emerald-100 text-emerald-800',
+      color: 'border-[var(--app-ok-line)] bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]',
+      badge: 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]',
       abilities: [
         'تصفح كتالوج الأصناف بالصور والأسعار والرصيد المتاح.',
         'إنشاء فواتير وحجز طلبيات العملاء نقداً أو بالآجل.',
@@ -163,8 +163,8 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
     },
     {
       role: 'مشرف قطاع المناديب (Supervisor)',
-      color: 'border-blue-300 bg-blue-50/60 text-blue-900',
-      badge: 'bg-blue-100 text-blue-800',
+      color: 'border-[var(--app-navy-line)] bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]',
+      badge: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]',
       abilities: [
         'مراجعة فواتير المناديب التابعين له واعتماد صرف البضاعة.',
         'رفض أو إلغاء الطلبيات مع توثيق السبب وإرجاع المخزون آلياً.',
@@ -178,8 +178,8 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
     },
     {
       role: 'مشرف / مدير الفرع (Branch Supervisor)',
-      color: 'border-purple-300 bg-purple-50/60 text-purple-900',
-      badge: 'bg-purple-100 text-purple-800',
+      color: 'border-[var(--app-navy-line)] bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]',
+      badge: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]',
       abilities: [
         'إدارة كامل مخزون الفرع (توريدات المصنع، تسويات الجرد، التحويلات).',
         'اعتماد كافة فواتير المناديب والمشرفين في الفرع.',
@@ -192,8 +192,8 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
     },
     {
       role: 'المطور والمسؤول العام (Admin & Developer)',
-      color: 'border-amber-400 bg-amber-50/60 text-amber-950',
-      badge: 'bg-amber-100 text-amber-900',
+      color: 'border-[var(--app-warn)] bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]',
+      badge: 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]',
       abilities: [
         'صلاحيات غير مقيدة (Super Admin) على كافة الفروع والقطاعات.',
         'إدارة قاعدة البيانات والمزامنة مع Supabase وبرامج الحسابات (ERP).',
@@ -234,7 +234,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-7 rounded-2xl sm:rounded-3xl shadow-xl border border-slate-700">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shadow-lg shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black shadow-lg shrink-0">
               <FileCheck2 className="w-7 h-7" />
             </div>
             <div>
@@ -242,7 +242,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
                 <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
                   دليل دورة العمل وتشغيل منظومة دريم طنطاوي
                 </h1>
-                <span className="hidden sm:inline-block text-[11px] px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30 font-bold">
+                <span className="hidden sm:inline-block text-[11px] px-2.5 py-0.5 rounded-full bg-[var(--app-warn)] text-[#d97706] border border-[var(--app-warn)] font-bold">
                   Workflow Guide
                 </span>
               </div>
@@ -256,7 +256,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
             {onNavigateToTab && (
               <button
                 onClick={() => onNavigateToTab('catalog')}
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
+                className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
               >
                 <Boxes className="w-4 h-4" />
                 <span>بدء عمل فاتورة جديدة</span>
@@ -276,12 +276,12 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
                 onClick={() => setActiveWorkflowStep(step.step)}
                 className={`p-2.5 rounded-xl border text-right transition cursor-pointer flex flex-col justify-between ${
                   isSelected
-                    ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md font-bold'
+                    ? 'bg-[var(--app-warn)] text-slate-950 border-[var(--app-warn)] shadow-md font-bold'
                     : 'bg-slate-800/80 hover:bg-slate-750 text-slate-300 border-slate-700'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-black ${isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-900 text-slate-400'}`}>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-black ${isSelected ? 'bg-slate-950 text-[#d97706]' : 'bg-slate-900 text-slate-400'}`}>
                     خطوة {step.step}
                   </span>
                   <Icon className="w-4 h-4" />
@@ -318,7 +318,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
               </div>
 
               <div className="bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 flex items-center gap-2 self-start sm:self-auto">
-                <UserCheck className="w-4 h-4 text-amber-600 shrink-0" />
+                <UserCheck className="w-4 h-4 text-[var(--app-warn-text)] shrink-0" />
                 <div className="text-xs">
                   <span className="text-slate-500">المنفذ للخطوة: </span>
                   <strong className="text-slate-900 font-black">{current.executedBy}</strong>
@@ -327,9 +327,9 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
             </div>
 
             {/* Summary Box */}
-            <div className="bg-amber-50/60 p-4 rounded-2xl border border-amber-200/80 text-xs sm:text-sm text-slate-800 leading-relaxed">
-              <div className="font-black text-amber-950 mb-1 flex items-center gap-1.5">
-                <Info className="w-4 h-4 text-amber-600" />
+            <div className="bg-[var(--app-warn-tint)] p-4 rounded-2xl border border-[var(--app-warn-line)] text-xs sm:text-sm text-slate-800 leading-relaxed">
+              <div className="font-black text-[var(--app-warn-text)] mb-1 flex items-center gap-1.5">
+                <Info className="w-4 h-4 text-[var(--app-warn-text)]" />
                 <span>ملخص الإجراء:</span>
               </div>
               {current.summary}
@@ -338,13 +338,13 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
             {/* Action Details Grid */}
             <div className="space-y-3">
               <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-500" />
+                <Zap className="w-4 h-4 text-[var(--app-warn-text)]" />
                 <span>ماذا يحدث في النظام والمخزون خلال هذه المرحلة؟</span>
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {current.whatHappens.map((item, idx) => (
                   <div key={idx} className="flex items-start gap-2.5 p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-700 leading-relaxed">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)] shrink-0 mt-0.5" />
                     <span>{item}</span>
                   </div>
                 ))}
@@ -354,9 +354,9 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
             {/* Pro Tip Box */}
             <div className="bg-slate-900 text-white p-4 rounded-2xl flex items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-2.5">
-                <ShieldCheck className="w-5 h-5 text-amber-400 shrink-0" />
+                <ShieldCheck className="w-5 h-5 text-[#d97706] shrink-0" />
                 <div>
-                  <span className="text-amber-300 font-black">ملاحظة أمان وتشغيل: </span>
+                  <span className="text-[#d97706] font-black">ملاحظة أمان وتشغيل: </span>
                   <span className="text-slate-200">{current.tip}</span>
                 </div>
               </div>
@@ -372,7 +372,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
                 <button
                   disabled={activeWorkflowStep === workflowSteps.length}
                   onClick={() => setActiveWorkflowStep((p) => Math.min(workflowSteps.length, p + 1))}
-                  className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-[11px] font-black disabled:opacity-40 transition cursor-pointer"
+                  className="px-2.5 py-1.5 bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 rounded-lg text-[11px] font-black disabled:opacity-40 transition cursor-pointer"
                 >
                   التالي
                 </button>
@@ -387,7 +387,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
       <div className="bg-white p-5 sm:p-7 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <Layers className="w-5 h-5 text-amber-600" />
+            <Layers className="w-5 h-5 text-[var(--app-warn-text)]" />
             <h2 className="text-base sm:text-lg font-black text-slate-900">
               المخطط البصري لمسارات الفاتورة والمخزون
             </h2>
@@ -401,14 +401,14 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
           <div
             onClick={() => setActiveWorkflowStep(1)}
             className={`p-4 rounded-2xl border text-center space-y-2 cursor-pointer transition transform hover:-translate-y-0.5 ${
-              activeWorkflowStep === 1 ? 'border-amber-400 bg-amber-50 shadow-md ring-2 ring-amber-400/50' : 'border-slate-200 bg-slate-50 hover:bg-white'
+              activeWorkflowStep === 1 ? 'border-[var(--app-warn)] bg-[var(--app-warn-tint)] shadow-md ring-2 ring-[var(--app-warn)]' : 'border-slate-200 bg-slate-50 hover:bg-white'
             }`}
           >
-            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-800 mx-auto flex items-center justify-center font-black">
+            <div className="w-10 h-10 rounded-xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] mx-auto flex items-center justify-center font-black">
               1
             </div>
             <div className="font-black text-xs text-slate-900">حجز الطلبية</div>
-            <span className="text-[10px] px-2 py-0.5 bg-amber-200 text-amber-900 rounded font-bold">
+            <span className="text-[10px] px-2 py-0.5 bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] rounded font-bold">
               قيد مراجعة المشرف
             </span>
             <p className="text-[11px] text-slate-500">حجز معلق لمنع البيع المزدوج</p>
@@ -418,14 +418,14 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
           <div
             onClick={() => setActiveWorkflowStep(2)}
             className={`p-4 rounded-2xl border text-center space-y-2 cursor-pointer transition transform hover:-translate-y-0.5 ${
-              activeWorkflowStep === 2 ? 'border-emerald-500 bg-emerald-50 shadow-md ring-2 ring-emerald-400/50' : 'border-slate-200 bg-slate-50 hover:bg-white'
+              activeWorkflowStep === 2 ? 'border-[var(--app-ok)] bg-[var(--app-ok-tint)] shadow-md ring-2 ring-[var(--app-ok)]' : 'border-slate-200 bg-slate-50 hover:bg-white'
             }`}
           >
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 mx-auto flex items-center justify-center font-black">
+            <div className="w-10 h-10 rounded-xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] mx-auto flex items-center justify-center font-black">
               2
             </div>
             <div className="font-black text-xs text-slate-900">اعتماد المشرف</div>
-            <span className="text-[10px] px-2 py-0.5 bg-emerald-200 text-emerald-900 rounded font-bold">
+            <span className="text-[10px] px-2 py-0.5 bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] rounded font-bold">
               معتمدة ومصروفة
             </span>
             <p className="text-[11px] text-slate-500">خصم نهائي وتوليد الفاتورة</p>
@@ -435,14 +435,14 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
           <div
             onClick={() => setActiveWorkflowStep(3)}
             className={`p-4 rounded-2xl border text-center space-y-2 cursor-pointer transition transform hover:-translate-y-0.5 ${
-              activeWorkflowStep === 3 ? 'border-blue-500 bg-blue-50 shadow-md ring-2 ring-blue-400/50' : 'border-slate-200 bg-slate-50 hover:bg-white'
+              activeWorkflowStep === 3 ? 'border-[var(--app-navy)] bg-[var(--app-navy-tint)] shadow-md ring-2 ring-[var(--app-navy)]' : 'border-slate-200 bg-slate-50 hover:bg-white'
             }`}
           >
-            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-800 mx-auto flex items-center justify-center font-black">
+            <div className="w-10 h-10 rounded-xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] mx-auto flex items-center justify-center font-black">
               3
             </div>
             <div className="font-black text-xs text-slate-900">تجهيز المخزن</div>
-            <span className="text-[10px] px-2 py-0.5 bg-blue-200 text-blue-900 rounded font-bold">
+            <span className="text-[10px] px-2 py-0.5 bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] rounded font-bold">
               جاري التجهيز
             </span>
             <p className="text-[11px] text-slate-500">تعبئة وطباعة بوليصة التحميل</p>
@@ -452,14 +452,14 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
           <div
             onClick={() => setActiveWorkflowStep(4)}
             className={`p-4 rounded-2xl border text-center space-y-2 cursor-pointer transition transform hover:-translate-y-0.5 ${
-              activeWorkflowStep === 4 ? 'border-indigo-500 bg-indigo-50 shadow-md ring-2 ring-indigo-400/50' : 'border-slate-200 bg-slate-50 hover:bg-white'
+              activeWorkflowStep === 4 ? 'border-[var(--app-navy)] bg-[var(--app-navy-tint)] shadow-md ring-2 ring-[var(--app-navy)]' : 'border-slate-200 bg-slate-50 hover:bg-white'
             }`}
           >
-            <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-800 mx-auto flex items-center justify-center font-black">
+            <div className="w-10 h-10 rounded-xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] mx-auto flex items-center justify-center font-black">
               4
             </div>
             <div className="font-black text-xs text-slate-900">التسليم والتحصيل</div>
-            <span className="text-[10px] px-2 py-0.5 bg-indigo-200 text-indigo-900 rounded font-bold">
+            <span className="text-[10px] px-2 py-0.5 bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] rounded font-bold">
               تم التسليم
             </span>
             <p className="text-[11px] text-slate-500">تحصيل كاش أو قيد آجل</p>
@@ -469,14 +469,14 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
           <div
             onClick={() => setActiveWorkflowStep(5)}
             className={`p-4 rounded-2xl border text-center space-y-2 cursor-pointer transition transform hover:-translate-y-0.5 ${
-              activeWorkflowStep === 5 ? 'border-rose-500 bg-rose-50 shadow-md ring-2 ring-rose-400/50' : 'border-slate-200 bg-slate-50 hover:bg-white'
+              activeWorkflowStep === 5 ? 'border-[var(--app-risk)] bg-[var(--app-risk-tint)] shadow-md ring-2 ring-[var(--app-risk)]' : 'border-slate-200 bg-slate-50 hover:bg-white'
             }`}
           >
-            <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-800 mx-auto flex items-center justify-center font-black">
+            <div className="w-10 h-10 rounded-xl bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] mx-auto flex items-center justify-center font-black">
               5
             </div>
             <div className="font-black text-xs text-slate-900">مسار الإلغاء والمرتجع</div>
-            <span className="text-[10px] px-2 py-0.5 bg-rose-200 text-rose-900 rounded font-bold">
+            <span className="text-[10px] px-2 py-0.5 bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] rounded font-bold">
               اعتذار / مرتجع
             </span>
             <p className="text-[11px] text-slate-500">إرجاع آلي فوري لرصيد المخزن</p>
@@ -488,7 +488,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
       {/* Role & Permissions Matrix */}
       <div className="bg-white p-5 sm:p-7 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 space-y-4">
         <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
-          <Users className="w-5 h-5 text-amber-600" />
+          <Users className="w-5 h-5 text-[var(--app-warn-text)]" />
           <div>
             <h2 className="text-base sm:text-lg font-black text-slate-900">
               جدول الصلاحيات وتوزيع المسؤوليات
@@ -511,7 +511,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
                 <span className="text-[11px] font-black text-slate-700 block">ما يمكنه تنفيذه:</span>
                 {rm.abilities.map((ab, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs text-slate-800">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[var(--app-ok-text)] shrink-0" />
                     <span>{ab}</span>
                   </div>
                 ))}
@@ -522,7 +522,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
                   <span className="text-[11px] font-black text-slate-500 block">القيود للحماية والنزاهة:</span>
                   {rm.cannot.map((cn, i) => (
                     <div key={i} className="flex items-center gap-2 text-xs text-slate-600">
-                      <XCircle className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                      <XCircle className="w-3.5 h-3.5 text-[var(--app-risk-text)] shrink-0" />
                       <span>{cn}</span>
                     </div>
                   ))}
@@ -536,7 +536,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
       {/* Frequently Asked Questions (FAQ) Accordion */}
       <div className="bg-white p-5 sm:p-7 rounded-2xl sm:rounded-3xl shadow-sm border border-slate-200 space-y-4">
         <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3">
-          <HelpCircle className="w-5 h-5 text-amber-600" />
+          <HelpCircle className="w-5 h-5 text-[var(--app-warn-text)]" />
           <div>
             <h2 className="text-base sm:text-lg font-black text-slate-900">
               الأسئلة الشائعة حول إدارة الفواتير والمخزون
@@ -558,7 +558,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
                   className="w-full p-4 text-right bg-slate-50 hover:bg-slate-100/80 flex items-center justify-between gap-3 text-xs sm:text-sm font-black text-slate-900 transition cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-lg bg-amber-100 text-amber-800 text-xs flex items-center justify-center font-black shrink-0">
+                    <span className="w-6 h-6 rounded-lg bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] text-xs flex items-center justify-center font-black shrink-0">
                       ؟
                     </span>
                     <span>{faq.q}</span>

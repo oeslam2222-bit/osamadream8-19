@@ -283,8 +283,8 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
     <div className="space-y-5 pb-16 animate-in fade-in duration-300">
       {/* Success Notification Toast */}
       {successToast && (
-        <div className="fixed top-20 left-4 right-4 md:left-auto md:right-6 z-50 bg-slate-950 text-white px-4 py-3 rounded-2xl shadow-2xl border-2 border-emerald-400 flex items-center gap-3 animate-in fade-in slide-in-from-top-3">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+        <div className="fixed top-20 left-4 right-4 md:left-auto md:right-6 z-50 bg-slate-950 text-white px-4 py-3 rounded-2xl shadow-2xl border-2 border-[var(--app-ok)] flex items-center gap-3 animate-in fade-in slide-in-from-top-3">
+          <CheckCircle2 className="w-5 h-5 text-[#0d9488] shrink-0" />
           <span className="text-xs sm:text-sm font-black">{successToast}</span>
         </div>
       )}
@@ -293,7 +293,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
       <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white rounded-3xl p-4 sm:p-6 shadow-xl border border-slate-800 space-y-4">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-slate-950 flex items-center justify-center font-black shadow-lg shrink-0">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[var(--app-warn)] to-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black shadow-lg shrink-0">
               <BarChart3 className="w-6 h-6 stroke-[2.5]" />
             </div>
             <div>
@@ -301,8 +301,8 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                 <h1 className="text-lg sm:text-2xl font-black text-white">
                   لوحة التحكم التنفيذية والعمليات (Home Dashboard)
                 </h1>
-                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span className="bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)] text-[11px] font-black px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-[var(--app-ok)] animate-pulse"></span>
                   <span>المنظومة البديلة المعتمدة ⚡</span>
                 </span>
               </div>
@@ -318,7 +318,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
               <button
                 type="button"
                 onClick={onOpenNewOrder}
-                className="bg-amber-400 hover:bg-amber-300 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black shadow transition flex items-center gap-1.5 cursor-pointer active:scale-95"
               >
                 <PlusCircle className="w-4 h-4" />
                 <span>إنشاء طلبية فورية 🛒</span>
@@ -332,7 +332,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
               className="bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95"
               title="تصدير شيت Excel تنفيذي لاجتماعات الإدارة ومراجعة الفرع"
             >
-              <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
+              <FileSpreadsheet className="w-4 h-4 text-[#0d9488]" />
               <span>{isExportingReport ? 'جاري التصدير...' : 'تقرير الإدارة الشامل 📊'}</span>
             </button>
           </div>
@@ -341,13 +341,13 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
         {/* Branch Filter Switcher for Admin / Management */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-800 text-xs">
           <div className="flex items-center gap-2 text-slate-300">
-            <Building2 className="w-4 h-4 text-amber-400 shrink-0" />
+            <Building2 className="w-4 h-4 text-[#d97706] shrink-0" />
             <span className="font-bold">نطاق العرض الحالي:</span>
-            <span className="bg-slate-800 px-2.5 py-1 rounded-lg text-amber-300 font-mono font-black border border-slate-700">
+            <span className="bg-slate-800 px-2.5 py-1 rounded-lg text-[#d97706] font-mono font-black border border-slate-700">
               {activeBranchName}
             </span>
             {isOffline && (
-              <span className="bg-rose-500/20 text-rose-300 text-[10px] font-bold px-2 py-0.5 rounded border border-rose-500/30">
+              <span className="bg-[var(--app-risk)] text-[#ef4444] text-[10px] font-bold px-2 py-0.5 rounded border border-[var(--app-risk)]">
                 وضع غير متصل (يعمل محلياً)
               </span>
             )}
@@ -362,7 +362,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                 id="home-branch-filter"
                 value={selectedBranchFilter}
                 onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                className="bg-slate-800 border border-slate-700 text-white font-bold rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-amber-400 focus:outline-none cursor-pointer"
+                className="bg-slate-800 border border-slate-700 text-white font-bold rounded-xl px-3 py-1.5 text-xs focus:ring-2 focus:ring-[var(--app-warn)] focus:outline-none cursor-pointer"
               >
                 <option value="الكل">كل فروع الشركة</option>
                 {branches
@@ -381,15 +381,15 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
       {/* 2. TOP 4 POWER BI EXECUTIVE KPI TILES */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Metric 1: Total Sales */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1 hover:border-amber-400 transition">
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1 hover:border-[var(--app-warn)] transition">
           <div className="flex items-center justify-between text-slate-500 text-xs font-bold">
             <span>المبيعات المعتمدة</span>
-            <Wallet className="w-4 h-4 text-amber-500" />
+            <Wallet className="w-4 h-4 text-[var(--app-warn-text)]" />
           </div>
           <div className="text-lg sm:text-2xl font-black font-mono text-slate-900 mt-1">
             {formatCurrency(totalSalesRevenue)}
           </div>
-          <div className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+          <div className="text-[11px] text-[var(--app-ok-text)] font-bold flex items-center gap-1">
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>{completedOrders.length} فواتير معتمدة ومسلمة</span>
           </div>
@@ -398,13 +398,13 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
         {/* Metric 2: Pending Orders Queue */}
         <div
           onClick={() => onNavigateToTab('invoices')}
-          className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1 hover:border-amber-400 transition cursor-pointer group"
+          className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1 hover:border-[var(--app-warn)] transition cursor-pointer group"
         >
           <div className="flex items-center justify-between text-slate-500 text-xs font-bold">
             <span>طلبيات بانتظار الاعتماد</span>
-            <Clock className="w-4 h-4 text-amber-600 group-hover:scale-110 transition" />
+            <Clock className="w-4 h-4 text-[var(--app-warn-text)] group-hover:scale-110 transition" />
           </div>
-          <div className="text-lg sm:text-2xl font-black font-mono text-amber-600 mt-1">
+          <div className="text-lg sm:text-2xl font-black font-mono text-[var(--app-warn-text)] mt-1">
             {pendingOrders.length} طلبية
           </div>
           <div className="text-[11px] text-slate-500 font-medium truncate">
@@ -415,13 +415,13 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
         {/* Metric 3: Critical & Depleted Stock */}
         <div
           onClick={() => onNavigateToTab('inventory')}
-          className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1 hover:border-rose-400 transition cursor-pointer group"
+          className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1 hover:border-[var(--app-risk)] transition cursor-pointer group"
         >
           <div className="flex items-center justify-between text-slate-500 text-xs font-bold">
             <span>نواقص ومخزون حرج</span>
-            <AlertTriangle className="w-4 h-4 text-rose-500 group-hover:scale-110 transition" />
+            <AlertTriangle className="w-4 h-4 text-[var(--app-risk-text)] group-hover:scale-110 transition" />
           </div>
-          <div className="text-lg sm:text-2xl font-black font-mono text-rose-600 mt-1">
+          <div className="text-lg sm:text-2xl font-black font-mono text-[var(--app-risk-text)] mt-1">
             {stockAlerts.criticalCount + stockAlerts.depletedCount} صنف
           </div>
           <div className="text-[11px] text-slate-500 font-medium">
@@ -432,16 +432,16 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
         {/* Metric 4: Field Visits */}
         <div
           onClick={() => onNavigateToTab('visits')}
-          className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1 hover:border-indigo-400 transition cursor-pointer group"
+          className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1 hover:border-[var(--app-navy)] transition cursor-pointer group"
         >
           <div className="flex items-center justify-between text-slate-500 text-xs font-bold">
             <span>زيارات المناديب الميدانية</span>
-            <MapPin className="w-4 h-4 text-indigo-500 group-hover:scale-110 transition" />
+            <MapPin className="w-4 h-4 text-[var(--app-navy-text)] group-hover:scale-110 transition" />
           </div>
           <div className="text-lg sm:text-2xl font-black font-mono text-slate-900 mt-1">
             {visibleVisits.length} زيارة
           </div>
-          <div className="text-[11px] text-indigo-600 font-bold flex items-center gap-1">
+          <div className="text-[11px] text-[var(--app-navy-text)] font-bold flex items-center gap-1">
             <span>{todayVisitsCount} زيارة مسجلة اليوم</span>
           </div>
         </div>
@@ -452,9 +452,9 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
         
         {/* CARD 1: STOCK & INVENTORY ALERTS (تنبيهات المخزون الحرج والنواقص) */}
         <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
-          <div className="p-4 bg-gradient-to-r from-rose-50 to-amber-50/40 border-b border-slate-200 flex items-center justify-between">
+          <div className="p-4 bg-gradient-to-r from-[var(--app-risk)] to-[var(--app-warn)] border-b border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-rose-500 text-white flex items-center justify-center font-black shadow-xs">
+              <div className="w-9 h-9 rounded-xl bg-[var(--app-risk)] text-white flex items-center justify-center font-black shadow-xs">
                 <AlertTriangle className="w-5 h-5" />
               </div>
               <div>
@@ -465,7 +465,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
             <button
               type="button"
               onClick={() => onNavigateToTab('inventory')}
-              className="text-xs text-rose-600 hover:text-rose-800 font-bold flex items-center gap-1 cursor-pointer"
+              className="text-xs text-[var(--app-risk-text)] hover:text-[var(--app-risk-text)] font-bold flex items-center gap-1 cursor-pointer"
             >
               <span>إدارة المخزون</span>
               <ChevronLeft className="w-4 h-4" />
@@ -480,7 +480,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                   type="button"
                   onClick={() => setStockFilterType('critical')}
                   className={`flex-1 py-1 rounded-lg transition cursor-pointer text-center ${
-                    stockFilterType === 'critical' ? 'bg-amber-400 text-slate-950 font-black shadow-xs' : 'text-slate-600'
+                    stockFilterType === 'critical' ? 'bg-[var(--app-warn)] text-slate-950 font-black shadow-xs' : 'text-slate-600'
                   }`}
                 >
                   مخزون حرج ({stockAlerts.criticalCount})
@@ -489,7 +489,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                   type="button"
                   onClick={() => setStockFilterType('depleted')}
                   className={`flex-1 py-1 rounded-lg transition cursor-pointer text-center ${
-                    stockFilterType === 'depleted' ? 'bg-rose-500 text-white font-black shadow-xs' : 'text-slate-600'
+                    stockFilterType === 'depleted' ? 'bg-[var(--app-risk)] text-white font-black shadow-xs' : 'text-slate-600'
                   }`}
                 >
                   نفد بالفرع ({stockAlerts.depletedCount})
@@ -504,7 +504,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                   value={stockSearchTerm}
                   onChange={(e) => setStockSearchTerm(e.target.value)}
                   placeholder="ابحث بالاسم أو كود الصنف..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-amber-400 font-medium"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[var(--app-warn)] font-medium"
                 />
               </div>
 
@@ -518,15 +518,15 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                   displayedStockAlerts.map(({ product, branchStock, octoberStock }) => (
                     <div
                       key={product.id}
-                      className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:border-amber-300 transition flex items-center justify-between gap-2"
+                      className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-white hover:border-[var(--app-warn-line)] transition flex items-center justify-between gap-2"
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-mono text-[10px] font-black bg-slate-900 text-amber-300 px-1.5 py-0.2 rounded">
+                          <span className="font-mono text-[10px] font-black bg-slate-900 text-[#d97706] px-1.5 py-0.2 rounded">
                             {product.code}
                           </span>
                           {product.unifiedCode && (
-                            <span className="font-mono text-[9px] text-blue-700 bg-blue-100 px-1.5 py-0.2 rounded font-bold">
+                            <span className="font-mono text-[9px] text-[var(--app-navy-text)] bg-[var(--app-navy-tint)] px-1.5 py-0.2 rounded font-bold">
                               {product.unifiedCode}
                             </span>
                           )}
@@ -539,7 +539,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                       <div className="flex items-center gap-2 shrink-0 text-right">
                         <div className="text-[10px]">
                           <span className="text-slate-500 block">بالفرع:</span>
-                          <span className={`font-black font-mono text-xs ${branchStock <= 0 ? 'text-rose-600' : 'text-amber-800'}`}>
+                          <span className={`font-black font-mono text-xs ${branchStock <= 0 ? 'text-[var(--app-risk-text)]' : 'text-[var(--app-warn-text)]'}`}>
                             {branchStock} ك
                           </span>
                         </div>
@@ -559,9 +559,9 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
             <button
               type="button"
               onClick={() => onNavigateToTab('catalog')}
-              className="w-full mt-2 bg-slate-900 hover:bg-slate-800 text-amber-300 py-2.5 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+              className="w-full mt-2 bg-slate-900 hover:bg-slate-800 text-[#d97706] py-2.5 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
             >
-              <Boxes className="w-4 h-4 text-amber-400" />
+              <Boxes className="w-4 h-4 text-[#d97706]" />
               <span>استعراض كافة الأصناف بالكتالوج ←</span>
             </button>
           </div>
@@ -569,9 +569,9 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
 
         {/* CARD 2: PENDING ORDERS & APPROVALS (الطلبيات المعلقة وقيد الاعتماد) */}
         <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
-          <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50/40 border-b border-slate-200 flex items-center justify-between">
+          <div className="p-4 bg-gradient-to-r from-[var(--app-warn)] to-[var(--app-warn)] border-b border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-xs">
+              <div className="w-9 h-9 rounded-xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black shadow-xs">
                 <Receipt className="w-5 h-5" />
               </div>
               <div>
@@ -582,7 +582,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
             <button
               type="button"
               onClick={() => onNavigateToTab('invoices')}
-              className="text-xs text-amber-700 hover:text-amber-900 font-bold flex items-center gap-1 cursor-pointer"
+              className="text-xs text-[var(--app-warn-text)] hover:text-[var(--app-warn-text)] font-bold flex items-center gap-1 cursor-pointer"
             >
               <span>كل الفواتير</span>
               <ChevronLeft className="w-4 h-4" />
@@ -593,7 +593,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
             <div className="space-y-2.5 max-h-[380px] overflow-y-auto no-scrollbar">
               {pendingOrders.length === 0 ? (
                 <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                  <CheckCircle2 className="w-8 h-8 text-[var(--app-ok-text)] mx-auto" />
                   <div className="text-xs font-black text-slate-800">لا توجد طلبيات معلقة حالياً</div>
                   <p className="text-[11px] text-slate-500">كافة الطلبيات تم اعتمادها أو تجهيزها بنجاح.</p>
                 </div>
@@ -601,7 +601,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                 pendingOrders.map((inv) => (
                   <div
                     key={inv.id}
-                    className="p-3 rounded-2xl border border-slate-200 bg-white hover:border-amber-400 transition space-y-2 shadow-2xs"
+                    className="p-3 rounded-2xl border border-slate-200 bg-white hover:border-[var(--app-warn)] transition space-y-2 shadow-2xs"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -609,7 +609,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                           <span className="font-mono text-xs font-black text-slate-900">
                             #{inv.invoiceNumber}
                           </span>
-                          <span className="bg-amber-100 text-amber-900 text-[10px] font-black px-2 py-0.2 rounded-full border border-amber-300">
+                          <span className="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] text-[10px] font-black px-2 py-0.2 rounded-full border border-[var(--app-warn-line)]">
                             {inv.status}
                           </span>
                         </div>
@@ -648,7 +648,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                         <button
                           type="button"
                           onClick={() => handleQuickApprove(inv.id)}
-                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-black flex items-center gap-1 cursor-pointer transition shadow-2xs"
+                          className="px-3 py-1 bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white rounded-lg text-[11px] font-black flex items-center gap-1 cursor-pointer transition shadow-2xs"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           <span>اعتماد فوري ✓</span>
@@ -665,7 +665,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
               onClick={() => onNavigateToTab('invoices')}
               className="w-full mt-2 bg-slate-100 hover:bg-slate-200 text-slate-800 py-2.5 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <Receipt className="w-4 h-4 text-amber-600" />
+              <Receipt className="w-4 h-4 text-[var(--app-warn-text)]" />
               <span>عرض سجل الفواتير الكامل ({visibleInvoices.length}) ←</span>
             </button>
           </div>
@@ -673,9 +673,9 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
 
         {/* CARD 3: RECENT VISITS & FIELD ACTIVITY (أحدث زيارات العملاء الميدانية) */}
         <div className="bg-white rounded-3xl border-2 border-slate-200 shadow-sm overflow-hidden flex flex-col h-full">
-          <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50/40 border-b border-slate-200 flex items-center justify-between">
+          <div className="p-4 bg-gradient-to-r from-[var(--app-navy)] to-[var(--app-navy)] border-b border-slate-200 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-black shadow-xs">
+              <div className="w-9 h-9 rounded-xl bg-[var(--app-navy)] text-white flex items-center justify-center font-black shadow-xs">
                 <MapPin className="w-5 h-5" />
               </div>
               <div>
@@ -686,7 +686,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
             <button
               type="button"
               onClick={() => onNavigateToTab('visits')}
-              className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 cursor-pointer"
+              className="text-xs text-[var(--app-navy-text)] hover:text-[var(--app-navy-text)] font-bold flex items-center gap-1 cursor-pointer"
             >
               <span>كل الزيارات</span>
               <ChevronLeft className="w-4 h-4" />
@@ -697,7 +697,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
             <div className="space-y-2.5 max-h-[380px] overflow-y-auto no-scrollbar">
               {recentVisits.length === 0 ? (
                 <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                  <MapPin className="w-8 h-8 text-indigo-400 mx-auto" />
+                  <MapPin className="w-8 h-8 text-[#60a5fa] mx-auto" />
                   <div className="text-xs font-black text-slate-800">لا توجد زيارات مسجلة حديثاً</div>
                   <p className="text-[11px] text-slate-500">اضغط الزر أدناه لبدء تسجيل أول زيارة ميدانية.</p>
                 </div>
@@ -707,7 +707,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                   return (
                     <div
                       key={visit.id}
-                      className="p-3 rounded-2xl border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-indigo-300 transition space-y-1.5"
+                      className="p-3 rounded-2xl border border-slate-200 bg-slate-50/60 hover:bg-white hover:border-[var(--app-navy-line)] transition space-y-1.5"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -715,7 +715,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                             {visit.customerName}
                           </h4>
                           <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
-                            <span className="font-bold text-indigo-700">{visit.repName}</span>
+                            <span className="font-bold text-[var(--app-navy-text)]">{visit.repName}</span>
                             <span>•</span>
                             <span className="font-mono">{visit.date}</span>
                           </div>
@@ -724,7 +724,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                         <span
                           className={`text-[9.5px] font-black px-2 py-0.5 rounded-full shrink-0 border ${
                             isSuccess
-                              ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                              ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)]'
                               : 'bg-slate-200 text-slate-800 border-slate-300'
                           }`}
                         >
@@ -746,7 +746,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
             <button
               type="button"
               onClick={() => onNavigateToTab('visits')}
-              className="w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+              className="w-full mt-2 bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white py-2.5 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
             >
               <PlusCircle className="w-4 h-4" />
               <span>تسجيل زيارة ميدانية جديدة 📍</span>
@@ -762,7 +762,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
         <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black">
+              <div className="w-8 h-8 rounded-xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black">
                 <Flame className="w-4 h-4" />
               </div>
               <h3 className="font-black text-slate-900 text-sm sm:text-base">الأصناف الأكثر طلباً وحركة (Power BI Top 5)</h3>
@@ -779,7 +779,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
               topSellingProducts.map((p, idx) => (
                 <div key={p.code} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200 gap-3">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-6 h-6 rounded-lg bg-slate-900 text-amber-300 font-mono font-black text-xs flex items-center justify-center shrink-0">
+                    <span className="w-6 h-6 rounded-lg bg-slate-900 text-[#d97706] font-mono font-black text-xs flex items-center justify-center shrink-0">
                       {idx + 1}
                     </span>
                     <div className="min-w-0">
@@ -789,7 +789,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                   </div>
 
                   <div className="text-left shrink-0">
-                    <div className="text-xs font-black font-mono text-emerald-700">
+                    <div className="text-xs font-black font-mono text-[var(--app-ok-text)]">
                       {p.cartonsSold.toLocaleString()} كرتونة
                     </div>
                     <div className="text-[10px] text-slate-400 font-mono">
@@ -806,7 +806,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
         <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-black">
+              <div className="w-8 h-8 rounded-xl bg-[var(--app-ok)] text-white flex items-center justify-center font-black">
                 <ShieldCheck className="w-4 h-4" />
               </div>
               <h3 className="font-black text-slate-900 text-sm sm:text-base">صحة التحصيل والمديونيات للعملاء</h3>
@@ -814,7 +814,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
             <button
               type="button"
               onClick={() => onNavigateToTab('all_customers')}
-              className="text-xs text-emerald-700 hover:text-emerald-900 font-bold flex items-center gap-1 cursor-pointer"
+              className="text-xs text-[var(--app-ok-text)] hover:text-[var(--app-ok-text)] font-bold flex items-center gap-1 cursor-pointer"
             >
               <span>تحليل العملاء</span>
               <ChevronLeft className="w-4 h-4" />
@@ -828,21 +828,21 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
                 {visibleCustomers.length} عميل
               </span>
             </div>
-            <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200">
-              <span className="text-[10px] text-amber-700 font-bold block">عملاء نشطون هذا الشهر</span>
-              <span className="text-xl font-black font-mono text-amber-950 mt-1 block">
+            <div className="p-3.5 rounded-2xl bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)]">
+              <span className="text-[10px] text-[var(--app-warn-text)] font-bold block">عملاء نشطون هذا الشهر</span>
+              <span className="text-xl font-black font-mono text-[var(--app-warn-text)] mt-1 block">
                 {new Set(visibleInvoices.map((i) => i.customerId)).size} عميل
               </span>
             </div>
           </div>
 
-          <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-200 space-y-2">
-            <div className="flex items-center justify-between text-xs font-black text-emerald-900">
+          <div className="bg-[var(--app-ok-tint)] p-3.5 rounded-2xl border border-[var(--app-ok-line)] space-y-2">
+            <div className="flex items-center justify-between text-xs font-black text-[var(--app-ok-text)]">
               <span>نسبة الأمان والتحصيل</span>
               <span>ممتاز 96%</span>
             </div>
-            <div className="h-2 rounded-full bg-emerald-200 overflow-hidden">
-              <div className="h-full bg-emerald-600 rounded-full" style={{ width: '96%' }}></div>
+            <div className="h-2 rounded-full bg-[var(--app-ok-tint)] overflow-hidden">
+              <div className="h-full bg-[var(--app-ok)] rounded-full" style={{ width: '96%' }}></div>
             </div>
             <p className="text-[10.5px] text-slate-600 leading-relaxed">
               كافة الطلبيات تخضع لفحص تلقائي لسقف المديونية وورق الضمان قبل الاعتماد لتأمين مستحقات الشركة.
@@ -852,30 +852,30 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
       </div>
 
       {/* 5. STRATEGIC MANAGEMENT ADVANTAGES (لماذا يعتمد مجلس الإدارة هذا التطبيق بديلاً معتمداً) */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-amber-400/10 to-slate-100 rounded-3xl p-5 sm:p-6 border-2 border-amber-400 shadow-sm space-y-3">
+      <div className="bg-gradient-to-r from-[var(--app-warn)] via-[var(--app-warn)] to-slate-100 rounded-3xl p-5 sm:p-6 border-2 border-[var(--app-warn)] shadow-sm space-y-3">
         <div className="flex items-center gap-2.5">
-          <Sparkles className="w-5 h-5 text-amber-600 shrink-0" />
+          <Sparkles className="w-5 h-5 text-[var(--app-warn-text)] shrink-0" />
           <h3 className="font-black text-slate-900 text-sm sm:text-base">
             لماذا يعتبر هذا التطبيق البديل الأمثل والآمن لإدارة الشركة لحين عودة النظام الرئيسي؟
           </h3>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs pt-1">
-          <div className="p-3 rounded-2xl bg-white border border-amber-200 shadow-2xs space-y-1">
+          <div className="p-3 rounded-2xl bg-white border border-[var(--app-warn-line)] shadow-2xs space-y-1">
             <strong className="text-slate-900 font-black block">1. استمرارية العمل بدون إنترنت (100% Offline)</strong>
             <p className="text-slate-600 text-[11px]">
               المناديب يسجلون الطلبيات والزيارات في المخازن ومناطق ضعف الشبكة مع مزامنة لحظية فور توفر الاتصال دون فقدان أي سطر.
             </p>
           </div>
 
-          <div className="p-3 rounded-2xl bg-white border border-amber-200 shadow-2xs space-y-1">
+          <div className="p-3 rounded-2xl bg-white border border-[var(--app-warn-line)] shadow-2xs space-y-1">
             <strong className="text-slate-900 font-black block">2. ربط مخزون الفروع بمخزن أكتوبر المركزي</strong>
             <p className="text-slate-600 text-[11px]">
               معاينة المخزون المتاح الفعلي وحجز الكراتين فورياً لمنع الحجز المزدوج لنفس الصنف بين مناديب الفروع المختلفة.
             </p>
           </div>
 
-          <div className="p-3 rounded-2xl bg-white border border-amber-200 shadow-2xs space-y-1">
+          <div className="p-3 rounded-2xl bg-white border border-[var(--app-warn-line)] shadow-2xs space-y-1">
             <strong className="text-slate-900 font-black block">3. فواتير إلكترونية متطابقة مع شيتات الشركة</strong>
             <p className="text-slate-600 text-[11px]">
               طباعة وتصدير فواتير بصيغتي Excel و PDF مطابقة تماماً لأعمدة الكود الأساسي والكود الموحد (#) وعدد الكراتين.

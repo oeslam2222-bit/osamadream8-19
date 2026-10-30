@@ -14,9 +14,9 @@ export const SlowMoversCard: React.FC<SlowMoversCardProps> = ({ items, totalItem
     title="أقل الأصناف مبيعًا"
     subtitle={`أضعف ${items.length} أصناف من أصل ${totalItems.toLocaleString('en-US')} صنف متحرك`}
     icon={<TrendingDown className="w-4 h-4" />}
-    iconClass="bg-rose-50 text-rose-600"
+    iconClass="bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]"
     action={
-      <span className="text-[9.5px] font-bold px-2 py-1 rounded-lg bg-rose-50 text-rose-600 border border-rose-100">
+      <span className="text-[9.5px] font-bold px-2 py-1 rounded-lg bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)]">
         فرص تحسين
       </span>
     }

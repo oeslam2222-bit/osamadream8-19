@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { AlertTriangle, CalendarCheck, CheckCircle2, Clock3, Plus, Save, Users, X, Search, Image as ImageIcon, Upload, Trash2, Mail, Truck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
@@ -24,13 +24,15 @@ interface ReturnItemForm {
 }
 
 export const VisitsDashboard: React.FC = () => {
-  const { currentUser, customers, users, products, getVisibleVisits, addVisit, updateVisit, deleteVisit, createStandaloneReturn } = useApp();
+  const { currentUser, customers, users, products, getVisibleVisits, getVisibleCustomers, getVisibleProducts, addVisit, updateVisit, deleteVisit, createStandaloneReturn } = useApp();
   const visible = getVisibleVisits();
   const [search, setSearch] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [selectedVisit, setSelectedVisit] = useState<CustomerVisit | null>(null);
   const [flash, setFlash] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const [visitsPage, setVisitsPage] = useState(1);
+  const VISITS_PER_PAGE = 15;
   const todayStr = new Date().toISOString().slice(0, 10);
   const canApproveReturns = currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
@@ -51,15 +53,11 @@ export const VisitsDashboard: React.FC = () => {
     visitItems: [] as VisitItem[],
   });
 
+  // 🔒 عملاء الموظف فقط: المندوب → عملاؤه، المشرف → عملاء مناديبه، مدير الفرع → فرعه،
+  //    والقطاع (منزلي/كهربائي) مطبّق تلقائياً عبر getVisibleCustomers.
   const myCustomers = useMemo(() => {
-    if (currentUser?.role === 'sales_rep') {
-      return customers.filter((c) => c.repId === currentUser.id || c.repName === currentUser.name);
-    }
-    if (currentUser?.role === 'branch_manager') {
-      return customers.filter((c) => c.branchName === currentUser.branchName);
-    }
-    return customers;
-  }, [customers, currentUser]);
+    return getVisibleCustomers();
+  }, [customers, users, currentUser, getVisibleCustomers]);
 
   const [searchProduct, setSearchProduct] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
@@ -71,7 +69,8 @@ export const VisitsDashboard: React.FC = () => {
       return;
     }
     const qLower = q.trim().toLowerCase();
-    const results = products.filter((p) =>
+    // مقيّد بقطاع الموظف وفرعه (منزلي/كهربائي)
+    const results = getVisibleProducts().filter((p) =>
       p.name.toLowerCase().includes(qLower) ||
       p.code.toLowerCase().includes(qLower) ||
       (p.unifiedCode && p.unifiedCode.toLowerCase().includes(qLower))
@@ -352,6 +351,17 @@ export const VisitsDashboard: React.FC = () => {
     };
   }, [filtered]);
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / VISITS_PER_PAGE));
+  const paginatedVisits = useMemo(() => {
+    const start = (visitsPage - 1) * VISITS_PER_PAGE;
+    return filtered.slice(start, start + VISITS_PER_PAGE);
+  }, [filtered, visitsPage]);
+
+  // Reset page when search changes
+  useEffect(() => {
+    setVisitsPage(1);
+  }, [search]);
+
   return (
     <div className="tantawy-screen space-y-5" dir="rtl">
       <header className="flex flex-wrap items-center justify-between gap-3">
@@ -365,7 +375,7 @@ export const VisitsDashboard: React.FC = () => {
       </header>
 
       {flash ? (
-        <div className={`rounded-xl border px-4 py-3 text-sm font-bold flex items-start gap-2 ${flash.tone === 'success' ? 'bg-green-pale border-[var(--app-ok)] text-emerald-700' : 'bg-rose-50 border-rose-200 text-rose-700'}`}>
+        <div className={`rounded-xl border px-4 py-3 text-sm font-bold flex items-start gap-2 ${flash.tone === 'success' ? 'bg-green-pale border-[var(--app-ok)] text-[var(--app-ok-text)]' : 'bg-[var(--app-risk-tint)] border-[var(--app-risk-line)] text-[var(--app-risk-text)]'}`}>
           <span>{flash.text}</span>
         </div>
       ) : null}
@@ -377,7 +387,7 @@ export const VisitsDashboard: React.FC = () => {
               <p className="text-xs text-slate-500 font-bold">إجمالي الزيارات</p>
               <p className="text-2xl font-black">{stats.total}</p>
             </div>
-            <CalendarCheck className="w-8 h-8 text-amber-500" />
+            <CalendarCheck className="w-8 h-8 text-[var(--app-warn-text)]" />
           </div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-3">
@@ -386,7 +396,7 @@ export const VisitsDashboard: React.FC = () => {
               <p className="text-xs text-slate-500 font-bold">زيارات منفذة</p>
               <p className="text-2xl font-black">{stats.completed}</p>
             </div>
-            <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+            <CheckCircle2 className="w-8 h-8 text-[var(--app-ok-text)]" />
           </div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-3">
@@ -395,7 +405,7 @@ export const VisitsDashboard: React.FC = () => {
               <p className="text-xs text-slate-500 font-bold">مرتجعات</p>
               <p className="text-2xl font-black">{stats.returns}</p>
             </div>
-            <Truck className="w-8 h-8 text-amber-500" />
+            <Truck className="w-8 h-8 text-[var(--app-warn-text)]" />
           </div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-3">
@@ -404,7 +414,7 @@ export const VisitsDashboard: React.FC = () => {
               <p className="text-xs text-slate-500 font-bold">تحصيلات</p>
               <p className="text-2xl font-black">{stats.collections}</p>
             </div>
-            <Mail className="w-8 h-8 text-blue-500" />
+            <Mail className="w-8 h-8 text-[var(--app-navy-text)]" />
           </div>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-3">
@@ -413,7 +423,7 @@ export const VisitsDashboard: React.FC = () => {
               <p className="text-xs text-slate-500 font-bold">متابعات</p>
               <p className="text-2xl font-black">{stats.followups}</p>
             </div>
-            <Clock3 className="w-8 h-8 text-purple-500" />
+            <Clock3 className="w-8 h-8 text-[var(--app-navy-text)]" />
           </div>
         </div>
       </div>
@@ -427,7 +437,7 @@ export const VisitsDashboard: React.FC = () => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="ابحث باسم العميل أو الكود أو المندوب..."
-              className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)]"
             />
           </div>
         </div>
@@ -444,7 +454,7 @@ export const VisitsDashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((v) => (
+              {paginatedVisits.map((v) => (
                 <tr key={v.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition">
                   <td className="p-3 font-mono font-black text-slate-900 text-xs">{v.invoiceNumber || v.id}</td>
                   <td className="p-3 font-black text-slate-800 text-sm">
@@ -453,8 +463,8 @@ export const VisitsDashboard: React.FC = () => {
                   </td>
                   <td className="p-3 text-sm">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      v.type === 'تحصيل' ? 'bg-amber-50 text-amber-700' :
-                      v.type === 'فاتورة مرتجع لدي العميل' ? 'bg-rose-50 text-rose-700' :
+                      v.type === 'تحصيل' ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]' :
+                      v.type === 'فاتورة مرتجع لدي العميل' ? 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]' :
                       'bg-slate-50 text-slate-700'
                     }`}>
                       {v.type}
@@ -465,8 +475,8 @@ export const VisitsDashboard: React.FC = () => {
                   </td>
                   <td className="p-3 text-center">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      v.status === 'منفذة' ? 'bg-emerald-50 text-emerald-700' :
-                      v.status === 'مجدولة' ? 'bg-amber-50 text-amber-700' :
+                      v.status === 'منفذة' ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]' :
+                      v.status === 'مجدولة' ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]' :
                       'bg-slate-50 text-slate-700'
                     }`}>
                       {v.status}
@@ -494,6 +504,46 @@ export const VisitsDashboard: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* ترقيم صفحات الزيارات */}
+      {filtered.length > 0 && totalPages > 1 && (
+        <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="text-xs font-bold text-slate-600">
+            عرض الزيارات {((visitsPage - 1) * VISITS_PER_PAGE) + 1} إلى {Math.min(visitsPage * VISITS_PER_PAGE, filtered.length)} من أصل {filtered.length}
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setVisitsPage(p => Math.max(1, p - 1))}
+              disabled={visitsPage === 1}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition"
+            >
+              السابق
+            </button>
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((p) => {
+              const show = totalPages <= 7 || p === 1 || p === totalPages || Math.abs(p - visitsPage) <= 2;
+              if (!show) return null;
+              return (
+                <button
+                  key={p}
+                  onClick={() => setVisitsPage(p)}
+                  className={`w-8 h-8 rounded-xl text-xs font-bold flex items-center justify-center transition ${
+                    visitsPage === p ? 'bg-[var(--app-navy)] text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {p}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setVisitsPage(p => Math.min(totalPages, p + 1))}
+              disabled={visitsPage === totalPages}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition"
+            >
+              التالي
+            </button>
+          </div>
+        </div>
+      )}
 
       {showForm ? (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowForm(false); }}>
@@ -539,7 +589,7 @@ export const VisitsDashboard: React.FC = () => {
                     value={searchProduct}
                     onChange={(e) => handleProductSearch(e.target.value)}
                     placeholder="اكتب اسم الصنف أو الكود..."
-                    className="w-full pl-8 pr-10 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    className="w-full pl-8 pr-10 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)]"
                   />
                   <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                 </div>
@@ -549,13 +599,13 @@ export const VisitsDashboard: React.FC = () => {
                       <div
                         key={p.id}
                         onClick={() => selectProductForVisit(p)}
-                        className="px-3 py-2 text-sm hover:bg-amber-50 cursor-pointer border-b border-slate-50/30 last:border-0 flex items-center justify-between"
+                        className="px-3 py-2 text-sm hover:bg-[var(--app-warn-tint)] cursor-pointer border-b border-slate-50/30 last:border-0 flex items-center justify-between"
                       >
                         <div>
                           <div className="font-black text-slate-900">{p.name}</div>
                           <div className="text-[10px] text-slate-400">كود: {p.code} {p.unifiedCode ? '(#' + p.unifiedCode + ')' : ''}</div>
                         </div>
-                        <div className="text-xs font-bold text-amber-600">{p.cartonPrice.toLocaleString()} ج.م</div>
+                        <div className="text-xs font-bold text-[var(--app-warn-text)]">{p.cartonPrice.toLocaleString()} ج.م</div>
                       </div>
                     ))}
                   </div>
@@ -575,7 +625,7 @@ export const VisitsDashboard: React.FC = () => {
                 <div className="mt-2 rounded-xl border border-[color:var(--app-line)] bg-slate-50 p-2">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-[10px] font-bold text-slate-700">الأصناف المضافة</span>
-                    <span className="text-[10px] font-black text-amber-600">
+                    <span className="text-[10px] font-black text-[var(--app-warn-text)]">
                       {form.visitItems.reduce((s, i) => s + i.amount, 0).toLocaleString()} ج.م
                     </span>
                   </div>
@@ -591,7 +641,7 @@ export const VisitsDashboard: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => removeVisitItem(item.id)}
-                          className="text-xs text-rose-600"
+                          className="text-xs text-[var(--app-risk-text)]"
                           title="حذف الصنف"
                         >
                           <Trash2 className="w-3 h-3" />
@@ -622,7 +672,7 @@ export const VisitsDashboard: React.FC = () => {
                         value={searchProduct}
                         onChange={(e) => handleProductSearch(e.target.value)}
                         placeholder="اكتب اسم الصنف أو الكود..."
-                        className="w-full pl-8 pr-10 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        className="w-full pl-8 pr-10 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)]"
                       />
                       <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                     </div>
@@ -632,7 +682,7 @@ export const VisitsDashboard: React.FC = () => {
                           <div
                             key={p.id}
                             onClick={() => selectProductForReturn(p)}
-                            className="px-3 py-2 text-sm hover:bg-amber-50 cursor-pointer border-b border-slate-50/30 last:border-0 flex items-center justify-between"
+                            className="px-3 py-2 text-sm hover:bg-[var(--app-warn-tint)] cursor-pointer border-b border-slate-50/30 last:border-0 flex items-center justify-between"
                           >
                             <div>
                               <div className="font-black text-slate-900">{p.name}</div>
@@ -644,7 +694,7 @@ export const VisitsDashboard: React.FC = () => {
                       </div>
                     )}
                     {searchProduct && searchResults.length === 0 && (
-                      <div className="mt-1 text-[10px] text-rose-500">لم يتم العثور على أصناف</div>
+                      <div className="mt-1 text-[10px] text-[var(--app-risk-text)]">لم يتم العثور على أصناف</div>
                     )}
                   </label>
 
@@ -662,7 +712,7 @@ export const VisitsDashboard: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => updateReturnItem(item.id, { quantity: item.quantity + 1 })}
-                                className="w-6 h-6 rounded bg-emerald-50 text-emerald-600 text-[10px] font-bold flex items-center justify-center"
+                                className="w-6 h-6 rounded bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] text-[10px] font-bold flex items-center justify-center"
                                 title="زيادة الكمية"
                               >
                                 +
@@ -670,7 +720,7 @@ export const VisitsDashboard: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => item.quantity > 1 ? updateReturnItem(item.id, { quantity: item.quantity - 1 }) : removeReturnItem(item.id)}
-                                className="w-6 h-6 rounded bg-rose-50 text-rose-600 text-[10px] font-bold flex items-center justify-center"
+                                className="w-6 h-6 rounded bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] text-[10px] font-bold flex items-center justify-center"
                                 title="نقص الكمية أو الحذف"
                               >
                                 −
@@ -678,7 +728,7 @@ export const VisitsDashboard: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => removeReturnItem(item.id)}
-                                className="ml-1 text-xs text-rose-600"
+                                className="ml-1 text-xs text-[var(--app-risk-text)]"
                                 title="حذف الصنف"
                               >
                                 <Trash2 className="w-3 h-3" />
@@ -701,7 +751,7 @@ export const VisitsDashboard: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => removeReturnImage(idx)}
-                            className="absolute top-1 right-1 bg-rose-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px]"
+                            className="absolute top-1 right-1 bg-[var(--app-risk)] text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px]"
                           >
                             <X className="w-2.5 h-2.5" />
                           </button>
@@ -724,7 +774,7 @@ export const VisitsDashboard: React.FC = () => {
                           };
                           input.click();
                         }}
-                        className="w-12 h-12 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-amber-500 hover:text-amber-500 transition"
+                        className="w-12 h-12 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-[var(--app-warn)] hover:text-[var(--app-warn-text)] transition"
                       >
                         <Upload className="w-4 h-4" />
                       </button>
@@ -746,7 +796,7 @@ export const VisitsDashboard: React.FC = () => {
               </label>
 
               {formErrors.length > 0 && (
-                <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-lg text-xs font-bold">
+                <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] px-3 py-2 rounded-lg text-xs font-bold">
                   {formErrors.map((err, i) => <div key={i}>• {err}</div>)}
                 </div>
               )}
@@ -783,7 +833,7 @@ export const VisitsDashboard: React.FC = () => {
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl">
                   <p className="text-[10px] text-slate-500 font-bold">الحالة</p>
-                  <p className={`font-black text-sm ${selectedVisit.status === 'منفذة' ? 'text-emerald-600' : 'text-amber-600'}`}>{selectedVisit.status}</p>
+                  <p className={`font-black text-sm ${selectedVisit.status === 'منفذة' ? 'text-[var(--app-ok-text)]' : 'text-[var(--app-warn-text)]'}`}>{selectedVisit.status}</p>
                 </div>
               </div>
               {selectedVisit.notes && (
@@ -793,8 +843,8 @@ export const VisitsDashboard: React.FC = () => {
                 </div>
               )}
               {selectedVisit.isReturn && selectedVisit.returnItems && (
-                <div className="p-3 bg-rose-50 rounded-xl border border-rose-100">
-                  <p className="text-[10px] text-rose-700 font-bold">بيانات المرتجع</p>
+                <div className="p-3 bg-[var(--app-risk-tint)] rounded-xl border border-[var(--app-risk-line)]">
+                  <p className="text-[10px] text-[var(--app-risk-text)] font-bold">بيانات المرتجع</p>
                   <div className="mt-2 space-y-2">
                     {JSON.parse(selectedVisit.returnItems || '[]').map((item: any, i: number) => (
                       <div key={i} className="flex items-center justify-between text-xs">
@@ -802,8 +852,8 @@ export const VisitsDashboard: React.FC = () => {
                         <span className="text-slate-600">{item.quantity} {item.unit}</span>
                       </div>
                     ))}
-                    <div className="mt-2 pt-2 border-t border-rose-200">
-                      <span className="font-black text-rose-700">القيمة الإجمالية: {formatCurrency(selectedVisit.returnValue || 0)} ج.م</span>
+                    <div className="mt-2 pt-2 border-t border-[var(--app-risk-line)]">
+                      <span className="font-black text-[var(--app-risk-text)]">القيمة الإجمالية: {formatCurrency(selectedVisit.returnValue || 0)} ج.م</span>
                     </div>
                   </div>
                 </div>

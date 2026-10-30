@@ -177,7 +177,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
       {/* 1. Header Bar: Arabic Item Groups & Slicer Title */}
       <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-800">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black shadow-xs shrink-0">
+          <div className="w-8 h-8 rounded-xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black shadow-xs shrink-0">
             <Layers className="w-4 h-4" />
           </div>
           <div>
@@ -185,7 +185,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
               <h3 className="font-black text-xs sm:text-sm text-white">
                 تصفية المجموعات الرئيسية (Item Group) والفئات (Categories)
               </h3>
-              <span className="bg-amber-400/20 text-amber-300 border border-amber-400/30 text-[9px] font-black px-1.5 py-0.2 rounded-md">
+              <span className="bg-[var(--app-warn)] text-[#d97706] border border-[var(--app-warn)] text-[9px] font-black px-1.5 py-0.2 rounded-md">
                 مباشر من الشيت 📊
               </span>
             </div>
@@ -205,12 +205,12 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
           >
             {deptViewStyle === 'scroll' ? (
               <>
-                <Grid className="w-3 h-3 text-amber-400" />
+                <Grid className="w-3 h-3 text-[#d97706]" />
                 <span className="hidden sm:inline">عرض شبكة</span>
               </>
             ) : (
               <>
-                <LayoutGrid className="w-3 h-3 text-amber-400" />
+                <LayoutGrid className="w-3 h-3 text-[#d97706]" />
                 <span className="hidden sm:inline">عرض شريط</span>
               </>
             )}
@@ -224,7 +224,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                 onSelectClassification('الكل');
                 setClassSearchTerm('');
               }}
-              className="px-2 py-1 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 text-[11px] font-black rounded-lg flex items-center gap-1 transition cursor-pointer"
+              className="px-2 py-1 bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-[#ef4444] border border-[var(--app-risk)] text-[11px] font-black rounded-lg flex items-center gap-1 transition cursor-pointer"
               title="إلغاء تصفية المجموعة والفئة"
             >
               <X className="w-3 h-3" />
@@ -246,8 +246,8 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
       {/* Cascading Quick Select Dropdowns (Item Group -> Family Name) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800">
         <div className="space-y-1">
-          <label className="text-[11px] font-bold text-amber-300 flex items-center gap-1">
-            <Package className="w-3.5 h-3.5 text-amber-400" />
+          <label className="text-[11px] font-bold text-[#d97706] flex items-center gap-1">
+            <Package className="w-3.5 h-3.5 text-[#d97706]" />
             <span>1. المجموعة الرئيسية (Item Group):</span>
           </label>
           <select
@@ -256,7 +256,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
               onSelectDepartment(e.target.value);
               onSelectClassification('الكل');
             }}
-            className="w-full h-10 px-3 bg-slate-800 text-white border border-slate-700 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+            className="w-full h-10 px-3 bg-slate-800 text-white border border-slate-700 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
           >
             <option value="الكل">📦 كل المجموعات ({dynamicItemGroups.length} مجموعة - {products.length} صنف)</option>
             {dynamicItemGroups.map((grp) => {
@@ -271,14 +271,14 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
         </div>
 
         <div className="space-y-1">
-          <label className="text-[11px] font-bold text-amber-300 flex items-center gap-1">
-            <Tag className="w-3.5 h-3.5 text-amber-400" />
+          <label className="text-[11px] font-bold text-[#d97706] flex items-center gap-1">
+            <Tag className="w-3.5 h-3.5 text-[#d97706]" />
             <span>2. فئة / عائلة الأصناف (Family / Category):</span>
           </label>
           <select
             value={selectedClassification}
             onChange={(e) => onSelectClassification(e.target.value)}
-            className="w-full h-10 px-3 bg-slate-800 text-white border border-slate-700 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-amber-400 cursor-pointer"
+            className="w-full h-10 px-3 bg-slate-800 text-white border border-slate-700 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
           >
             <option value="الكل">🏷️ كل الفئات التابعة لـ ({selectedDepartment === 'الكل' ? 'جميع المجموعات' : selectedDepartment}) - {classificationStats.length} فئة</option>
             {classificationStats.map((stat) => (
@@ -295,7 +295,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
         <div className="flex items-center justify-between text-[10px] font-bold text-slate-400">
           <span className="flex items-center gap-1">
             <span>المجموعة المختارة:</span>
-            <strong className="text-amber-300">
+            <strong className="text-[#d97706]">
               {selectedDepartment === 'الكل' ? 'جميع المجموعات' : currentDeptMeta.nameArabic}
             </strong>
           </span>
@@ -316,13 +316,13 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
               }}
               className={`whitespace-nowrap px-3 h-9 rounded-xl text-xs font-black shrink-0 transition cursor-pointer flex items-center gap-1.5 active:scale-95 ${
                 selectedDepartment === 'الكل'
-                  ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-sm font-black'
+                  ? 'bg-[var(--app-warn)] text-slate-950 ring-2 ring-[var(--app-warn)] shadow-sm font-black'
                   : 'bg-slate-800 text-slate-200 hover:bg-slate-750 hover:text-white border border-slate-700/80'
               }`}
             >
               <div
                 className={`w-5 h-5 rounded-lg flex items-center justify-center font-bold text-xs ${
-                  selectedDepartment === 'الكل' ? 'bg-slate-950 text-amber-400' : 'bg-slate-700 text-slate-300'
+                  selectedDepartment === 'الكل' ? 'bg-slate-950 text-[#d97706]' : 'bg-slate-700 text-slate-300'
                 }`}
               >
                 <Package className="w-3 h-3" />
@@ -330,7 +330,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
               <span>كل المجموعات</span>
               <span
                 className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
-                  selectedDepartment === 'الكل' ? 'bg-slate-950 text-amber-300' : 'bg-slate-700 text-slate-300'
+                  selectedDepartment === 'الكل' ? 'bg-slate-950 text-[#d97706]' : 'bg-slate-700 text-slate-300'
                 }`}
               >
                 {products.length}
@@ -354,14 +354,14 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                   }}
                   className={`whitespace-nowrap px-2.5 h-9 rounded-xl text-xs font-bold shrink-0 transition cursor-pointer flex items-center gap-1.5 active:scale-95 ${
                     isSelected
-                      ? 'bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 ring-2 ring-amber-300 shadow-sm font-black'
+                      ? 'bg-gradient-to-r from-[var(--app-warn)] to-yellow-400 text-slate-950 ring-2 ring-[var(--app-warn)] shadow-sm font-black'
                       : 'bg-slate-800/90 text-slate-200 hover:bg-slate-700 hover:text-white border border-slate-700/70'
                   }`}
                   title={`${meta.nameArabic} (${count} صنف)`}
                 >
                   <div
                     className={`w-5 h-5 rounded-lg flex items-center justify-center font-bold ${
-                      isSelected ? 'bg-slate-950 text-amber-400' : `${meta.colorClasses.bgLight} ${meta.colorClasses.text}`
+                      isSelected ? 'bg-slate-950 text-[#d97706]' : `${meta.colorClasses.bgLight} ${meta.colorClasses.text}`
                     }`}
                   >
                     <IconComp className="w-3 h-3" />
@@ -372,7 +372,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                   {count > 0 && (
                     <span
                       className={`text-[9px] px-1.5 py-0.2 rounded-full font-black ${
-                        isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-700 text-slate-200'
+                        isSelected ? 'bg-slate-950 text-[#d97706]' : 'bg-slate-700 text-slate-200'
                       }`}
                     >
                       {count}
@@ -393,7 +393,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
               }}
               className={`p-2 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                 selectedDepartment === 'الكل'
-                  ? 'bg-amber-400 text-slate-950 shadow-sm ring-1 ring-amber-300'
+                  ? 'bg-[var(--app-warn)] text-slate-950 shadow-sm ring-1 ring-[var(--app-warn)]'
                   : 'bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700'
               }`}
             >
@@ -420,13 +420,13 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                   }}
                   className={`p-1.5 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                     isSelected
-                      ? 'bg-amber-400 text-slate-950 shadow-sm ring-1 ring-amber-300'
+                      ? 'bg-[var(--app-warn)] text-slate-950 shadow-sm ring-1 ring-[var(--app-warn)]'
                       : 'bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700'
                   }`}
                 >
                   <div
                     className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${
-                      isSelected ? 'bg-slate-950 text-amber-300' : `${meta.colorClasses.bgLight} ${meta.colorClasses.text}`
+                      isSelected ? 'bg-slate-950 text-[#d97706]' : `${meta.colorClasses.bgLight} ${meta.colorClasses.text}`
                     }`}
                   >
                     <IconComp className="w-3 h-3" />
@@ -450,7 +450,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
           {/* Slicer Subheader & Search */}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 text-xs">
-              <span className="font-black text-amber-300 flex items-center gap-1">
+              <span className="font-black text-[#d97706] flex items-center gap-1">
                 <Tag className="w-3.5 h-3.5" />
                 <span>فئات وعائلات:</span>
               </span>
@@ -471,7 +471,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                   value={classSearchTerm}
                   onChange={(e) => setClassSearchTerm(e.target.value)}
                   placeholder="بحث في الفئات..."
-                  className="w-28 sm:w-36 h-7 pr-6 pl-2 text-[11px] bg-slate-900 text-white rounded-lg border border-slate-700 focus:outline-none focus:border-amber-400 placeholder-slate-500"
+                  className="w-28 sm:w-36 h-7 pr-6 pl-2 text-[11px] bg-slate-900 text-white rounded-lg border border-slate-700 focus:outline-none focus:border-[var(--app-warn)] placeholder-slate-500"
                 />
               </div>
 
@@ -481,7 +481,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                   type="button"
                   onClick={() => setSlicerDisplayMode('tiles')}
                   className={`px-1.5 py-0.5 rounded font-bold cursor-pointer transition ${
-                    slicerDisplayMode === 'tiles' ? 'bg-amber-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                    slicerDisplayMode === 'tiles' ? 'bg-[var(--app-warn)] text-slate-950' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   كروت تحليلية
@@ -490,7 +490,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                   type="button"
                   onClick={() => setSlicerDisplayMode('chips')}
                   className={`px-1.5 py-0.5 rounded font-bold cursor-pointer transition ${
-                    slicerDisplayMode === 'chips' ? 'bg-amber-400 text-slate-950' : 'text-slate-400 hover:text-white'
+                    slicerDisplayMode === 'chips' ? 'bg-[var(--app-warn)] text-slate-950' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   مختصر
@@ -513,7 +513,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                 onClick={() => onSelectClassification('الكل')}
                 className={`p-2 rounded-xl text-right transition cursor-pointer border flex flex-col justify-between ${
                   selectedClassification === 'الكل'
-                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md ring-1 ring-amber-300'
+                    ? 'bg-[var(--app-warn)] text-slate-950 border-[var(--app-warn-line)] shadow-md ring-1 ring-[var(--app-warn)]'
                     : 'bg-slate-900 hover:bg-slate-850 text-slate-200 border-slate-800'
                 }`}
               >
@@ -537,7 +537,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                     onClick={() => onSelectClassification(stat.name)}
                     className={`p-2 rounded-xl text-right transition cursor-pointer border flex flex-col justify-between ${
                       isSelected
-                        ? 'bg-amber-400 text-slate-950 border-amber-300 shadow-md ring-1 ring-amber-300 font-bold'
+                        ? 'bg-[var(--app-warn)] text-slate-950 border-[var(--app-warn-line)] shadow-md ring-1 ring-[var(--app-warn)] font-bold'
                         : 'bg-slate-900 hover:bg-slate-850 text-slate-200 border-slate-800'
                     }`}
                   >
@@ -555,14 +555,14 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                       </div>
                       <div className="flex items-center justify-between text-slate-400">
                         <span>المخزون:</span>
-                        <span className={isSelected ? 'text-slate-950 font-black' : 'text-amber-300 font-bold'}>
+                        <span className={isSelected ? 'text-slate-950 font-black' : 'text-[#d97706] font-bold'}>
                           {stat.totalCartons} كرتونة
                         </span>
                       </div>
                       {/* Visual progress bar */}
                       <div className="w-full bg-slate-800 rounded-full h-1 overflow-hidden mt-1">
                         <div
-                          className={`h-full ${isSelected ? 'bg-slate-950' : 'bg-amber-400'}`}
+                          className={`h-full ${isSelected ? 'bg-slate-950' : 'bg-[var(--app-warn)]'}`}
                           style={{ width: `${Math.min(100, stat.percentage)}%` }}
                         />
                       </div>
@@ -579,7 +579,7 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                 onClick={() => onSelectClassification('الكل')}
                 className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                   selectedClassification === 'الكل'
-                    ? 'bg-amber-400 text-slate-950 shadow-xs font-black'
+                    ? 'bg-[var(--app-warn)] text-slate-950 shadow-xs font-black'
                     : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
                 }`}
               >
@@ -596,12 +596,12 @@ export const DepartmentCategorySlicer: React.FC<DepartmentCategorySlicerProps> =
                     onClick={() => onSelectClassification(stat.name)}
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
                       isSelected
-                        ? 'bg-amber-400 text-slate-950 shadow-xs font-black'
+                        ? 'bg-[var(--app-warn)] text-slate-950 shadow-xs font-black'
                         : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
                     }`}
                   >
                     <span>{stat.name}</span>
-                    <span className={`text-[10px] px-1 rounded ${isSelected ? 'bg-slate-950 text-amber-300' : 'bg-slate-800 text-slate-400'}`}>
+                    <span className={`text-[10px] px-1 rounded ${isSelected ? 'bg-slate-950 text-[#d97706]' : 'bg-slate-800 text-slate-400'}`}>
                       {stat.count}
                     </span>
                   </button>

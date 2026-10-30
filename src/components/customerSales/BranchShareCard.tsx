@@ -16,7 +16,7 @@ const BranchTooltip: React.FC<any> = ({ active, payload }) => {
   return (
     <div className="bg-slate-950 text-white rounded-xl px-3 py-2 shadow-xl border border-slate-700 text-right" dir="rtl">
       <div className="text-[11px] font-black">{branch.name}</div>
-      <div className="text-[11px] font-mono text-amber-300 mt-1">{formatCurrency(branch.amount)}</div>
+      <div className="text-[11px] font-mono text-[#d97706] mt-1">{formatCurrency(branch.amount)}</div>
       <div className="text-[10px] text-slate-300 mt-0.5">
         {Math.round(branch.sharePct)}% • {branch.customersCount} عميل
       </div>
@@ -34,7 +34,7 @@ export const BranchShareCard: React.FC<BranchShareCardProps> = ({
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-            <PieIcon className="w-4 h-4 text-emerald-500" />
+            <PieIcon className="w-4 h-4 text-[var(--app-ok-text)]" />
             توزيع المبيعات حسب الفروع
           </h3>
           <p className="text-[11px] text-slate-500 mt-1">

@@ -20,7 +20,7 @@ const GroupTooltip: React.FC<any> = ({ active, payload }) => {
   return (
     <div className="bg-slate-950 text-white rounded-xl px-3 py-2 shadow-xl border border-slate-700 text-right" dir="rtl">
       <div className="text-[11px] font-black">{group.name}</div>
-      <div className="text-[11px] font-mono text-amber-300 mt-1">{formatCurrency(group.amount)}</div>
+      <div className="text-[11px] font-mono text-[#d97706] mt-1">{formatCurrency(group.amount)}</div>
       <div className="text-[10px] text-slate-300 mt-0.5">
         {Math.round(group.sharePct)}% • {group.itemsCount} صنف • {group.customersCount} عميل
       </div>
@@ -39,7 +39,7 @@ export const CategoryMixCard: React.FC<CategoryMixCardProps> = ({
     title="توزيع المبيعات حسب الفئات"
     subtitle={`${groups.length.toLocaleString('en-US')} فئة • ${totalItems.toLocaleString('en-US')} صنف`}
     icon={<PieIcon className="w-4 h-4" />}
-    iconClass="bg-emerald-50 text-emerald-600"
+    iconClass="bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]"
     action={
       <span className="text-[9.5px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-500">
         حصة كل فئة

@@ -32,7 +32,7 @@ const ItemTooltip: React.FC<any> = ({ active, payload }) => {
       <div className="text-[9.5px] text-slate-400 mt-0.5">
         {item.itemGroup} • كود {item.itemCode || '—'}
       </div>
-      <div className="text-[11px] font-bold text-amber-300 font-mono mt-1">
+      <div className="text-[11px] font-bold text-[#d97706] font-mono mt-1">
         {formatCurrency(item.amount)}
       </div>
       <div className="text-[10px] text-slate-300 mt-0.5 font-mono">
@@ -56,7 +56,7 @@ export const ItemRankingCard: React.FC<ItemRankingCardProps> = ({
         title="أعلى 10 أصناف مبيعًا (الكمية)"
         subtitle={subtitle || 'ترتيب الأصناف حسب الوحدات المباعة'}
         icon={<ListOrdered className="w-4 h-4" />}
-        iconClass="bg-amber-50 text-amber-600"
+        iconClass="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]"
       >
         {items.length === 0 ? (
           <ChartEmpty height={250} />

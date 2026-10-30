@@ -1186,11 +1186,11 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>تحقيق البيع</span>
-              <span className="p-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="p-1 rounded-lg bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]">
                 <Target className="w-4 h-4" />
               </span>
             </div>
-            <div className="font-mono font-black text-base sm:text-lg text-emerald-800 truncate" title={formatCurrency(metrics.salesAchieved)}>
+            <div className="font-mono font-black text-base sm:text-lg text-[var(--app-ok-text)] truncate" title={formatCurrency(metrics.salesAchieved)}>
               {formatCurrency(metrics.salesAchieved)}
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
@@ -1200,14 +1200,14 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           <div className="mt-2.5 pt-2 border-t border-slate-100">
             <div className="flex items-center justify-between text-[11px] font-black mb-1">
               <span className="text-slate-600">نسبة التحقيق</span>
-              <span className={metrics.salesRate >= 90 ? 'text-emerald-700' : metrics.salesRate >= 60 ? 'text-amber-700' : 'text-rose-700'}>
+              <span className={metrics.salesRate >= 90 ? 'text-[var(--app-ok-text)]' : metrics.salesRate >= 60 ? 'text-[var(--app-warn-text)]' : 'text-[var(--app-risk-text)]'}>
                 {metrics.salesRate}%
               </span>
             </div>
             <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all ${
-                  metrics.salesRate >= 90 ? 'bg-emerald-500' : metrics.salesRate >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                  metrics.salesRate >= 90 ? 'bg-[var(--app-ok)]' : metrics.salesRate >= 60 ? 'bg-[var(--app-warn)]' : 'bg-[var(--app-risk)]'
                 }`}
                 style={{ width: `${Math.min(100, metrics.salesRate)}%` }}
               />
@@ -1220,11 +1220,11 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>تحقيق التحصيل</span>
-              <span className="p-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="p-1 rounded-lg bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)]">
                 <Receipt className="w-4 h-4" />
               </span>
             </div>
-            <div className="font-mono font-black text-base sm:text-lg text-blue-800 truncate" title={formatCurrency(metrics.collectionAchieved)}>
+            <div className="font-mono font-black text-base sm:text-lg text-[var(--app-navy-text)] truncate" title={formatCurrency(metrics.collectionAchieved)}>
               {formatCurrency(metrics.collectionAchieved)}
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
@@ -1234,14 +1234,14 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           <div className="mt-2.5 pt-2 border-t border-slate-100">
             <div className="flex items-center justify-between text-[11px] font-black mb-1">
               <span className="text-slate-600">نسبة التحصيل</span>
-              <span className={metrics.collectionRate >= 90 ? 'text-blue-700' : metrics.collectionRate >= 60 ? 'text-amber-700' : 'text-rose-700'}>
+              <span className={metrics.collectionRate >= 90 ? 'text-[var(--app-navy-text)]' : metrics.collectionRate >= 60 ? 'text-[var(--app-warn-text)]' : 'text-[var(--app-risk-text)]'}>
                 {metrics.collectionRate}%
               </span>
             </div>
             <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all ${
-                  metrics.collectionRate >= 90 ? 'bg-blue-600' : metrics.collectionRate >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                  metrics.collectionRate >= 90 ? 'bg-[var(--app-navy)]' : metrics.collectionRate >= 60 ? 'bg-[var(--app-warn)]' : 'bg-[var(--app-risk)]'
                 }`}
                 style={{ width: `${Math.min(100, metrics.collectionRate)}%` }}
               />
@@ -1254,11 +1254,11 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>التوقع الأسبوعي</span>
-              <span className="p-1 rounded-lg bg-purple-50 text-purple-700 border border-purple-200">
+              <span className="p-1 rounded-lg bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)]">
                 <TrendingUp className="w-4 h-4" />
               </span>
             </div>
-            <div className="font-mono font-black text-base sm:text-lg text-purple-900 truncate" title={formatCurrency(metrics.forecastExpected)}>
+            <div className="font-mono font-black text-base sm:text-lg text-[var(--app-navy-text)] truncate" title={formatCurrency(metrics.forecastExpected)}>
               {formatCurrency(metrics.forecastExpected)}
             </div>
             <div className="text-[11px] text-slate-500 font-medium leading-relaxed">
@@ -1266,7 +1266,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
             </div>
           </div>
           <div className="mt-2.5 pt-2 border-t border-slate-100">
-            <div className="text-[10px] text-purple-800 font-bold">
+            <div className="text-[10px] text-[var(--app-navy-text)] font-bold">
               مسودة/مطلوب تعديله: {formatCurrency(metrics.forecastNeedsAttention)} · {metrics.forecastNeedsAttentionCount.toLocaleString('ar-EG')} سجل
             </div>
           </div>
@@ -1277,11 +1277,11 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>مستحقات العملاء الحالية</span>
-              <span className="p-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200">
+              <span className="p-1 rounded-lg bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)]">
                 <Wallet className="w-4 h-4" />
               </span>
             </div>
-            <div className="font-mono font-black text-base sm:text-lg text-amber-900 truncate" title={formatCurrency(metrics.totalDues)}>
+            <div className="font-mono font-black text-base sm:text-lg text-[var(--app-warn-text)] truncate" title={formatCurrency(metrics.totalDues)}>
               {formatCurrency(metrics.totalDues)}
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
@@ -1298,11 +1298,11 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>تغطية العملاء</span>
-              <span className="p-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200">
+              <span className="p-1 rounded-lg bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)]">
                 <Users className="w-4 h-4" />
               </span>
             </div>
-            <div className="font-mono font-black text-base sm:text-lg text-indigo-900">
+            <div className="font-mono font-black text-base sm:text-lg text-[var(--app-navy-text)]">
               {metrics.customerCoverageRate}%
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
@@ -1315,7 +1315,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
             </div>
             <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mt-1">
               <div
-                className="h-full rounded-full bg-indigo-600 transition-all"
+                className="h-full rounded-full bg-[var(--app-navy)] transition-all"
                 style={{ width: `${Math.min(100, metrics.customerCoverageRate)}%` }}
               />
             </div>
@@ -1327,11 +1327,11 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>الزيارات الميدانية</span>
-              <span className="p-1 rounded-lg bg-cyan-50 text-cyan-700 border border-cyan-200">
+              <span className="p-1 rounded-lg bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]">
                 <CalendarCheck className="w-4 h-4" />
               </span>
             </div>
-            <div className="font-mono font-black text-base sm:text-lg text-cyan-900">
+            <div className="font-mono font-black text-base sm:text-lg text-[var(--app-ok-text)]">
               {metrics.completedVisits.toLocaleString('ar-EG')}
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
@@ -1341,11 +1341,11 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           <div className="mt-2.5 pt-2 border-t border-slate-100">
             <div className="flex items-center justify-between text-[11px] font-black mb-1">
               <span className="text-slate-600">نسبة التنفيذ</span>
-              <span className="text-cyan-700">{metrics.visitsExecutionRate}%</span>
+              <span className="text-[var(--app-ok-text)]">{metrics.visitsExecutionRate}%</span>
             </div>
             <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
               <div
-                className="h-full rounded-full bg-cyan-600 transition-all"
+                className="h-full rounded-full bg-[var(--app-ok)] transition-all"
                 style={{ width: `${Math.min(100, metrics.visitsExecutionRate)}%` }}
               />
             </div>
@@ -1357,15 +1357,15 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           <div>
             <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
               <span>الفواتير المسلّمة (المحمّلة)</span>
-              <span className="p-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200">
+              <span className="p-1 rounded-lg bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)]">
                 <FileText className="w-4 h-4" />
               </span>
             </div>
-            <div className="font-mono font-black text-base sm:text-lg text-rose-900 truncate" title={formatCurrency(metrics.deliveredSalesValue)}>
+            <div className="font-mono font-black text-base sm:text-lg text-[var(--app-risk-text)] truncate" title={formatCurrency(metrics.deliveredSalesValue)}>
               {formatCurrency(metrics.deliveredSalesValue)}
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
-              مرتجعات: <span className="font-mono text-rose-600">{formatCurrency(metrics.totalReturnsValue)}</span>
+              مرتجعات: <span className="font-mono text-[var(--app-risk-text)]">{formatCurrency(metrics.totalReturnsValue)}</span>
             </div>
           </div>
           <div className="mt-2.5 pt-2 border-t border-slate-100">
@@ -1373,16 +1373,16 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               {metrics.pendingInvoicesCount} طلبية بانتظار الاعتماد ضمن الفواتير المحمّلة
             </div>
             <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mt-1">
-              <div className="h-full rounded-full bg-rose-500" style={{ width: '100%' }} />
+              <div className="h-full rounded-full bg-[var(--app-risk)]" style={{ width: '100%' }} />
             </div>
           </div>
         </article>
       </section>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] sm:text-[11px] font-bold text-slate-600">
-        <span className="flex items-center gap-1.5"><i aria-hidden="true" className="w-2 h-2 rounded-full bg-emerald-600" />التارجت والمحقق: شيت الأهداف</span>
-        <span className="flex items-center gap-1.5"><i aria-hidden="true" className="w-2 h-2 rounded-full bg-purple-600" />التوقع الأسبوعي: إدخال المندوب، وليس محققًا</span>
-        <span className="flex items-center gap-1.5"><i aria-hidden="true" className="w-2 h-2 rounded-full bg-cyan-600" />الزيارات: سجل الزيارات الميدانية</span>
+        <span className="flex items-center gap-1.5"><i aria-hidden="true" className="w-2 h-2 rounded-full bg-[var(--app-ok)]" />التارجت والمحقق: شيت الأهداف</span>
+        <span className="flex items-center gap-1.5"><i aria-hidden="true" className="w-2 h-2 rounded-full bg-[var(--app-navy)]" />التوقع الأسبوعي: إدخال المندوب، وليس محققًا</span>
+        <span className="flex items-center gap-1.5"><i aria-hidden="true" className="w-2 h-2 rounded-full bg-[var(--app-ok)]" />الزيارات: سجل الزيارات الميدانية</span>
       </div>
 
       {/* ========================================================================= */}
@@ -1400,7 +1400,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          <BarChart3 className="w-4 h-4 text-emerald-600" />
+          <BarChart3 className="w-4 h-4 text-[var(--app-ok-text)]" />
           <span className="hidden sm:inline">المخططات والاتجاه الشهري</span>
           <span className="sm:hidden">نظرة عامة</span>
         </button>
@@ -1416,7 +1416,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          <Award className="w-4 h-4 text-indigo-600" />
+          <Award className="w-4 h-4 text-[var(--app-navy-text)]" />
           <span className="hidden sm:inline">ترتيب وأداء الفريق ({metrics.repMatrixList.length})</span>
           <span className="sm:hidden">الفريق ({metrics.repMatrixList.length})</span>
         </button>
@@ -1433,7 +1433,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <Building2 className="w-4 h-4 text-purple-600" />
+            <Building2 className="w-4 h-4 text-[var(--app-navy-text)]" />
             <span className="hidden sm:inline">
               {isBranchMgr ? 'ملخص أداء الفرع' : `مقارنة الفروع (${metrics.branchBreakdownList.length})`}
             </span>
@@ -1452,7 +1452,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          <CalendarCheck className="w-4 h-4 text-cyan-600" />
+          <CalendarCheck className="w-4 h-4 text-[var(--app-ok-text)]" />
           <span className="hidden sm:inline">تدقيق الزيارات الميدانية ({metrics.totalVisits})</span>
           <span className="sm:hidden">الزيارات ({metrics.totalVisits})</span>
         </button>
@@ -1468,7 +1468,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
             <div className="flex flex-col gap-3 border-b border-slate-100 pb-4">
               <div className="flex items-center gap-2">
                 <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black ${
-                  chartMetric === 'sales' ? 'bg-emerald-100 text-emerald-800' : chartMetric === 'collection' ? 'bg-sky-100 text-sky-800' : 'bg-violet-100 text-violet-800'
+                  chartMetric === 'sales' ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]' : chartMetric === 'collection' ? 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]' : 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]'
                 }`}>
                   <BarChart3 className="w-4 h-4" />
                 </div>
@@ -1557,7 +1557,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-3 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-2">
-                <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-black">
+                <div className="w-8 h-8 rounded-xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center font-black">
                   <TrendingUp className="w-4 h-4" />
                 </div>
                 <div>
@@ -1597,9 +1597,9 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
             </div>
 
             {/* Quick Summary Box */}
-            <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 space-y-1">
-              <div className="font-black flex items-center gap-1.5 text-amber-950">
-                <Zap className="w-4 h-4 text-amber-600" />
+            <div className="bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] rounded-xl p-3 text-xs text-[var(--app-warn-text)] space-y-1">
+              <div className="font-black flex items-center gap-1.5 text-[var(--app-warn-text)]">
+                <Zap className="w-4 h-4 text-[var(--app-warn-text)]" />
                 <span>ملاحظة التحليل التنفيذي:</span>
               </div>
               <p className="text-[11px] leading-relaxed">
@@ -1618,7 +1618,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         <section className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center font-black">
+              <div className="w-8 h-8 rounded-xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center font-black">
                 <Award className="w-4 h-4" />
               </div>
               <div>
@@ -1637,7 +1637,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                   placeholder="بحث بالمصفوفة: مندوب أو فرع..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-48 sm:w-56 text-xs bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 pl-8 focus:outline-none focus:border-indigo-500"
+                  className="w-48 sm:w-56 text-xs bg-white border border-slate-300 rounded-xl px-2.5 py-1.5 pl-8 focus:outline-none focus:border-[var(--app-navy)]"
                 />
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
               </div>
@@ -1697,29 +1697,29 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                     </div>
                     <p className="text-[10px] text-slate-500 mt-1 truncate">{r.branch} · {r.supervisorName}</p>
                   </div>
-                  <span className="shrink-0 px-2 py-1 rounded-lg text-xs font-black bg-blue-100 text-blue-800">
+                  <span className="shrink-0 px-2 py-1 rounded-lg text-xs font-black bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]">
                     تحصيل {r.collectionRate}%
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 mt-3">
-                  <div className="rounded-lg bg-emerald-50 p-2 min-w-0">
-                    <div className="text-[10px] font-bold text-emerald-800">المبيعات المحققة</div>
-                    <div className="font-mono text-xs font-black text-emerald-950 truncate" title={formatCurrency(r.salesAchieved)}>
+                  <div className="rounded-lg bg-[var(--app-ok-tint)] p-2 min-w-0">
+                    <div className="text-[10px] font-bold text-[var(--app-ok-text)]">المبيعات المحققة</div>
+                    <div className="font-mono text-xs font-black text-[var(--app-ok-text)] truncate" title={formatCurrency(r.salesAchieved)}>
                       {formatCurrency(r.salesAchieved)}
                     </div>
                     <div className="text-[10px] text-slate-500">من {formatCurrency(r.salesTarget)} · {r.salesRate}%</div>
                   </div>
-                  <div className="rounded-lg bg-blue-50 p-2 min-w-0">
-                    <div className="text-[10px] font-bold text-blue-800">التحصيل المحقق</div>
-                    <div className="font-mono text-xs font-black text-blue-950 truncate" title={formatCurrency(r.collectionAchieved)}>
+                  <div className="rounded-lg bg-[var(--app-navy-tint)] p-2 min-w-0">
+                    <div className="text-[10px] font-bold text-[var(--app-navy-text)]">التحصيل المحقق</div>
+                    <div className="font-mono text-xs font-black text-[var(--app-navy-text)] truncate" title={formatCurrency(r.collectionAchieved)}>
                       {formatCurrency(r.collectionAchieved)}
                     </div>
                     <div className="text-[10px] text-slate-500">من {formatCurrency(r.collectionTarget)} · {r.collectionRate}%</div>
                   </div>
                 </div>
                 <div className="mt-2 flex items-center justify-between text-[10px] text-slate-600">
-                  <span>الزيارات المنفذة: <b className="text-cyan-800">{r.visitsCompleted} / {r.visitsTotal}</b></span>
-                  <span>توقع أسبوعي: <b className="text-purple-800">{formatCurrency(r.forecastExpected)}</b></span>
+                  <span>الزيارات المنفذة: <b className="text-[var(--app-ok-text)]">{r.visitsCompleted} / {r.visitsTotal}</b></span>
+                  <span>توقع أسبوعي: <b className="text-[var(--app-navy-text)]">{formatCurrency(r.forecastExpected)}</b></span>
                 </div>
               </article>
             ))}
@@ -1736,11 +1736,11 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                   <th className="p-3">المندوب</th>
                   <th className="p-3">الفرع</th>
                   <th className="p-3">المشرف المباشر</th>
-                  <th className="p-3 text-emerald-800">هدف البيع</th>
-                  <th className="p-3 text-emerald-900">المحقق بيع</th>
+                  <th className="p-3 text-[var(--app-ok-text)]">هدف البيع</th>
+                  <th className="p-3 text-[var(--app-ok-text)]">المحقق بيع</th>
                   <th className="p-3 text-center">نسبة البيع</th>
-                  <th className="p-3 text-blue-800">هدف التحصيل</th>
-                  <th className="p-3 text-blue-900">المحقق تحصيل</th>
+                  <th className="p-3 text-[var(--app-navy-text)]">هدف التحصيل</th>
+                  <th className="p-3 text-[var(--app-navy-text)]">المحقق تحصيل</th>
                   <th className="p-3 text-center">نسبة التحصيل</th>
                   <th className="p-3 text-center">الزيارات المنفذة</th>
                   <th className="p-3 text-center">التوقع الأسبوعي المرسل/المعتمد</th>
@@ -1764,34 +1764,34 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                       <td className="p-3 text-slate-600 font-medium">{r.branch}</td>
                       <td className="p-3 text-slate-600 font-medium">{r.supervisorName}</td>
                       <td className="p-3 font-mono text-slate-500">{formatCurrency(r.salesTarget)}</td>
-                      <td className="p-3 font-mono font-black text-emerald-700">
+                      <td className="p-3 font-mono font-black text-[var(--app-ok-text)]">
                         {formatCurrency(r.salesAchieved)}
                       </td>
                       <td className="p-3 text-center">
                         <span
                           className={`px-2 py-0.5 rounded-full font-black text-[11px] inline-block ${
                             r.salesRate >= 90
-                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
                               : r.salesRate >= 60
-                              ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                              : 'bg-rose-100 text-rose-800 border border-rose-300'
+                              ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)]'
+                              : 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)]'
                           }`}
                         >
                           {r.salesRate}%
                         </span>
                       </td>
                       <td className="p-3 font-mono text-slate-500">{formatCurrency(r.collectionTarget)}</td>
-                      <td className="p-3 font-mono font-black text-blue-700">
+                      <td className="p-3 font-mono font-black text-[var(--app-navy-text)]">
                         {formatCurrency(r.collectionAchieved)}
                       </td>
                       <td className="p-3 text-center">
                         <span
                           className={`px-2 py-0.5 rounded-full font-black text-[11px] inline-block ${
                             r.collectionRate >= 90
-                              ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                              ? 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)]'
                               : r.collectionRate >= 60
-                              ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                              : 'bg-rose-100 text-rose-800 border border-rose-300'
+                              ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)]'
+                              : 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)]'
                           }`}
                         >
                           {r.collectionRate}%
@@ -1800,9 +1800,9 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                       <td className="p-3 text-center font-mono">
                         <span className="font-bold text-slate-800">{r.visitsCompleted}</span>
                         <span className="text-slate-400 text-[10px]"> / {r.visitsTotal}</span>
-                        <span className="block text-[10px] text-cyan-700 font-bold">{r.visitsRate}%</span>
+                        <span className="block text-[10px] text-[var(--app-ok-text)] font-bold">{r.visitsRate}%</span>
                       </td>
-                      <td className="p-3 text-center font-mono font-bold text-purple-800">
+                      <td className="p-3 text-center font-mono font-bold text-[var(--app-navy-text)]">
                         {formatCurrency(r.forecastExpected)}
                       </td>
                     </tr>
@@ -1831,7 +1831,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               <article key={b.branch} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-3 hover:shadow-md transition">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-black">
+                    <div className="w-8 h-8 rounded-xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center font-black">
                       <Building2 className="w-4 h-4" />
                     </div>
                     <div>
@@ -1840,7 +1840,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                     </div>
                   </div>
                   <span className={`px-2.5 py-1 rounded-full text-xs font-black ${
-                    b.salesRate >= 90 ? 'bg-emerald-100 text-emerald-800' : b.salesRate >= 60 ? 'bg-amber-100 text-amber-800' : 'bg-rose-100 text-rose-800'
+                    b.salesRate >= 90 ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]' : b.salesRate >= 60 ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]' : 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]'
                   }`}>
                     تحقيق: {b.salesRate}%
                   </span>
@@ -1849,7 +1849,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                     <span className="text-[10.5px] text-slate-500 font-bold block">مبيعات المحقق:</span>
-                    <span className="font-mono font-black text-sm text-emerald-800">
+                    <span className="font-mono font-black text-sm text-[var(--app-ok-text)]">
                       {formatCurrency(b.salesAchieved)}
                     </span>
                     <span className="text-[10px] text-slate-400 block mt-0.5">
@@ -1859,7 +1859,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
 
                   <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                     <span className="text-[10.5px] text-slate-500 font-bold block">تحصيلات المحقق:</span>
-                    <span className="font-mono font-black text-sm text-blue-800">
+                    <span className="font-mono font-black text-sm text-[var(--app-navy-text)]">
                       {formatCurrency(b.collectionAchieved)}
                     </span>
                     <span className="text-[10px] text-slate-400 block mt-0.5">
@@ -1871,10 +1871,10 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 <div className="pt-1">
                   <div className="flex items-center justify-between text-[11px] font-black mb-1">
                     <span className="text-slate-600">نسبة التحصيل للهدف:</span>
-                    <span className="text-blue-700">{b.collectionRate}%</span>
+                    <span className="text-[var(--app-navy-text)]">{b.collectionRate}%</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                    <div className="h-full bg-blue-600 rounded-full" style={{ width: `${Math.min(100, b.collectionRate)}%` }} />
+                    <div className="h-full bg-[var(--app-navy)] rounded-full" style={{ width: `${Math.min(100, b.collectionRate)}%` }} />
                   </div>
                 </div>
               </article>
@@ -1890,7 +1890,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-xl bg-cyan-100 text-cyan-800 flex items-center justify-center font-black">
+              <div className="w-8 h-8 rounded-xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] flex items-center justify-center font-black">
                 <CalendarCheck className="w-4 h-4" />
               </div>
               <div>
@@ -1906,7 +1906,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
             <button
               type="button"
               onClick={() => onNavigateToTab('visits')}
-              className="px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-black text-xs transition flex items-center gap-1 cursor-pointer self-start sm:self-auto"
+              className="px-3.5 py-1.5 rounded-xl bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black text-xs transition flex items-center gap-1 cursor-pointer self-start sm:self-auto"
             >
               <span>فتح لوحة الزيارات الميدانية الكاملة</span>
               <ArrowUpRight className="w-3.5 h-3.5" />
@@ -1919,23 +1919,23 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
               <span className="text-[11px] font-bold text-slate-500 block">إجمالي الزيارات</span>
               <span className="font-mono text-lg font-black text-slate-900">{metrics.totalVisits}</span>
             </div>
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
-              <span className="text-[11px] font-bold text-emerald-700 block">الزيارات المنفذة</span>
-              <span className="font-mono text-lg font-black text-emerald-800">{metrics.completedVisits}</span>
+            <div className="p-3 rounded-xl bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)]">
+              <span className="text-[11px] font-bold text-[var(--app-ok-text)] block">الزيارات المنفذة</span>
+              <span className="font-mono text-lg font-black text-[var(--app-ok-text)]">{metrics.completedVisits}</span>
             </div>
-            <div className="p-3 rounded-xl bg-blue-50 border border-blue-200">
-              <span className="text-[11px] font-bold text-blue-700 block">المحصل مباشرة بالميدان</span>
-              <span className="font-mono text-lg font-black text-blue-800">{formatCurrency(metrics.directCollectedFromVisits)}</span>
+            <div className="p-3 rounded-xl bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)]">
+              <span className="text-[11px] font-bold text-[var(--app-navy-text)] block">المحصل مباشرة بالميدان</span>
+              <span className="font-mono text-lg font-black text-[var(--app-navy-text)]">{formatCurrency(metrics.directCollectedFromVisits)}</span>
             </div>
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200">
-              <span className="text-[11px] font-bold text-rose-700 block">مرتجعات مسجلة</span>
-              <span className="font-mono text-lg font-black text-rose-800">{formatCurrency(metrics.totalReturnsValue)}</span>
+            <div className="p-3 rounded-xl bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)]">
+              <span className="text-[11px] font-bold text-[var(--app-risk-text)] block">مرتجعات مسجلة</span>
+              <span className="font-mono text-lg font-black text-[var(--app-risk-text)]">{formatCurrency(metrics.totalReturnsValue)}</span>
             </div>
           </div>
 
           <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs text-slate-600 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)]" />
               <span>
                 سجلات الزيارات الميدانية وملاحظات العملاء مؤمنة ومحفوظة بالكامل، ومزودة بزر الأرشفة والاسترجاع باسم المندوب والتاريخ والإفادة.
               </span>
@@ -1962,10 +1962,10 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           <button
             type="button"
             onClick={() => onNavigateToTab('targets')}
-            className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 bg-white hover:border-emerald-500 hover:bg-emerald-50/50 transition cursor-pointer group shadow-2xs"
+            className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 bg-white hover:border-[var(--app-ok)] hover:bg-[var(--app-ok-tint)] transition cursor-pointer group shadow-2xs"
           >
             <div className="flex items-center gap-2 text-right">
-              <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-black group-hover:scale-110 transition">
+              <div className="w-8 h-8 rounded-xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] flex items-center justify-center font-black group-hover:scale-110 transition">
                 <Target className="w-4 h-4" />
               </div>
               <div>
@@ -1973,16 +1973,16 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 <span className="text-[10px] text-slate-500">الأهداف والمحقق والفجوة</span>
               </div>
             </div>
-            <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-700 transition" />
+            <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-[var(--app-ok-text)] transition" />
           </button>
 
           <button
             type="button"
             onClick={() => onNavigateToTab('forecast')}
-            className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 bg-white hover:border-purple-500 hover:bg-purple-50/50 transition cursor-pointer group shadow-2xs"
+            className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 bg-white hover:border-[var(--app-navy)] hover:bg-[var(--app-navy-tint)] transition cursor-pointer group shadow-2xs"
           >
             <div className="flex items-center gap-2 text-right">
-              <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-black group-hover:scale-110 transition">
+              <div className="w-8 h-8 rounded-xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center font-black group-hover:scale-110 transition">
                 <TrendingUp className="w-4 h-4" />
               </div>
               <div>
@@ -1990,16 +1990,16 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 <span className="text-[10px] text-slate-500">مخطط التدفق النقدي W1-W5</span>
               </div>
             </div>
-            <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-purple-700 transition" />
+            <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-[var(--app-navy-text)] transition" />
           </button>
 
           <button
             type="button"
             onClick={() => onNavigateToTab('visits')}
-            className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 bg-white hover:border-cyan-500 hover:bg-cyan-50/50 transition cursor-pointer group shadow-2xs"
+            className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 bg-white hover:border-[var(--app-ok)] hover:bg-[var(--app-ok-tint)] transition cursor-pointer group shadow-2xs"
           >
             <div className="flex items-center gap-2 text-right">
-              <div className="w-8 h-8 rounded-xl bg-cyan-100 text-cyan-800 flex items-center justify-center font-black group-hover:scale-110 transition">
+              <div className="w-8 h-8 rounded-xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] flex items-center justify-center font-black group-hover:scale-110 transition">
                 <CalendarCheck className="w-4 h-4" />
               </div>
               <div>
@@ -2007,16 +2007,16 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 <span className="text-[10px] text-slate-500">خطوط السير والتحصيل الميداني</span>
               </div>
             </div>
-            <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-cyan-700 transition" />
+            <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-[var(--app-ok-text)] transition" />
           </button>
 
           <button
             type="button"
             onClick={() => onNavigateToTab('all_customers')}
-            className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 bg-white hover:border-blue-500 hover:bg-blue-50/50 transition cursor-pointer group shadow-2xs"
+            className="flex items-center justify-between p-3 rounded-2xl border border-slate-200 bg-white hover:border-[var(--app-navy)] hover:bg-[var(--app-navy-tint)] transition cursor-pointer group shadow-2xs"
           >
             <div className="flex items-center gap-2 text-right">
-              <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-black group-hover:scale-110 transition">
+              <div className="w-8 h-8 rounded-xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center font-black group-hover:scale-110 transition">
                 <Users className="w-4 h-4" />
               </div>
               <div>
@@ -2024,7 +2024,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
                 <span className="text-[10px] text-slate-500">سجل الزيارات وملاحظات الحساب</span>
               </div>
             </div>
-            <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-blue-700 transition" />
+            <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-[var(--app-navy-text)] transition" />
           </button>
         </div>
       </section>

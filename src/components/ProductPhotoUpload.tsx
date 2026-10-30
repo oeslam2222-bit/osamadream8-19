@@ -80,16 +80,16 @@ export const ProductPhotoUpload: React.FC<ProductPhotoUploadProps> = ({
 
   const statusColor = (status: string) => {
     switch (status) {
-      case 'approved': return 'text-emerald-600 bg-emerald-50';
-      case 'rejected': return 'text-rose-600 bg-rose-50';
-      default: return 'text-amber-600 bg-amber-50';
+      case 'approved': return 'text-[var(--app-ok-text)] bg-[var(--app-ok-tint)]';
+      case 'rejected': return 'text-[var(--app-risk-text)] bg-[var(--app-risk-tint)]';
+      default: return 'text-[var(--app-warn-text)] bg-[var(--app-warn-tint)]';
     }
   };
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-6">
       <div className="flex items-center gap-3">
-        <ImageIcon className="w-6 h-6 text-amber-600" />
+        <ImageIcon className="w-6 h-6 text-[var(--app-warn-text)]" />
         <h3 className="font-black text-slate-900">صورة المنتج - {product.name}</h3>
       </div>
 
@@ -114,7 +114,7 @@ export const ProductPhotoUpload: React.FC<ProductPhotoUploadProps> = ({
             </div>
           )}
           {product.photoRejectionReason && (
-            <div className="mt-1 text-[10px] text-rose-600">السبب: {product.photoRejectionReason}</div>
+            <div className="mt-1 text-[10px] text-[var(--app-risk-text)]">السبب: {product.photoRejectionReason}</div>
           )}
         </div>
       </div>
@@ -132,7 +132,7 @@ export const ProductPhotoUpload: React.FC<ProductPhotoUploadProps> = ({
             <button
               type="button"
               disabled={uploading || !file}
-              className="w-full py-3 rounded-xl border-2 border-dashed border-slate-300 text-sm font-bold text-slate-600 hover:border-amber-500 hover:bg-amber-50 transition flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl border-2 border-dashed border-slate-300 text-sm font-bold text-slate-600 hover:border-[var(--app-warn)] hover:bg-[var(--app-warn-tint)] transition flex items-center justify-center gap-2"
             >
               <Upload className="w-4 h-4" />
               {file ? 'تغيير الصورة' : 'اختر صورة من الجهاز'}
@@ -153,16 +153,16 @@ export const ProductPhotoUpload: React.FC<ProductPhotoUploadProps> = ({
 
       {/* اعتماد الصورة للمدراء - Pending */}
       {canApprove && product.photoStatus === 'pending' && (
-        <div className="bg-amber-50 rounded-xl p-4 border border-amber-200">
+        <div className="bg-[var(--app-warn-tint)] rounded-xl p-4 border border-[var(--app-warn-line)]">
           <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600" />
-            <span className="font-black text-amber-800 text-sm">في انتظار اعتماد الصورة</span>
+            <AlertTriangle className="w-4 h-4 text-[var(--app-warn-text)]" />
+            <span className="font-black text-[var(--app-warn-text)] text-sm">في انتظار اعتماد الصورة</span>
           </div>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => handleApprove(true)}
-              className="flex-1 py-2 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition"
+              className="flex-1 py-2 rounded-xl bg-[var(--app-ok)] text-white font-bold text-sm hover:bg-[var(--app-ok)] transition"
             >
               <CheckCircle2 className="w-4 h-4 mr-1" />
               اعتماد
@@ -173,7 +173,7 @@ export const ProductPhotoUpload: React.FC<ProductPhotoUploadProps> = ({
                 const reason = prompt('سبب الرفض:');
                 if (reason !== null) handleApprove(false, reason);
               }}
-              className="flex-1 py-2 rounded-xl bg-rose-600 text-white font-bold text-sm hover:bg-rose-700 transition"
+              className="flex-1 py-2 rounded-xl bg-[var(--app-risk)] text-white font-bold text-sm hover:bg-[var(--app-risk)] transition"
             >
               <X className="w-4 h-4 mr-1" />
               رفض
@@ -183,16 +183,16 @@ export const ProductPhotoUpload: React.FC<ProductPhotoUploadProps> = ({
       )}
 
       {canApprove && product.photoStatus === 'rejected' && (
-        <div className="bg-rose-50 rounded-xl p-4 border border-rose-200">
+        <div className="bg-[var(--app-risk-tint)] rounded-xl p-4 border border-[var(--app-risk-line)]">
           <div className="flex items-center gap-2 mb-2">
-            <X className="w-4 h-4 text-rose-600" />
-            <span className="font-black text-rose-800 text-sm">الصورة مرفوضة</span>
+            <X className="w-4 h-4 text-[var(--app-risk-text)]" />
+            <span className="font-black text-[var(--app-risk-text)] text-sm">الصورة مرفوضة</span>
           </div>
-          <div className="text-[10px] text-rose-600">{product.photoRejectionReason}</div>
+          <div className="text-[10px] text-[var(--app-risk-text)]">{product.photoRejectionReason}</div>
           <button
             type="button"
             onClick={() => handleApprove(true)}
-            className="mt-2 py-2 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition w-full"
+            className="mt-2 py-2 rounded-xl bg-[var(--app-ok)] text-white font-bold text-sm hover:bg-[var(--app-ok)] transition w-full"
           >
             اعتماد الصورة الآن
           </button>

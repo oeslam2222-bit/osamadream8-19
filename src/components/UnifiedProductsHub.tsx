@@ -31,7 +31,7 @@ export const UnifiedProductsHub: React.FC<UnifiedProductsHubProps> = ({
       {/* Top Header Hub Navigation Pills */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-2 sm:p-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-md">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black">
+          <div className="w-8 h-8 rounded-xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black">
             <Boxes className="w-4 h-4" />
           </div>
           <div>
@@ -49,7 +49,7 @@ export const UnifiedProductsHub: React.FC<UnifiedProductsHubProps> = ({
             onClick={() => setSubTab('catalog')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-black transition cursor-pointer whitespace-nowrap ${
               subTab === 'catalog'
-                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                ? 'bg-[var(--app-warn)] text-slate-950 shadow-sm'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
             }`}
           >
@@ -62,7 +62,7 @@ export const UnifiedProductsHub: React.FC<UnifiedProductsHubProps> = ({
             onClick={() => setSubTab('inventory')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-black transition cursor-pointer whitespace-nowrap ${
               subTab === 'inventory'
-                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                ? 'bg-[var(--app-warn)] text-slate-950 shadow-sm'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
             }`}
           >
@@ -75,7 +75,7 @@ export const UnifiedProductsHub: React.FC<UnifiedProductsHubProps> = ({
             onClick={() => setSubTab('offers')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg font-black transition cursor-pointer whitespace-nowrap ${
               subTab === 'offers'
-                ? 'bg-amber-400 text-slate-950 shadow-sm'
+                ? 'bg-[var(--app-warn)] text-slate-950 shadow-sm'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
             }`}
           >
