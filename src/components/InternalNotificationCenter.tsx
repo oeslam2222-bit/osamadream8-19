@@ -59,9 +59,9 @@ const priorityOrder: Record<AppNotification['priority'], number> = {
 };
 
 const priorityStyles: Record<AppNotification['priority'], string> = {
-  high: 'border-rose-200 bg-rose-50/90 hover:bg-rose-100/80 dark:bg-rose-950/80 dark:border-rose-800/80 dark:hover:bg-rose-900/60 shadow-xs',
-  medium: 'border-amber-200 bg-amber-50/90 hover:bg-amber-100/80 dark:bg-amber-950/80 dark:border-amber-800/80 dark:hover:bg-amber-900/60 shadow-xs',
-  low: 'border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-850 dark:border-slate-700 dark:hover:bg-slate-800 shadow-xs',
+  high: 'border-rose-300/80 bg-rose-50/90 hover:bg-rose-100/90 dark:bg-slate-900 dark:border-rose-500/50 dark:hover:bg-slate-850 shadow-xs',
+  medium: 'border-amber-300/80 bg-amber-50/90 hover:bg-amber-100/90 dark:bg-slate-900 dark:border-amber-500/50 dark:hover:bg-slate-850 shadow-xs',
+  low: 'border-slate-200 bg-white hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:hover:bg-slate-850 shadow-xs',
 };
 
 const priorityDot: Record<AppNotification['priority'], string> = {
@@ -70,8 +70,9 @@ const priorityDot: Record<AppNotification['priority'], string> = {
   low: 'bg-slate-400',
 };
 
-const BASE_READ_STORAGE_KEY = 'tantawy_notifications_read_v4';
-const BASE_DISMISSED_STORAGE_KEY = 'tantawy_notifications_dismissed_v4';
+const BASE_READ_STORAGE_KEY = 'tantawy_notifications_read_v5';
+const BASE_DISMISSED_STORAGE_KEY = 'tantawy_notifications_dismissed_v5';
+const GLOBAL_ALL_READ_KEY = 'tantawy_notifications_all_read_ts_v5';
 
 export const InternalNotificationCenter: React.FC<InternalNotificationCenterProps> = ({
   onNavigateToTab,
@@ -93,6 +94,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
   const userSuffix = currentUser?.id || currentUser?.username || 'user';
   const readStorageKey = `${BASE_READ_STORAGE_KEY}_${userSuffix}`;
   const dismissedStorageKey = `${BASE_DISMISSED_STORAGE_KEY}_${userSuffix}`;
+  const userAllReadTimestampKey = `${GLOBAL_ALL_READ_KEY}_${userSuffix}`;
 
   const [isOpen, setIsOpen] = useState(false);
   const [filterMode, setFilterMode] = useState<'unread' | 'all'>('unread');
@@ -100,7 +102,7 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
   // خريطة الإشعارات المقروءة
   const [readNotifMap, setReadNotifMap] = useState<Record<string, boolean>>(() => {
     try {
-      const raw = localStorage.getItem(readStorageKey) || localStorage.getItem('tantawy_notifications_read_v3');
+      const raw = localStorage.getItem(readStorageKey) || localStorage.getItem('tantawy_notifications_read_v4') || localStorage.getItem('tantawy_notifications_read_v3');
       return raw ? JSON.parse(raw) : {};
     } catch {
       return {};
@@ -110,10 +112,20 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
   // خريطة الإشعارات المخفية/المحذوفة نهائياً (مثل إخفاء الإشعار في فيسبوك)
   const [dismissedMap, setDismissedMap] = useState<Record<string, boolean>>(() => {
     try {
-      const raw = localStorage.getItem(dismissedStorageKey);
+      const raw = localStorage.getItem(dismissedStorageKey) || localStorage.getItem('tantawy_notifications_dismissed_v4');
       return raw ? JSON.parse(raw) : {};
     } catch {
       return {};
+    }
+  });
+
+  // توقيت قراءة الكل لمنع تكرار الإشعارات السابقة كل مرة يُفتح فيها التطبيق
+  const [allReadTimestamp, setAllReadTimestamp] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(userAllReadTimestampKey) || localStorage.getItem(GLOBAL_ALL_READ_KEY);
+      return saved ? parseInt(saved, 10) : 0;
+    } catch {
+      return 0;
     }
   });
 
@@ -124,10 +136,12 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
       if (rawRead) setReadNotifMap(JSON.parse(rawRead));
       const rawDismissed = localStorage.getItem(dismissedStorageKey);
       if (rawDismissed) setDismissedMap(JSON.parse(rawDismissed));
+      const savedTs = localStorage.getItem(userAllReadTimestampKey);
+      if (savedTs) setAllReadTimestamp(parseInt(savedTs, 10));
     } catch {
       /* ignore */
     }
-  }, [readStorageKey, dismissedStorageKey]);
+  }, [readStorageKey, dismissedStorageKey, userAllReadTimestampKey]);
 
   const rawNotifications = useMemo<AppNotification[]>(() => {
     const list: AppNotification[] = [];
@@ -520,28 +534,47 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
 
   // فحص هل الإشعار مقروء
   const isNotificationRead = (n: AppNotification): boolean => {
-    return Boolean(readNotifMap[n.id] || readNotifMap[`${n.id}__${n.title}`]);
+    if (readNotifMap[n.id] || readNotifMap[`${n.id}__${n.title}`]) return true;
+    const baseId = n.id.split('-')[0];
+    if (readNotifMap[baseId]) return true;
+    if (allReadTimestamp > 0) {
+      if (readNotifMap[n.kind]) return true;
+    }
+    return false;
   };
 
   const unreadNotifications = useMemo(
     () => notifications.filter((n) => !isNotificationRead(n)),
-    [notifications, readNotifMap]
+    [notifications, readNotifMap, allReadTimestamp]
   );
 
   const unreadCount = unreadNotifications.length;
   const highUnreadCount = unreadNotifications.filter((n) => n.priority === 'high').length;
   const hasUnread = unreadCount > 0;
 
-  // تعيين كافة الإشعارات الحالية كمقروءة (زي الفيسبوك — يختفي الرقم والإشعارات من غير المقروءة فوراً)
+  // تعيين كافة الإشعارات الحالية كمقروءة وحفظ التوقيت لمنع تكرارها عند فتح التطبيق مجدداً
   const markAllRead = () => {
+    const now = Date.now();
+    setAllReadTimestamp(now);
+    try {
+      localStorage.setItem(userAllReadTimestampKey, String(now));
+      localStorage.setItem(GLOBAL_ALL_READ_KEY, String(now));
+    } catch {
+      /* ignore */
+    }
+
     setReadNotifMap((prev) => {
       const updated = { ...prev };
       notifications.forEach((n) => {
         updated[n.id] = true;
         updated[`${n.id}__${n.title}`] = true;
+        updated[n.kind] = true;
+        const base = n.id.split('-')[0];
+        if (base) updated[base] = true;
       });
       try {
         localStorage.setItem(readStorageKey, JSON.stringify(updated));
+        localStorage.setItem('tantawy_notifications_read_v5_global', JSON.stringify(updated));
       } catch {
         /* ignore */
       }
@@ -553,10 +586,12 @@ export const InternalNotificationCenter: React.FC<InternalNotificationCenterProp
   const markSingleRead = (n: AppNotification, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setReadNotifMap((prev) => {
+      const base = n.id.split('-')[0];
       const updated = {
         ...prev,
         [n.id]: true,
         [`${n.id}__${n.title}`]: true,
+        ...(base ? { [base]: true } : {}),
       };
       try {
         localStorage.setItem(readStorageKey, JSON.stringify(updated));

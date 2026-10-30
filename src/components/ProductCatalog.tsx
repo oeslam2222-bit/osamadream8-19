@@ -1,6 +1,7 @@
 import {
   AlertCircle,
   AlertTriangle,
+  ArrowRight,
   ArrowUpDown,
   Building,
   Check,
@@ -107,8 +108,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [rightPanelType, setRightPanelType] = useState<'product' | 'cart' | 'customer' | null>(null);
   const [rightPanelData, setRightPanelData] = useState<Product | Customer | null>(null);
 
-  // Lazy & Smart Cashier View States
-  const [showAllExplicitly, setShowAllExplicitly] = useState(true);
+  // Lazy & Smart Cashier View States (Filter-First: لا يتم تحميل كافة الأصناف حتى يختار المستخدم قسماً أو يبحث)
+  const [showAllExplicitly, setShowAllExplicitly] = useState(false);
   const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
 
   // Data Confidentiality Mode (سرية البيانات - إخفاء الأسعار الحساسة وهوامش الربح وأرصدة العملاء)
@@ -601,7 +602,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     searchTerm.trim().length > 0 ||
     selectedOfficialDept !== 'الكل' ||
     selectedSubCategory !== 'الكل' ||
-    stockAvailabilityFilter !== 'all' ||
+    (stockAvailabilityFilter !== 'all' && stockAvailabilityFilter !== 'has_stock') ||
     selectedPriority !== 'الكل' ||
     selectedStatus !== 'الكل' ||
     showAllExplicitly
@@ -613,9 +614,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setSelectedSubCategory('الكل');
     setSelectedPriority('الكل');
     setSelectedStatus('الكل');
-    setStockAvailabilityFilter('all');
+    setStockAvailabilityFilter('has_stock');
     setSortBy('default');
-    setShowAllExplicitly(true);
+    setShowAllExplicitly(false);
   };
 
   const handleDownloadSmartCatalogPDF = useCallback(async () => {
@@ -1197,8 +1198,114 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       </div>
 
-      {/* Main Catalog Product Grid (Amazon/Noon Web + Taager/Raneen Mobile) */}
-      <div className="w-full min-w-0">
+      {/* Filter-First Portal: Don't load 500+ items until user chooses a category or searches */}
+      {!isFiltered ? (
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 animate-in fade-in">
+          <div className="text-center max-w-xl mx-auto space-y-2">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/30 flex items-center justify-center mx-auto shadow-sm">
+              <Sparkles className="w-7 h-7" />
+            </div>
+            <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100">
+              بوابة الكتالوج الذكي (توفير الباقة والسرعة الفائقة)
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              لتسريع تصفح التطبيق وحماية باقة هاتف المندوب، لا يتم تحميل كافة الأصناف والصور دفعة واحدة. اختر قسماً أدناه أو ابحث مباشرة لعرض المنتجات المطلوبة فقط.
+            </p>
+          </div>
+
+          {/* Direct Search Bar */}
+          <div className="max-w-md mx-auto relative">
+            <Search className="w-4 h-4 absolute top-1/2 -translate-y-1/2 right-3.5 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="ابحث بالاسم أو الكود أو الماركة مباشرة..."
+              className="w-full pr-10 pl-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-900 dark:text-slate-100"
+            />
+          </div>
+
+          {/* Department Quick Cards */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-xs font-black text-slate-700 dark:text-slate-300 px-1">
+              <span>الأقسام الرئيسية المتوفرة ({dynamicItemGroups.length} أقسام):</span>
+              <button
+                type="button"
+                onClick={() => setShowAllExplicitly(true)}
+                className="text-amber-600 dark:text-amber-400 hover:underline cursor-pointer flex items-center gap-1 font-bold"
+              >
+                <span>عرض كافة المنتجات دفعة واحدة ({products.length})</span>
+                <ArrowRight className="w-3.5 h-3.5 rotate-180" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+              {dynamicItemGroups.map((group) => {
+                const count = deptCounts[group] || 0;
+                return (
+                  <button
+                    key={group}
+                    type="button"
+                    onClick={() => {
+                      setSelectedOfficialDept(group);
+                      setSelectedSubCategory('الكل');
+                    }}
+                    className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 hover:bg-amber-500/10 dark:hover:bg-amber-500/10 border border-slate-200 dark:border-slate-800 hover:border-amber-500/50 text-right transition cursor-pointer group flex flex-col justify-between min-h-[92px] active:scale-98 shadow-2xs"
+                  >
+                    <div className="flex items-start justify-between gap-1">
+                      <span className="text-xs font-black text-slate-900 dark:text-slate-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 line-clamp-2">
+                        {group}
+                      </span>
+                      <span className="w-6 h-6 rounded-lg bg-white dark:bg-slate-700 text-slate-400 group-hover:text-amber-500 flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700">
+                        <Package className="w-3.5 h-3.5" />
+                      </span>
+                    </div>
+                    <div className="text-[10.5px] font-mono font-bold text-slate-400 dark:text-slate-400 pt-2">
+                      {count} صنف متوفر
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Quick Filter Shortcuts */}
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => {
+                setStockAvailabilityFilter('in_branch');
+                setShowAllExplicitly(true);
+              }}
+              className="px-4 py-2 rounded-xl bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 text-xs font-black hover:bg-emerald-500/20 transition cursor-pointer flex items-center gap-1.5"
+            >
+              <span>المتوفر بالفرع فقط ({stockCounts.inBranch})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setStockAvailabilityFilter('offers');
+                setShowAllExplicitly(true);
+              }}
+              className="px-4 py-2 rounded-xl bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/30 text-xs font-black hover:bg-rose-500/20 transition cursor-pointer flex items-center gap-1.5"
+            >
+              <Flame className="w-3.5 h-3.5 text-rose-500" />
+              <span>العروض والخصومات ({stockCounts.offers})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowAllExplicitly(true)}
+              className="px-4 py-2 rounded-xl bg-slate-900 dark:bg-slate-800 text-white text-xs font-black hover:opacity-90 transition cursor-pointer"
+            >
+              <span>عرض كافة الأصناف ({products.length}) 🚀</span>
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* Main Catalog Product Grid (Amazon/Noon Web + Taager/Raneen Mobile) */
+        <div className="w-full min-w-0">
         {viewMode === 'grid' ? (
           <div className="space-y-8">
             {catalogSections.map((section) => (
@@ -1707,6 +1814,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       )}
     </div>
+    )}
 
       {/* Modern Cart Drawer for Desktop (Amazon / Noon) & Bottom Sheet for Mobile (Taager / Raneen) */}
       <ModernCartDrawer

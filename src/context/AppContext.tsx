@@ -4295,7 +4295,19 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
 
 
-    const newInvoiceNumber = `DRM-${new Date().getFullYear()}-${String(invoices.length + 104).padStart(4, '0')}`;
+    // Strict sequential invoice numbering: find maximum existing sequence number
+    const currentYear = new Date().getFullYear();
+    let maxInvoiceSeq = 100;
+    invoices.forEach((inv) => {
+      if (inv.invoiceNumber) {
+        const match = inv.invoiceNumber.match(/(\d+)$/);
+        if (match) {
+          const n = parseInt(match[1], 10);
+          if (!isNaN(n) && n > maxInvoiceSeq) maxInvoiceSeq = n;
+        }
+      }
+    });
+    const newInvoiceNumber = `DRM-${currentYear}-${String(maxInvoiceSeq + 1).padStart(4, '0')}`;
     const now = new Date();
     const formattedDate = now.toISOString().slice(0, 10);
     const formattedTime = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true });

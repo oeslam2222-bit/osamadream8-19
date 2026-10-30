@@ -97,6 +97,7 @@ const MainLayout: React.FC = () => {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [appToastMsg, setAppToastMsg] = useState<string | null>(null);
 
   const [customPermissionOverrides, setCustomPermissionOverrides] = useState<UserPermissionOverride[]>([]);
 
@@ -283,7 +284,9 @@ const MainLayout: React.FC = () => {
             onInvoiceCreated={(inv) => {
               setIsOrderModalOpen(false);
               setOrderInitialCustomer(null);
-              setActiveTab('invoices');
+              // البقاء في نفس الصفحة (كتالوج / عملاء / رئيسية) مع تأكيد الحفظ المحلي والأوفلاين
+              setAppToastMsg(`تم حفظ أمر البيع #${inv.invoiceNumber} محلياً بنجاح في وضع الأوفلاين! المزامنة مستمرة بالخلفية.`);
+              setTimeout(() => setAppToastMsg(null), 4500);
             }}
           />
         )}
@@ -312,6 +315,25 @@ const MainLayout: React.FC = () => {
           </div>
         </div>
       </footer>
+
+      {/* Floating Offline Success Toast Banner */}
+      {appToastMsg && (
+        <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] bg-slate-900 dark:bg-emerald-950 text-white border-2 border-emerald-500 rounded-2xl p-3.5 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom duration-300">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 font-black">
+              ✓
+            </span>
+            <p className="text-xs font-bold leading-snug">{appToastMsg}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAppToastMsg(null)}
+            className="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer text-xs shrink-0"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
     </div>
   );
