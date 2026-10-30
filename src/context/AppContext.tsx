@@ -129,6 +129,7 @@ import {
   productIdentityKey,
   sanitizeCustomers,
 } from './appContextHelpers';
+import { deduplicateProductsByUnifiedCode } from '../services/productIdentity';
 import { useUiPreferences } from './useUiPreferences';
 import { resolveCustomerDuesValue } from '../services/customerDues';
 import { hashPassword, verifyPassword, withHashedCredential } from '../services/passwordService';
@@ -4073,6 +4074,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       return !p.sector || p.sector === userSector || p.sector === 'both' || p.sector === 'all';
     });
 
+    // توحيد الصنف بنفس الكود الموحد مع ألوان/مقاسات مختلفة → منتج واحد
+    const dedupedIncoming = deduplicateProductsByUnifiedCode(sectorFilteredIncoming);
+
     // Automatically register any newly encountered branch names dynamically
     setBranches((prevBranches) => {
       const existingNames = new Set(prevBranches.map((b) => b.name));
@@ -4158,7 +4162,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     });
 
     // Update existing products from incoming sheet data or insert new items
-    const processedIncoming = sectorFilteredIncoming.map((incoming) => {
+    const processedIncoming = dedupedIncoming.map((incoming) => {
       const existing = (incoming.id && existingById.get(incoming.id)) || existingByKey.get(getProductMatchKey(incoming));
       if (existing) {
         // UPDATE existing record with fresh sheet stock, prices, factor, and unified model code
