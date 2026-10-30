@@ -30,8 +30,7 @@ import { UserManager } from './components/UserManager';
 import { SystemWorkflowGuide } from './components/SystemWorkflowGuide';
 import { TargetPerformanceDashboard } from './components/TargetPerformanceDashboard';
 import { VisitsDashboard } from './components/VisitsDashboard';
-import { ReturnsWarehouseView } from './components/ReturnsWarehouseView';
-import { ReturnsCustomersView } from './components/ReturnsCustomersView';
+import { UnifiedReturnsView } from './components/UnifiedReturnsView';
 import { LegalAdvisorDashboard } from './components/LegalAdvisorDashboard';
 import { PermissionManagerModal } from './components/PermissionManagerModal';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
@@ -203,6 +202,7 @@ const MainLayout: React.FC = () => {
             <DashboardHome
               onNavigateToTab={(tab) => setActiveTab(tab)}
               onViewInvoice={(inv) => setViewingInvoice(inv)}
+              onNewOrder={() => setIsOrderModalOpen(true)}
             />
           )}
 
@@ -238,8 +238,9 @@ const MainLayout: React.FC = () => {
           {activeTab === 'targets' && allowedTabs.includes('targets') && <TargetPerformanceDashboard />}
 
           {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
-          {activeTab === 'returns' && allowedTabs.includes('returns') && <ReturnsWarehouseView />}
-          {activeTab === 'returns_customers' && allowedTabs.includes('returns_customers') && <ReturnsCustomersView />}
+          {(activeTab === 'returns' || activeTab === 'returns_customers') && (allowedTabs.includes('returns') || allowedTabs.includes('returns_customers')) && (
+            <UnifiedReturnsView />
+          )}
 
           {activeTab === 'invoices' && allowedTabs.includes('invoices') && (
             <InvoicesManager

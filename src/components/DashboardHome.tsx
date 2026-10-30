@@ -1,932 +1,675 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from 'recharts';
-import {
-  Bell,
-  Building2,
-  Calendar,
-  CalendarCheck,
-  CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
-  Clock,
-  Filter,
-  MapPin,
-  Plus,
-  Receipt,
-  Search,
   ShoppingCart,
-  Target,
-  TrendingUp,
-  User,
   Users,
-  Wallet
+  Receipt,
+  Wallet,
+  CalendarCheck,
+  Package,
+  Layers,
+  RotateCcw,
+  Plus,
+  Sparkles,
+  Search,
+  Bell,
+  Clock,
+  MapPin,
+  CheckCircle2,
+  TrendingUp,
+  FileSpreadsheet,
+  Download,
+  Smartphone,
+  Flame,
+  ArrowUpRight,
+  ShieldCheck,
+  ChevronLeft,
+  ChevronDown,
+  LayoutGrid,
+  BarChart3,
+  Wifi,
+  WifiOff,
+  Store,
+  DollarSign,
+  Tag
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
-import { MONTH_NAMES_AR, filterCustomersByRBAC } from '../services/customerAnalyticsService';
+import { filterCustomersByRBAC } from '../services/customerAnalyticsService';
 import { isArabicNameMatch, isBranchMatch } from '../services/arabicMatchingService';
-import { Customer, CustomerVisit, Invoice, TargetRecord } from '../types';
+import { Customer, CustomerVisit, Invoice } from '../types';
 
 interface DashboardHomeProps {
   onNavigateToTab: (tab: string) => void;
   onViewInvoice?: (invoice: Invoice) => void;
+  onNewOrder?: () => void;
 }
 
-const NAVY = '#102b4e';
-const GOLD = '#c99a43';
-const BLUE = '#1e5f9d';
-const TARGET_BAR = '#d7e2ef';
-const PIE_COLORS = [NAVY, GOLD, BLUE, '#8fa3bf'];
-const GRID_STROKE = '#e3ebf3';
-const TICK_FILL = '#5b6577';
-const BRASS_INK = 'text-warn';
-const BRASS_SOFT = 'bg-[rgba(155,112,39,.12)]';
-const MASK = '••••••';
-
-const customerSales = (c: Customer): number => {
-  const monthly = c.monthlySales2026
-    ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0)
-    : 0;
-  return Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthly);
-};
-
-const customerCollections = (c: Customer): number => {
-  const monthly = c.monthlyCollections2026
-    ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + Math.abs(Number(v) || 0), 0)
-    : 0;
-  return Math.max(
-    Math.abs(Number(c.collections2026) || 0),
-    Math.abs(Number(c.totalMonthlyCollections) || 0),
-    Math.abs(Number(c.totalOverallCollections) || 0),
-    monthly
-  );
-};
-
-const visitMonth = (raw?: string): { year: number; month: number } | null => {
-  if (!raw) return null;
-  const parsed = new Date(raw);
-  if (!isNaN(parsed.getTime()) && String(raw).length > 7) {
-    return { year: parsed.getFullYear(), month: parsed.getMonth() + 1 };
-  }
-  const m = String(raw).match(/(\d{4})[-/](\d{1,2})/);
-  if (m) return { year: Number(m[1]), month: Number(m[2]) };
-  return null;
-};
-
-const customerDealCategory = (customer: Customer): string | null => {
-  const dealt = String(customer.dealt2026 || '').trim();
-  const eligibility = String(customer.dealEligibility || '').trim();
-
-  if (customer.hasDealtIn2026 || (dealt.includes('متعامل') && !dealt.includes('غير'))) {
-    return 'متعامل';
-  }
-  if (eligibility.includes('غير') || eligibility.includes('موقوف')) return 'غير قابل للتعامل';
-  if (eligibility.includes('قابل')) return 'قابل للتعامل';
-  return null;
-};
-
-export const DashboardHome: React.FC<DashboardHomeProps> = ({ onNavigateToTab }) => {
+export const DashboardHome: React.FC<DashboardHomeProps> = ({
+  onNavigateToTab,
+  onViewInvoice,
+  onNewOrder
+}) => {
   const {
     currentUser,
     users,
     branches,
     customers,
     invoices = [],
+    products = [],
     getVisibleInvoices,
     getVisibleVisits,
     getVisibleTargets,
-    isPrivacyMode
+    getVisibleProducts,
+    isOffline,
+    activeSectorFilter,
+    setActiveSectorFilter,
+    setIsInstallModalOpen
   } = useApp();
 
-  const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
   const isRep = currentUser?.role === 'sales_rep';
   const isSupervisor = currentUser?.role === 'supervisor';
-  const isFieldRole = isRep || isSupervisor;
+  const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
-  const [selectedBranch, setSelectedBranch] = useState('ALL');
-  const [selectedSupervisor, setSelectedSupervisor] = useState('ALL');
-  const [selectedRep, setSelectedRep] = useState('ALL');
+  // Live Real-Time Clock
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
+  // Filter mode for Today vs All
+  const [metricPeriod, setMetricPeriod] = useState<'today' | 'all'>('today');
+
+  // Customer Filtering
   const visibleCustomers = useMemo(
     () => filterCustomersByRBAC(customers, currentUser, users),
     [customers, currentUser, users]
   );
 
-  const availableBranches = useMemo(() => {
-    const set = new Set<string>();
-    visibleCustomers.forEach((c) => {
-      if (c.branchName) set.add(c.branchName);
-    });
-    branches.forEach((b) => {
-      if (b.name && !b.isMainWarehouse) set.add(b.name);
-    });
-    return Array.from(set);
-  }, [visibleCustomers, branches]);
-
-  const availableSupervisors = useMemo(() => {
-    const fromUsers = users
-      .filter((u) => u.role === 'supervisor')
-      .filter((u) => selectedBranch === 'ALL' || isBranchMatch(u.branchName, selectedBranch))
-      .map((u) => u.name);
-    const fromCustomers = visibleCustomers
-      .filter((c) => selectedBranch === 'ALL' || isBranchMatch(c.branchName, selectedBranch))
-      .map((c) => c.supervisorName)
-      .filter(Boolean) as string[];
-    return Array.from(new Set([...fromUsers, ...fromCustomers]));
-  }, [users, visibleCustomers, selectedBranch]);
-
-  const availableReps = useMemo(() => {
-    const supervisedIds =
-      selectedSupervisor === 'ALL'
-        ? null
-        : new Set(
-            users
-              .filter(
-                (u) =>
-                  u.role === 'sales_rep' &&
-                  (isArabicNameMatch(u.name, selectedSupervisor) ||
-                    users.find((s) => s.id === u.supervisorId && isArabicNameMatch(s.name, selectedSupervisor)))
-              )
-              .map((u) => u.name)
-          );
-    const set = new Set<string>();
-    visibleCustomers.forEach((c) => {
-      if (selectedBranch !== 'ALL' && !isBranchMatch(c.branchName, selectedBranch)) return;
-      if (selectedSupervisor !== 'ALL') {
-        const matchSup = isArabicNameMatch(c.supervisorName || '', selectedSupervisor);
-        const matchRepUnder = supervisedIds ? supervisedIds.has(c.salesRepName || c.repName || '') : false;
-        if (!matchSup && !matchRepUnder) return;
-      }
-      const r = c.salesRepName || c.repName;
-      if (r) set.add(r);
-    });
-    return Array.from(set);
-  }, [visibleCustomers, selectedBranch, selectedSupervisor, users]);
-
-  const scopedCustomers = useMemo(() => {
-    return visibleCustomers.filter((c) => {
-      if (selectedBranch !== 'ALL' && !isBranchMatch(c.branchName, selectedBranch)) return false;
-      if (selectedSupervisor !== 'ALL') {
-        const matchName = isArabicNameMatch(c.supervisorName || '', selectedSupervisor);
-        const supervisorUser = users.find((u) => isArabicNameMatch(u.name, selectedSupervisor) && u.role === 'supervisor');
-        const repUser = users.find(
-          (u) =>
-            u.role === 'sales_rep' &&
-            (isArabicNameMatch(u.name, c.salesRepName || '') || isArabicNameMatch(u.name, c.repName || ''))
-        );
-        const underSupervisor = supervisorUser && repUser?.supervisorId === supervisorUser.id;
-        if (!matchName && !underSupervisor) return false;
-      }
-      if (selectedRep !== 'ALL') {
-        const r = c.salesRepName || c.repName || '';
-        if (!isArabicNameMatch(r, selectedRep)) return false;
-      }
-      return true;
-    });
-  }, [visibleCustomers, selectedBranch, selectedSupervisor, selectedRep, users]);
-
-  const scopedRepNames = useMemo(() => {
-    const set = new Set<string>();
-    scopedCustomers.forEach((c) => {
-      if (c.salesRepName) set.add(c.salesRepName);
-      if (c.repName) set.add(c.repName);
-    });
-    if (selectedRep !== 'ALL') set.add(selectedRep);
-    return set;
-  }, [scopedCustomers, selectedRep]);
-
   const visits = getVisibleVisits();
-  const targets = getVisibleTargets();
   const visibleInvoices = useMemo(() => getVisibleInvoices(), [getVisibleInvoices, invoices]);
+  const visibleProductsList = useMemo(() => (getVisibleProducts ? getVisibleProducts() : products), [getVisibleProducts, products]);
 
-  const scopedVisits = useMemo(() => {
-    return visits.filter((v: CustomerVisit) => {
-      if (selectedBranch !== 'ALL' && v.branchName && !isBranchMatch(v.branchName, selectedBranch)) return false;
-      if (selectedSupervisor !== 'ALL' && v.supervisorName && !isArabicNameMatch(v.supervisorName, selectedSupervisor)) {
-        if (v.repName && !scopedRepNames.has(v.repName)) return false;
-      }
-      if (selectedRep !== 'ALL' && v.repName && !isArabicNameMatch(v.repName, selectedRep)) return false;
-      return true;
+  // Today Date String (YYYY-MM-DD)
+  const todayStr = useMemo(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }, []);
+
+  // REAL DATA METRICS
+  const todayInvoices = useMemo(() => {
+    return visibleInvoices.filter((inv) => {
+      const invDate = inv.date || inv.createdAt?.slice(0, 10) || '';
+      return invDate.startsWith(todayStr);
     });
-  }, [visits, selectedBranch, selectedSupervisor, selectedRep, scopedRepNames]);
+  }, [visibleInvoices, todayStr]);
 
-  const scopedTargets = useMemo(() => {
-    return targets.filter((t: TargetRecord) => {
-      if (selectedBranch !== 'ALL' && t.branch && !isBranchMatch(t.branch, selectedBranch)) return false;
-      if (selectedRep !== 'ALL' && t.repName && !isArabicNameMatch(t.repName, selectedRep)) return false;
-      if (selectedSupervisor !== 'ALL' && t.repName && scopedRepNames.size > 0 && !scopedRepNames.has(t.repName)) {
-        return false;
-      }
-      return t.year === 2026 || !t.year;
-    });
-  }, [targets, selectedBranch, selectedRep, selectedSupervisor, scopedRepNames]);
+  const todayVisits = useMemo(() => {
+    return visits.filter((v) => (v.date || '').startsWith(todayStr));
+  }, [visits, todayStr]);
 
-  const stats = useMemo(() => {
-    const monthlySales: number[] = Array(12).fill(0);
-    const monthlyCollections: number[] = Array(12).fill(0);
-    const monthlyVisits: number[] = Array(12).fill(0);
-    const monthlyTargetSales: number[] = Array(12).fill(0);
-    const monthlyTargetCollections: number[] = Array(12).fill(0);
+  // Today's Sales Calculation
+  const todaySalesTotal = useMemo(() => {
+    return todayInvoices.reduce((sum, inv) => sum + (Number(inv.estimatedGrandTotal) || Number(inv.subtotal) || 0), 0);
+  }, [todayInvoices]);
 
-    let sales = 0;
-    let collections = 0;
-    let debt = 0;
-    let overdue = 0;
-    let visitsTotal = 0;
-
-    scopedCustomers.forEach((c) => {
-      sales += customerSales(c);
-      collections += customerCollections(c);
-      debt += c.currentBalance ?? c.balance ?? 0;
-      overdue += c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
-      visitsTotal += c.visitCount2026 || 0;
-      if (c.monthlySales2026) {
-        for (let m = 1; m <= 12; m++) monthlySales[m - 1] += Number(c.monthlySales2026[m]) || 0;
-      }
-      if (c.monthlyCollections2026) {
-        for (let m = 1; m <= 12; m++) monthlyCollections[m - 1] += Number(c.monthlyCollections2026[m]) || 0;
-      }
-      (c.visitHistory || []).forEach((v) => {
-        const ym = visitMonth(v.date);
-        if (ym && ym.year === 2026) monthlyVisits[ym.month - 1] += 1;
-      });
-    });
-
-    scopedVisits.forEach((v) => {
-      const ym = visitMonth(v.date);
-      if (ym && (ym.year === 2026 || !ym.year)) monthlyVisits[ym.month - 1] += 1;
-    });
-
-    const visitSumFromMonths = monthlyVisits.reduce((a, b) => a + b, 0);
-    if (visitSumFromMonths > visitsTotal) visitsTotal = visitSumFromMonths;
-
-    scopedTargets.forEach((t) => {
-      const idx = Math.min(11, Math.max(0, (t.month || 1) - 1));
-      monthlyTargetSales[idx] += Number(t.salesTarget) || 0;
-      monthlyTargetCollections[idx] += Number(t.collectionTarget) || 0;
-    });
-
-    const targetSales = monthlyTargetSales.reduce((a, b) => a + b, 0);
-    const targetCollections = monthlyTargetCollections.reduce((a, b) => a + b, 0);
-
-    return {
-      customers: scopedCustomers.length,
-      sales,
-      collections,
-      debt,
-      overdue,
-      visitsTotal,
-      targetSales,
-      targetCollections,
-      monthlySales,
-      monthlyCollections,
-      monthlyVisits,
-      monthlyTargetSales,
-      monthlyTargetCollections
-    };
-  }, [scopedCustomers, scopedVisits, scopedTargets]);
-
-  const money = (n: number) => (isPrivacyMode ? MASK : formatCurrency(n));
-  const compact = (n: number) =>
-    isPrivacyMode
-      ? MASK
-      : n >= 1_000_000
-        ? `${(n / 1_000_000).toFixed(1)}M`
-        : n >= 1_000
-          ? `${(n / 1_000).toFixed(0)}K`
-          : String(Math.round(n));
-  const num = (n: number) => (isPrivacyMode ? MASK : n.toLocaleString('en-US'));
-
-  const today = new Date().toLocaleDateString('ar-EG', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  });
-
-  const kpis = useMemo(() => {
-    if (isFieldRole) {
-      if (isSupervisor) {
-        return [
-          {
-            label: 'الزيارات',
-            value: num(stats.visitsTotal),
-            icon: MapPin,
-            tint: 'bg-blue-deep',
-            color: 'text-[var(--app-navy)]'
-          },
-          {
-            label: 'العملاء',
-            value: num(stats.customers),
-            icon: Users,
-            tint: 'bg-blue-soft2',
-            color: 'text-[var(--app-blue)]'
-          },
-          {
-            label: 'مبيعات 2026',
-            value: money(stats.sales),
-            icon: TrendingUp,
-            tint: 'bg-teal-soft',
-            color: 'text-[var(--app-ok)]'
-          },
-          {
-            label: 'تحصيلات 2026',
-            value: money(stats.collections),
-            icon: Wallet,
-            tint: 'bg-amber-pale',
-            color: 'text-[var(--app-gold)]'
-          }
-        ];
-      }
-      return [
-        {
-          label: 'الزيارات',
-          value: num(stats.visitsTotal),
-          icon: MapPin,
-          tint: 'bg-blue-deep',
-          color: 'text-[var(--app-navy)]'
-        },
-        {
-          label: 'مبيعات 2026',
-          value: money(stats.sales),
-          icon: TrendingUp,
-          tint: 'bg-teal-soft',
-          color: 'text-[var(--app-ok)]'
-        },
-        {
-          label: 'تحصيلات 2026',
-          value: money(stats.collections),
-          icon: Wallet,
-          tint: 'bg-amber-pale',
-          color: 'text-[var(--app-gold)]'
-        },
-        {
-          label: 'العملاء',
-          value: num(stats.customers),
-          icon: Users,
-          tint: 'bg-blue-soft2',
-          color: 'text-[var(--app-blue)]'
-        }
-      ];
-    }
-
-    return [
-      {
-        label: 'مبيعات 2026',
-        value: money(stats.sales),
-        icon: TrendingUp,
-        tint: 'bg-teal-soft',
-        color: 'text-[var(--app-ok)]'
-      },
-      {
-        label: 'تحصيلات 2026',
-        value: money(stats.collections),
-        icon: Wallet,
-        tint: 'bg-amber-pale',
-        color: 'text-[var(--app-gold)]'
-      },
-      {
-        label: 'العملاء',
-        value: num(stats.customers),
-        icon: Users,
-        tint: 'bg-blue-soft2',
-        color: 'text-[var(--app-blue)]'
-      },
-      {
-        label: 'الزيارات',
-        value: num(stats.visitsTotal),
-        icon: MapPin,
-        tint: 'bg-blue-deep',
-        color: 'text-[var(--app-navy)]'
-      },
-      {
-        label: 'تارجت البيع 2026',
-        value: money(stats.targetSales),
-        icon: Target,
-        tint: BRASS_SOFT,
-        color: BRASS_INK
-      }
-    ];
-  }, [isFieldRole, isSupervisor, stats, isPrivacyMode]);
-
-  const monthChart = MONTH_NAMES_AR.map((month, i) => ({
-    month: month.slice(0, 3),
-    full: month,
-    مبيعات: stats.monthlySales[i],
-    تارجت: stats.monthlyTargetSales[i],
-    زيارات: stats.monthlyVisits[i]
-  }));
-
-  const salesCollectionsChart = useMemo(() => {
-    return MONTH_NAMES_AR.map((m, i) => ({
-      name: m.slice(0, 4),
-      full: m,
-      sales: stats.monthlySales[i] || 0,
-      collections: stats.monthlyCollections[i] || 0
-    }));
-  }, [stats]);
-
-  const customerStatusDistribution = useMemo(() => {
-    const counts = new Map<string, number>([
-      ['متعامل', 0],
-      ['قابل للتعامل', 0],
-      ['غير قابل للتعامل', 0]
-    ]);
-    scopedCustomers.forEach((c) => {
-      const category = customerDealCategory(c);
-      if (category) counts.set(category, (counts.get(category) || 0) + 1);
-    });
-    return [
-      { name: 'متعامل', value: counts.get('متعامل') || 0, color: '#009488', count: counts.get('متعامل') || 0 },
-      { name: 'قابل للتعامل', value: counts.get('قابل للتعامل') || 0, color: '#f59e0b', count: counts.get('قابل للتعامل') || 0 },
-      { name: 'غير قابل للتعامل', value: counts.get('غير قابل للتعامل') || 0, color: '#ef4444', count: counts.get('غير قابل للتعامل') || 0 }
-    ];
-  }, [scopedCustomers]);
-
-  const displayedCustomers = useMemo(() => {
-    return scopedCustomers.slice(0, 4);
-  }, [scopedCustomers]);
-
-  const recentInvoices = useMemo(() => {
-    return [...visibleInvoices].sort((a, b) => {
-      const dateA = new Date(a.createdAt || a.timestamp || a.date).getTime();
-      const dateB = new Date(b.createdAt || b.timestamp || b.date).getTime();
-      return (Number.isNaN(dateB) ? 0 : dateB) - (Number.isNaN(dateA) ? 0 : dateA);
-    }).slice(0, 4);
+  // All Sales Total
+  const allSalesTotal = useMemo(() => {
+    return visibleInvoices.reduce((sum, inv) => sum + (Number(inv.estimatedGrandTotal) || Number(inv.subtotal) || 0), 0);
   }, [visibleInvoices]);
 
-  const upcomingVisits = useMemo(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return scopedVisits
-      .filter((visit) => {
-        const date = new Date(visit.date);
-        if (Number.isNaN(date.getTime()) || date < today) return false;
-        return !['منفذة', 'ملغاة', 'لم تتم'].includes(visit.status || '');
-      })
-      .sort((a, b) => new Date(`${a.date}T${a.time || '00:00'}`).getTime() - new Date(`${b.date}T${b.time || '00:00'}`).getTime())
-      .slice(0, 3);
-  }, [scopedVisits]);
+  // Today's Collections Calculation
+  const todayCollectionsTotal = useMemo(() => {
+    return todayVisits.reduce((sum, v) => sum + (Number(v.collectedAmount) || 0), 0);
+  }, [todayVisits]);
 
-  const resetFilters = () => {
-    setSelectedBranch('ALL');
-    setSelectedSupervisor('ALL');
-    setSelectedRep('ALL');
+  // All Collections Calculation
+  const allCollectionsTotal = useMemo(() => {
+    const fromVisits = visits.reduce((sum, v) => sum + (Number(v.collectedAmount) || 0), 0);
+    const fromCust = visibleCustomers.reduce((sum, c) => sum + (Number(c.collections2026) || 0), 0);
+    return Math.max(fromVisits, fromCust);
+  }, [visits, visibleCustomers]);
+
+  // Formatted Time Parts
+  const timeString = currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  const dateDayNum = currentTime.getDate();
+  const dateDayNameAr = currentTime.toLocaleDateString('ar-EG', { weekday: 'long' });
+  const dateMonthNameAr = currentTime.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' });
+  const dateDayNameEn = currentTime.toLocaleDateString('en-US', { weekday: 'short' });
+  const dateMonthNameEn = currentTime.toLocaleDateString('en-US', { month: 'short' });
+
+  // Handle Create Order Action
+  const handleStartOrder = () => {
+    if (onNewOrder) {
+      onNewOrder();
+    } else {
+      onNavigateToTab('catalog');
+    }
   };
 
   return (
-    <div className="home-dashboard space-y-4 sm:space-y-6" dir="rtl">
-      {/* ======================================================== */}
-      {/* 1. MOBILE VIEW (واجهة المندوب - الموبايل)                */}
-      {/* ======================================================== */}
-      <div className="md:hidden space-y-4">
-        {/* Top Rep Greeting Bar */}
-        <div className="flex items-center justify-between bg-white rounded-2xl p-3 border border-slate-200 shadow-xs">
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <div className="w-11 h-11 rounded-full bg-[color:var(--brand-teal)] text-white flex items-center justify-center font-bold text-base shadow-xs">
-                {currentUser?.name ? currentUser.name.slice(0, 1) : 'م'}
+    <div className="space-y-4 sm:space-y-6" dir="rtl">
+      
+      {/* ========================================================================= */}
+      {/* 1. TOP HERO SECTION (مستوحى بدقة من الصورة المرفقة مع أحدث تكنولوجيا تفاعلية) */}
+      {/* ========================================================================= */}
+      <div className="bg-gradient-to-br from-slate-950 via-[#0d1d33] to-[#0a192e] rounded-3xl p-4 sm:p-6 text-white shadow-2xl border border-slate-800 relative overflow-hidden">
+        
+        {/* Glow ambient background elements */}
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-10 left-10 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+          
+          {/* Right Header: Greeting & Live Clock (كما في يمين الصورة المرفقة) */}
+          <div className="lg:col-span-5 flex flex-col justify-between space-y-4">
+            
+            <div className="flex items-center justify-between">
+              {/* App / Rep Badge */}
+              <div className="flex items-center gap-2.5">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-cyan-500 to-teal-400 text-slate-950 flex items-center justify-center font-black shadow-lg shadow-teal-500/20">
+                  <span className="text-xl">🌟</span>
+                </div>
+                <div>
+                  <div className="text-[11px] font-bold text-cyan-300 tracking-wider">منظومة مبيعات طنطاوي دريم</div>
+                  <h1 className="text-lg sm:text-xl font-black text-white">
+                    أهلاً بك يا {(currentUser?.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أسامة'} ...
+                  </h1>
+                </div>
               </div>
-              <span className="absolute bottom-0 left-0 w-3 h-3 bg-emerald-500 rounded-full border-2 border-white" />
+
+              {/* Status / Sector Pill */}
+              <div className="flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>{isOffline ? 'أوفلاين' : 'متصل'}</span>
+                </span>
+              </div>
             </div>
-            <div>
-              <div className="font-black text-slate-900 text-sm">{currentUser?.name || 'مستخدم'}</div>
-              <div className="text-[11px] text-slate-600 font-semibold">
-                {currentUser?.role === 'sales_rep' ? 'مندوب المبيعات' : currentUser?.role === 'supervisor' ? 'مشرف المبيعات' : 'إدارة المبيعات'}
+
+            <p className="text-xs sm:text-sm font-bold text-slate-300">
+              هل أنت مستعد لتحقيق تارجت اليوم والنمو بمبيعاتك ؟ 🚀
+            </p>
+
+            {/* Time & Date Display (Match Image: PM 06:14 • Fr Jan 23 2026) */}
+            <div className="bg-slate-900/80 border border-slate-700/80 rounded-2xl p-3 sm:p-4 flex items-center justify-between shadow-inner">
+              <div className="space-y-0.5">
+                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">التوقيت والتاريخ</div>
+                <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-white flex items-center gap-1.5">
+                  <Clock className="w-5 h-5 text-cyan-400" />
+                  <span>{timeString}</span>
+                </div>
+                <div className="text-[11px] text-slate-300 font-bold">
+                  {dateDayNameAr}، {dateDayNum} {dateMonthNameAr}
+                </div>
+              </div>
+
+              <div className="text-left font-mono border-r border-slate-800 pr-3">
+                <div className="text-3xl font-black text-amber-400 leading-none">{dateDayNum}</div>
+                <div className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{dateDayNameEn} • {dateMonthNameEn}</div>
+                <div className="text-[10px] font-bold text-slate-500">{currentTime.getFullYear()}</div>
+              </div>
+            </div>
+
+            {/* Rep Subtitle Info */}
+            <div className="flex items-center gap-3 text-xs text-slate-400">
+              <div className="flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="text-slate-300 font-bold">{currentUser?.branchName || 'الفرع الرئيسي'}</span>
+              </div>
+              <span>•</span>
+              <div className="flex items-center gap-1">
+                <Tag className="w-3.5 h-3.5 text-amber-400" />
+                <span className="text-amber-300 font-bold">
+                  {currentUser?.sector === 'electrical' ? 'القطاع الكهربائي' : currentUser?.sector === 'both' ? 'منزلي + كهرباء' : 'القطاع المنزلي'}
+                </span>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Center: 3D Isometric Visual Illustration (كما في وسط الصورة) */}
+          <div className="hidden lg:flex lg:col-span-3 items-center justify-center p-2">
+            <div className="relative group">
+              <div className="w-48 h-48 rounded-3xl bg-gradient-to-tr from-cyan-600/30 via-slate-800 to-indigo-600/20 p-4 border border-cyan-500/30 flex flex-col items-center justify-center text-center shadow-xl backdrop-blur-sm">
+                <div className="text-5xl mb-2 animate-bounce">📊</div>
+                <div className="text-sm font-black text-cyan-300">منصة مبيعات ذكية</div>
+                <div className="text-[10px] text-slate-400 mt-1 max-w-[150px]">
+                  ربط مباشر مع المخازن، قاعدة العملاء، واعتمادات الفواتير
+                </div>
+                <div className="mt-3 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-cyan-400/10 text-cyan-300 border border-cyan-400/30">
+                  <Sparkles className="w-3 h-3 text-cyan-400" />
+                  <span>دريم تكنولوجي</span>
+                </div>
               </div>
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('notifications')}
-            className="w-10 h-10 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 relative cursor-pointer"
-            aria-label="الإشعارات"
-          >
-            <Bell className="w-4 h-4" />
-          </button>
+          {/* Left Cards: إجمالي المبيعات وعدد الطلبات (مطابقة كاملة للصورة) */}
+          <div className="lg:col-span-4 grid grid-cols-2 gap-3">
+            
+            {/* Metric 1: إجمالي المبيعات (Sales) */}
+            <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-cyan-500/50 transition">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-300">إجمالي المبيعات</span>
+                <span className="text-xl">💰</span>
+              </div>
+
+              <div className="space-y-1 my-2">
+                <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white">
+                  {metricPeriod === 'today' ? formatCurrency(todaySalesTotal) : formatCurrency(allSalesTotal)}
+                </div>
+                <div className="text-[10px] text-slate-400 font-bold">جنيه مصري</div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => setMetricPeriod(metricPeriod === 'today' ? 'all' : 'today')}
+                  className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 font-bold cursor-pointer"
+                >
+                  <span>{metricPeriod === 'today' ? 'اليوم' : 'الإجمالي'}</span>
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                <span className="text-emerald-400 font-bold">
+                  {todayInvoices.length} طلبات اليوم
+                </span>
+              </div>
+            </div>
+
+            {/* Metric 2: عدد الطلبات (Orders Count) */}
+            <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-amber-500/50 transition">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-slate-300">عدد الطلبات</span>
+                <span className="text-xl">📦</span>
+              </div>
+
+              <div className="space-y-1 my-2">
+                <div className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-amber-400">
+                  {metricPeriod === 'today' ? todayInvoices.length : visibleInvoices.length}
+                </div>
+                <div className="text-[10px] text-slate-400 font-bold">فاتورة مسجلة</div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => setMetricPeriod(metricPeriod === 'today' ? 'all' : 'today')}
+                  className="flex items-center gap-1 text-amber-400 hover:text-amber-300 font-bold cursor-pointer"
+                >
+                  <span>{metricPeriod === 'today' ? 'اليوم' : 'الكل'}</span>
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+                <span className="text-slate-400 font-bold">
+                  {visibleCustomers.length} عميل
+                </span>
+              </div>
+            </div>
+
+            {/* Metric 3: التحصيلات */}
+            <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-emerald-500/50 transition">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-slate-300">التحصيلات</span>
+                <span className="text-xl">💵</span>
+              </div>
+
+              <div className="space-y-0.5 my-1">
+                <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-emerald-400">
+                  {formatCurrency(metricPeriod === 'today' ? todayCollectionsTotal : allCollectionsTotal)}
+                </div>
+                <div className="text-[10px] text-slate-400 font-bold">المحصل فعلياً</div>
+              </div>
+
+              <div className="pt-1.5 border-t border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
+                <span>تحديث لحظي</span>
+                <span className="text-emerald-400 font-bold">✓ نقدي ومسجل</span>
+              </div>
+            </div>
+
+            {/* Metric 4: زيارات اليوم */}
+            <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-indigo-500/50 transition">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-slate-300">الزيارات</span>
+                <span className="text-xl">📍</span>
+              </div>
+
+              <div className="space-y-0.5 my-1">
+                <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-cyan-300">
+                  {todayVisits.length}
+                </div>
+                <div className="text-[10px] text-slate-400 font-bold">زيارة اليوم</div>
+              </div>
+
+              <div className="pt-1.5 border-t border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
+                <span>الخطة الميدانية</span>
+                <button
+                  type="button"
+                  onClick={() => onNavigateToTab('visits')}
+                  className="text-cyan-400 font-bold hover:underline"
+                >
+                  فتح الزيارات
+                </button>
+              </div>
+            </div>
+
+          </div>
+
         </div>
 
-        {/* 4 Colorful Action Metric Cards (2x2 Grid) matching Reference Mockup */}
-        <div className="grid grid-cols-2 gap-2.5">
-          {/* Card 1: العملاء (Teal) */}
+      </div>
+
+
+      {/* ========================================================================= */}
+      {/* 2. MAIN APPLICATION TILES (الكروت الكبيرة للاختصارات الرئيسية - تصميم كارتونة وجوميا) */}
+      {/* ========================================================================= */}
+      <div className="space-y-3">
+        
+        <div className="flex items-center justify-between px-1">
+          <div>
+            <h2 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+              <LayoutGrid className="w-5 h-5 text-amber-600" />
+              <span>القائمة الرئيسية والاختصارات</span>
+            </h2>
+            <p className="text-xs text-slate-500">
+              واجهة سهلة وسريعة مستوحاة من تطبيقات التسوق (كارتونة وجوميا) لإتمام العمليات بضغطة واحدة
+            </p>
+          </div>
+          
+          <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+            كل القائمة
+          </span>
+        </div>
+
+        {/* The 10 Big Action Cards Grid (مطابقة دقيقة لتوزيع الكروت بالصورة) */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
+          
+          {/* Tile 1: فاتورة جديدة (الأخضر البارز في الصورة) */}
+          <button
+            type="button"
+            onClick={handleStartOrder}
+            className="group relative bg-gradient-to-br from-emerald-500 via-teal-600 to-emerald-700 text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-lg hover:shadow-xl hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-emerald-400/40 min-h-[140px] sm:min-h-[160px]"
+          >
+            <div className="absolute top-2.5 right-2.5 bg-white/20 backdrop-blur-xs text-[10px] font-black px-2 py-0.5 rounded-full">
+              الأهم ⭐
+            </div>
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white text-emerald-700 flex items-center justify-center shadow-md mb-2.5 group-hover:scale-110 transition duration-200">
+              <Receipt className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+            </div>
+            <span className="font-black text-sm sm:text-base leading-tight">فاتورة جديدة</span>
+            <span className="text-[10px] text-emerald-100 font-bold mt-1">إنشاء طلب بيع جديد</span>
+          </button>
+
+          {/* Tile 2: المبيعات والفواتير */}
+          <button
+            type="button"
+            onClick={() => onNavigateToTab('invoices')}
+            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
+          >
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-amber-200/50">
+              <TrendingUp className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+            </div>
+            <span className="font-black text-sm sm:text-base leading-tight">المبيعات</span>
+            <span className="text-[10px] text-slate-500 font-bold mt-1">
+              الفواتير والاعتمادات ({visibleInvoices.length})
+            </span>
+          </button>
+
+          {/* Tile 3: الكتالوج والتسوق */}
+          <button
+            type="button"
+            onClick={() => onNavigateToTab('catalog')}
+            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
+          >
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-cyan-200/50">
+              <ShoppingCart className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+            </div>
+            <span className="font-black text-sm sm:text-base leading-tight">الكتالوج والتسوق</span>
+            <span className="text-[10px] text-slate-500 font-bold mt-1">
+              {visibleProductsList.length} صنف متاح للطلب
+            </span>
+          </button>
+
+          {/* Tile 4: عروض الأسعار والخصومات */}
+          <button
+            type="button"
+            onClick={() => onNavigateToTab('catalog')}
+            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
+          >
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-rose-200/50">
+              <Flame className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+            </div>
+            <span className="font-black text-sm sm:text-base leading-tight">عروض الأسعار</span>
+            <span className="text-[10px] text-slate-500 font-bold mt-1">تخفيضات وبونص الكراتين</span>
+          </button>
+
+          {/* Tile 5: العملاء */}
           <button
             type="button"
             onClick={() => onNavigateToTab('all_customers')}
-            className="kpi-tile kpi-tile--teal kpi-tile--clickable text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right active:scale-95 cursor-pointer"
+            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="flex items-center justify-between w-full mb-2">
-              <span className="kpi-tile__label text-xs font-bold">العملاء</span>
-              <div className="kpi-tile__icon">
-                <Users className="w-4 h-4" />
-              </div>
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-blue-200/50">
+              <Users className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
             </div>
-            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
-              {scopedCustomers.length}
-            </div>
+            <span className="font-black text-sm sm:text-base leading-tight">العملاء</span>
+            <span className="text-[10px] text-slate-500 font-bold mt-1">
+              قاعدة العملاء ({visibleCustomers.length})
+            </span>
           </button>
 
-          {/* Card 2: الزيارات (Cerulean Blue) */}
+          {/* Tile 6: المنتجات والمخزون */}
+          <button
+            type="button"
+            onClick={() => onNavigateToTab('inventory')}
+            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
+          >
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-teal-200/50">
+              <Package className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+            </div>
+            <span className="font-black text-sm sm:text-base leading-tight">أرصدة المخزون</span>
+            <span className="text-[10px] text-slate-500 font-bold mt-1">الفرع والمخزن المركزي</span>
+          </button>
+
+          {/* Tile 7: خطة الزيارات الميدانية */}
           <button
             type="button"
             onClick={() => onNavigateToTab('visits')}
-            className="kpi-tile kpi-tile--blue kpi-tile--clickable text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right active:scale-95 cursor-pointer"
+            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="flex items-center justify-between w-full mb-2">
-              <span className="kpi-tile__label text-xs font-bold">الزيارات</span>
-              <div className="kpi-tile__icon">
-                <CalendarCheck className="w-4 h-4" />
-              </div>
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-indigo-200/50">
+              <CalendarCheck className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
             </div>
-            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
-              {scopedVisits.length}
-            </div>
+            <span className="font-black text-sm sm:text-base leading-tight">الزيارات</span>
+            <span className="text-[10px] text-slate-500 font-bold mt-1">خط سير المندوب اليومي</span>
           </button>
 
-          {/* Card 3: الفواتير (Warm Amber) */}
+          {/* Tile 8: التحصيلات والماليات */}
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
-            className="kpi-tile kpi-tile--amber kpi-tile--clickable text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right active:scale-95 cursor-pointer"
+            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="flex items-center justify-between w-full mb-2">
-              <span className="kpi-tile__label text-xs font-bold">الفواتير</span>
-              <div className="kpi-tile__icon">
-                <Receipt className="w-4 h-4" />
-              </div>
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-emerald-200/50">
+              <Wallet className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
             </div>
-            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
-              {visibleInvoices.length}
-            </div>
+            <span className="font-black text-sm sm:text-base leading-tight">التحصيلات</span>
+            <span className="text-[10px] text-slate-500 font-bold mt-1">متابعة سداد المديونيات</span>
           </button>
 
-          {/* Card 4: التحصيلات (Purple/Indigo) */}
+          {/* Tile 9: المرتجعات الموحدة */}
           <button
             type="button"
-            onClick={() => onNavigateToTab('invoices')}
-            className="kpi-tile kpi-tile--indigo kpi-tile--clickable text-white p-3.5 rounded-2xl shadow-sm flex flex-col justify-between text-right active:scale-95 cursor-pointer"
+            onClick={() => onNavigateToTab('returns')}
+            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="flex items-center justify-between w-full mb-2">
-              <span className="kpi-tile__label text-xs font-bold">التحصيلات</span>
-              <div className="kpi-tile__icon">
-                <Wallet className="w-4 h-4" />
-              </div>
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-purple-200/50">
+              <RotateCcw className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
             </div>
-            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
-              {money(stats.collections)}
-            </div>
+            <span className="font-black text-sm sm:text-base leading-tight">المرتجعات</span>
+            <span className="text-[10px] text-slate-500 font-bold mt-1">تسجيل بضاعة ومتابعتها</span>
           </button>
-        </div>
 
-        {/* Customer List */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-slate-900 font-black text-sm">
-              <MapPin className="w-4 h-4 text-[color:var(--brand-teal)]" />
-              <span>العملاء</span>
+          {/* Tile 10: التارجت أو الإكسل */}
+          <button
+            type="button"
+            onClick={() => onNavigateToTab(isAdminOrDev ? 'excel' : 'targets')}
+            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
+          >
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-slate-300/50">
+              {isAdminOrDev ? (
+                <FileSpreadsheet className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5] text-emerald-600" />
+              ) : (
+                <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5] text-amber-500" />
+              )}
             </div>
-            <button
-              type="button"
-              onClick={() => onNavigateToTab('all_customers')}
-              className="text-[11px] font-bold text-[color:var(--brand-teal)] hover:underline flex items-center gap-0.5 cursor-pointer"
-            >
-              <span>عرض الكل</span>
-              <ChevronLeft className="w-3 h-3" />
-            </button>
-          </div>
+            <span className="font-black text-sm sm:text-base leading-tight">
+              {isAdminOrDev ? 'الإكسل والمزامنة' : 'التارجت والمستهدف'}
+            </span>
+            <span className="text-[10px] text-slate-500 font-bold mt-1">
+              {isAdminOrDev ? 'تحديث الشيتات السحابية' : 'متابعة نسبة التحقيق'}
+            </span>
+          </button>
 
-          <div className="space-y-2.5">
-            {displayedCustomers.length > 0 ? displayedCustomers.map((cust) => {
-              const dealCategory = customerDealCategory(cust);
-              return (
-                <div
-                  key={cust.id}
-                  className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 hover:border-slate-200 bg-slate-50/60 transition"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1 ml-2">
-                    <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
-                      {cust.name.slice(0, 1)}
-                    </div>
-                    <div className="truncate min-w-0">
-                      <div className="font-bold text-slate-900 text-xs truncate">{cust.name}</div>
-                      <div className="text-[10px] text-slate-600 flex items-center gap-1 mt-0.5">
-                        <MapPin className="w-2.5 h-2.5 text-slate-400 shrink-0" />
-                        <span className="truncate">{cust.address || cust.region || cust.branchName || 'لم يحدد العنوان'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {dealCategory && (
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap ${
-                        dealCategory === 'متعامل'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : dealCategory === 'قابل للتعامل'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-rose-50 text-rose-700 border border-rose-200'
-                      }`}>
-                        {dealCategory}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => onNavigateToTab('visits')}
-                      className="bg-[color:var(--brand-teal)] text-white px-2.5 py-1 rounded-lg text-[10px] font-bold cursor-pointer hover:bg-teal-dark-hover"
-                      title="تسجيل زيارة للعميل"
-                    >
-                      زيارة
-                    </button>
-                  </div>
-                </div>
-              );
-            }) : <p className="py-5 text-center text-xs text-slate-500">لا يوجد عملاء في النطاق الحالي</p>}
-          </div>
         </div>
+
       </div>
 
-      {/* ======================================================== */}
-      {/* 2. DESKTOP VIEW (لوحة الإدارة - الكمبيوتر)               */}
-      {/* ======================================================== */}
-      <div className="hidden md:block space-y-6">
-        {/* Top Search & Filter Bar */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex items-center justify-between gap-4">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="ابحث عن عميل أو رقم فاتورة..."
-              className="w-full h-10 pl-4 pr-9 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:border-[color:var(--brand-teal)] transition"
-            />
+
+      {/* ========================================================================= */}
+      {/* 3. BRANDING & MOBILE APK DOWNLOAD BAR (كارت البراند الفخم كما بالصورة) */}
+      {/* ========================================================================= */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
+        
+        {/* Left Card: 3D Emblem Card matching the GEONEX / Brand Card in Image */}
+        <div className="md:col-span-5 bg-gradient-to-tr from-slate-950 via-[#0e172a] to-[#1e1b4b] rounded-3xl p-5 border border-slate-800 shadow-xl flex flex-col justify-between text-white relative overflow-hidden">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-xs font-black text-amber-400 tracking-wider">مندوب دريم • TANTAWY</span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              <span>الحالة : ACTIVE</span>
+            </span>
           </div>
 
-          <div className="flex items-center gap-3">
-            {!isRep && (
-              <div className="flex items-center gap-2 text-xs">
-                <select
-                  aria-label="الفرع"
-                  value={selectedBranch}
-                  onChange={(e) => setSelectedBranch(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 font-bold text-slate-700 text-xs"
-                >
-                  <option value="ALL">كل الفروع</option>
-                  {availableBranches.map((b) => (
-                    <option key={b} value={b}>{b}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 border-r border-slate-200 pr-3 mr-1">
-              <div className="w-8 h-8 rounded-full bg-[color:var(--brand-teal)] text-white flex items-center justify-center font-bold text-xs">
-                {currentUser?.name ? currentUser.name.slice(0, 1) : 'م'}
-              </div>
-              <div className="text-right">
-                <div className="text-xs font-black text-slate-900">{currentUser?.name || 'أحمد محمد'}</div>
-                <div className="text-[10px] text-slate-600 font-semibold">
-                  {currentUser?.role === 'admin' ? 'مدير النظام' : currentUser?.role === 'branch_manager' ? 'مدير الفرع' : 'مشرف'}
-                </div>
+          <div className="flex items-center gap-4 my-2">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-amber-500 via-rose-500 to-indigo-500 p-0.5 shadow-2xl shrink-0 flex items-center justify-center">
+              <div className="w-full h-full bg-slate-950 rounded-2xl flex items-center justify-center text-2xl">
+                📱
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* 4 Metric Cards in a Row matching Desktop Reference Mockup */}
-        <div className="grid grid-cols-3 gap-4">
-          {/* Card 1: إجمالي المبيعات */}
-          <div className="kpi-tile kpi-tile--teal rounded-2xl p-4 shadow-xs flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="kpi-tile__label text-xs font-bold">إجمالي المبيعات</span>
-              <span className="kpi-tile__icon"><TrendingUp className="w-4 h-4" /></span>
-            </div>
-            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
-              {money(stats.sales)}
-            </div>
-            <div className="kpi-tile__caption text-[10px] font-semibold">حسب بيانات العملاء</div>
-          </div>
-
-          {/* Card 2: إجمالي التحصيلات */}
-          <div className="kpi-tile kpi-tile--blue rounded-2xl p-4 shadow-xs flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="kpi-tile__label text-xs font-bold">إجمالي التحصيلات</span>
-              <span className="kpi-tile__icon"><Wallet className="w-4 h-4" /></span>
-            </div>
-            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
-              {money(stats.collections)}
-            </div>
-            <div className="kpi-tile__caption text-[10px] font-semibold">حسب بيانات العملاء</div>
-          </div>
-
-          {/* Card 3: العملاء */}
-          <div className="kpi-tile kpi-tile--amber rounded-2xl p-4 shadow-xs flex flex-col justify-between space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="kpi-tile__label text-xs font-bold">العملاء</span>
-              <span className="kpi-tile__icon"><Users className="w-4 h-4" /></span>
-            </div>
-            <div className="kpi-tile__value text-2xl font-black tabular-nums tracking-tight">
-              {scopedCustomers.length}
-            </div>
-            <div className="kpi-tile__caption text-[10px] font-semibold">من إجمالي قاعدة العملاء</div>
-          </div>
-        </div>
-
-        {/* Charts Split Row: Line Chart (Sales & Collections) + Donut (Customer Status) */}
-        <div className="grid grid-cols-12 gap-5">
-          {/* Dual Line Chart: المبيعات والتحصيلات */}
-          <div className="col-span-8 bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="font-black text-slate-900 text-sm">المبيعات والتحصيلات</h3>
-                <p className="text-[11px] text-slate-500">مقارنة حركة المبيعات مقابل التحصيل الفعلي</p>
-              </div>
-              <div className="flex items-center gap-3 text-xs font-bold">
-                <span className="flex items-center gap-1.5 text-slate-700">
-                  <span className="w-2.5 h-2.5 rounded-full bg-teal-main" />
-                  <span>المبيعات</span>
-                </span>
-                <span className="flex items-center gap-1.5 text-slate-700">
-                  <span className="w-2.5 h-2.5 rounded-full bg-blue-main" />
-                  <span>التحصيلات</span>
-                </span>
-              </div>
-            </div>
-
-            <div className="h-56 w-full" dir="ltr">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={salesCollectionsChart}
-                  margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
-                  barGap={4}
-                  barCategoryGap="20%"
-                >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#94a3b8' }} />
-                  <YAxis orientation="right" tickLine={false} axisLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => compact(Number(v))} />
-                  <Tooltip
-                    formatter={(val: any, name: any) => [money(Number(val)), name === 'sales' ? 'المبيعات' : 'التحصيلات']}
-                    labelFormatter={(_, payload) => payload?.[0]?.payload?.full || ''}
-                  />
-                  <Bar dataKey="sales" name="المبيعات" fill="#009488" radius={[4, 4, 0, 0]} barSize={14} />
-                  <Bar dataKey="collections" name="التحصيلات" fill="#3882f6" radius={[4, 4, 0, 0]} barSize={14} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Donut Chart: توزيع العملاء */}
-          <div className="col-span-4 bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
             <div>
-              <h3 className="font-black text-slate-900 text-sm">توزيع العملاء</h3>
-              <p className="text-[11px] text-slate-500">تصنيف التعامل للعملاء المسجلين</p>
-            </div>
-
-            <div className="relative w-full h-40 flex items-center justify-center" dir="ltr">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={customerStatusDistribution}
-                    dataKey="value"
-                    innerRadius={46}
-                    outerRadius={68}
-                    paddingAngle={3}
-                    stroke="none"
-                  >
-                    {customerStatusDistribution.map((entry) => (
-                      <Cell key={entry.name} fill={entry.color} />
-                    ))}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-xl font-black text-slate-900">{scopedCustomers.length}</span>
-                <span className="text-[10px] text-slate-500 font-bold">عميل</span>
-              </div>
-            </div>
-
-            <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
-              {customerStatusDistribution.map((item) => (
-                <div key={item.name} className="flex items-center justify-between text-slate-700">
-                  <span className="flex items-center gap-1.5">
-                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="font-bold">{item.name}</span>
-                  </span>
-                  <span className="font-black tabular-nums">{item.count} عميل</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Bottom Split Row: آخر الفواتير + الزيارات القادمة */}
-        <div className="grid grid-cols-12 gap-5">
-          {/* Table: آخر الفواتير */}
-          <div className="col-span-8 bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-black text-slate-900 text-sm">آخر الفواتير</h3>
-              <button
-                type="button"
-                onClick={() => onNavigateToTab('invoices')}
-                className="text-[11px] font-bold text-[color:var(--brand-teal)] hover:underline cursor-pointer"
-              >
-                عرض الكل
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
-                <thead>
-                  <tr className="home-table-head border-b border-slate-100 font-black">
-                    <th className="pb-2">رقم الفاتورة</th>
-                    <th className="pb-2">العميل</th>
-                    <th className="pb-2">التاريخ</th>
-                    <th className="pb-2 text-left">المبلغ</th>
-                    <th className="pb-2 text-center">الحالة</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {recentInvoices.length > 0 ? recentInvoices.map((invoice) => (
-                    <tr key={invoice.id} className="hover:bg-slate-50 transition">
-                      <td className="py-2.5 font-mono font-bold text-slate-600">{invoice.invoiceNumber}</td>
-                      <td className="py-2.5 font-bold text-slate-900">{invoice.customerName}</td>
-                      <td className="py-2.5 text-slate-500 tabular-nums">{invoice.date}</td>
-                      <td className="py-2.5 font-black text-slate-900 tabular-nums text-left">
-                        {formatCurrency(Number(invoice.estimatedGrandTotal) || 0)}
-                      </td>
-                      <td className="py-2.5 text-center">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-50 text-slate-700 border border-slate-200">
-                          {invoice.status}
-                        </span>
-                      </td>
-                    </tr>
-                  )) : (
-                    <tr>
-                      <td colSpan={5} className="py-8 text-center text-xs text-slate-500">لا توجد فواتير مسجلة</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+              <h3 className="font-black text-lg text-white">تطبيق الجوال (APK)</h3>
+              <p className="text-xs text-slate-400 leading-relaxed mt-0.5">
+                يمكنك تحميل ملف الـ APK وتثبيته مباشرة على أي هاتف أندرويد للمناديب بدون متجر
+              </p>
             </div>
           </div>
 
-          {/* List: الزيارات القادمة */}
-          <div className="col-span-4 bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-black text-slate-900 text-sm">الزيارات القادمة</h3>
-              <button
-                type="button"
-                onClick={() => onNavigateToTab('visits')}
-                className="text-[11px] font-bold text-[color:var(--brand-teal)] hover:underline cursor-pointer"
-              >
-                عرض الكل
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {upcomingVisits.length > 0 ? upcomingVisits.map((visit) => {
-                const visitCustomer = customers.find((customer) =>
-                  customer.id === visit.customerId || customer.code === visit.customerCode
-                );
-                return (
-                <div key={visit.id} className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 space-y-1">
-                  <div className="font-bold text-slate-900 text-xs">
-                    {visit.customerName || visitCustomer?.name || 'عميل غير محدد'}
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] text-slate-500 font-medium">
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-slate-400" />
-                      <span>{visit.date}{visit.time ? ` - ${visit.time}` : ''}</span>
-                    </span>
-                    <span className="flex items-center gap-1 text-[color:var(--brand-teal)]">
-                      <MapPin className="w-3 h-3" />
-                      <span>{visit.branchName || visitCustomer?.region || visitCustomer?.address || 'لم يحدد الموقع'}</span>
-                    </span>
-                  </div>
-                </div>
-                );
-              }) : <p className="py-5 text-center text-xs text-slate-500">لا توجد زيارات قادمة</p>}
-            </div>
-
+          <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2 mt-2">
             <button
               type="button"
-              onClick={() => onNavigateToTab('visits')}
-              className="w-full py-2 bg-[color:var(--brand-teal)] hover:bg-teal-dark-hover text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+              onClick={() => setIsInstallModalOpen(true)}
+              className="flex-1 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black py-2.5 px-4 rounded-xl text-xs transition cursor-pointer shadow-md flex items-center justify-center gap-2 active:scale-95"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>تسجيل زيارة جديدة</span>
+              <Download className="w-4 h-4" />
+              <span>تحميل وتثبيت التطبيق 📲</span>
             </button>
+            
+            <a
+              href="/tantawy-sales.apk"
+              download="tantawy-sales.apk"
+              className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2.5 px-3 rounded-xl text-xs transition border border-slate-700 flex items-center justify-center gap-1.5 cursor-pointer"
+              title="تحميل ملف APK مباشر إذا قمت بوضعه في مجلد public"
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>ملف APK</span>
+            </a>
           </div>
         </div>
+
+        {/* Right Card: Quick 5-Step Order Guide (خطوات إنشاء الطلب المنضبطة للمندوب) */}
+        <div className="md:col-span-7 bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-black">
+                📋
+              </span>
+              <div>
+                <h4 className="font-black text-slate-900 text-sm">خطوات إنشاء الطلبية للمندوب</h4>
+                <p className="text-[11px] text-slate-500">سير العمل المعتمد لإصدار فواتير دقيقة ومراجعة المخزون</p>
+              </div>
+            </div>
+            
+            <button
+              type="button"
+              onClick={handleStartOrder}
+              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-black px-3.5 py-1.5 rounded-xl cursor-pointer shadow-xs transition"
+            >
+              ابدأ الآن ⚡
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-center text-xs">
+            <div className="bg-slate-50 rounded-2xl p-2.5 border border-slate-200/60">
+              <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">1</div>
+              <div className="font-black text-slate-800 text-[11px]">فتح الكتالوج</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">تصفح الأصناف المتاحة</div>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-2.5 border border-slate-200/60">
+              <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">2</div>
+              <div className="font-black text-slate-800 text-[11px]">إضافة للسلة</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">تحديد كراتين وقطع</div>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-2.5 border border-slate-200/60">
+              <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">3</div>
+              <div className="font-black text-slate-800 text-[11px]">اختيار العميل</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">من قائمة عملائك</div>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-2.5 border border-slate-200/60">
+              <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">4</div>
+              <div className="font-black text-slate-800 text-[11px]">مراجعة الائتمان</div>
+              <div className="text-[10px] text-slate-500 mt-0.5">فحص المديونية والحد</div>
+            </div>
+
+            <div className="bg-emerald-50 rounded-2xl p-2.5 border border-emerald-200">
+              <div className="w-6 h-6 rounded-full bg-emerald-600 text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">5</div>
+              <div className="font-black text-emerald-800 text-[11px]">إصدار واعتماد</div>
+              <div className="text-[10px] text-emerald-600 mt-0.5">تتحول للمشرف للمراجعة</div>
+            </div>
+          </div>
+        </div>
+
       </div>
+
+
+      {/* ========================================================================= */}
+      {/* 4. FOOTER NOTE (كما في أسفل الصورة: يوم عمل جميل وممتع) */}
+      {/* ========================================================================= */}
+      <div className="bg-slate-950 text-slate-300 rounded-2xl px-4 py-3 flex items-center justify-between text-xs border border-slate-800 shadow-md">
+        <div className="flex items-center gap-2">
+          <span className="text-amber-400 text-sm">✨</span>
+          <span className="font-bold text-white">يوم عمل جميل وممتع وموفق بإذن الله</span>
+          <span className="text-slate-600 hidden sm:inline">|</span>
+          <span className="text-slate-400 hidden sm:inline">منظومة مبيعات ومخازن مجموعة الطنطاوي دريم</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onNavigateToTab('catalog')}
+            className="text-cyan-400 hover:text-cyan-300 font-bold flex items-center gap-1 cursor-pointer"
+          >
+            <span>الكتالوج السريع</span>
+            <ChevronLeft className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+
     </div>
   );
 };

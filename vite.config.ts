@@ -13,10 +13,11 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+          maximumFileSizeToCacheInBytes: 20 * 1024 * 1024,
         },
         manifest: {
-          name: 'نظام دีม - إدارة المبيعات والمخزون',
-          short_name: 'نظام ديمن',
+          name: 'مجموعة الطنطاوي - مندوب دريم',
+          short_name: 'الطنطاوي',
           description: 'نظام إدارة المبيعات والمخزون وقاعدة العملاء',
           theme_color: '#1e3a8a',
           background_color: '#ffffff',

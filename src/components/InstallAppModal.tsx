@@ -186,18 +186,41 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
             </button>
           )}
 
-          {/* If already running in Standalone PWA */}
-          {isInstalled && (
-            <div className="p-3.5 bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 rounded-2xl text-xs flex items-center gap-2.5 font-black">
-              <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
-              <div className="leading-tight">
-                <div>التطبيق مثبت بالفعل ويعمل كنسخة أصلية كاملة!</div>
-                <div className="text-[10px] text-emerald-400/80 font-normal mt-0.5">
-                  تستمتع الآن بكامل سرعة الاستجابة ووضع حفظ باقة الإنترنت.
-                </div>
+          {/* Direct APK Download & External APK Section */}
+          <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-indigo-950/40 p-4 rounded-2xl border border-indigo-500/40 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-indigo-300 font-black text-xs sm:text-sm">
+                <Smartphone className="w-4 h-4 text-indigo-400" />
+                <span>ملف تطبيق أندرويد مباشر (APK) 📱</span>
               </div>
+              <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full font-bold border border-indigo-500/30">
+                Direct APK
+              </span>
             </div>
-          )}
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              إذا كان لديك ملف APK جاهز للتطبيق (أو قمت بتحويل الموقع عبر PWABuilder)، يمكنك وضعه في مجلد <code className="text-amber-300 bg-slate-950 px-1 py-0.5 rounded font-mono">public/tantawy-sales.apk</code> وتنزيله بضغطة زر:
+            </p>
+            <div className="flex items-center gap-2 pt-1">
+              <a
+                href="/tantawy-sales.apk"
+                download="tantawy-sales.apk"
+                className="flex-1 py-2.5 px-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-md cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>تنزيل ملف APK لهواتف الأندرويد</span>
+              </a>
+              <a
+                href="https://www.pwabuilder.com"
+                target="_blank"
+                rel="noreferrer"
+                className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
+                title="موقع PWABuilder الرسمي المجاني لتحويل الموقع إلى APK / Google Play"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-amber-400" />
+                <span>PWABuilder مجاناً</span>
+              </a>
+            </div>
+          </div>
 
           {/* Detailed Step-by-Step Instructions based on Device */}
           <div className="space-y-3">

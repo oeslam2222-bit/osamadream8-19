@@ -352,116 +352,103 @@ export const Navbar: React.FC<NavbarProps> = ({
 
 
             {/* User Profile Menu with Logout */}
+            {/* User Profile Menu with Logout */}
             <div className="relative">
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="flex items-center gap-1.5 bg-white hover:bg-slate-50 active:bg-slate-100 px-2.5 h-11 rounded-xl border border-[var(--app-line)] transition cursor-pointer"
+                className="flex items-center gap-2 bg-white hover:bg-slate-50 active:bg-slate-100 px-3 h-11 rounded-2xl border border-[var(--app-line)] transition cursor-pointer shadow-2xs"
+                title="الملف الشخصي والحساب"
               >
                 <span
                   aria-hidden="true"
-                  className="w-7 h-7 shrink-0 rounded-full bg-[var(--app-navy)] text-[var(--app-accent)] text-xs font-black flex items-center justify-center"
+                  className="w-7 h-7 shrink-0 rounded-full bg-gradient-to-tr from-slate-900 to-amber-500 text-white text-xs font-black flex items-center justify-center shadow-xs"
                 >
-                  {(currentUser.name || '').trim().charAt(0)}
+                  {((currentUser.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أ').charAt(0)}
                 </span>
                 <div className="text-right hidden md:block">
-                  <div className="text-xs font-bold text-slate-900 flex items-center gap-1">
-                    {currentUser.name}
+                  <div className="text-xs font-black text-slate-900 flex items-center gap-1">
+                    {(currentUser.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أسامة'}
                   </div>
-                  <div className="text-[10px] text-amber-700 font-medium">
+                  <div className="text-[10px] text-amber-600 font-bold">
                     {roleNames[currentUser.role]?.label || currentUser.role}
                   </div>
                 </div>
                 <span className="text-xs text-slate-400 mr-0.5">▼</span>
               </button>
 
-              {/* Profile Popup Menu */}
+              {/* Profile Card Popup */}
               {showProfileMenu && (
-                <div className="fixed inset-x-2 top-16 sm:absolute sm:inset-x-auto sm:left-0 mt-2 w-auto sm:w-80 max-h-[70vh] overflow-y-auto bg-slate-900 border border-slate-750 rounded-2xl shadow-2xl p-3 z-[60] animate-in fade-in slide-in-from-top-2 text-xs">
-                  <div className="flex items-center gap-3 p-2 bg-slate-950 rounded-xl border border-slate-800 mb-2.5">
-                    <img
-                      src={currentUser.avatar || '/pwa-192x192.png'}
-                      alt={currentUser.name}
-                      className="w-10 h-10 rounded-full object-cover border-2 border-amber-400"
-                    />
-                    <div>
-                      <div className="font-bold text-sm text-white">{currentUser.name}</div>
-                      <div className="text-[11px] text-slate-400">{currentUser.email}</div>
-                      <div className={`mt-1 inline-block text-[10px] px-2 py-0.5 rounded-md border font-bold ${roleNames[currentUser.role]?.bg || 'bg-slate-700/40 border-slate-600'} ${roleNames[currentUser.role]?.text || 'text-slate-300'}`}>
-                        {roleNames[currentUser.role]?.label || currentUser.role || 'مستخدم'}
+                <div className="fixed inset-x-2 top-16 sm:absolute sm:inset-x-auto sm:left-0 mt-2 w-auto sm:w-80 bg-slate-950 border border-slate-800 rounded-3xl shadow-2xl p-4 z-[60] animate-in fade-in zoom-in-95 text-xs text-white">
+                  
+                  {/* Profile Header */}
+                  <div className="flex items-center gap-3 pb-3 border-b border-slate-800/80">
+                    <div className="relative">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 text-slate-950 flex items-center justify-center font-black text-lg shadow-md">
+                        {((currentUser.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أ').charAt(0)}
+                      </div>
+                      <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-slate-950" />
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="font-black text-sm text-white truncate">
+                        {(currentUser.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أسامة'}
+                      </div>
+                      <div className="text-[11px] text-slate-400 truncate mt-0.5">
+                        {currentUser.email || 'Osama@dream.com'}
+                      </div>
+                      <div className="mt-1.5 inline-block text-[10px] px-2.5 py-0.5 rounded-full font-black bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                        {roleNames[currentUser.role]?.label || currentUser.role || 'المطور التقني'}
                       </div>
                     </div>
                   </div>
 
-                  <div className="space-y-1.5 py-1 text-[11px] text-slate-300 border-b border-slate-800 pb-2.5">
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">الفرع المخصص:</span>
-                      <span className="font-semibold text-amber-300">{currentUser.branchName}</span>
+                  {/* Account Information Rows */}
+                  <div className="py-3 space-y-2 text-[11px] border-b border-slate-800/80 text-slate-300">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-bold">الفرع المخصص:</span>
+                      <span className="font-black text-amber-300 truncate max-w-[180px]">
+                        {currentUser.branchName || 'الفرع الرئيسي - 6 أكتوبر'}
+                      </span>
                     </div>
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-bold">القطاع المسؤول:</span>
+                      <span className="font-black text-cyan-300">
+                        {currentUser.sector === 'electrical' ? 'القطاع الكهربائي' : currentUser.sector === 'both' ? 'منزلي + كهرباء' : 'القطاع المنزلي'}
+                      </span>
+                    </div>
+
                     {supervisorName && (
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">المشرف المباشر:</span>
-                        <span className="font-semibold text-blue-300">{supervisorName}</span>
+                      <div className="flex justify-between items-center">
+                        <span className="text-slate-400 font-bold">المشرف المباشر:</span>
+                        <span className="font-black text-blue-300">{supervisorName}</span>
                       </div>
                     )}
-                    {currentUser.role === 'supervisor' && (
-                      <div className="flex justify-between">
-                        <span className="text-slate-400">عدد المناديب التابعين:</span>
-                        <span className="font-semibold text-emerald-300">{supervisedRepsCount} مندوب مبيعات</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-slate-400">حالة الحساب:</span>
-                      <span className="text-emerald-400 font-bold flex items-center gap-1">
-                        <ShieldCheck className="w-3 h-3" /> مفعّل ونشط
+
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-400 font-bold">حالة الحساب:</span>
+                      <span className="text-emerald-400 font-black flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>مفعّل ونشط</span>
                       </span>
                     </div>
                   </div>
 
-                  <div className="space-y-1.5 pt-2">
-                    <div className="lg:hidden grid grid-cols-2 gap-1.5 pb-1">
-                      {[
-                        { id: 'targets', label: 'التارجت' },
-                        { id: 'visits', label: 'الزيارات' },
-                        { id: 'inventory', label: 'المخزون' }
-                      ].map((link) => (
-                        <button
-                          key={link.id}
-                          type="button"
-                          onClick={() => {
-                            setShowProfileMenu(false);
-                            setActiveTab(link.id);
-                          }}
-                          className="rounded-lg bg-slate-800 text-slate-200 py-2 min-h-[44px] text-[11px] font-bold flex items-center justify-center"
-                        >
-                          {link.label}
-                        </button>
-                      ))}
-                    </div>
-
-
+                  {/* Clean Logout Button */}
+                  <div className="pt-3">
                     <button
                       type="button"
                       onClick={() => {
                         setShowProfileMenu(false);
-                        setActiveTab('guide');
-                      }}
-                      className="w-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[44px]"
-                    >
-                      <BookOpen className="w-4 h-4" />
-                      <span>دليل دورة العمل والتشغيل</span>
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setShowProfileMenu(false);
                         logout();
                       }}
-                      className="w-full bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
+                      className="w-full bg-rose-500/10 hover:bg-rose-500/20 active:scale-98 text-rose-300 border border-rose-500/30 font-black py-2.5 rounded-2xl text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>تسجيل الخروج الآمن</span>
                     </button>
                   </div>
+
                 </div>
               )}
             </div>

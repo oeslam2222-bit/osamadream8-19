@@ -141,7 +141,7 @@ export const INITIAL_BRANCHES: Branch[] = [
 export const INITIAL_USERS: User[] = [
   {
     id: 'u-admin-osama',
-    name: 'أسامة إسلام (المطور التقني)',
+    name: 'أسامة',
     username: 'osama',
     email: 'Osama@dream.com',
     password: '',
