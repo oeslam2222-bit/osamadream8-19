@@ -737,11 +737,11 @@ export const VisitsDashboard: React.FC = () => {
                 // Amount
                 let amountText = '—';
                 if (isCollection && v.collectedAmount && v.collectedAmount > 0) {
-                  amountText = `${formatCurrency(v.collectedAmount)} ج.م`;
+                  amountText = formatCurrency(v.collectedAmount);
                 } else if (isReturnType && v.returnValue && v.returnValue > 0) {
-                  amountText = `${formatCurrency(v.returnValue)} ج.م`;
+                  amountText = formatCurrency(v.returnValue);
                 } else if (v.orderAmount && v.orderAmount > 0) {
-                  amountText = `${formatCurrency(v.orderAmount)} ج.م`;
+                  amountText = formatCurrency(v.orderAmount);
                 }
 
                 return (
@@ -1272,7 +1272,7 @@ export const VisitsDashboard: React.FC = () => {
                 <div className="p-3 bg-blue-50/50 rounded-2xl border border-blue-100 flex items-center justify-between text-xs">
                   <span className="font-bold text-slate-700">المبلغ المسجل:</span>
                   <span className="font-black text-base text-blue-700">
-                    {formatCurrency(selectedVisit.collectedAmount || selectedVisit.returnValue || 0)} ج.م
+                    {formatCurrency(selectedVisit.collectedAmount || selectedVisit.returnValue || 0)}
                   </span>
                 </div>
               )}

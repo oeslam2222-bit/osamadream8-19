@@ -49,6 +49,7 @@ import {
   optimizeImageUrl,
 } from '../services/cloudinaryService';
 import { formatCurrency } from '../services/invoiceService';
+import { resolveDisplayPrice, stripPlaceholderText } from '../services/productPricing';
 import { cacheProductImages, getCachedImagesStats } from '../services/imageCacheService';
 import { parseExcelProducts, fetchAndParseGoogleSheet } from '../services/excelService';
 import {
@@ -387,6 +388,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     return filteredProducts.slice(start, start + itemsPerPage);
   }, [filteredProducts, currentPage, itemsPerPage]);
 
+  // سعر الصنف المفتوح في المودال — نفس القاعدة المستخدمة في الكارت.
+  const modalPricing = selectedProductForModal
+    ? resolveDisplayPrice({
+        piecePrice: selectedProductForModal.piecePrice ?? selectedProductForModal.salesPrice,
+        cartonPrice: selectedProductForModal.cartonPrice,
+        factor: selectedProductForModal.cartonQuantity ?? selectedProductForModal.factor,
+      })
+    : null;
+
   // Add item to cart with quantity
   const handleAddToCart = (product: Product) => {
     const qty = cardQuantities[product.id] || 1;
@@ -703,7 +713,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 الطلب محدد للعميل: {selectedCustomer.name} ({selectedCustomer.code})
               </div>
               <div className="text-[11px] text-blue-700 font-bold">
-                المديونية الحالية: {formatCurrency(selectedCustomer.balance || 0)} ج.م
+                المديونية الحالية: {formatCurrency(selectedCustomer.balance || 0)}
               </div>
             </div>
           </div>
@@ -942,6 +952,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           const isFav = Boolean(favorites[p.id]);
           const currentQty = cardQuantities[p.id] || 1;
           const isElectrical = isProductElectrical(p);
+          // سعر واحد متسق: صنف شدة 1 = سعر قطعة، وغيره = سعر كرتونة (قطعة × شدة).
+          const priceInfo = resolveDisplayPrice({
+            piecePrice: p.piecePrice ?? p.salesPrice,
+            cartonPrice: p.cartonPrice,
+            factor: p.cartonQuantity ?? p.factor,
+          });
+          const displayName = stripPlaceholderText(p.name);
 
           // Status Badge
           let statusBadge = (
@@ -1025,30 +1042,32 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               {/* Product Title & Department */}
               <div className="text-center space-y-1">
                 <div className="text-[10px] text-slate-400 font-bold truncate">
-                  {p.department || p.itemGroup || 'عام'} {p.familyName ? `• ${p.familyName}` : ''}
+                  {stripPlaceholderText(p.department) || stripPlaceholderText(p.itemGroup) || 'عام'}
+                  {stripPlaceholderText(p.familyName) ? ` • ${stripPlaceholderText(p.familyName)}` : ''}
                 </div>
                 <h3
                   onClick={() => setSelectedProductForModal(p)}
                   className="font-black text-slate-900 text-sm leading-snug line-clamp-2 min-h-[38px] hover:text-blue-600 cursor-pointer transition"
-                  title={p.name}
+                  title={displayName}
                 >
-                  {p.name}
+                  {displayName || `صنف ${p.code}`}
                 </h3>
                 <div className="text-[11px] text-slate-500 font-bold flex items-center justify-center gap-2">
-                  {p.cartonPrice > 0 ? (
+                  {priceInfo.displayPrice > 0 ? (
                     <span className="text-slate-900 font-black text-xs">
-                      {formatCurrency(p.cartonPrice)} ج.م <span className="text-[10px] text-slate-400 font-normal">/ كرتونة</span>
+                      {formatCurrency(priceInfo.displayPrice)}{' '}
+                      <span className="text-[10px] text-slate-400 font-normal">/ {priceInfo.unitLabel}</span>
                     </span>
                   ) : (
                     '—'
                   )}
-                  {p.cartonQuantity && p.cartonQuantity > 1 ? (
+                  {priceInfo.factor > 1 ? (
                     <span className="text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded text-[10px]">
-                      {p.cartonQuantity} ق/ك
+                      {priceInfo.factor} ق/ك
                     </span>
                   ) : null}
-                  {p.size && (
-                    <span className="text-slate-400 text-[10px]">({p.size})</span>
+                  {stripPlaceholderText(p.size) && (
+                    <span className="text-slate-400 text-[10px]">({stripPlaceholderText(p.size)})</span>
                   )}
                 </div>
               </div>
@@ -1236,7 +1255,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         >
           <div className="bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl border border-slate-100 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h2 className="text-base font-black text-slate-900">{selectedProductForModal.name}</h2>
+              <h2 className="text-base font-black text-slate-900">
+                {stripPlaceholderText(selectedProductForModal.name) || `صنف ${selectedProductForModal.code}`}
+              </h2>
               <button
                 type="button"
                 onClick={() => setSelectedProductForModal(null)}
@@ -1276,9 +1297,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl">
-                <span className="text-[10px] text-slate-400 block font-bold">سعر الكرتونة</span>
+                <span className="text-[10px] text-slate-400 block font-bold">
+                  سعر {modalPricing?.unitLabel}
+                </span>
                 <span className="font-black text-blue-600 text-sm">
-                  {formatCurrency(selectedProductForModal.cartonPrice)} ج.م
+                  {formatCurrency(modalPricing?.displayPrice || 0)}
+                </span>
+                <span className="block text-[10px] text-slate-400 font-bold mt-1">
+                  {modalPricing && !modalPricing.isSinglePiece
+                    ? `القطعة: ${formatCurrency(modalPricing.piecePrice)} • الشدة: ${modalPricing.factor} ق/ك`
+                    : 'يُباع بالقطعة (الشدة 1)'}
                 </span>
               </div>
             </div>

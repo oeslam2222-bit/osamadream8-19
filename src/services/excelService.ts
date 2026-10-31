@@ -6,6 +6,8 @@ import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 import { deduplicateAndMergeCustomers } from './customerDeduplicationService';
 import { isSummaryOrTotalRow } from './customerFinancialService';
 import { resolveCustomerDuesValue } from './customerDues';
+import { parseNumericValue } from './numericParsing';
+import { detectSaleUnit, resolveProductPricing, stripPlaceholderText } from './productPricing';
 
 export { parsePromotionsFromExcelBuffer, parsePromotionsFromGoogleSheet } from './promotionService';
 export { parseTargetExcel, fetchTargetsFromGoogleSheetUrl } from './targetService';
@@ -746,18 +748,18 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const row = rawRows[r];
     if (!row || row.length === 0 || row.every((c: any) => c === '' || c === null || c === undefined)) continue;
 
-    const getVal = (colIdx: number) => (colIdx >= 0 && row[colIdx] !== undefined && row[colIdx] !== null ? String(row[colIdx]).trim() : '');
+    // `(blank)` / `((blank))` وأخواتها مش بيانات: بتتشال من النص نفسه قبل ما
+    // الصنف يتخزن، فمش بتوصل للكتالوج ولا للفاتورة ولا للتصدير.
+    const getVal = (colIdx: number) => {
+      if (colIdx < 0 || row[colIdx] === undefined || row[colIdx] === null) return '';
+      return stripPlaceholderText(String(row[colIdx]));
+    };
+    // نفس محرّك الأرقام اللي باقي التطبيق بيستخدمه: أرقام عربية، فواصل آلاف،
+    // ونص فيه عملة أو وحدة زي "3,080 ج.م / كرتونة" أو "4 ق/ك".
     const getNum = (colIdx: number, fallback = 0) => {
       if (colIdx < 0 || row[colIdx] === undefined || row[colIdx] === null) return fallback;
-      let rawStr = String(row[colIdx]).trim();
-      const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-      for (let i = 0; i < 10; i++) {
-        rawStr = rawStr.split(arabicNumerals[i]).join(String(i));
-      }
-      rawStr = rawStr.replace(/,/g, '').replace(/٬/g, '').replace(/٫/g, '.');
-      const clean = rawStr.replace(/[^\d.-]/g, '');
-      const parsed = parseFloat(clean);
-      return isNaN(parsed) ? fallback : parsed;
+      const parsed = parseNumericValue(row[colIdx]);
+      return Number.isFinite(parsed) ? parsed : fallback;
     };
 
     const rawName = getVal(colMap.name);
@@ -809,42 +811,43 @@ export function parseRawRowsToProducts(rawRows: any[]): {
 
     // Factor (شدة الكرتونة)
     const factorVal = getNum(colMap.factor > -1 ? colMap.factor : colMap.cartonQuantity, 0);
-    const cartonQuantity = factorVal > 0 ? factorVal : 1;
 
-    // Sales Price & Carton Price (مرآة دقيقة لأعمدة الشيت)
-    const rawSalesPrice = getNum(colMap.salesPrice > -1 ? colMap.salesPrice : colMap.piecePrice, 0);
+    // Sales Price & Carton Price (مرآة دقيقة لأعمدة الشيت).
+    // بنقرأ النص الخام كمان عشان نعرف الوحدة المكتوبة في الخلية نفسها
+    // ("ج.م / كرتونة" أو "ج.م / قطعة") — دي أدق من عنوان العمود.
+    const pieceColIdx = colMap.salesPrice > -1 ? colMap.salesPrice : colMap.piecePrice;
+    const rawSalesPrice = getNum(pieceColIdx, 0);
     const rawCartonPrice = getNum(colMap.cartonPrice, 0);
+    const pieceUnitHint = detectSaleUnit(getVal(pieceColIdx));
+    const cartonUnitHint = detectSaleUnit(getVal(colMap.cartonPrice));
+
+    // قاعدة واحدة: الشيت ممكن يحمل سعر القطعة أو سعر الكرتونة. لو الرقم مكتوب
+    // جنبه الوحدة، هي اللي تحكم؛ غير كده معنى العمود هو اللي يحكم. وشدة 1 معناها
+    // إن الصنف بيتباع بالقطعة، فسعر القطعة = سعر الكرتونة = نفس الرقم.
+    const pricing = resolveProductPricing({
+      piecePrice: rawSalesPrice,
+      cartonPrice: rawCartonPrice,
+      factor: factorVal,
+      pieceUnitHint,
+      cartonUnitHint,
+    });
+    const cartonQuantity = pricing.factor;
+    const piecePrice = pricing.piecePrice;
+    const cartonPrice = pricing.cartonPrice;
+
+    // Offer / Promo prices — بنفس القاعدة، عشان العرض ميتحسبش بمنطق مختلف عن السعر.
     const promoPriceCartonRaw = getNum(colMap.promoPrice, 0);
     const promoPricePieceRaw = getNum(colMap.promoPiecePrice, 0);
-
-    // Price in sheet is per piece (سعر القطعة) and is multiplied by carton pack (شدة الكرتونة) to get carton price:
-    // e.g. 500 EGP per piece * 30 pieces in carton = 15,000 EGP carton price
-    const baseRawPrice = rawSalesPrice > 0 ? rawSalesPrice : rawCartonPrice;
-    let piecePrice = baseRawPrice;
-    let cartonPrice = Math.round(piecePrice * cartonQuantity * 100) / 100;
-
-    // If both salesPrice and cartonPrice columns exist
-    if (rawSalesPrice > 0) {
-      piecePrice = rawSalesPrice;
-      cartonPrice = rawCartonPrice > rawSalesPrice
-        ? rawCartonPrice
-        : Math.round(piecePrice * cartonQuantity * 100) / 100;
-    } else if (rawCartonPrice > 0 && cartonQuantity > 0) {
-      cartonPrice = rawCartonPrice;
-      piecePrice = Math.round((rawCartonPrice / cartonQuantity) * 100) / 100;
-    }
-
-    // Offer / Promo prices for carton and piece
-    let finalPromoCartonPrice: number | undefined = undefined;
-    let finalPromoPiecePrice: number | undefined = undefined;
-
-    if (promoPriceCartonRaw > 0) {
-      finalPromoCartonPrice = promoPriceCartonRaw;
-      finalPromoPiecePrice = cartonQuantity > 0 ? Math.round((promoPriceCartonRaw / cartonQuantity) * 100) / 100 : promoPriceCartonRaw;
-    } else if (promoPricePieceRaw > 0) {
-      finalPromoPiecePrice = promoPricePieceRaw;
-      finalPromoCartonPrice = Math.round(promoPricePieceRaw * cartonQuantity * 100) / 100;
-    }
+    const promoPricing = resolveProductPricing({
+      piecePrice: promoPricePieceRaw,
+      cartonPrice: promoPriceCartonRaw,
+      factor: cartonQuantity,
+      pieceUnitHint: detectSaleUnit(getVal(colMap.promoPiecePrice)),
+      cartonUnitHint: detectSaleUnit(getVal(colMap.promoPrice)),
+    });
+    const hasPromo = promoPricing.cartonPrice > 0 || promoPricing.piecePrice > 0;
+    const finalPromoCartonPrice: number | undefined = hasPromo ? promoPricing.cartonPrice : undefined;
+    const finalPromoPiecePrice: number | undefined = hasPromo ? promoPricing.piecePrice : undefined;
 
     // Item group and Family Name
     const rawItemGroup = getVal(colMap.itemGroup) || getVal(colMap.department) || getVal(colMap.category) || 'عام';
