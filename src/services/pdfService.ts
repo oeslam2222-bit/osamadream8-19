@@ -395,6 +395,7 @@ export interface ClientCatalogProduct {
   id: string;
   name: string;
   code?: string;
+  unifiedCode?: string;
   imageUrl?: string;
 }
 
@@ -613,6 +614,10 @@ export async function buildClientCatalogPDF(
           .replace(/&/g, '&amp;')
           .replace(/</g, '&lt;')
           .replace(/>/g, '&gt;');
+        const safeUnified = (product.unifiedCode || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
 
         const imgBlock = dataUrl
           ? `<img src="${dataUrl}" alt="${safeName}" style="max-width:100%;max-height:100%;object-fit:contain;" />`
@@ -620,10 +625,14 @@ export async function buildClientCatalogPDF(
 
         return `
           <div style="width:${CARD_W_PX}px;height:${CARD_H_PX}px;border:1px solid #e2e8f0;border-radius:14px;background:#ffffff;padding:10px;display:flex;flex-direction:column;align-items:center;box-sizing:border-box;">
-            <div style="width:100%;height:228px;display:flex;align-items:center;justify-content:center;background:#f8fafc;border-radius:10px;overflow:hidden;">
+            <div style="width:100%;height:216px;display:flex;align-items:center;justify-content:center;background:#f8fafc;border-radius:10px;overflow:hidden;">
               ${imgBlock}
             </div>
-            <div style="margin-top:10px;width:100%;flex:1;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#0f172a;text-align:center;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${safeName}</div>
+            <div style="margin-top:8px;width:100%;font-size:14px;font-weight:800;color:#0f172a;text-align:center;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;height:38px;">${safeName}</div>
+            <div style="margin-top:4px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px;">
+              ${safeCode ? `<span style="font-size:11px;font-weight:700;background:#f1f5f9;color:#334155;padding:2px 7px;border-radius:5px;border:1px solid #e2e8f0;">كود: <b style="color:#0f172a;">${safeCode}</b></span>` : ''}
+              ${safeUnified ? `<span style="font-size:11px;font-weight:800;background:#eef2ff;color:#4338ca;padding:2px 7px;border-radius:5px;border:1px solid #c7d2fe;">#${safeUnified.replace('#', '')}</span>` : ''}
+            </div>
           </div>`;
       })
       .join('');

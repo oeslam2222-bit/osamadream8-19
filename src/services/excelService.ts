@@ -341,6 +341,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     stockOctober: -1,
     stockMenouf: -1,
     stockMeq: -1,
+    sector: -1,
   };
 
   headers.forEach((h, idx) => {
@@ -396,6 +397,9 @@ export function parseRawRowsToProducts(rawRows: any[]): {
         norm.includes('productcode') ||
         norm.includes('itemcode') ||
         norm.includes('itemno') ||
+        norm.includes('itemnumber') ||
+        norm === 'itemnumber' ||
+        norm === 'item_number' ||
         norm.includes('sku') ||
         norm === 'code')
     ) {
@@ -694,6 +698,15 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       colMap.barcode = idx;
     } else if (norm.includes('فرع') || norm.includes('branch')) {
       colMap.branchName = idx;
+    } else if (
+      norm === 'القطاع' ||
+      norm === 'قطاع' ||
+      norm.includes('القطاع') ||
+      norm.includes('قطاع') ||
+      norm === 'sector' ||
+      norm.includes('sector')
+    ) {
+      colMap.sector = idx;
     }
   });
 
@@ -719,6 +732,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     if (colMap.stockMeq === -1 && headers.length > 16) colMap.stockMeq = 16;
     if (colMap.promoPrice === -1 && headers.length > 17) colMap.promoPrice = 17;
     if (colMap.imageUrl === -1 && headers.length > 18) colMap.imageUrl = 18;
+    if (colMap.sector === -1 && headers.length > 19) colMap.sector = 19;
   }
 
   // Track code occurrences to ensure 100% of rows (all 5500+) get unique IDs without overwriting
@@ -905,11 +919,43 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const occurrenceSuffix = occurrenceCount > 1 ? `_v${occurrenceCount}` : '';
     const deterministicId = `prod-${baseCode}${cleanUnifiedSlug}${colorSlug}${sizeSlug}${occurrenceSuffix}`;
 
+    const rawSector = getVal(colMap.sector).toLowerCase();
+    let sectorVal: 'home' | 'electrical' | 'both' = 'home';
+    if (rawSector.includes('كهربا') || rawSector.includes('كهربائي') || rawSector.includes('electric')) {
+      sectorVal = 'electrical';
+    } else if (rawSector.includes('منزل') || rawSector.includes('أدوات منزلية') || rawSector.includes('home')) {
+      sectorVal = 'home';
+    } else if (rawSector.includes('مشترك') || rawSector.includes('both') || rawSector.includes('الكل')) {
+      sectorVal = 'both';
+    } else {
+      const checkStr = `${itemGroup} ${familyName} ${name}`.toLowerCase();
+      if (
+        checkStr.includes('كهربا') ||
+        checkStr.includes('لمبة') ||
+        checkStr.includes('مفتاح') ||
+        checkStr.includes('كابل') ||
+        checkStr.includes('سلك') ||
+        checkStr.includes('قاطع') ||
+        checkStr.includes('فيشة') ||
+        checkStr.includes('شاسيه') ||
+        checkStr.includes('لقمة') ||
+        checkStr.includes('وش') ||
+        checkStr.includes('دواية') ||
+        checkStr.includes('سبوت') ||
+        checkStr.includes('كشاف')
+      ) {
+        sectorVal = 'electrical';
+      } else {
+        sectorVal = 'home';
+      }
+    }
+
     const product: Product = {
       id: deterministicId,
       code: code,
       unifiedCode: unifiedCode,
       name: name || `صنف بدون كود (${baseCode})`,
+      sector: sectorVal,
       salesPriority: salesPriority,
       category: itemGroup,
       status: status,
@@ -1776,11 +1822,12 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     totalOverdue: -1,            // اجمالي المتأخرات (المستحقات التي تظهر للمندوب عند طلب طلبية)
     overdue2025: -1,             // متاخرات 2025
     overdue2026: -1,             // متاخرات 2026
-    dueUntilPeriod: -1,          // مستحق حتي نهاية اغسطس
+    dueUntilPeriod: -1,          // مستحق حتي نهاية اغسطس / اكتوبر
     totalOverallSales: -1,       // اجمالي مبيعات
     totalOverallCollections: -1, // تحصيلات
     sales2024: -1,               // مبيعات 2024
     collections2024: -1,         // تحصيلات 2024
+    sector: -1,                  // القطاع (منزلي / كهرباء / كلاهما)
   };
 
   const monthlySalesCols: { month: number; colIdx: number }[] = [];
@@ -1795,17 +1842,24 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     // such as "اسم العميل / متعامل 2026"; the status matcher below must not
     // mistake that whole header for the customer's name.
     const isCustomerCodeHeader =
+      rawLower === 'account' ||
+      rawLower === 'account#' ||
+      rawLower === 'account_id' ||
+      rawLower === 'account id' ||
+      norm === 'account' ||
       norm.includes('كودالعميل') ||
       norm.includes('كودالمحل') ||
       norm.includes('كودالحساب') ||
       norm.includes('رقمالعميل') ||
-      norm.includes('رقمالمحل') ||
+      norm.includes('رقمالالمحل') ||
       norm.includes('customercode') ||
       norm.includes('customerid');
     // Only accept a dedicated customer-name column. Compound headers such as
     // "اسم العميل / متعامل 2026" must not be treated as the name column,
     // otherwise the value from the status column becomes the customer name.
     const isDedicatedCustomerNameHeader =
+      rawLower === 'name' ||
+      norm === 'name' ||
       norm === 'اسمالعميل' ||
       norm === 'اسمالمحل' ||
       norm === 'اسمالحساب' ||
@@ -2065,11 +2119,11 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     } else if ((norm.includes('متاخرات') || norm.includes('متاخر')) && norm.includes('2026')) {
       if (colMap.overdue2026 === -1) colMap.overdue2026 = idx;
     }
-    // 18. Check Due Until Period (مستحق حتي نهاية اغسطس)
+    // 18. Check Due Until Period (مستحق حتي نهاية اكتوبر / مستحق حتي نهاية اغسطس)
     else if (
       norm.includes('مستحقحتي') ||
       norm.includes('مستحقحتى') ||
-      (norm.includes('مستحق') && (norm.includes('نهايه') || norm.includes('نهاية') || norm.includes('اغسطس')))
+      (norm.includes('مستحق') && (norm.includes('نهايه') || norm.includes('نهاية') || norm.includes('اكتوبر') || norm.includes('أكتوبر') || norm.includes('اغسطس')))
     ) {
       if (colMap.dueUntilPeriod === -1) {
         colMap.dueUntilPeriod = idx;
@@ -2310,6 +2364,14 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       if (colMap.taxNumber === -1) colMap.taxNumber = idx;
     } else if (norm.includes('ملاحظ') || norm.includes('note')) {
       if (colMap.notes === -1) colMap.notes = idx;
+    } else if (
+      norm === 'القطاع' ||
+      norm === 'قطاع' ||
+      norm.includes('القطاع') ||
+      norm.includes('قطاع') ||
+      norm.includes('sector')
+    ) {
+      if (colMap.sector === -1) colMap.sector = idx;
     }
 
     // Dynamic Monthly Sales & Collections Recognition
@@ -2655,6 +2717,22 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       resolvedPaymentTerms = rawPaymentTerms;
     }
 
+    const rawSectorVal = getVal(row, colMap.sector, '').toLowerCase().trim();
+    let resolvedCustomerSector: 'home' | 'electrical' | 'both' = 'home';
+    if (rawSectorVal.includes('كهرب') || rawSectorVal.includes('elec')) {
+      resolvedCustomerSector = 'electrical';
+    } else if (rawSectorVal.includes('منزل') || rawSectorVal.includes('home')) {
+      resolvedCustomerSector = 'home';
+    } else if (
+      rawSectorVal.includes('كلا') ||
+      rawSectorVal.includes('both') ||
+      rawSectorVal.includes('مشترك') ||
+      rawSectorVal.includes('الكل') ||
+      rawSectorVal.includes('all')
+    ) {
+      resolvedCustomerSector = 'both';
+    }
+
     const newCustomer: Customer = {
       id: safeCustId,
       code: assignedCode,
@@ -2666,6 +2744,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       governorate: rawGov,
       district: rawDistrict,
       route: rawRoute,
+      sector: resolvedCustomerSector,
       creditLimit: finalCreditLimit,
       currentBalance: finalBalance,
       balance: finalBalance,

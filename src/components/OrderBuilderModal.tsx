@@ -385,27 +385,29 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
           </div>
 
           {/* Stepper Progress Tabs */}
-          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 bg-slate-soft border-b border-[var(--app-line)]">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 bg-slate-50 border-b border-slate-200">
             {/* Step 1 */}
             <button
               type="button"
               onClick={() => setCurrentStep(1)}
-              className={`pill-filter p-2 text-xs flex items-center justify-center gap-1.5 cursor-pointer ${
-                currentStep === 1 ? 'on' : ''
+              className={`p-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold transition border ${
+                currentStep === 1
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
               }`}
             >
               <span className={`w-5 h-5 rounded-full grid place-items-center text-[11px] font-black shrink-0 ${
                 currentStep === 1
-                  ? 'bg-[var(--app-accent)] text-deep-navy'
+                  ? 'bg-white text-blue-600'
                   : cart.length > 0 && currentStep > 1
-                  ? 'tint-ok'
-                  : 'bg-slate-soft t-muted'
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-slate-100 text-slate-600'
               }`}>
                 {cart.length > 0 && currentStep > 1 ? '✓' : '1'}
               </span>
               <span className="truncate">١. اختيار المنتجات</span>
               {cart.length > 0 && (
-                <span className="hidden sm:inline-block app-num text-[10px] bg-slate-soft t-navy px-1.5 py-0.5 rounded-full">
+                <span className="hidden sm:inline-block text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full font-bold">
                   {cart.length}
                 </span>
               )}
@@ -416,18 +418,20 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               type="button"
               onClick={() => {
                 if (cart.length > 0) setCurrentStep(2);
-                else setFeedbackError('يرجى إضافة أصناف إلى الفات��رة أولاً.');
+                else setFeedbackError('يرجى إضافة أصناف إلى الفاتورة أولاً.');
               }}
-              className={`pill-filter p-2 text-xs flex items-center justify-center gap-1.5 cursor-pointer ${
-                currentStep === 2 ? 'on' : ''
+              className={`p-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold transition border ${
+                currentStep === 2
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
               }`}
             >
               <span className={`w-5 h-5 rounded-full grid place-items-center text-[11px] font-black shrink-0 ${
                 currentStep === 2
-                  ? 'bg-[var(--app-accent)] text-deep-navy'
+                  ? 'bg-white text-blue-600'
                   : activeCustomer && currentStep > 2
-                  ? 'tint-ok'
-                  : 'bg-slate-soft t-muted'
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-slate-100 text-slate-600'
               }`}>
                 {activeCustomer && currentStep > 2 ? '✓' : '2'}
               </span>
@@ -448,14 +452,16 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 }
                 setCurrentStep(3);
               }}
-              className={`pill-filter p-2 text-xs flex items-center justify-center gap-1.5 cursor-pointer ${
-                currentStep === 3 ? 'on' : ''
+              className={`p-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold transition border ${
+                currentStep === 3
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
               }`}
             >
               <span className={`w-5 h-5 rounded-full grid place-items-center text-[11px] font-black shrink-0 ${
                 currentStep === 3
-                  ? 'bg-[var(--app-accent)] text-deep-navy'
-                  : 'bg-slate-soft t-muted'
+                  ? 'bg-white text-blue-600'
+                  : 'bg-slate-100 text-slate-600'
               }`}>
                 3
               </span>
@@ -496,20 +502,20 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
             <div className="space-y-4">
               
               {/* Cart Summary Header Banner */}
-              <div className="ord-card p-3.5 flex items-center justify-between flex-wrap gap-2 text-xs">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between flex-wrap gap-2 text-xs">
                 <div>
-                  <div className="font-black text-[var(--app-ink)] text-sm flex items-center gap-2">
-                    <ShoppingCart className="w-4 h-4 t-brass" />
+                  <div className="font-black text-slate-900 text-sm flex items-center gap-2">
+                    <ShoppingCart className="w-4 h-4 text-blue-600" />
                     <span>أصناف سلة الفاتورة ({cart.length} أصناف)</span>
                   </div>
-                  <div className="text-[11px] t-muted mt-0.5">
-                    الكراتين: <strong className="t-navy app-num">{summary.totalCartons}</strong> كرتونة • القطع: <strong className="t-navy app-num">{summary.totalPieces}</strong> قطعة
+                  <div className="text-[11px] text-slate-500 font-bold mt-0.5">
+                    الكراتين: <strong className="text-slate-800">{summary.totalCartons}</strong> كرتونة • القطع: <strong className="text-slate-800">{summary.totalPieces}</strong> قطعة
                   </div>
                 </div>
 
                 <div className="text-left">
-                  <div className="text-[11px] t-muted">إجمالي الأصناف:</div>
-                  <div className="dream-amt app-ink-brass text-base sm:text-lg">
+                  <div className="text-[11px] text-slate-500 font-bold">إجمالي الأصناف:</div>
+                  <div className="text-base sm:text-lg font-black text-blue-600 font-mono">
                     {formatCurrency(summary.grandTotal)}
                   </div>
                 </div>
@@ -837,10 +843,10 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               )}
 
               {/* Step 1 Bottom Action Bar */}
-              <div className="ord-card p-3 sm:p-4 flex items-center justify-between gap-3 flex-wrap">
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-3 flex-wrap">
                 <div>
-                  <div className="text-[11px] t-muted">إجمالي الفاتورة:</div>
-                  <div className="dream-amt t-navy text-base">
+                  <div className="text-[11px] text-slate-500 font-bold">إجمالي الفاتورة:</div>
+                  <div className="text-base sm:text-lg font-black text-blue-700 font-mono">
                     {formatCurrency(summary.grandTotal)}
                   </div>
                 </div>
@@ -849,7 +855,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   type="button"
                   disabled={cart.length === 0}
                   onClick={() => setCurrentStep(2)}
-                  className="btn-primary ord-cta px-5 text-xs sm:text-sm cursor-pointer"
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-black px-5 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-sm transition active:scale-95 disabled:opacity-40 cursor-pointer"
                 >
                   <span>التالي: اختيار العميل والموقف المالي (2/3)</span>
                   <ArrowRight className="w-4 h-4 rotate-180" />

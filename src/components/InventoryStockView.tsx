@@ -882,7 +882,7 @@ export const InventoryStockView: React.FC = () => {
                 <table className="w-full text-right text-xs">
                   <thead className="bg-slate-900 text-white font-bold">
                     <tr>
-                      <th className="p-3">الكود</th>
+                      <th className="p-3">كود المنتج / الموحد</th>
                       <th className="p-3">اسم الصنف والبيان</th>
                       <th className="p-3 text-center">شدة الكرتونة</th>
                       <th className="p-3 text-center">المخزون بالفرع (المتاح)</th>
@@ -920,9 +920,16 @@ export const InventoryStockView: React.FC = () => {
                         >
                           {/* Code */}
                           <td className="p-3">
-                            <span className="bg-blue-gray text-muted-dark font-mono px-2 py-0.5 rounded text-[11px] border border-slate-border-soft tracking-wide">
-                              {p.code}
-                            </span>
+                            <div className="flex flex-col gap-1 items-start">
+                              <span className="bg-slate-100 text-slate-800 font-mono px-2 py-0.5 rounded text-[11px] font-bold border border-slate-200 tracking-wide">
+                                {p.code}
+                              </span>
+                              {p.unifiedCode && (
+                                <span className="bg-indigo-50 text-indigo-700 font-mono px-1.5 py-0.2 rounded text-[10px] font-black border border-indigo-200">
+                                  #{p.unifiedCode.replace('#', '')}
+                                </span>
+                              )}
+                            </div>
                           </td>
 
                           {/* Name */}
