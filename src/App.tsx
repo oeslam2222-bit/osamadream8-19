@@ -240,6 +240,7 @@ const MainLayout: React.FC = () => {
           {activeTab === 'invoices' && allowedTabs.includes('invoices') && (
             <InvoicesManager
               onOpenNewOrder={() => setIsOrderModalOpen(true)}
+              onViewInvoice={() => {}}
               onEditInvoice={handleEditInvoice}
             />
           )}

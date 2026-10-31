@@ -197,8 +197,8 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
                 Direct APK
               </span>
             </div>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              إذا كان لديك ملف APK جاهز للتطبيق (أو قمت بتحويل الموقع عبر PWABuilder)، يمكنك وضعه في مجلد <code className="text-[#d97706] bg-slate-950 px-1 py-0.5 rounded font-mono">public/tantawy-sales.apk</code> وتنزيله بضغطة زر:
+            <p className="text-[11px] text-amber-300/90 leading-relaxed font-bold bg-amber-500/10 border border-amber-500/20 p-2 rounded-xl">
+              تنبيه: هذه هي النسخة الأولى التجريبية، وسيتم التطوير بشكل تقني أفضل ومستمر بإذن الله.
             </p>
             <div className="flex items-center gap-2 pt-1">
               <a

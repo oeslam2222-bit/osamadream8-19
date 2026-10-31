@@ -47,7 +47,7 @@ import { ExcelInvoicePreviewModal } from './ExcelInvoicePreviewModal';
 
 interface InvoicesManagerProps {
   onOpenNewOrder: () => void;
-  onViewInvoice: (invoice: Invoice) => void;
+  onViewInvoice?: (invoice: Invoice) => void;
   onEditInvoice?: (invoice: Invoice) => void;
 }
 

@@ -158,9 +158,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       {/* ========================================================================= */}
       <div className="bg-gradient-to-br from-slate-950 via-[#0d1d33] to-[#0a192e] rounded-3xl p-4 sm:p-6 text-white shadow-2xl border border-slate-800 relative overflow-hidden">
         
-        {/* Glow ambient background elements */}
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-[var(--app-ok)] rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-10 left-10 w-80 h-80 bg-[var(--app-warn)] rounded-full blur-3xl pointer-events-none" />
+        {/* Ambient background night mode subtle lighting */}
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-10 left-10 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
           
@@ -170,11 +170,11 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <div className="flex items-center justify-between">
               {/* App / Rep Badge */}
               <div className="flex items-center gap-2.5">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[var(--app-ok)] to-[var(--app-ok)] text-slate-950 flex items-center justify-center font-black shadow-lg shadow-teal-500/20">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black shadow-lg shadow-blue-500/20">
                   <span className="text-xl">🌟</span>
                 </div>
                 <div>
-                  <div className="text-[11px] font-bold text-[#0d9488] tracking-wider">منظومة مبيعات طنطاوي دريم</div>
+                  <div className="text-[11px] font-bold text-blue-400 tracking-wider">منظومة مبيعات طنطاوي دريم</div>
                   <h1 className="text-lg sm:text-xl font-black text-white">
                     أهلاً بك يا {(currentUser?.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أسامة'} ...
                   </h1>
@@ -183,8 +183,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
               {/* Status / Sector Pill */}
               <div className="flex items-center gap-1.5">
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)]">
-                  <span className="w-2 h-2 rounded-full bg-[var(--app-ok)] animate-pulse" />
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-blue-500/10 text-blue-300 border border-blue-500/30">
+                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
                   <span>{isOffline ? 'أوفلاين' : 'متصل'}</span>
                 </span>
               </div>
@@ -199,7 +199,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               <div className="space-y-0.5">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">التوقيت والتاريخ</div>
                 <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-white flex items-center gap-1.5">
-                  <Clock className="w-5 h-5 text-[#0d9488]" />
+                  <Clock className="w-5 h-5 text-blue-400" />
                   <span>{timeString}</span>
                 </div>
                 <div className="text-[11px] text-slate-300 font-bold">
@@ -217,7 +217,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             {/* Rep Subtitle Info */}
             <div className="flex items-center gap-3 text-xs text-slate-400">
               <div className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-[#0d9488]" />
+                <MapPin className="w-3.5 h-3.5 text-blue-400" />
                 <span className="text-slate-300 font-bold">{currentUser?.branchName || 'الفرع الرئيسي'}</span>
               </div>
               <span>•</span>

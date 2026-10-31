@@ -1,11 +1,33 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { AlertTriangle, CalendarCheck, CheckCircle2, Clock3, Plus, Save, Users, X, Search, Image as ImageIcon, Upload, Trash2, Mail, Truck } from 'lucide-react';
+import {
+  MapPin,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Plus,
+  Users,
+  Search,
+  Eye,
+  RotateCcw,
+  RotateCw,
+  Coins,
+  Tag,
+  Building,
+  Upload,
+  Trash2,
+  X,
+  Gift,
+  Banknote,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import type { CustomerVisit, ReturnedItem, Product, VisitItem } from '../types';
-import { buildReturnNote } from '../services/returnsWorkflowService';
 
 const SIMPLE_VISIT_TYPES: { id: string; label: string }[] = [
+  { id: 'دورية', label: 'زيارة دورية' },
   { id: 'تحصيل', label: 'تحصيل' },
   { id: 'فاتورة مرتجع لدي العميل', label: 'فاتورة مرتجع لدي العميل' },
   { id: 'متابعة', label: 'متابعة' },
@@ -24,17 +46,32 @@ interface ReturnItemForm {
 }
 
 export const VisitsDashboard: React.FC = () => {
-  const { currentUser, customers, users, products, getVisibleVisits, getVisibleCustomers, getVisibleProducts, addVisit, updateVisit, deleteVisit, createStandaloneReturn } = useApp();
+  const {
+    currentUser,
+    customers,
+    users,
+    getVisibleVisits,
+    getVisibleCustomers,
+    getVisibleProducts,
+    addVisit,
+    createStandaloneReturn,
+  } = useApp();
+
   const visible = getVisibleVisits();
   const [search, setSearch] = useState('');
+  const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'week' | 'month'>('month');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'دورية' | 'تحصيل' | 'مرتجع' | 'متابعة'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'منفذة' | 'معلقة' | 'مرتجعة' | 'ملغاة'>('all');
+  const [repFilter, setRepFilter] = useState<string>('all');
+  const [pageSize, setPageSize] = useState<number>(5);
+  const [visitsPage, setVisitsPage] = useState(1);
+
   const [showForm, setShowForm] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [selectedVisit, setSelectedVisit] = useState<CustomerVisit | null>(null);
   const [flash, setFlash] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
-  const [visitsPage, setVisitsPage] = useState(1);
-  const VISITS_PER_PAGE = 15;
+
   const todayStr = new Date().toISOString().slice(0, 10);
-  const canApproveReturns = currentUser?.role === 'supervisor' || currentUser?.role === 'branch_manager' || currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   const [form, setForm] = useState({
     customerId: '',
@@ -53,11 +90,22 @@ export const VisitsDashboard: React.FC = () => {
     visitItems: [] as VisitItem[],
   });
 
-  // 🔒 عملاء الموظف فقط: المندوب → عملاؤه، المشرف → عملاء مناديبه، مدير الفرع → فرعه،
-  //    والقطاع (منزلي/كهربائي) مطبّق تلقائياً عبر getVisibleCustomers.
   const myCustomers = useMemo(() => {
     return getVisibleCustomers();
   }, [customers, users, currentUser, getVisibleCustomers]);
+
+  // Customer fast lookup for area and balance
+  const customerMeta = useMemo(() => {
+    const map = new Map<string, { area: string; balance: number; code: string }>();
+    customers.forEach((c) => {
+      const area = c.region || c.governorate || c.address || 'الفرع الرئيسي';
+      map.set(c.id, { area, balance: c.balance || 0, code: c.code || '' });
+      if (c.code) {
+        map.set(c.code, { area, balance: c.balance || 0, code: c.code });
+      }
+    });
+    return map;
+  }, [customers]);
 
   const [searchProduct, setSearchProduct] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
@@ -69,12 +117,14 @@ export const VisitsDashboard: React.FC = () => {
       return;
     }
     const qLower = q.trim().toLowerCase();
-    // مقيّد بقطاع الموظف وفرعه (منزلي/كهربائي)
-    const results = getVisibleProducts().filter((p) =>
-      p.name.toLowerCase().includes(qLower) ||
-      p.code.toLowerCase().includes(qLower) ||
-      (p.unifiedCode && p.unifiedCode.toLowerCase().includes(qLower))
-    ).slice(0, 10);
+    const results = getVisibleProducts()
+      .filter(
+        (p) =>
+          p.name.toLowerCase().includes(qLower) ||
+          p.code.toLowerCase().includes(qLower) ||
+          (p.unifiedCode && p.unifiedCode.toLowerCase().includes(qLower))
+      )
+      .slice(0, 10);
     setSearchResults(results);
   };
 
@@ -86,9 +136,7 @@ export const VisitsDashboard: React.FC = () => {
       setForm({
         ...form,
         returnItems: form.returnItems.map((i) =>
-          i.productId === product.id
-            ? { ...i, quantity: i.quantity + 1 }
-            : i
+          i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i
         ),
       });
     } else {
@@ -120,9 +168,7 @@ export const VisitsDashboard: React.FC = () => {
       setForm({
         ...form,
         visitItems: form.visitItems.map((i) =>
-          i.productId === product.id
-            ? { ...i, cartonCount: i.cartonCount + 1 }
-            : i
+          i.productId === product.id ? { ...i, cartonCount: i.cartonCount + 1 } : i
         ),
       });
     } else {
@@ -176,7 +222,7 @@ export const VisitsDashboard: React.FC = () => {
       customerCode: c?.code || form.customerCode || '',
       date: form.date,
       time: form.time,
-      repId: r?.id || currentUser.id,
+      repId: r?.id || currentUser?.id || '',
       repName: r?.name || currentUser?.name || '',
       branchName: r?.branchName || c?.branchName || '',
       supervisorId: r?.supervisorId,
@@ -190,7 +236,16 @@ export const VisitsDashboard: React.FC = () => {
       isReturn,
       returnValue: isReturn ? form.returnValue : 0,
       returnReason: isReturn ? form.returnReason : '',
-      returnItems: isReturn ? JSON.stringify(form.returnItems.map((i) => `${i.productName}: ${i.quantity} ${i.unit} (${i.condition})${i.reason ? ' - ' + i.reason : ''}`).join(' | ')) : '',
+      returnItems: isReturn
+        ? JSON.stringify(
+            form.returnItems.map(
+              (i) =>
+                `${i.productName}: ${i.quantity} ${i.unit} (${i.condition})${
+                  i.reason ? ' - ' + i.reason : ''
+                }`
+            )
+          )
+        : '',
       returnStatus: isReturn ? 'بانتظار المشرف' : undefined,
       returnNote: isReturn ? `مرتجع من زيارة ${form.date} - ${form.returnReason}` : undefined,
       returnImages: isReturn ? form.returnImages : undefined,
@@ -301,457 +356,783 @@ export const VisitsDashboard: React.FC = () => {
     });
   };
 
-  const addReturnItemImage = (itemId: string, imgUrl: string) => {
-    setForm({
-      ...form,
-      returnItems: form.returnItems.map((item) =>
-        item.id === itemId
-          ? { ...item, images: [...item.images, imgUrl] }
-          : item
-      ),
-    });
-  };
-
-  const removeReturnItemImage = (itemId: string, imgIndex: number) => {
-    setForm({
-      ...form,
-      returnItems: form.returnItems.map((item) =>
-        item.id === itemId
-          ? { ...item, images: item.images.filter((_, i) => i !== imgIndex) }
-          : item
-      ),
-    });
-  };
-
-  const addReturnImages = (imgUrls: string[]) => {
-    setForm({ ...form, returnImages: [...form.returnImages, ...imgUrls] });
-  };
-
   const removeReturnImage = (index: number) => {
     setForm({ ...form, returnImages: form.returnImages.filter((_, i) => i !== index) });
   };
 
+  // Helper date formatter for table (السبت 11 أكتوبر 2026)
+  const formatArabicDateWithDay = (dateStr?: string) => {
+    if (!dateStr) return '—';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+      const months = [
+        'يناير',
+        'فبراير',
+        'مارس',
+        'أبريل',
+        'مايو',
+        'يونيو',
+        'يوليو',
+        'أغسطس',
+        'سبتمبر',
+        'أكتوبر',
+        'نوفمبر',
+        'ديسمبر',
+      ];
+      return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    } catch {
+      return dateStr;
+    }
+  };
 
-  // الإحصائيات المبسطة
-  const filtered = useMemo(() => visible.filter((v) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (v.customerName || '').toLowerCase().includes(q) ||
-           (v.customerCode || '').toLowerCase().includes(q) ||
-           (v.repName || '').toLowerCase().includes(q);
-  }).sort((a, b) => `${b.date}${b.time || ''}`.localeCompare(`${a.date}${a.time || ''}`)), [visible, search]);
+  // Comprehensive multi-filter
+  const filtered = useMemo(() => {
+    return visible
+      .filter((v) => {
+        // Search
+        if (search) {
+          const q = search.toLowerCase().trim();
+          const matches =
+            (v.customerName || '').toLowerCase().includes(q) ||
+            (v.customerCode || '').toLowerCase().includes(q) ||
+            (v.repName || '').toLowerCase().includes(q) ||
+            (v.invoiceNumber || '').toLowerCase().includes(q) ||
+            (v.id || '').toLowerCase().includes(q);
+          if (!matches) return false;
+        }
 
+        // Time filter
+        if (timeFilter !== 'all' && v.date) {
+          const vDate = new Date(v.date);
+          const now = new Date();
+          if (timeFilter === 'today') {
+            if (v.date !== todayStr) return false;
+          } else if (timeFilter === 'week') {
+            const diffDays = (now.getTime() - vDate.getTime()) / (1000 * 3600 * 24);
+            if (diffDays < 0 || diffDays > 7) return false;
+          } else if (timeFilter === 'month') {
+            const currentMonthPrefix = todayStr.slice(0, 7);
+            if (!v.date.startsWith(currentMonthPrefix)) return false;
+          }
+        }
+
+        // Type filter
+        if (typeFilter !== 'all') {
+          if (typeFilter === 'مرتجع') {
+            if (!v.isReturn && !v.type?.includes('مرتجع')) return false;
+          } else if (typeFilter === 'تحصيل') {
+            if (v.type !== 'تحصيل') return false;
+          } else if (typeFilter === 'دورية') {
+            if (!v.type?.includes('دورية')) return false;
+          } else if (typeFilter === 'متابعة') {
+            if (v.type !== 'متابعة') return false;
+          }
+        }
+
+        // Status filter
+        if (statusFilter !== 'all') {
+          if (statusFilter === 'منفذة' && v.status !== 'منفذة') return false;
+          if (statusFilter === 'معلقة' && v.status !== 'مجدولة' && v.status !== 'لم تتم') return false;
+          if (statusFilter === 'مرتجعة' && !v.isReturn) return false;
+          if (statusFilter === 'ملغاة' && v.status !== 'ملغاة') return false;
+        }
+
+        // Rep / Branch filter
+        if (repFilter !== 'all') {
+          if (v.repId !== repFilter && v.repName !== repFilter && v.branchName !== repFilter) {
+            return false;
+          }
+        }
+
+        return true;
+      })
+      .sort((a, b) => `${b.date}${b.time || ''}`.localeCompare(`${a.date}${a.time || ''}`));
+  }, [visible, search, timeFilter, typeFilter, statusFilter, repFilter, todayStr]);
+
+  // KPI Metric Stats
   const stats = useMemo(() => {
     return {
       total: filtered.length,
       completed: filtered.filter((v) => v.status === 'منفذة').length,
-      returns: filtered.filter((v) => v.isReturn).length,
-      collections: filtered.filter((v) => v.type === 'تحصيل').length,
-      followups: filtered.filter((v) => v.type === 'متابعة').length,
+      returns: filtered.filter((v) => v.isReturn || v.type?.includes('مرتجع')).length,
+      collections: filtered.filter((v) => v.type === 'تحصيل' || (v.collectedAmount && v.collectedAmount > 0)).length,
     };
   }, [filtered]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / VISITS_PER_PAGE));
-  const paginatedVisits = useMemo(() => {
-    const start = (visitsPage - 1) * VISITS_PER_PAGE;
-    return filtered.slice(start, start + VISITS_PER_PAGE);
-  }, [filtered, visitsPage]);
-
-  // Reset page when search changes
+  // Reset page whenever search or filters change
   useEffect(() => {
     setVisitsPage(1);
-  }, [search]);
+  }, [search, timeFilter, typeFilter, statusFilter, repFilter, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginatedVisits = useMemo(() => {
+    const start = (visitsPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, visitsPage, pageSize]);
+
+  const handleResetFilters = () => {
+    setSearch('');
+    setTimeFilter('month');
+    setTypeFilter('all');
+    setStatusFilter('all');
+    setRepFilter('all');
+    setPageSize(5);
+    setVisitsPage(1);
+  };
 
   return (
-    <div className="tantawy-screen space-y-5" dir="rtl">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-black" style={{ color: 'var(--app-navy)' }}>لوحة الزيارات</h1>
-          <p className="text-sm text-slate-500 font-bold mt-1">متابعة الزيارات والتحصيلات والمرتجعات والمتابعات</p>
+    <div className="tantawy-screen space-y-6 pb-12" dir="rtl">
+      {/* 1. Header (Reference Design image_b68712b4.png) */}
+      <header className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
+            <MapPin className="w-6 h-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">لوحة الزيارات</h1>
+            <p className="text-xs text-slate-500 font-bold mt-0.5">متابعة الزيارات والتحصيلات والمرتجعات</p>
+          </div>
         </div>
-        <button type="button" onClick={() => setShowForm(true)} className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black text-white shadow-lg" style={{ background: 'var(--app-navy)' }}>
-          <Plus className="w-4 h-4" /> تسجيل زيارة جديدة
-        </button>
+
+        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowForm(true)}
+            className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-black text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition active:scale-[0.98]"
+          >
+            <Plus className="w-4 h-4" />
+            <span>تسجيل زيارة جديدة</span>
+          </button>
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-bold px-1">
+            <Clock className="w-3.5 h-3.5 text-slate-400" />
+            <span>آخر تحديث: منذ دقيقة واحدة</span>
+          </div>
+        </div>
       </header>
 
-      {flash ? (
-        <div className={`rounded-xl border px-4 py-3 text-sm font-bold flex items-start gap-2 ${flash.tone === 'success' ? 'bg-green-pale border-[var(--app-ok)] text-[var(--app-ok-text)]' : 'bg-[var(--app-risk-tint)] border-[var(--app-risk-line)] text-[var(--app-risk-text)]'}`}>
+      {/* Flash Alert */}
+      {flash && (
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm font-bold flex items-center justify-between gap-2 shadow-sm ${
+            flash.tone === 'success'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+              : 'bg-rose-50 border-rose-200 text-rose-800'
+          }`}
+        >
           <span>{flash.text}</span>
+          <button type="button" onClick={() => setFlash(null)} className="text-slate-400 hover:text-slate-600">
+            <X className="w-4 h-4" />
+          </button>
         </div>
-      ) : null}
+      )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        <div className="bg-white rounded-xl border border-slate-200 p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-500 font-bold">إجمالي الزيارات</p>
-              <p className="text-2xl font-black">{stats.total}</p>
-            </div>
-            <CalendarCheck className="w-8 h-8 text-[var(--app-warn-text)]" />
+      {/* 2. 4 Metric Cards (Matching reference screenshot) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: إجمالي الزيارات */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs text-slate-500 font-bold">إجمالي الزيارات</p>
+            <p className="text-3xl font-black text-blue-900 tracking-tight">
+              {stats.total.toLocaleString('en-US')}
+            </p>
+            <p className="text-[11px] text-slate-400 font-bold">خلال الفترة المحددة</p>
+          </div>
+          <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
+            <Calendar className="w-7 h-7" />
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-500 font-bold">زيارات منفذة</p>
-              <p className="text-2xl font-black">{stats.completed}</p>
-            </div>
-            <CheckCircle2 className="w-8 h-8 text-[var(--app-ok-text)]" />
+
+        {/* Card 2: الزيارات المنفذة */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs text-slate-500 font-bold">الزيارات المنفذة</p>
+            <p className="text-3xl font-black text-emerald-600 tracking-tight">
+              {stats.completed.toLocaleString('en-US')}
+            </p>
+            <p className="text-[11px] text-slate-400 font-bold">تم تنفيذها</p>
+          </div>
+          <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+            <CheckCircle2 className="w-7 h-7" />
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-500 font-bold">مرتجعات</p>
-              <p className="text-2xl font-black">{stats.returns}</p>
-            </div>
-            <Truck className="w-8 h-8 text-[var(--app-warn-text)]" />
+
+        {/* Card 3: مرتجعات */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs text-slate-500 font-bold">مرتجعات</p>
+            <p className="text-3xl font-black text-amber-600 tracking-tight">
+              {stats.returns.toLocaleString('en-US')}
+            </p>
+            <p className="text-[11px] text-slate-400 font-bold">تحتاج مراجعة</p>
+          </div>
+          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+            <RotateCcw className="w-7 h-7" />
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-500 font-bold">تحصيلات</p>
-              <p className="text-2xl font-black">{stats.collections}</p>
-            </div>
-            <Mail className="w-8 h-8 text-[var(--app-navy-text)]" />
+
+        {/* Card 4: التحصيلات */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs text-slate-500 font-bold">التحصيلات</p>
+            <p className="text-3xl font-black text-indigo-600 tracking-tight">
+              {stats.collections.toLocaleString('en-US')}
+            </p>
+            <p className="text-[11px] text-slate-400 font-bold">عدد عمليات التحصيل</p>
           </div>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-200 p-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-slate-500 font-bold">متابعات</p>
-              <p className="text-2xl font-black">{stats.followups}</p>
-            </div>
-            <Clock3 className="w-8 h-8 text-[var(--app-navy-text)]" />
+          <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+            <Coins className="w-7 h-7" />
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-        <div className="p-4 sm:px-5 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <Search className="w-4 h-4 text-slate-400" />
+      {/* 3. Search Bar & 4 Dropdown Filters Bar (Reference Design) */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
+        {/* Top Search Input & Reset Button */}
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <button
+            type="button"
+            onClick={handleResetFilters}
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-bold transition shadow-sm"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+            <span>إعادة ضبط</span>
+          </button>
+
+          <div className="relative flex-1 w-full">
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="ابحث باسم العميل أو الكود أو المندوب..."
-              className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)]"
+              placeholder="ابحث باسم العميل أو كود العميل أو رقم الزيارة..."
+              className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
             />
+            <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
           </div>
         </div>
+
+        {/* Bottom 4 Dropdown Filters */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
+          {/* 1. الفترة الزمنية */}
+          <div className="relative">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 text-xs font-bold text-slate-700">
+              <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+              <div className="flex-1 flex flex-col">
+                <span className="text-[10px] text-slate-400 font-normal">الفترة الزمنية</span>
+                <select
+                  value={timeFilter}
+                  onChange={(e) => setTimeFilter(e.target.value as any)}
+                  aria-label="الفترة الزمنية"
+                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
+                >
+                  <option value="month">هذا الشهر</option>
+                  <option value="today">اليوم</option>
+                  <option value="week">هذا الأسبوع</option>
+                  <option value="all">كل الفترات</option>
+                </select>
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            </div>
+          </div>
+
+          {/* 2. نوع الزيارة */}
+          <div className="relative">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 text-xs font-bold text-slate-700">
+              <Tag className="w-4 h-4 text-slate-400 shrink-0" />
+              <div className="flex-1 flex flex-col">
+                <span className="text-[10px] text-slate-400 font-normal">نوع الزيارة</span>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value as any)}
+                  aria-label="نوع الزيارة"
+                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
+                >
+                  <option value="all">كل الأنواع</option>
+                  <option value="دورية">دورية</option>
+                  <option value="تحصيل">تحصيل</option>
+                  <option value="مرتجع">مرتجع</option>
+                  <option value="متابعة">متابعة</option>
+                </select>
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            </div>
+          </div>
+
+          {/* 3. حالة الزيارة */}
+          <div className="relative">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 text-xs font-bold text-slate-700">
+              <CheckCircle2 className="w-4 h-4 text-slate-400 shrink-0" />
+              <div className="flex-1 flex flex-col">
+                <span className="text-[10px] text-slate-400 font-normal">حالة الزيارة</span>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  aria-label="حالة الزيارة"
+                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
+                >
+                  <option value="all">كل الحالات</option>
+                  <option value="منفذة">منفذة</option>
+                  <option value="معلقة">معلقة</option>
+                  <option value="مرتجعة">مرتجعة</option>
+                  <option value="ملغاة">ملغاة</option>
+                </select>
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            </div>
+          </div>
+
+          {/* 4. الفرع / المندوب */}
+          <div className="relative">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 text-xs font-bold text-slate-700">
+              <Building className="w-4 h-4 text-slate-400 shrink-0" />
+              <div className="flex-1 flex flex-col">
+                <span className="text-[10px] text-slate-400 font-normal">الفرع / المندوب</span>
+                <select
+                  value={repFilter}
+                  onChange={(e) => setRepFilter(e.target.value)}
+                  aria-label="الفرع أو المندوب"
+                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer truncate max-w-[130px]"
+                >
+                  <option value="all">حسب الصلاحية</option>
+                  {users
+                    .filter((u) => u.role === 'sales_rep' || u.role === 'supervisor')
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name} ({u.branchName || 'عام'})
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 4. The Visits Table (Matching exact columns and dark header) */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-right">
+          <table className="w-full text-right border-collapse">
             <thead>
-              <tr className="bg-slate-50 text-xs font-bold text-slate-600 border-b border-slate-200">
-                <th className="p-3">رقم الفاتورة</th>
-                <th className="p-3">العميل</th>
-                <th className="p-3">نوع الزيارة</th>
-                <th className="p-3 text-center">المبلغ</th>
-                <th className="p-3 text-center">الحالة</th>
-                <th className="p-3 text-center">الإجراءات</th>
+              <tr className="bg-[#0f1b2d] text-white text-xs font-bold select-none">
+                <th className="py-3.5 px-4 text-right">العميل</th>
+                <th className="py-3.5 px-4 text-center">كود العميل</th>
+                <th className="py-3.5 px-4 text-center">رقم الزيارة / التاريخ</th>
+                <th className="py-3.5 px-4 text-center">نوع الزيارة</th>
+                <th className="py-3.5 px-4 text-center">المبلغ</th>
+                <th className="py-3.5 px-4 text-center">الحالة</th>
+                <th className="py-3.5 px-4 text-center">الإجراءات</th>
               </tr>
             </thead>
-            <tbody>
-              {paginatedVisits.map((v) => (
-                <tr key={v.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition">
-                  <td className="p-3 font-mono font-black text-slate-900 text-xs">{v.invoiceNumber || v.id}</td>
-                  <td className="p-3 font-black text-slate-800 text-sm">
-                    <div>{v.customerName}</div>
-                    <div className="text-[10px] text-slate-400">{v.customerCode}</div>
-                  </td>
-                  <td className="p-3 text-sm">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      v.type === 'تحصيل' ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]' :
-                      v.type === 'فاتورة مرتجع لدي العميل' ? 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]' :
-                      'bg-slate-50 text-slate-700'
-                    }`}>
-                      {v.type}
-                    </span>
-                  </td>
-                  <td className="p-3 text-center font-black text-sm">
-                    {v.type === 'تحصيل' ? formatCurrency(v.collectedAmount || 0) : v.returnValue > 0 ? formatCurrency(v.returnValue) : '—'}
-                  </td>
-                  <td className="p-3 text-center">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                      v.status === 'منفذة' ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]' :
-                      v.status === 'مجدولة' ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]' :
-                      'bg-slate-50 text-slate-700'
-                    }`}>
-                      {v.status}
-                    </span>
-                  </td>
-                  <td className="p-3 text-center">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedVisit(v)}
-                      className="px-2.5 py-1 rounded-lg text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
-                    >
-                      عرض
-                    </button>
-                  </td>
-                </tr>
-              ))}
+            <tbody className="divide-y divide-slate-100 text-xs">
+              {paginatedVisits.map((v) => {
+                const meta = customerMeta.get(v.customerId) || (v.customerCode ? customerMeta.get(v.customerCode) : null);
+                const displayArea = meta?.area || 'الفرع الرئيسي';
+
+                // Type styling
+                const isReturnType = v.isReturn || v.type === 'فاتورة مرتجع لدي العميل' || v.type === 'مرتجع';
+                const isCollection = v.type === 'تحصيل';
+
+                // Amount
+                let amountText = '—';
+                if (isCollection && v.collectedAmount && v.collectedAmount > 0) {
+                  amountText = `${formatCurrency(v.collectedAmount)} ج.م`;
+                } else if (isReturnType && v.returnValue && v.returnValue > 0) {
+                  amountText = `${formatCurrency(v.returnValue)} ج.م`;
+                } else if (v.orderAmount && v.orderAmount > 0) {
+                  amountText = `${formatCurrency(v.orderAmount)} ج.م`;
+                }
+
+                return (
+                  <tr key={v.id} className="hover:bg-slate-50/70 transition-colors">
+                    {/* العميل: اسم + منطقة مع أيقونة MapPin */}
+                    <td className="py-3.5 px-4">
+                      <div className="font-black text-slate-900 text-sm">{v.customerName || 'عميل نقدي'}</div>
+                      <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold mt-0.5">
+                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>{displayArea}</span>
+                      </div>
+                    </td>
+
+                    {/* كود العميل: رقاقة زرقاء ناعمة */}
+                    <td className="py-3.5 px-4 text-center">
+                      <span className="inline-block px-3 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg font-mono font-bold text-xs">
+                        {v.customerCode || 'CUST000000'}
+                      </span>
+                    </td>
+
+                    {/* رقم الزيارة / التاريخ مع أيقونة تقويم */}
+                    <td className="py-3.5 px-4 text-center">
+                      <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700">
+                        <span>{formatArabicDateWithDay(v.date)}</span>
+                        <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                      </div>
+                    </td>
+
+                    {/* نوع الزيارة: دورية / مرتجع / تحصيل */}
+                    <td className="py-3.5 px-4 text-center">
+                      {isReturnType ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-bold">
+                          <Gift className="w-3.5 h-3.5 text-amber-600" />
+                          <span>مرتجع</span>
+                        </span>
+                      ) : isCollection ? (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold">
+                          <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>تحصيل</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-600 border border-blue-100 rounded-full text-xs font-bold">
+                          <RotateCw className="w-3.5 h-3.5 text-blue-500" />
+                          <span>دورية</span>
+                        </span>
+                      )}
+                    </td>
+
+                    {/* المبلغ */}
+                    <td className="py-3.5 px-4 text-center font-black text-slate-800 text-sm">
+                      {amountText}
+                    </td>
+
+                    {/* الحالة: منفذة / مرتجعة / معلقة */}
+                    <td className="py-3.5 px-4 text-center">
+                      {v.status === 'منفذة' ? (
+                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100/70 text-emerald-800 rounded-full text-xs font-bold">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>منفذة</span>
+                        </span>
+                      ) : isReturnType ? (
+                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100/70 text-amber-800 rounded-full text-xs font-bold">
+                          <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
+                          <span>مرتجعة</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-bold">
+                          <Clock className="w-3.5 h-3.5 text-slate-500" />
+                          <span>معلقة</span>
+                        </span>
+                      )}
+                    </td>
+
+                    {/* الإجراءات: عرض | 👁️ */}
+                    <td className="py-3.5 px-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedVisit(v)}
+                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold text-blue-600 border border-blue-200 hover:bg-blue-50 transition active:scale-95"
+                      >
+                        <span>عرض</span>
+                        <span className="text-slate-300">|</span>
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-6 text-center text-slate-500 text-sm">
-                    لا توجد زيارات
+                  <td colSpan={7} className="py-12 text-center text-slate-400 font-bold">
+                    لا توجد زيارات مطابقة للبحث أو الفلاتر المحددة
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* ترقيم صفحات الزيارات */}
-      {filtered.length > 0 && totalPages > 1 && (
-        <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="text-xs font-bold text-slate-600">
-            عرض الزيارات {((visitsPage - 1) * VISITS_PER_PAGE) + 1} إلى {Math.min(visitsPage * VISITS_PER_PAGE, filtered.length)} من أصل {filtered.length}
+        {/* 5. Table Footer / Pagination (Matching Screenshot Layout) */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col md:flex-row items-center justify-between gap-4 select-none">
+          {/* Right (in RTL): عدد النتائج في الصفحة */}
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+            <span>عدد النتائج في الصفحة:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => setPageSize(Number(e.target.value))}
+              aria-label="عدد النتائج في الصفحة"
+              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-black text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+            </select>
           </div>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setVisitsPage(p => Math.max(1, p - 1))}
-              disabled={visitsPage === 1}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition"
-            >
-              السابق
-            </button>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((p) => {
-              const show = totalPages <= 7 || p === 1 || p === totalPages || Math.abs(p - visitsPage) <= 2;
-              if (!show) return null;
-              return (
-                <button
-                  key={p}
-                  onClick={() => setVisitsPage(p)}
-                  className={`w-8 h-8 rounded-xl text-xs font-bold flex items-center justify-center transition ${
-                    visitsPage === p ? 'bg-[var(--app-navy)] text-white shadow-sm' : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  {p}
-                </button>
-              );
-            })}
-            <button
-              onClick={() => setVisitsPage(p => Math.min(totalPages, p + 1))}
-              disabled={visitsPage === totalPages}
-              className="px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition"
-            >
-              التالي
-            </button>
+
+          {/* Center: Pagination numbers with Chevron controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setVisitsPage((p) => Math.max(1, p - 1))}
+                disabled={visitsPage === 1}
+                aria-label="الصفحة السابقة"
+                className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-600 flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let p = i + 1;
+                if (totalPages > 5) {
+                  if (visitsPage > 3) {
+                    p = visitsPage - 2 + i;
+                    if (p > totalPages) p = totalPages - (4 - i);
+                  }
+                }
+                if (p < 1 || p > totalPages) return null;
+                return (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setVisitsPage(p)}
+                    className={`w-8 h-8 rounded-lg text-xs font-black flex items-center justify-center transition ${
+                      visitsPage === p
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                onClick={() => setVisitsPage((p) => Math.min(totalPages, p + 1))}
+                disabled={visitsPage === totalPages}
+                aria-label="الصفحة التالية"
+                className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-600 flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Left (in RTL): عرض X - Y من إجمالي Z زيارة */}
+          <div className="text-xs font-bold text-slate-500">
+            {filtered.length === 0 ? (
+              'لا توجد زيارات'
+            ) : (
+              <span>
+                عرض {(visitsPage - 1) * pageSize + 1} – {Math.min(visitsPage * pageSize, filtered.length)} من إجمالي{' '}
+                <span className="font-black text-slate-800">{filtered.length.toLocaleString('en-US')}</span> زيارة
+              </span>
+            )}
           </div>
         </div>
-      )}
+      </div>
 
-      {showForm ? (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowForm(false); }}>
-          <form onSubmit={submit} className="relative z-[60] bg-white rounded-2xl p-5 w-full max-w-md max-h-[90vh] overflow-y-auto" dir="rtl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-black">تسجيل زيارة جديدة</h2>
-              <button type="button" onClick={() => setShowForm(false)} className="text-slate-400 hover:text-slate-600" aria-label="إغلاق">إغلاق</button>
+      {/* 6. Form Modal: تسجيل زيارة جديدة */}
+      {showForm && (
+        <div
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setShowForm(false);
+          }}
+        >
+          <form
+            onSubmit={submit}
+            className="relative z-[60] bg-white rounded-3xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100"
+            dir="rtl"
+          >
+            <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <h2 className="text-lg font-black text-slate-900">تسجيل زيارة جديدة</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center"
+                aria-label="إغلاق"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
             <div className="space-y-4">
               <label className="block">
-                <span className="text-[11px] text-slate-500 font-bold">العميل</span>
-                <select value={form.customerId} onChange={(e) => {
-                  const c = myCustomers.find((x) => x.id === e.target.value);
-                  setForm({ ...form, customerId: e.target.value, customerName: c?.name || '', customerCode: c?.code || '' });
-                }} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
-                  <option value="">اختر العميل</option>
-                  {myCustomers.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
+                <span className="text-xs text-slate-600 font-bold">العميل *</span>
+                <select
+                  value={form.customerId}
+                  onChange={(e) => {
+                    const c = myCustomers.find((x) => x.id === e.target.value);
+                    setForm({
+                      ...form,
+                      customerId: e.target.value,
+                      customerName: c?.name || '',
+                      customerCode: c?.code || '',
+                    });
+                  }}
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">اختر العميل...</option>
+                  {myCustomers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.code || 'بدون كود'}) — {c.region || c.governorate || c.address || 'الفرع'}
+                    </option>
+                  ))}
                 </select>
               </label>
 
-              <label className="block">
-                <span className="text-[11px] text-slate-500 font-bold">نوع الزيارة</span>
-                <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm">
-                  {SIMPLE_VISIT_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-                </select>
-              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs text-slate-600 font-bold">نوع الزيارة *</span>
+                  <select
+                    value={form.type}
+                    onChange={(e) => setForm({ ...form, type: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {SIMPLE_VISIT_TYPES.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="text-xs text-slate-600 font-bold">تاريخ الزيارة</span>
+                  <input
+                    type="date"
+                    value={form.date}
+                    onChange={(e) => setForm({ ...form, date: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </label>
+              </div>
 
               {form.type === 'تحصيل' && (
-                <label className="block">
-                  <span className="text-[11px] text-slate-500 font-bold">مبلغ التحصيل (ج.م)</span>
-                  <input type="number" value={form.collectedAmount} onChange={(e) => setForm({ ...form, collectedAmount: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
+                <label className="block bg-emerald-50/50 p-3 rounded-2xl border border-emerald-100">
+                  <span className="text-xs text-emerald-800 font-bold">مبلغ التحصيل (ج.م) *</span>
+                  <input
+                    type="number"
+                    value={form.collectedAmount || ''}
+                    onChange={(e) => setForm({ ...form, collectedAmount: Number(e.target.value) })}
+                    placeholder="0.00"
+                    className="mt-1 w-full rounded-xl border border-emerald-200 px-3 py-2.5 text-sm font-black bg-white text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
                 </label>
               )}
 
-
-              {/* الأصناف في الزيارة */}
-              <label className="block mt-3">
-                <span className="text-[11px] text-slate-500 font-bold">الأصناف (ابحث بالاسم أو الكود)</span>
+              {/* أصناف الزيارة */}
+              <div className="block mt-2">
+                <span className="text-xs text-slate-600 font-bold">أصناف الزيارة (اختياري)</span>
                 <div className="relative mt-1">
                   <input
                     type="text"
                     value={searchProduct}
                     onChange={(e) => handleProductSearch(e.target.value)}
-                    placeholder="اكتب اسم الصنف أو الكود..."
-                    className="w-full pl-8 pr-10 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)]"
+                    placeholder="ابحث بالاسم أو الكود لإضافة صنف..."
+                    className="w-full pl-8 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                 </div>
                 {searchProduct && searchResults.length > 0 && (
-                  <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-lg mt-1 max-h-48 overflow-y-auto">
+                  <div className="bg-white border border-slate-200 rounded-xl shadow-lg mt-1 max-h-44 overflow-y-auto divide-y divide-slate-100">
                     {searchResults.map((p) => (
                       <div
                         key={p.id}
-                        onClick={() => selectProductForVisit(p)}
-                        className="px-3 py-2 text-sm hover:bg-[var(--app-warn-tint)] cursor-pointer border-b border-slate-50/30 last:border-0 flex items-center justify-between"
+                        onClick={() => {
+                          if (form.type === 'فاتورة مرتجع لدي العميل') {
+                            selectProductForReturn(p);
+                          } else {
+                            selectProductForVisit(p);
+                          }
+                        }}
+                        className="px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer flex items-center justify-between"
                       >
                         <div>
                           <div className="font-black text-slate-900">{p.name}</div>
-                          <div className="text-[10px] text-slate-400">كود: {p.code} {p.unifiedCode ? '(#' + p.unifiedCode + ')' : ''}</div>
+                          <div className="text-[10px] text-slate-400">
+                            كود: {p.code} {p.unifiedCode ? `(#${p.unifiedCode})` : ''}
+                          </div>
                         </div>
-                        <div className="text-xs font-bold text-[var(--app-warn-text)]">{p.cartonPrice.toLocaleString()} ج.م</div>
+                        <div className="text-xs font-bold text-blue-600">{p.cartonPrice?.toLocaleString()} ج.م</div>
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="mt-2">
-                  <button
-                    type="button"
-                    onClick={addVisitItem}
-                    className="w-full bg-[color:var(--app-accent)] hover:bg-navy-deep2 text-white px-3 py-1.5 rounded-xl text-xs font-bold transition"
-                  >
-                    إضافة الصنف المختار إلى الزيارة
-                  </button>
-                </div>
-              </label>
+              </div>
 
               {form.visitItems.length > 0 && (
-                <div className="mt-2 rounded-xl border border-[color:var(--app-line)] bg-slate-50 p-2">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-bold text-slate-700">الأصناف المضافة</span>
-                    <span className="text-[10px] font-black text-[var(--app-warn-text)]">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700">الأصناف المضافة</span>
+                    <span className="text-xs font-black text-blue-600">
                       {form.visitItems.reduce((s, i) => s + i.amount, 0).toLocaleString()} ج.م
                     </span>
                   </div>
                   {form.visitItems.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-white border border-[color:var(--app-line)]">
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200"
+                    >
                       <div className="flex-1 min-w-0">
-                        <span className="text-xs font-bold text-slate-700">{item.productName}</span>
-                        <div className="text-[10px] text-slate-500 block">
-                          {item.cartonCount} كرتونة • {item.pieceCount} قطعة • {item.itemType === 'sale' ? 'بيع' : item.itemType === 'collection' ? 'تحصيل' : 'مرتجع'}
+                        <span className="text-xs font-bold text-slate-800">{item.productName}</span>
+                        <div className="text-[10px] text-slate-400">
+                          {item.cartonCount} كرتونة • {item.pieceCount} قطعة
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => removeVisitItem(item.id)}
-                          className="text-xs text-[var(--app-risk-text)]"
-                          title="حذف الصنف"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeVisitItem(item.id)}
+                        className="text-rose-500 hover:text-rose-700"
+                        title="حذف"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   ))}
                 </div>
               )}
 
+              {/* بيانات المرتجع إن وجد */}
               {form.type === 'فاتورة مرتجع لدي العميل' && (
-                <div className="mt-3 rounded-xl border border-[var(--app-accent)] bg-amber-light p-3 space-y-3">
-                  <div className="text-xs font-black text-warn">بيانات المرتجع</div>
-                  <label className="block">
-                    <span className="text-[11px] text-slate-500 font-bold">قيمة المرتجع (ج.م)</span>
-                    <input type="number" value={form.returnValue} onChange={(e) => setForm({ ...form, returnValue: Number(e.target.value) })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" />
-                  </label>
-                  <label className="block">
-                    <span className="text-[11px] text-slate-500 font-bold">سبب المرتجع</span>
-                    <input value={form.returnReason} onChange={(e) => setForm({ ...form, returnReason: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" placeholder="مثل: تالف / منتهي / خطأ في الطلب" />
-                  </label>
-
-                  <label className="block">
-                    <span className="text-[11px] text-slate-500 font-bold">البحث عن الصنف (ابحث بالاسم أو الكود)</span>
-                    <div className="relative mt-1">
-                      <input
-                        type="text"
-                        value={searchProduct}
-                        onChange={(e) => handleProductSearch(e.target.value)}
-                        placeholder="اكتب اسم الصنف أو الكود..."
-                        className="w-full pl-8 pr-10 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)]"
-                      />
-                      <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                    </div>
-                    {searchProduct && searchResults.length > 0 && (
-                      <div className="absolute z-50 w-full bg-white border border-slate-200 rounded-xl shadow-lg mt-1 max-h-48 overflow-y-auto">
-                        {searchResults.map((p) => (
-                          <div
-                            key={p.id}
-                            onClick={() => selectProductForReturn(p)}
-                            className="px-3 py-2 text-sm hover:bg-[var(--app-warn-tint)] cursor-pointer border-b border-slate-50/30 last:border-0 flex items-center justify-between"
-                          >
-                            <div>
-                              <div className="font-black text-slate-900">{p.name}</div>
-                              <div className="text-[10px] text-slate-400">كود: {p.code} {p.unifiedCode ? '(#' + p.unifiedCode + ')' : ''}</div>
-                            </div>
-                            <span className="text-warn font-bold">{p.cartonQuantity || 1} ق/ك</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {searchProduct && searchResults.length === 0 && (
-                      <div className="mt-1 text-[10px] text-[var(--app-risk-text)]">لم يتم العثور على أصناف</div>
-                    )}
-                  </label>
-
-                  <div className="mt-3 space-y-1.5">
-                    <div className="font-black text-xs text-slate-700">الأصناف المختارة ({form.returnItems.length})</div>
-                    {form.returnItems.length > 0 ? (
-                      <div className="space-y-1">
-                        {form.returnItems.map((item) => (
-                          <div key={item.id} className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-white border border-[color:var(--app-line)]">
-                            <div className="flex-1 min-w-0">
-                              <span className="text-xs font-bold text-slate-700">{item.productName}</span>
-                              <div className="text-[10px] text-slate-500 block">{item.quantity} {item.unit} • {item.condition} • {item.reason || 'بدون سبب'}</div>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() => updateReturnItem(item.id, { quantity: item.quantity + 1 })}
-                                className="w-6 h-6 rounded bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] text-[10px] font-bold flex items-center justify-center"
-                                title="زيادة الكمية"
-                              >
-                                +
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => item.quantity > 1 ? updateReturnItem(item.id, { quantity: item.quantity - 1 }) : removeReturnItem(item.id)}
-                                className="w-6 h-6 rounded bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] text-[10px] font-bold flex items-center justify-center"
-                                title="نقص الكمية أو الحذف"
-                              >
-                                −
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => removeReturnItem(item.id)}
-                                className="ml-1 text-xs text-[var(--app-risk-text)]"
-                                title="حذف الصنف"
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-slate-400 text-center py-2">لا توجد أصناف مختارة</div>
-                    )}
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 space-y-3">
+                  <div className="flex items-center gap-1.5 text-xs font-black text-amber-900">
+                    <Gift className="w-4 h-4 text-amber-600" />
+                    <span>تفاصيل المرتجع من العميل</span>
                   </div>
 
-                  <label className="block mt-2">
-                    <span className="text-[11px] text-slate-500 font-bold">الصور (يمكنك إضافة أكثر من صورة)</span>
-                    <div className="flex flex-wrap gap-2 mt-1">
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="text-[11px] text-amber-800 font-bold">قيمة المرتجع (ج.م) *</span>
+                      <input
+                        type="number"
+                        value={form.returnValue || ''}
+                        onChange={(e) => setForm({ ...form, returnValue: Number(e.target.value) })}
+                        placeholder="0.00"
+                        className="mt-1 w-full rounded-xl border border-amber-300 px-3 py-2 text-xs font-black bg-white text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-[11px] text-amber-800 font-bold">سبب المرتجع *</span>
+                      <input
+                        value={form.returnReason}
+                        onChange={(e) => setForm({ ...form, returnReason: e.target.value })}
+                        placeholder="تالف / كسر / منتهي..."
+                        className="mt-1 w-full rounded-xl border border-amber-300 px-3 py-2 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                      />
+                    </label>
+                  </div>
+
+                  {/* صور المرتجع */}
+                  <div>
+                    <span className="text-[11px] text-amber-800 font-bold block mb-1">صور المرتجع</span>
+                    <div className="flex flex-wrap gap-2">
                       {form.returnImages.map((img, idx) => (
-                        <div key={idx} className="relative w-12 h-12 rounded-lg border border-slate-200 overflow-hidden">
+                        <div key={idx} className="relative w-12 h-12 rounded-xl border border-amber-200 overflow-hidden">
                           <img src={img} className="w-full h-full object-cover" alt="return" />
                           <button
                             type="button"
                             onClick={() => removeReturnImage(idx)}
-                            className="absolute top-1 right-1 bg-[var(--app-risk)] text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px]"
+                            className="absolute top-1 right-1 bg-rose-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[9px]"
                           >
                             <X className="w-2.5 h-2.5" />
                           </button>
@@ -764,125 +1145,201 @@ export const VisitsDashboard: React.FC = () => {
                           input.type = 'file';
                           input.accept = 'image/*';
                           input.multiple = true;
-                          input.onchange = (e) => {
-                            const target = e.target as HTMLInputElement;
+                          input.onchange = (ev) => {
+                            const target = ev.target as HTMLInputElement;
                             const files = target?.files;
                             if (files) {
                               const urls = Array.from(files).map((f) => URL.createObjectURL(f));
-                              addReturnImages(urls);
+                              setForm((prev) => ({ ...prev, returnImages: [...prev.returnImages, ...urls] }));
                             }
                           };
                           input.click();
                         }}
-                        className="w-12 h-12 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 hover:border-[var(--app-warn)] hover:text-[var(--app-warn-text)] transition"
+                        className="w-12 h-12 rounded-xl border-2 border-dashed border-amber-300 flex items-center justify-center text-amber-600 hover:bg-amber-100 transition"
                       >
                         <Upload className="w-4 h-4" />
                       </button>
                     </div>
-                   </label>
-
-                  {form.returnItems.length > 0 && (
-                    <div className="mt-2 p-2 bg-warn-soft rounded-lg border border-[rgba(155,112,39,.25)]">
-                      <div className="text-xs font-black text-warn">إجمالي الأصناف: {form.returnItems.reduce((sum, i) => sum + i.quantity, 0)}</div>
-                      <div className="text-[10px] text-warn-deep font-bold">قيمة المرتجع: {formatCurrency(form.returnValue)} ج.م</div>
-                    </div>
-                  )}
+                  </div>
                 </div>
               )}
 
               <label className="block">
-                <span className="text-[11px] text-slate-500 font-bold">ملاحظات</span>
-                <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-2 text-sm" placeholder="ملاحظات إضافية عن الزيارة..."></textarea>
+                <span className="text-xs text-slate-600 font-bold">ملاحظات الزيارة أو إفادة العميل</span>
+                <textarea
+                  value={form.notes}
+                  onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                  rows={2}
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="سجل ما تم في الزيارة أو إفادة العميل بالدفع..."
+                />
               </label>
 
               {formErrors.length > 0 && (
-                <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] px-3 py-2 rounded-lg text-xs font-bold">
-                  {formErrors.map((err, i) => <div key={i}>• {err}</div>)}
+                <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-xl text-xs font-bold space-y-1">
+                  {formErrors.map((err, i) => (
+                    <div key={i}>• {err}</div>
+                  ))}
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 mt-6">
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 rounded-lg bg-slate-100 text-slate-600 font-bold hover:bg-slate-200">إلغاء</button>
-                <button type="submit" className="px-6 py-2 rounded-lg bg-[var(--app-navy)] text-white font-bold hover:bg-navy-deep2 shadow-lg">حفظ الزيارة</button>
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowForm(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-bold hover:bg-slate-50 transition"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shadow-md shadow-blue-500/20 transition active:scale-95"
+                >
+                  حفظ الزيارة
+                </button>
               </div>
             </div>
           </form>
         </div>
-      ) : null}
+      )}
 
-      {selectedVisit ? (
-        <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) setSelectedVisit(null); }}>
-          <div className="relative z-[60] bg-white rounded-3xl p-5 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-black">تفاصيل الزيارة</h2>
-              <button type="button" onClick={() => setSelectedVisit(null)} className="text-slate-400 hover:text-slate-600" aria-label="إغلاق">إغلاق</button>
-            </div>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-slate-50 rounded-xl">
-                  <p className="text-[10px] text-slate-500 font-bold">العميل</p>
-                  <p className="font-black text-slate-900">{selectedVisit.customerName}</p>
+      {/* 7. Modal: تفاصيل الزيارة */}
+      {selectedVisit && (
+        <div
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setSelectedVisit(null);
+          }}
+        >
+          <div
+            className="relative z-[60] bg-white rounded-3xl p-6 w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100"
+            dir="rtl"
+          >
+            <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Eye className="w-5 h-5" />
                 </div>
-                <div className="p-3 bg-slate-50 rounded-xl">
-                  <p className="text-[10px] text-slate-500 font-bold">نوع الزيارة</p>
-                  <p className="font-black text-slate-900">{selectedVisit.type}</p>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl">
-                  <p className="text-[10px] text-slate-500 font-bold">التاريخ والوقت</p>
-                  <p className="font-black text-slate-900">{selectedVisit.date} {selectedVisit.time}</p>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl">
-                  <p className="text-[10px] text-slate-500 font-bold">الحالة</p>
-                  <p className={`font-black text-sm ${selectedVisit.status === 'منفذة' ? 'text-[var(--app-ok-text)]' : 'text-[var(--app-warn-text)]'}`}>{selectedVisit.status}</p>
+                <div>
+                  <h2 className="text-lg font-black text-slate-900">تفاصيل الزيارة</h2>
+                  <p className="text-[11px] text-slate-400 font-mono">{selectedVisit.id}</p>
                 </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setSelectedVisit(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center"
+                aria-label="إغلاق"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] text-slate-400 font-bold">العميل</p>
+                  <p className="font-black text-slate-900 mt-0.5">{selectedVisit.customerName}</p>
+                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">{selectedVisit.customerCode}</p>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] text-slate-400 font-bold">نوع الزيارة</p>
+                  <p className="font-black text-blue-600 mt-0.5">{selectedVisit.type}</p>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] text-slate-400 font-bold">التاريخ والتوقيت</p>
+                  <p className="font-black text-slate-800 mt-0.5">
+                    {formatArabicDateWithDay(selectedVisit.date)} {selectedVisit.time || ''}
+                  </p>
+                </div>
+
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                  <p className="text-[10px] text-slate-400 font-bold">الحالة</p>
+                  <p
+                    className={`font-black mt-0.5 ${
+                      selectedVisit.status === 'منفذة' ? 'text-emerald-600' : 'text-amber-600'
+                    }`}
+                  >
+                    {selectedVisit.status}
+                  </p>
+                </div>
+              </div>
+
+              {/* المبالغ */}
+              {(selectedVisit.collectedAmount > 0 || selectedVisit.returnValue > 0) && (
+                <div className="p-3 bg-blue-50/50 rounded-2xl border border-blue-100 flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-700">المبلغ المسجل:</span>
+                  <span className="font-black text-base text-blue-700">
+                    {formatCurrency(selectedVisit.collectedAmount || selectedVisit.returnValue || 0)} ج.م
+                  </span>
+                </div>
+              )}
+
+              {/* الملاحظات وإفادة العميل */}
               {selectedVisit.notes && (
-                <div className="p-3 bg-slate-50 rounded-xl">
-                  <p className="text-[10px] text-slate-500 font-bold">ملاحظات</p>
-                  <p className="font-black text-slate-900">{selectedVisit.notes}</p>
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
+                  <p className="text-[10px] text-slate-400 font-bold mb-1">ملاحظات / إفادة العميل</p>
+                  <p className="font-bold text-slate-800 leading-relaxed">{selectedVisit.notes}</p>
                 </div>
               )}
-              {selectedVisit.isReturn && selectedVisit.returnItems && (
-                <div className="p-3 bg-[var(--app-risk-tint)] rounded-xl border border-[var(--app-risk-line)]">
-                  <p className="text-[10px] text-[var(--app-risk-text)] font-bold">بيانات المرتجع</p>
-                  <div className="mt-2 space-y-2">
-                    {JSON.parse(selectedVisit.returnItems || '[]').map((item: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between text-xs">
-                        <span className="font-bold">{item.productName}</span>
-                        <span className="text-slate-600">{item.quantity} {item.unit}</span>
-                      </div>
-                    ))}
-                    <div className="mt-2 pt-2 border-t border-[var(--app-risk-line)]">
-                      <span className="font-black text-[var(--app-risk-text)]">القيمة الإجمالية: {formatCurrency(selectedVisit.returnValue || 0)} ج.م</span>
-                    </div>
-                  </div>
-                </div>
-              )}
+
+              {/* صور المرتجع */}
               {selectedVisit.returnImages && selectedVisit.returnImages.length > 0 && (
-                <div className="mt-3">
-                  <p className="text-[10px] text-slate-500 font-bold">صور المرتجع</p>
-                  <div className="flex flex-wrap gap-2 mt-1">
+                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
+                  <p className="text-[10px] text-slate-400 font-bold mb-2">صور مرفقة بالزيارة</p>
+                  <div className="flex flex-wrap gap-2">
                     {selectedVisit.returnImages.map((img, idx) => (
-                      <div key={idx} className="w-16 h-16 rounded-lg border border-slate-200 overflow-hidden cursor-pointer" onClick={() => setLightboxImage(img)}>
-                        <img src={img} className="w-full h-full object-cover" alt="return" />
+                      <div
+                        key={idx}
+                        className="w-16 h-16 rounded-xl border border-slate-200 overflow-hidden cursor-pointer hover:opacity-90"
+                        onClick={() => setLightboxImage(img)}
+                      >
+                        <img src={img} className="w-full h-full object-cover" alt="visit attachment" />
                       </div>
                     ))}
                   </div>
                 </div>
               )}
-              <div className="flex justify-end gap-2 mt-6">
-                <button onClick={() => setSelectedVisit(null)} className="px-4 py-2 rounded-lg bg-slate-100 text-slate-600 font-bold">إغلاق</button>
+
+              <div className="flex justify-end pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setSelectedVisit(null)}
+                  className="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
+                >
+                  إغلاق
+                </button>
               </div>
             </div>
           </div>
         </div>
-      ) : null}
+      )}
 
+      {/* 8. Lightbox Zoom */}
       {lightboxImage && (
-        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in" onClick={(e) => { if (e.target === e.currentTarget) setLightboxImage(null); }} role="dialog" aria-modal="true" aria-label="تكبير صورة المرتجع">
-          <button type="button" onClick={() => setLightboxImage(null)} className="absolute top-4 left-4 z-20 w-10 h-10 rounded-full bg-white/10 text-white backdrop-blur-md hover:bg-white/20 transition cursor-pointer flex items-center justify-center"><X className="w-5 h-5" /></button>
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLightboxImage(null);
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 left-4 z-20 w-10 h-10 rounded-full bg-white/10 text-white backdrop-blur-md hover:bg-white/20 transition flex items-center justify-center"
+          >
+            <X className="w-5 h-5" />
+          </button>
           <div className="relative flex items-center justify-center max-w-[90vh] max-h-[90vh]">
-            <img src={lightboxImage} alt="return image" className="max-w-[85vw] max-h-[85vh] rounded-2xl shadow-2xl object-contain bg-white p-2 border border-white/20" loading="lazy" decoding="async" />
+            <img
+              src={lightboxImage}
+              alt="return preview"
+              className="max-w-[85vw] max-h-[85vh] rounded-2xl shadow-2xl object-contain bg-white p-2 border border-white/20"
+            />
           </div>
         </div>
       )}
