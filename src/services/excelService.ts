@@ -4034,3 +4034,63 @@ export function generateSampleExcelTemplate(): void {
 }
 
 export const exportElectronicInvoiceToExcel = exportInvoiceToExcel;
+
+/**
+ * تصدير سجل الفواتير كملف إكسل واحد (نفس صفوف الجدول اللي المستخدم شايفها).
+ *
+ * الصفحة كانت بتصدّر الفاتورة **الواحدة** بملفها، لكن زر "تصدير Excel" في
+ * شريط الفلاتر لازم يطلّع نتيجة البحث/الفلاتر الحالية كلها — نفس الرقم اللي
+ * على الشاشة، عشان المراجعة الورقية تطابق الشاشة.
+ */
+export function exportInvoicesListToExcel(invoices: Invoice[], fileName = 'سجل_الفواتير'): void {
+  const headers = [
+    'رقم الفاتورة',
+    'التاريخ',
+    'الوقت',
+    'العميل',
+    'كود العميل',
+    'المندوب',
+    'الفرع',
+    'عدد الكراتين',
+    'عدد القطع',
+    'الإجمالي (ج.م)',
+    'طريقة السداد',
+    'حالة الفاتورة',
+  ];
+
+  const rows = invoices.map((inv) => [
+    inv.invoiceNumber,
+    inv.date || '',
+    inv.time || '',
+    inv.customerName || '',
+    inv.customerCode || '',
+    inv.repName || '',
+    inv.branchName || '',
+    inv.totalCartons || 0,
+    inv.totalPieces || 0,
+    Math.round((inv.estimatedGrandTotal || 0) * 100) / 100,
+    inv.paymentMethod || '',
+    inv.status || '',
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!views'] = [{ rightToLeft: true }];
+  ws['!cols'] = [
+    { wch: 16 }, // رقم الفاتورة
+    { wch: 12 }, // التاريخ
+    { wch: 10 }, // الوقت
+    { wch: 32 }, // العميل
+    { wch: 12 }, // كود العميل
+    { wch: 18 }, // المندوب
+    { wch: 24 }, // الفرع
+    { wch: 12 }, // كراتين
+    { wch: 12 }, // قطع
+    { wch: 14 }, // الإجمالي
+    { wch: 14 }, // طريقة السداد
+    { wch: 24 }, // الحالة
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'الفواتير');
+  XLSX.writeFile(wb, `${fileName}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}
