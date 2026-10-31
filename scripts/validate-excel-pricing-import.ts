@@ -4,7 +4,7 @@
  *
  * التشغيل:  bun run scripts/validate-excel-pricing-import.ts
  */
-import { DREAM_INVENTORY_EXCEL_COLUMNS, parseRawRowsToProducts } from '../src/services/excelService';
+import { DREAM_INVENTORY_EXCEL_COLUMNS, parseRawRowsToProducts, productSheetPiecePrice } from '../src/services/excelService';
 import { sanitizeProducts } from '../src/context/appContextHelpers';
 
 const blankRow = new Array(DREAM_INVENTORY_EXCEL_COLUMNS.length).fill('');
@@ -26,6 +26,10 @@ const rows: any[][] = [
   buildRow({ 0: '#1004', 1: '1004', 2: '(blank)', 3: '', 4: '3', 5: '90 ج.م / كرتونة', 6: 'بلاستيك', 7: 'تخزين', 8: '(blank)' }),
   // شدة مكتوبة صح لكن السعر في عمود الكرتونة مكتوب "/ قطعة" — الوحدة هي اللي تحكم
   buildRow({ 0: '#1005', 1: '1005', 2: 'صنف وحدة القطعة', 3: '', 4: '6', 5: '٥٠ ج.م / قطعة', 6: 'ورقيات', 7: 'كراسات', 8: '' }),
+  // رقم مجرد من غير أي وحدة ⇒ سعر قطعة (الأساس) والكرتونة بتتحسب × الشدة
+  buildRow({ 0: '#1006', 1: '1006', 2: 'صنف رقم مجرد', 3: '', 4: '4', 5: '770', 6: 'بلاستيك', 7: 'أطباق', 8: '' }),
+  // نفس الرقم المجرد لكن تحت عنوان قديم "سعر الكرتونه" — برضه سعر قطعة
+  buildRow({ 0: '#1007', 1: '1007', 2: 'صنف عنوان قديم', 3: '', 4: '4', 5: '770', 6: 'بلاستيك', 7: 'أطباق', 8: '' }),
 ];
 
 const fail: string[] = [];
@@ -38,7 +42,7 @@ const check = (name: string, actual: unknown, expected: unknown) => {
 const { products, errors } = parseRawRowsToProducts(rows);
 const byCode = (code: string) => products.find((p) => p.code === code)!;
 
-check('rows imported', products.length, 5);
+check('rows imported', products.length, 7);
 check('no unexpected import errors', errors.filter((e) => e.includes('فشل')), []);
 
 const cartonProduct = byCode('1001');
@@ -66,6 +70,30 @@ check('blank name: piece price', blankName.piecePrice, 30);
 const pieceUnitProduct = byCode('1005');
 check('unit says /قطعة → piece price', pieceUnitProduct.piecePrice, 50);
 check('unit says /قطعة → carton = piece × factor', pieceUnitProduct.cartonPrice, 300);
+
+// الأساس سعر القطعة: رقم مجرد في عمود السعر = سعر قطعة، والكرتونة = × الشدة.
+const plainPrice = byCode('1006');
+check('plain number is the piece price', [plainPrice.piecePrice, plainPrice.cartonPrice], [770, 3080]);
+
+// حتى لو عنوان العمود قديم "سعر الكرتونه" — القطعة هي الأساس.
+const legacyHeaderRows = [rows[0].map((h, i) => (i === 5 ? 'سعر الكرتونه' : h)), rows[rows.length - 1]];
+const legacyParsed = parseRawRowsToProducts(legacyHeaderRows).products[0];
+check('legacy header still piece base', [legacyParsed.piecePrice, legacyParsed.cartonPrice], [770, 3080]);
+
+// قالب التصدير نفسه بيعلن إن العمود سعر قطعة.
+check('template header', DREAM_INVENTORY_EXCEL_COLUMNS[5], 'سعر القطعة');
+
+// Round-trip: الرقم اللي التصدير بيكتبه (سعر القطعة) بيرجع يتقرأ بنفس القيم.
+const exportedRow = [...blankRow];
+exportedRow[0] = '#1008';
+exportedRow[1] = '1008';
+exportedRow[2] = 'صنف تصدير';
+exportedRow[4] = 4;
+exportedRow[5] = productSheetPiecePrice(cartonProduct);
+const roundTrip = parseRawRowsToProducts([[...DREAM_INVENTORY_EXCEL_COLUMNS], exportedRow]).products[0];
+check('export writes piece price', exportedRow[5], 770);
+check('round-trip piece price', roundTrip.piecePrice, 770);
+check('round-trip carton price', roundTrip.cartonPrice, 3080);
 
 // نفس القاعدة على الداتا المحفوظة (sanitizeProducts) — بتتنضّف عند التحميل
 // فالصناف القديمة اللي فيها blank بتتصلّح من غير إعادة رفع للشيت.

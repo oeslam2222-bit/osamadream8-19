@@ -713,7 +713,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
   });
 
   // Positional fallback for the exact 19 columns:
-  // [الكود الموحد, كود المنتج, اسم المنتج, الحجم, عدد القطع, سعر الكرتونه, Item group, Family Name, اللون, البحيرة, الفيوم, القاهرة, المنيا, ديمشلت, مخزون اكتوبر, منوف, منيا القمح, سعر العرض, لينك الصوره]
+  // [الكود الموحد, كود المنتج, اسم المنتج, الحجم, عدد القطع, سعر القطعة, Item group, Family Name, اللون, البحيرة, الفيوم, القاهرة, المنيا, ديمشلت, مخزون اكتوبر, منوف, منيا القمح, سعر العرض, لينك الصوره]
   if ((colMap.unifiedCode === -1 || colMap.code === -1) && headers.length >= 10) {
     if (colMap.unifiedCode === -1) colMap.unifiedCode = 0;
     if (colMap.code === -1) colMap.code = 1;
@@ -812,38 +812,41 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     // Factor (شدة الكرتونة)
     const factorVal = getNum(colMap.factor > -1 ? colMap.factor : colMap.cartonQuantity, 0);
 
-    // Sales Price & Carton Price (مرآة دقيقة لأعمدة الشيت).
-    // بنقرأ النص الخام كمان عشان نعرف الوحدة المكتوبة في الخلية نفسها
-    // ("ج.م / كرتونة" أو "ج.م / قطعة") — دي أدق من عنوان العمود.
+    // السعر: **سعر القطعة هو الأساس** في كل الشيتات. أي رقم في أي عمود سعر
+    // بيتقرأ سعر قطعة، وبعدين الكرتونة = القطعة × الشدة. الاستثناء الوحيد إن
+    // الخلية نفسها تكون مكتوب فيها "/ كرتونة" — ساعتها الرقم ده سعر كرتونة
+    // والقطعة = الكرتونة ÷ الشدة. علامة "/ قطعة" بتأكد إن الرقم قطعة برضه.
     const pieceColIdx = colMap.salesPrice > -1 ? colMap.salesPrice : colMap.piecePrice;
-    const rawSalesPrice = getNum(pieceColIdx, 0);
-    const rawCartonPrice = getNum(colMap.cartonPrice, 0);
-    const pieceUnitHint = detectSaleUnit(getVal(pieceColIdx));
-    const cartonUnitHint = detectSaleUnit(getVal(colMap.cartonPrice));
+    const priceCells: Array<{ value: number; unit: ReturnType<typeof detectSaleUnit> }> = [];
+    if (pieceColIdx > -1) {
+      priceCells.push({ value: getNum(pieceColIdx, 0), unit: detectSaleUnit(getVal(pieceColIdx)) });
+    }
+    if (colMap.cartonPrice > -1 && colMap.cartonPrice !== pieceColIdx) {
+      priceCells.push({ value: getNum(colMap.cartonPrice, 0), unit: detectSaleUnit(getVal(colMap.cartonPrice)) });
+    }
+    const activePrices = priceCells.filter((cell) => cell.value > 0);
+    const pieceCell = activePrices.find((cell) => cell.unit !== 'carton');
+    const cartonCell = activePrices.find((cell) => cell.unit === 'carton');
 
-    // قاعدة واحدة: الشيت ممكن يحمل سعر القطعة أو سعر الكرتونة. لو الرقم مكتوب
-    // جنبه الوحدة، هي اللي تحكم؛ غير كده معنى العمود هو اللي يحكم. وشدة 1 معناها
-    // إن الصنف بيتباع بالقطعة، فسعر القطعة = سعر الكرتونة = نفس الرقم.
     const pricing = resolveProductPricing({
-      piecePrice: rawSalesPrice,
-      cartonPrice: rawCartonPrice,
+      piecePrice: pieceCell?.value ?? 0,
+      cartonPrice: cartonCell?.value ?? 0,
       factor: factorVal,
-      pieceUnitHint,
-      cartonUnitHint,
     });
     const cartonQuantity = pricing.factor;
     const piecePrice = pricing.piecePrice;
     const cartonPrice = pricing.cartonPrice;
 
-    // Offer / Promo prices — بنفس القاعدة، عشان العرض ميتحسبش بمنطق مختلف عن السعر.
+    // Offer / Promo prices — "سعر العرض" في الشيت سعر كرتونة، و"سعر عرض القطعة"
+    // سعر قطعة؛ بنحوّل بينهم بالشدة عشان الاتنين يفضلوا متسقين.
     const promoPriceCartonRaw = getNum(colMap.promoPrice, 0);
     const promoPricePieceRaw = getNum(colMap.promoPiecePrice, 0);
     const promoPricing = resolveProductPricing({
       piecePrice: promoPricePieceRaw,
       cartonPrice: promoPriceCartonRaw,
       factor: cartonQuantity,
-      pieceUnitHint: detectSaleUnit(getVal(colMap.promoPiecePrice)),
-      cartonUnitHint: detectSaleUnit(getVal(colMap.promoPrice)),
+      pieceUnitHint: detectSaleUnit(getVal(colMap.promoPiecePrice)) ?? (promoPricePieceRaw > 0 ? 'piece' : null),
+      cartonUnitHint: detectSaleUnit(getVal(colMap.promoPrice)) ?? (promoPriceCartonRaw > 0 ? 'carton' : null),
     });
     const hasPromo = promoPricing.cartonPrice > 0 || promoPricing.piecePrice > 0;
     const finalPromoCartonPrice: number | undefined = hasPromo ? promoPricing.cartonPrice : undefined;
@@ -3506,6 +3509,10 @@ export function generateSampleCustomerTargetTemplate(): void {
 
 /**
  * Standard 19 Columns for Dream Group Product & Multi-branch Inventory
+ *
+ * عمود السعر بيحمل **سعر القطعة** — ده أساس التسعير في الشيت كله، وسعر الكرتونة
+ * بيتحسب منه × شدة الكرتونة. التصدير بيكتب سعر القطعة، عشان الملف اللي بيطلع
+ * من التطبيق يرجع يتقرأ بنفس الأرقام بالظبط (round-trip).
  */
 export const DREAM_INVENTORY_EXCEL_COLUMNS = [
   'الكود الموحد',
@@ -3513,7 +3520,7 @@ export const DREAM_INVENTORY_EXCEL_COLUMNS = [
   'اسم المنتج',
   'الحجم',
   'عدد القطع',
-  'سعر الكرتونه',
+  'سعر القطعة',
   'Item group',
   'Family Name',
   'اللون',
@@ -3528,6 +3535,18 @@ export const DREAM_INVENTORY_EXCEL_COLUMNS = [
   'سعر العرض',
   'لينك الصوره',
 ];
+
+/**
+ * سعر القطعة اللي بيتكتب في عمود السعر وقت التصدير.
+ * لو الصنف متخزّن بسعر كرتونة (مفيش سعر قطعة)، بنقسّمه على الشدة.
+ */
+export function productSheetPiecePrice(p: Product): number {
+  return resolveProductPricing({
+    piecePrice: p.piecePrice ?? p.salesPrice,
+    cartonPrice: p.cartonPrice,
+    factor: p.cartonQuantity ?? p.factor,
+  }).piecePrice;
+}
 
 /**
  * Export Products Catalog & Inventory to Excel matching the exact Dream spreadsheet format.
@@ -3813,7 +3832,7 @@ export function exportProductsToExcel(
       'اسم المنتج',
       'الحجم',
       'عدد القطع بالكرتونة',
-      'سعر الكرتونة',
+      'سعر القطعة',
       'فئة الصنف',
       'العائلة',
       'اللون',
@@ -3830,7 +3849,7 @@ export function exportProductsToExcel(
         p.name,
         p.size || '',
         p.cartonQuantity || p.factor || 1,
-        p.cartonPrice || 0,
+        productSheetPiecePrice(p),
         p.itemGroup || p.department || p.category || '',
         p.familyName || p.classification || '',
         p.color || '',
@@ -3885,7 +3904,7 @@ export function exportProductsToExcel(
       p.name,
       p.size || '',
       p.cartonQuantity || p.factor || 1,
-      p.cartonPrice || 0,
+      productSheetPiecePrice(p),
       p.itemGroup || p.department || p.category || '',
       p.familyName || p.classification || '',
       p.color || '',
@@ -3912,7 +3931,7 @@ export function exportProductsToExcel(
     { wch: 40 }, // اسم المنتج
     { wch: 12 }, // الحجم
     { wch: 12 }, // عدد القطع
-    { wch: 14 }, // سعر الكرتونه
+    { wch: 14 }, // سعر القطعة
     { wch: 18 }, // Item group
     { wch: 18 }, // Family Name
     { wch: 14 }, // اللون

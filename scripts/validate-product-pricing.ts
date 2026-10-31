@@ -48,6 +48,10 @@ check('factor one piece', parseCartonFactor('1 قطعة'), 1);
 const sheetPiece = resolveProductPricing({ piecePrice: 770, cartonPrice: 0, factor: 4 });
 check('sheet piece → carton', [sheetPiece.piecePrice, sheetPiece.cartonPrice, sheetPiece.unit], [770, 3080, 'carton']);
 
+// مفيش وحدة مكتوبة جنب الرقم ⇒ الأساس إنه سعر قطعة.
+const plainNumber = resolveProductPricing({ piecePrice: '3,080 ج.م', factor: 4 });
+check('no unit → piece is the base', [plainNumber.piecePrice, plainNumber.cartonPrice], [3080, 12320]);
+
 const cartonCell = resolveProductPricing({
   piecePrice: '3,080 ج.م / كرتونة',
   factor: 4,
