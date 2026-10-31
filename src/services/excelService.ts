@@ -6,6 +6,8 @@ import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 import { deduplicateAndMergeCustomers } from './customerDeduplicationService';
 import { isSummaryOrTotalRow } from './customerFinancialService';
 import { resolveCustomerDuesValue } from './customerDues';
+import { parseNumericValue } from './numericParsing';
+import { detectSaleUnit, resolveProductPricing, stripPlaceholderText } from './productPricing';
 
 export { parsePromotionsFromExcelBuffer, parsePromotionsFromGoogleSheet } from './promotionService';
 export { parseTargetExcel, fetchTargetsFromGoogleSheetUrl } from './targetService';
@@ -711,7 +713,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
   });
 
   // Positional fallback for the exact 19 columns:
-  // [الكود الموحد, كود المنتج, اسم المنتج, الحجم, عدد القطع, سعر الكرتونه, Item group, Family Name, اللون, البحيرة, الفيوم, القاهرة, المنيا, ديمشلت, مخزون اكتوبر, منوف, منيا القمح, سعر العرض, لينك الصوره]
+  // [الكود الموحد, كود المنتج, اسم المنتج, الحجم, عدد القطع, سعر القطعة, Item group, Family Name, اللون, البحيرة, الفيوم, القاهرة, المنيا, ديمشلت, مخزون اكتوبر, منوف, منيا القمح, سعر العرض, لينك الصوره]
   if ((colMap.unifiedCode === -1 || colMap.code === -1) && headers.length >= 10) {
     if (colMap.unifiedCode === -1) colMap.unifiedCode = 0;
     if (colMap.code === -1) colMap.code = 1;
@@ -746,18 +748,18 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const row = rawRows[r];
     if (!row || row.length === 0 || row.every((c: any) => c === '' || c === null || c === undefined)) continue;
 
-    const getVal = (colIdx: number) => (colIdx >= 0 && row[colIdx] !== undefined && row[colIdx] !== null ? String(row[colIdx]).trim() : '');
+    // `(blank)` / `((blank))` وأخواتها مش بيانات: بتتشال من النص نفسه قبل ما
+    // الصنف يتخزن، فمش بتوصل للكتالوج ولا للفاتورة ولا للتصدير.
+    const getVal = (colIdx: number) => {
+      if (colIdx < 0 || row[colIdx] === undefined || row[colIdx] === null) return '';
+      return stripPlaceholderText(String(row[colIdx]));
+    };
+    // نفس محرّك الأرقام اللي باقي التطبيق بيستخدمه: أرقام عربية، فواصل آلاف،
+    // ونص فيه عملة أو وحدة زي "3,080 ج.م / كرتونة" أو "4 ق/ك".
     const getNum = (colIdx: number, fallback = 0) => {
       if (colIdx < 0 || row[colIdx] === undefined || row[colIdx] === null) return fallback;
-      let rawStr = String(row[colIdx]).trim();
-      const arabicNumerals = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-      for (let i = 0; i < 10; i++) {
-        rawStr = rawStr.split(arabicNumerals[i]).join(String(i));
-      }
-      rawStr = rawStr.replace(/,/g, '').replace(/٬/g, '').replace(/٫/g, '.');
-      const clean = rawStr.replace(/[^\d.-]/g, '');
-      const parsed = parseFloat(clean);
-      return isNaN(parsed) ? fallback : parsed;
+      const parsed = parseNumericValue(row[colIdx]);
+      return Number.isFinite(parsed) ? parsed : fallback;
     };
 
     const rawName = getVal(colMap.name);
@@ -809,42 +811,46 @@ export function parseRawRowsToProducts(rawRows: any[]): {
 
     // Factor (شدة الكرتونة)
     const factorVal = getNum(colMap.factor > -1 ? colMap.factor : colMap.cartonQuantity, 0);
-    const cartonQuantity = factorVal > 0 ? factorVal : 1;
 
-    // Sales Price & Carton Price (مرآة دقيقة لأعمدة الشيت)
-    const rawSalesPrice = getNum(colMap.salesPrice > -1 ? colMap.salesPrice : colMap.piecePrice, 0);
-    const rawCartonPrice = getNum(colMap.cartonPrice, 0);
+    // السعر: **سعر القطعة هو الأساس** في كل الشيتات. أي رقم في أي عمود سعر
+    // بيتقرأ سعر قطعة، وبعدين الكرتونة = القطعة × الشدة. الاستثناء الوحيد إن
+    // الخلية نفسها تكون مكتوب فيها "/ كرتونة" — ساعتها الرقم ده سعر كرتونة
+    // والقطعة = الكرتونة ÷ الشدة. علامة "/ قطعة" بتأكد إن الرقم قطعة برضه.
+    const pieceColIdx = colMap.salesPrice > -1 ? colMap.salesPrice : colMap.piecePrice;
+    const priceCells: Array<{ value: number; unit: ReturnType<typeof detectSaleUnit> }> = [];
+    if (pieceColIdx > -1) {
+      priceCells.push({ value: getNum(pieceColIdx, 0), unit: detectSaleUnit(getVal(pieceColIdx)) });
+    }
+    if (colMap.cartonPrice > -1 && colMap.cartonPrice !== pieceColIdx) {
+      priceCells.push({ value: getNum(colMap.cartonPrice, 0), unit: detectSaleUnit(getVal(colMap.cartonPrice)) });
+    }
+    const activePrices = priceCells.filter((cell) => cell.value > 0);
+    const pieceCell = activePrices.find((cell) => cell.unit !== 'carton');
+    const cartonCell = activePrices.find((cell) => cell.unit === 'carton');
+
+    const pricing = resolveProductPricing({
+      piecePrice: pieceCell?.value ?? 0,
+      cartonPrice: cartonCell?.value ?? 0,
+      factor: factorVal,
+    });
+    const cartonQuantity = pricing.factor;
+    const piecePrice = pricing.piecePrice;
+    const cartonPrice = pricing.cartonPrice;
+
+    // Offer / Promo prices — "سعر العرض" في الشيت سعر كرتونة، و"سعر عرض القطعة"
+    // سعر قطعة؛ بنحوّل بينهم بالشدة عشان الاتنين يفضلوا متسقين.
     const promoPriceCartonRaw = getNum(colMap.promoPrice, 0);
     const promoPricePieceRaw = getNum(colMap.promoPiecePrice, 0);
-
-    // Price in sheet is per piece (سعر القطعة) and is multiplied by carton pack (شدة الكرتونة) to get carton price:
-    // e.g. 500 EGP per piece * 30 pieces in carton = 15,000 EGP carton price
-    const baseRawPrice = rawSalesPrice > 0 ? rawSalesPrice : rawCartonPrice;
-    let piecePrice = baseRawPrice;
-    let cartonPrice = Math.round(piecePrice * cartonQuantity * 100) / 100;
-
-    // If both salesPrice and cartonPrice columns exist
-    if (rawSalesPrice > 0) {
-      piecePrice = rawSalesPrice;
-      cartonPrice = rawCartonPrice > rawSalesPrice
-        ? rawCartonPrice
-        : Math.round(piecePrice * cartonQuantity * 100) / 100;
-    } else if (rawCartonPrice > 0 && cartonQuantity > 0) {
-      cartonPrice = rawCartonPrice;
-      piecePrice = Math.round((rawCartonPrice / cartonQuantity) * 100) / 100;
-    }
-
-    // Offer / Promo prices for carton and piece
-    let finalPromoCartonPrice: number | undefined = undefined;
-    let finalPromoPiecePrice: number | undefined = undefined;
-
-    if (promoPriceCartonRaw > 0) {
-      finalPromoCartonPrice = promoPriceCartonRaw;
-      finalPromoPiecePrice = cartonQuantity > 0 ? Math.round((promoPriceCartonRaw / cartonQuantity) * 100) / 100 : promoPriceCartonRaw;
-    } else if (promoPricePieceRaw > 0) {
-      finalPromoPiecePrice = promoPricePieceRaw;
-      finalPromoCartonPrice = Math.round(promoPricePieceRaw * cartonQuantity * 100) / 100;
-    }
+    const promoPricing = resolveProductPricing({
+      piecePrice: promoPricePieceRaw,
+      cartonPrice: promoPriceCartonRaw,
+      factor: cartonQuantity,
+      pieceUnitHint: detectSaleUnit(getVal(colMap.promoPiecePrice)) ?? (promoPricePieceRaw > 0 ? 'piece' : null),
+      cartonUnitHint: detectSaleUnit(getVal(colMap.promoPrice)) ?? (promoPriceCartonRaw > 0 ? 'carton' : null),
+    });
+    const hasPromo = promoPricing.cartonPrice > 0 || promoPricing.piecePrice > 0;
+    const finalPromoCartonPrice: number | undefined = hasPromo ? promoPricing.cartonPrice : undefined;
+    const finalPromoPiecePrice: number | undefined = hasPromo ? promoPricing.piecePrice : undefined;
 
     // Item group and Family Name
     const rawItemGroup = getVal(colMap.itemGroup) || getVal(colMap.department) || getVal(colMap.category) || 'عام';
@@ -3503,6 +3509,10 @@ export function generateSampleCustomerTargetTemplate(): void {
 
 /**
  * Standard 19 Columns for Dream Group Product & Multi-branch Inventory
+ *
+ * عمود السعر بيحمل **سعر القطعة** — ده أساس التسعير في الشيت كله، وسعر الكرتونة
+ * بيتحسب منه × شدة الكرتونة. التصدير بيكتب سعر القطعة، عشان الملف اللي بيطلع
+ * من التطبيق يرجع يتقرأ بنفس الأرقام بالظبط (round-trip).
  */
 export const DREAM_INVENTORY_EXCEL_COLUMNS = [
   'الكود الموحد',
@@ -3510,7 +3520,7 @@ export const DREAM_INVENTORY_EXCEL_COLUMNS = [
   'اسم المنتج',
   'الحجم',
   'عدد القطع',
-  'سعر الكرتونه',
+  'سعر القطعة',
   'Item group',
   'Family Name',
   'اللون',
@@ -3525,6 +3535,18 @@ export const DREAM_INVENTORY_EXCEL_COLUMNS = [
   'سعر العرض',
   'لينك الصوره',
 ];
+
+/**
+ * سعر القطعة اللي بيتكتب في عمود السعر وقت التصدير.
+ * لو الصنف متخزّن بسعر كرتونة (مفيش سعر قطعة)، بنقسّمه على الشدة.
+ */
+export function productSheetPiecePrice(p: Product): number {
+  return resolveProductPricing({
+    piecePrice: p.piecePrice ?? p.salesPrice,
+    cartonPrice: p.cartonPrice,
+    factor: p.cartonQuantity ?? p.factor,
+  }).piecePrice;
+}
 
 /**
  * Export Products Catalog & Inventory to Excel matching the exact Dream spreadsheet format.
@@ -3810,7 +3832,7 @@ export function exportProductsToExcel(
       'اسم المنتج',
       'الحجم',
       'عدد القطع بالكرتونة',
-      'سعر الكرتونة',
+      'سعر القطعة',
       'فئة الصنف',
       'العائلة',
       'اللون',
@@ -3827,7 +3849,7 @@ export function exportProductsToExcel(
         p.name,
         p.size || '',
         p.cartonQuantity || p.factor || 1,
-        p.cartonPrice || 0,
+        productSheetPiecePrice(p),
         p.itemGroup || p.department || p.category || '',
         p.familyName || p.classification || '',
         p.color || '',
@@ -3882,7 +3904,7 @@ export function exportProductsToExcel(
       p.name,
       p.size || '',
       p.cartonQuantity || p.factor || 1,
-      p.cartonPrice || 0,
+      productSheetPiecePrice(p),
       p.itemGroup || p.department || p.category || '',
       p.familyName || p.classification || '',
       p.color || '',
@@ -3909,7 +3931,7 @@ export function exportProductsToExcel(
     { wch: 40 }, // اسم المنتج
     { wch: 12 }, // الحجم
     { wch: 12 }, // عدد القطع
-    { wch: 14 }, // سعر الكرتونه
+    { wch: 14 }, // سعر القطعة
     { wch: 18 }, // Item group
     { wch: 18 }, // Family Name
     { wch: 14 }, // اللون
@@ -4012,3 +4034,63 @@ export function generateSampleExcelTemplate(): void {
 }
 
 export const exportElectronicInvoiceToExcel = exportInvoiceToExcel;
+
+/**
+ * تصدير سجل الفواتير كملف إكسل واحد (نفس صفوف الجدول اللي المستخدم شايفها).
+ *
+ * الصفحة كانت بتصدّر الفاتورة **الواحدة** بملفها، لكن زر "تصدير Excel" في
+ * شريط الفلاتر لازم يطلّع نتيجة البحث/الفلاتر الحالية كلها — نفس الرقم اللي
+ * على الشاشة، عشان المراجعة الورقية تطابق الشاشة.
+ */
+export function exportInvoicesListToExcel(invoices: Invoice[], fileName = 'سجل_الفواتير'): void {
+  const headers = [
+    'رقم الفاتورة',
+    'التاريخ',
+    'الوقت',
+    'العميل',
+    'كود العميل',
+    'المندوب',
+    'الفرع',
+    'عدد الكراتين',
+    'عدد القطع',
+    'الإجمالي (ج.م)',
+    'طريقة السداد',
+    'حالة الفاتورة',
+  ];
+
+  const rows = invoices.map((inv) => [
+    inv.invoiceNumber,
+    inv.date || '',
+    inv.time || '',
+    inv.customerName || '',
+    inv.customerCode || '',
+    inv.repName || '',
+    inv.branchName || '',
+    inv.totalCartons || 0,
+    inv.totalPieces || 0,
+    Math.round((inv.estimatedGrandTotal || 0) * 100) / 100,
+    inv.paymentMethod || '',
+    inv.status || '',
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!views'] = [{ rightToLeft: true }];
+  ws['!cols'] = [
+    { wch: 16 }, // رقم الفاتورة
+    { wch: 12 }, // التاريخ
+    { wch: 10 }, // الوقت
+    { wch: 32 }, // العميل
+    { wch: 12 }, // كود العميل
+    { wch: 18 }, // المندوب
+    { wch: 24 }, // الفرع
+    { wch: 12 }, // كراتين
+    { wch: 12 }, // قطع
+    { wch: 14 }, // الإجمالي
+    { wch: 14 }, // طريقة السداد
+    { wch: 24 }, // الحالة
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'الفواتير');
+  XLSX.writeFile(wb, `${fileName}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+}

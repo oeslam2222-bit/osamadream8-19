@@ -4,6 +4,7 @@ import { deduplicateAndMergeCustomers } from '../services/customerDeduplicationS
 import { calculateCustomerFinancials, isSummaryOrTotalRow } from '../services/customerFinancialService';
 import { resolveCustomerDuesValue } from '../services/customerDues';
 import { productIdentityKey, deduplicateProductArray, normalizeProductCodeKey } from '../services/productIdentity';
+import { resolveProductPricing, stripPlaceholderText } from '../services/productPricing';
 
 export const STORAGE_KEYS = {
   PRODUCTS: 'dream_dist_products_v9',
@@ -203,15 +204,14 @@ export const sanitizeProducts = (list: Product[]): Product[] => {
       0
     );
 
-    let piecePrice = savedPiecePrice;
-    let cartonPrice = savedCartonPrice;
-
-    // حساب إجمالي الكرتونة = سعر القطعة × شدة الكرتونة دائماً
-    if (piecePrice > 0) {
-      cartonPrice = Math.round(piecePrice * cartonQty * 100) / 100;
-    } else if (cartonPrice > 0) {
-      piecePrice = Math.round((cartonPrice / cartonQty) * 100) / 100;
-    }
+    // قاعدة التسعير الواحدة (سعر القطعة × الشدة = سعر الكرتونة). لو الصنف شدة 1
+    // يبقى سعر القطعة = سعر الكرتونة، ومفيش معنى لـ"سعر كرتونة" تاني.
+    const pricing = resolveProductPricing({
+      piecePrice: savedPiecePrice,
+      cartonPrice: savedCartonPrice,
+      factor: cartonQty,
+    });
+    const { piecePrice, cartonPrice } = pricing;
 
     const rawPromo = Number(p.promoPrice || p.offerPrice || 0);
     // سعر العرض سارٍ فقط إذا كان أكبر من سعر القطعة الفردية وأقل من سعر الكرتونة
@@ -220,7 +220,17 @@ export const sanitizeProducts = (list: Product[]): Product[] => {
     return {
       ...p,
       id: rowId,
-      cartonQuantity: cartonQty,
+      // `(blank)` و`((blank))` مش بيانات — بتتشال من النص نفسه عشان متظهرش في الكارت.
+      // لو الاسم كله كان placeholder بنرجع لكود الصنف بدل ما نعرض كلمة blank.
+      name: stripPlaceholderText(p.name) || (p.code ? `صنف ${p.code}` : 'صنف بدون اسم'),
+      color: stripPlaceholderText(p.color),
+      size: stripPlaceholderText(p.size),
+      department: stripPlaceholderText(p.department),
+      classification: stripPlaceholderText(p.classification),
+      itemGroup: stripPlaceholderText(p.itemGroup),
+      familyName: stripPlaceholderText(p.familyName),
+      cartonQuantity: pricing.factor,
+      factor: pricing.factor,
       cartonPrice,
       piecePrice,
       promoPrice: cleanPromo,

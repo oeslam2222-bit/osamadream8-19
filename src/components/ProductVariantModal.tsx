@@ -569,7 +569,7 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                   <div className="text-left shrink-0">
                     <span className="text-[10px] text-slate-400 font-bold block">شدة الكرتونة:</span>
                     <span className="text-xs font-black text-[var(--app-warn-text)] bg-[var(--app-warn-tint)] px-2 py-0.5 rounded-md border border-[var(--app-warn-line)]">
-                      {cartonQty} قطعة / كرتونة
+                      {cartonQty > 1 ? `${cartonQty} قطعة / كرتونة` : 'قطعة (بدون كرتونة)'}
                     </span>
                   </div>
                 </div>
@@ -577,7 +577,9 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                 {/* Pricing Box - Sleek Gold & Slate Theme */}
                 <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white shadow-inner">
                   <div>
-                    <span className="text-[10px] text-[#d97706] block font-bold">سعر الكرتونة</span>
+                    <span className="text-[10px] text-[#d97706] block font-bold">
+                      {cartonQty > 1 ? 'سعر الكرتونة' : 'سعر القطعة'}
+                    </span>
                     <div className="text-xl font-black text-[#d97706] font-mono">
                       {isConfidentialMode ? '••••••' : formatCurrency(appliedPrice)}
                     </div>
@@ -588,7 +590,9 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                     <div className="text-base font-black text-slate-100 font-mono">
                       {isConfidentialMode ? '••••' : formatCurrency(currentPiecePrice)}
                     </div>
-                    <span className="text-[9px] text-slate-400">× شدة {cartonQty} = الكرتونة</span>
+                    <span className="text-[9px] text-slate-400">
+                      {cartonQty > 1 ? `× شدة ${cartonQty} = الكرتونة` : 'يُباع بالقطعة'}
+                    </span>
                   </div>
 
                   {activeVariant.promoPrice && activeVariant.promoPrice > 0 ? (

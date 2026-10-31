@@ -744,7 +744,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
                 <div>
                   <span className="text-slate-500 block">إجمالي المديونية الحالية:</span>
                   <span className="font-black text-base text-rose-600">
-                    {formatCurrency(selectedCustomerForNotice.currentBalance ?? selectedCustomerForNotice.balance ?? 0)} ج.م
+                    {formatCurrency(selectedCustomerForNotice.currentBalance ?? selectedCustomerForNotice.balance ?? 0)}
                   </span>
                 </div>
                 <div className="text-left">

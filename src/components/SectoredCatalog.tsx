@@ -3,6 +3,8 @@ import { useApp } from '../context/AppContext';
 import { Product } from '../types';
 import { SectorPermissionService } from '../services/sectorPermissionService';
 import { BRANCHES, Branch, getBranchesBySector } from '../data/branchDefinitions';
+import { formatCurrency } from '../services/invoiceService';
+import { resolveDisplayPrice, stripPlaceholderText } from '../services/productPricing';
 import {
   Search, Filter, Package, Home, Zap, ShoppingCart,
   ChevronRight, ChevronLeft, Clock, CloudDownload,
@@ -24,6 +26,13 @@ const ProductCard: React.FC<ProductCardProps> = ({
   const isPromo = product.promoPrice && product.promoPrice > 0;
   const totalCartonsAvailable = branchStock + octoberAvail;
   const isOutOfStock = totalCartonsAvailable <= 0;
+  // نفس قاعدة التسعير: شدة 1 ⇒ السعر سعر قطعة، وغير كده سعر كرتونة.
+  const pricing = resolveDisplayPrice({
+    piecePrice: product.piecePrice ?? product.salesPrice,
+    cartonPrice: product.cartonPrice,
+    factor: product.factor ?? product.cartonQuantity,
+  });
+  const displayName = stripPlaceholderText(product.name);
 
   return (
     <div
@@ -51,15 +60,16 @@ const ProductCard: React.FC<ProductCardProps> = ({
           {product.category}
         </div>
         <h3 className="font-black text-slate-900 dark:text-slate-100 text-sm leading-tight mb-1.5 line-clamp-2">
-          {product.name}
+          {displayName || `صنف ${product.code}`}
         </h3>
         <div className="flex items-baseline gap-2 mb-2">
           <span className="font-black text-slate-900 dark:text-slate-100">
-            {product.cartonPrice.toLocaleString('ar-EG')} ج.م
+            {formatCurrency(pricing.displayPrice)}
+            <span className="text-[10px] text-slate-400 font-normal"> / {pricing.unitLabel}</span>
           </span>
           {isPromo && (
             <span className="text-[10px] text-[var(--app-risk-text)] font-black line-through">
-              {product.price.toLocaleString('ar-EG')} ج.م
+              {formatCurrency(product.promoPrice)}
             </span>
           )}
         </div>
@@ -73,8 +83,8 @@ const ProductCard: React.FC<ProductCardProps> = ({
             <div>أكتوبر</div>
           </div>
           <div>
-            <div className="text-slate-900 dark:text-slate-200">{product.factor ?? 1}</div>
-            <div>قطعة/كرتونة</div>
+            <div className="text-slate-900 dark:text-slate-200">{pricing.isSinglePiece ? '—' : pricing.factor}</div>
+            <div>{pricing.isSinglePiece ? 'قطعة' : 'قطعة/كرتونة'}</div>
           </div>
         </div>
       </div>
