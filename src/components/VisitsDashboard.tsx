@@ -293,7 +293,7 @@ return (
             </button>
             <div className="flex items-center gap-2 bg-slate-100 rounded-full px-3 py-1 text-xs">
               <AlertTriangle className="h-3.5 w-3.5 text-slate-400" />
-              <span className="slate-500"> آخر تحديث: {new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit })}</span>
+              <span className="slate-500"> آخر تحديث: {new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
           </div>
         </div>
