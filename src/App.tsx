@@ -207,6 +207,7 @@ const MainLayout: React.FC = () => {
               onOpenCart={() => setIsOrderModalOpen(true)}
               selectedCustomer={orderInitialCustomer}
               onClearSelectedCustomer={() => setOrderInitialCustomer(null)}
+              onNavigateToTab={(tab) => setActiveTab(tab)}
               onNavigateToInvoices={(inv) => {
                 setActiveTab('invoices');
               }}

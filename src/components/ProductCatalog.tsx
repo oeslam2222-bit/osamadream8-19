@@ -66,12 +66,15 @@ interface ProductCatalogProps {
   selectedCustomer?: Customer | null;
   onClearSelectedCustomer?: () => void;
   onNavigateToInvoices?: (invoice?: any) => void;
+  /** تنقل بين تابات التطبيق من كروت المؤشرات العلوية (مرتجعات / تحصيلات) */
+  onNavigateToTab?: (tab: string) => void;
 }
 
 export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   onOpenCart,
   selectedCustomer,
   onClearSelectedCustomer,
+  onNavigateToTab,
 }) => {
   const {
     products,
@@ -84,6 +87,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     importProductsList,
     wipeAllProductsAndData,
     cloudinaryConfig,
+    visits,
     selectedBranchFilter,
     setSelectedBranchFilter,
     activeSectorFilter,
@@ -113,6 +117,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<string>('الكل');
   // إخفاء الأصناف ذات الرصيد الصفري (المخزن الرئيسي ومخزن الفرع = 0) افتراضياً
   const [onlyInStock, setOnlyInStock] = useState<boolean>(true);
+  // لوحة "المزيد من الفلتر" — مطوية افتراضياً عشان الشريط يفضل زي التصميم
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<
     'default' | 'branch_stock_desc' | 'october_stock_desc' | 'price_asc' | 'price_desc' | 'name_asc'
   >('default');
@@ -381,6 +387,21 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     };
   }, [filteredProducts, getProductBranchStock]);
 
+  // عدّادات تشغيلية للكروت العلوية: مرتجعات تحتاج مراجعة + عمليات التحصيل
+  const opsStats = useMemo(() => {
+    let returnsPending = 0;
+    let collectionsCount = 0;
+
+    (visits || []).forEach((v) => {
+      const hasReturn = Boolean(v.isReturn) || Number(v.returnValue || 0) > 0;
+      const returnClosed = v.returnStatus === 'مرفوض' || v.returnStatus === 'تم الاستلام بالمخزن';
+      if (hasReturn && !returnClosed) returnsPending += 1;
+      if (Number(v.collectedAmount || 0) > 0) collectionsCount += 1;
+    });
+
+    return { returnsPending, collectionsCount };
+  }, [visits]);
+
   // Pagination calculation
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
   const paginatedProducts = useMemo(() => {
@@ -495,25 +516,39 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const cartSummary = getCartSummary();
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
+  // عدد الفلاتر المتقدمة المفعّلة — بيظهر كشعار على زر "المزيد من الفلتر"
+  const activeAdvancedCount =
+    (onlyInStock ? 0 : 1) + (isAdminOrDev && activeSectorFilter !== 'all' ? 1 : 0);
+
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setSelectedDept('الكل');
+    setSelectedBrand('الكل');
+    setSelectedStatus('الكل');
+    setOnlyInStock(true);
+    setSortBy('default');
+  };
+
   return (
     <div className="tantawy-screen space-y-5 pb-16" dir="rtl">
-      {/* 1. Header Banner & Search */}
-      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-4 sm:p-5 flex flex-col md:flex-row items-center justify-between gap-4">
-        {/* Right side: Cart Icon Graphic & Title */}
-        <div className="flex items-center gap-3.5 w-full md:w-auto">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20 shrink-0">
-            <ShoppingCart className="w-7 h-7" />
+      {/* 1. Hero Banner & Search */}
+      <div className="catalog-hero">
+        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 sm:p-5">
+          {/* Right side: Title */}
+          <div className="flex items-center gap-3.5">
+            <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur border border-white/25 text-white flex items-center justify-center shadow-lg shrink-0">
+              <ShoppingCart className="w-7 h-7" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-[26px] font-black text-white tracking-tight">كتالوج الأصناف</h1>
+              <p className="text-[11px] sm:text-xs text-white/75 font-bold mt-0.5">
+                اختر المنتجات بسهولة وأضفها إلى فاتورتك
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">كتالوج الأصناف</h1>
-            <p className="text-xs text-slate-500 font-bold mt-0.5">
-              اختر المنتجات بسهولة وأضفها إلى فاتورتك • نظام المخزون المركزي
-            </p>
-          </div>
-        </div>
 
-        {/* Left side: Prominent Search Bar with Smart Autocomplete Suggestions */}
-        <div className="relative w-full md:max-w-md" ref={searchWrapperRef}>
+          {/* Left side: Prominent Search Bar with Smart Autocomplete Suggestions */}
+          <div className="relative w-full lg:max-w-xl" ref={searchWrapperRef}>
           <div className="relative">
             <input
               type="text"
@@ -527,8 +562,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   setShowSearchSuggestions(true);
                 }
               }}
-              placeholder="ابحث باسم المنتج أو كود المنتج أو الكود الموحد..."
-              className="w-full pl-10 pr-11 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-xs sm:text-sm font-bold text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition shadow-xs"
+              placeholder="ابحث باسم المنتج أو كود العميل أو الكود الموحد ..."
+              className="w-full pl-10 pr-11 py-3 bg-white border border-white/60 rounded-2xl text-xs sm:text-sm font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-white/70 shadow-lg transition"
             />
             <Search className="w-5 h-5 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             {searchTerm && (
@@ -629,74 +664,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               )}
             </div>
           )}
-        </div>
-      </div>
-
-      {/* Sector Switcher for Admin / Tech Support / Supervisors */}
-      <div className="flex items-center justify-between flex-wrap gap-2 px-1">
-        {isAdminOrDev ? (
-          <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
-            <button
-              type="button"
-              onClick={() => setActiveSectorFilter('all')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition ${
-                activeSectorFilter === 'all'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              🌐 كل القطاعات ({products.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSectorFilter('home')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition ${
-                activeSectorFilter === 'home'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              🏠 القطاع المنزلي
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSectorFilter('electrical')}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition ${
-                activeSectorFilter === 'electrical'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              ⚡ قطاع الكهرباء
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-black text-slate-700 bg-blue-50 border border-blue-200 px-3.5 py-1.5 rounded-xl flex items-center gap-1.5">
-              {currentUser?.sector === 'electrical' ? '⚡ كتالوج قطاع الكهرباء' : '🏠 كتالوج القطاع المنزلي'}
-            </span>
-          </div>
-        )}
-
-        {/* PDF Export Button */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleExportPDF}
-            disabled={isExportingPDF}
-            className="flex items-center gap-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white px-4 py-2 rounded-xl text-xs font-black shadow-md shadow-rose-500/20 transition active:scale-95 disabled:opacity-50 cursor-pointer"
-          >
-            {isExportingPDF ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <FileText className="w-4 h-4" />
-            )}
-            <span>{isExportingPDF ? 'جاري تجهيز الكتالوج...' : 'تصدير الصور كـ PDF 📄'}</span>
-          </button>
-
-          <div className="hidden sm:flex items-center gap-1 text-xs text-slate-500 font-bold bg-white px-3 py-1.5 rounded-xl border border-slate-200">
-            <span>فرعك:</span>
-            <span className="font-black text-slate-800">{currentActiveBranch}</span>
           </div>
         </div>
       </div>
@@ -729,117 +696,147 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       )}
 
-      {/* 2. Focused Inventory Stock Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {/* Card 1: مخزون فرع المندوب */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-xs text-slate-500 font-bold">مخزون فرع المندوب</p>
-            <p className="text-3xl font-black text-blue-900 tracking-tight">
-              {stats.branchCartons.toLocaleString('en-US')}
-            </p>
-            <p className="text-[11px] text-slate-400 font-bold">رصيد متاح بالكرتونة ({currentActiveBranch})</p>
+      {/* 2. KPI cards: مخزون الفرع / مخزون أكتوبر / المرتجعات / التحصيلات */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
+        {/* مخزون فرع المندوب */}
+        <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <Store className="w-6 h-6" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] text-slate-500 font-black leading-tight">مخزون فرع المندوب</p>
+              <p className="text-2xl font-black text-blue-700 tracking-tight leading-tight">
+                {stats.branchCartons.toLocaleString('en-US')}
+              </p>
+              <p className="text-[10px] text-slate-400 font-bold leading-tight">رصيد متاح</p>
+            </div>
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-            <Store className="w-7 h-7" />
-          </div>
+          <button
+            type="button"
+            onClick={() => setSortBy('branch_stock_desc')}
+            title="ترتيب حسب مخزون الفرع"
+            aria-label="ترتيب حسب مخزون الفرع"
+            className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center shrink-0 transition cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
         </div>
 
-        {/* Card 2: مخزون أكتوبر المركزي */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-xs text-slate-500 font-bold">المخزن الرئيسي (أكتوبر)</p>
-            <p className="text-3xl font-black text-emerald-600 tracking-tight">
-              {stats.octoberCartons.toLocaleString('en-US')}
-            </p>
-            <p className="text-[11px] text-slate-400 font-bold">رصيد مركزي متاح للسحب</p>
+        {/* مخزون أكتوبر */}
+        <div className="bg-white rounded-2xl border border-emerald-100 shadow-sm p-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <Package className="w-6 h-6" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] text-slate-500 font-black leading-tight">مخزون أكتوبر</p>
+              <p className="text-2xl font-black text-emerald-600 tracking-tight leading-tight">
+                {stats.octoberCartons.toLocaleString('en-US')}
+              </p>
+              <p className="text-[10px] text-slate-400 font-bold leading-tight">رصيد متاح</p>
+            </div>
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <Package className="w-7 h-7" />
-          </div>
+          <button
+            type="button"
+            onClick={() => setSortBy('october_stock_desc')}
+            title="ترتيب حسب مخزون أكتوبر"
+            aria-label="ترتيب حسب مخزون أكتوبر"
+            className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center shrink-0 transition cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
         </div>
 
-        {/* Card 3: الأصناف المتوفرة للطلب */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center justify-between sm:col-span-2 lg:col-span-1">
-          <div className="space-y-1">
-            <p className="text-xs text-slate-500 font-bold">الأصناف المتوفرة للطلب</p>
-            <p className="text-3xl font-black text-indigo-600 tracking-tight">
-              {stats.availableItemsCount.toLocaleString('en-US')}
-            </p>
-            <p className="text-[11px] text-slate-400 font-bold">أصناف رصيدها أكبر من صفر</p>
+        {/* مرتجعات تحتاج مراجعة */}
+        <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
+              <RotateCcw className="w-6 h-6" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] text-slate-500 font-black leading-tight">مرتجعات</p>
+              <p className="text-2xl font-black text-orange-500 tracking-tight leading-tight">
+                {opsStats.returnsPending.toLocaleString('en-US')}
+              </p>
+              <p className="text-[10px] text-slate-400 font-bold leading-tight">تحتاج مراجعة</p>
+            </div>
           </div>
-          <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-            <Sparkles className="w-7 h-7" />
+          <button
+            type="button"
+            onClick={() => onNavigateToTab?.('returns')}
+            title="فتح المرتجعات"
+            aria-label="فتح المرتجعات"
+            className="w-8 h-8 rounded-full bg-orange-50 text-orange-500 hover:bg-orange-100 flex items-center justify-center shrink-0 transition cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* التحصيلات */}
+        <div className="bg-white rounded-2xl border border-violet-100 shadow-sm p-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-12 h-12 rounded-xl bg-violet-50 text-violet-500 flex items-center justify-center shrink-0">
+              <Coins className="w-6 h-6" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] text-slate-500 font-black leading-tight">التحصيلات</p>
+              <p className="text-2xl font-black text-violet-600 tracking-tight leading-tight">
+                {opsStats.collectionsCount.toLocaleString('en-US')}
+              </p>
+              <p className="text-[10px] text-slate-400 font-bold leading-tight">عدد عمليات التحصيل</p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => onNavigateToTab?.('visits')}
+            title="فتح الزيارات والتحصيلات"
+            aria-label="فتح الزيارات والتحصيلات"
+            className="w-8 h-8 rounded-full bg-violet-50 text-violet-500 hover:bg-violet-100 flex items-center justify-center shrink-0 transition cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
-      {/* 3. Filter Toolbar */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5 flex flex-wrap items-center justify-between gap-3 select-none">
-        <div className="flex flex-wrap items-center gap-2 flex-1">
-          {/* Refresh button */}
+      {/* 3. Filter Bar */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 select-none">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* المزيد من الفلتر (يفتح لوحة الفلاتر المتقدمة) */}
           <button
             type="button"
-            onClick={() => {
-              setSearchTerm('');
-              setSelectedDept('الكل');
-              setSelectedBrand('الكل');
-              setSelectedStatus('الكل');
-              setOnlyInStock(true);
-              setSortBy('default');
-            }}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 transition cursor-pointer"
-          >
-            <RotateCw className="w-3.5 h-3.5 text-slate-500" />
-            <span>تحديث</span>
-          </button>
-
-          {/* فلتر إخفاء الصفر (المتوفر فقط) */}
-          <button
-            type="button"
-            onClick={() => setOnlyInStock(!onlyInStock)}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-black transition cursor-pointer ${
-              onlyInStock
-                ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-xs'
-                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            onClick={() => setShowAdvancedFilters((v) => !v)}
+            aria-expanded={showAdvancedFilters}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black shadow-sm transition cursor-pointer ${
+              showAdvancedFilters
+                ? 'bg-[var(--app-accent)] text-white'
+                : 'bg-[var(--app-navy)] text-white hover:opacity-90'
             }`}
           >
-            <CheckCircle2 className={`w-3.5 h-3.5 ${onlyInStock ? 'text-emerald-600' : 'text-slate-400'}`} />
-            <span>المتوفر بالمخازن فقط (مخزون &gt; 0)</span>
+            <Filter className="w-4 h-4" />
+            <span>المزيد من الفلتر</span>
+            {activeAdvancedCount > 0 && (
+              <span className="bg-white/25 text-white rounded-full px-1.5 py-0.5 text-[10px] font-black">
+                {activeAdvancedCount}
+              </span>
+            )}
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* كل الأقسام (Item group) */}
+          {/* الترتيب حسب */}
           <div className="relative">
             <select
-              value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
-              aria-label="كل الأقسام"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              aria-label="الترتيب حسب"
               className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
             >
-              <option value="الكل">كل الأقسام (Item group)</option>
-              {departmentsList.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-
-          {/* كل الماركات (Family Name) */}
-          <div className="relative">
-            <select
-              value={selectedBrand}
-              onChange={(e) => setSelectedBrand(e.target.value)}
-              aria-label="كل الماركات"
-              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
-            >
-              <option value="الكل">كل الماركات (Family Name)</option>
-              {brandsList.map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
-              ))}
+              <option value="default">الترتيب حسب</option>
+              <option value="branch_stock_desc">الأعلى مخزوناً بفرعك</option>
+              <option value="october_stock_desc">الأعلى بمخزن أكتوبر</option>
+              <option value="price_asc">السعر: من الأقل للأعلى</option>
+              <option value="price_desc">السعر: من الأعلى للأقل</option>
+              <option value="name_asc">الاسم أبجدياً</option>
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
@@ -860,35 +857,145 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
-          {/* الترتيب حسب */}
+          {/* كل الماركات (Family Name) */}
           <div className="relative">
             <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
-              aria-label="الترتيب حسب"
-              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+              aria-label="كل الماركات"
+              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[180px]"
             >
-              <option value="default">الترتيب الافتراضي</option>
-              <option value="branch_stock_desc">الأعلى مخزوناً بفرعك</option>
-              <option value="october_stock_desc">الأعلى بمخزن أكتوبر</option>
-              <option value="price_asc">السعر: من الأقل للأعلى</option>
-              <option value="price_desc">السعر: من الأعلى للأقل</option>
-              <option value="name_asc">الاسم أبجدياً</option>
+              <option value="الكل">كل الماركات</option>
+              {brandsList.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
-        </div>
 
-        {/* View Cart Button */}
-        {cart.length > 0 && onOpenCart && (
+          {/* كل الأقسام (Item group) */}
+          <div className="relative">
+            <select
+              value={selectedDept}
+              onChange={(e) => setSelectedDept(e.target.value)}
+              aria-label="كل الأقسام"
+              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[180px]"
+            >
+              <option value="الكل">كل الأقسام</option>
+              {departmentsList.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          <div className="hidden md:block flex-1" />
+
+          {/* معاينة الفاتورة */}
+          {cart.length > 0 && onOpenCart && (
+            <button
+              type="button"
+              onClick={onOpenCart}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-black shadow-sm shadow-blue-500/20 transition active:scale-95 cursor-pointer"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              <span>معاينة الفاتورة ({cart.length})</span>
+            </button>
+          )}
+
+          {/* تحديث / إعادة ضبط الفلاتر */}
           <button
             type="button"
-            onClick={onOpenCart}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-black shadow-md shadow-blue-500/20 transition active:scale-95 cursor-pointer"
+            onClick={handleResetFilters}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 transition cursor-pointer"
           >
-            <ShoppingCart className="w-4 h-4" />
-            <span>معاينة الفاتورة ({cart.length})</span>
+            <RotateCw className="w-3.5 h-3.5 text-slate-500" />
+            <span>تحديث</span>
           </button>
+        </div>
+
+        {/* لوحة الفلاتر المتقدمة */}
+        {showAdvancedFilters && (
+          <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
+            {/* المتوفر بالمخازن فقط */}
+            <button
+              type="button"
+              onClick={() => setOnlyInStock(!onlyInStock)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-black transition cursor-pointer ${
+                onlyInStock
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-xs'
+                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              <CheckCircle2 className={`w-3.5 h-3.5 ${onlyInStock ? 'text-emerald-600' : 'text-slate-400'}`} />
+              <span>المتوفر بالمخازن فقط (مخزون &gt; 0)</span>
+            </button>
+
+            {/* القطاعات */}
+            {isAdminOrDev ? (
+              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setActiveSectorFilter('all')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                    activeSectorFilter === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  🌐 كل القطاعات ({products.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSectorFilter('home')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                    activeSectorFilter === 'home' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  🏠 منزلي
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSectorFilter('electrical')}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                    activeSectorFilter === 'electrical' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  ⚡ كهرباء
+                </button>
+              </div>
+            ) : (
+              <span className="text-xs font-black text-slate-700 bg-blue-50 border border-blue-200 px-3.5 py-2 rounded-xl flex items-center gap-1.5">
+                {currentUser?.sector === 'electrical' ? '⚡ كتالوج قطاع الكهرباء' : '🏠 كتالوج القطاع المنزلي'}
+              </span>
+            )}
+
+            {/* تصدير PDF */}
+            <button
+              type="button"
+              onClick={handleExportPDF}
+              disabled={isExportingPDF}
+              className="flex items-center gap-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white px-3.5 py-2 rounded-xl text-xs font-black shadow-sm transition active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {isExportingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+              <span>{isExportingPDF ? 'جاري تجهيز الكتالوج...' : 'تصدير الصور كـ PDF 📄'}</span>
+            </button>
+
+            {/* فرعك */}
+            <div className="flex items-center gap-1 text-xs text-slate-500 font-bold bg-white px-3 py-2 rounded-xl border border-slate-200">
+              <span>فرعك:</span>
+              <span className="font-black text-slate-800">{currentActiveBranch}</span>
+            </div>
+
+            {/* الأصناف المتوفرة للطلب */}
+            <div className="flex items-center gap-1 text-xs text-slate-500 font-bold bg-white px-3 py-2 rounded-xl border border-slate-200">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+              <span>أصناف متاحة للطلب:</span>
+              <span className="font-black text-indigo-600">{stats.availableItemsCount.toLocaleString('en-US')}</span>
+            </div>
+          </div>
         )}
       </div>
 
@@ -962,7 +1069,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
           // Status Badge
           let statusBadge = (
-            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shadow-xs">
+            <span className="px-2.5 py-1 rounded-full whitespace-nowrap shrink-0 text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shadow-xs">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
               <span>متوفر</span>
             </span>
@@ -970,14 +1077,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
           if (branchStock <= 0 && octoberStock > 0) {
             statusBadge = (
-              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 shadow-xs">
+              <span className="px-2.5 py-1 rounded-full whitespace-nowrap shrink-0 text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 shadow-xs">
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
                 <span>محدود</span>
               </span>
             );
           } else if (branchStock <= 0 && octoberStock <= 0) {
             statusBadge = (
-              <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1 shadow-xs">
+              <span className="px-2.5 py-1 rounded-full whitespace-nowrap shrink-0 text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1 shadow-xs">
                 <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
                 <span>نفد جزئياً</span>
               </span>
@@ -989,13 +1096,26 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               key={p.id}
               className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition p-4 flex flex-col justify-between space-y-3 group"
             >
-              {/* Card Top Row: Favorite + Sector Chip + Status Badge */}
+              {/* Card Top Row: Status Badge (يمين) + Sector Chip + Favorite (يسار) */}
               <div className="flex items-center justify-between gap-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="shrink-0">{statusBadge}</span>
+                  {isElectrical ? (
+                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black">
+                      ⚡ كهرباء
+                    </span>
+                  ) : (
+                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-black">
+                      🏠 منزلي
+                    </span>
+                  )}
+                </div>
+
                 <button
                   type="button"
                   onClick={() => toggleFavorite(p.id)}
                   aria-label="إضافة للمفضلة"
-                  className={`w-8 h-8 rounded-full border flex items-center justify-center transition cursor-pointer ${
+                  className={`w-8 h-8 rounded-full border flex items-center justify-center transition cursor-pointer shrink-0 ${
                     isFav
                       ? 'bg-rose-50 border-rose-200 text-rose-600'
                       : 'border-slate-200 text-slate-400 hover:text-slate-600 bg-white'
@@ -1003,19 +1123,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 >
                   <Heart className={`w-4 h-4 ${isFav ? 'fill-rose-600' : ''}`} />
                 </button>
-
-                {/* Sector Chip (منزلي / كهرباء) */}
-                {isElectrical ? (
-                  <span className="px-2 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black">
-                    ⚡ كهرباء
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-black">
-                    🏠 منزلي
-                  </span>
-                )}
-
-                {statusBadge}
               </div>
 
               {/* Product Image */}
@@ -1041,7 +1148,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
               {/* Product Title & Department */}
               <div className="text-center space-y-1">
-                <div className="text-[10px] text-slate-400 font-bold truncate">
+                <div className="text-[10px] text-slate-400 font-bold leading-tight">
                   {stripPlaceholderText(p.department) || stripPlaceholderText(p.itemGroup) || 'عام'}
                   {stripPlaceholderText(p.familyName) ? ` • ${stripPlaceholderText(p.familyName)}` : ''}
                 </div>
@@ -1106,37 +1213,39 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </div>
               </div>
 
-              {/* Action Row: Quantity (- 1 +) & إضافة للفاتورة */}
+              {/* Action Row: إضافة للفاتورة + عداد الكمية */}
               <div className="space-y-2 pt-1 border-t border-slate-100">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center border border-slate-200 rounded-xl bg-slate-50 overflow-hidden w-28 shrink-0">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleAddToCart(p)}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs whitespace-nowrap shadow-sm transition active:scale-95 cursor-pointer"
+                  >
+                    <ShoppingCart className="w-3.5 h-3.5" />
+                    <span>إضافة للفاتورة</span>
+                  </button>
+
+                  <div className="flex items-center justify-between border border-slate-200 rounded-xl bg-slate-50 overflow-hidden w-full sm:w-28 shrink-0">
                     <button
                       type="button"
-                      onClick={() => handleQtyChange(p.id, -1)}
-                      className="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-200 text-sm font-bold transition cursor-pointer"
+                      onClick={() => handleQtyChange(p.id, 1)}
+                      className="w-9 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-200 text-sm font-bold transition cursor-pointer"
+                      aria-label="زيادة الكمية"
                     >
-                      -
+                      +
                     </button>
                     <span className="flex-1 text-center font-black text-slate-900 text-xs">
                       {currentQty}
                     </span>
                     <button
                       type="button"
-                      onClick={() => handleQtyChange(p.id, 1)}
-                      className="w-8 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-200 text-sm font-bold transition cursor-pointer"
+                      onClick={() => handleQtyChange(p.id, -1)}
+                      className="w-9 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-200 text-sm font-bold transition cursor-pointer"
+                      aria-label="تقليل الكمية"
                     >
-                      +
+                      -
                     </button>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleAddToCart(p)}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs shadow-sm transition active:scale-95 cursor-pointer"
-                  >
-                    <ShoppingCart className="w-3.5 h-3.5" />
-                    <span>إضافة للفاتورة</span>
-                  </button>
                 </div>
               </div>
             </div>
@@ -1161,24 +1270,22 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       </div>
 
       {/* 5. Pagination Bar */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex flex-col md:flex-row items-center justify-between gap-4 select-none">
-        {/* Right: عدد النتائج في الصفحة */}
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
-          <span>عدد النتائج في الصفحة:</span>
-          <select
-            value={itemsPerPage}
-            onChange={(e) => setItemsPerPage(Number(e.target.value))}
-            aria-label="عدد النتائج في الصفحة"
-            className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-black text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
-          >
-            <option value={12}>12</option>
-            <option value={24}>24</option>
-            <option value={48}>48</option>
-            <option value={96}>96</option>
-          </select>
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5 flex flex-col md:flex-row items-center justify-between gap-3 select-none">
+        {/* Right: عرض X – Y من إجمالي Z صنف */}
+        <div className="text-xs font-bold text-slate-500">
+          {filteredProducts.length === 0 ? (
+            'لا توجد نتائج'
+          ) : (
+            <span>
+              عرض {(currentPage - 1) * itemsPerPage + 1} –{' '}
+              {Math.min(currentPage * itemsPerPage, filteredProducts.length)} من{' '}
+              <span className="font-black text-slate-800">{filteredProducts.length.toLocaleString('en-US')}</span>{' '}
+              صنف
+            </span>
+          )}
         </div>
 
-        {/* Center: Pagination controls */}
+        {/* Center: أرقام الصفحات */}
         {totalPages > 1 && (
           <div className="flex items-center gap-1.5">
             <button
@@ -1186,32 +1293,32 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
               aria-label="الصفحة السابقة"
-              className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-600 flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+              className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-600 flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
 
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              let p = i + 1;
-              if (totalPages > 5) {
-                if (currentPage > 3) {
-                  p = currentPage - 2 + i;
-                  if (p > totalPages) p = totalPages - (4 - i);
-                }
+              let pg = i + 1;
+              if (totalPages > 5 && currentPage > 3) {
+                pg = currentPage - 2 + i;
+                if (pg > totalPages) pg = totalPages - (4 - i);
               }
-              if (p < 1 || p > totalPages) return null;
+              if (pg < 1 || pg > totalPages) return null;
               return (
                 <button
-                  key={p}
+                  key={pg}
                   type="button"
-                  onClick={() => setCurrentPage(p)}
-                  className={`w-8 h-8 rounded-lg text-xs font-black flex items-center justify-center transition cursor-pointer ${
-                    currentPage === p
+                  onClick={() => setCurrentPage(pg)}
+                  aria-label={`الصفحة ${pg}`}
+                  aria-current={currentPage === pg ? 'page' : undefined}
+                  className={`w-9 h-9 rounded-xl text-xs font-black flex items-center justify-center transition cursor-pointer ${
+                    currentPage === pg
                       ? 'bg-blue-600 text-white shadow-sm'
                       : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  {p}
+                  {pg}
                 </button>
               );
             })}
@@ -1221,27 +1328,27 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
               aria-label="الصفحة التالية"
-              className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-600 flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+              className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-600 flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
           </div>
         )}
 
-        {/* Left: عرض X – Y من إجمالي Z صنف */}
-        <div className="text-xs font-bold text-slate-500">
-          {filteredProducts.length === 0 ? (
-            'لا توجد نتائج'
-          ) : (
-            <span>
-              عرض {(currentPage - 1) * itemsPerPage + 1} –{' '}
-              {Math.min(currentPage * itemsPerPage, filteredProducts.length)} من إجمالي{' '}
-              <span className="font-black text-slate-800">
-                {filteredProducts.length.toLocaleString('en-US')}
-              </span>{' '}
-              صنف
-            </span>
-          )}
+        {/* Left: عدد النتائج في الصفحة */}
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+          <span>عدد النتائج في الصفحة:</span>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => setItemsPerPage(Number(e.target.value))}
+            aria-label="عدد النتائج في الصفحة"
+            className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-black text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+          >
+            <option value={12}>12</option>
+            <option value={24}>24</option>
+            <option value={48}>48</option>
+            <option value={96}>96</option>
+          </select>
         </div>
       </div>
 

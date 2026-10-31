@@ -2513,3 +2513,45 @@ html:not(.dark) .catalog-modern .text-slate-400 { color: #64748b; }
 .dark .login-btn { background-color: #1d4ed8 !important; border-color: #1d4ed8 !important; color: #ffffff !important; }
 .dark .rep-cta:hover:not(:disabled),
 .dark .login-btn:hover:not(:disabled) { background-color: #2563eb !important; }
+
+/* ===== Catalog hero banner (كتالوج الأصناف) =====
+   الموديل بيستخدم صورة مخزن + overlay. هنا بنعمل نفس الإحساس بـCSS نقي:
+   تدرّج كحلي/أزرق + خطوط رفوف المخزن + هالة ضوء، من غير أي أصل صورة
+   (ملفات الصور بتتقلع من الـPWA precache وبتكسر في الوضع الليلي). */
+.catalog-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
+  background:
+    radial-gradient(90% 140% at 100% 0%, rgba(56, 130, 246, .55) 0%, rgba(56, 130, 246, 0) 60%),
+    radial-gradient(80% 120% at 0% 100%, rgba(0, 148, 136, .40) 0%, rgba(0, 148, 136, 0) 55%),
+    linear-gradient(115deg, #0d2130 0%, #143152 55%, #1b4470 100%);
+  border: 1px solid rgba(255, 255, 255, .08);
+  box-shadow: 0 12px 28px rgba(15, 43, 56, .18);
+}
+.catalog-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(115deg, rgba(255, 255, 255, .06) 0 2px, transparent 2px 28px);
+  opacity: .7;
+  pointer-events: none;
+}
+.catalog-hero::after {
+  content: '';
+  position: absolute;
+  inset-inline-end: -80px;
+  top: -90px;
+  width: 280px;
+  height: 280px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, .18), transparent 65%);
+  pointer-events: none;
+}
+.dark .catalog-hero {
+  background:
+    radial-gradient(90% 140% at 100% 0%, rgba(56, 130, 246, .35) 0%, rgba(56, 130, 246, 0) 60%),
+    linear-gradient(115deg, #0b1622 0%, #10203a 55%, #16294a 100%) !important;
+  border-color: #22344d !important;
+}
+.dark .catalog-hero::before { opacity: .45; }
