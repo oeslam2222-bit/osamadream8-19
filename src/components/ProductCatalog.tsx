@@ -1208,7 +1208,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     {priceInfo.displayPrice > 0 && priceInfo.factor > 1
                       ? formatCurrency(priceInfo.displayPrice * priceInfo.factor)
                       : '—'}
-                    <span className="text-[10px] text-light block">/كرتونة</span>
                   </td>
                   <td className="p-3 text-center font-mono text-secondary">
                     {priceInfo.factor > 1 ? priceInfo.factor : 1}
@@ -1235,7 +1234,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       className={`w-8 h-8 rounded-lg border flex items-center justify-center transition cursor-pointer shrink-0 ${
                         favorites[p.id]
                           ? 'bg-rose-50 border-rose-200 text-rose-600'
-                          : 'border-slate-200 text-light hover:text-muted bg-white'
+                          : 'border-slate-200 text-slate-600 hover:text-muted bg-white'
                       }`}
                     >
                       <Heart className={`w-4 h-4 ${favorites[p.id] ? 'fill-rose-600' : ''}`} />
@@ -1338,7 +1337,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   className={`w-8 h-8 rounded-full border flex items-center justify-center transition cursor-pointer shrink-0 ${
                     isFav
                       ? 'bg-rose-50 border-rose-200 text-rose-600'
-                      : 'border-slate-200 text-light hover:text-muted bg-white'
+                      : 'border-slate-200 text-slate-600 hover:text-muted bg-white'
                   }`}
                 >
                   <Heart className={`w-4 h-4 ${isFav ? 'fill-rose-600' : ''}`} />
@@ -1449,7 +1448,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     <button
                       type="button"
                       onClick={() => handleQtyChange(p.id, 1)}
-                      className="w-9 h-8 flex items-center justify-center text-muted hover:bg-slate-200 text-sm font-bold transition cursor-pointer"
+                      className="w-9 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-200 text-sm font-bold transition cursor-pointer"
                       aria-label="زيادة الكمية"
                     >
                       +
