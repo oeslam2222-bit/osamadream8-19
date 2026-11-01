@@ -2,7 +2,6 @@ import {
   AlertCircle,
   AlertTriangle,
   ArrowUpDown,
-  Barcode,
   Building,
   Check,
   CheckCircle2,
@@ -162,25 +161,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string } | null>(null);
   const [addedItemToast, setAddedItemToast] = useState<{ name: string; count: string } | null>(null);
   const [stockErrorToast, setStockErrorToast] = useState<string | null>(null);
-
-  // Barcode Scanner states
-  const [barcodeScanOpen, setBarcodeScanOpen] = useState<boolean>(false);
-  const [barcodeValue, setBarcodeValue] = useState<string>('');
-  const [barcodeSearchResult, setBarcodeSearchResult] = useState<Product | null>(null);
-
-  const handleBarcodeSearch = () => {
-    if (!barcodeValue.trim()) return;
-    const found = products.find((p) => p.barcode === barcodeValue.trim() || p.code === barcodeValue.trim());
-    if (found) {
-      setBarcodeSearchResult(found);
-      setSelectedProductForModal(found);
-      setBarcodeScanOpen(false);
-      setBarcodeValue('');
-    } else {
-      setStockErrorToast(`لم يتم العثور على صنف برمز الباركود: ${barcodeValue}`);
-      setTimeout(() => setStockErrorToast(null), 4000);
-    }
-  };
 
   // PDF Export States
   const [isExportingPDF, setIsExportingPDF] = useState(false);
@@ -638,15 +618,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               className="w-full pl-10 pr-11 py-3 bg-white border border-white/60 rounded-2xl text-xs sm:text-sm font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-white/70 shadow-lg transition"
             />
             <Search className="w-5 h-5 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <button
-              type="button"
-              onClick={() => setBarcodeScanOpen(true)}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 p-1 transition"
-              title="بحث بالباركود"
-              aria-label="بحث بالباركود"
-            >
-              <span className="text-xs font-bold">📷</span>
-            </button>
             {searchTerm && (
               <button
                 type="button"
@@ -1175,6 +1146,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <thead className="bg-slate-100 text-slate-700 font-extrabold border-b border-slate-200">
             <tr>
               <th className="p-3 text-right w-16">#</th>
+              <th className="p-3 text-center w-20">الصورة</th>
               <th className="p-3 text-right">كود المنتج</th>
               <th className="p-3 text-right">الكود الموحد</th>
               <th className="p-3 text-right">اسم المنتج</th>
@@ -1204,6 +1176,28 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               return (
                 <tr key={p.id} className="hover:bg-slate-50/50 transition group">
                   <td className="p-3 text-right font-bold text-slate-400">{globalIdx}</td>
+                  <td className="p-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const img = getProductImageUrl(p, cloudinaryConfig);
+                        if (img && !img.startsWith('data:image/svg+xml')) {
+                          setLightboxImage({ src: img, alt: p.name });
+                        }
+                      }}
+                      className="flex items-center justify-center p-1"
+                    >
+                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center cursor-pointer hover:shadow-md transition shadow-xs">
+                        {p.imageUrl ? (
+                          <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-slate-400 text-[10px] font-bold">
+                            📦
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  </td>
                   <td className="p-3 text-right font-mono font-bold text-slate-700">{p.code || '—'}</td>
                   <td className="p-3 text-right font-mono text-slate-600">
                     {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
@@ -1691,67 +1685,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             alt={lightboxImage.alt}
             className="max-w-[85vw] max-h-[85vh] rounded-2xl shadow-2xl object-contain bg-white p-2"
           />
-        </div>
-      )}
-
-      {/* Barcode Scanner Modal */}
-      {barcodeScanOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in">
-          <div
-            className="absolute inset-0"
-            onClick={() => setBarcodeScanOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="relative z-10 bg-surface rounded-3xl border border-border-primary shadow-2xl w-full max-w-md p-6 sm:p-8 animate-in mi-fade-in">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-black text-primary text-lg">بحث بالباركود</h3>
-              <button
-                type="button"
-                onClick={() => setBarcodeScanOpen(false)}
-                className="text-muted hover:text-link transition"
-                aria-label="إغلاق"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <p className="text-secondary text-sm text-center mb-6">
-              أدخل رمز الباركود أو كود الصنف للبحث عنه
-            </p>
-
-            <div className="space-y-4">
-              <div className="relative">
-                <input
-                  type="text"
-                  value={barcodeValue}
-                  onChange={(e) => setBarcodeValue(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleBarcodeSearch()}
-                  placeholder="أدخل رقم الباركود..."
-                  autoFocus
-                  className="w-full pl-10 pr-4 py-3 bg-input border border-border-input rounded-2xl text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-border-focus transition"
-                />
-                <Barcode className="w-5 h-5 text-muted absolute left-3 top-1/2 -translate-y-1/2" />
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleBarcodeSearch}
-                  disabled={!barcodeValue.trim()}
-                  className="flex-1 bg-navy text-white font-black py-3 rounded-2xl hover:bg-blue-deep4 transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  بحث
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBarcodeScanOpen(false)}
-                  className="flex-1 bg-surface border border-border-primary text-primary font-black py-3 rounded-2xl hover:bg-surface-hover transition"
-                >
-                  إلغاء
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
