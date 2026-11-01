@@ -158,6 +158,39 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<CatalogExportProgress | null>(null);
 
+  // Remember catalog filters in localStorage per user
+  const CATALOG_FILTERS_KEY = `tantawy_catalog_filters_${currentUser?.id || 'guest'}`;
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(CATALOG_FILTERS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.searchTerm !== undefined) setSearchTerm(parsed.searchTerm);
+        if (parsed.selectedDept !== undefined) setSelectedDept(parsed.selectedDept);
+        if (parsed.selectedBrand !== undefined) setSelectedBrand(parsed.selectedBrand);
+        if (parsed.selectedStatus !== undefined) setSelectedStatus(parsed.selectedStatus);
+        if (parsed.onlyInStock !== undefined) setOnlyInStock(parsed.onlyInStock);
+        if (parsed.sortBy !== undefined) setSortBy(parsed.sortBy);
+        if (parsed.activeSectorFilter !== undefined) setActiveSectorFilter(parsed.activeSectorFilter);
+      }
+    } catch {}
+  }, [CATALOG_FILTERS_KEY, currentUser?.id]);
+
+  const saveCatalogFilters = useCallback(() => {
+    try {
+      localStorage.setItem(CATALOG_FILTERS_KEY, JSON.stringify({
+        searchTerm,
+        selectedDept,
+        selectedBrand,
+        selectedStatus,
+        onlyInStock,
+        sortBy,
+        activeSectorFilter,
+      }));
+    } catch {}
+  }, [searchTerm, selectedDept, selectedBrand, selectedStatus, onlyInStock, sortBy, activeSectorFilter, CATALOG_FILTERS_KEY]);
+
   // Card quantities
   const [cardQuantities, setCardQuantities] = useState<Record<string, number>>({});
   const [cardOrderTypes, setCardOrderTypes] = useState<Record<string, 'carton' | 'piece'>>({});
@@ -169,6 +202,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     }, 250);
     return () => clearTimeout(timer);
   }, [searchTerm]);
+
+  // Save filters whenever they change
+  useEffect(() => {
+    saveCatalogFilters();
+  }, [searchTerm, selectedDept, selectedBrand, selectedStatus, onlyInStock, sortBy, activeSectorFilter, saveCatalogFilters]);
 
   // Reset page when search or filters change
   useEffect(() => {
@@ -527,6 +565,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setSelectedStatus('الكل');
     setOnlyInStock(true);
     setSortBy('default');
+    setActiveSectorFilter('all');
+    saveCatalogFilters();
   };
 
   return (

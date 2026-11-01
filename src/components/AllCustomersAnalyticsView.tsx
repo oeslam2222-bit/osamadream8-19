@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Users,
   Search,
@@ -198,12 +198,61 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
   const [collectionRateFilter, setCollectionRateFilter] = useState<CollectionRateFilter>('ALL');
 
+  // Remember filters in localStorage per user
+  const CUSTOMER_FILTERS_KEY = `tantawy_customer_filters_${currentUser?.id || 'guest'}`;
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(CUSTOMER_FILTERS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.searchQuery !== undefined) setSearchQuery(parsed.searchQuery);
+        if (parsed.selectedBranch !== undefined) setSelectedBranch(parsed.selectedBranch);
+        if (parsed.selectedSupervisor !== undefined) setSelectedSupervisor(parsed.selectedSupervisor);
+        if (parsed.selectedRep !== undefined) setSelectedRep(parsed.selectedRep);
+        if (parsed.selectedRegion !== undefined) setSelectedRegion(parsed.selectedRegion);
+        if (parsed.activityFilter !== undefined) setActivityFilter(parsed.activityFilter);
+        if (parsed.debtFilter !== undefined) setDebtFilter(parsed.debtFilter);
+        if (parsed.eligibilityFilter !== undefined) setEligibilityFilter(parsed.eligibilityFilter);
+        if (parsed.debtStatusFilter !== undefined) setDebtStatusFilter(parsed.debtStatusFilter);
+        if (parsed.dealtFilter !== undefined) setDealtFilter(parsed.dealtFilter);
+        if (parsed.orderFilter !== undefined) setOrderFilter(parsed.orderFilter);
+        if (parsed.visitFilter !== undefined) setVisitFilter(parsed.visitFilter);
+        if (parsed.collectionRateFilter !== undefined) setCollectionRateFilter(parsed.collectionRateFilter);
+        if (parsed.sortBy !== undefined) setSortBy(parsed.sortBy);
+        if (parsed.sortOrder !== undefined) setSortOrder(parsed.sortOrder);
+      }
+    } catch {}
+  }, [CUSTOMER_FILTERS_KEY, currentUser?.id]);
+
   // Power BI Visuals Tab
   const [activeChartTab, setActiveChartTab] = useState<'monthly' | 'branches' | 'reps' | 'payment_guarantee'>('monthly');
 
   // Sorting
   const [sortBy, setSortBy] = useState<'name' | 'code' | 'balance' | 'overdue' | 'creditLimit' | 'sales2026' | 'collections2026' | 'lastVisit' | 'order'>('balance');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const saveCustomerFilters = useCallback(() => {
+    try {
+      localStorage.setItem(CUSTOMER_FILTERS_KEY, JSON.stringify({
+        searchQuery,
+        selectedBranch,
+        selectedSupervisor,
+        selectedRep,
+        selectedRegion,
+        activityFilter,
+        debtFilter,
+        eligibilityFilter,
+        debtStatusFilter,
+        dealtFilter,
+        orderFilter,
+        visitFilter,
+        collectionRateFilter,
+        sortBy,
+        sortOrder,
+      }));
+    } catch {}
+  }, [searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, dealtFilter, orderFilter, visitFilter, collectionRateFilter, sortBy, sortOrder, CUSTOMER_FILTERS_KEY]);
 
   // Pagination for high-performance (4000+ items)
   const [currentPage, setCurrentPage] = useState(1);
@@ -741,13 +790,22 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     setOrderFilter('ALL');
     setVisitFilter('ALL');
     setCollectionRateFilter('ALL');
+    setSortBy('balance');
+    setSortOrder('desc');
+    saveCustomerFilters();
   };
 
   const handleSortChange = (value: string) => {
     const [field, order] = value.split(':');
     setSortBy(field as typeof sortBy);
     setSortOrder(order === 'asc' ? 'asc' : 'desc');
+    saveCustomerFilters();
   };
+
+  // Save filters whenever they change
+  useEffect(() => {
+    saveCustomerFilters();
+  }, [searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, dealtFilter, orderFilter, visitFilter, collectionRateFilter, saveCustomerFilters]);
 
   const filterBarValue: CustomerFilterBarState = {
     searchQuery,

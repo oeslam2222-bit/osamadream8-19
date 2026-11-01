@@ -39,6 +39,7 @@ import { formatCurrency } from '../services/invoiceService';
 import { getBranchStockForProduct } from '../services/arabicMatchingService';
 import { ItemStatus, Product, SalesPriority } from '../types';
 import { getDepartmentMeta } from '../data/departmentMeta';
+import { EmptyState } from './ui/EmptyState';
 
 export const InventoryStockView: React.FC = () => {
   const {
@@ -875,8 +876,27 @@ export const InventoryStockView: React.FC = () => {
             </div>
           )}
 
+          {/* Empty State for No Products */}
+          {filteredProducts.length === 0 && (
+            <EmptyState
+              type="products"
+              title="لا توجد أصناف"
+              description="لم يتم العثور على أصناف مطابقة للبحث أو الفلاتر المحددة. يمكنك إضافة صنف جديد أو تعديل الفلاتر."
+              action={
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(true)}
+                  className="app-btn app-btn-primary px-4 py-2 text-xs active:scale-95"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>إضافة صنف جديد</span>
+                </button>
+              }
+            />
+          )}
+
           {/* VIEW MODE 2: DETAILED TABLE */}
-          {viewLayout === 'table' && (
+          {viewLayout === 'table' && filteredProducts.length > 0 && (
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-right text-xs">

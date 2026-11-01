@@ -13,12 +13,14 @@ import {
   Layers,
   LayoutDashboard,
   LogOut,
+  Moon,
   Receipt,
   RefreshCw,
   Server,
   ShieldCheck,
   Smartphone,
   ShoppingCart,
+  Sun,
   Target,
   CalendarCheck,
   User,
@@ -55,6 +57,8 @@ interface NavbarProps {
   onOpenCart: () => void;
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
+  isDark: boolean;
+  setIsDark: (dark: boolean) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -62,7 +66,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   onOpenCart,
   isSidebarCollapsed = false,
-  onToggleSidebar
+  onToggleSidebar,
+  isDark,
+  setIsDark
 }) => {
   const {
     currentUser,
@@ -91,7 +97,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   } = useApp();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const { isDark, toggleTheme } = useTheme();
+  const toggleTheme = () => setIsDark(!isDark);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isStandalone, setIsStandalone] = useState(true);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -301,6 +307,27 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Settings className="w-4 h-4 text-[var(--app-warn-text)]" />
               <span className="hidden sm:inline">الإعدادات وعن النظام</span>
+            </button>
+
+            {/* Dark/Light Mode Toggle Button */}
+            <button
+              id="navbar-dark-mode-toggle"
+              type="button"
+              onClick={toggleTheme}
+              className="flex items-center justify-center gap-1.5 px-3 h-11 rounded-xl text-xs font-black border border-[var(--app-line)] bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer shadow-2xs active:scale-95"
+              title={isDark ? 'الوضع النهاري' : 'الوضع الليلي'}
+            >
+              {isDark ? (
+                <>
+                  <Sun className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span className="hidden sm:inline">النهاري</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-4 h-4 text-indigo-500 shrink-0" />
+                  <span className="hidden sm:inline">الليلي</span>
+                </>
+              )}
             </button>
 
             {/* Pending Invoices Sync Button for Offline/Queued Orders */}

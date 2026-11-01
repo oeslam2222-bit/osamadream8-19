@@ -120,9 +120,10 @@
   /* Dark mode overrides will be applied via .dark class or media query */
 }
 
-/* Dark mode support */
+/* Dark mode support - both system preference and manual .dark class */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root,
+  .dark {
     --bg-body: #0f172a;
     --bg-surface: #1e293b;
     --bg-surface-alt: #334155;
@@ -171,6 +172,57 @@
     --sector-both-bg: #5b21b6;
     --sector-both-text: #e9d5ff;
   }
+}
+
+/* Manual dark mode class override - works regardless of system preference */
+.dark {
+  --bg-body: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-surface-alt: #334155;
+  --bg-surface-hover: #475569;
+  --bg-input: #1e293b;
+  --bg-disabled: #334155;
+  --bg-toast: #0f172a;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-light: #64748b;
+  --text-inverse: #ffffff;
+  --text-link: #2dd4bf;
+
+  --border-primary: #334155;
+  --border-focus: #2dd4bf;
+  --border-input: #475569;
+
+  --btn-primary-bg: #3882f6;
+  --btn-primary-text: #ffffff;
+  --btn-primary-hover: #2563eb;
+  --btn-secondary-bg: #334155;
+  --btn-secondary-text: #f8fafc;
+  --btn-secondary-hover: #475569;
+  --btn-danger-bg: #ef4444;
+  --btn-danger-text: #ffffff;
+  --btn-danger-hover: #dc2626;
+  --btn-warn-bg: #f59e0b;
+  --btn-warn-text: #ffffff;
+  --btn-warn-hover: #d97706;
+
+  --chip-ok-bg: #064e3b;
+  --chip-ok-text: #6ee7b7;
+  --chip-warn-bg: #713f12;
+  --chip-warn-text: #fde047;
+  --chip-risk-bg: #7f1d1d;
+  --chip-risk-text: #fca5a5;
+  --chip-muted-bg: #475569;
+  --chip-muted-text: #cbd5e1;
+
+  --sector-home-bg: #1e3a8a;
+  --sector-home-text: #bfdbfe;
+  --sector-electrical-bg: #713f12;
+  --sector-electrical-text: #fcd34d;
+  --sector-both-bg: #5b21b6;
+  --sector-both-text: #e9d5ff;
 }
 
 /* Utility classes for dark mode tokens */

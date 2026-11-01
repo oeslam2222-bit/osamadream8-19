@@ -95,6 +95,26 @@ const MainLayout: React.FC = () => {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [appToastMsg, setAppToastMsg] = useState<string | null>(null);
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("tantawy_dark_mode");
+      return saved === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  // Toggle dark mode class on document element
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    try {
+      localStorage.setItem("tantawy_dark_mode", String(isDark));
+    } catch {}
+  }, [isDark]);
 
   const [customPermissionOverrides, setCustomPermissionOverrides] = useState<UserPermissionOverride[]>([]);
 
@@ -190,6 +210,8 @@ const MainLayout: React.FC = () => {
         onOpenCart={() => setIsOrderModalOpen(true)}
         isSidebarCollapsed={isSidebarCollapsed}
         onToggleSidebar={handleToggleSidebar}
+        isDark={isDark}
+        setIsDark={setIsDark}
       />
 
       {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}

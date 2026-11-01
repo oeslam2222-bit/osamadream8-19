@@ -34,8 +34,10 @@ import { LegalAdvisorDashboard } from './components/LegalAdvisorDashboard';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
 import { Onboarding } from './components/Onboarding';
+import { ToastProvider } from './components/ui/Toast';
 import { AppProvider, useApp } from './context/AppContext';
 import { AuthProvider } from './context/authContext';
+import { ThemeProvider } from './context/themeContext';
 import { InvoiceProvider } from './context/invoiceContext';
 import { CustomerProvider } from './context/customerContext';
 import { InventoryProvider } from './context/inventoryContext';
@@ -63,6 +65,14 @@ const MainLayout: React.FC = () => {
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('tantawy_dark_mode');
+      return saved === 'true';
+    } catch {
+      return false;
+    }
+  });
 
   // Everyone lands on the numbers command center after login.
   useEffect(() => {
@@ -75,6 +85,18 @@ const MainLayout: React.FC = () => {
       }
     }
   }, [currentUser?.id]);
+
+  // Toggle dark mode class on document element
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    try {
+      localStorage.setItem('tantawy_dark_mode', String(isDark));
+    } catch {}
+  }, [isDark]);
 
   // If user is not logged in, show dedicated Login / Registration Page
   if (!isAuthenticated || !currentUser) {
@@ -102,7 +124,8 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="tantawy-shell min-h-[100dvh] bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-amber-400 selection:text-slate-950" dir="rtl">
+    <ToastProvider>
+      <div className={`tantawy-shell min-h-[100dvh] flex flex-col text-slate-900 font-sans antialiased selection:bg-amber-400 selection:text-slate-950 ${isDark ? 'bg-surface text-primary' : 'bg-slate-100'}`} dir="rtl">
       
       {/* Offline Status Top Bar if offline */}
       {isOffline && (
@@ -117,6 +140,8 @@ const MainLayout: React.FC = () => {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenCart={() => setIsOrderModalOpen(true)}
+        isDark={isDark}
+        setIsDark={setIsDark}
       />
 
       {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}
@@ -261,6 +286,7 @@ const MainLayout: React.FC = () => {
       </footer>
 
     </div>
+      </ToastProvider>
   );
 };
 
@@ -326,9 +352,11 @@ export function App() {
           <CustomerProvider>
             <InventoryProvider>
               <SyncProvider>
-                <AppProvider>
-                  <MainLayout />
-                </AppProvider>
+                <ThemeProvider>
+                  <AppProvider>
+                    <MainLayout />
+                  </AppProvider>
+                </ThemeProvider>
               </SyncProvider>
             </InventoryProvider>
           </CustomerProvider>
