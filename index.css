@@ -9,6 +9,20 @@
   .t-body { font-size: .9rem; font-weight: 500; line-height: 1.5; }
   .t-caption { font-size: .75rem; font-weight: 500; color: var(--app-muted); line-height: 1.4; }
   .t-mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  /* Arabic font families */
+  .font-cairo { font-family: 'Cairo', 'Tajawal', system-ui, sans-serif; }
+  .font-tajawal { font-family: 'Tajawal', 'Cairo', system-ui, sans-serif; }
+  .font-amiri { font-family: 'Amiri', 'Cairo', serif; }
+
+  /* Font weight utilities */
+  .fw-light { font-weight: 300; }
+  .fw-normal { font-weight: 400; }
+  .fw-medium { font-weight: 500; }
+  .fw-semibold { font-weight: 600; }
+  .fw-bold { font-weight: 700; }
+  .fw-extrabold { font-weight: 800; }
+  .fw-black { font-weight: 900; }
 }
 
 @layer base {
@@ -61,6 +75,12 @@
   --sh-lg: 0 12px 32px rgba(15, 23, 42, .12);
   --ease: .18s ease;
   --focus-ring: 0 0 0 3px rgba(0, 148, 136, .35);
+
+  /* Micro-interaction timing */
+  --mi-fast: .12s ease;
+  --mi-normal: .18s ease;
+  --mi-slow: .25s ease;
+  --mi-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* ===== Semantic color tokens for consistent theming ===== */
   /* Backgrounds */
@@ -1007,4 +1027,67 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
   font-size: .7rem;
   color: var(--app-muted);
   font-weight: 600;
+}
+
+/* ===== Micro-interactions: smooth UI animations ===== */
+
+/* Card hover lift effect */
+.mi-card {
+  transition: transform var(--mi-fast), box-shadow var(--mi-fast), border-color var(--mi-fast);
+}
+.mi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--sh-md);
+  border-color: var(--border-focus);
+}
+
+/* Button press effect */
+.mi-btn {
+  transition: transform var(--mi-fast), background-color var(--mi-fast), box-shadow var(--mi-fast);
+}
+.mi-btn:active {
+  transform: scale(0.97);
+}
+
+/* Smooth list item reveal */
+.mi-list-item {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: mi-slide-up var(--mi-normal) var(--mi-bounce) forwards;
+}
+.mi-list-item:nth-child(1) { animation-delay: 0.04s; }
+.mi-list-item:nth-child(2) { animation-delay: 0.08s; }
+.mi-list-item:nth-child(3) { animation-delay: 0.12s; }
+.mi-list-item:nth-child(4) { animation-delay: 0.16s; }
+.mi-list-item:nth-child(5) { animation-delay: 0.20s; }
+
+@keyframes mi-slide-up {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Smooth fade-in for modals and drawers */
+.mi-fade-in {
+  animation: mi-fade var(--mi-normal) ease-out forwards;
+}
+@keyframes mi-fade {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Pill hover pulse */
+.mi-pill:hover {
+  filter: brightness(1.1);
+  transition: filter var(--mi-fast);
+}
+
+/* Toast slide-in */
+.mi-toast {
+  animation: mi-slide-right var(--mi-normal) var(--mi-bounce) forwards;
+}
+@keyframes mi-slide-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
 }
