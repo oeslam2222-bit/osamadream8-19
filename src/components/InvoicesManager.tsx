@@ -730,8 +730,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         {accessibleInvoices.length === 0 ? (
           <EmptyState
             type="invoices"
-            title="لا توجد فواتير"
-            description="يمكنك إنشاء فاتورة جديدة للعميل عبر الضغط على زر إنشاء فاتورة / طلبية جديدة."
+            title="لا توجد أوامر بيع"
+            description="يمكنك إنشاء أمر بيع جديد للعميل عبر الضغط على زر إنشاء أمر بيع / طلبية جديدة."
             action={
               <button
                 type="button"
@@ -739,7 +739,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 className="app-btn app-btn-primary px-4 py-2 text-xs active:scale-95"
               >
                 <Plus className="w-4 h-4" />
-                <span>إنشاء فاتورة جديدة</span>
+                <span>إنشاء أمر بيع جديد</span>
               </button>
             }
           />

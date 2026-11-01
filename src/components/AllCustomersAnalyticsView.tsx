@@ -188,6 +188,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [selectedSupervisor, setSelectedSupervisor] = useState<string>('ALL');
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
   const [selectedRegion, setSelectedRegion] = useState<string>('ALL');
+  const [selectedSector, setSelectedSector] = useState<'all' | 'home' | 'electrical' | 'both'>('all');
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>('ALL');
   const [debtFilter, setDebtFilter] = useState<DebtFilter>('ALL');
   const [eligibilityFilter, setEligibilityFilter] = useState<EligibilityFilter>('ALL');
@@ -211,6 +212,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         if (parsed.selectedSupervisor !== undefined) setSelectedSupervisor(parsed.selectedSupervisor);
         if (parsed.selectedRep !== undefined) setSelectedRep(parsed.selectedRep);
         if (parsed.selectedRegion !== undefined) setSelectedRegion(parsed.selectedRegion);
+        if (parsed.selectedSector !== undefined) setSelectedSector(parsed.selectedSector);
         if (parsed.activityFilter !== undefined) setActivityFilter(parsed.activityFilter);
         if (parsed.debtFilter !== undefined) setDebtFilter(parsed.debtFilter);
         if (parsed.eligibilityFilter !== undefined) setEligibilityFilter(parsed.eligibilityFilter);
@@ -252,7 +254,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         sortOrder,
       }));
     } catch {}
-  }, [searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, dealtFilter, orderFilter, visitFilter, collectionRateFilter, sortBy, sortOrder, CUSTOMER_FILTERS_KEY]);
+  }, [searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, selectedSector, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, dealtFilter, orderFilter, visitFilter, collectionRateFilter, sortBy, sortOrder, CUSTOMER_FILTERS_KEY]);
 
   // Pagination for high-performance (4000+ items)
   const [currentPage, setCurrentPage] = useState(1);
@@ -553,6 +555,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       list = list.filter((c) => c.region === selectedRegion);
     }
 
+    if (selectedSector !== 'all') {
+      list = list.filter((c) => c.sector === selectedSector);
+    }
+
     // Sector filter (منزلي / كهربائي)
     if (activeSectorFilter && activeSectorFilter !== 'all') {
       list = list.filter((c) => !c.sector || c.sector === activeSectorFilter || c.sector === 'both' || c.sector === 'all');
@@ -602,6 +608,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     selectedSupervisor,
     selectedRep,
     selectedRegion,
+    selectedSector,
     eligibilityFilter,
     debtStatusFilter,
     dealtFilter,
@@ -766,6 +773,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     if (patch.selectedSupervisor !== undefined) setSelectedSupervisor(patch.selectedSupervisor);
     if (patch.selectedRep !== undefined) setSelectedRep(patch.selectedRep);
     if (patch.selectedRegion !== undefined) setSelectedRegion(patch.selectedRegion);
+    if (patch.selectedSector !== undefined) setSelectedSector(patch.selectedSector);
     if (patch.eligibilityFilter !== undefined) setEligibilityFilter(patch.eligibilityFilter);
     if (patch.debtStatusFilter !== undefined) setDebtStatusFilter(patch.debtStatusFilter);
     if (patch.dealtFilter !== undefined) setDealtFilter(patch.dealtFilter);
@@ -781,6 +789,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     setSelectedBranch('ALL');
     setSelectedRep('ALL');
     setSelectedRegion('ALL');
+    setSelectedSector('all');
     setSelectedSupervisor('ALL');
     setEligibilityFilter('ALL');
     setDebtStatusFilter('ALL');
@@ -805,7 +814,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   // Save filters whenever they change
   useEffect(() => {
     saveCustomerFilters();
-  }, [searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, dealtFilter, orderFilter, visitFilter, collectionRateFilter, saveCustomerFilters]);
+  }, [searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, selectedSector, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, dealtFilter, orderFilter, visitFilter, collectionRateFilter, saveCustomerFilters]);
 
   const filterBarValue: CustomerFilterBarState = {
     searchQuery,
@@ -813,6 +822,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     selectedSupervisor,
     selectedRep,
     selectedRegion,
+    selectedSector,
     eligibilityFilter,
     debtStatusFilter,
     dealtFilter,
@@ -1818,6 +1828,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           supervisors: availableSupervisors,
           reps: availableReps,
           regions: availableRegions,
+          sectors: [...new Set(customers.map((c) => c.sector).filter(Boolean))] as ('home' | 'electrical' | 'both')[],
           debtStatuses: availableDebtStatuses,
         }}
         canFilterBranch={isAdminOrDev}

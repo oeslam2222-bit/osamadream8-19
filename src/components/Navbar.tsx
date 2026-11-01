@@ -193,7 +193,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'all_customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'invoices', label: 'الفواتير والاعتمادات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
+    { id: 'invoices', label: 'أوامر البيع والاعتمادات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'returns', label: 'المرتجعات', icon: RotateCcw, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'inventory', label: 'المخزون', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
@@ -701,7 +701,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {[
               { id: 'home', label: 'الرئيسية', icon: Home },
               { id: 'all_customers', label: 'العملاء', icon: Users },
-              { id: 'invoices', label: 'الفواتير', icon: Receipt },
+              { id: 'invoices', label: 'أوامر البيع', icon: Receipt },
               { id: 'catalog', label: 'الكتالوج', icon: Boxes, badge: cartSummary.itemCount },
             ].map((item) => {
               const Icon = item.icon;

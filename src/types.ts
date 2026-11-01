@@ -212,6 +212,7 @@ export interface CustomerVisit {
   repId?: string;
   repName: string;                   // اسم المندوب القائم بالزيارة
   branchName?: string;
+  sector?: 'home' | 'electrical' | 'both' | 'all';  // القطاع (منزلي / كهربائي)
   supervisorId?: string;
   supervisorName?: string;
   status?: CustomerVisitStatus;
