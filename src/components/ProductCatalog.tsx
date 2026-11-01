@@ -143,6 +143,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     });
   };
 
+  // Show favorites only toggle
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState<boolean>(false);
+
+  // Reset page when favorites filter toggles
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [showFavoritesOnly]);
+
   // Pagination state (default: 12 as per reference design image_d67a7a7d.png)
   const [itemsPerPage, setItemsPerPage] = useState<number>(12);
   const [currentPage, setCurrentPage] = useState<1 | number>(1);
@@ -443,9 +451,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   // Pagination calculation
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
   const paginatedProducts = useMemo(() => {
+    let products = filteredProducts;
+    if (showFavoritesOnly) {
+      products = products.filter((p) => Boolean(favorites[p.id]));
+    }
     const start = (currentPage - 1) * itemsPerPage;
-    return filteredProducts.slice(start, start + itemsPerPage);
-  }, [filteredProducts, currentPage, itemsPerPage]);
+    return products.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage, showFavoritesOnly, favorites]);
 
   // سعر الصنف المفتوح في المودال — نفس القاعدة المستخدمة في الكارت.
   const modalPricing = selectedProductForModal
@@ -1091,6 +1103,43 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       )}
 
+      {/* Favorites Bar */}
+      <div className="hidden lg:flex items-center justify-between gap-3 px-4 py-2 mb-3 bg-surface border border-border-primary rounded-2xl">
+        <div className="flex items-center gap-2">
+          <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
+          <span className="font-black text-primary text-sm">
+            {Object.keys(favorites).length} صنف في المفضلة
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowFavoritesOnly((prev) => !prev)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              showFavoritesOnly
+                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            عرض المفضلة فقط
+          </button>
+          {Object.keys(favorites).length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setFavorites({});
+                try {
+                  localStorage.removeItem('tantawy_fav_products');
+                } catch {}
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold transition bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+            >
+              مسح الكل
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* 4a. ERP Table View (Desktop/Laptop) — gleiche Spalten wie kartensystem */}
       <div className="hidden lg:block overflow-x-auto border border-slate-200 rounded-2xl shadow-sm bg-white">
         <table className="w-full text-left border-collapse text-sm">
@@ -1106,6 +1155,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <th className="p-3 text-center w-16">الشدة</th>
               <th className="p-3 text-center w-20">مخزون الفرع</th>
               <th className="p-3 text-center w-20">مخزون أكتوبر</th>
+              <th className="p-3 text-center w-16">المفضلة</th>
               <th className="p-3 text-center w-24">إجراء</th>
             </tr>
           </thead>
@@ -1165,6 +1215,20 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     }`}>
                       {octoberStock}
                     </span>
+                  </td>
+                  <td className="p-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => toggleFavorite(p.id)}
+                      aria-label={Boolean(favorites[p.id]) ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
+                      className={`w-8 h-8 rounded-lg border flex items-center justify-center transition cursor-pointer shrink-0 ${
+                        favorites[p.id]
+                          ? 'bg-rose-50 border-rose-200 text-rose-600'
+                          : 'border-slate-200 text-slate-400 hover:text-slate-600 bg-white'
+                      }`}
+                    >
+                      <Heart className={`w-4 h-4 ${favorites[p.id] ? 'fill-rose-600' : ''}`} />
+                    </button>
                   </td>
                   <td className="p-3 text-center">
                     <button
