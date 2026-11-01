@@ -813,7 +813,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           </button>
         </div>
 
-        {/* التحصيلات */}
+        {/* التحصيلات - مزال حسب الطلب */}
+        {/* 
         <div className="bg-white rounded-2xl border border-violet-100 shadow-sm p-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-12 h-12 rounded-xl bg-violet-50 text-violet-500 flex items-center justify-center shrink-0">
@@ -837,6 +838,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <ChevronLeft className="w-4 h-4" />
           </button>
         </div>
+        */}
       </div>
 
       {/* 3. Filter Bar */}
