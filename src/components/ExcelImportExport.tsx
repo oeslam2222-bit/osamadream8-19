@@ -1060,11 +1060,22 @@ function onEdit(e) {
           </div>
         </div>
 
-        {/* Master Sync Progress Alert */}
+        {/* Master Sync Progress Bar */}
         {masterSyncProgress && (
-          <div className="bg-[var(--app-ok)] border border-[var(--app-ok)] text-[#0d9488] p-4 rounded-2xl text-xs sm:text-sm flex items-center gap-3 animate-in fade-in">
-            <RefreshCw className="w-5 h-5 text-[#0d9488] animate-spin shrink-0" />
-            <span className="font-bold">{masterSyncProgress}</span>
+          <div className="bg-surface border border-border-primary rounded-3xl p-6 shadow-lg animate-in fade-in slide-in-from-top-4">
+            <div className="flex items-center justify-between gap-4 mb-3">
+              <span className="font-black text-primary text-sm">جاري المزامنة</span>
+              <span className="text-muted text-xs font-mono">{masterSyncProgress}</span>
+            </div>
+            <div className="w-full bg-border-primary/30 h-3 rounded-full overflow-hidden border border-border-primary/50">
+              <div
+                className="h-full bg-accent text-inverse transition-all duration-500 ease-out animate-pulse"
+                style={{ width: '60%' }}
+              />
+            </div>
+            <p className="mt-3 text-muted text-[10px] leading-relaxed">
+              يتم معالجة البيانات في الخلفية. يمكنك الاستمرار في استخدام التطبيق أثناء المزامنة.
+            </p>
           </div>
         )}
 

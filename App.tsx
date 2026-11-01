@@ -33,6 +33,7 @@ import { VisitsDashboard } from './components/VisitsDashboard';
 import { LegalAdvisorDashboard } from './components/LegalAdvisorDashboard';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
+import { Onboarding } from './components/Onboarding';
 import { AppProvider, useApp } from './context/AppContext';
 import { AuthProvider } from './context/authContext';
 import { InvoiceProvider } from './context/invoiceContext';
@@ -61,11 +62,17 @@ const MainLayout: React.FC = () => {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
 
   // Everyone lands on the numbers command center after login.
   useEffect(() => {
     if (currentUser) {
       setActiveTab((prev) => (prev === 'catalog' ? 'home' : prev));
+      // Show onboarding on first login only
+      const completed = localStorage.getItem('tantawy_onboarding_completed');
+      if (!completed) {
+        setOnboardingOpen(true);
+      }
     }
   }, [currentUser?.id]);
 
@@ -231,6 +238,13 @@ const MainLayout: React.FC = () => {
           />
         )}
       </Suspense>
+
+      {/* Onboarding Tour (first login) */}
+      <Onboarding
+        isOpen={onboardingOpen}
+        onClose={() => setOnboardingOpen(false)}
+        onComplete={() => setOnboardingOpen(false)}
+      />
 
       {/* Bottom Footer */}
       <footer className="bg-white border-t border-slate-200 py-4 px-4 text-center text-xs text-slate-500 print:hidden mb-16 md:mb-0">
