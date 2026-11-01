@@ -73,7 +73,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, heroImage }) =>
       {/* ===== سطح المكتب: لوحة الخلفية (صورة المبنى + الشاحنة أو تدرج لوني) ===== */}
       <div className="hidden lg:flex lg:w-1/2 flex-col items-end justify-end relative">
         {heroImage ? (
-          <div className="absolute inset-0 bg-[url('heroImage')] bg-cover bg-center" style={{ opacity: 0.82 }} />
+          <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${heroImage})`, opacity: 0.82 }} />
         ) : null}
         <div className="absolute inset-0 bg-gradient-to-r from-[#0f2b38]/92 via-[#0f2b38]/40 to-transparent" />
         <div className="absolute top-[-8%] right-[-10%] w-[55%] h-[55%] rounded-full bg-amber-500/12 blur-[140px]" />
@@ -192,7 +192,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, heroImage }) =>
                 type="checkbox"
                 checked={rememberMe}
                 onChange={() => setRememberMe(!rememberMe)}
-                className="w-4 h-4 rounded border-slate-300 bg-white accent-[color:var(--brand-teal)] focus:ring-[color:var(--brand-teal)]"
+                className="w-4 h-4 rounded border-slate-300 bg-white focus:ring-[color:var(--brand-teal)]"
                 style={{ accentColor: 'var(--brand-teal)' }}
               />
               <span>تذكرني على هذا الجهاز</span>
@@ -202,7 +202,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess, heroImage }) =>
             <button
               type="submit"
               disabled={isLoggingIn}
-              className="w-full h-12 rounded-xl font-black text-sm text-white cursor-pointer active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed hover:brightness-105 transition-colors"
+              className="w-full h-12 rounded-xl font-black text-sm text-white cursor-pointer active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
               style={{
                 background: 'linear-gradient(135deg, #009488 0%, #0f7b6e 100%)',
                 border: 'none',
