@@ -229,7 +229,7 @@ export interface CustomerVisit {
    * القديمة ممكن تحمل أي من المجموعتين، فالاتنين مقبولين.
    */
   type?: 'زيارة دورية' | 'تحصيل' | 'تسليم بضاعة' | 'حل مشكلة' | 'فتح حساب جديد'
-      | 'زيارة تحصيل' | 'زيارة بيع وطلبية' | 'متابعة حساب' | 'زيارة مجدولة' | 'زيارة مباشرة' | 'مرتجع' | 'فاتورة مرتجع لدي العميل' | 'متابعة' | 'أخرى';
+      | 'زيارة تحصيل' | 'زيارة بيع وطلبية' | 'متابعة حساب' | 'زيارة مجدولة' | 'زيارة مباشرة' | 'مرتجع' | 'فاتورة مرتجع لدي العميل' | 'متابعة' | 'أمر بيع' | 'أخرى';
   outcome?: 'تم عمل طلبية' | 'تم التحصيل' | 'تأجيل سداد' | 'المحل مغلق' | 'متابعة فقط' | 'مرتجع لدي العميل' | 'أخرى';
   collectedAmount?: number;          // المبلغ المحصل إن وجد
   invoiceNumber?: string;            // رقم الفاتورة أو المستند المرتبط
@@ -706,6 +706,8 @@ export interface CloudinaryConfig {
   matchingPattern: 'auto' | 'code' | 'name' | 'slug' | 'custom_url';
   fileExtension: 'jpg' | 'png' | 'webp' | 'auto';
   baseUrlPattern: string;
+  /** Cloudinary unsigned upload preset (اختياري — لرفع صور الزيارات/المرتجعات) */
+  uploadPreset?: string;
 }
 
 export interface ExcelColumnMapping {

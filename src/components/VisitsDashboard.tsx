@@ -20,12 +20,15 @@ import {
   Banknote,
   ChevronLeft,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  AlertTriangle
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import type { CustomerVisit, ReturnedItem, Product, VisitItem } from '../types';
 import { EmptyState } from './ui/EmptyState';
+import { OrderBuilderModal } from './OrderBuilderModal';
+import { uploadImageToCloudinary } from '../services/cloudinaryService';
 
 const SIMPLE_VISIT_TYPES: { id: string; label: string; color: string }[] = [
   { id: 'دورية', label: 'زيارة دورية', color: 'bg-blue-50 text-blue-700 border-blue-100' },
@@ -57,6 +60,8 @@ export const VisitsDashboard: React.FC = () => {
     getVisibleProducts,
     addVisit,
     createStandaloneReturn,
+    updateVisit,
+    cloudinaryConfig,
   } = useApp();
 
   const visible = getVisibleVisits();
@@ -74,6 +79,15 @@ export const VisitsDashboard: React.FC = () => {
   const [flash, setFlash] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [showCreditOverride, setShowCreditOverride] = useState(false);
   const [showOrderModal, setShowOrderModal] = useState(false);
+  const [showOrderBuilder, setShowOrderBuilder] = useState(false);
+  const [pendingVisitData, setPendingVisitData] = useState<{
+    visit: any;
+    orderAmount: number;
+    orderNotes: string;
+    orderPaymentMethod: string;
+    creditOverrideDetail: any;
+  } | null>(null);
+  const [uploadingImages, setUploadingImages] = useState(false);
   const [creditWarning, setCreditWarning] = useState<{
     exceeded: boolean;
     balanceBefore: number;
@@ -227,7 +241,7 @@ export const VisitsDashboard: React.FC = () => {
     return errors.length === 0;
   };
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
 
@@ -254,6 +268,39 @@ export const VisitsDashboard: React.FC = () => {
       });
     } else {
       setCreditWarning(null);
+    }
+
+    // إذا كان أمر بيع وتجاوز الائتمان، نعرض شاشة التفاصيل أولًا ولا نحفظ الزيارة بعد
+    if (form.type === 'أمر بيع' && creditWarning && creditWarning.exceeded) {
+      setShowCreditOverride(true);
+      return;
+    }
+
+    // رفع صور المرتجع عبر Cloudinary إذا كانت زيارة مرتجع
+    let uploadedReturnImages: string[] = [];
+    if (isReturn && form.returnImages && form.returnImages.length > 0) {
+      setUploadingImages(true);
+      try {
+        const uploadResults = await Promise.all(
+          form.returnImages.map(async (imgUrl: string) => {
+            if (imgUrl.includes('res.cloudinary.com') || imgUrl.includes('googleapis.com') || imgUrl.includes('googleusercontent.com')) {
+              return imgUrl;
+            }
+            try {
+              const response = await fetch(imgUrl);
+              const blob = await response.blob();
+              const file = new File([blob], `return_${Date.now()}.jpg`, { type: 'image/jpeg' });
+              const { url } = await uploadImageToCloudinary(file, cloudinaryConfig, 'tantawy_returns');
+              return url;
+            } catch {
+              return imgUrl;
+            }
+          })
+        );
+        uploadedReturnImages = uploadResults;
+      } finally {
+        setUploadingImages(false);
+      }
     }
 
     const result = addVisit({
@@ -295,7 +342,7 @@ export const VisitsDashboard: React.FC = () => {
         : '',
       returnStatus: isReturn ? 'بانتظار المشرف' : undefined,
       returnNote: isReturn ? `مرتجع من زيارة ${form.date} - ${form.returnReason}` : undefined,
-      returnImages: isReturn ? form.returnImages : undefined,
+      returnImages: isReturn ? uploadedReturnImages : undefined,
       allowSameDaySecondVisit: isReturn ? true : undefined,
       visitItems: form.visitItems.length > 0 ? form.visitItems : undefined,
       creditOverrideDetail:
@@ -317,6 +364,8 @@ export const VisitsDashboard: React.FC = () => {
       setFlash({ tone: 'error', text: result.message });
       return;
     }
+
+    const savedVisit = result.visit;
 
     if (isReturn) {
       const manualItems: ReturnedItem[] = form.returnItems.map((item) => ({
@@ -349,13 +398,23 @@ export const VisitsDashboard: React.FC = () => {
         setFlash({ tone: 'error', text: created.message });
         return;
       }
-      setFlash({ tone: 'success', text: `${created.message} — تم إشعار الإدارة للمراجعة.` });
+      setFlash({
+        tone: 'success',
+        text: `${created.message} — تم تسجيل المرتجع كزيارة وتحويله لصفحة المرتجعات ✅`,
+      });
+    } else if (form.type === 'أمر بيع') {
+      // فتح OrderBuilderModal لإنشاء الأمر الكامل بالأصناف من الكتالوج
+      setPendingVisitData({
+        visit: savedVisit,
+        orderAmount: form.orderAmount,
+        orderNotes: form.orderNotes,
+        orderPaymentMethod: form.orderPaymentMethod,
+        creditOverrideDetail:
+          form.type === 'أمر بيع' && creditWarning ? creditWarning : undefined,
+      });
+      setShowOrderBuilder(true);
     } else {
-      if (form.type === 'أمر بيع' && creditWarning && creditWarning.exceeded) {
-        setShowCreditOverride(true);
-      } else {
-        setFlash({ tone: 'success', text: 'تم حفظ الزيارة بنجاح ✅' });
-      }
+      setFlash({ tone: 'success', text: 'تم حفظ الزيارة بنجاح ✅' });
     }
 
     setShowForm(false);
@@ -1152,7 +1211,15 @@ export const VisitsDashboard: React.FC = () => {
                     <select
                       value={form.orderPaymentMethod}
                       onChange={(e) =>
-                        setForm({ ...form, orderPaymentMethod: e.target.value })
+                        setForm({
+                          ...form,
+                          orderPaymentMethod: e.target.value as
+                            | 'نقدي (كاش)'
+                            | 'آجل (30 يوم)'
+                            | 'آجل (60 يوم)'
+                            | 'تحويل بنكي'
+                            | 'شيك',
+                        })
                       }
                       className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
@@ -1168,7 +1235,7 @@ export const VisitsDashboard: React.FC = () => {
                     <textarea
                       value={form.orderNotes}
                       onChange={(e) => setForm({ ...form, orderNotes: e.target.value })}
-                      rows="2"
+                      rows={2}
                       className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="ملاحظات إضافية على الأمر..."
                     />
@@ -1458,7 +1525,7 @@ export const VisitsDashboard: React.FC = () => {
                   <textarea
                     value={form.creditOverrideReason}
                     onChange={(e) => setForm({ ...form, creditOverrideReason: e.target.value })}
-                    rows="4"
+                    rows={4}
                     className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="اكتب تفاصيل سبب التجاوز ومبررات الموافقة على الأمر..."
                   />
@@ -1498,6 +1565,62 @@ export const VisitsDashboard: React.FC = () => {
             )}
           </div>
         </div>
+      )}
+
+      {/* 6.6. Modal: بناء أمر البيع الكامل بالأصناف */}
+      {showOrderBuilder && (
+        <OrderBuilderModal
+          isOpen={showOrderBuilder}
+          initialCustomer={
+            pendingVisitData?.visit?.customerId
+              ? myCustomers.find((x) => x.id === pendingVisitData.visit.customerId) || null
+              : null
+          }
+          onClose={() => {
+            setShowOrderBuilder(false);
+            setPendingVisitData(null);
+          }}
+          onInvoiceCreated={(invoice) => {
+            // ربط الزيارة بالأمر + إعداد الموافقة المزدوجة ومرحلة دورة الحياة
+            if (pendingVisitData?.visit && updateVisit) {
+              const isCreditExceeded = Boolean(pendingVisitData.creditOverrideDetail?.exceeded);
+              updateVisit({
+                ...pendingVisitData.visit,
+                orderCreatedId: invoice.id,
+                linkedOrderNumber: invoice.invoiceNumber,
+                orderAmount: invoice.estimatedGrandTotal,
+                orderLifecycleStage: isCreditExceeded
+                  ? 'في انتظار اعتماد الإدارة'
+                  : 'في انتظار اعتماد المشرف',
+                orderApprovalTrail: {
+                  firstApprovalStatus: 'pending',
+                  finalApprovalStatus: 'pending',
+                },
+                creditOverrideDetail: isCreditExceeded
+                  ? {
+                      exceeded: true,
+                      customerBalanceBefore: pendingVisitData.creditOverrideDetail.balanceBefore,
+                      customerCreditLimit: pendingVisitData.creditOverrideDetail.creditLimit,
+                      customerBalanceAfter: pendingVisitData.creditOverrideDetail.balanceAfter,
+                      overdueBalance: pendingVisitData.creditOverrideDetail.overdueBalance,
+                      requiredDownPayment: pendingVisitData.creditOverrideDetail.requiredDownPayment,
+                      overrideReason: form.creditOverrideReason || 'تجاوز حد الائتمان',
+                      overridePending: true,
+                    }
+                  : pendingVisitData.visit.creditOverrideDetail,
+                notes: [pendingVisitData.visit.notes, pendingVisitData.orderNotes]
+                  .filter(Boolean)
+                  .join('\n'),
+              });
+            }
+            setShowOrderBuilder(false);
+            setPendingVisitData(null);
+            setFlash({
+              tone: 'success',
+              text: `تم إنشاء أمر البيع ${invoice.invoiceNumber} وربطه بالزيارة — بانتظار موافقة المشرف/مدير الفرع ثم الإدارة ✅`,
+            });
+          }}
+        />
       )}
 
       {/* 7. Modal: تفاصيل الزيارة */}
@@ -1563,6 +1686,76 @@ export const VisitsDashboard: React.FC = () => {
                   </p>
                 </div>
               </div>
+
+              {/* الموافقة المزدوجة ودورة حياة أمر البيع */}
+              {selectedVisit.type === 'أمر بيع' && (
+                <div className="p-3 rounded-2xl border border-indigo-100 bg-indigo-50/40 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-black text-indigo-800">🛒 أمر البيع</span>
+                    {selectedVisit.linkedOrderNumber && (
+                      <span className="font-mono font-bold text-indigo-700">
+                        {selectedVisit.linkedOrderNumber}
+                      </span>
+                    )}
+                  </div>
+                  {selectedVisit.orderLifecycleStage && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-500 font-bold">المرحلة الحالية:</span>
+                      <span className="px-2 py-0.5 rounded-lg bg-indigo-600 text-white font-black text-[10px]">
+                        {selectedVisit.orderLifecycleStage}
+                      </span>
+                    </div>
+                  )}
+                  {selectedVisit.orderApprovalTrail && (
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <div className="p-2 rounded-xl bg-white border border-slate-100">
+                        <div className="text-[10px] text-slate-400 font-bold">اعتماد المشرف/مدير الفرع</div>
+                        <div
+                          className={`font-black mt-0.5 ${
+                            selectedVisit.orderApprovalTrail.firstApprovalStatus === 'approved'
+                              ? 'text-emerald-600'
+                              : selectedVisit.orderApprovalTrail.firstApprovalStatus === 'rejected'
+                              ? 'text-rose-600'
+                              : 'text-amber-600'
+                          }`}
+                        >
+                          {selectedVisit.orderApprovalTrail.firstApprovalStatus === 'approved'
+                            ? 'معتمد ✅'
+                            : selectedVisit.orderApprovalTrail.firstApprovalStatus === 'rejected'
+                            ? 'مرفوض ❌'
+                            : 'بانتظار الاعتماد ⏳'}
+                        </div>
+                      </div>
+                      <div className="p-2 rounded-xl bg-white border border-slate-100">
+                        <div className="text-[10px] text-slate-400 font-bold">الاعتماد النهائي (الإدارة/القطاع)</div>
+                        <div
+                          className={`font-black mt-0.5 ${
+                            selectedVisit.orderApprovalTrail.finalApprovalStatus === 'approved'
+                              ? 'text-emerald-600'
+                              : selectedVisit.orderApprovalTrail.finalApprovalStatus === 'rejected'
+                              ? 'text-rose-600'
+                              : 'text-amber-600'
+                          }`}
+                        >
+                          {selectedVisit.orderApprovalTrail.finalApprovalStatus === 'approved'
+                            ? 'معتمد ✅'
+                            : selectedVisit.orderApprovalTrail.finalApprovalStatus === 'rejected'
+                            ? 'مرفوض ❌'
+                            : 'بانتظار الاعتماد ⏳'}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {selectedVisit.creditOverrideDetail?.exceeded && (
+                    <div className="mt-1 p-2 rounded-xl bg-rose-50 border border-rose-100">
+                      <div className="font-bold text-rose-700 text-[11px]">⚠️ تجاوز حد الائتمان</div>
+                      <p className="text-[10px] text-slate-600 mt-1">
+                        {selectedVisit.creditOverrideDetail.overrideReason || '—'}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* المبالغ */}
               {(selectedVisit.collectedAmount > 0 || selectedVisit.returnValue > 0) && (
