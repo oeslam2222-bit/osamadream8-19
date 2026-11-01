@@ -979,6 +979,13 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               <span>فاتورة مكتملة متوفرة بالمخزن</span>
                             </span>
                           )}
+                          {invoice.creditOverrideRequested && invoice.creditOverrideStatus === 'pending' && (
+                            <div className="flex items-center gap-1 mt-1 animate-pulse">
+                              <span className="bg-[var(--app-risk)] text-white px-2 py-1 rounded-md text-[10px] font-black font-bold shadow-[0_0_0_3px_rgba(239,68,68,0.4)]">
+                                🚨 طلب استثناء خاص - في الانتظار
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </td>
 
