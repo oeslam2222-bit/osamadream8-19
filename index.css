@@ -383,6 +383,65 @@ button svg,
   table { min-width: 620px; }
   .overflow-x-auto { -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
 
+  /* === كتالوج المنتجات: جدول سطح المكتب (ERP Table View) === */
+  /* إجبار ظهور شريط تمرير أفقي ناعم عندما لا يسع عرض الشاشة جميع الأعمدة */
+  .catalog-erp-wrap {
+    overflow-x: auto;
+  }
+  /* حد أدنى للعرض يبقي الجدول قابلاً للتمرير بدلاً من كسر تخطيط الصفحة */
+  .catalog-erp-wrap table {
+    min-width: 620px;
+  }
+  /* السماح للخلايا بالانكماش تحت حجم محتواها الداخلي (ضروري لعمل overflow-x-auto في الجداول) */
+  .catalog-erp-wrap th,
+  .catalog-erp-wrap td {
+    min-width: 0;
+  }
+  /* الاسم الطويل يُقطع بنقاط بدلاً من أن يخرج من حدود الخلية */
+  .catalog-erp-wrap td[title] {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ===== قواعد responsive عالمية لكل الجداول والتخطيطات في النظام ===== */
+  /* أي جدول داخل overflow-x-auto يجب أن يكون له min-width للتمرير الآمن */
+  .overflow-x-auto table,
+  .overflow-x-auto > table {
+    min-width: 600px;
+  }
+  /* الخلايا في أي جدول مُمرر أفقياً يمكنها الانكماش تحت محتواها */
+  .overflow-x-auto th,
+  .overflow-x-auto td {
+    min-width: 0;
+  }
+  /* الشبكات الكبيرة تتقلص لعمودين على الشاشات الصغيرة */
+  @media (max-width: 1023px) {
+    [class*="grid-cols-4"]:not(.keep-grid),
+    [class*="grid-cols-3"]:not(.keep-grid) {
+      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+    [class*="grid-cols-2"]:not(.keep-grid) {
+      grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+    }
+  }
+  /* على الموبايل الصغير جداً: كل الشبكة عمود واحد */
+  @media (max-width: 639px) {
+    [class*="grid-cols-4"]:not(.keep-grid),
+    [class*="grid-cols-3"]:not(.keep-grid),
+    [class*="grid-cols-2"]:not(.keep-grid) {
+      grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+    }
+    table {
+      min-width: 560px;
+      font-size: 12px;
+    }
+    th, td {
+      padding: 0.5rem 0.4rem !important;
+      font-size: 12px !important;
+    }
+  }
+
   /* Dialog-like fixed surfaces use the full viewport on phones. */
   [role="dialog"] {
     max-width: none !important;

@@ -1129,8 +1129,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       </div>
 
       {/* ERP Table View (Desktop\/Laptop) */}
-      <div className="hidden lg:block overflow-x-auto border border-border-primary rounded-3xl shadow-lg bg-surface animate-in mi-fade-in">
-        <table className="w-full text-left border-collapse text-sm">
+      <div className="catalog-erp-wrap hidden lg:block overflow-x-auto border border-border-primary rounded-3xl shadow-lg bg-surface animate-in mi-fade-in">
+        <table className="catalog-erp-table w-full text-left border-collapse text-sm">
           <thead className="bg-navy text-white font-extrabold border-b border-navy/50 uppercase tracking-wider">
             <tr>
               <th className="p-3 text-right w-16 text-white font-black uppercase tracking-tighter">#</th>
