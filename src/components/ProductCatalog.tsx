@@ -268,6 +268,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     if (p.sector === 'home') return false;
     const checkStr = `${p.department || ''} ${p.category || ''} ${p.itemGroup || ''} ${p.familyName || ''} ${p.name || ''}`.toLowerCase();
     return (
+      // Arabic keywords
       checkStr.includes('كهربا') ||
       checkStr.includes('لمبة') ||
       checkStr.includes('مفتاح') ||
@@ -278,9 +279,20 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       checkStr.includes('فيشة') ||
       checkStr.includes('لقمة') ||
       checkStr.includes('وش') ||
-      checkStr.includes('دواية') ||
       checkStr.includes('سبوت') ||
-      checkStr.includes('كشاف')
+      checkStr.includes('كشاف') ||
+      // English keywords (for Excel-synced products)
+      checkStr.includes('electrical') ||
+      checkStr.includes('electric') ||
+      checkStr.includes('cable') ||
+      checkStr.includes('wire') ||
+      checkStr.includes('switch') ||
+      checkStr.includes('bulb') ||
+      checkStr.includes('lamp') ||
+      checkStr.includes('socket') ||
+      checkStr.includes('plug') ||
+      checkStr.includes('breaker') ||
+      checkStr.includes('fuse')
     );
   }, []);
 
