@@ -16,6 +16,7 @@ export interface CustomerFilterBarState {
   selectedBranch: string;
   selectedSupervisor: string;
   selectedRep: string;
+  selectedSector: 'all' | 'home' | 'electrical' | 'both';
   selectedRegion: string;
   eligibilityFilter: EligibilityFilter;
   debtStatusFilter: string;
@@ -32,6 +33,7 @@ export interface CustomerFilterBarOptions {
   supervisors: string[];
   reps: string[];
   regions: string[];
+  sectors: ('home' | 'electrical' | 'both')[];
   debtStatuses: string[];
 }
 
@@ -344,6 +346,21 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
                   {options.reps.map((rep) => (
                     <option key={rep} value={rep}>{rep}</option>
                   ))}
+                </select>
+              </label>
+            )}
+
+            {options.sectors && options.sectors.length > 0 && (
+              <label className="cf-field">
+                <span>القطاع</span>
+                <select
+                  value={value.selectedSector}
+                  onChange={(event) => onChange({ selectedSector: event.target.value as any })}
+                >
+                  <option value="all">جميع القطاعات</option>
+                  <option value="home">منزلي 🏠</option>
+                  <option value="electrical">كهرباء ⚡</option>
+                  <option value="both">القطاعين 🏢</option>
                 </select>
               </label>
             )}
