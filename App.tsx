@@ -62,7 +62,7 @@ const TabLoadingSkeleton = () => (
 const MainLayout: React.FC = () => {
   const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
 
-  const [activeTab, setActiveTab] = useState<string>('catalog');
+  const [activeTab, setActiveTab] = useState<string>('home');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
