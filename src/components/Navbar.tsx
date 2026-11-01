@@ -59,6 +59,8 @@ interface NavbarProps {
   onToggleSidebar?: () => void;
   isDark: boolean;
   setIsDark: (dark: boolean) => void;
+  notificationCount?: number;
+  onOpenNotificationCenter?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -68,7 +70,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   isSidebarCollapsed = false,
   onToggleSidebar,
   isDark,
-  setIsDark
+  setIsDark,
+  notificationCount = 0,
+  onOpenNotificationCenter
 }) => {
   const {
     currentUser,
@@ -308,6 +312,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Settings className="w-4 h-4 text-[var(--app-warn-text)]" />
               <span className="hidden sm:inline">الإعدادات وعن النظام</span>
             </button>
+
+            {/* Notifications Button */}
+            {onOpenNotificationCenter && (
+              <button
+                type="button"
+                onClick={onOpenNotificationCenter}
+                className={`flex items-center justify-center gap-1.5 px-3 h-11 rounded-xl text-xs font-black border border-[var(--app-line)] bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer shadow-2xs active:scale-95 relative group`}
+                title={`الإشعارات (${notificationCount} غير مقروء)`}
+                aria-label="مركز الإشعارات"
+              >
+                <Bell className={`w-4 h-4 shrink-0 ${notificationCount > 0 ? "text-rose-500 animate-bounce" : "text-slate-500"}`} />
+                {notificationCount > 0 && (
+                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border border-white border-2"></span>
+                )}
+                <span className="hidden sm:inline">الإشعارات</span>
+              </button>
+            )}
+
 
             {/* Dark/Light Mode Toggle Button */}
             <button

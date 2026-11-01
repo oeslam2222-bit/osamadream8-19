@@ -35,6 +35,7 @@ import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
 import { Onboarding } from './components/Onboarding';
 import { SplashScreen } from './components/SplashScreen';
+import { NotificationCenter } from './components/NotificationCenter';
 import { ToastProvider } from './components/ui/Toast';
 import { AppProvider, useApp } from './context/AppContext';
 import { AuthProvider } from './context/authContext';
@@ -43,7 +44,7 @@ import { InvoiceProvider } from './context/invoiceContext';
 import { CustomerProvider } from './context/customerContext';
 import { InventoryProvider } from './context/inventoryContext';
 import { SyncProvider } from './context/syncContext';
-import { Customer, Invoice } from './types';
+import { Customer, Invoice, NotificationItem } from './types';
 
 // Lightweight Skeleton for tab transitions
 const TabLoadingSkeleton = () => (
@@ -66,6 +67,7 @@ const MainLayout: React.FC = () => {
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
   const [splashOpen, setSplashOpen] = useState(() => {
     try {
       return localStorage.getItem('tantawy_splash_seen') !== 'true';
@@ -73,6 +75,70 @@ const MainLayout: React.FC = () => {
       return true;
     }
   });
+
+  // Notifications state
+  const [notifications, setNotifications] = useState<NotificationItem[]>([
+    {
+      id: 'n1',
+      type: 'system',
+      title: 'تم تشغيل النظام بنجاح',
+      message: 'مرحباً بك في منظومة مجموعة الطنطاوي. جميع الأنظمة تعمل بشكل طبيعي.',
+      time: 'منذ بضع ثوانٍ',
+      read: false,
+    },
+    {
+      id: 'n2',
+      type: 'task',
+      title: 'مهمة جديدة: زيارة عملاء الفيوم',
+      message: 'لديك 5 عملاء مقرر زيارتهم اليوم في فرع الفيوم.',
+      time: 'منذ 5 دقائق',
+      read: false,
+    },
+    {
+      id: 'n3',
+      type: 'warning',
+      title: 'مخزون منخفض: صنف كاسات زجاج',
+      message: 'رصيد مخزن أكتوبر للصنف (كاسات زجاج 330 مل) قد انخفض عن الحد الأدنى.',
+      time: 'منذ 12 دقيقة',
+      read: false,
+    },
+    {
+      id: 'n4',
+      type: 'info',
+      title: 'تحديث بيانات الأصناف',
+      message: 'تم تحديث أسعار 15 صنف من قاعدة البيانات المركزية.',
+      time: 'منذ ساعة',
+      read: true,
+    },
+    {
+      id: 'n5',
+      type: 'success',
+      title: 'تم اعتماد الفاتورة #INV-2026-0045',
+      message: 'تم اعتماد الفاتورة من قبل المشرف وتحويلها للحسابات.',
+      time: 'منذ 3 ساعات',
+      read: true,
+    },
+  ]);
+
+  const addNotification = useCallback((notification: Omit<NotificationItem, 'id'>) => {
+    const id = `n${Date.now()}`;
+    setNotifications((prev) => [{ ...notification, id }, ...prev].slice(0, 50));
+  }, []);
+
+  const markNotificationRead = useCallback((id: string) => {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  }, []);
+
+  const markAllNotificationsRead = useCallback(() => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }, []);
+
+  const deleteNotification = useCallback((id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  }, []);
+
+  const unreadNotificationCount = notifications.filter((n) => !n.read).length;
+
   const [isDark, setIsDark] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('tantawy_dark_mode');
@@ -150,6 +216,8 @@ const MainLayout: React.FC = () => {
         onOpenCart={() => setIsOrderModalOpen(true)}
         isDark={isDark}
         setIsDark={setIsDark}
+        notificationCount={unreadNotificationCount}
+        onOpenNotificationCenter={() => setNotificationCenterOpen(true)}
       />
 
       {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}
@@ -294,6 +362,23 @@ const MainLayout: React.FC = () => {
       </footer>
 
     </div>
+
+      {/* Notification Center */}
+      <NotificationCenter
+        isOpen={notificationCenterOpen}
+        onClose={() => setNotificationCenterOpen(false)}
+        notifications={notifications}
+        onMarkRead={markNotificationRead}
+        onMarkAllRead={markAllNotificationsRead}
+        onDelete={deleteNotification}
+        onNotificationClick={(n) => {
+          setNotificationCenterOpen(false);
+          if (n.actionUrl) {
+            // يمكن التنقل لصفحة الإجراء هنا
+          }
+        }}
+      />
+
       </ToastProvider>
   );
 };

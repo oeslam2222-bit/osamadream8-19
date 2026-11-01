@@ -869,3 +869,17 @@ export interface CustomerItemSalesSummary {
   linkedAddress?: string;
 }
 
+/**
+ * إشعار نظامي للمستخدم في مركز الإشعارات الداخلي
+ */
+export interface NotificationItem {
+  id: string;
+  type: 'system' | 'task' | 'warning' | 'info' | 'success';
+  title: string;
+  message: string;
+  time: string;
+  read: boolean;
+  actionUrl?: string;
+  actionLabel?: string;
+}
+
