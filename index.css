@@ -1150,3 +1150,62 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
   from { opacity: 0; transform: translateX(20px); }
   to { opacity: 1; transform: translateX(0); }
 }
+/* ============================================================
+   صفحة تسجيل الدخول المحسّنة — Tantawy Group
+   ============================================================ */
+.login-canvas {
+  background: linear-gradient(180deg, #0f172a 0%, #0f2b38 45%, #16324f 100%);
+  min-height: 100dvh;
+}
+.login-glow > div {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  mix-blend-mode: overlay;
+  opacity: 0.35;
+}
+.login-card {
+  position: relative;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.5);
+}
+.login-input {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  transition: all 0.2s ease;
+}
+.login-input:focus {
+  border-color: var(--app-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 148, 136, 0.12);
+}
+.login-btn {
+  background: linear-gradient(135deg, #0f2b38 0%, #14537a 100%);
+  color: #fff;
+  transition: all 0.2s ease;
+}
+.login-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #154050 0%, #1e6f9e 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 25px -5px rgba(15, 43, 56, 0.35);
+}
+.login-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+.login-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.login-link {
+  color: var(--app-accent);
+  font-weight: 700;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.login-link:hover {
+  color: #0f766e;
+  text-decoration: underline;
+}

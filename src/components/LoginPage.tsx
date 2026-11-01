@@ -57,92 +57,94 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   };
 
   return (
-    <div dir="rtl" className="login-canvas min-h-[100dvh] text-slate-soft7 flex flex-col justify-center items-center p-3 sm:p-6 antialiased selection:bg-[rgba(201,154,67,.28)]">
-      {/* Background decoration */}
+    <div dir="rtl" className="login-canvas min-h-[100dvh] flex items-center justify-center p-3 sm:p-6 antialiased selection:bg-[rgba(0,148,136,.15)]">
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full bg-[color:var(--app-navy)]/40 blur-[120px] mix-blend-overlay" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-amber-500/20 blur-[100px] mix-blend-overlay" />
+        <div className="absolute top-[-20%] left-[-20%] w-[70%] h-[70%] rounded-full bg-[color:var(--app-accent)]/10 blur-[140px]" />
+        <div className="absolute bottom-[-15%] right-[-10%] w-[60%] h-[60%] rounded-full bg-[color:var(--app-navy)]/60 blur-[130px]" />
+        <div className="absolute top-[10%] right-[20%] w-[40%] h-[30%] rounded-full bg-amber-500/8 blur-[110px]" />
       </div>
 
-      <div className="relative z-10 w-full max-w-md my-4">
-        {/* Header Branding */}
+      <div className="relative z-10 w-full max-w-[440px] my-4">
         <div className="text-center mb-8">
-          <div className="login-chip w-24 h-24 sm:w-28 sm:h-28 p-2 mx-auto mb-4 bg-white/90 rounded-2xl shadow-xl border border-white/20">
-            <img src="/tantawy-brand-logo.svg?v=3.1" alt="Tantawy Group - مجموعة الطنطاوي" className="w-full h-full object-contain rounded-lg" />
+          <div className="login-chip inline-block w-20 h-20 sm:w-24 sm:h-24 p-2 mx-auto mb-5 bg-white rounded-2xl shadow-xl border border-white/30">
+            <img src="/tantawy-brand-logo.svg?v=3.1" alt="Tantawy Group" className="w-full h-full object-contain rounded-lg" />
           </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-            <span>مجموعة الطنطاوي</span>
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-[color:var(--app-navy)]">
+            مرحباً بعودتك
           </h1>
-          <p className="text-xs sm:text-sm text-blue-soft3 mt-2 max-w-sm mx-auto font-medium leading-relaxed">
-            نظام إدارة المبيعات والفروع والمخازن المركزية • TANTAWY GROUP
+          <p className="text-sm text-slate-600 mt-2 max-w-sm mx-auto font-medium leading-relaxed">
+            تسجيل الدخول إلى نظام مجموعة الطنطاوي
           </p>
         </div>
 
-        {/* Card Box */}
         <div className="login-card p-6 sm:p-8 relative z-10">
-          <div className="flex items-center justify-between pb-4 mb-6 border-b border-edf">
+          <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-200/60">
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-[12px] bg-[color:var(--app-navy)] text-[color:var(--app-accent)] flex items-center justify-center font-bold shadow-[0_4px_12px_rgba(15,35,61,.35)]">
+              <div className="w-10 h-10 rounded-[12px] bg-[color:var(--app-navy)] text-white flex items-center justify-center font-bold shadow-md shadow-[color:var(--app-navy)]/20">
                 <LogIn className="w-5 h-5" />
               </div>
-              <div>
-                <h2 className="font-black text-sm sm:text-base text-deep-slate leading-tight">تسجيل الدخول للنظام</h2>
-                <p className="text-[11px] text-muted-dark">للمطورين، المديرين، المشرفين، والمناديب</p>
-              </div>
+              <h2 className="text-base font-black text-[color:var(--app-navy)]">تسجيل الدخول</h2>
             </div>
             <ShieldCheck className="w-5 h-5 text-[color:var(--app-accent)]" />
           </div>
 
-          <form onSubmit={handleLoginSubmit} className="space-y-5">
-            {authTerminationNotice && (
-              <div className="login-msg-risk p-3.5 text-xs flex items-start gap-2.5 rounded-xl bg-rose-50/60 border border-rose-200/50">
-                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-rose-600" />
-                <div className="flex-1 font-bold leading-relaxed text-rose-800">{authTerminationNotice}</div>
-              </div>
-            )}
+          {authTerminationNotice && (
+            <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-100 flex items-start gap-3 text-sm">
+              <AlertCircle className="w-4 h-4 text-rose-600 mt-0.5 shrink-0" />
+              <p className="text-rose-700 font-medium leading-relaxed">{authTerminationNotice}</p>
+            </div>
+          )}
 
-            {loginError && (
-              <div className="login-msg-risk p-3 text-xs flex items-start gap-2 rounded-xl bg-rose-50/60 border border-rose-200/50">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
-                <div className="text-rose-800 font-bold">{loginError}</div>
-              </div>
-            )}
+          {loginError && (
+            <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-100 flex items-start gap-3 text-sm">
+              <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 shrink-0" />
+              <p className="text-red-700 font-medium leading-relaxed">{loginError}</p>
+            </div>
+          )}
 
-            {/* Identifier (Email / Username) */}
+          <form onSubmit={handleLoginSubmit} className="space-y-4">
             <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-dark text-right">
-                البريد الإلكتروني أو اسم المستخدم
+              <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
+                اسم المستخدم أو البريد الإلكتروني
               </label>
               <div className="relative group">
                 <input
                   type="text"
                   value={loginIdentifier}
                   onChange={(e) => setLoginIdentifier(e.target.value)}
-                  placeholder="مثال: osama@dream.com أو osama"
+                  placeholder="osama@dream.com أو osama"
                   required
                   autoComplete="username"
                   className="login-input pr-11 w-full"
                 />
-                <UserIcon className="w-4 h-4 text-muted absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[color:var(--app-accent)] transition-colors" />
+                <UserIcon className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[color:var(--app-accent)] transition-colors" />
               </div>
             </div>
 
-            {/* Password */}
             <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-dark text-right">
-                كلمة المرور
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider">
+                  كلمة المرور
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-xs font-bold text-[color:var(--app-accent)] hover:text-emerald-600 transition-colors"
+                >
+                  {showPassword ? 'إخفاء' : 'إظهار'}
+                </button>
+              </div>
               <div className="relative group">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="أدخل كلمة المرور المسجلة بقاعدة البيانات"
+                  placeholder="أدخل كلمة المرور"
                   required
                   autoComplete="current-password"
                   className="login-input pr-11 pl-12 w-full"
                 />
-                <Lock className="w-4 h-4 text-muted absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[color:var(--app-accent)] transition-colors" />
+                <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[color:var(--app-accent)] transition-colors" />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
@@ -153,28 +155,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
               </div>
             </div>
 
-            {/* Submit Button */}
             <button
               type="submit"
               disabled={isLoggingIn}
-              className="login-btn mt-2 cursor-pointer active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed w-full"
+              className="login-btn mt-1 w-full py-3 rounded-xl font-black text-sm tracking-wide active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isLoggingIn ? (
                 <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                  <span className="font-black">جاري التحقق من قاعدة البيانات...</span>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-1"></div>
+                  <span className="font-black">جاري التحقق...</span>
                 </>
               ) : (
                 <>
-                  <LogIn className="w-4 h-4 mr-2" />
-                  <span className="font-black">دخول إلى منظومة مجموعة الطنطاوي</span>
+                  <LogIn className="w-4 h-4 mr-1" />
+                  <span className="font-black">دخول إلى النظام</span>
                 </>
               )}
             </button>
 
-            {/* Note that accounts are managed by Admin/Developer only */}
-            <div className="pt-4 border-t border-edf text-center">
-              <p className="text-[11px] text-muted-dark leading-relaxed">
+            <div className="pt-4 border-t border-slate-100 text-center">
+              <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
                 يتم إنشاء وتفعيل حسابات الموظفين والصلاحيات حصرياً من قِبل إدارة النظام (الآدمن والمطور).
               </p>
             </div>
@@ -182,9 +182,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
         </div>
       </div>
 
-      {/* Footer brand lockup */}
       <div className="mt-auto pt-8 pb-4 text-center">
-        <div className="flex items-center justify-center gap-2 text-xs text-white/60 font-bold uppercase tracking-wider">
+        <div className="flex items-center justify-center gap-2 text-[10px] text-white/50 font-bold uppercase tracking-wider">
           <span className="w-1 h-1 rounded-full bg-[color:var(--app-accent)]" />
           <span>TANTAWY GROUP</span>
         </div>
