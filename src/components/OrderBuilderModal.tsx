@@ -1266,6 +1266,13 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                       <div>الحد الائتماني المعتمد: <strong>{formatCurrency(creditLimitVal)}</strong></div>
                       <div>تجاوز الحد بمقدار: <strong className="font-black text-[var(--app-risk-text)]">{formatCurrency(balAfter - creditLimitVal)}</strong></div>
                       <div className="text-[10px] opacity-80 mt-1">سيتم إرسال الفاتورة لاعتماد المشرف ومدير الفرع قبل التنفيذ.</div>
+                      <button
+                        type="button"
+                        onClick={() => { setCreditOverrideReason(''); setShowCreditOverrideModal(true); }}
+                        className="mt-2 px-3 py-1.5 rounded-[var(--app-btn-radius)] bg-[var(--app-risk)] text-white font-black text-xs font-bold border border-[var(--app-risk)] hover:bg-red-600 transition active:scale-95 shadow-sm w-full"
+                      >
+                        🚨 طلب استثناء خاص من الإدارة ➔
+                      </button>
                     </div>
                   </div>
                 )}
