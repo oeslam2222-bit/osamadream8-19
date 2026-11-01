@@ -39,6 +39,19 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
 });
 
+// Reconnect Supabase Realtime when page comes back from Back-Forward Cache (BFCache)
+if (typeof window !== 'undefined') {
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+      try {
+        supabase.realtime.connect();
+      } catch {
+        // Realtime reconnect failed silently
+      }
+    }
+  });
+}
+
 export interface SupabaseSyncStatus {
   connected: boolean;
   tableFound?: string;
