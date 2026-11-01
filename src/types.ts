@@ -304,6 +304,21 @@ export interface CustomerVisit {
   returnImages?: string[];            // روابط صور المرتجع (من جوجل درايف أو شيت)
   /** الأصناف المتعددة في الزيارة (بيع / تحصيل / مرتجع) */
   visitItems?: VisitItem[];
+
+  /* ===== سير العمل الجديد: أمر البيع من زيارة ===== */
+  orderApprovalTrail?: OrderApprovalTrail;        // موافقة مزدوجة (مشرف → مدير إدارة/قطاع)
+  creditOverrideDetail?: CreditOverrideDetail;    // تجاوز الحد الائتماني / مديونية بانتظار موافقة الإدارة
+  orderLifecycleStage?: OrderLifecycleStage;      // مرحلة الأمر في دورة الحياة
+  linkedOrderNumber?: string;                     // رقم الأمر المرتبط بالزيارة
+  linkedReturnNumber?: string;                    // رقم إذن المرتجع المرتبط بالزيارة
+}
+
+/* ===== هيكلة الصور في إذن المرتجع (مرتبة ومنسقة) ===== */
+export interface ReturnImageRecord {
+  url: string;
+  uploadedAt?: string;
+  uploadedBy?: string;
+  note?: string;
 }
 
 export interface Customer {
@@ -473,7 +488,71 @@ export interface ReturnRecord {
   handledBy: string;                 // اسم من قام بتسجيل المرتجع
   restockedToInventory: boolean;     // هل تم إرجاع الكميات السليمة لرصيد المخزن الفعلي
   notes?: string;
+
+  /* ربط الإذن بالزيارة التي نشأت عنها */
+  sourceVisitId?: string;
+  sourceVisitDate?: string;
+  /** صور منتظمة مرتبطة بالإذن (مرفوعة عبر Cloudinary/جوجل درايف) */
+  returnImages?: ReturnImageRecord[];
 }
+
+/* ============================================================
+   حقول سير عمل الزيارات المضاف لدعم المهمة الجديدة:
+   - زيارات من نوع "مرتجع" و "أمر بيع" و "متابعة" و "دورية" و "تحصيل"
+   - موافقة مزدوجة: المشرف/مدير الفرع → مدير الإدارة/مدير القطاع
+   - تجاوز الحد الائتماني مع تفصيل وانتظار موافقة الإدارة
+   - ربط الزيارة بأمر البيع أو إذن المرتجع
+   ============================================================ */
+
+/** صور مرفقة بزيارة المرتجع (تُرفع عبر Cloudinary وتقبل روابط Google Drive/شيت) */
+export interface VisitReturnImage {
+  url: string;
+  uploadedAt?: string;
+  uploadedBy?: string;
+  note?: string;
+}
+
+/** موافقة مزدوجة على أمر البيع الصادر من زيارة */
+export interface OrderApprovalTrail {
+  firstApprovalStatus: 'pending' | 'approved' | 'rejected'; // المشرف أو مدير الفرع
+  firstApprovedBy?: string;
+  firstApprovedByName?: string;
+  firstApprovedAt?: string;
+  firstApprovalNote?: string;
+
+  finalApprovalStatus: 'pending' | 'approved' | 'rejected'; // مدير الإدارة أو مدير القطاع
+  finalApprovedBy?: string;
+  finalApprovedByName?: string;
+  finalApprovedAt?: string;
+  finalApprovalNote?: string;
+}
+
+/** تفاصيل تجاوز الحد الائتماني أو المديونية */
+export interface CreditOverrideDetail {
+  exceeded: boolean;
+  customerBalanceBefore: number;
+  customerCreditLimit: number;
+  customerBalanceAfter: number;
+  overdueBalance: number;
+  requiredDownPayment: number;
+  overrideReason: string;
+  overridePending: boolean;
+  overrideApprovedBy?: string;
+  overrideApprovedAt?: string;
+}
+
+/** مرحلة أمر البيع في دورة الحياة */
+export type OrderLifecycleStage =
+  | 'مسودة'
+  | 'في انتظار اعتماد المشرف'
+  | 'في انتظار اعتماد الإدارة'
+  | 'جاري التجهيز'
+  | 'جاري تحضير المنتجات'
+  | 'تم وصول المنتجات'
+  | 'قيد التوصيل'
+  | 'تم التسليم'
+  | 'إغلاق الطلبية'
+  | 'مرفوضة / ملغاة';
 
 export interface InventoryTransaction {
   id: string;
