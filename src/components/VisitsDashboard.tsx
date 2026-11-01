@@ -52,6 +52,7 @@ export const VisitsDashboard: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<'all' | 'دورية' | 'تحصيل' | 'متابعة'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'منفذة' | 'معلقة' | 'ملغاة'>('all');
   const [repFilter, setRepFilter] = useState<string>('all');
+  const [sectorFilter, setSectorFilter] = useState<'all' | 'home' | 'electrical'>('all');
   const [pageSize, setPageSize] = useState<number>(5);
   const [visitsPage, setVisitsPage] = useState(1);
 
@@ -104,6 +105,7 @@ export const VisitsDashboard: React.FC = () => {
       repId: r?.id || currentUser?.id || '',
       repName: r?.name || currentUser?.name || '',
       branchName: r?.branchName || c?.branchName || '',
+      sector: r?.sector || currentUser?.sector || undefined,
       supervisorId: r?.supervisorId,
       supervisorName: r?.supervisorName || '',
       status: 'منفذة',
@@ -161,8 +163,21 @@ export const VisitsDashboard: React.FC = () => {
       filtered = filtered.filter((v) => v.repId === repFilter);
     }
 
+    // Sector filter: restrict to user's sector if set, or manual sector filter
+    const userSector = currentUser?.sector;
+    const effectiveSector = sectorFilter !== 'all' ? sectorFilter : (userSector === 'home' || userSector === 'electrical' ? userSector : undefined);
+
+    if (effectiveSector) {
+      const sectorRepIds = new Set(
+        users
+          .filter((u) => u.sector === effectiveSector)
+          .map((u) => u.id)
+      );
+      filtered = filtered.filter((v) => sectorRepIds.has(v.repId));
+    }
+
     return filtered;
-  }, [visits, search, timeFilter, typeFilter, statusFilter, repFilter]);
+  }, [visits, search, timeFilter, typeFilter, statusFilter, repFilter, sectorFilter, currentUser?.sector, users]);
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paginated = filtered.slice((visitsPage - 1) * pageSize, visitsPage * pageSize);
@@ -177,6 +192,11 @@ export const VisitsDashboard: React.FC = () => {
     const reps = [...new Set(visits.map((v) => v.repName).filter(Boolean))];
     return reps;
   }, [visits]);
+
+  const sectorOptions = useMemo(() => {
+    const sectors = [...new Set(users.map((u) => u.sector).filter(Boolean))];
+    return sectors as ('home' | 'electrical')[];
+  }, [users]);
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
@@ -280,6 +300,18 @@ export const VisitsDashboard: React.FC = () => {
             </select>
           </div>
           <div className="flex flex-col">
+            <label className="text-xs text-slate-500 font-bold">القطاع</label>
+            <select
+              value={sectorFilter}
+              onChange={(e) => setSectorFilter(e.target.value as any)}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">الكل</option>
+              <option value="home">منزلي 🏠</option>
+              <option value="electrical">كهرباء ⚡</option>
+            </select>
+          </div>
+          <div className="flex flex-col">
             <label className="text-xs text-slate-500 font-bold">الزمن</label>
             <select
               value={timeFilter}
@@ -306,6 +338,7 @@ export const VisitsDashboard: React.FC = () => {
                 <th className="px-4 py-3 text-slate-500 font-bold text-center">المبلغ</th>
                 <th className="px-4 py-3 text-slate-500 font-bold text-right">الفرع</th>
                 <th className="px-4 py-3 text-slate-500 font-bold text-right">المندوب</th>
+                <th className="px-4 py-3 text-slate-500 font-bold text-right">القطاع</th>
                 <th className="px-4 py-3 text-slate-500 font-bold text-center">الحالة</th>
                 <th className="px-4 py-3 text-slate-500 font-bold text-center">الإجراء</th>
               </tr>
@@ -335,6 +368,17 @@ export const VisitsDashboard: React.FC = () => {
                   <td className="px-4 py-3.5 text-slate-800 font-bold text-right">
                     {v.repName || '-'}
                   </td>
+                  <td className="px-4 py-3.5 text-slate-700 text-right">
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      v.sector === 'home'
+                        ? 'bg-blue-50 text-blue-700 border-blue-100'
+                        : v.sector === 'electrical'
+                        ? 'bg-amber-50 text-amber-700 border-amber-100'
+                        : 'bg-slate-100 text-slate-700 border-slate-200'
+                    }`}>
+                      {v.sector === 'home' ? 'منزلي 🏠' : v.sector === 'electrical' ? 'كهرباء ⚡' : '-'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3.5 text-center">
                     <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
                       v.status === 'منفذة'
@@ -361,7 +405,7 @@ export const VisitsDashboard: React.FC = () => {
               ))}
               {paginated.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="py-12 text-center">
+                  <td colSpan={9} className="py-12 text-center">
                     <EmptyState
                       type="visits"
                       title="لا توجد زيارات"
