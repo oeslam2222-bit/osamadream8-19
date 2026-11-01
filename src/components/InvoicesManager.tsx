@@ -1559,18 +1559,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               )}
             </div>
 
-            <button
-              onClick={() => onOpenNewOrder()}
-              disabled={Boolean(creditSummary?.exceeded)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black shadow-sm transition active:scale-95 ${
-                creditSummary?.exceeded
-                  ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                  : 'bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white shadow-[var(--app-ok)]'
-              }`}
-            >
-              <Send className="w-4 h-4" />
-              <span>دفع الفاتورة فورياً</span>
-            </button>
+
           </div>
         </div>
       )}
