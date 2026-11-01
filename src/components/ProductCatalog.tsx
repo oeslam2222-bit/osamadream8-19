@@ -1051,8 +1051,113 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       )}
 
-      {/* 4. Product Cards Grid (Matching exact columns from user sheet) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {/* 4a. ERP Table View (Desktop/Laptop) — gleiche Spalten wie kartensystem */}
+      <div className="hidden lg:block overflow-x-auto border border-slate-200 rounded-2xl shadow-sm bg-white">
+        <table className="w-full text-left border-collapse text-sm">
+          <thead className="bg-slate-100 text-slate-700 font-extrabold border-b border-slate-200">
+            <tr>
+              <th className="p-3 text-right w-16">#</th>
+              <th className="p-3 text-right">كود المنتج</th>
+              <th className="p-3 text-right">الكود الموحد</th>
+              <th className="p-3 text-right">اسم المنتج</th>
+              <th className="p-3 text-center w-20">القطاع</th>
+              <th className="p-3 text-right w-24">سعر القطعة</th>
+              <th className="p-3 text-right w-24">سعر الكرتونة</th>
+              <th className="p-3 text-center w-16">الشدة</th>
+              <th className="p-3 text-center w-20">مخزون الفرع</th>
+              <th className="p-3 text-center w-20">مخزون أكتوبر</th>
+              <th className="p-3 text-center w-24">إجراء</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {paginatedProducts.map((p, rowIdx) => {
+              const branchStock = getProductBranchStock(p);
+              const octoberStock = p.mainWarehouseActual || 0;
+              const isElec = isProductElectrical(p);
+              const priceInfo = resolveDisplayPrice({
+                piecePrice: p.piecePrice ?? p.salesPrice,
+                cartonPrice: p.cartonPrice,
+                factor: p.cartonQuantity ?? p.factor,
+              });
+              const displayName = stripPlaceholderText(p.name);
+              const globalIdx = (currentPage - 1) * itemsPerPage + rowIdx + 1;
+
+              return (
+                <tr key={p.id} className="hover:bg-slate-50/50 transition group">
+                  <td className="p-3 text-right font-bold text-slate-400">{globalIdx}</td>
+                  <td className="p-3 text-right font-mono font-bold text-slate-700">{p.code || '—'}</td>
+                  <td className="p-3 text-right font-mono text-slate-600">
+                    {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
+                  </td>
+                  <td className="p-3 text-right font-bold text-slate-900 truncate max-w-[200px]" title={displayName}>
+                    {displayName || `صنف ${p.code}`}
+                  </td>
+                  <td className="p-3 text-center">
+                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold shrink-0 ${
+                      isElec ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-blue-50 text-blue-800 border border-blue-200'
+                    }`}>
+                      {isElec ? '⚡ كهرباء' : '🏠 منزلي'}
+                    </span>
+                  </td>
+                  <td className="p-3 text-right font-mono text-slate-800">
+                    {priceInfo.displayPrice > 0 ? formatCurrency(priceInfo.displayPrice) : '—'}
+                    <span className="text-[10px] text-slate-400 block">/قطعة</span>
+                  </td>
+                  <td className="p-3 text-right font-mono text-slate-800">
+                    {priceInfo.displayPrice > 0 && priceInfo.factor > 1
+                      ? formatCurrency(priceInfo.displayPrice * priceInfo.factor)
+                      : '—'}
+                    <span className="text-[10px] text-slate-400 block">/كرتونة</span>
+                  </td>
+                  <td className="p-3 text-center font-mono text-slate-700">
+                    {priceInfo.factor > 1 ? priceInfo.factor : 1}
+                  </td>
+                  <td className="p-3 text-center">
+                    <span className={`px-2 py-1 rounded-lg text-[11px] font-bold ${
+                      branchStock > 0 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}>
+                      {branchStock}
+                    </span>
+                  </td>
+                  <td className="p-3 text-center">
+                    <span className={`px-2 py-1 rounded-lg text-[11px] font-bold ${
+                      octoberStock > 0 ? 'bg-blue-50 text-blue-800 border border-blue-200' : 'bg-slate-100 text-slate-500 border border-slate-200'
+                    }`}>
+                      {octoberStock}
+                    </span>
+                  </td>
+                  <td className="p-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleAddToCart(p)}
+                      disabled={branchStock <= 0 && octoberStock <= 0}
+                      className="w-full py-1.5 rounded-lg text-xs font-bold transition shadow-sm flex items-center justify-center gap-1.5 ${
+                        branchStock <= 0 && octoberStock <= 0
+                          ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95 cursor-pointer'
+                      }"
+                    >
+                      <ShoppingCart className="w-3 h-3" />
+                      <span>إضافة</span>
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {paginatedProducts.length === 0 && (
+              <tr>
+                <td colSpan={11} className="p-8 text-center text-slate-400 font-bold">
+                  <Package className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                  <p>لم يتم العثور على أصناف مطابقة للبحث أو الفلاتر المحددة</p>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 4b. Product Cards Grid (Mobile) — نفس الأعمدة归类 في كروت */}
+      <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         {paginatedProducts.map((p, idx) => {
           const branchStock = getProductBranchStock(p);
           const octoberStock = p.mainWarehouseActual || 0;

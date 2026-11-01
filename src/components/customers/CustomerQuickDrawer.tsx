@@ -105,6 +105,13 @@ export const CustomerQuickDrawer: React.FC<CustomerQuickDrawerProps> = ({
             </div>
             <div className="cq-info">
               <Building2 className="w-3.5 h-3.5" />
+              <span>القطاع</span>
+              <strong className={`font-bold ${customer.sector === 'home' ? 'text-blue-700' : customer.sector === 'electrical' ? 'text-amber-700' : 'text-slate-600'}`}>
+                {customer.sector === 'home' ? '🏠 منزلي' : customer.sector === 'electrical' ? '⚡ كهرباء' : customer.sector === 'both' ? '🏢 القطاعين' : 'الكل'}
+              </strong>
+            </div>
+            <div className="cq-info">
+              <Building2 className="w-3.5 h-3.5" />
               <span>الفرع</span>
               <strong>{customer.branchName || '—'}</strong>
             </div>

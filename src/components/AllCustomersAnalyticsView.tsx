@@ -1089,6 +1089,22 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           </div>
         );
 
+      case 'sector': {
+        const sector = c.sector || 'all';
+        const sectorConfig: Record<string, { label: string; icon: string; bg: string; text: string; border: string }> = {
+          home: { label: '🏠 منزلي', icon: '🏠', bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-200' },
+          electrical: { label: '⚡ كهرباء', icon: '⚡', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200' },
+          both: { label: '🏢 القطاعين', icon: '🏢', bg: 'bg-purple-50', text: 'text-purple-800', border: 'border-purple-200' },
+          all: { label: 'الكل', icon: '🌐', bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' },
+        };
+        const cfg = sectorConfig[sector];
+        return (
+          <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black ${cfg.bg} ${cfg.text} ${cfg.border} whitespace-nowrap shrink-0`}>
+            {cfg.label}
+          </span>
+        );
+      }
+
       case 'region':
         return (
           <>
@@ -1870,6 +1886,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-bold">{c.code || '---'}</span>
                           <span>·</span>
                           <span>{c.branchName || c.region || 'بدون فرع'}</span>
+                          {c.sector && c.sector !== 'all' && (
+                            <span className={`px-1.5 py-0.5 rounded-lg text-[10px] font-bold shrink-0 ${
+                              c.sector === 'home' ? 'bg-blue-50 text-blue-800 border border-blue-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
+                            }`}>
+                              {c.sector === 'home' ? '🏠 منزلي' : '⚡ كهرباء'}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
