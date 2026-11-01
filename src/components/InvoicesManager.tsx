@@ -683,20 +683,25 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           </div>
         </div>
 
-        {/* ملخص الأرقام (كان كروت فوق، بقى سطر تحت التابات) */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-bold text-slate-500 border-t border-slate-100 pt-2">
-          <span>
-            إجمالي المبيعات: <span className="text-slate-900 font-black app-num">{formatCurrency(metrics.totalRevenue)}</span>
-          </span>
-          <span>
-            الكراتين: <span className="text-slate-900 font-black app-num">{metrics.totalCartons.toLocaleString('en-US')}</span>
-          </span>
-          <span>
-            القطع: <span className="text-slate-900 font-black app-num">{metrics.totalPieces.toLocaleString('en-US')}</span>
-          </span>
-          <span>
-            عدد الفواتير المعروضة: <span className="text-slate-900 font-black app-num">{metrics.count.toLocaleString('en-US')}</span>
-          </span>
+        {/* ملخص الأرقام السفلية - Matching Reference Design */}
+        <div className="bg-surface border border-border-input rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4 text-xs font-bold text-slate-500">
+            <span>
+              إجمالي المبيعات: <span className="text-slate-900 font-black app-num">{formatCurrency(metrics.totalRevenue)}</span>
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">|</span>
+            <span>
+              الكراتين: <span className="text-slate-900 font-black app-num">{metrics.totalCartons.toLocaleString('en-US')}</span>
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">|</span>
+            <span>
+              القطع: <span className="text-slate-900 font-black app-num">{metrics.totalPieces.toLocaleString('en-US')}</span>
+            </span>
+            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">|</span>
+            <span>
+              عدد الفواتير: <span className="text-slate-900 font-black app-num">{metrics.count.toLocaleString('en-US')}</span>
+            </span>
+          </div>
         </div>
 
         {/* Active Branch Notification for Admin/Dev */}
