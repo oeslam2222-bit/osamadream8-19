@@ -1,0 +1,29 @@
+                  {/* Credit Limit Breach Alert - Top Warning Banner */}
+                  {isCreditExceeded && (
+                    <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] rounded-[var(--app-btn-radius)] p-3 mb-3 flex items-start gap-3 shadow-lg animate-pulse">
+                      <div className="w-10 h-10 rounded-full bg-[var(--app-risk)] text-white flex items-center justify-center shrink-0 shadow-md">
+                        <AlertCircle className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-start gap-1">
+                          <span className="font-black text-[var(--app-risk-text)] text-sm">⚠️ تجاوز الحد الائتماني المسموح!</span>
+                        </div>
+                        <div className="text-[10px] text-[var(--app-risk-text)] leading-relaxed">
+                          الرصيد بعد الفاتورة: <strong className="text-[var(--app-risk-text)]">{formatCurrency(balAfter)}</strong> &gt; الحد المسموح: <strong className="text-[var(--app-risk-text)]">{formatCurrency(creditLimitVal)}</strong><br />
+                          مبلغ التجاوز: <strong className="text-[var(--app-risk-text)]">{formatCurrency(balAfter - creditLimitVal)}</strong>
+                          {creditLimitVal > 0 ? (
+                            <span className="text-[var(--app-risk-text)] font-bold"> ({(balAfter / creditLimitVal * 100).toFixed(0)}% من الحد)</span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => { setCreditOverrideReason(''); setShowCreditOverrideModal(true); }}
+                          className="px-3 py-1.5 rounded-[var(--app-btn-radius)] bg-white text-[var(--app-risk-text)] font-black text-xs font-bold border border-[var(--app-risk)] hover:bg-[var(--app-risk)] hover:text-white transition active:scale-95 shadow-sm"
+                        >
+                          طلب استثناء خاص من الإدارة ➔
+                        </button>
+                      </div>
+                    </div>
+                  )}

@@ -32,6 +32,8 @@ export const roundMoney = (value: number): number => {
  */
 const PARENTHESISED_PLACEHOLDER = /\(+\s*(?:blank|null|none|nil|undefined|n\/?a)\s*\)+/gi;
 const BARE_PLACEHOLDER = /(?:^|[\s\-_/|,•·])(?:blank|null|none|nil|undefined|n\/?a)(?=$|[\s\-_/|,•·])/gi;
+/** كلمة "نون" (ن) في ألوان/أحجام الأصناف — تُحذف من العرض ولا تُعتبر جزءًا من القيمة الفعلية */
+const NOON_PLACEHOLDER = /(?:^|[\s\-_/|,•·])نون(?=$|[\s\-_/|,•·])/gi;
 const EDGE_JUNK = /^[\s\-_/|,•·]+|[\s\-_/|,•·]+$/g;
 
 /**
@@ -46,6 +48,7 @@ export function stripPlaceholderText(raw: string | number | null | undefined): s
 
   text = text.replace(PARENTHESISED_PLACEHOLDER, ' ');
   text = text.replace(BARE_PLACEHOLDER, ' ');
+  text = text.replace(NOON_PLACEHOLDER, ' ');
   text = text.replace(/\u00A0/g, ' ');
   text = text.replace(/\s{2,}/g, ' ');
   // "أحمر - (blank) - كبير" بعد الشيل بيسيب فاصلين ورا بعض — بنلمّهم في فاصل واحد.

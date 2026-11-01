@@ -20,6 +20,7 @@ import {
 export type CustomerColumnKey =
   | 'code'
   | 'name'
+  | 'sector'
   | 'region'
   | 'rep'
   | 'branch'
@@ -68,6 +69,7 @@ export interface CustomerColumnDef {
 export const CUSTOMER_COLUMNS: CustomerColumnDef[] = [
   { key: 'code', label: 'الكود', group: 'الأساسية', type: 'text', align: 'start', sortKey: 'code', defaultVisible: true, locked: true },
   { key: 'name', label: 'اسم العميل / المحل', group: 'الأساسية', type: 'text', align: 'start', sortKey: 'name', defaultVisible: true, locked: true },
+  { key: 'sector', label: 'القطاع', group: 'الأساسية', type: 'status', align: 'center', sortKey: 'code', defaultVisible: true },
   { key: 'region', label: 'المنطقة / الفرع', group: 'الأساسية', type: 'text', align: 'start', defaultVisible: true },
   { key: 'rep', label: 'المندوب', group: 'الأساسية', type: 'text', align: 'start', defaultVisible: true },
   { key: 'branch', label: 'الفرع', group: 'الأساسية', type: 'text', align: 'start', defaultVisible: false },
@@ -123,6 +125,8 @@ export const getCustomerColumnValue = (
       return c.code || '';
     case 'name':
       return c.name || '';
+    case 'sector':
+      return c.sector || 'الكل';
     case 'region':
       return c.region || c.district || c.branchName || '';
     case 'rep':

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { ShieldCheck, RotateCcw, RefreshCw, Save } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
   ALL_AVAILABLE_TABS,
@@ -103,14 +104,17 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-[var(--app-navy)] to-blue-700 text-white">
           <div>
-            <h2 className="font-black text-slate-900 text-lg">تخصيص صلاحيات المستخدمين</h2>
-            <p className="text-xs text-slate-500 mt-0.5">المسؤول (Admin) يمكنه تخصيص الشاشات لكل مستخدم</p>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-white" />
+              <h2 className="font-black text-white text-lg">تخصيص صلاحيات المستخدمين</h2>
+            </div>
+            <p className="text-xs text-blue-100 mt-0.5 opacity-90">المسؤول (Admin) يمكنه تخصيص الشاشات لكل مستخدم</p>
           </div>
-          <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-slate-100">
+          <button type="button" onClick={onClose} className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg backdrop-blur-sm transition active:scale-95">
             <span className="text-xl">&times;</span>
           </button>
         </div>
@@ -123,12 +127,12 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="بحث بالاسم أو اسم المستخدم..."
-              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold"
+              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[var(--app-accent)] focus:outline-none transition"
             />
             <select
               value={branchFilter}
               onChange={(e) => setBranchFilter(e.target.value)}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold"
+              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[var(--app-accent)] focus:outline-none transition"
             >
               <option value="ALL">جميع الفروع</option>
               {availableBranches.map((b) => (
@@ -138,7 +142,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold"
+              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[var(--app-accent)] focus:outline-none transition"
             >
               <option value="ALL">جميع الأدوار</option>
               <option value="admin">مسؤول (Admin)</option>
@@ -151,7 +155,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
             <select
               value={sectorFilter}
               onChange={(e) => setSectorFilter(e.target.value)}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold"
+              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[var(--app-accent)] focus:outline-none transition"
             >
               <option value="ALL">جميع القطاعات</option>
               <option value="home">منزلي</option>
@@ -205,22 +209,22 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
                       key={tab.id}
                       type="button"
                       onClick={() => handleToggle(tab.id)}
-                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm font-bold transition cursor-pointer ${
+                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all cursor-pointer group ${
                         isAllowed
-                          ? 'bg-slate-deep border-teal-soft2 text-deep-blue'
-                          : 'bg-slate-50 border-slate-200 text-slate-400'
+                          ? 'bg-teal-50 border-teal-200 text-teal-800 font-bold shadow-sm'
+                          : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600'
                       }`}
                     >
                       <span>{tab.label}</span>
                       <div className="flex items-center gap-1.5">
                         {!isDefault && isAllowed && (
-                          <span className="text-[9px] bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] px-1.5 py-0.5 rounded font-bold">+مخصص</span>
+                          <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold border border-amber-200">+مخصص</span>
                         )}
                         {isDefault && !isAllowed && (
-                          <span className="text-[9px] bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] px-1.5 py-0.5 rounded font-bold">-محذوف</span>
+                          <span className="text-[9px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold border border-rose-200">-محذوف</span>
                         )}
                         <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
-                          isAllowed ? 'bg-teal-main text-white' : 'bg-slate-200 text-slate-500'
+                          isAllowed ? 'bg-teal-600 text-white shadow-sm' : 'bg-slate-200 text-slate-400'
                         }`}>
                           {isAllowed ? '✓' : '✗'}
                         </span>
@@ -235,26 +239,37 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
 
         {/* Footer */}
         {selectedUser && (
-          <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between gap-3">
+          <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between gap-3 bg-white">
             <button
               type="button"
               onClick={handleReset}
               disabled={isSaving}
-              className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-bold hover:bg-slate-50 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-bold transition hover:bg-slate-50 disabled:opacity-50 active:scale-95"
             >
-              إعادة تعيين (افتراضي)
+              <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+              <span>إعادة تعيين (افتراضي)</span>
             </button>
             <div className="flex items-center gap-3">
               {saveMsg && (
-                <span className="text-xs font-bold text-teal-light">{saveMsg}</span>
+                <span className="text-xs font-bold text-emerald-600">{saveMsg}</span>
               )}
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={isSaving}
-                className="px-5 py-2 rounded-xl bg-navy-deep text-white text-sm font-black hover:bg-navy-deep5 disabled:opacity-50"
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[var(--app-navy)] text-white font-bold shadow-lg shadow-navy/25 hover:bg-blue-deep5 transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSaving ? 'جاري الحفظ...' : 'حفظ الصلاحيات'}
+                {isSaving ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                    <span>جاري الحفظ...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-3.5 h-3.5 text-white" />
+                    <span>حفظ الصلاحيات</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

@@ -143,6 +143,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     });
   };
 
+  // Show favorites only toggle
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState<boolean>(false);
+
+  // Reset page when favorites filter toggles
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [showFavoritesOnly]);
+
   // Pagination state (default: 12 as per reference design image_d67a7a7d.png)
   const [itemsPerPage, setItemsPerPage] = useState<number>(12);
   const [currentPage, setCurrentPage] = useState<1 | number>(1);
@@ -158,6 +166,39 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<CatalogExportProgress | null>(null);
 
+  // Remember catalog filters in localStorage per user
+  const CATALOG_FILTERS_KEY = `tantawy_catalog_filters_${currentUser?.id || 'guest'}`;
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(CATALOG_FILTERS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.searchTerm !== undefined) setSearchTerm(parsed.searchTerm);
+        if (parsed.selectedDept !== undefined) setSelectedDept(parsed.selectedDept);
+        if (parsed.selectedBrand !== undefined) setSelectedBrand(parsed.selectedBrand);
+        if (parsed.selectedStatus !== undefined) setSelectedStatus(parsed.selectedStatus);
+        if (parsed.onlyInStock !== undefined) setOnlyInStock(parsed.onlyInStock);
+        if (parsed.sortBy !== undefined) setSortBy(parsed.sortBy);
+        if (parsed.activeSectorFilter !== undefined) setActiveSectorFilter(parsed.activeSectorFilter);
+      }
+    } catch {}
+  }, [CATALOG_FILTERS_KEY, currentUser?.id]);
+
+  const saveCatalogFilters = useCallback(() => {
+    try {
+      localStorage.setItem(CATALOG_FILTERS_KEY, JSON.stringify({
+        searchTerm,
+        selectedDept,
+        selectedBrand,
+        selectedStatus,
+        onlyInStock,
+        sortBy,
+        activeSectorFilter,
+      }));
+    } catch {}
+  }, [searchTerm, selectedDept, selectedBrand, selectedStatus, onlyInStock, sortBy, activeSectorFilter, CATALOG_FILTERS_KEY]);
+
   // Card quantities
   const [cardQuantities, setCardQuantities] = useState<Record<string, number>>({});
   const [cardOrderTypes, setCardOrderTypes] = useState<Record<string, 'carton' | 'piece'>>({});
@@ -169,6 +210,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     }, 250);
     return () => clearTimeout(timer);
   }, [searchTerm]);
+
+  // Save filters whenever they change
+  useEffect(() => {
+    saveCatalogFilters();
+  }, [searchTerm, selectedDept, selectedBrand, selectedStatus, onlyInStock, sortBy, activeSectorFilter, saveCatalogFilters]);
 
   // Reset page when search or filters change
   useEffect(() => {
@@ -241,20 +287,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   // Filtered Products
   const filteredProducts = useMemo(() => {
     let result = getVisibleProducts().filter((p) => {
-      // 1. Sector filter: home vs electrical
-      const userSector = currentUser?.sector as string | undefined;
-      const isMultiSector =
-        !currentUser ||
-        currentUser.role === 'admin' ||
-        currentUser.role === 'developer' ||
-        userSector === 'all' ||
-        userSector === 'both';
-
-      const effectiveSector = isMultiSector
-        ? activeSectorFilter === 'all'
-          ? null
-          : activeSectorFilter
-        : userSector || 'home';
+      // 1. Sector filter: home vs electrical — يعمل لكل المستخدمين، ليس فقط الأدمن
+      const effectiveSector = activeSectorFilter !== 'all' ? activeSectorFilter : (currentUser?.sector || 'all');
 
       if (effectiveSector && effectiveSector !== 'all') {
         const isElec = isProductElectrical(p);
@@ -405,9 +439,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   // Pagination calculation
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
   const paginatedProducts = useMemo(() => {
+    let products = filteredProducts;
+    if (showFavoritesOnly) {
+      products = products.filter((p) => Boolean(favorites[p.id]));
+    }
     const start = (currentPage - 1) * itemsPerPage;
-    return filteredProducts.slice(start, start + itemsPerPage);
-  }, [filteredProducts, currentPage, itemsPerPage]);
+    return products.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage, showFavoritesOnly, favorites]);
 
   // سعر الصنف المفتوح في المودال — نفس القاعدة المستخدمة في الكارت.
   const modalPricing = selectedProductForModal
@@ -527,6 +565,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setSelectedStatus('الكل');
     setOnlyInStock(true);
     setSortBy('default');
+    setActiveSectorFilter('all');
+    saveCatalogFilters();
   };
 
   return (
@@ -563,9 +603,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 }
               }}
               placeholder="ابحث باسم المنتج أو كود العميل أو الكود الموحد ..."
-              className="w-full pl-10 pr-11 py-3 bg-white border border-white/60 rounded-2xl text-xs sm:text-sm font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-white/70 shadow-lg transition"
+              className="w-full pl-10 pr-11 py-3 bg-white border border-white/60 rounded-2xl text-xs sm:text-sm font-bold text-secondary placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-white/70 shadow-lg transition"
             />
-            <Search className="w-5 h-5 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-5 h-5 text-light absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             {searchTerm && (
               <button
                 type="button"
@@ -573,7 +613,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   setSearchTerm('');
                   setShowSearchSuggestions(false);
                 }}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-light hover:text-muted p-1"
                 title="مسح البحث"
               >
                 <X className="w-4 h-4" />
@@ -583,8 +623,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
           {/* Smart Suggestions Dropdown - يظهر فور كتابة أي حرف أو رقم */}
           {showSearchSuggestions && searchTerm.trim().length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-slate-200 shadow-xl z-50 overflow-hidden divide-y divide-slate-100 max-h-96 overflow-y-auto">
-              <div className="px-3.5 py-2 bg-slate-50 flex items-center justify-between text-[11px] font-bold text-slate-500">
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-slate-200 shadow-xl z-50 overflow-hidden divide-y divide-border-primary/30 max-h-96 overflow-y-auto">
+              <div className="px-3.5 py-2 bg-slate-50 flex items-center justify-between text-[11px] font-bold text-light">
                 <span>اقتراحات البحث الذكي ({searchSuggestions.length} صنف)</span>
                 <span className="text-[10px] text-blue-600 font-extrabold">اضغط لاختيار الصنف</span>
               </div>
@@ -617,13 +657,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       {/* Product Details */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-black text-slate-900 group-hover:text-blue-700 transition truncate">
+                          <span className="text-xs font-black text-primary group-hover:text-blue-700 transition truncate">
                             {prod.name}
                           </span>
                         </div>
 
                         <div className="flex items-center gap-2 mt-1 flex-wrap text-[11px]">
-                          <span className="font-mono font-bold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded border border-slate-200 text-[10px]">
+                          <span className="font-mono font-bold bg-slate-100 text-secondary px-1.5 py-0.5 rounded border border-slate-200 text-[10px]">
                             كود: {prod.code}
                           </span>
                           {prod.unifiedCode && (
@@ -631,7 +671,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                               #{prod.unifiedCode.replace('#', '')}
                             </span>
                           )}
-                          <span className="text-slate-500 text-[10px]">
+                          <span className="text-light text-[10px]">
                             {prod.cartonPrice.toLocaleString()} ج.م
                           </span>
                         </div>
@@ -658,7 +698,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   );
                 })
               ) : (
-                <div className="p-4 text-center text-xs text-slate-500 font-bold">
+                <div className="p-4 text-center text-xs text-light font-bold">
                   لا توجد نتائج مطابقة لـ &quot;{searchTerm}&quot;
                 </div>
               )}
@@ -705,11 +745,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <Store className="w-6 h-6" />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] text-slate-500 font-black leading-tight">مخزون فرع المندوب</p>
+              <p className="text-[11px] text-light font-black leading-tight">مخزون فرع المندوب</p>
               <p className="text-2xl font-black text-blue-700 tracking-tight leading-tight">
                 {stats.branchCartons.toLocaleString('en-US')}
               </p>
-              <p className="text-[10px] text-slate-400 font-bold leading-tight">رصيد متاح</p>
+              <p className="text-[10px] text-light font-bold leading-tight">رصيد متاح</p>
             </div>
           </div>
           <button
@@ -730,11 +770,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <Package className="w-6 h-6" />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] text-slate-500 font-black leading-tight">مخزون أكتوبر</p>
+              <p className="text-[11px] text-light font-black leading-tight">مخزون أكتوبر</p>
               <p className="text-2xl font-black text-emerald-600 tracking-tight leading-tight">
                 {stats.octoberCartons.toLocaleString('en-US')}
               </p>
-              <p className="text-[10px] text-slate-400 font-bold leading-tight">رصيد متاح</p>
+              <p className="text-[10px] text-light font-bold leading-tight">رصيد متاح</p>
             </div>
           </div>
           <button
@@ -755,11 +795,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <RotateCcw className="w-6 h-6" />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] text-slate-500 font-black leading-tight">مرتجعات</p>
+              <p className="text-[11px] text-light font-black leading-tight">مرتجعات</p>
               <p className="text-2xl font-black text-orange-500 tracking-tight leading-tight">
                 {opsStats.returnsPending.toLocaleString('en-US')}
               </p>
-              <p className="text-[10px] text-slate-400 font-bold leading-tight">تحتاج مراجعة</p>
+              <p className="text-[10px] text-light font-bold leading-tight">تحتاج مراجعة</p>
             </div>
           </div>
           <button
@@ -780,11 +820,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <Coins className="w-6 h-6" />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] text-slate-500 font-black leading-tight">التحصيلات</p>
+              <p className="text-[11px] text-light font-black leading-tight">التحصيلات</p>
               <p className="text-2xl font-black text-violet-600 tracking-tight leading-tight">
                 {opsStats.collectionsCount.toLocaleString('en-US')}
               </p>
-              <p className="text-[10px] text-slate-400 font-bold leading-tight">عدد عمليات التحصيل</p>
+              <p className="text-[10px] text-light font-bold leading-tight">عدد عمليات التحصيل</p>
             </div>
           </div>
           <button
@@ -829,7 +869,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
               aria-label="الترتيب حسب"
-              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-secondary focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
             >
               <option value="default">الترتيب حسب</option>
               <option value="branch_stock_desc">الأعلى مخزوناً بفرعك</option>
@@ -838,7 +878,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <option value="price_desc">السعر: من الأعلى للأقل</option>
               <option value="name_asc">الاسم أبجدياً</option>
             </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <ChevronDown className="w-3.5 h-3.5 text-light absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
           {/* كل الحالات */}
@@ -847,14 +887,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
               aria-label="كل الحالات"
-              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-secondary focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
             >
               <option value="الكل">كل الحالات</option>
               <option value="متوفر">متوفر بفرعك</option>
               <option value="محدود">متوفر بأكتوبر فقط</option>
               <option value="نفد جزئياً">غير متوفر (0)</option>
             </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <ChevronDown className="w-3.5 h-3.5 text-light absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
           {/* كل الماركات (Family Name) */}
@@ -863,7 +903,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               value={selectedBrand}
               onChange={(e) => setSelectedBrand(e.target.value)}
               aria-label="كل الماركات"
-              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[180px]"
+              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-secondary focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[180px]"
             >
               <option value="الكل">كل الماركات</option>
               {brandsList.map((b) => (
@@ -872,7 +912,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </option>
               ))}
             </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <ChevronDown className="w-3.5 h-3.5 text-light absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
           {/* كل الأقسام (Item group) */}
@@ -881,7 +921,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               value={selectedDept}
               onChange={(e) => setSelectedDept(e.target.value)}
               aria-label="كل الأقسام"
-              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[180px]"
+              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-secondary focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[180px]"
             >
               <option value="الكل">كل الأقسام</option>
               {departmentsList.map((d) => (
@@ -890,7 +930,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </option>
               ))}
             </select>
-            <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <ChevronDown className="w-3.5 h-3.5 text-light absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
           <div className="hidden md:block flex-1" />
@@ -911,9 +951,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <button
             type="button"
             onClick={handleResetFilters}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 transition cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-secondary transition cursor-pointer"
           >
-            <RotateCw className="w-3.5 h-3.5 text-slate-500" />
+            <RotateCw className="w-3.5 h-3.5 text-light" />
             <span>تحديث</span>
           </button>
         </div>
@@ -928,10 +968,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-black transition cursor-pointer ${
                 onlyInStock
                   ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  : 'bg-white border-slate-200 text-muted hover:bg-slate-50'
               }`}
             >
-              <CheckCircle2 className={`w-3.5 h-3.5 ${onlyInStock ? 'text-emerald-600' : 'text-slate-400'}`} />
+              <CheckCircle2 className={`w-3.5 h-3.5 ${onlyInStock ? 'text-emerald-600' : 'text-light'}`} />
               <span>المتوفر بالمخازن فقط (مخزون &gt; 0)</span>
             </button>
 
@@ -942,7 +982,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   type="button"
                   onClick={() => setActiveSectorFilter('all')}
                   className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                    activeSectorFilter === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    activeSectorFilter === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'text-muted hover:text-primary'
                   }`}
                 >
                   🌐 كل القطاعات ({products.length})
@@ -951,7 +991,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   type="button"
                   onClick={() => setActiveSectorFilter('home')}
                   className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                    activeSectorFilter === 'home' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    activeSectorFilter === 'home' ? 'bg-blue-600 text-white shadow-xs' : 'text-muted hover:text-primary'
                   }`}
                 >
                   🏠 منزلي
@@ -960,14 +1000,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   type="button"
                   onClick={() => setActiveSectorFilter('electrical')}
                   className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                    activeSectorFilter === 'electrical' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                    activeSectorFilter === 'electrical' ? 'bg-blue-600 text-white shadow-xs' : 'text-muted hover:text-primary'
                   }`}
                 >
                   ⚡ كهرباء
                 </button>
               </div>
             ) : (
-              <span className="text-xs font-black text-slate-700 bg-blue-50 border border-blue-200 px-3.5 py-2 rounded-xl flex items-center gap-1.5">
+              <span className="text-xs font-black text-secondary bg-blue-50 border border-blue-200 px-3.5 py-2 rounded-xl flex items-center gap-1.5">
                 {currentUser?.sector === 'electrical' ? '⚡ كتالوج قطاع الكهرباء' : '🏠 كتالوج القطاع المنزلي'}
               </span>
             )}
@@ -984,13 +1024,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             </button>
 
             {/* فرعك */}
-            <div className="flex items-center gap-1 text-xs text-slate-500 font-bold bg-white px-3 py-2 rounded-xl border border-slate-200">
+            <div className="flex items-center gap-1 text-xs text-light font-bold bg-white px-3 py-2 rounded-xl border border-slate-200">
               <span>فرعك:</span>
-              <span className="font-black text-slate-800">{currentActiveBranch}</span>
+              <span className="font-black text-secondary">{currentActiveBranch}</span>
             </div>
 
             {/* الأصناف المتوفرة للطلب */}
-            <div className="flex items-center gap-1 text-xs text-slate-500 font-bold bg-white px-3 py-2 rounded-xl border border-slate-200">
+            <div className="flex items-center gap-1 text-xs text-light font-bold bg-white px-3 py-2 rounded-xl border border-slate-200">
               <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
               <span>أصناف متاحة للطلب:</span>
               <span className="font-black text-indigo-600">{stats.availableItemsCount.toLocaleString('en-US')}</span>
@@ -1007,8 +1047,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <FileText className="w-7 h-7" />
             </div>
             <div>
-              <h3 className="font-black text-slate-900 text-base">جاري إنشاء ملف الكتالوج PDF</h3>
-              <p className="text-xs text-slate-500 font-bold mt-1">
+              <h3 className="font-black text-primary text-base">جاري إنشاء ملف الكتالوج PDF</h3>
+              <p className="text-xs text-light font-bold mt-1">
                 {pdfProgress.phase === 'images'
                   ? `تحميل ومعالجة صور الأصناف (${pdfProgress.current} من ${pdfProgress.total})`
                   : `بناء صفحات الـ PDF والخطوط العربية (${pdfProgress.current} من ${pdfProgress.total})`}
@@ -1020,7 +1060,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 style={{ width: `${pdfProgress.percent}%` }}
               />
             </div>
-            <div className="text-xs font-black text-slate-700 font-mono">{pdfProgress.percent}%</div>
+            <div className="text-xs font-black text-secondary font-mono">{pdfProgress.percent}%</div>
           </div>
         </div>
       )}
@@ -1051,8 +1091,188 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       )}
 
-      {/* 4. Product Cards Grid (Matching exact columns from user sheet) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {/* Favorites Bar */}
+      <div className="hidden lg:flex items-center justify-between gap-3 px-4 py-2 mb-3 bg-surface border border-border-primary rounded-2xl">
+        <div className="flex items-center gap-2">
+          <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
+          <span className="font-black text-primary text-sm">
+            {Object.keys(favorites).length} صنف في المفضلة
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowFavoritesOnly((prev) => !prev)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              showFavoritesOnly
+                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                : 'bg-white text-muted border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            عرض المفضلة فقط
+          </button>
+          {Object.keys(favorites).length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setFavorites({});
+                try {
+                  localStorage.removeItem('tantawy_fav_products');
+                } catch {}
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold transition bg-white text-muted border border-slate-200 hover:bg-slate-50"
+            >
+              مسح الكل
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ERP Table View (Desktop\/Laptop) */}
+      <div className="hidden lg:block overflow-x-auto border border-border-primary rounded-3xl shadow-lg bg-surface animate-in mi-fade-in">
+        <table className="w-full text-left border-collapse text-sm">
+          <thead className="bg-navy text-white font-extrabold border-b border-navy/50 uppercase tracking-wider">
+            <tr>
+              <th className="p-3 text-right w-16 text-white font-black uppercase tracking-tighter">#</th>
+              <th className="p-3 text-center w-20 text-white font-black uppercase tracking-tighter">الصورة</th>
+              <th className="p-3 text-right text-white font-black uppercase tracking-tighter">كود المنتج</th>
+              <th className="p-3 text-right text-white font-black uppercase tracking-tighter">الكود الموحد</th>
+              <th className="p-3 text-right text-white font-black uppercase tracking-tighter">اسم المنتج</th>
+              <th className="p-3 text-center w-20 text-white font-black uppercase tracking-tighter">القطاع</th>
+              <th className="p-3 text-right w-24 text-white font-black uppercase tracking-tighter">سعر القطعة</th>
+              <th className="p-3 text-right w-24 text-white font-black uppercase tracking-tighter">سعر الكرتونة</th>
+              <th className="p-3 text-center w-16 text-white font-black uppercase tracking-tighter">الشدة</th>
+              <th className="p-3 text-center w-20 text-white font-black uppercase tracking-tighter">مخزون الفرع</th>
+              <th className="p-3 text-center w-20 text-white font-black uppercase tracking-tighter">مخزون أكتوبر</th>
+              <th className="p-3 text-center w-16 text-white font-black uppercase tracking-tighter">المفضلة</th>
+              <th className="p-3 text-center w-24 text-white font-black uppercase tracking-tighter">إجراء</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border-primary/30">
+            {paginatedProducts.map((p, rowIdx) => {
+              const branchStock = getProductBranchStock(p);
+              const octoberStock = p.mainWarehouseActual || 0;
+              const isElec = isProductElectrical(p);
+              const priceInfo = resolveDisplayPrice({
+                piecePrice: p.piecePrice ?? p.salesPrice,
+                cartonPrice: p.cartonPrice,
+                factor: p.cartonQuantity ?? p.factor,
+              });
+              const displayName = stripPlaceholderText(p.name);
+              const globalIdx = (currentPage - 1) * itemsPerPage + rowIdx + 1;
+
+              return (
+                <tr key={p.id} className="hover:bg-surface-hover transition group bg-surface">
+                  <td className="p-3 text-right font-bold text-light">{globalIdx}</td>
+                  <td className="p-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const img = getProductImageUrl(p, cloudinaryConfig);
+                        if (img && !img.startsWith('data:image/svg+xml')) {
+                          setLightboxImage({ src: img, alt: p.name });
+                        }
+                      }}
+                      className="flex items-center justify-center p-1"
+                    >
+                      <div className="w-14 h-14 rounded-xl bg-surface-alt border border-border-primary overflow-hidden flex items-center justify-center cursor-pointer hover:shadow-[0_0_15px_rgba(0,148,136,0.3)] transition-all duration-200 shadow-sm">
+                        {p.imageUrl ? (
+                          <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-light text-[10px] font-bold">
+                            📦
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  </td>
+                  <td className="p-3 text-right font-mono font-bold text-secondary">{p.code || '—'}</td>
+                  <td className="p-3 text-right font-mono text-muted">
+                    {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
+                  </td>
+                  <td className="p-3 text-right font-bold text-primary truncate max-w-[200px]" title={displayName}>
+                    {displayName || `صنف ${p.code}`}
+                  </td>
+                  <td className="p-3 text-center">
+                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold shrink-0 ${
+                      isElec ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
+                    }`}>
+                      {isElec ? '⚡ كهرباء' : '🏠 منزلي'}
+                    </span>
+                  </td>
+                  <td className="p-3 text-right font-mono text-secondary">
+                    {priceInfo.displayPrice > 0 ? formatCurrency(priceInfo.displayPrice) : '—'}
+                    <span className="text-[10px] text-light block">/قطعة</span>
+                  </td>
+                  <td className="p-3 text-right font-mono text-secondary">
+                    {priceInfo.displayPrice > 0 && priceInfo.factor > 1
+                      ? formatCurrency(priceInfo.displayPrice * priceInfo.factor)
+                      : '—'}
+                    <span className="text-[10px] text-light block">/كرتونة</span>
+                  </td>
+                  <td className="p-3 text-center font-mono text-secondary">
+                    {priceInfo.factor > 1 ? priceInfo.factor : 1}
+                  </td>
+                  <td className="p-3 text-center">
+                    <span className={`px-2 py-1 rounded-lg text-[11px] font-bold ${
+                      branchStock > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}>
+                      {branchStock}
+                    </span>
+                  </td>
+                  <td className="p-3 text-center">
+                    <span className={`px-2 py-1 rounded-lg text-[11px] font-bold ${
+                      octoberStock > 0 ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-light border border-slate-200'
+                    }`}>
+                      {octoberStock}
+                    </span>
+                  </td>
+                  <td className="p-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => toggleFavorite(p.id)}
+                      aria-label={Boolean(favorites[p.id]) ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
+                      className={`w-8 h-8 rounded-lg border flex items-center justify-center transition cursor-pointer shrink-0 ${
+                        favorites[p.id]
+                          ? 'bg-rose-50 border-rose-200 text-rose-600'
+                          : 'border-slate-200 text-light hover:text-muted bg-white'
+                      }`}
+                    >
+                      <Heart className={`w-4 h-4 ${favorites[p.id] ? 'fill-rose-600' : ''}`} />
+                    </button>
+                  </td>
+                  <td className="p-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleAddToCart(p)}
+                      disabled={branchStock <= 0 && octoberStock <= 0}
+                      className="w-full py-1.5 rounded-lg text-xs font-bold transition shadow-sm flex items-center justify-center gap-1.5 ${
+                        branchStock <= 0 && octoberStock <= 0
+                          ? 'bg-slate-200 text-light cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95 cursor-pointer'
+                      }"
+                    >
+                      <ShoppingCart className="w-3 h-3" />
+                      <span>إضافة</span>
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+            {paginatedProducts.length === 0 && (
+              <tr>
+                <td colSpan={11} className="p-8 text-center text-light font-bold">
+                  <Package className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                  <p>لم يتم العثور على أصناف مطابقة للبحث أو الفلاتر المحددة</p>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* 4b. Product Cards Grid (Mobile) — نفس الأعمدة归类 في كروت */}
+      <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         {paginatedProducts.map((p, idx) => {
           const branchStock = getProductBranchStock(p);
           const octoberStock = p.mainWarehouseActual || 0;
@@ -1101,11 +1321,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="shrink-0">{statusBadge}</span>
                   {isElectrical ? (
-                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black">
+                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-black">
                       ⚡ كهرباء
                     </span>
                   ) : (
-                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-black">
+                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black">
                       🏠 منزلي
                     </span>
                   )}
@@ -1118,7 +1338,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   className={`w-8 h-8 rounded-full border flex items-center justify-center transition cursor-pointer shrink-0 ${
                     isFav
                       ? 'bg-rose-50 border-rose-200 text-rose-600'
-                      : 'border-slate-200 text-slate-400 hover:text-slate-600 bg-white'
+                      : 'border-slate-200 text-light hover:text-muted bg-white'
                   }`}
                 >
                   <Heart className={`w-4 h-4 ${isFav ? 'fill-rose-600' : ''}`} />
@@ -1148,22 +1368,22 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
               {/* Product Title & Department */}
               <div className="text-center space-y-1">
-                <div className="text-[10px] text-slate-400 font-bold leading-tight">
+                <div className="text-[10px] text-light font-bold leading-tight">
                   {stripPlaceholderText(p.department) || stripPlaceholderText(p.itemGroup) || 'عام'}
                   {stripPlaceholderText(p.familyName) ? ` • ${stripPlaceholderText(p.familyName)}` : ''}
                 </div>
                 <h3
                   onClick={() => setSelectedProductForModal(p)}
-                  className="font-black text-slate-900 text-sm leading-snug line-clamp-2 min-h-[38px] hover:text-blue-600 cursor-pointer transition"
+                  className="font-black text-primary text-sm leading-snug line-clamp-2 min-h-[38px] hover:text-blue-600 cursor-pointer transition"
                   title={displayName}
                 >
                   {displayName || `صنف ${p.code}`}
                 </h3>
-                <div className="text-[11px] text-slate-500 font-bold flex items-center justify-center gap-2">
+                <div className="text-[11px] text-light font-bold flex items-center justify-center gap-2">
                   {priceInfo.displayPrice > 0 ? (
-                    <span className="text-slate-900 font-black text-xs">
+                    <span className="text-primary font-black text-xs">
                       {formatCurrency(priceInfo.displayPrice)}{' '}
-                      <span className="text-[10px] text-slate-400 font-normal">/ {priceInfo.unitLabel}</span>
+                      <span className="text-[10px] text-light font-normal">/ {priceInfo.unitLabel}</span>
                     </span>
                   ) : (
                     '—'
@@ -1174,7 +1394,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </span>
                   ) : null}
                   {stripPlaceholderText(p.size) && (
-                    <span className="text-slate-400 text-[10px]">({stripPlaceholderText(p.size)})</span>
+                    <span className="text-light text-[10px]">({stripPlaceholderText(p.size)})</span>
                   )}
                 </div>
               </div>
@@ -1182,14 +1402,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               {/* Codes Row: كود المنتج (Item number) + الكود الموحد */}
               <div className="grid grid-cols-2 gap-2 text-center">
                 <div className="bg-slate-50 border border-slate-100 rounded-xl p-1.5">
-                  <span className="text-[10px] text-slate-400 block font-bold">كود المنتج</span>
-                  <span className="font-mono font-bold text-slate-800 text-xs truncate block" title={p.code}>
+                  <span className="text-[10px] text-light block font-bold">كود المنتج</span>
+                  <span className="font-mono font-bold text-secondary text-xs truncate block" title={p.code}>
                     {p.code || 'PRD—'}
                   </span>
                 </div>
                 <div className="bg-slate-50 border border-slate-100 rounded-xl p-1.5">
-                  <span className="text-[10px] text-slate-400 block font-bold">الكود الموحد</span>
-                  <span className="font-mono font-bold text-slate-800 text-xs truncate block" title={p.unifiedCode}>
+                  <span className="text-[10px] text-light block font-bold">الكود الموحد</span>
+                  <span className="font-mono font-bold text-secondary text-xs truncate block" title={p.unifiedCode}>
                     {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
                   </span>
                 </div>
@@ -1229,18 +1449,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     <button
                       type="button"
                       onClick={() => handleQtyChange(p.id, 1)}
-                      className="w-9 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-200 text-sm font-bold transition cursor-pointer"
+                      className="w-9 h-8 flex items-center justify-center text-muted hover:bg-slate-200 text-sm font-bold transition cursor-pointer"
                       aria-label="زيادة الكمية"
                     >
                       +
                     </button>
-                    <span className="flex-1 text-center font-black text-slate-900 text-xs">
+                    <span className="flex-1 text-center font-black text-primary text-xs">
                       {currentQty}
                     </span>
                     <button
                       type="button"
                       onClick={() => handleQtyChange(p.id, -1)}
-                      className="w-9 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-200 text-sm font-bold transition cursor-pointer"
+                      className="w-9 h-8 flex items-center justify-center text-muted hover:bg-slate-200 text-sm font-bold transition cursor-pointer"
                       aria-label="تقليل الكمية"
                     >
                       -
@@ -1253,7 +1473,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         })}
 
         {filteredProducts.length === 0 && (
-          <div className="col-span-full py-16 text-center text-slate-400 font-bold bg-white rounded-3xl border border-slate-100 p-8 space-y-3">
+          <div className="col-span-full py-16 text-center text-light font-bold bg-white rounded-3xl border border-slate-100 p-8 space-y-3">
             <Package className="w-12 h-12 mx-auto text-slate-300" />
             <p className="text-sm">لم يتم العثور على أصناف مطابقة للبحث أو الفلاتر المحددة</p>
             {onlyInStock && (
@@ -1272,14 +1492,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* 5. Pagination Bar */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5 flex flex-col md:flex-row items-center justify-between gap-3 select-none">
         {/* Right: عرض X – Y من إجمالي Z صنف */}
-        <div className="text-xs font-bold text-slate-500">
+        <div className="text-xs font-bold text-light">
           {filteredProducts.length === 0 ? (
             'لا توجد نتائج'
           ) : (
             <span>
               عرض {(currentPage - 1) * itemsPerPage + 1} –{' '}
               {Math.min(currentPage * itemsPerPage, filteredProducts.length)} من{' '}
-              <span className="font-black text-slate-800">{filteredProducts.length.toLocaleString('en-US')}</span>{' '}
+              <span className="font-black text-secondary">{filteredProducts.length.toLocaleString('en-US')}</span>{' '}
               صنف
             </span>
           )}
@@ -1293,7 +1513,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
               aria-label="الصفحة السابقة"
-              className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-600 flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+              className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-muted flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
@@ -1315,7 +1535,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   className={`w-9 h-9 rounded-xl text-xs font-black flex items-center justify-center transition cursor-pointer ${
                     currentPage === pg
                       ? 'bg-blue-600 text-white shadow-sm'
-                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                      : 'bg-white border border-slate-200 text-secondary hover:bg-slate-50'
                   }`}
                 >
                   {pg}
@@ -1328,7 +1548,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
               aria-label="الصفحة التالية"
-              className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-slate-600 flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+              className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-muted flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -1336,13 +1556,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         )}
 
         {/* Left: عدد النتائج في الصفحة */}
-        <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+        <div className="flex items-center gap-2 text-xs font-bold text-muted">
           <span>عدد النتائج في الصفحة:</span>
           <select
             value={itemsPerPage}
             onChange={(e) => setItemsPerPage(Number(e.target.value))}
             aria-label="عدد النتائج في الصفحة"
-            className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-black text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+            className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-black text-secondary focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
           >
             <option value={12}>12</option>
             <option value={24}>24</option>
@@ -1362,13 +1582,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         >
           <div className="bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl border border-slate-100 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h2 className="text-base font-black text-slate-900">
+              <h2 className="text-base font-black text-primary">
                 {stripPlaceholderText(selectedProductForModal.name) || `صنف ${selectedProductForModal.code}`}
               </h2>
               <button
                 type="button"
                 onClick={() => setSelectedProductForModal(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center cursor-pointer"
+                className="w-8 h-8 rounded-full bg-slate-100 text-light flex items-center justify-center cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1376,41 +1596,41 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl">
-                <span className="text-[10px] text-slate-400 block font-bold">كود المنتج (Item number)</span>
-                <span className="font-mono font-bold text-slate-800">{selectedProductForModal.code}</span>
+                <span className="text-[10px] text-light block font-bold">كود المنتج (Item number)</span>
+                <span className="font-mono font-bold text-secondary">{selectedProductForModal.code}</span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl">
-                <span className="text-[10px] text-slate-400 block font-bold">الكود الموحد</span>
-                <span className="font-mono font-bold text-slate-800">
+                <span className="text-[10px] text-light block font-bold">الكود الموحد</span>
+                <span className="font-mono font-bold text-secondary">
                   {selectedProductForModal.unifiedCode || '—'}
                 </span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl">
-                <span className="text-[10px] text-slate-400 block font-bold">القسم (Item group)</span>
-                <span className="font-bold text-slate-800">
+                <span className="text-[10px] text-light block font-bold">القسم (Item group)</span>
+                <span className="font-bold text-secondary">
                   {selectedProductForModal.department || selectedProductForModal.category || 'عام'}
                 </span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl">
-                <span className="text-[10px] text-slate-400 block font-bold">العائلة (Family Name)</span>
-                <span className="font-bold text-slate-800">
+                <span className="text-[10px] text-light block font-bold">العائلة (Family Name)</span>
+                <span className="font-bold text-secondary">
                   {selectedProductForModal.familyName || selectedProductForModal.classification || '—'}
                 </span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl">
-                <span className="text-[10px] text-slate-400 block font-bold">القطاع</span>
+                <span className="text-[10px] text-light block font-bold">القطاع</span>
                 <span className="font-black text-blue-700">
                   {isProductElectrical(selectedProductForModal) ? '⚡ قطاع الكهرباء' : '🏠 القطاع المنزلي'}
                 </span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl">
-                <span className="text-[10px] text-slate-400 block font-bold">
+                <span className="text-[10px] text-light block font-bold">
                   سعر {modalPricing?.unitLabel}
                 </span>
                 <span className="font-black text-blue-600 text-sm">
                   {formatCurrency(modalPricing?.displayPrice || 0)}
                 </span>
-                <span className="block text-[10px] text-slate-400 font-bold mt-1">
+                <span className="block text-[10px] text-light font-bold mt-1">
                   {modalPricing && !modalPricing.isSinglePiece
                     ? `القطعة: ${formatCurrency(modalPricing.piecePrice)} • الشدة: ${modalPricing.factor} ق/ك`
                     : 'يُباع بالقطعة (الشدة 1)'}
@@ -1455,6 +1675,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           />
         </div>
       )}
+
     </div>
   );
 };

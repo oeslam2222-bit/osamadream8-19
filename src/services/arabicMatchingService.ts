@@ -236,6 +236,61 @@ export const BRANCH_CODE_MAP: Record<string, string> = {
   '95': 'فرع المنيا',
 };
 
+/**
+ * خريطة أرقام الفروع إلى القطاعات (منزلي / كهرباء / القطاعين)
+ * وفقًا للمعيار المعتمد:
+ *  - الفيوم: 15 منزلي، 16 كهرباء
+ *  - ديمشلت: 45 منزلي، 46 كهرباء
+ *  - منوف: 55 منزلي، 56 كهرباء
+ *  - منيا القمح: 65 منزلي، 66 كهرباء
+ *  - القاهرة: 75 منزلي، 76 كهرباء
+ *  - البحيرة: 90 منزلي، 91 كهرباء
+ *  - المنيا: 95 منزلي، 96 كهرباء
+ */
+export const BRANCH_SECTOR_MAP: Record<string, 'home' | 'electrical'> = {
+  '15': 'home',
+  '16': 'electrical',
+  '45': 'home',
+  '46': 'electrical',
+  '55': 'home',
+  '56': 'electrical',
+  '65': 'home',
+  '66': 'electrical',
+  '75': 'home',
+  '76': 'electrical',
+  '90': 'home',
+  '91': 'electrical',
+  '95': 'home',
+  '96': 'electrical',
+};
+
+/**
+ * استنتاج القطاع من رقم الفرع.
+ * لو رقم الفرع موجود بالخريطة يُرجعligere sectorn שלו.
+ * لو موجدش يرجع undefined (يبقى القطاع فاضي ويتم التعامل معه كالافتراضي).
+ */
+export function resolveSectorFromBranch(branchCode?: string): 'home' | 'electrical' | undefined {
+  if (!branchCode) return undefined;
+  const clean = branchCode.trim();
+  const latin = toLatinDigits(clean);
+  return BRANCH_SECTOR_MAP[latin] || BRANCH_SECTOR_MAP[clean] || undefined;
+}
+
+/**
+ * استنتاج القطاع من نص يحتوي على رقم الفرع (اسم الفرع، العنوان، إلخ).
+ * يبحث عن أي من أرقام الفروع المعروفة بالنص ويُرجع secteur المقابل.
+ */
+export function inferSectorFromText(text?: string): 'home' | 'electrical' | undefined {
+  if (!text) return undefined;
+  const norm = normalizeArabicText(text);
+  if (!norm) return undefined;
+  // فحص كل رمز قطاع معروف داخل النص
+  for (const [code, sector] of Object.entries(BRANCH_SECTOR_MAP)) {
+    if (norm.includes(code)) return sector;
+  }
+  return undefined;
+}
+
 const ARABIC_DIGIT_MAP: Record<string, string> = {
   '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4',
   '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9',

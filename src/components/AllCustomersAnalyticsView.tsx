@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Users,
   Search,
@@ -198,12 +198,61 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
   const [collectionRateFilter, setCollectionRateFilter] = useState<CollectionRateFilter>('ALL');
 
+  // Remember filters in localStorage per user
+  const CUSTOMER_FILTERS_KEY = `tantawy_customer_filters_${currentUser?.id || 'guest'}`;
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(CUSTOMER_FILTERS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.searchQuery !== undefined) setSearchQuery(parsed.searchQuery);
+        if (parsed.selectedBranch !== undefined) setSelectedBranch(parsed.selectedBranch);
+        if (parsed.selectedSupervisor !== undefined) setSelectedSupervisor(parsed.selectedSupervisor);
+        if (parsed.selectedRep !== undefined) setSelectedRep(parsed.selectedRep);
+        if (parsed.selectedRegion !== undefined) setSelectedRegion(parsed.selectedRegion);
+        if (parsed.activityFilter !== undefined) setActivityFilter(parsed.activityFilter);
+        if (parsed.debtFilter !== undefined) setDebtFilter(parsed.debtFilter);
+        if (parsed.eligibilityFilter !== undefined) setEligibilityFilter(parsed.eligibilityFilter);
+        if (parsed.debtStatusFilter !== undefined) setDebtStatusFilter(parsed.debtStatusFilter);
+        if (parsed.dealtFilter !== undefined) setDealtFilter(parsed.dealtFilter);
+        if (parsed.orderFilter !== undefined) setOrderFilter(parsed.orderFilter);
+        if (parsed.visitFilter !== undefined) setVisitFilter(parsed.visitFilter);
+        if (parsed.collectionRateFilter !== undefined) setCollectionRateFilter(parsed.collectionRateFilter);
+        if (parsed.sortBy !== undefined) setSortBy(parsed.sortBy);
+        if (parsed.sortOrder !== undefined) setSortOrder(parsed.sortOrder);
+      }
+    } catch {}
+  }, [CUSTOMER_FILTERS_KEY, currentUser?.id]);
+
   // Power BI Visuals Tab
   const [activeChartTab, setActiveChartTab] = useState<'monthly' | 'branches' | 'reps' | 'payment_guarantee'>('monthly');
 
   // Sorting
   const [sortBy, setSortBy] = useState<'name' | 'code' | 'balance' | 'overdue' | 'creditLimit' | 'sales2026' | 'collections2026' | 'lastVisit' | 'order'>('balance');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const saveCustomerFilters = useCallback(() => {
+    try {
+      localStorage.setItem(CUSTOMER_FILTERS_KEY, JSON.stringify({
+        searchQuery,
+        selectedBranch,
+        selectedSupervisor,
+        selectedRep,
+        selectedRegion,
+        activityFilter,
+        debtFilter,
+        eligibilityFilter,
+        debtStatusFilter,
+        dealtFilter,
+        orderFilter,
+        visitFilter,
+        collectionRateFilter,
+        sortBy,
+        sortOrder,
+      }));
+    } catch {}
+  }, [searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, dealtFilter, orderFilter, visitFilter, collectionRateFilter, sortBy, sortOrder, CUSTOMER_FILTERS_KEY]);
 
   // Pagination for high-performance (4000+ items)
   const [currentPage, setCurrentPage] = useState(1);
@@ -741,13 +790,22 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     setOrderFilter('ALL');
     setVisitFilter('ALL');
     setCollectionRateFilter('ALL');
+    setSortBy('balance');
+    setSortOrder('desc');
+    saveCustomerFilters();
   };
 
   const handleSortChange = (value: string) => {
     const [field, order] = value.split(':');
     setSortBy(field as typeof sortBy);
     setSortOrder(order === 'asc' ? 'asc' : 'desc');
+    saveCustomerFilters();
   };
+
+  // Save filters whenever they change
+  useEffect(() => {
+    saveCustomerFilters();
+  }, [searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, dealtFilter, orderFilter, visitFilter, collectionRateFilter, saveCustomerFilters]);
 
   const filterBarValue: CustomerFilterBarState = {
     searchQuery,
@@ -1088,6 +1146,22 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             </div>
           </div>
         );
+
+      case 'sector': {
+        const sector = c.sector || 'all';
+        const sectorConfig: Record<string, { label: string; icon: string; bg: string; text: string; border: string }> = {
+          home: { label: '🏠 منزلي', icon: '🏠', bg: 'bg-blue-50', text: 'text-blue-800', border: 'border-blue-200' },
+          electrical: { label: '⚡ كهرباء', icon: '⚡', bg: 'bg-amber-50', text: 'text-amber-800', border: 'border-amber-200' },
+          both: { label: '🏢 القطاعين', icon: '🏢', bg: 'bg-purple-50', text: 'text-purple-800', border: 'border-purple-200' },
+          all: { label: 'الكل', icon: '🌐', bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200' },
+        };
+        const cfg = sectorConfig[sector];
+        return (
+          <span className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black ${cfg.bg} ${cfg.text} ${cfg.border} whitespace-nowrap shrink-0`}>
+            {cfg.label}
+          </span>
+        );
+      }
 
       case 'region':
         return (
@@ -1870,6 +1944,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-bold">{c.code || '---'}</span>
                           <span>·</span>
                           <span>{c.branchName || c.region || 'بدون فرع'}</span>
+                          {c.sector && c.sector !== 'all' && (
+                            <span className={`px-1.5 py-0.5 rounded-lg text-[10px] font-bold shrink-0 ${
+                              c.sector === 'home' ? 'bg-blue-50 text-blue-800 border border-blue-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
+                            }`}>
+                              {c.sector === 'home' ? '🏠 منزلي' : '⚡ كهرباء'}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

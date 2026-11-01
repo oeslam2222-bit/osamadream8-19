@@ -639,22 +639,22 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     <div className="tantawy-screen space-y-6 pb-20 max-w-none mx-auto px-2 sm:px-4">
       
       {/* Header Banner */}
-      <div className="bg-white rounded-3xl p-5 sm:p-7 shadow-xs border border-slate-200">
+      <div className="bg-gradient-to-r from-[var(--app-navy)] to-blue-700 rounded-3xl p-5 sm:p-7 text-white shadow-lg shadow-navy/30">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-[rgba(16,43,78,.10)] text-[var(--app-navy)] border border-[rgba(16,43,78,.22)] flex items-center justify-center font-black shrink-0">
-              <ShieldCheck className="w-6 h-6 text-[var(--app-navy)]" />
+            <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center font-black shrink-0 shadow-lg shadow-black/20 border border-white/20">
+              <ShieldCheck className="w-7 h-7 text-white" />
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                <h2 className="text-lg sm:text-xl font-black text-white">
                   إدارة الموظفين والصلاحيات والهيكل الإداري
                 </h2>
-                <span className="bg-[rgba(201,154,67,.13)] text-warn text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-[rgba(201,154,67,.3)] app-num">
+                <span className="bg-white/20 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-white/30 app-num">
                   {users.length} موظف مسجل
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed">
+              <p className="text-xs sm:text-sm text-blue-100 mt-1 leading-relaxed">
                 إضافة المناديب والمشرفين • توزيع المناديب على المشرفين في كل فرع • سرية تامة وتحديد الصلاحيات
               </p>
             </div>
@@ -665,10 +665,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               <button
                 onClick={handleMergeDuplicates}
                 disabled={isMergingDuplicates}
-                className="app-btn app-btn-ghost px-3 text-xs active:scale-95"
+                className="bg-white/10 hover:bg-white/20 text-white font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
                 title="فحص حسابات الموظفين والمناديب المكررة ودمجها وتوحيد السجلات"
               >
-                <Sparkles className={`w-3.5 h-3.5 text-[var(--app-ok)] ${isMergingDuplicates ? 'animate-spin' : ''}`} />
+                <Sparkles className={`w-3.5 h-3.5 text-amber-300 ${isMergingDuplicates ? 'animate-spin' : ''}`} />
                 <span>{isMergingDuplicates ? 'جاري الفحص والدمج...' : 'فحص ودمج الحسابات المكررة'}</span>
               </button>
             )}
@@ -681,10 +681,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   setSyncToast(`تم فحص ومزامنة العملاء بنجاح! تم تحديث وربط ${res.updatedCount} عميل بالمناديب.`);
                   setTimeout(() => setSyncToast(null), 4000);
                 }}
-                className="app-btn app-btn-ghost px-3 text-xs active:scale-95"
+                className="bg-white/10 hover:bg-white/20 text-white font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer active:scale-95"
                 title="إعادة فحص وربط العملاء بالمناديب وفقاً للأسماء والفروع وعرض تقرير المطابقة"
               >
-                <RefreshCw className="w-3.5 h-3.5 app-ink-brass" />
+                <RefreshCw className="w-3.5 h-3.5 text-white" />
                 <span>مزامنة وربط العملاء بالمناديب</span>
               </button>
             )}
@@ -692,14 +692,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
             {isSuperAdminOrDev ? (
               <button
                 onClick={handleOpenAddModal}
-                className="app-btn app-btn-primary px-5 text-xs sm:text-sm active:scale-95"
+                className="bg-white text-[var(--app-navy)] font-black font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-navy/25 hover:bg-blue-50 active:scale-95 cursor-pointer"
               >
                 <UserPlus className="w-4 h-4" />
                 <span>إضافة موظف جديد +</span>
               </button>
             ) : (
-              <div className="panel-warn px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2">
-                <Lock className="w-4 h-4 shrink-0" />
+              <div className="bg-white/10 border border-white/20 rounded-xl px-3.5 py-2.5 text-xs font-bold flex items-center gap-2 text-white/90">
+                <Lock className="w-4 h-4 text-white" />
                 <span>إضافة وتعديل الموظفين مقتصرة على الآدمن والمطور فقط</span>
               </div>
             )}
@@ -816,32 +816,32 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
           const cfg = roleConfigs[roleKey];
           const count = roleCountsMap[roleKey] || 0;
           const RoleIcon = cfg.icon;
+          const isSelected = selectedRoleFilter === roleKey;
 
           return (
             <div
               key={roleKey}
               onClick={() => setSelectedRoleFilter(selectedRoleFilter === roleKey ? 'الكل' : roleKey)}
-              className={`bg-white rounded-3xl p-4 border transition-all cursor-pointer shadow-xs flex flex-col justify-between ${
-                selectedRoleFilter === roleKey
-                  ? 'border-[var(--app-navy)] bg-[rgba(16,43,78,.05)] shadow-[inset_0_-3px_0_var(--app-accent)]'
-                  : 'border-[var(--app-line)] hover:border-slate-border'
-              }`}
+              className={`bg-white rounded-3xl p-4 border transition-all cursor-pointer shadow-xs flex flex-col justify-between group ${isSelected ? 'border-[var(--app-navy)] bg-[rgba(16,43,78,.08)] shadow-[0_0_0_3px_rgba(16,43,78,0.15)]' : 'border-[var(--app-line)] hover:border-[var(--app-accent)] hover:shadow-md'}`}
             >
-              <div>
-                <div className="flex items-center justify-between">
-                  <div className={`w-8 h-8 rounded-xl ${cfg.bg} ${cfg.border} border flex items-center justify-center`}>
-                    <RoleIcon className={`w-4 h-4 ${cfg.text}`} />
-                  </div>
-                  <span className="font-black text-sm text-slate-900 app-num">{count} <span className="text-[11px] font-bold text-slate-400">موظف</span></span>
+              <div className="flex items-center justify-between mb-2">
+                <div className={`w-10 h-10 rounded-2xl ${cfg.bg} ${cfg.border} border flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform`}>
+                  <RoleIcon className={`w-5 h-5 ${cfg.text}`} />
                 </div>
-                <div className="mt-2.5 font-black text-xs text-slate-900">{cfg.label}</div>
-                <p className="text-[11px] text-slate-500 mt-1 leading-relaxed line-clamp-2">
-                  {cfg.desc}
-                </p>
+                <span className="font-black text-sm text-slate-900 app-num">{count} <span className="text-[10px] font-bold text-slate-400">موظف</span></span>
               </div>
+              <div className="mt-2 font-black text-xs text-slate-900">{cfg.label}</div>
+              <p className="text-[9px] text-slate-500 mt-1.5 leading-relaxed line-clamp-3">
+                {cfg.desc}
+              </p>
 
-              <div className="pt-2 mt-2 border-t border-slate-border-soft flex items-center justify-between text-[10px] text-slate-400 font-bold">
-                <span className={selectedRoleFilter === roleKey ? 't-navy' : ''}>{selectedRoleFilter === roleKey ? 'تصفية مفعلة' : 'انقر للتصفية'}</span>
+              <div className="pt-2 mt-2 border-t border-slate-border-soft flex items-center justify-between text-[9px] text-slate-400 font-bold">
+                <span className={isSelected ? 't-navy' : 'text-slate-500'}>
+                  {isSelected ? 'تصفية مفعلة' : 'انقر للتصفية'}
+                </span>
+                <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${isSelected ? 'bg-[var(--app-navy)] text-white' : 'bg-slate-100 text-slate-400'}`}>
+                  {isSelected ? '✓' : ''}
+                </span>
               </div>
             </div>
           );

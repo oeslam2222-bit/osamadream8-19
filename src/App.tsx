@@ -15,6 +15,9 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
+import { Onboarding } from "./components/Onboarding";
+import { SplashScreen } from "./components/SplashScreen";
+import { ToastProvider } from "./components/ui/Toast";
 import React, { Component, ErrorInfo, Suspense, useEffect, useMemo, useState } from 'react';
 import { DashboardHome } from './components/DashboardHome';
 import { LoginPage } from './components/LoginPage';
@@ -66,13 +69,9 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   ],
   sales_rep: [
     'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
-    'targets', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory'
   ],
-  warehouse_keeper: [
-    'home', 'returns', 'inventory', 'catalog', 'guide'
-  ],
-  legal_advisor: ['home'],
+  legal_advisor: ["home"],
+  warehouse_keeper: ["home", "catalog", "returns", "inventory", "guide"],
 };
 
 // Lightweight Skeleton for tab transitions
@@ -89,12 +88,39 @@ const TabLoadingSkeleton = () => (
 );
 
 const MainLayout: React.FC = () => {
+  const [splashOpen, setSplashOpen] = useState(() => {
+    try {
+      return localStorage.getItem("tantawy_splash_seen") !== "true";
+    } catch {
+      return true;
+    }
+  });
   const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
 
   const [activeTab, setActiveTab] = useState<string>('home');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [appToastMsg, setAppToastMsg] = useState<string | null>(null);
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("tantawy_dark_mode");
+      return saved === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  // Toggle dark mode class on document element
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    try {
+      localStorage.setItem("tantawy_dark_mode", String(isDark));
+    } catch {}
+  }, [isDark]);
 
   const [customPermissionOverrides, setCustomPermissionOverrides] = useState<UserPermissionOverride[]>([]);
 
@@ -174,6 +200,16 @@ const MainLayout: React.FC = () => {
 
   return (
     <div className="tantawy-shell min-h-[100dvh] bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-[var(--app-warn)] selection:text-slate-950" dir="rtl">
+      {/* Splash Screen - shown on first app load */}
+      <SplashScreen
+        isOpen={splashOpen}
+        onComplete={() => {
+          setSplashOpen(false);
+          try {
+            localStorage.setItem("tantawy_splash_seen", "true");
+          } catch {}
+        }}
+      />
       
       {/* Offline Status Top Bar if offline */}
       {isOffline && (
@@ -190,10 +226,12 @@ const MainLayout: React.FC = () => {
         onOpenCart={() => setIsOrderModalOpen(true)}
         isSidebarCollapsed={isSidebarCollapsed}
         onToggleSidebar={handleToggleSidebar}
+        isDark={isDark}
+        setIsDark={setIsDark}
       />
 
-      {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}
-      <main className="flex-1 max-w-none w-full mx-auto px-2 sm:px-4 md:px-6 py-3 sm:py-6 pb-24 md:pb-8">
+      {/* Content Container - Fixed width for proper display on all screens */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-5 lg:px-8 py-4 sm:py-6 pb-24 md:pb-10">
         <Suspense fallback={<TabLoadingSkeleton />}>
           {activeTab === 'home' && allowedTabs.includes('home') && (
             <DashboardHome

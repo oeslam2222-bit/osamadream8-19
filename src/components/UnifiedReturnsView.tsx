@@ -386,22 +386,22 @@ export const UnifiedReturnsView: React.FC = () => {
       )}
 
       {/* Main Screen Header & Statistics */}
-      <section className="bg-white rounded-3xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-5">
+      <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 sm:p-6 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-[var(--app-warn)] border border-[var(--app-warn)] text-[var(--app-warn-text)] flex items-center justify-center shrink-0 shadow-xs">
-              <RotateCcw className="w-6 h-6" />
+            <div className="w-14 h-14 rounded-2xl bg-[var(--app-warn)] border border-[var(--app-warn)] text-[var(--app-warn-text)] flex items-center justify-center shrink-0 shadow-lg shadow-[0_0_20px_rgba(0,0,0,0.1)]">
+              <RotateCcw className="w-7 h-7" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl sm:text-2xl font-black text-slate-900">
+                <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
                   إدارة ومتابعة المرتجعات الموحدة
                 </h1>
-                <span className="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] px-2.5 py-0.5 rounded-full text-[11px] font-black border border-[var(--app-warn-line)]">
+                <span className="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] px-2.5 py-0.5 rounded-full text-[11px] font-bold border border-[var(--app-warn-line)]">
                   شاشة شاملة
                 </span>
               </div>
-              <p className="text-xs text-slate-500 font-medium mt-1">
+              <p className="text-[10px] text-slate-500 font-medium mt-1">
                 تسجيل مرتجعات العملاء من المندوب بالصور والأصناف • متابعة استلام المخزن • اعتماد وإغلاق الطلب من أمين المخزن أو المشرف أو الإدارة
               </p>
             </div>
@@ -412,7 +412,7 @@ export const UnifiedReturnsView: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--app-warn)] hover:bg-[var(--app-warn)] active:scale-95 text-slate-950 font-black text-xs shadow-md transition cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[var(--app-warn)] hover:bg-[var(--app-warn)] active:scale-95 text-slate-950 font-black text-xs shadow-lg shadow-[0_0_20px_rgba(0,0,0,0.15)] transition shadow-sm cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
               <span>تسجيل مرتجع جديد لعميل 📝</span>
@@ -422,55 +422,55 @@ export const UnifiedReturnsView: React.FC = () => {
 
         {/* Aggregate KPI Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-          <div className="bg-slate-50 rounded-2xl p-3.5 border border-slate-200/80">
-            <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1.5">
-              <Package className="w-3.5 h-3.5 text-slate-400" />
-              <span>إجمالي المرتجعات</span>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col transition hover:border-[var(--app-accent)] duration-200 group">
+            <div className="flex items-center justify-between mb-2.5">
+              <Package className="w-4 h-4 text-slate-400" />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">إجمالي المرتجعات</span>
             </div>
-            <div className="text-lg sm:text-xl font-black text-slate-900 mt-1">
-              {metrics.totalCount} <span className="text-xs font-bold text-slate-400">إذن</span>
+            <div className="text-2xl sm:text-3xl font-black text-slate-900 mt-1">
+              {metrics.totalCount} <span className="text-xs font-bold text-slate-400">إذن مرتجع</span>
             </div>
-            <div className="text-[10px] text-slate-500 mt-0.5">
-              قيمة: <strong className="text-[var(--app-warn-text)]">{formatCurrency(metrics.totalValue)}</strong>
+            <div className="text-[10px] text-slate-500 mt-1">
+              القيمة الإجمالية: <strong className="text-[var(--app-warn-text)]">{formatCurrency(metrics.totalValue)} ج.م</strong>
             </div>
           </div>
 
-          <div className="bg-[var(--app-warn-tint)] rounded-2xl p-3.5 border border-[var(--app-warn-line)]">
-            <div className="text-[11px] text-[var(--app-warn-text)] font-bold flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
-              <span>عند العميل (بانتظار الاستلام)</span>
+          <div className="bg-[var(--app-warn-tint)] rounded-2xl p-4 border border-[var(--app-warn-line)] shadow-sm flex flex-col transition hover:border-[var(--app-warn)] duration-200 group">
+            <div className="flex items-center justify-between mb-2.5">
+              <Clock className="w-4 h-4 text-[var(--app-warn-text)]" />
+              <span className="text-[10px] font-bold text-[var(--app-warn-text)] uppercase tracking-tighter">عند العميل (بانتظار الاستلام)</span>
             </div>
-            <div className="text-lg sm:text-xl font-black text-[var(--app-warn-text)] mt-1">
+            <div className="text-2xl sm:text-3xl font-black text-[var(--app-warn-text)] mt-1">
               {metrics.pendingCount} <span className="text-xs font-bold text-[var(--app-warn-text)]">عميل</span>
             </div>
             <div className="text-[10px] text-[var(--app-warn-text)] mt-0.5">
-              تنتظر سيارة المخزن أو المندوب
+              تنتظر سيارة المخزن أو المندوب للاستلام
             </div>
           </div>
 
-          <div className="bg-[var(--app-navy-tint)] rounded-2xl p-3.5 border border-[var(--app-navy-line)]">
-            <div className="text-[11px] text-[var(--app-navy-text)] font-bold flex items-center gap-1.5">
-              <Warehouse className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
-              <span>بالمخزن (قيد الفحص)</span>
+          <div className="bg-[var(--app-navy-tint)] rounded-2xl p-4 border border-[var(--app-navy-line)] shadow-sm flex flex-col transition hover:border-[var(--app-navy)] duration-200 group">
+            <div className="flex items-center justify-between mb-2.5">
+              <Warehouse className="w-4 h-4 text-[var(--app-navy-text)]" />
+              <span className="text-[10px] font-bold text-[var(--app-navy-text)] uppercase tracking-tighter">بالمخزن (قيد الفحص)</span>
             </div>
-            <div className="text-lg sm:text-xl font-black text-[var(--app-navy-text)] mt-1">
+            <div className="text-2xl sm:text-3xl font-black text-[var(--app-navy-text)] mt-1">
               {metrics.inWarehouseCount} <span className="text-xs font-bold text-[var(--app-navy-text)]">شحنة</span>
             </div>
             <div className="text-[10px] text-[var(--app-navy-text)] mt-0.5">
-              تم تسليمها لأمين المخزن
+              تم تسليمها لأمين المخزن للمراجعة
             </div>
           </div>
 
-          <div className="bg-[var(--app-ok-tint)] rounded-2xl p-3.5 border border-[var(--app-ok-line)]">
-            <div className="text-[11px] text-[var(--app-ok-text)] font-bold flex items-center gap-1.5">
-              <CheckCircle2 className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
-              <span>مغلقة ومعتمدة</span>
+          <div className="bg-[var(--app-ok-tint)] rounded-2xl p-4 border border-[var(--app-ok-line)] shadow-sm flex flex-col transition hover:border-[var(--app-ok)] duration-200 group">
+            <div className="flex items-center justify-between mb-2.5">
+              <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)]" />
+              <span className="text-[10px] font-bold text-[var(--app-ok-text)] uppercase tracking-tighter">مغلقة ومعتمدة</span>
             </div>
-            <div className="text-lg sm:text-xl font-black text-[var(--app-ok-text)] mt-1">
+            <div className="text-2xl sm:text-3xl font-black text-[var(--app-ok-text)] mt-1">
               {metrics.closedCount} <span className="text-xs font-bold text-[var(--app-ok-text)]">طلب</span>
             </div>
             <div className="text-[10px] text-[var(--app-ok-text)] mt-0.5">
-              تمت التسوية وإرجاع الرصيد
+              تمت التسوية وإرجاع الرصيد للعميل
             </div>
           </div>
         </div>

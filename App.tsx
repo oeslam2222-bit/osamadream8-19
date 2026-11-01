@@ -20,7 +20,7 @@ import { DashboardHome } from './components/DashboardHome';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
-import { CustomerDirectoryView } from './components/CustomerDirectoryView';
+import { AllCustomersAnalyticsView as CustomerDirectoryView } from './components/AllCustomersAnalyticsView';
 import { AllCustomersAnalyticsView } from './components/AllCustomersAnalyticsView';
 import { SupervisorDashboard } from './components/SupervisorDashboard';
 import { InvoicesManager } from './components/InvoicesManager';
@@ -33,13 +33,18 @@ import { VisitsDashboard } from './components/VisitsDashboard';
 import { LegalAdvisorDashboard } from './components/LegalAdvisorDashboard';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
+import { Onboarding } from './components/Onboarding';
+import { SplashScreen } from './components/SplashScreen';
+import { NotificationCenter } from './components/NotificationCenter';
+import { ToastProvider } from './components/ui/Toast';
 import { AppProvider, useApp } from './context/AppContext';
 import { AuthProvider } from './context/authContext';
+import { ThemeProvider } from './context/themeContext';
 import { InvoiceProvider } from './context/invoiceContext';
 import { CustomerProvider } from './context/customerContext';
 import { InventoryProvider } from './context/inventoryContext';
 import { SyncProvider } from './context/syncContext';
-import { Customer, Invoice } from './types';
+import { Customer, Invoice, NotificationItem } from './types';
 
 // Lightweight Skeleton for tab transitions
 const TabLoadingSkeleton = () => (
@@ -57,17 +62,115 @@ const TabLoadingSkeleton = () => (
 const MainLayout: React.FC = () => {
   const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
 
-  const [activeTab, setActiveTab] = useState<string>('catalog');
+  const [activeTab, setActiveTab] = useState<string>('home');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
+  const [splashOpen, setSplashOpen] = useState(() => {
+    try {
+      return localStorage.getItem('tantawy_splash_seen') !== 'true';
+    } catch {
+      return true;
+    }
+  });
 
-  // Everyone lands on the numbers command center after login.
+  // Notifications state
+  const [notifications, setNotifications] = useState<NotificationItem[]>([
+    {
+      id: 'n1',
+      type: 'system',
+      title: 'تم تشغيل النظام بنجاح',
+      message: 'مرحباً بك في منظومة مجموعة الطنطاوي. جميع الأنظمة تعمل بشكل طبيعي.',
+      time: 'منذ بضع ثوانٍ',
+      read: false,
+    },
+    {
+      id: 'n2',
+      type: 'task',
+      title: 'مهمة جديدة: زيارة عملاء الفيوم',
+      message: 'لديك 5 عملاء مقرر زيارتهم اليوم في فرع الفيوم.',
+      time: 'منذ 5 دقائق',
+      read: false,
+    },
+    {
+      id: 'n3',
+      type: 'warning',
+      title: 'مخزون منخفض: صنف كاسات زجاج',
+      message: 'رصيد مخزن أكتوبر للصنف (كاسات زجاج 330 مل) قد انخفض عن الحد الأدنى.',
+      time: 'منذ 12 دقيقة',
+      read: false,
+    },
+    {
+      id: 'n4',
+      type: 'info',
+      title: 'تحديث بيانات الأصناف',
+      message: 'تم تحديث أسعار 15 صنف من قاعدة البيانات المركزية.',
+      time: 'منذ ساعة',
+      read: true,
+    },
+    {
+      id: 'n5',
+      type: 'success',
+      title: 'تم اعتماد الفاتورة #INV-2026-0045',
+      message: 'تم اعتماد الفاتورة من قبل المشرف وتحويلها للحسابات.',
+      time: 'منذ 3 ساعات',
+      read: true,
+    },
+  ]);
+
+  const addNotification = useCallback((notification: Omit<NotificationItem, 'id'>) => {
+    const id = `n${Date.now()}`;
+    setNotifications((prev) => [{ ...notification, id }, ...prev].slice(0, 50));
+  }, []);
+
+  const markNotificationRead = useCallback((id: string) => {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  }, []);
+
+  const markAllNotificationsRead = useCallback(() => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }, []);
+
+  const deleteNotification = useCallback((id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  }, []);
+
+  const unreadNotificationCount = notifications.filter((n) => !n.read).length;
+
+  const [isDark, setIsDark] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('tantawy_dark_mode');
+      return saved === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Keep catalog as the default home page after login.
+  // Dashboard (home) is now just a regular tab option in the navbar.
   useEffect(() => {
     if (currentUser) {
-      setActiveTab((prev) => (prev === 'catalog' ? 'home' : prev));
+      // Show onboarding on first login only
+      const completed = localStorage.getItem('tantawy_onboarding_completed');
+      if (!completed) {
+        setOnboardingOpen(true);
+      }
     }
   }, [currentUser?.id]);
+
+  // Toggle dark mode class on document element
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    try {
+      localStorage.setItem('tantawy_dark_mode', String(isDark));
+    } catch {}
+  }, [isDark]);
 
   // If user is not logged in, show dedicated Login / Registration Page
   if (!isAuthenticated || !currentUser) {
@@ -95,7 +198,8 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="tantawy-shell min-h-[100dvh] bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-amber-400 selection:text-slate-950" dir="rtl">
+    <ToastProvider>
+      <div className={`tantawy-shell min-h-[100dvh] flex flex-col text-slate-900 font-sans antialiased selection:bg-amber-400 selection:text-slate-950 ${isDark ? 'bg-surface text-primary' : 'bg-slate-100'}`} dir="rtl">
       
       {/* Offline Status Top Bar if offline */}
       {isOffline && (
@@ -110,6 +214,10 @@ const MainLayout: React.FC = () => {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenCart={() => setIsOrderModalOpen(true)}
+        isDark={isDark}
+        setIsDark={setIsDark}
+        notificationCount={unreadNotificationCount}
+        onOpenNotificationCenter={() => setNotificationCenterOpen(true)}
       />
 
       {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}
@@ -232,6 +340,13 @@ const MainLayout: React.FC = () => {
         )}
       </Suspense>
 
+      {/* Onboarding Tour (first login) */}
+      <Onboarding
+        isOpen={onboardingOpen}
+        onClose={() => setOnboardingOpen(false)}
+        onComplete={() => setOnboardingOpen(false)}
+      />
+
       {/* Bottom Footer */}
       <footer className="bg-white border-t border-slate-200 py-4 px-4 text-center text-xs text-slate-500 print:hidden mb-16 md:mb-0">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
@@ -247,6 +362,24 @@ const MainLayout: React.FC = () => {
       </footer>
 
     </div>
+
+      {/* Notification Center */}
+      <NotificationCenter
+        isOpen={notificationCenterOpen}
+        onClose={() => setNotificationCenterOpen(false)}
+        notifications={notifications}
+        onMarkRead={markNotificationRead}
+        onMarkAllRead={markAllNotificationsRead}
+        onDelete={deleteNotification}
+        onNotificationClick={(n) => {
+          setNotificationCenterOpen(false);
+          if (n.actionUrl) {
+            // يمكن التنقل لصفحة الإجراء هنا
+          }
+        }}
+      />
+
+      </ToastProvider>
   );
 };
 
@@ -312,9 +445,11 @@ export function App() {
           <CustomerProvider>
             <InventoryProvider>
               <SyncProvider>
-                <AppProvider>
-                  <MainLayout />
-                </AppProvider>
+                <ThemeProvider>
+                  <AppProvider>
+                    <MainLayout />
+                  </AppProvider>
+                </ThemeProvider>
               </SyncProvider>
             </InventoryProvider>
           </CustomerProvider>

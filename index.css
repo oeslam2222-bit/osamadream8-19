@@ -9,6 +9,20 @@
   .t-body { font-size: .9rem; font-weight: 500; line-height: 1.5; }
   .t-caption { font-size: .75rem; font-weight: 500; color: var(--app-muted); line-height: 1.4; }
   .t-mono { font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  /* Arabic font families */
+  .font-cairo { font-family: 'Cairo', 'Tajawal', system-ui, sans-serif; }
+  .font-tajawal { font-family: 'Tajawal', 'Cairo', system-ui, sans-serif; }
+  .font-amiri { font-family: 'Amiri', 'Cairo', serif; }
+
+  /* Font weight utilities */
+  .fw-light { font-weight: 300; }
+  .fw-normal { font-weight: 400; }
+  .fw-medium { font-weight: 500; }
+  .fw-semibold { font-weight: 600; }
+  .fw-bold { font-weight: 700; }
+  .fw-extrabold { font-weight: 800; }
+  .fw-black { font-weight: 900; }
 }
 
 @layer base {
@@ -29,6 +43,7 @@
 }
 
 :root {
+  /* Core palette */
   --app-ink: #0f172a;
   --app-navy: #0f2b38;
   --app-blue: #3882f6;
@@ -60,7 +75,207 @@
   --sh-lg: 0 12px 32px rgba(15, 23, 42, .12);
   --ease: .18s ease;
   --focus-ring: 0 0 0 3px rgba(0, 148, 136, .35);
+
+  /* Micro-interaction timing */
+  --mi-fast: .12s ease;
+  --mi-normal: .18s ease;
+  --mi-slow: .25s ease;
+  --mi-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ===== Semantic color tokens for consistent theming ===== */
+  /* Backgrounds */
+  --bg-body: #eef3f8;
+  --bg-surface: #ffffff;
+  --bg-surface-alt: #f1f5f9;
+  --bg-surface-hover: #f8fafc;
+  --bg-input: #ffffff;
+  --bg-disabled: #f1f5f9;
+  --bg-toast: #0f172a;
+
+  /* Text */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-light: #94a3b8;
+  --text-inverse: #ffffff;
+  --text-link: #009488;
+
+  /* Borders */
+  --border-primary: #e2e8f0;
+  --border-focus: #009488;
+  --border-input: #cbd5e1;
+
+  /* Interactive states */
+  --btn-primary-bg: #0f2b38;
+  --btn-primary-text: #ffffff;
+  --btn-primary-hover: #0b1f29;
+  --btn-secondary-bg: #ffffff;
+  --btn-secondary-text: #0f172a;
+  --btn-secondary-hover: #f8fafc;
+  --btn-danger-bg: #ef4444;
+  --btn-danger-text: #ffffff;
+  --btn-danger-hover: #dc2626;
+  --btn-warn-bg: #f59e0b;
+  --btn-warn-text: #ffffff;
+  --btn-warn-hover: #d97706;
+
+  /* Status chips */
+  --chip-ok-bg: #dcfce7;
+  --chip-ok-text: #14532d;
+  --chip-warn-bg: #fef3c7;
+  --chip-warn-text: #92400e;
+  --chip-risk-bg: #fee2e2;
+  --chip-risk-text: #991b1b;
+  --chip-muted-bg: #f1f5f9;
+  --chip-muted-text: #475569;
+
+  /* Sector badges */
+  --sector-home-bg: #eff6ff;
+  --sector-home-text: #1e3a8a;
+  --sector-electrical-bg: #fef3c7;
+  --sector-electrical-text: #92400e;
+  --sector-both-bg: #e9d5ff;
+  --sector-both-text: #6b21a8;
+
+  /* Dark mode overrides will be applied via .dark class or media query */
 }
+
+/* Dark mode support - both system preference and manual .dark class */
+@media (prefers-color-scheme: dark) {
+  :root,
+  .dark {
+    --bg-body: #0f172a;
+    --bg-surface: #1e293b;
+    --bg-surface-alt: #334155;
+    --bg-surface-hover: #475569;
+    --bg-input: #1e293b;
+    --bg-disabled: #334155;
+    --bg-toast: #0f172a;
+
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+    --text-light: #64748b;
+    --text-inverse: #ffffff;
+    --text-link: #2dd4bf;
+
+    --border-primary: #334155;
+    --border-focus: #2dd4bf;
+    --border-input: #475569;
+
+    --btn-primary-bg: #3882f6;
+    --btn-primary-text: #ffffff;
+    --btn-primary-hover: #2563eb;
+    --btn-secondary-bg: #334155;
+    --btn-secondary-text: #f8fafc;
+    --btn-secondary-hover: #475569;
+    --btn-danger-bg: #ef4444;
+    --btn-danger-text: #ffffff;
+    --btn-danger-hover: #dc2626;
+    --btn-warn-bg: #f59e0b;
+    --btn-warn-text: #ffffff;
+    --btn-warn-hover: #d97706;
+
+    --chip-ok-bg: #064e3b;
+    --chip-ok-text: #6ee7b7;
+    --chip-warn-bg: #713f12;
+    --chip-warn-text: #fde047;
+    --chip-risk-bg: #7f1d1d;
+    --chip-risk-text: #fca5a5;
+    --chip-muted-bg: #475569;
+    --chip-muted-text: #cbd5e1;
+
+    --sector-home-bg: #1e3a8a;
+    --sector-home-text: #bfdbfe;
+    --sector-electrical-bg: #713f12;
+    --sector-electrical-text: #fcd34d;
+    --sector-both-bg: #5b21b6;
+    --sector-both-text: #e9d5ff;
+  }
+}
+
+/* Manual dark mode class override - works regardless of system preference */
+.dark {
+  --bg-body: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-surface-alt: #334155;
+  --bg-surface-hover: #475569;
+  --bg-input: #1e293b;
+  --bg-disabled: #334155;
+  --bg-toast: #0f172a;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-light: #64748b;
+  --text-inverse: #ffffff;
+  --text-link: #2dd4bf;
+
+  --border-primary: #334155;
+  --border-focus: #2dd4bf;
+  --border-input: #475569;
+
+  --btn-primary-bg: #3882f6;
+  --btn-primary-text: #ffffff;
+  --btn-primary-hover: #2563eb;
+  --btn-secondary-bg: #334155;
+  --btn-secondary-text: #f8fafc;
+  --btn-secondary-hover: #475569;
+  --btn-danger-bg: #ef4444;
+  --btn-danger-text: #ffffff;
+  --btn-danger-hover: #dc2626;
+  --btn-warn-bg: #f59e0b;
+  --btn-warn-text: #ffffff;
+  --btn-warn-hover: #d97706;
+
+  --chip-ok-bg: #064e3b;
+  --chip-ok-text: #6ee7b7;
+  --chip-warn-bg: #713f12;
+  --chip-warn-text: #fde047;
+  --chip-risk-bg: #7f1d1d;
+  --chip-risk-text: #fca5a5;
+  --chip-muted-bg: #475569;
+  --chip-muted-text: #cbd5e1;
+
+  --sector-home-bg: #1e3a8a;
+  --sector-home-text: #bfdbfe;
+  --sector-electrical-bg: #713f12;
+  --sector-electrical-text: #fcd34d;
+  --sector-both-bg: #5b21b6;
+  --sector-both-text: #e9d5ff;
+}
+
+/* Utility classes for dark mode tokens */
+.text-primary { color: var(--text-primary); }
+.text-secondary { color: var(--text-secondary); }
+.text-muted { color: var(--text-muted); }
+.text-light { color: var(--text-light); }
+.text-inverse { color: var(--text-inverse); }
+.text-link { color: var(--text-link); }
+.bg-body { background-color: var(--bg-body); }
+.bg-surface { background-color: var(--bg-surface); }
+.bg-surface-alt { background-color: var(--bg-surface-alt); }
+.bg-surface-hover { background-color: var(--bg-surface-hover); }
+.bg-input { background-color: var(--bg-input); }
+.bg-disabled { background-color: var(--bg-disabled); }
+.border-primary { border-color: var(--border-primary); }
+.border-focus { border-color: var(--border-focus); }
+.btn-primary-bg { background-color: var(--btn-primary-bg); }
+.btn-primary-text { color: var(--btn-primary-text); }
+.btn-secondary-bg { background-color: var(--btn-secondary-bg); }
+.btn-secondary-text { color: var(--btn-secondary-text); }
+.btn-danger-bg { background-color: var(--btn-danger-bg); }
+.btn-danger-text { color: var(--btn-danger-text); }
+.btn-warn-bg { background-color: var(--btn-warn-bg); }
+.btn-warn-text { color: var(--btn-warn-text); }
+.chip-ok-bg { background-color: var(--chip-ok-bg); }
+.chip-ok-text { color: var(--chip-ok-text); }
+.chip-warn-bg { background-color: var(--chip-warn-bg); }
+.chip-warn-text { color: var(--chip-warn-text); }
+.chip-risk-bg { background-color: var(--chip-risk-bg); }
+.chip-risk-text { color: var(--chip-risk-text); }
+.chip-muted-bg { background-color: var(--chip-muted-bg); }
+.chip-muted-text { color: var(--chip-muted-text); }
 
 /* Mobile & Touch Performance Optimization */
 * {
@@ -812,4 +1027,67 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
   font-size: .7rem;
   color: var(--app-muted);
   font-weight: 600;
+}
+
+/* ===== Micro-interactions: smooth UI animations ===== */
+
+/* Card hover lift effect */
+.mi-card {
+  transition: transform var(--mi-fast), box-shadow var(--mi-fast), border-color var(--mi-fast);
+}
+.mi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--sh-md);
+  border-color: var(--border-focus);
+}
+
+/* Button press effect */
+.mi-btn {
+  transition: transform var(--mi-fast), background-color var(--mi-fast), box-shadow var(--mi-fast);
+}
+.mi-btn:active {
+  transform: scale(0.97);
+}
+
+/* Smooth list item reveal */
+.mi-list-item {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: mi-slide-up var(--mi-normal) var(--mi-bounce) forwards;
+}
+.mi-list-item:nth-child(1) { animation-delay: 0.04s; }
+.mi-list-item:nth-child(2) { animation-delay: 0.08s; }
+.mi-list-item:nth-child(3) { animation-delay: 0.12s; }
+.mi-list-item:nth-child(4) { animation-delay: 0.16s; }
+.mi-list-item:nth-child(5) { animation-delay: 0.20s; }
+
+@keyframes mi-slide-up {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Smooth fade-in for modals and drawers */
+.mi-fade-in {
+  animation: mi-fade var(--mi-normal) ease-out forwards;
+}
+@keyframes mi-fade {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Pill hover pulse */
+.mi-pill:hover {
+  filter: brightness(1.1);
+  transition: filter var(--mi-fast);
+}
+
+/* Toast slide-in */
+.mi-toast {
+  animation: mi-slide-right var(--mi-normal) var(--mi-bounce) forwards;
+}
+@keyframes mi-slide-right {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
 }

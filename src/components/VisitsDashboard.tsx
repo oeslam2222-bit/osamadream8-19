@@ -25,6 +25,7 @@ import {
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import type { CustomerVisit, ReturnedItem, Product, VisitItem } from '../types';
+import { EmptyState } from './ui/EmptyState';
 
 const SIMPLE_VISIT_TYPES: { id: string; label: string }[] = [
   { id: 'دورية', label: 'زيارة دورية' },
@@ -833,8 +834,22 @@ export const VisitsDashboard: React.FC = () => {
 
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-400 font-bold">
-                    لا توجد زيارات مطابقة للبحث أو الفلاتر المحددة
+                  <td colSpan={7} className="py-12 text-center">
+                    <EmptyState
+                      type="visits"
+                      title="لا توجد زيارات"
+                      description="لم يتم العثور على زيارات مطابقة للبحث أو الفلاتر المحددة. يمكنك تسجيل زيارة جديدة عبر الزر أعلاه."
+                      action={
+                        <button
+                          type="button"
+                          onClick={() => setShowForm(true)}
+                          className="app-btn app-btn-primary px-4 py-2 text-xs active:scale-95"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>تسجيل زيارة جديدة</span>
+                        </button>
+                      }
+                    />
                   </td>
                 </tr>
               )}

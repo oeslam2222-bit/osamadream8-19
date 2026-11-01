@@ -598,6 +598,16 @@ export interface Invoice {
   cancelledAt?: string;
   restoredStockDetails?: string;
 
+  // Credit Limit Override / Exception Request (طلب استثناء خاص من الإدارة)
+  creditOverrideRequested?: boolean;        // هل المندوب طلب استثناء خاص للحد الائتماني
+  creditOverrideRequestedBy?: string;       // اسم من طلب الاستثناء
+  creditOverrideRequestedAt?: string;       // تاريخ ووقت طلب الاستثناء
+  creditOverrideReason?: string;            // سبب طلب الاستثناء (يكتبه المندوب)
+  creditOverrideApproved?: boolean;         // هل تمت الموافقة على الاستثناء من الإدارة
+  creditOverrideApprovedBy?: string;        // اسم من وافق على الاستثناء
+  creditOverrideApprovedAt?: string;        // تاريخ ووقت الموافقة على الاستثناء
+  creditOverrideStatus?: 'pending' | 'approved' | 'rejected'; // حالة طلب الاستثناء
+
   // Returns & Partial Return Records (إدارة المرتجعات الكلية والجزئية)
   hasReturns?: boolean;
   isPartialReturn?: boolean;
@@ -867,5 +877,19 @@ export interface CustomerItemSalesSummary {
   linkedOverdue?: number;
   linkedTier?: string;
   linkedAddress?: string;
+}
+
+/**
+ * إشعار نظامي للمستخدم في مركز الإشعارات الداخلي
+ */
+export interface NotificationItem {
+  id: string;
+  type: 'system' | 'task' | 'warning' | 'info' | 'success';
+  title: string;
+  message: string;
+  time: string;
+  read: boolean;
+  actionUrl?: string;
+  actionLabel?: string;
 }
 

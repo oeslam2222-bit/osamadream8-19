@@ -4565,6 +4565,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       customerOverdueBalance: custOverdue,
       creditLimitExceeded: isCreditExceeded,
       requiredDownPayment: reqPayment,
+      creditOverrideRequested: orderData.creditOverrideRequested || false,
+      creditOverrideRequestedBy: orderData.creditOverrideRequestedBy || undefined,
+      creditOverrideRequestedAt: orderData.creditOverrideRequestedAt || undefined,
+      creditOverrideReason: orderData.creditOverrideReason || undefined,
+      creditOverrideStatus: orderData.creditOverrideRequested ? 'pending' : undefined,
       sector: (currentUser?.sector && currentUser.sector !== 'all' && currentUser.sector !== 'both')
         ? currentUser.sector
         : (matchedCustomer?.sector || 'home'),
