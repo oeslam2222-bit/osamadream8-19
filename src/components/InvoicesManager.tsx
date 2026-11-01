@@ -411,17 +411,17 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       {/* Header & High Level Metrics Cards */}
       <div className="space-y-3">
         {/* Breadcrumb + title */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 px-1">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 px-2">
           <div>
-            <div className="text-[11px] font-bold text-slate-400 mb-1">
-              الرئيسية <span className="mx-1 text-slate-300">›</span> الفواتير والاعتمادات
+            <div className="text-[11px] font-bold text-slate-400 mb-1 tracking-wider">
+              الرئيسية <span className="mx-1 text-amber-500">›</span> الفواتير والاعتمادات
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
-              <span className="w-9 h-9 rounded-xl bg-[var(--app-navy)] text-white flex items-center justify-center shrink-0">
+              <span className="w-10 h-10 rounded-2xl bg-gradient-to-br from-teal-400 to-blue-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-teal-500/30">
                 <Receipt className="w-5 h-5" />
               </span>
-              <span>الفواتير والاعتمادات</span>
-              <span className="border border-[rgba(201,154,67,.3)] bg-[rgba(201,154,67,.13)] text-warn text-[11px] px-2.5 py-0.5 rounded-full font-bold app-num">
+              <span className="font-black">الفواتير والاعتمادات</span>
+              <span className="bg-amber-100 border border-amber-200 text-amber-800 text-[10px] px-2.5 py-0.5 rounded-full font-bold whitespace-nowrap">
                 {accessibleInvoices.length} فاتورة
               </span>
             </h2>
@@ -431,101 +431,85 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             <button
               onClick={handleManualRefresh}
               disabled={isRefreshing}
-              className="app-btn app-btn-ghost px-3 text-xs active:scale-95"
+              className="flex items-center gap-1.5 px-3 h-10 rounded-xl text-xs font-bold border border-[var(--app-line)] bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer shadow-2xs active:scale-95"
               title="تحديث ومزامنة الفواتير مباشرة من قاعدة بيانات السيرفر"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-[var(--app-warn-text)]' : 'text-slate-500'}`} />
-              <span>{isRefreshing ? 'جاري التحديث...' : 'تحديث من السيرفر'}</span>
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[var(--app-warn-text)]' : 'text-slate-500'}`} />
+              <span className="hidden sm:inline">{isRefreshing ? 'جاري التحديث...' : 'تحديث'}</span>
             </button>
 
             <button
               onClick={onOpenNewOrder}
-              className="app-btn app-btn-primary px-4 h-11 text-xs active:scale-95"
+              className="flex items-center gap-1.5 bg-navy text-white font-black px-4 h-10 rounded-xl shadow-lg shadow-navy/25 hover:bg-blue-deep4 transition active:scale-95"
             >
               <Plus className="w-4 h-4" />
-              <span>إنشاء فاتورة / طلبية جديدة</span>
+              <span className="hidden sm:inline">فاتورة جديدة</span>
             </button>
           </div>
         </div>
 
 
-        {/* KPI cards: إجمالي / معلقة / معتمدة / نواقص */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
-          <button
-            type="button"
-            onClick={() => { setSelectedStatus('الكل'); setCurrentPage(1); }}
-            className="text-right bg-[#eaf2fd] border border-[#cfe1f8] rounded-2xl p-4 flex items-center gap-3 hover:shadow-sm transition cursor-pointer"
-          >
-            <span className="w-12 h-12 rounded-xl bg-white/80 text-[#1d4ed8] flex items-center justify-center shrink-0">
-              <Receipt className="w-6 h-6" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-[11px] font-black text-slate-600">إجمالي الفواتير</span>
-              <span className="block text-2xl font-black text-[#1d4ed8] leading-tight app-num">
-                {tabCounts.all.toLocaleString('en-US')}
+        {/* KPI Cards Row - Professional Design */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          {/* Total Invoices */}
+          <div className="bg-white rounded-3xl border border-border-primary shadow-sm p-4 flex items-center gap-3.5 min-h-[96px]">
+            <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 shadow-sm">
+              <Receipt className="w-7 h-7" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-[10px] font-black text-slate-500 tracking-wider uppercase">إجمالي الفواتير</span>
+              <span className="block text-2xl font-black text-slate-900 leading-tight tabular-nums">{tabCounts.all.toLocaleString('en-US')}</span>
+              <span className="block text-[10px] font-bold text-blue-600 mt-0.5 flex items-center gap-1">
+                <ChevronLeft className="w-3 h-3" /> عرض الكل
               </span>
-              <span className="flex items-center gap-1 text-[10px] font-bold text-[#1d4ed8]">
-                عرض التفاصيل <ChevronLeft className="w-3 h-3" />
-              </span>
-            </span>
-          </button>
+            </div>
+            <div className="ml-auto text-[10px] font-bold text-slate-300">📊</div>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => { setSelectedStatus('قيد مراجعة المشرف'); setCurrentPage(1); }}
-            className="text-right bg-[#fdf3e3] border border-[#f7e0b5] rounded-2xl p-4 flex items-center gap-3 hover:shadow-sm transition cursor-pointer"
-          >
-            <span className="w-12 h-12 rounded-xl bg-white/80 text-[#b45309] flex items-center justify-center shrink-0">
-              <Clock className="w-6 h-6" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-[11px] font-black text-slate-600">الفواتير المعلقة</span>
-              <span className="block text-2xl font-black text-[#b45309] leading-tight app-num">
-                {tabCounts.pending.toLocaleString('en-US')}
+          {/* Pending Invoices */}
+          <div className="bg-white rounded-3xl border border-border-primary shadow-sm p-4 flex items-center gap-3.5 min-h-[96px]">
+            <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 shadow-sm">
+              <Clock className="w-7 h-7" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-[10px] font-black text-slate-500 tracking-wider uppercase">المعلقة للمراجعة</span>
+              <span className="block text-2xl font-black text-slate-900 leading-tight tabular-nums">{tabCounts.pending.toLocaleString('en-US')}</span>
+              <span className="block text-[10px] font-bold text-amber-600 mt-0.5 flex items-center gap-1">
+                <ChevronLeft className="w-3 h-3" /> مراجعة
               </span>
-              <span className="flex items-center gap-1 text-[10px] font-bold text-[#b45309]">
-                عرض التفاصيل <ChevronLeft className="w-3 h-3" />
-              </span>
-            </span>
-          </button>
+            </div>
+            <div className="ml-auto text-[10px] font-bold text-slate-300">⏳</div>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => { setSelectedStatus('معتمدة ومصروفة من المخزن'); setCurrentPage(1); }}
-            className="text-right bg-[#e9f7ee] border border-[#c9ebd5] rounded-2xl p-4 flex items-center gap-3 hover:shadow-sm transition cursor-pointer"
-          >
-            <span className="w-12 h-12 rounded-xl bg-white/80 text-[#15803d] flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-6 h-6" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-[11px] font-black text-slate-600">الفواتير المعتمدة</span>
-              <span className="block text-2xl font-black text-[#15803d] leading-tight app-num">
-                {tabCounts.approved.toLocaleString('en-US')}
+          {/* Approved Invoices */}
+          <div className="bg-white rounded-3xl border border-border-primary shadow-sm p-4 flex items-center gap-3.5 min-h-[96px]">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 shadow-sm">
+              <CheckCircle2 className="w-7 h-7" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-[10px] font-black text-slate-500 tracking-wider uppercase">المعتمدة والصادرة</span>
+              <span className="block text-2xl font-black text-slate-900 leading-tight tabular-nums">{tabCounts.approved.toLocaleString('en-US')}</span>
+              <span className="block text-[10px] font-bold text-emerald-600 mt-0.5 flex items-center gap-1">
+                <ChevronLeft className="w-3 h-3" /> التفاصيل
               </span>
-              <span className="flex items-center gap-1 text-[10px] font-bold text-[#15803d]">
-                عرض التفاصيل <ChevronLeft className="w-3 h-3" />
-              </span>
-            </span>
-          </button>
+            </div>
+            <div className="ml-auto text-[10px] font-bold text-slate-300">✅</div>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => { setSelectedStatus('فواتير النواقص'); setCurrentPage(1); }}
-            className="text-right bg-[#fdeceb] border border-[#f8d3d0] rounded-2xl p-4 flex items-center gap-3 hover:shadow-sm transition cursor-pointer"
-          >
-            <span className="w-12 h-12 rounded-xl bg-white/80 text-[#b91c1c] flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-6 h-6" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-[11px] font-black text-slate-600">فواتير بها نواقص</span>
-              <span className="block text-2xl font-black text-[#b91c1c] leading-tight app-num">
-                {tabCounts.shortage.toLocaleString('en-US')}
+          {/* Shortage Invoices */}
+          <div className="bg-white rounded-3xl border border-border-primary shadow-sm p-4 flex items-center gap-3.5 min-h-[96px]">
+            <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 shadow-sm">
+              <AlertTriangle className="w-7 h-7" />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-[10px] font-black text-slate-500 tracking-wider uppercase">بها نواقص / ناقصة</span>
+              <span className="block text-2xl font-black text-slate-900 leading-tight tabular-nums">{tabCounts.shortage.toLocaleString('en-US')}</span>
+              <span className="block text-[10px] font-bold text-rose-600 mt-0.5 flex items-center gap-1">
+                <ChevronLeft className="w-3 h-3" /> مراجعة
               </span>
-              <span className="flex items-center gap-1 text-[10px] font-bold text-[#b91c1c]">
-                عرض التفاصيل <ChevronLeft className="w-3 h-3" />
-              </span>
-            </span>
-          </button>
+            </div>
+            <div className="ml-auto text-[10px] font-bold text-slate-300">⚠️</div>
+          </div>
         </div>
       </div>
       {/* Filters + quick tabs */}
