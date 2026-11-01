@@ -287,20 +287,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   // Filtered Products
   const filteredProducts = useMemo(() => {
     let result = getVisibleProducts().filter((p) => {
-      // 1. Sector filter: home vs electrical
-      const userSector = currentUser?.sector as string | undefined;
-      const isMultiSector =
-        !currentUser ||
-        currentUser.role === 'admin' ||
-        currentUser.role === 'developer' ||
-        userSector === 'all' ||
-        userSector === 'both';
-
-      const effectiveSector = isMultiSector
-        ? activeSectorFilter === 'all'
-          ? null
-          : activeSectorFilter
-        : userSector || 'home';
+      // 1. Sector filter: home vs electrical — يعمل لكل المستخدمين، ليس فقط الأدمن
+      const effectiveSector = activeSectorFilter !== 'all' ? activeSectorFilter : (currentUser?.sector || 'all');
 
       if (effectiveSector && effectiveSector !== 'all') {
         const isElec = isProductElectrical(p);
@@ -1145,19 +1133,19 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         <table className="w-full text-left border-collapse text-sm">
           <thead className="bg-navy text-white font-extrabold border-b border-navy/50 uppercase tracking-wider">
             <tr>
-              <th className="p-3 text-right w-16">#</th>
-              <th className="p-3 text-center w-20">الصورة</th>
-              <th className="p-3 text-right">كود المنتج</th>
-              <th className="p-3 text-right">الكود الموحد</th>
-              <th className="p-3 text-right">اسم المنتج</th>
-              <th className="p-3 text-center w-20">القطاع</th>
-              <th className="p-3 text-right w-24">سعر القطعة</th>
-              <th className="p-3 text-right w-24">سعر الكرتونة</th>
-              <th className="p-3 text-center w-16">الشدة</th>
-              <th className="p-3 text-center w-20">مخزون الفرع</th>
-              <th className="p-3 text-center w-20">مخزون أكتوبر</th>
-              <th className="p-3 text-center w-16">المفضلة</th>
-              <th className="p-3 text-center w-24">إجراء</th>
+              <th className="p-3 text-right w-16 text-white font-black uppercase tracking-tighter">#</th>
+              <th className="p-3 text-center w-20 text-white font-black uppercase tracking-tighter">الصورة</th>
+              <th className="p-3 text-right text-white font-black uppercase tracking-tighter">كود المنتج</th>
+              <th className="p-3 text-right text-white font-black uppercase tracking-tighter">الكود الموحد</th>
+              <th className="p-3 text-right text-white font-black uppercase tracking-tighter">اسم المنتج</th>
+              <th className="p-3 text-center w-20 text-white font-black uppercase tracking-tighter">القطاع</th>
+              <th className="p-3 text-right w-24 text-white font-black uppercase tracking-tighter">سعر القطعة</th>
+              <th className="p-3 text-right w-24 text-white font-black uppercase tracking-tighter">سعر الكرتونة</th>
+              <th className="p-3 text-center w-16 text-white font-black uppercase tracking-tighter">الشدة</th>
+              <th className="p-3 text-center w-20 text-white font-black uppercase tracking-tighter">مخزون الفرع</th>
+              <th className="p-3 text-center w-20 text-white font-black uppercase tracking-tighter">مخزون أكتوبر</th>
+              <th className="p-3 text-center w-16 text-white font-black uppercase tracking-tighter">المفضلة</th>
+              <th className="p-3 text-center w-24 text-white font-black uppercase tracking-tighter">إجراء</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-primary/30">
@@ -1187,7 +1175,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       }}
                       className="flex items-center justify-center p-1"
                     >
-                      <div className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center cursor-pointer hover:shadow-md transition shadow-xs">
+                      <div className="w-14 h-14 rounded-xl bg-surface-alt border border-border-primary overflow-hidden flex items-center justify-center cursor-pointer hover:shadow-[0_0_15px_rgba(0,148,136,0.3)] transition-all duration-200 shadow-sm">
                         {p.imageUrl ? (
                           <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
                         ) : (
@@ -1207,7 +1195,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </td>
                   <td className="p-3 text-center">
                     <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold shrink-0 ${
-                      isElec ? 'bg-amber-50 text-amber-800 border border-amber-200' : 'bg-blue-50 text-blue-800 border border-blue-200'
+                      isElec ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
                     }`}>
                       {isElec ? '⚡ كهرباء' : '🏠 منزلي'}
                     </span>
@@ -1227,14 +1215,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </td>
                   <td className="p-3 text-center">
                     <span className={`px-2 py-1 rounded-lg text-[11px] font-bold ${
-                      branchStock > 0 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                      branchStock > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
                     }`}>
                       {branchStock}
                     </span>
                   </td>
                   <td className="p-3 text-center">
                     <span className={`px-2 py-1 rounded-lg text-[11px] font-bold ${
-                      octoberStock > 0 ? 'bg-blue-50 text-blue-800 border border-blue-200' : 'bg-slate-100 text-light border border-slate-200'
+                      octoberStock > 0 ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-light border border-slate-200'
                     }`}>
                       {octoberStock}
                     </span>
@@ -1333,11 +1321,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="shrink-0">{statusBadge}</span>
                   {isElectrical ? (
-                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-black">
+                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-black">
                       ⚡ كهرباء
                     </span>
                   ) : (
-                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-black">
+                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black">
                       🏠 منزلي
                     </span>
                   )}
