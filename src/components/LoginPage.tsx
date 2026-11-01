@@ -64,18 +64,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
       dir="rtl"
       className="login-canvas-v2 min-h-[100dvh] antialiased selection:bg-[rgba(201,154,67,.28)] bg-[#0a1628] text-slate-900"
     >
-      {/* Top right theme toggle */}
-      <div className="fixed top-6 left-6 z-50 rtl:left-auto rtl:right-6">
-        <button
-          className="p-2.5 rounded-full bg-white/10 border border-white/20 shadow-lg backdrop-blur-sm transition-all hover:scale-105 text-white"
-          aria-label="تغيير النمط"
-        >
-          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79" />
-          </svg>
-        </button>
-      </div>
-
       {/* Background accents */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#123157]/30 blur-[120px]" />
