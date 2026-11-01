@@ -6726,8 +6726,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const getVisibleProducts = (): Product[] => {
     // Admin/developer can audit every warehouse. Other roles receive only their branch stock;
     // never expose another branch's balances to the client view.
-    // القطاع: عزل البيانات حسب القطاع
-    const sectorFiltered = filterBySector(products, currentUser?.sector);
+    // القطاع: عزل البيانات حسب القطاع — استخدم activeSectorFilter للمشرفين والمدراء
+    const effectiveSector = (!currentUser || currentUser.role === 'admin' || currentUser.role === 'developer')
+      ? activeSectorFilter
+      : currentUser?.sector;
+    const sectorFiltered = filterBySector(products, effectiveSector);
     if (!currentUser || currentUser.role === 'admin' || currentUser.role === 'developer') {
       return sectorFiltered;
     }
