@@ -458,15 +458,6 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               <span>معاينة شيت Excel 👁️</span>
             </button>
 
-            {/* Direct Excel Download Standard */}
-            <button
-              onClick={() => exportElectronicInvoiceToExcel(currentInv)}
-              className="btn-ondark px-3 py-2 text-xs cursor-pointer"
-              title="تصدير وتحميل شيت إكسل رسمي منسق مباشرة على جهازك"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">تحميل Excel فوري 📊</span>
-            </button>
 
             {/* Credit Audit Modal Button */}
             <button
@@ -1172,15 +1163,6 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
               <span>معاينة Excel 👁️</span>
             </button>
 
-            {/* Direct Excel Button */}
-            <button
-              onClick={() => exportElectronicInvoiceToExcel(currentInv)}
-              className="app-btn app-btn-ghost px-3.5 py-2 text-xs cursor-pointer"
-              title="تحميل شيت إكسل رسمي فوري"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>تحميل Excel 📊</span>
-            </button>
 
             {/* Copy Invoice Number */}
             <button

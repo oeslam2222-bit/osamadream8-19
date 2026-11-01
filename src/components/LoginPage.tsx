@@ -1,11 +1,14 @@
 import {
   AlertCircle,
+  ArrowRight,
   Eye,
   EyeOff,
   Lock,
-  LogIn,
-  ShieldCheck,
   User as UserIcon,
+  Building2,
+  BarChart3,
+  ShoppingCart,
+  Users as Users2,
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -30,7 +33,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
     setIsLoggingIn(true);
 
     if (!loginIdentifier.trim()) {
-      setLoginError('يرجى إدخال اسم المستخدم أو البريد الإلكتروني أو رقم الهاتف');
+      setLoginError('يرجى إدخال اسم المستخدم أو البريد الإلكتروني');
       setIsLoggingIn(false);
       return;
     }
@@ -57,138 +60,186 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   };
 
   return (
-    <div dir="rtl" className="login-canvas min-h-[100dvh] text-slate-soft7 flex flex-col justify-center items-center p-3 sm:p-6 antialiased selection:bg-[rgba(201,154,67,.28)]">
-      {/* Background decoration */}
+    <div
+      dir="rtl"
+      className="login-canvas-v2 min-h-[100dvh] antialiased selection:bg-[rgba(201,154,67,.28)] bg-[#0a1628] text-slate-900"
+    >
+      {/* Background accents */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] rounded-full bg-[color:var(--app-navy)]/40 blur-[120px] mix-blend-overlay" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-amber-500/20 blur-[100px] mix-blend-overlay" />
+        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#123157]/30 blur-[120px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-amber-500/10 blur-[100px]" />
+        <div className="absolute top-0 left-0 w-full h-full opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(currentColor 1px, transparent 1px)' }} />
       </div>
 
-      <div className="relative z-10 w-full max-w-md my-4">
-        {/* Header Branding */}
-        <div className="text-center mb-8">
-          <div className="login-chip w-24 h-24 sm:w-28 sm:h-28 p-2 mx-auto mb-4 bg-white/90 rounded-2xl shadow-xl border border-white/20">
-            <img src="/tantawy-brand-logo.svg?v=3.1" alt="Tantawy Group - مجموعة الطنطاوي" className="w-full h-full object-contain rounded-lg" />
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center justify-center gap-2">
-            <span>مجموعة الطنطاوي</span>
-          </h1>
-          <p className="text-xs sm:text-sm text-blue-soft3 mt-2 max-w-sm mx-auto font-medium leading-relaxed">
-            نظام إدارة المبيعات والفروع والمخازن المركزية • TANTAWY GROUP
-          </p>
-        </div>
-
-        {/* Card Box */}
-        <div className="login-card p-6 sm:p-8 relative z-10">
-          <div className="flex items-center justify-between pb-4 mb-6 border-b border-edf">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-[12px] bg-[color:var(--app-navy)] text-[color:var(--app-accent)] flex items-center justify-center font-bold shadow-[0_4px_12px_rgba(15,35,61,.35)]">
-                <LogIn className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="font-black text-sm sm:text-base text-deep-slate leading-tight">تسجيل الدخول للنظام</h2>
-                <p className="text-[11px] text-muted-dark">للمطورين، المديرين، المشرفين، والمناديب</p>
-              </div>
-            </div>
-            <ShieldCheck className="w-5 h-5 text-[color:var(--app-accent)]" />
-          </div>
-
-          <form onSubmit={handleLoginSubmit} className="space-y-5">
-            {authTerminationNotice && (
-              <div className="login-msg-risk p-3.5 text-xs flex items-start gap-2.5 rounded-xl bg-rose-50/60 border border-rose-200/50">
-                <AlertCircle className="w-5 h-5 shrink-0 mt-0.5 text-rose-600" />
-                <div className="flex-1 font-bold leading-relaxed text-rose-800">{authTerminationNotice}</div>
-              </div>
-            )}
-
-            {loginError && (
-              <div className="login-msg-risk p-3 text-xs flex items-start gap-2 rounded-xl bg-rose-50/60 border border-rose-200/50">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
-                <div className="text-rose-800 font-bold">{loginError}</div>
-              </div>
-            )}
-
-            {/* Identifier (Email / Username) */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-dark text-right">
-                البريد الإلكتروني أو اسم المستخدم
-              </label>
-              <div className="relative group">
-                <input
-                  type="text"
-                  value={loginIdentifier}
-                  onChange={(e) => setLoginIdentifier(e.target.value)}
-                  placeholder="مثال: osama@dream.com أو osama"
-                  required
-                  autoComplete="username"
-                  className="login-input pr-11 w-full"
+      <div className="relative z-10 w-full max-w-[1200px] mx-auto my-1 sm:my-2 min-h-[100dvh] flex flex-col lg:flex-row items-center justify-center gap-0 p-3 sm:p-6 overflow-hidden">
+        {/* Left: Login Card (white) */}
+        <div className="lg:w-1/2 w-full flex items-center justify-center p-4 sm:p-6">
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 sm:p-8 flex flex-col">
+            {/* Logo */}
+            <div className="flex items-center justify-center mb-4">
+              <div className="w-16 h-16 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center shadow-sm overflow-hidden">
+                <img
+                  src="/tantawy-brand-logo.svg?v=3.1"
+                  alt="Tantawy Group"
+                  className="w-10 h-10 object-contain"
                 />
-                <UserIcon className="w-4 h-4 text-muted absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[color:var(--app-accent)] transition-colors" />
               </div>
             </div>
 
-            {/* Password */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-dark text-right">
-                كلمة المرور
-              </label>
-              <div className="relative group">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="أدخل كلمة المرور المسجلة بقاعدة البيانات"
-                  required
-                  autoComplete="current-password"
-                  className="login-input pr-11 pl-12 w-full"
-                />
-                <Lock className="w-4 h-4 text-muted absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[color:var(--app-accent)] transition-colors" />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="text-muted-dark hover:text-[color:var(--app-accent)] absolute left-3 top-1/2 -translate-y-1/2 transition-colors"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoggingIn}
-              className="login-btn mt-2 cursor-pointer active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed w-full"
-            >
-              {isLoggingIn ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                  <span className="font-black">جاري التحقق من قاعدة البيانات...</span>
-                </>
-              ) : (
-                <>
-                  <LogIn className="w-4 h-4 mr-2" />
-                  <span className="font-black">دخول إلى منظومة مجموعة الطنطاوي</span>
-                </>
-              )}
-            </button>
-
-            {/* Note that accounts are managed by Admin/Developer only */}
-            <div className="pt-4 border-t border-edf text-center">
-              <p className="text-[11px] text-muted-dark leading-relaxed">
-                يتم إنشاء وتفعيل حسابات الموظفين والصلاحيات حصرياً من قِبل إدارة النظام (الآدمن والمطور).
+            {/* Title */}
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-black text-slate-900 mb-1 tracking-tight">
+                مندرج<span className="text-[#009488]"> دريم</span>
+              </h2>
+              <p className="text-xs font-bold text-[#009488] uppercase tracking-widest mb-2">
+                مجموعة الطنطاوي
+              </p>
+              <p className="text-[12px] text-slate-500 leading-relaxed max-w-xs mx-auto">
+                مرحباً بك في نظام مندرج دريم، يرجى تسجيل الدخول للمنظومة
               </p>
             </div>
-          </form>
+
+            {/* Error */}
+            {loginError && (
+              <div className="mb-5 p-3 rounded-xl bg-rose-50/70 border border-rose-200/60 text-rose-800 text-[12px] font-bold text-right">
+                <AlertCircle className="w-3.5 h-3.5 inline mr-1.5" />
+                {loginError}
+              </div>
+            )}
+
+            <form onSubmit={handleLoginSubmit} className="flex flex-col gap-4">
+              {/* Identifier */}
+              <div className="space-y-2">
+                <label className="block text-[11px] font-bold text-slate-500 text-right">
+                  البريد الإلكتروني أو اسم المستخدم
+                </label>
+                <div className="relative group">
+                  <input
+                    type="text"
+                    value={loginIdentifier}
+                    onChange={(e) => setLoginIdentifier(e.target.value)}
+                    placeholder="مثال: osama@dream.com أو osama"
+                    required
+                    autoComplete="username"
+                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus:ring-[#009488]/50 focus:border-transparent outline-none transition-all text-sm font-medium placeholder-slate-400"
+                  />
+                  <UserIcon className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#009488] transition-colors" />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div className="space-y-2">
+                <label className="block text-[11px] font-bold text-slate-500 text-right">
+                  كلمة المرور
+                </label>
+                <div className="relative group">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    placeholder="أدخل كلمة المرور"
+                    required
+                    autoComplete="current-password"
+                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus:ring-[#009488]/50 focus:border-transparent outline-none transition-all text-sm font-medium placeholder-slate-400"
+                  />
+                  <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#009488] transition-colors" />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="text-slate-400 hover:text-[#009488] absolute left-3 top-1/2 -translate-y-1/2 transition-colors p-1"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Remember me */}
+              <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] text-slate-500 text-sm">
+                <input
+                  type="checkbox"
+                  className="w-3.5 h-3.5 rounded border-slate-300 text-[#009488] focus:ring-[#009488] bg-white"
+                  defaultChecked
+                />
+                تذكرني على هذا الجهاز
+              </label>
+
+              {/* Login button */}
+              <button
+                type="submit"
+                disabled={isLoggingIn}
+                className="w-full h-11 bg-gradient-to-r from-[#009488] to-[#0e7a6e] text-white font-black text-sm rounded-xl shadow-lg shadow-[#009488]/30 hover:shadow-[#009488]/50 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {isLoggingIn ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>جاري تسجيل الدخول...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>تسجيل الدخول</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Footer note */}
+            <div className="mt-auto pt-4 border-t border-slate-100">
+              <p className="text-[10px] text-slate-400 text-center leading-relaxed">
+                يتم إنشاء وتفعيل حسابات الموظفين والصلاحيات حصرياً من قِبل إدارة النظام.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Dark branding panel */}
+        <div className="lg:w-1/2 w-full flex flex-col items-center justify-center p-4 sm:p-8 bg-[#0a1628] text-white rounded-3xl shadow-2xl border border-white/10 backdrop-blur-sm">
+          <div className="text-center mb-8">
+            <span className="text-[10px] font-bold text-[#009488] uppercase tracking-widest block mb-2">
+              TANTAWY GROUP
+            </span>
+            <h1 className="text-3xl lg:text-5xl font-black tracking-tight leading-tight mb-3">
+              مجموعة<span className="text-[#009488]"> الطنطاوي</span>
+            </h1>
+            <h2 className="text-4xl lg:text-6xl font-black tracking-tight leading-tight mb-6">
+              مندرج<span className="text-[#009488]"> دريم</span>
+            </h2>
+            <p className="text-[13px] lg:text-base text-slate-300 mb-6 max-w-lg mx-auto leading-relaxed font-medium">
+              معا.. نحو مستقبل أفضل
+            </p>
+            <p className="text-[11px] text-slate-500 max-w-lg mx-auto leading-relaxed">
+              منظومة متكاملة لإدارة المبيعات والمخازن والفروع
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 lg:gap-6 w-full max-w-lg lg:max-w-none">
+            <FeatureBox icon={<Users2 className="w-5 h-5" />} label="إدارية العملاء" />
+            <FeatureBox icon={<ShoppingCart className="w-5 h-5" />} label="المبيعات" />
+            <FeatureBox icon={<Building2 className="w-5 h-5" />} label="إدارية المخازن" />
+            <FeatureBox icon={<BarChart3 className="w-5 h-5" />} label="تقارير دورة" />
+          </div>
         </div>
       </div>
 
-      {/* Footer brand lockup */}
-      <div className="mt-auto pt-8 pb-4 text-center">
-        <div className="flex items-center justify-center gap-2 text-xs text-white/60 font-bold uppercase tracking-wider">
-          <span className="w-1 h-1 rounded-full bg-[color:var(--app-accent)]" />
+      <div className="mt-auto pt-4 pb-2 w-full">
+        <div className="flex items-center justify-center gap-2 text-[10px] text-white/50 font-bold uppercase tracking-wider">
+          <span className="w-1 h-1 rounded-full bg-[#009488]" />
           <span>TANTAWY GROUP</span>
+          <span className="w-1 h-1 rounded-full bg-[#009488]" />
         </div>
+        <p className="text-[9px] text-white/30 mt-0.5 text-center">
+          © 2026 مجموعة الطنطاوي. جميع الحقوق محفوظة.
+        </p>
       </div>
     </div>
   );
 };
+
+const FeatureBox: React.FC<{ icon: React.ReactNode; label: string }> = ({ icon, label }) => (
+  <div className="flex flex-col items-center justify-center p-4 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm transition-all hover:bg-white/10 hover:border-white/20">
+    <div className="w-10 h-10 rounded-xl bg-[#009488]/20 text-[#009488] flex items-center justify-center mb-2 shadow-lg shadow-[#009488]/30">
+      {icon}
+    </div>
+    <span className="text-[12px] font-bold text-white leading-tight">{label}</span>
+  </div>
+);
