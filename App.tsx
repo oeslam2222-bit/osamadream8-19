@@ -148,10 +148,10 @@ const MainLayout: React.FC = () => {
     }
   });
 
-  // Everyone lands on the numbers command center after login.
+  // Keep catalog as the default home page after login.
+  // Dashboard (home) is now just a regular tab option in the navbar.
   useEffect(() => {
     if (currentUser) {
-      setActiveTab((prev) => (prev === 'catalog' ? 'home' : prev));
       // Show onboarding on first login only
       const completed = localStorage.getItem('tantawy_onboarding_completed');
       if (!completed) {
