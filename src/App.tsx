@@ -230,8 +230,8 @@ const MainLayout: React.FC = () => {
         setIsDark={setIsDark}
       />
 
-      {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}
-      <main className="flex-1 max-w-none w-full mx-auto px-2 sm:px-4 md:px-6 py-3 sm:py-6 pb-24 md:pb-8">
+      {/* Content Container - Fixed width for proper display on all screens */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-5 lg:px-8 py-4 sm:py-6 pb-24 md:pb-10">
         <Suspense fallback={<TabLoadingSkeleton />}>
           {activeTab === 'home' && allowedTabs.includes('home') && (
             <DashboardHome
