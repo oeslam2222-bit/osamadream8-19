@@ -1149,16 +1149,17 @@ function onEdit(e) {
           const custKey = getSectorKey('customers');
           const isConnected = isValidPublishedSource(sources[custKey]);
           const sectorTitle = activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية';
+          const sectorColor = activeSectorTab === 'electrical' ? 'text-amber-600 bg-amber-50 border-amber-100' : 'text-blue-600 bg-blue-50 border-blue-100';
           return (
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200 group">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="flex items-start sm:items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-2xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)] flex items-center justify-center font-black shrink-0">
-                    <Users className="w-6 h-6" />
+                  <div className={`w-14 h-14 rounded-2xl ${sectorColor} flex items-center justify-center font-black shrink-0 shadow-lg shadow-[0_0_20px_rgba(0,0,0,0.08)]`}>
+                    <Users className="w-7 h-7" />
                   </div>
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-lg font-black text-slate-900">
+                      <h3 className="text-lg font-black text-slate-900 group-hover:text-[var(--app-accent)] transition-colors">
                         1. شيت قاعدة العملاء والمديونيات ({sectorTitle})
                       </h3>
                       <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
@@ -1168,7 +1169,7 @@ function onEdit(e) {
                       }`}>
                         {isConnected ? '● متصل سحابياً' : '○ غير متصل'}
                       </span>
-                      <span className="bg-slate-100 text-slate-700 text-[10px] px-2 py-0.5 rounded-lg font-bold">
+                      <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${sectorColor}`}>
                         {sectorTitle}
                       </span>
                     </div>
@@ -1180,13 +1181,13 @@ function onEdit(e) {
 
                 {/* Quick Metrics */}
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-center">
+                  <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-center group-hover:bg-blue-50 group-hover:border-blue-200 transition-colors">
                     <div className="text-[10px] text-slate-500 font-bold">العملاء الحاليين</div>
                     <div className="text-sm font-black text-slate-900 font-mono">
                       {customers.filter((c) => activeSectorTab === 'electrical' ? c.sector === 'electrical' : (!c.sector || c.sector === 'home')).length.toLocaleString('ar-EG')} عميل
                     </div>
                   </div>
-                  <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] px-3 py-1.5 rounded-xl text-center">
+                  <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] px-3 py-1.5 rounded-xl text-center group-hover:bg-rose-50 group-hover:border-rose-200 transition-colors">
                     <div className="text-[10px] text-[var(--app-risk-text)] font-bold">إجمالي المديونيات</div>
                     <div className="text-sm font-black text-[var(--app-risk-text)] font-mono">
                       {formatCurrency(customers.filter((c) => activeSectorTab === 'electrical' ? c.sector === 'electrical' : (!c.sector || c.sector === 'home')).reduce((sum, c) => sum + (c.currentBalance ?? c.balance ?? 0), 0))}
@@ -1231,11 +1232,11 @@ function onEdit(e) {
                   <button
                     type="button"
                     onClick={() => handleSaveUrl(custKey)}
-                    className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer"
+                    className={`bg-gradient-to-r from-[var(--app-accent)] to-blue-600 hover:from-blue-500 hover:to-[var(--app-accent)] text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer shadow-md active:scale-95 disabled:opacity-50`}
                   >
                     {savedUrlNotice === custKey ? (
                       <>
-                        <Check className="w-3.5 h-3.5 text-[#0d9488]" />
+                        <Check className="w-3.5 h-3.5 text-white" />
                         <span>تم حفظ الرابط ✓</span>
                       </>
                     ) : (
@@ -1247,17 +1248,17 @@ function onEdit(e) {
                     type="button"
                     onClick={() => handleSyncCustomers()}
                     disabled={syncingKey === custKey || !(sourceUrls[custKey] || '').trim()}
-                    className="bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+                    className={`bg-white border border-slate-200 text-slate-700 font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm active:scale-95 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     {syncingKey === custKey ? (
                       <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>جاري المزامنة...</span>
+                        <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+                        <span className="text-blue-700">جاري المزامنة...</span>
                       </>
                     ) : (
                       <>
-                        <RefreshCw className="w-4 h-4" />
-                        <span>مزامنة سحابية فورية</span>
+                        <RefreshCw className="w-4 h-4 text-blue-600" />
+                        <span className="text-blue-700">مزامنة سحابية فورية</span>
                       </>
                     )}
                   </button>
@@ -1287,18 +1288,18 @@ function onEdit(e) {
               <button
                 type="button"
                 onClick={() => fileInputCustomersRef.current?.click()}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                className="bg-slate-50 border border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-700 font-bold px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer active:scale-95"
               >
-                <Upload className="w-3.5 h-3.5 text-slate-600" />
-                <span>رفع ملف إكسل محلي للعملاء (.xlsx)</span>
+                <Upload className="w-3.5 h-3.5 text-blue-600" />
+                <span>رفع ملف إكسل محلي (.xlsx)</span>
               </button>
 
               <button
                 type="button"
                 onClick={generateSampleCustomersTemplate}
-                className="text-slate-600 hover:text-slate-900 font-bold px-3 py-2 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5 cursor-pointer"
+                className="bg-white border border-slate-200 hover:bg-amber-50 hover:border-amber-300 text-amber-700 font-bold px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer active:scale-95"
               >
-                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <Download className="w-3.5 h-3.5 text-amber-600" />
                 <span>تحميل نموذج إكسل معتمد</span>
               </button>
             </div>
@@ -1306,24 +1307,24 @@ function onEdit(e) {
             <button
               type="button"
               onClick={() => exportCustomersToExcel(customers, selectedBranchFilter)}
-              className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+              className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-700 text-white font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-[#d97706]" />
-              <span>تصدير قاعدة العملاء الحالية ({customers.length})</span>
+              <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
+              <span>تصدير قاعدة العملاء ({customers.length})</span>
             </button>
           </div>
         </div>
 
         {/* ---------------- CARD 2: Customer Sales by Item (شيت مبيعات العملاء بالصنف) ---------------- */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200 group">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)] flex items-center justify-center font-black shrink-0">
-                <BarChart3 className="w-6 h-6" />
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 text-white flex items-center justify-center font-black shrink-0 shadow-lg shadow-[0_0_20px_rgba(0,0,0,0.08)]">
+                <BarChart3 className="w-7 h-7" />
               </div>
-              <div>
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-lg font-black text-slate-900">
+                  <h3 className="text-lg font-black text-slate-900 group-hover:text-[var(--app-accent)] transition-colors">
                     2. شيت مبيعات العملاء بالصنف
                   </h3>
                   <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
@@ -1333,7 +1334,7 @@ function onEdit(e) {
                   }`}>
                     {isValidPublishedSource(sources.customerSales) ? '● متصل سحابياً' : '○ غير متصل'}
                   </span>
-                  <span className="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] text-[10px] px-2 py-0.5 rounded-lg font-bold">
+                  <span className="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded-lg font-bold border border-amber-100">
                     مبيعات الأصناف وأوامر البيع 2026
                   </span>
                 </div>
@@ -1345,13 +1346,13 @@ function onEdit(e) {
 
             {/* Quick Metrics */}
             <div className="flex items-center gap-2.5 flex-wrap">
-              <div className="bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] px-3 py-1.5 rounded-xl text-center">
+              <div className="bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] px-3 py-1.5 rounded-xl text-center group-hover:bg-emerald-50 group-hover:border-emerald-200 transition-colors">
                 <div className="text-[10px] text-[var(--app-ok-text)] font-bold">مبيعات 2026 المسجلة</div>
                 <div className="text-sm font-black text-[var(--app-ok-text)] font-mono">
                   {formatCurrency(metrics.totalSales2026)}
                 </div>
               </div>
-              <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-3 py-1.5 rounded-xl text-center">
+              <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-3 py-1.5 rounded-xl text-center group-hover:bg-blue-50 group-hover:border-blue-200 transition-colors">
                 <div className="text-[10px] text-[var(--app-navy-text)] font-bold">تحصيلات 2026</div>
                 <div className="text-sm font-black text-[var(--app-navy-text)] font-mono">
                   {formatCurrency(metrics.totalCollections2026)}
@@ -1396,11 +1397,11 @@ function onEdit(e) {
               <button
                 type="button"
                 onClick={() => handleSaveUrl('customerSales')}
-                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer"
+                className={`bg-gradient-to-r from-[var(--app-accent)] to-blue-600 hover:from-blue-500 hover:to-[var(--app-accent)] text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer shadow-md active:scale-95 disabled:opacity-50`}
               >
                 {savedUrlNotice === 'customerSales' ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-[#d97706]" />
+                    <Check className="w-3.5 h-3.5 text-white" />
                     <span>تم حفظ الرابط ✓</span>
                   </>
                 ) : (
@@ -1412,17 +1413,17 @@ function onEdit(e) {
                 type="button"
                 onClick={() => handleSyncCustomerSales()}
                 disabled={syncingKey === 'customerSales' || !sourceUrls.customerSales.trim()}
-                className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+                className={`bg-white border border-slate-200 text-slate-700 font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm active:scale-95 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 {syncingKey === 'customerSales' ? (
                   <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>جاري دمج المبيعات...</span>
+                    <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
+                    <span className="text-blue-700">جاري دمج المبيعات...</span>
                   </>
                 ) : (
                   <>
-                    <RefreshCw className="w-4 h-4" />
-                    <span>مزامنة سحابية وتحديث فوري</span>
+                    <RefreshCw className="w-4 h-4 text-blue-600" />
+                    <span className="text-blue-700">مزامنة سحابية وتحديث فوري</span>
                   </>
                 )}
               </button>
