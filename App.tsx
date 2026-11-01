@@ -34,6 +34,7 @@ import { LegalAdvisorDashboard } from './components/LegalAdvisorDashboard';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { ElectronicInvoiceModal } from './components/ElectronicInvoiceModal';
 import { Onboarding } from './components/Onboarding';
+import { SplashScreen } from './components/SplashScreen';
 import { ToastProvider } from './components/ui/Toast';
 import { AppProvider, useApp } from './context/AppContext';
 import { AuthProvider } from './context/authContext';
@@ -65,6 +66,13 @@ const MainLayout: React.FC = () => {
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
+  const [splashOpen, setSplashOpen] = useState(() => {
+    try {
+      return localStorage.getItem('tantawy_splash_seen') !== 'true';
+    } catch {
+      return true;
+    }
+  });
   const [isDark, setIsDark] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('tantawy_dark_mode');

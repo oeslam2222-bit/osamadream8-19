@@ -15,6 +15,9 @@ import {
   Wifi,
   WifiOff
 } from 'lucide-react';
+import { Onboarding } from "./components/Onboarding";
+import { SplashScreen } from "./components/SplashScreen";
+import { ToastProvider } from "./components/ui/Toast";
 import React, { Component, ErrorInfo, Suspense, useEffect, useMemo, useState } from 'react';
 import { DashboardHome } from './components/DashboardHome';
 import { LoginPage } from './components/LoginPage';
@@ -66,13 +69,9 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   ],
   sales_rep: [
     'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
-    'targets', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory'
   ],
-  warehouse_keeper: [
-    'home', 'returns', 'inventory', 'catalog', 'guide'
-  ],
-  legal_advisor: ['home'],
+  legal_advisor: ["home"],
+  warehouse_keeper: ["home", "catalog", "returns", "inventory", "guide"],
 };
 
 // Lightweight Skeleton for tab transitions
@@ -89,6 +88,13 @@ const TabLoadingSkeleton = () => (
 );
 
 const MainLayout: React.FC = () => {
+  const [splashOpen, setSplashOpen] = useState(() => {
+    try {
+      return localStorage.getItem("tantawy_splash_seen") !== "true";
+    } catch {
+      return true;
+    }
+  });
   const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
 
   const [activeTab, setActiveTab] = useState<string>('home');
@@ -194,6 +200,16 @@ const MainLayout: React.FC = () => {
 
   return (
     <div className="tantawy-shell min-h-[100dvh] bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-[var(--app-warn)] selection:text-slate-950" dir="rtl">
+      {/* Splash Screen - shown on first app load */}
+      <SplashScreen
+        isOpen={splashOpen}
+        onComplete={() => {
+          setSplashOpen(false);
+          try {
+            localStorage.setItem("tantawy_splash_seen", "true");
+          } catch {}
+        }}
+      />
       
       {/* Offline Status Top Bar if offline */}
       {isOffline && (
