@@ -3,16 +3,14 @@ import {
   MapPin,
   Clock,
   Plus,
-  Search,
   Eye,
-  Trash2,
   X,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
-import type { CustomerVisit, Product, VisitItem } from '../types';
+import type { CustomerVisit } from '../types';
 import { EmptyState } from './ui/EmptyState';
 
 const SIMPLE_VISIT_TYPES: { id: string; label: string; color: string }[] = [
@@ -31,7 +29,6 @@ interface VisitForm {
   type: string;
   collectedAmount: number;
   notes: string;
-  visitItems: VisitItem[];
 }
 
 export const VisitsDashboard: React.FC = () => {
@@ -41,7 +38,6 @@ export const VisitsDashboard: React.FC = () => {
     users,
     getVisibleVisits,
     getVisibleCustomers,
-    getVisibleProducts,
     addVisit,
   } = useApp();
 
@@ -74,7 +70,6 @@ export const VisitsDashboard: React.FC = () => {
     type: 'تحصيل',
     collectedAmount: 0,
     notes: '',
-    visitItems: [],
   };
 
   const [form, setForm] = useState<VisitForm>(initialForm);
@@ -82,61 +77,6 @@ export const VisitsDashboard: React.FC = () => {
   const myCustomers = useMemo(() => {
     return getVisibleCustomers();
   }, [customers, users, currentUser, getVisibleCustomers]);
-
-  const [searchProduct, setSearchProduct] = useState('');
-  const [searchResults, setSearchResults] = useState<Product[]>([]);
-
-  const handleProductSearch = (q: string) => {
-    setSearchProduct(q);
-    if (!q || q.length < 1) {
-      setSearchResults([]);
-      return;
-    }
-    const qLower = q.trim().toLowerCase();
-    const results = getVisibleProducts()
-      .filter(
-        (p) =>
-          p.name.toLowerCase().includes(qLower) ||
-          p.code.toLowerCase().includes(qLower) ||
-          (p.unifiedCode && p.unifiedCode.toLowerCase().includes(qLower))
-      )
-      .slice(0, 10);
-    setSearchResults(results);
-  };
-
-  const selectProductForVisit = (product: Product) => {
-    setSearchProduct(product.name);
-    setSearchResults([]);
-    const existing = form.visitItems.find((i) => i.productId === product.id);
-    if (existing) {
-      setForm({
-        ...form,
-        visitItems: form.visitItems.map((i) =>
-          i.productId === product.id ? { ...i, cartonCount: i.cartonCount + 1 } : i
-        ),
-      });
-    } else {
-      setForm({
-        ...form,
-        visitItems: [
-          ...form.visitItems,
-          {
-            id: crypto.randomUUID(),
-            productId: product.id,
-            productCode: product.code || '',
-            productName: product.name,
-            cartonCount: 1,
-            pieceCount: 0,
-            unitPrice: product.cartonPrice || 0,
-            amount: product.cartonPrice || 0,
-            condition: 'good_condition',
-            itemType: 'sale',
-            notes: '',
-          },
-        ],
-      });
-    }
-  };
 
   const [formErrors, setFormErrors] = useState<string[]>([]);
 
@@ -174,7 +114,6 @@ export const VisitsDashboard: React.FC = () => {
           : 'متابعة فقط',
       collectedAmount: form.collectedAmount,
       notes: form.notes,
-      visitItems: form.visitItems.length > 0 ? form.visitItems : undefined,
     });
 
     if (!result.success) {
@@ -187,20 +126,6 @@ export const VisitsDashboard: React.FC = () => {
     setShowForm(false);
     setForm(initialForm);
     setFormErrors([]);
-    setSearchProduct('');
-    setSearchResults([]);
-  };
-
-  const addVisitItem = () => {
-    if (searchResults.length === 0) return;
-    const product = searchResults[0];
-    selectProductForVisit(product);
-    setSearchProduct('');
-    setSearchResults([]);
-  };
-
-  const removeVisitItem = (id: string) => {
-    setForm({ ...form, visitItems: form.visitItems.filter((item) => item.id !== id) });
   };
 
   const filtered = useMemo(() => {
@@ -651,64 +576,6 @@ export const VisitsDashboard: React.FC = () => {
                   placeholder="ملاحظات إضافية على الزيارة..."
                 />
               </label>
-
-              <span className="text-xs text-slate-600 font-bold">أصناف الزيارة (اختياري)</span>
-              <div className="relative mt-1">
-                <input
-                  type="text"
-                  value={searchProduct}
-                  onChange={(e) => handleProductSearch(e.target.value)}
-                  placeholder="ابحث بالاسم أو الكود لإضافة صنف..."
-                  className="w-full pl-8 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-              </div>
-              {searchProduct && searchResults.length > 0 && (
-                <div className="bg-white border border-slate-200 rounded-xl shadow-lg mt-1 max-h-44 overflow-y-auto divide-y divide-slate-100">
-                  {searchResults.map((p) => (
-                    <div
-                      key={p.id}
-                      onClick={() => selectProductForVisit(p)}
-                      className="px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer flex items-center justify-between"
-                    >
-                      <div>
-                        <div className="font-black text-slate-900">{p.name}</div>
-                        <div className="text-[10px] text-slate-400">
-                          كود: {p.code} {p.unifiedCode ? `(#${p.unifiedCode})` : ''}
-                        </div>
-                      </div>
-                      <div className="text-xs font-bold text-blue-600">{p.cartonPrice?.toLocaleString()} ج.م</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-2 mt-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700">الأصناف المضافة</span>
-                  <span className="text-xs font-black text-blue-600">
-                    {form.visitItems.reduce((s, i) => s + i.amount, 0).toLocaleString()} ج.م
-                  </span>
-                </div>
-                {form.visitItems.map((item) => (
-                  <div key={item.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200">
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs font-bold text-slate-800">{item.productName}</span>
-                      <div className="text-[10px] text-slate-400">
-                        {item.cartonCount} كرتونة • {item.pieceCount} قطعة
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeVisitItem(item.id)}
-                      className="text-rose-500 hover:text-rose-700"
-                      title="حذف"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
 
               {formErrors.length > 0 && (
                 <div className="p-2 rounded-xl bg-rose-50/60 border border-rose-200/50 text-rose-800 text-xs font-bold text-right">
