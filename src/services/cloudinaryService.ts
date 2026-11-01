@@ -225,3 +225,55 @@ export function batchMatchCloudinaryImages(
 export async function getCachedImagesStats(): Promise<{ count: number; estimatedSizeMB: number }> {
   return { count: 0, estimatedSizeMB: 0 };
 }
+
+/**
+ * ترفع صورة إلى Cloudinary باستخدام الإعدادات الموجودة في النظام.
+ * ترجع رابط الصورة المرفوع (secure_url) أو تُرمي خطأً إذا فشل الرفع.
+ * تحتاج إلى أن يكون cloudinaryConfig مفعّلاً (cloudName و uploadPreset على الأقل).
+ */
+export async function uploadImageToCloudinary(
+  file: File,
+  config: CloudinaryConfig = DEFAULT_CLOUDINARY_CONFIG,
+  folder = 'tantawy_visits'
+): Promise<{ url: string; publicId?: string }> {
+  if (!config.cloudName) {
+    throw new Error('إعدادات Cloudinary غير مفعّلة (cloudName ناقص).');
+  }
+
+  const uploadPreset = config.uploadPreset || 'unsigned_preset';
+  const uploadUrl = `https://api.cloudinary.com/v1_1/${config.cloudName}/image/upload`;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', uploadPreset);
+  formData.append('folder', folder);
+  if (config.defaultTransformation) {
+    formData.append('transformation', config.defaultTransformation);
+  }
+
+  const res = await fetch(uploadUrl, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`فشل رفع الصورة إلى Cloudinary: ${res.status} ${errText}`);
+  }
+
+  const data = (await res.json()) as {
+    secure_url?: string;
+    public_id?: string;
+    error?: { message?: string };
+  };
+
+  if (data.error) {
+    throw new Error(data.error.message || 'فشل رفع الصورة إلى Cloudinary.');
+  }
+
+  if (!data.secure_url) {
+    throw new Error('لم يتم إرجاع رابط الصورة من Cloudinary.');
+  }
+
+  return { url: data.secure_url, publicId: data.public_id };
+}
