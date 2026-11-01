@@ -71,7 +71,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
         <div className="absolute top-0 left-0 w-full h-full opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(currentColor 1px, transparent 1px)' }} />
       </div>
 
-      <div className="relative z-10 w-full max-w-[1200px] mx-auto my-2 h-[calc(100dvh-1rem)] flex flex-col lg:flex-row items-center justify-center gap-0 p-3 sm:p-6 overflow-hidden">
+      <div className="relative z-10 w-full max-w-[1200px] mx-auto my-1 sm:my-2 min-h-[100dvh] flex flex-col lg:flex-row items-center justify-center gap-0 p-3 sm:p-6 overflow-hidden">
         {/* Left: Login Card (white) */}
         <div className="lg:w-1/2 w-full flex items-center justify-center p-4 sm:p-6">
           <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 sm:p-8 flex flex-col">
