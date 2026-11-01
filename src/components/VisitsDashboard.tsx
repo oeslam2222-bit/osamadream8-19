@@ -1,53 +1,37 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   MapPin,
-  Calendar,
-  CheckCircle2,
   Clock,
   Plus,
-  Users,
   Search,
   Eye,
-  RotateCcw,
-  RotateCw,
-  Coins,
-  Tag,
-  Building,
-  Upload,
   Trash2,
   X,
-  Gift,
-  Banknote,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
-  AlertTriangle
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
-import type { CustomerVisit, ReturnedItem, Product, VisitItem } from '../types';
+import type { CustomerVisit, Product, VisitItem } from '../types';
 import { EmptyState } from './ui/EmptyState';
-import { OrderBuilderModal } from './OrderBuilderModal';
-import { uploadImageToCloudinary } from '../services/cloudinaryService';
 
 const SIMPLE_VISIT_TYPES: { id: string; label: string; color: string }[] = [
   { id: 'دورية', label: 'زيارة دورية', color: 'bg-blue-50 text-blue-700 border-blue-100' },
   { id: 'تحصيل', label: 'تحصيل', color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
-  { id: 'فاتورة مرتجع لدي العميل', label: 'مرتجع', color: 'bg-amber-50 text-amber-700 border-amber-100' },
   { id: 'متابعة', label: 'متابعة', color: 'bg-purple-50 text-purple-700 border-purple-100' },
-  { id: 'أمر بيع', label: 'أمر بيع (فاتورة)', color: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
 ];
 
-interface ReturnItemForm {
-  id: string;
-  productId: string;
-  productCode: string;
-  productName: string;
-  quantity: number;
-  unit: 'كرتونة' | 'قطعة';
-  reason: string;
-  condition: 'سليم' | 'تالف' | 'منتهي';
-  images: string[];
+interface VisitForm {
+  customerId: string;
+  customerName: string;
+  customerCode: string;
+  repId: string;
+  date: string;
+  time: string;
+  type: string;
+  collectedAmount: number;
+  notes: string;
+  visitItems: VisitItem[];
 }
 
 export const VisitsDashboard: React.FC = () => {
@@ -59,85 +43,45 @@ export const VisitsDashboard: React.FC = () => {
     getVisibleCustomers,
     getVisibleProducts,
     addVisit,
-    createStandaloneReturn,
-    updateVisit,
-    cloudinaryConfig,
   } = useApp();
 
-  const visible = getVisibleVisits();
+  const getVisibleVisitsSafe = (): CustomerVisit[] => {
+    const v = getVisibleVisits();
+    return Array.isArray(v) ? v : [];
+  };
+  const visible: any = getVisibleVisitsSafe();
+  const visits: CustomerVisit[] = visible as CustomerVisit[];
   const [search, setSearch] = useState('');
   const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'week' | 'month'>('month');
-  const [typeFilter, setTypeFilter] = useState<'all' | 'دورية' | 'تحصيل' | 'مرتجع' | 'متابعة'>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'منفذة' | 'معلقة' | 'مرتجعة' | 'ملغاة'>('all');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'دورية' | 'تحصيل' | 'متابعة'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'منفذة' | 'معلقة' | 'ملغاة'>('all');
   const [repFilter, setRepFilter] = useState<string>('all');
   const [pageSize, setPageSize] = useState<number>(5);
   const [visitsPage, setVisitsPage] = useState(1);
 
   const [showForm, setShowForm] = useState(false);
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [selectedVisit, setSelectedVisit] = useState<CustomerVisit | null>(null);
   const [flash, setFlash] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
-  const [showCreditOverride, setShowCreditOverride] = useState(false);
-  const [showOrderModal, setShowOrderModal] = useState(false);
-  const [showOrderBuilder, setShowOrderBuilder] = useState(false);
-  const [pendingVisitData, setPendingVisitData] = useState<{
-    visit: any;
-    orderAmount: number;
-    orderNotes: string;
-    orderPaymentMethod: string;
-    creditOverrideDetail: any;
-  } | null>(null);
-  const [uploadingImages, setUploadingImages] = useState(false);
-  const [creditWarning, setCreditWarning] = useState<{
-    exceeded: boolean;
-    balanceBefore: number;
-    creditLimit: number;
-    balanceAfter: number;
-    overdueBalance: number;
-    requiredDownPayment: number;
-  } | null>(null);
+  const [todayStr] = useState(() => new Date().toISOString().slice(0, 10));
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-
-  const [form, setForm] = useState({
+  const initialForm: VisitForm = {
     customerId: '',
     customerName: '',
     customerCode: '',
     repId: currentUser?.role === 'sales_rep' ? currentUser.id : '',
     date: todayStr,
     time: '09:00',
-    type: 'تحصيل' as string,
+    type: 'تحصيل',
     collectedAmount: 0,
     notes: '',
-    returnValue: 0,
-    returnReason: '',
-    returnItems: [] as ReturnItemForm[],
-    returnImages: [] as string[],
-    visitItems: [] as VisitItem[],
-    /* أمر البيع من الزيارة */
-    orderAmount: 0,
-    orderNotes: '',
-    orderPaymentMethod: 'نقدي (كاش)' as 'نقدي (كاش)' | 'آجل (30 يوم)' | 'آجل (60 يوم)' | 'تحويل بنكي' | 'شيك',
-    /* تجاوز الحد الائتماني */
-    creditOverrideReason: '',
-  });
+    visitItems: [],
+  };
+
+  const [form, setForm] = useState<VisitForm>(initialForm);
 
   const myCustomers = useMemo(() => {
     return getVisibleCustomers();
   }, [customers, users, currentUser, getVisibleCustomers]);
-
-  // Customer fast lookup for area and balance
-  const customerMeta = useMemo(() => {
-    const map = new Map<string, { area: string; balance: number; code: string }>();
-    customers.forEach((c) => {
-      const area = c.region || c.governorate || c.address || 'الفرع الرئيسي';
-      map.set(c.id, { area, balance: c.balance || 0, code: c.code || '' });
-      if (c.code) {
-        map.set(c.code, { area, balance: c.balance || 0, code: c.code });
-      }
-    });
-    return map;
-  }, [customers]);
 
   const [searchProduct, setSearchProduct] = useState('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
@@ -158,38 +102,6 @@ export const VisitsDashboard: React.FC = () => {
       )
       .slice(0, 10);
     setSearchResults(results);
-  };
-
-  const selectProductForReturn = (product: Product) => {
-    setSearchProduct(product.name);
-    setSearchResults([]);
-    const existing = form.returnItems.find((i) => i.productId === product.id);
-    if (existing) {
-      setForm({
-        ...form,
-        returnItems: form.returnItems.map((i) =>
-          i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i
-        ),
-      });
-    } else {
-      setForm({
-        ...form,
-        returnItems: [
-          ...form.returnItems,
-          {
-            id: crypto.randomUUID(),
-            productId: product.id,
-            productCode: product.code || '',
-            productName: product.name,
-            quantity: 1,
-            unit: 'كرتونة',
-            reason: '',
-            condition: 'سليم',
-            images: [],
-          },
-        ],
-      });
-    }
   };
 
   const selectProductForVisit = (product: Product) => {
@@ -232,76 +144,16 @@ export const VisitsDashboard: React.FC = () => {
     const errors: string[] = [];
     if (!form.customerId) errors.push('يرجى اختيار العميل');
     if (form.type === 'تحصيل' && form.collectedAmount <= 0) errors.push('يرجى إدخال مبلغ التحصيل');
-    if (form.type === 'أمر بيع' && form.orderAmount <= 0) errors.push('يرجى إدخال مبلغ الأمر');
-    if (form.type === 'فاتورة مرتجع لدي العميل') {
-      if (form.returnItems.length === 0) errors.push('يرجى إضافة صنف واحد على الأقل للمرتجع');
-      if (form.returnValue <= 0) errors.push('يرجى إدخال قيمة المرتجع');
-    }
     setFormErrors(errors);
     return errors.length === 0;
   };
 
-  const submit = async (e?: React.FormEvent, allowCreditOverride = false) => {
+  const submit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!validateForm()) return;
 
     const r = users.find((u) => u.id === form.repId);
     const c = myCustomers.find((x) => x.id === form.customerId);
-    const isReturn = form.type === 'فاتورة مرتجع لدي العميل';
-
-    // حساب تحذير الحد الائتماني لنوع أمر بيع
-    if (form.type === 'أمر بيع' && c) {
-      const balanceBefore = Number(c.currentBalance ?? c.balance ?? 0);
-      const creditLimit = Number(c.creditLimit ?? 0);
-      const overdueBalance = Number(c.overdueBalance ?? 0);
-      const orderAmt = Number(form.orderAmount || 0);
-      const balanceAfter = balanceBefore + orderAmt;
-      const exceeded = creditLimit > 0 && balanceAfter > creditLimit;
-      const requiredDown = exceeded ? Math.max(0, balanceAfter - creditLimit) : 0;
-      setCreditWarning({
-        exceeded,
-        balanceBefore,
-        creditLimit,
-        balanceAfter,
-        overdueBalance,
-        requiredDownPayment: requiredDown,
-      });
-    } else {
-      setCreditWarning(null);
-    }
-
-    // إذا كان أمر بيع وتجاوز الائتمان ولم يؤكّد المستخدم بعد، نعرض شاشة التفاصيل أولًا
-    if (form.type === 'أمر بيع' && creditWarning && creditWarning.exceeded && !allowCreditOverride) {
-      setShowCreditOverride(true);
-      return;
-    }
-
-    // رفع صور المرتجع عبر Cloudinary إذا كانت زيارة مرتجع
-    let uploadedReturnImages: string[] = [];
-    if (isReturn && form.returnImages && form.returnImages.length > 0) {
-      setUploadingImages(true);
-      try {
-        const uploadResults = await Promise.all(
-          form.returnImages.map(async (imgUrl: string) => {
-            if (imgUrl.includes('res.cloudinary.com') || imgUrl.includes('googleapis.com') || imgUrl.includes('googleusercontent.com')) {
-              return imgUrl;
-            }
-            try {
-              const response = await fetch(imgUrl);
-              const blob = await response.blob();
-              const file = new File([blob], `return_${Date.now()}.jpg`, { type: 'image/jpeg' });
-              const { url } = await uploadImageToCloudinary(file, cloudinaryConfig, 'tantawy_returns');
-              return url;
-            } catch {
-              return imgUrl;
-            }
-          })
-        );
-        uploadedReturnImages = uploadResults;
-      } finally {
-        setUploadingImages(false);
-      }
-    }
 
     const result = addVisit({
       customerId: form.customerId,
@@ -317,47 +169,12 @@ export const VisitsDashboard: React.FC = () => {
       status: 'منفذة',
       type: form.type as any,
       outcome:
-        isReturn
-          ? 'مرتجع لدي العميل'
-          : form.type === 'تحصيل'
+        form.type === 'تحصيل'
           ? 'تم التحصيل'
-          : form.type === 'أمر بيع'
-          ? 'تم عمل طلبية'
           : 'متابعة فقط',
-      collectedAmount: isReturn ? 0 : form.collectedAmount,
-      orderAmount: form.type === 'أمر بيع' ? form.orderAmount : 0,
+      collectedAmount: form.collectedAmount,
       notes: form.notes,
-      isReturn,
-      returnValue: isReturn ? form.returnValue : 0,
-      returnReason: isReturn ? form.returnReason : '',
-      returnItems: isReturn
-        ? JSON.stringify(
-            form.returnItems.map(
-              (i) =>
-                `${i.productName}: ${i.quantity} ${i.unit} (${i.condition})${
-                  i.reason ? ' - ' + i.reason : ''
-                }`
-            )
-          )
-        : '',
-      returnStatus: isReturn ? 'بانتظار المشرف' : undefined,
-      returnNote: isReturn ? `مرتجع من زيارة ${form.date} - ${form.returnReason}` : undefined,
-      returnImages: isReturn ? uploadedReturnImages : undefined,
-      allowSameDaySecondVisit: isReturn ? true : undefined,
       visitItems: form.visitItems.length > 0 ? form.visitItems : undefined,
-      creditOverrideDetail:
-        form.type === 'أمر بيع' && creditWarning
-          ? {
-              exceeded: creditWarning.exceeded,
-              customerBalanceBefore: creditWarning.balanceBefore,
-              customerCreditLimit: creditWarning.creditLimit,
-              customerBalanceAfter: creditWarning.balanceAfter,
-              overdueBalance: creditWarning.overdueBalance,
-              requiredDownPayment: creditWarning.requiredDownPayment,
-              overrideReason: form.creditOverrideReason,
-              overridePending: true,
-            }
-          : undefined,
     });
 
     if (!result.success) {
@@ -365,101 +182,13 @@ export const VisitsDashboard: React.FC = () => {
       return;
     }
 
-    const savedVisit = result.visit;
-
-    if (isReturn) {
-      const manualItems: ReturnedItem[] = form.returnItems.map((item) => ({
-        productId: item.productId,
-        productCode: item.productCode,
-        productName: item.productName || 'أصناف مرتجعة',
-        cartonCount: item.unit === 'كرتونة' ? item.quantity : 0,
-        pieceCount: item.unit === 'قطعة' ? item.quantity : 0,
-        cartonQuantity: 0,
-        totalPieces: item.quantity,
-        pricePerCarton: 0,
-        pricePerPiece: 0,
-        refundAmount: form.returnValue / Math.max(form.returnItems.length, 1),
-        returnReason: item.reason || form.returnReason || '',
-      }));
-      const created = createStandaloneReturn({
-        customerName: c?.name || form.customerName || '',
-        customerCode: c?.code || form.customerCode || '',
-        branchName: r?.branchName || c?.branchName || '',
-        repName: r?.name || currentUser?.name || '',
-        date: form.date,
-        time: form.time,
-        returnedItems: manualItems,
-        totalRefundAmount: form.returnValue || 0,
-        reason: form.returnReason || 'مرتجع مبيعات',
-        handledBy: currentUser?.name || 'مسؤول النظام',
-        notes: `إذن مرتجع من زيارة ${form.date}`,
-      });
-      if (!created.success) {
-        setFlash({ tone: 'error', text: created.message });
-        return;
-      }
-      setFlash({
-        tone: 'success',
-        text: `${created.message} — تم تسجيل المرتجع كزيارة وتحويله لصفحة المرتجعات ✅`,
-      });
-    } else if (form.type === 'أمر بيع') {
-      // فتح OrderBuilderModal لإنشاء الأمر الكامل بالأصناف من الكتالوج
-      setPendingVisitData({
-        visit: savedVisit,
-        orderAmount: form.orderAmount,
-        orderNotes: form.orderNotes,
-        orderPaymentMethod: form.orderPaymentMethod,
-        creditOverrideDetail:
-          form.type === 'أمر بيع' && creditWarning ? creditWarning : undefined,
-      });
-      setShowOrderBuilder(true);
-    } else {
-      setFlash({ tone: 'success', text: 'تم حفظ الزيارة بنجاح ✅' });
-    }
+    setFlash({ tone: 'success', text: 'تم حفظ الزيارة بنجاح ✅' });
 
     setShowForm(false);
-    setForm({
-      customerId: '',
-      customerName: '',
-      customerCode: '',
-      repId: currentUser?.role === 'sales_rep' ? currentUser.id : '',
-      date: todayStr,
-      time: '09:00',
-      type: 'تحصيل',
-      collectedAmount: 0,
-      orderAmount: 0,
-      orderNotes: '',
-      orderPaymentMethod: 'نقدي (كاش)',
-      notes: '',
-      returnValue: 0,
-      returnReason: '',
-      creditOverrideReason: '',
-      returnItems: [],
-      returnImages: [],
-      visitItems: [],
-    });
+    setForm(initialForm);
     setFormErrors([]);
     setSearchProduct('');
     setSearchResults([]);
-  };
-
-  const addReturnItem = () => {
-    const newItem: ReturnItemForm = {
-      id: crypto.randomUUID(),
-      productId: '',
-      productCode: '',
-      productName: '',
-      quantity: 1,
-      unit: 'كرتونة',
-      reason: '',
-      condition: 'سليم',
-      images: [],
-    };
-    setForm({ ...form, returnItems: [...form.returnItems, newItem] });
-  };
-
-  const removeReturnItem = (id: string) => {
-    setForm({ ...form, returnItems: form.returnItems.filter((item) => item.id !== id) });
   };
 
   const addVisitItem = () => {
@@ -474,493 +203,240 @@ export const VisitsDashboard: React.FC = () => {
     setForm({ ...form, visitItems: form.visitItems.filter((item) => item.id !== id) });
   };
 
-  const updateReturnItem = (id: string, updates: Partial<ReturnItemForm>) => {
-    setForm({
-      ...form,
-      returnItems: form.returnItems.map((item) =>
-        item.id === id ? { ...item, ...updates } : item
-      ),
-    });
-  };
-
-  const removeReturnImage = (index: number) => {
-    setForm({ ...form, returnImages: form.returnImages.filter((_, i) => i !== index) });
-  };
-
-  // Helper date formatter for table (السبت 11 أكتوبر 2026)
-  const formatArabicDateWithDay = (dateStr?: string) => {
-    if (!dateStr) return '—';
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return dateStr;
-      const days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-      const months = [
-        'يناير',
-        'فبراير',
-        'مارس',
-        'أبريل',
-        'مايو',
-        'يونيو',
-        'يوليو',
-        'أغسطس',
-        'سبتمبر',
-        'أكتوبر',
-        'نوفمبر',
-        'ديسمبر',
-      ];
-      return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-    } catch {
-      return dateStr;
-    }
-  };
-
-  // Comprehensive multi-filter
   const filtered = useMemo(() => {
-    return visible
-      .filter((v) => {
-        // Search
-        if (search) {
-          const q = search.toLowerCase().trim();
-          const matches =
-            (v.customerName || '').toLowerCase().includes(q) ||
-            (v.customerCode || '').toLowerCase().includes(q) ||
-            (v.repName || '').toLowerCase().includes(q) ||
-            (v.invoiceNumber || '').toLowerCase().includes(q) ||
-            (v.id || '').toLowerCase().includes(q);
-          if (!matches) return false;
-        }
+    const result: CustomerVisit[] = visits;
+    let filtered = result;
 
-        // Time filter
-        if (timeFilter !== 'all' && v.date) {
-          const vDate = new Date(v.date);
-          const now = new Date();
-          if (timeFilter === 'today') {
-            if (v.date !== todayStr) return false;
-          } else if (timeFilter === 'week') {
-            const diffDays = (now.getTime() - vDate.getTime()) / (1000 * 3600 * 24);
-            if (diffDays < 0 || diffDays > 7) return false;
-          } else if (timeFilter === 'month') {
-            const currentMonthPrefix = todayStr.slice(0, 7);
-            if (!v.date.startsWith(currentMonthPrefix)) return false;
-          }
-        }
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      filtered = filtered.filter(
+        (v) =>
+          v.customerName?.toLowerCase().includes(q) ||
+          v.customerCode?.toLowerCase().includes(q) ||
+          v.repName?.toLowerCase().includes(q) ||
+          v.branchName?.toLowerCase().includes(q)
+      );
+    }
 
-        // Type filter
-        if (typeFilter !== 'all') {
-          if (typeFilter === 'مرتجع') {
-            if (!v.isReturn && !v.type?.includes('مرتجع')) return false;
-          } else if (typeFilter === 'تحصيل') {
-            if (v.type !== 'تحصيل') return false;
-          } else if (typeFilter === 'دورية') {
-            if (!v.type?.includes('دورية')) return false;
-          } else if (typeFilter === 'متابعة') {
-            if (v.type !== 'متابعة') return false;
-          }
-        }
+    const now = new Date();
+    if (timeFilter === 'today') {
+      const today = now.toISOString().slice(0, 10);
+      filtered = filtered.filter((v) => v.date === today);
+    } else if (timeFilter === 'week') {
+      const weekAgo = new Date(now);
+      weekAgo.setDate(now.getDate() - 7);
+      filtered = filtered.filter((v) => new Date(v.date) >= weekAgo);
+    } else if (timeFilter === 'month') {
+      const monthAgo = new Date(now);
+      monthAgo.setMonth(now.getMonth() - 1);
+      filtered = filtered.filter((v) => new Date(v.date) >= monthAgo);
+    }
 
-        // Status filter
-        if (statusFilter !== 'all') {
-          if (statusFilter === 'منفذة' && v.status !== 'منفذة') return false;
-          if (statusFilter === 'معلقة' && v.status !== 'مجدولة' && v.status !== 'لم تتم') return false;
-          if (statusFilter === 'مرتجعة' && !v.isReturn) return false;
-          if (statusFilter === 'ملغاة' && v.status !== 'ملغاة') return false;
-        }
+    if (repFilter !== 'all') {
+      filtered = filtered.filter((v) => v.repId === repFilter);
+    }
 
-        // Rep / Branch filter
-        if (repFilter !== 'all') {
-          if (v.repId !== repFilter && v.repName !== repFilter && v.branchName !== repFilter) {
-            return false;
-          }
-        }
+    return filtered;
+  }, [visits, search, timeFilter, typeFilter, statusFilter, repFilter]);
 
-        return true;
-      })
-      .sort((a, b) => `${b.date}${b.time || ''}`.localeCompare(`${a.date}${a.time || ''}`));
-  }, [visible, search, timeFilter, typeFilter, statusFilter, repFilter, todayStr]);
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  const paginated = filtered.slice((visitsPage - 1) * pageSize, visitsPage * pageSize);
 
-  // KPI Metric Stats
-  const stats = useMemo(() => {
-    return {
-      total: filtered.length,
-      completed: filtered.filter((v) => v.status === 'منفذة').length,
-      returns: filtered.filter((v) => v.isReturn || v.type?.includes('مرتجع')).length,
-      collections: filtered.filter((v) => v.type === 'تحصيل' || (v.collectedAmount && v.collectedAmount > 0)).length,
-    };
-  }, [filtered]);
-
-  // Reset page whenever search or filters change
-  useEffect(() => {
-    setVisitsPage(1);
-  }, [search, timeFilter, typeFilter, statusFilter, repFilter, pageSize]);
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const paginatedVisits = useMemo(() => {
-    const start = (visitsPage - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, visitsPage, pageSize]);
-
-  const handleResetFilters = () => {
-    setSearch('');
-    setTimeFilter('month');
-    setTypeFilter('all');
-    setStatusFilter('all');
-    setRepFilter('all');
-    setPageSize(5);
-    setVisitsPage(1);
+  const typeColorMap: Record<string, string> = {
+    دورية: 'bg-blue-50 text-blue-700 border-blue-100',
+    تحصيل: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+    متابعة: 'bg-purple-50 text-purple-700 border-purple-100',
   };
+
+  const repOptions = useMemo(() => {
+    const reps = [...new Set(visits.map((v) => v.repName).filter(Boolean))];
+    return reps;
+  }, [visits]);
 
   return (
-    <div className="tantawy-screen space-y-6 pb-12" dir="rtl">
-      {/* 1. Header (Reference Design image_b68712b4.png) */}
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shadow-md shadow-blue-500/20">
-            <MapPin className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">لوحة الزيارات</h1>
-            <p className="text-xs text-slate-500 font-bold mt-0.5">متابعة الزيارات والتحصيلات والمرتجعات</p>
-          </div>
+    <div className="min-h-screen bg-slate-50 p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900">الزيارات الميدانية</h1>
+          <p className="text-xs text-slate-500">تسجيل ومتابعة زيارات العملاء للمندوب</p>
         </div>
-
-        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-black text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition active:scale-[0.98]"
+            className="flex items-center gap-2 px-4 py-2.5 bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white font-black rounded-xl text-xs shadow-sm transition active:scale-95"
           >
             <Plus className="w-4 h-4" />
             <span>تسجيل زيارة جديدة</span>
           </button>
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-bold px-1">
-            <Clock className="w-3.5 h-3.5 text-slate-400" />
-            <span>آخر تحديث: منذ دقيقة واحدة</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+          <div className="text-xs text-slate-500 font-bold uppercase mb-1">إجمالي الزيارات</div>
+          <div className="text-2xl font-black text-slate-900">{filtered.length}</div>
+        </div>
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+          <div className="text-xs text-slate-500 font-bold uppercase mb-1">منفذة</div>
+          <div className="text-2xl font-black text-emerald-600">
+            {filtered.filter((v) => v.status === 'منفذة').length}
           </div>
         </div>
-      </header>
-
-      {/* Flash Alert */}
-      {flash && (
-        <div
-          className={`rounded-xl border px-4 py-3 text-sm font-bold flex items-center justify-between gap-2 shadow-sm ${
-            flash.tone === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-              : 'bg-rose-50 border-rose-200 text-rose-800'
-          }`}
-        >
-          <span>{flash.text}</span>
-          <button type="button" onClick={() => setFlash(null)} className="text-slate-400 hover:text-slate-600">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* 2. 4 Metric Cards (Matching reference screenshot) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: إجمالي الزيارات */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-xs text-slate-500 font-bold">إجمالي الزيارات</p>
-            <p className="text-3xl font-black text-blue-900 tracking-tight">
-              {stats.total.toLocaleString('en-US')}
-            </p>
-            <p className="text-[11px] text-slate-400 font-bold">خلال الفترة المحددة</p>
-          </div>
-          <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
-            <Calendar className="w-7 h-7" />
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+          <div className="text-xs text-slate-500 font-bold uppercase mb-1">معلقة</div>
+          <div className="text-2xl font-black text-amber-600">
+            {filtered.filter((v) => v.status === 'مجدولة' || v.status === 'لم تتم').length}
           </div>
         </div>
-
-        {/* Card 2: الزيارات المنفذة */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-xs text-slate-500 font-bold">الزيارات المنفذة</p>
-            <p className="text-3xl font-black text-emerald-600 tracking-tight">
-              {stats.completed.toLocaleString('en-US')}
-            </p>
-            <p className="text-[11px] text-slate-400 font-bold">تم تنفيذها</p>
-          </div>
-          <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-            <CheckCircle2 className="w-7 h-7" />
-          </div>
-        </div>
-
-        {/* Card 3: مرتجعات */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-xs text-slate-500 font-bold">مرتجعات</p>
-            <p className="text-3xl font-black text-amber-600 tracking-tight">
-              {stats.returns.toLocaleString('en-US')}
-            </p>
-            <p className="text-[11px] text-slate-400 font-bold">تحتاج مراجعة</p>
-          </div>
-          <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
-            <RotateCcw className="w-7 h-7" />
-          </div>
-        </div>
-
-        {/* Card 4: التحصيلات */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 flex items-center justify-between">
-          <div className="space-y-1">
-            <p className="text-xs text-slate-500 font-bold">التحصيلات</p>
-            <p className="text-3xl font-black text-indigo-600 tracking-tight">
-              {stats.collections.toLocaleString('en-US')}
-            </p>
-            <p className="text-[11px] text-slate-400 font-bold">عدد عمليات التحصيل</p>
-          </div>
-          <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-            <Coins className="w-7 h-7" />
+        <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm">
+          <div className="text-xs text-slate-500 font-bold uppercase mb-1">قيمة التحصيل</div>
+          <div className="text-2xl font-black text-blue-600">
+            {formatCurrency(
+              filtered
+                .filter((v) => v.type === 'تحصيل')
+                .reduce((s, v) => s + Number(v.collectedAmount || 0), 0)
+            )}
           </div>
         </div>
       </div>
 
-      {/* 3. Search Bar & 4 Dropdown Filters Bar (Reference Design) */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 space-y-3">
-        {/* Top Search Input & Reset Button */}
-        <div className="flex flex-col sm:flex-row items-center gap-3">
-          <button
-            type="button"
-            onClick={handleResetFilters}
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs font-bold transition shadow-sm"
-          >
-            <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
-            <span>إعادة ضبط</span>
-          </button>
-
-          <div className="relative flex-1 w-full">
+      <div className="bg-white rounded-2xl border border-slate-100 p-4 sm:p-6 mb-6 shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="flex flex-col">
+            <label className="text-xs text-slate-500 font-bold">البحث</label>
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="ابحث باسم العميل أو كود العميل أو رقم الزيارة..."
-              className="w-full pl-4 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              placeholder="اسم العميل أو المندوب أو الفرع..."
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
           </div>
-        </div>
-
-        {/* Bottom 4 Dropdown Filters */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
-          {/* 1. الفترة الزمنية */}
-          <div className="relative">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 text-xs font-bold text-slate-700">
-              <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
-              <div className="flex-1 flex flex-col">
-                <span className="text-[10px] text-slate-400 font-normal">الفترة الزمنية</span>
-                <select
-                  value={timeFilter}
-                  onChange={(e) => setTimeFilter(e.target.value as any)}
-                  aria-label="الفترة الزمنية"
-                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
-                >
-                  <option value="month">هذا الشهر</option>
-                  <option value="today">اليوم</option>
-                  <option value="week">هذا الأسبوع</option>
-                  <option value="all">كل الفترات</option>
-                </select>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            </div>
+          <div className="flex flex-col">
+            <label className="text-xs text-slate-500 font-bold">النوع</label>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value as any)}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">الكل</option>
+              <option value="دورية">دورية</option>
+              <option value="تحصيل">تحصيل</option>
+              <option value="متابعة">متابعة</option>
+            </select>
           </div>
-
-          {/* 2. نوع الزيارة */}
-          <div className="relative">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 text-xs font-bold text-slate-700">
-              <Tag className="w-4 h-4 text-slate-400 shrink-0" />
-              <div className="flex-1 flex flex-col">
-                <span className="text-[10px] text-slate-400 font-normal">نوع الزيارة</span>
-                <select
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value as any)}
-                  aria-label="نوع الزيارة"
-                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
-                >
-                  <option value="all">كل الأنواع</option>
-                  <option value="دورية">دورية</option>
-                  <option value="تحصيل">تحصيل</option>
-                  <option value="مرتجع">مرتجع</option>
-                  <option value="متابعة">متابعة</option>
-                </select>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            </div>
+          <div className="flex flex-col">
+            <label className="text-xs text-slate-500 font-bold">الحالة</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as any)}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">الكل</option>
+              <option value="منفذة">منفذة</option>
+              <option value="معلقة">معلقة</option>
+              <option value="ملغاة">ملغاة</option>
+            </select>
           </div>
-
-          {/* 3. حالة الزيارة */}
-          <div className="relative">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 text-xs font-bold text-slate-700">
-              <CheckCircle2 className="w-4 h-4 text-slate-400 shrink-0" />
-              <div className="flex-1 flex flex-col">
-                <span className="text-[10px] text-slate-400 font-normal">حالة الزيارة</span>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
-                  aria-label="حالة الزيارة"
-                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer"
-                >
-                  <option value="all">كل الحالات</option>
-                  <option value="منفذة">منفذة</option>
-                  <option value="معلقة">معلقة</option>
-                  <option value="مرتجعة">مرتجعة</option>
-                  <option value="ملغاة">ملغاة</option>
-                </select>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            </div>
+          <div className="flex flex-col">
+            <label className="text-xs text-slate-500 font-bold">المندوب</label>
+            <select
+              value={repFilter}
+              onChange={(e) => setRepFilter(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">الكل</option>
+              {repOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
           </div>
-
-          {/* 4. الفرع / المندوب */}
-          <div className="relative">
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 text-xs font-bold text-slate-700">
-              <Building className="w-4 h-4 text-slate-400 shrink-0" />
-              <div className="flex-1 flex flex-col">
-                <span className="text-[10px] text-slate-400 font-normal">الفرع / المندوب</span>
-                <select
-                  value={repFilter}
-                  onChange={(e) => setRepFilter(e.target.value)}
-                  aria-label="الفرع أو المندوب"
-                  className="bg-transparent font-bold text-slate-800 focus:outline-none cursor-pointer truncate max-w-[130px]"
-                >
-                  <option value="all">حسب الصلاحية</option>
-                  {users
-                    .filter((u) => u.role === 'sales_rep' || u.role === 'supervisor')
-                    .map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.name} ({u.branchName || 'عام'})
-                      </option>
-                    ))}
-                </select>
-              </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            </div>
+          <div className="flex flex-col">
+            <label className="text-xs text-slate-500 font-bold">الزمن</label>
+            <select
+              value={timeFilter}
+              onChange={(e) => setTimeFilter(e.target.value as any)}
+              className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="month">آخر شهر</option>
+              <option value="week">أسبوع</option>
+              <option value="today">اليوم</option>
+              <option value="all">الكل</option>
+            </select>
           </div>
         </div>
       </div>
 
-      {/* 4. The Visits Table (Matching exact columns and dark header) */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-right border-collapse">
-            <thead>
-              <tr className="bg-[#0f1b2d] text-white text-xs font-bold select-none">
-                <th className="py-3.5 px-4 text-right">العميل</th>
-                <th className="py-3.5 px-4 text-center">كود العميل</th>
-                <th className="py-3.5 px-4 text-center">رقم الزيارة / التاريخ</th>
-                <th className="py-3.5 px-4 text-center">نوع الزيارة</th>
-                <th className="py-3.5 px-4 text-center">المبلغ</th>
-                <th className="py-3.5 px-4 text-center">الحالة</th>
-                <th className="py-3.5 px-4 text-center">الإجراءات</th>
+          <table className="w-full text-right text-xs">
+            <thead className="bg-slate-50 border-b border-slate-100">
+              <tr>
+                <th className="px-4 py-3 text-slate-500 font-bold text-right">التاريخ</th>
+                <th className="px-4 py-3 text-slate-500 font-bold text-right">العميل</th>
+                <th className="px-4 py-3 text-slate-500 font-bold text-right">النوع</th>
+                <th className="px-4 py-3 text-slate-500 font-bold text-center">المبلغ</th>
+                <th className="px-4 py-3 text-slate-500 font-bold text-right">الفرع</th>
+                <th className="px-4 py-3 text-slate-500 font-bold text-right">المندوب</th>
+                <th className="px-4 py-3 text-slate-500 font-bold text-center">الحالة</th>
+                <th className="px-4 py-3 text-slate-500 font-bold text-center">الإجراء</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
-              {paginatedVisits.map((v) => {
-                const meta = customerMeta.get(v.customerId) || (v.customerCode ? customerMeta.get(v.customerCode) : null);
-                const displayArea = meta?.area || 'الفرع الرئيسي';
-
-                // Type styling
-                const isReturnType = v.isReturn || v.type === 'فاتورة مرتجع لدي العميل' || v.type === 'مرتجع';
-                const isCollection = v.type === 'تحصيل';
-
-                // Amount
-                let amountText = '—';
-                if (isCollection && v.collectedAmount && v.collectedAmount > 0) {
-                  amountText = formatCurrency(v.collectedAmount);
-                } else if (isReturnType && v.returnValue && v.returnValue > 0) {
-                  amountText = formatCurrency(v.returnValue);
-                } else if (v.orderAmount && v.orderAmount > 0) {
-                  amountText = formatCurrency(v.orderAmount);
-                }
-
-                return (
-                  <tr key={v.id} className="hover:bg-slate-50/70 transition-colors">
-                    {/* العميل: اسم + منطقة مع أيقونة MapPin */}
-                    <td className="py-3.5 px-4">
-                      <div className="font-black text-slate-900 text-sm">{v.customerName || 'عميل نقدي'}</div>
-                      <div className="flex items-center gap-1 text-[11px] text-slate-400 font-bold mt-0.5">
-                        <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span>{displayArea}</span>
-                      </div>
-                    </td>
-
-                    {/* كود العميل: رقاقة زرقاء ناعمة */}
-                    <td className="py-3.5 px-4 text-center">
-                      <span className="inline-block px-3 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg font-mono font-bold text-xs">
-                        {v.customerCode || 'CUST000000'}
-                      </span>
-                    </td>
-
-                    {/* رقم الزيارة / التاريخ مع أيقونة تقويم */}
-                    <td className="py-3.5 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-700">
-                        <span>{formatArabicDateWithDay(v.date)}</span>
-                        <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      </div>
-                    </td>
-
-                    {/* نوع الزيارة: دورية / مرتجع / تحصيل */}
-                    <td className="py-3.5 px-4 text-center">
-                      {isReturnType ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-bold">
-                          <Gift className="w-3.5 h-3.5 text-amber-600" />
-                          <span>مرتجع</span>
-                        </span>
-                      ) : isCollection ? (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-bold">
-                          <Banknote className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>تحصيل</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-600 border border-blue-100 rounded-full text-xs font-bold">
-                          <RotateCw className="w-3.5 h-3.5 text-blue-500" />
-                          <span>دورية</span>
-                        </span>
-                      )}
-                    </td>
-
-                    {/* المبلغ */}
-                    <td className="py-3.5 px-4 text-center font-black text-slate-800 text-sm">
-                      {amountText}
-                    </td>
-
-                    {/* الحالة: منفذة / مرتجعة / معلقة */}
-                    <td className="py-3.5 px-4 text-center">
-                      {v.status === 'منفذة' ? (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-100/70 text-emerald-800 rounded-full text-xs font-bold">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>منفذة</span>
-                        </span>
-                      ) : isReturnType ? (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-100/70 text-amber-800 rounded-full text-xs font-bold">
-                          <RotateCcw className="w-3.5 h-3.5 text-amber-600" />
-                          <span>مرتجعة</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 text-slate-700 rounded-full text-xs font-bold">
-                          <Clock className="w-3.5 h-3.5 text-slate-500" />
-                          <span>معلقة</span>
-                        </span>
-                      )}
-                    </td>
-
-                    {/* الإجراءات: عرض | 👁️ */}
-                    <td className="py-3.5 px-4 text-center">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedVisit(v)}
-                        className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold text-blue-600 border border-blue-200 hover:bg-blue-50 transition active:scale-95"
-                      >
-                        <span>عرض</span>
-                        <span className="text-slate-300">|</span>
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {filtered.length === 0 && (
+            <tbody className="divide-y divide-slate-100">
+              {paginated.map((v) => (
+                <tr key={v.id} className="hover:bg-slate-50/50 transition">
+                  <td className="px-4 py-3.5 text-slate-800 font-bold text-right">
+                    {v.date}
+                    <div className="text-[10px] text-slate-400 mt-0.5">{v.time}</div>
+                  </td>
+                  <td className="px-4 py-3.5 text-slate-800 font-bold text-right">
+                    {v.customerName}
+                    <div className="text-[10px] text-slate-400 mt-0.5">{v.customerCode || '-'}</div>
+                  </td>
+                  <td className="px-4 py-3.5 text-center">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${typeColorMap[v.type] || 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                      {v.type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5 text-center">
+                    {v.type === 'تحصيل' ? formatCurrency(Number(v.collectedAmount || 0)) : '-'}
+                  </td>
+                  <td className="px-4 py-3.5 text-slate-700 text-right">
+                    {v.branchName || '-'}
+                  </td>
+                  <td className="px-4 py-3.5 text-slate-800 font-bold text-right">
+                    {v.repName || '-'}
+                  </td>
+                  <td className="px-4 py-3.5 text-center">
+                    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                      v.status === 'منفذة'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                        : (v.status as string) === 'معلقة' || (v.status as string) === 'مجدولة' || (v.status as string) === 'لم تتم'
+                        ? 'bg-amber-50 text-amber-700 border-amber-100'
+                        : 'bg-slate-100 text-slate-700 border-slate-200'
+                    }`}>
+                      {v.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3.5 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedVisit(v)}
+                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-1 rounded-full text-xs font-bold text-blue-600 border border-blue-200 hover:bg-blue-50 transition active:scale-95"
+                    >
+                      <span>عرض</span>
+                      <span className="text-slate-300">|</span>
+                      <Eye className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {paginated.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center">
+                  <td colSpan={8} className="py-12 text-center">
                     <EmptyState
                       type="visits"
                       title="لا توجد زيارات"
@@ -983,15 +459,12 @@ export const VisitsDashboard: React.FC = () => {
           </table>
         </div>
 
-        {/* 5. Table Footer / Pagination (Matching Screenshot Layout) */}
         <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col md:flex-row items-center justify-between gap-4 select-none">
-          {/* Right (in RTL): عدد النتائج في الصفحة */}
           <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
             <span>عدد النتائج في الصفحة:</span>
             <select
               value={pageSize}
               onChange={(e) => setPageSize(Number(e.target.value))}
-              aria-label="عدد النتائج في الصفحة"
               className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-black text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
             >
               <option value={5}>5</option>
@@ -1001,71 +474,40 @@ export const VisitsDashboard: React.FC = () => {
             </select>
           </div>
 
-          {/* Center: Pagination numbers with Chevron controls */}
           {totalPages > 1 && (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setVisitsPage((p) => Math.max(1, p - 1))}
                 disabled={visitsPage === 1}
-                aria-label="الصفحة السابقة"
-                className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-600 flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition"
+                onClick={() => setVisitsPage((p) => Math.max(1, p - 1))}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                  visitsPage === 1
+                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    : 'bg-white border border-slate-200 text-slate-800 hover:bg-slate-50 cursor-pointer'
+                }`}
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-3.5 h-3.5" />
               </button>
-
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let p = i + 1;
-                if (totalPages > 5) {
-                  if (visitsPage > 3) {
-                    p = visitsPage - 2 + i;
-                    if (p > totalPages) p = totalPages - (4 - i);
-                  }
-                }
-                if (p < 1 || p > totalPages) return null;
-                return (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setVisitsPage(p)}
-                    className={`w-8 h-8 rounded-lg text-xs font-black flex items-center justify-center transition ${
-                      visitsPage === p
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                );
-              })}
-
+              <span className="px-2 text-[10px] font-black text-slate-700">
+                صفحة {visitsPage} من {totalPages}
+              </span>
               <button
                 type="button"
-                onClick={() => setVisitsPage((p) => Math.min(totalPages, p + 1))}
                 disabled={visitsPage === totalPages}
-                aria-label="الصفحة التالية"
-                className="w-8 h-8 rounded-lg border border-slate-200 bg-white text-slate-600 flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition"
+                onClick={() => setVisitsPage((p) => Math.min(totalPages, p + 1))}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+                  visitsPage === totalPages
+                    ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                    : 'bg-white border border-slate-200 text-slate-800 hover:bg-slate-50 cursor-pointer'
+                }`}
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-3.5 h-3.5" />
               </button>
             </div>
           )}
-
-          {/* Left (in RTL): عرض X - Y من إجمالي Z زيارة */}
-          <div className="text-xs font-bold text-slate-500">
-            {filtered.length === 0 ? (
-              'لا توجد زيارات'
-            ) : (
-              <span>
-                عرض {(visitsPage - 1) * pageSize + 1} – {Math.min(visitsPage * pageSize, filtered.length)} من إجمالي{' '}
-                <span className="font-black text-slate-800">{filtered.length.toLocaleString('en-US')}</span> زيارة
-              </span>
-            )}
-          </div>
         </div>
       </div>
 
-      {/* 6. Form Modal: تسجيل زيارة جديدة */}
       {showForm && (
         <div
           className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in"
@@ -1073,11 +515,7 @@ export const VisitsDashboard: React.FC = () => {
             if (e.target === e.currentTarget) setShowForm(false);
           }}
         >
-          <form
-            onSubmit={submit}
-            className="relative z-[60] bg-white rounded-3xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100"
-            dir="rtl"
-          >
+          <form onSubmit={submit} className="relative z-[60] bg-white rounded-3xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100" dir="rtl">
             <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -1108,8 +546,6 @@ export const VisitsDashboard: React.FC = () => {
                       customerName: c?.name || '',
                       customerCode: c?.code || '',
                     });
-                    setCreditWarning(null);
-                    setShowCreditOverride(false);
                   }}
                   className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
@@ -1122,7 +558,6 @@ export const VisitsDashboard: React.FC = () => {
                 </select>
               </label>
 
-              {/* بطاقة موقف العميل المالي (تظهر بعد الاختيار) */}
               {form.customerId && (
                 <div className="mt-3 p-3 rounded-2xl border border-slate-200 bg-slate-50/60">
                   <div className="flex items-center justify-between mb-2">
@@ -1135,19 +570,19 @@ export const VisitsDashboard: React.FC = () => {
                       <div className="font-black text-slate-900">
                         {(myCustomers.find((x) => x.id === form.customerId)?.currentBalance ??
                           myCustomers.find((x) => x.id === form.customerId)?.balance ??
-                          0).toLocaleString()} ج.م
+                          0).toLocaleString()}
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-white border border-slate-100">
                       <div className="text-[10px] text-slate-400 font-bold uppercase">الحد الائتماني</div>
                       <div className="font-black text-slate-900">
-                        {(myCustomers.find((x) => x.id === form.customerId)?.creditLimit ?? 0).toLocaleString()} ج.م
+                        {(myCustomers.find((x) => x.id === form.customerId)?.creditLimit ?? 0).toLocaleString()}
                       </div>
                     </div>
                     <div className="p-2 rounded-xl bg-white border border-slate-100">
                       <div className="text-[10px] text-slate-400 font-bold uppercase">المديونية</div>
                       <div className="font-black text-slate-900">
-                        {(myCustomers.find((x) => x.id === form.customerId)?.overdueBalance ?? 0).toLocaleString()} ج.م
+                        {(myCustomers.find((x) => x.id === form.customerId)?.overdueBalance ?? 0).toLocaleString()}
                       </div>
                     </div>
                   </div>
@@ -1181,653 +616,117 @@ export const VisitsDashboard: React.FC = () => {
                 </label>
               </div>
 
-              {form.type === 'تحصيل' && (
-                <label className="block bg-emerald-50/50 p-3 rounded-2xl border border-emerald-100">
-                  <span className="text-xs text-emerald-800 font-bold">مبلغ التحصيل (ج.م) *</span>
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs text-slate-600 font-bold">وقت الزيارة</span>
                   <input
-                    type="number"
-                    value={form.collectedAmount || ''}
-                    onChange={(e) => setForm({ ...form, collectedAmount: Number(e.target.value) })}
-                    placeholder="0.00"
-                    className="mt-1 w-full rounded-xl border border-emerald-200 px-3 py-2.5 text-sm font-black bg-white text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    type="time"
+                    value={form.time}
+                    onChange={(e) => setForm({ ...form, time: e.target.value })}
+                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </label>
-              )}
 
-              {form.type === 'أمر بيع' && (
-                <div className="space-y-2">
-                  <label className="block bg-indigo-50/50 p-3 rounded-2xl border border-indigo-100">
-                    <span className="text-xs text-indigo-800 font-bold">مبلغ الأمر (ج.م) *</span>
+                {form.type === 'تحصيل' && (
+                  <label className="block">
+                    <span className="text-xs text-emerald-800 font-bold">مبلغ التحصيل (ج.م) *</span>
                     <input
                       type="number"
-                      value={form.orderAmount || ''}
-                      onChange={(e) => setForm({ ...form, orderAmount: Number(e.target.value) })}
+                      value={form.collectedAmount || ''}
+                      onChange={(e) => setForm({ ...form, collectedAmount: Number(e.target.value) })}
                       placeholder="0.00"
-                      className="mt-1 w-full rounded-xl border border-indigo-200 px-3 py-2.5 text-sm font-bold bg-white text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="mt-1 w-full rounded-xl border border-emerald-200 px-3 py-2.5 text-sm font-black bg-white text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </label>
-                  <label className="block">
-                    <span className="text-xs text-slate-600 font-bold">طريقة الدفع</span>
-                    <select
-                      value={form.orderPaymentMethod}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          orderPaymentMethod: e.target.value as
-                            | 'نقدي (كاش)'
-                            | 'آجل (30 يوم)'
-                            | 'آجل (60 يوم)'
-                            | 'تحويل بنكي'
-                            | 'شيك',
-                        })
-                      }
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="نقدي (كاش)">نقدي (كاش)</option>
-                      <option value="آجل (30 يوم)">آجل (30 يوم)</option>
-                      <option value="آجل (60 يوم)">آجل (60 يوم)</option>
-                      <option value="تحويل بنكي">تحويل بنكي</option>
-                      <option value="شيك">شيك</option>
-                    </select>
-                  </label>
-                  <label className="block">
-                    <span className="text-xs text-slate-600 font-bold">ملاحظات الأمر</span>
-                    <textarea
-                      value={form.orderNotes}
-                      onChange={(e) => setForm({ ...form, orderNotes: e.target.value })}
-                      rows={2}
-                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="ملاحظات إضافية على الأمر..."
-                    />
-                  </label>
-                </div>
-              )}
-
-              {form.type === 'أمر بيع' && creditWarning && creditWarning.exceeded && (
-                <div className="mt-2 p-3 rounded-2xl border border-[var(--app-risk-line)] bg-[var(--app-risk-tint)]/50">
-                  <div className="flex items-start gap-2 text-xs">
-                    <AlertTriangle className="w-4 h-4 text-[var(--app-risk-text)] mt-0.5 shrink-0" />
-                    <div className="flex-1">
-                      <div className="font-bold text-[var(--app-risk-text)] mb-1">
-                        ⚠️ تجاوز الحد الائتماني أو وجود مديونية
-                      </div>
-                      <div className="text-slate-700 space-y-1">
-                        <div>
-                          <span className="font-bold">الرصيد قبل الأمر:</span>{' '}
-                          {creditWarning.balanceBefore.toLocaleString()} ج.م
-                        </div>
-                        <div>
-                          <span className="font-bold">الحد الائتماني:</span>{' '}
-                          {creditWarning.creditLimit.toLocaleString()} ج.م
-                        </div>
-                        <div>
-                          <span className="font-bold">الرصيد المتوقع بعد الأمر:</span>{' '}
-                          {creditWarning.balanceAfter.toLocaleString()} ج.م
-                        </div>
-                        <div>
-                          <span className="font-bold">المديونية الحالية:</span>{' '}
-                          {creditWarning.overdueBalance.toLocaleString()} ج.م
-                        </div>
-                        <div>
-                          <span className="font-bold">المقدم المطلوب:</span>{' '}
-                          {creditWarning.requiredDownPayment.toLocaleString()} ج.م
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowCreditOverride(true)}
-                        className="mt-2 px-3 py-1.5 rounded-xl bg-[var(--app-risk)] text-white text-xs font-bold hover:opacity-90 transition"
-                      >
-                        تسجيل تفاصيل التجاوز وإرسال للإدارة
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* أصناف الزيارة */}
-              <div className="block mt-2">
-                <span className="text-xs text-slate-600 font-bold">أصناف الزيارة (اختياري)</span>
-                <div className="relative mt-1">
-                  <input
-                    type="text"
-                    value={searchProduct}
-                    onChange={(e) => handleProductSearch(e.target.value)}
-                    placeholder="ابحث بالاسم أو الكود لإضافة صنف..."
-                    className="w-full pl-8 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                </div>
-                {searchProduct && searchResults.length > 0 && (
-                  <div className="bg-white border border-slate-200 rounded-xl shadow-lg mt-1 max-h-44 overflow-y-auto divide-y divide-slate-100">
-                    {searchResults.map((p) => (
-                      <div
-                        key={p.id}
-                        onClick={() => {
-                          if (form.type === 'فاتورة مرتجع لدي العميل') {
-                            selectProductForReturn(p);
-                          } else {
-                            selectProductForVisit(p);
-                          }
-                        }}
-                        className="px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer flex items-center justify-between"
-                      >
-                        <div>
-                          <div className="font-black text-slate-900">{p.name}</div>
-                          <div className="text-[10px] text-slate-400">
-                            كود: {p.code} {p.unifiedCode ? `(#${p.unifiedCode})` : ''}
-                          </div>
-                        </div>
-                        <div className="text-xs font-bold text-blue-600">{p.cartonPrice?.toLocaleString()} ج.م</div>
-                      </div>
-                    ))}
-                  </div>
                 )}
               </div>
 
-              {form.visitItems.length > 0 && (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-700">الأصناف المضافة</span>
-                    <span className="text-xs font-black text-blue-600">
-                      {form.visitItems.reduce((s, i) => s + i.amount, 0).toLocaleString()} ج.م
-                    </span>
-                  </div>
-                  {form.visitItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <span className="text-xs font-bold text-slate-800">{item.productName}</span>
-                        <div className="text-[10px] text-slate-400">
-                          {item.cartonCount} كرتونة • {item.pieceCount} قطعة
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeVisitItem(item.id)}
-                        className="text-rose-500 hover:text-rose-700"
-                        title="حذف"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* بيانات المرتجع إن وجد */}
-              {form.type === 'فاتورة مرتجع لدي العميل' && (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4 space-y-3">
-                  <div className="flex items-center gap-1.5 text-xs font-black text-amber-900">
-                    <Gift className="w-4 h-4 text-amber-600" />
-                    <span>تفاصيل المرتجع من العميل</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="block">
-                      <span className="text-[11px] text-amber-800 font-bold">قيمة المرتجع (ج.م) *</span>
-                      <input
-                        type="number"
-                        value={form.returnValue || ''}
-                        onChange={(e) => setForm({ ...form, returnValue: Number(e.target.value) })}
-                        placeholder="0.00"
-                        className="mt-1 w-full rounded-xl border border-amber-300 px-3 py-2 text-xs font-black bg-white text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="text-[11px] text-amber-800 font-bold">سبب المرتجع *</span>
-                      <input
-                        value={form.returnReason}
-                        onChange={(e) => setForm({ ...form, returnReason: e.target.value })}
-                        placeholder="تالف / كسر / منتهي..."
-                        className="mt-1 w-full rounded-xl border border-amber-300 px-3 py-2 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
-                      />
-                    </label>
-                  </div>
-
-                  {/* صور المرتجع */}
-                  <div>
-                    <span className="text-[11px] text-amber-800 font-bold block mb-1">صور المرتجع</span>
-                    <div className="flex flex-wrap gap-2">
-                      {form.returnImages.map((img, idx) => (
-                        <div key={idx} className="relative w-12 h-12 rounded-xl border border-amber-200 overflow-hidden">
-                          <img src={img} className="w-full h-full object-cover" alt="return" />
-                          <button
-                            type="button"
-                            onClick={() => removeReturnImage(idx)}
-                            className="absolute top-1 right-1 bg-rose-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[9px]"
-                          >
-                            <X className="w-2.5 h-2.5" />
-                          </button>
-                        </div>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const input = document.createElement('input');
-                          input.type = 'file';
-                          input.accept = 'image/*';
-                          input.multiple = true;
-                          input.onchange = (ev) => {
-                            const target = ev.target as HTMLInputElement;
-                            const files = target?.files;
-                            if (files) {
-                              const urls = Array.from(files).map((f) => URL.createObjectURL(f));
-                              setForm((prev) => ({ ...prev, returnImages: [...prev.returnImages, ...urls] }));
-                            }
-                          };
-                          input.click();
-                        }}
-                        className="w-12 h-12 rounded-xl border-2 border-dashed border-amber-300 flex items-center justify-center text-amber-600 hover:bg-amber-100 transition"
-                      >
-                        <Upload className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
               <label className="block">
-                <span className="text-xs text-slate-600 font-bold">ملاحظات الزيارة أو إفادة العميل</span>
+                <span className="text-xs text-slate-600 font-bold">ملاحظات الزيارة</span>
                 <textarea
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   rows={2}
                   className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="سجل ما تم في الزيارة أو إفادة العميل بالدفع..."
+                  placeholder="ملاحظات إضافية على الزيارة..."
                 />
               </label>
 
-              {formErrors.length > 0 && (
-                <div className="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-xl text-xs font-bold space-y-1">
-                  {formErrors.map((err, i) => (
-                    <div key={i}>• {err}</div>
+              <span className="text-xs text-slate-600 font-bold">أصناف الزيارة (اختياري)</span>
+              <div className="relative mt-1">
+                <input
+                  type="text"
+                  value={searchProduct}
+                  onChange={(e) => handleProductSearch(e.target.value)}
+                  placeholder="ابحث بالاسم أو الكود لإضافة صنف..."
+                  className="w-full pl-8 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              </div>
+              {searchProduct && searchResults.length > 0 && (
+                <div className="bg-white border border-slate-200 rounded-xl shadow-lg mt-1 max-h-44 overflow-y-auto divide-y divide-slate-100">
+                  {searchResults.map((p) => (
+                    <div
+                      key={p.id}
+                      onClick={() => selectProductForVisit(p)}
+                      className="px-3 py-2 text-xs hover:bg-blue-50 cursor-pointer flex items-center justify-between"
+                    >
+                      <div>
+                        <div className="font-black text-slate-900">{p.name}</div>
+                        <div className="text-[10px] text-slate-400">
+                          كود: {p.code} {p.unifiedCode ? `(#${p.unifiedCode})` : ''}
+                        </div>
+                      </div>
+                      <div className="text-xs font-bold text-blue-600">{p.cartonPrice?.toLocaleString()} ج.م</div>
+                    </div>
                   ))}
                 </div>
               )}
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setShowForm(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-bold hover:bg-slate-50 transition"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black shadow-md shadow-blue-500/20 transition active:scale-95"
-                >
-                  حفظ الزيارة
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* 6.5. Modal: تفاصيل تجاوز الحد الائتماني (للأمر البيع) */}
-      {showCreditOverride && (
-        <div
-          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setShowCreditOverride(false);
-          }}
-        >
-          <div className="relative z-[60] bg-white rounded-3xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100">
-            <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] flex items-center justify-center">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <h2 className="text-lg font-black text-slate-900">تفاصيل تجاوز الحد الائتماني</h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCreditOverride(false)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center"
-                aria-label="إغلاق"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {creditWarning && (
-              <>
-                <div className="space-y-3 text-xs mb-4">
-                  <div className="flex justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-slate-600 font-bold">الرصيد قبل الأمر:</span>
-                    <span className="font-black">{creditWarning.balanceBefore.toLocaleString()} ج.م</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-slate-600 font-bold">الحد الائتماني:</span>
-                    <span className="font-black">{creditWarning.creditLimit.toLocaleString()} ج.م</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-slate-600 font-bold">الرصيد المتوقع بعد الأمر:</span>
-                    <span className="font-black text-[var(--app-risk-text)]">{creditWarning.balanceAfter.toLocaleString()} ج.م</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-slate-600 font-bold">المديونية الحالية:</span>
-                    <span className="font-black">{creditWarning.overdueBalance.toLocaleString()} ج.م</span>
-                  </div>
-                  <div className="flex justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
-                    <span className="text-slate-600 font-bold">المقدم المطلوب:</span>
-                    <span className="font-black text-[var(--app-risk-text)]">{creditWarning.requiredDownPayment.toLocaleString()} ج.م</span>
-                  </div>
-                </div>
-
-                <label className="block">
-                  <span className="text-xs text-slate-600 font-bold">تفاصيل التجاوز ومبررات الطلب (تُرسل للإدارة) *</span>
-                  <textarea
-                    value={form.creditOverrideReason}
-                    onChange={(e) => setForm({ ...form, creditOverrideReason: e.target.value })}
-                    rows={4}
-                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="اكتب تفاصيل سبب التجاوز ومبررات الموافقة على الأمر..."
-                  />
-                </label>
-
-                <p className="text-[10px] text-slate-400 mt-2">
-                  بعد حفظ الزيارة، سيبقى الأمر في انتظار موافقة الإدارة قبل الانتقال إلى مرحلة التجهيز والمتابعة وإغلاق الطلبية.
-                </p>
-                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setShowCreditOverride(false)}
-                    className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-bold hover:bg-slate-50 transition"
-                  >
-                    إلغاء
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (!form.creditOverrideReason.trim()) {
-                        setFlash({ tone: 'error', text: 'يرجى كتابة تفاصيل التجاوز قبل الإرسال' });
-                        return;
-                      }
-                      setShowCreditOverride(false);
-                      // المتابعة بالحفظ مع السماح بتجاوز الائتمان
-                      void submit(undefined, true);
-                    }}
-                    className="px-6 py-2.5 rounded-xl bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-white text-xs font-black shadow-md shadow-[var(--app-risk)]/20 transition active:scale-95"
-                  >
-                    إرسال للإدارة
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 6.6. Modal: بناء أمر البيع الكامل بالأصناف */}
-      {showOrderBuilder && (
-        <OrderBuilderModal
-          isOpen={showOrderBuilder}
-          initialCustomer={
-            pendingVisitData?.visit?.customerId
-              ? myCustomers.find((x) => x.id === pendingVisitData.visit.customerId) || null
-              : null
-          }
-          onClose={() => {
-            setShowOrderBuilder(false);
-            setPendingVisitData(null);
-          }}
-          onInvoiceCreated={(invoice) => {
-            // ربط الزيارة بالأمر + إعداد الموافقة المزدوجة ومرحلة دورة الحياة
-            if (pendingVisitData?.visit && updateVisit) {
-              const isCreditExceeded = Boolean(pendingVisitData.creditOverrideDetail?.exceeded);
-              updateVisit({
-                ...pendingVisitData.visit,
-                orderCreatedId: invoice.id,
-                linkedOrderNumber: invoice.invoiceNumber,
-                orderAmount: invoice.estimatedGrandTotal,
-                orderLifecycleStage: isCreditExceeded
-                  ? 'في انتظار اعتماد الإدارة'
-                  : 'في انتظار اعتماد المشرف',
-                orderApprovalTrail: {
-                  firstApprovalStatus: 'pending',
-                  finalApprovalStatus: 'pending',
-                },
-                creditOverrideDetail: isCreditExceeded
-                  ? {
-                      exceeded: true,
-                      customerBalanceBefore: pendingVisitData.creditOverrideDetail.balanceBefore,
-                      customerCreditLimit: pendingVisitData.creditOverrideDetail.creditLimit,
-                      customerBalanceAfter: pendingVisitData.creditOverrideDetail.balanceAfter,
-                      overdueBalance: pendingVisitData.creditOverrideDetail.overdueBalance,
-                      requiredDownPayment: pendingVisitData.creditOverrideDetail.requiredDownPayment,
-                      overrideReason: form.creditOverrideReason || 'تجاوز حد الائتمان',
-                      overridePending: true,
-                    }
-                  : pendingVisitData.visit.creditOverrideDetail,
-                notes: [pendingVisitData.visit.notes, pendingVisitData.orderNotes]
-                  .filter(Boolean)
-                  .join('\n'),
-              });
-            }
-            setShowOrderBuilder(false);
-            setPendingVisitData(null);
-            setFlash({
-              tone: 'success',
-              text: `تم إنشاء أمر البيع ${invoice.invoiceNumber} وربطه بالزيارة — بانتظار موافقة المشرف/مدير الفرع ثم الإدارة ✅`,
-            });
-          }}
-        />
-      )}
-
-      {/* 7. Modal: تفاصيل الزيارة */}
-      {selectedVisit && (
-        <div
-          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setSelectedVisit(null);
-          }}
-        >
-          <div
-            className="relative z-[60] bg-white rounded-3xl p-6 w-full max-w-xl max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100"
-            dir="rtl"
-          >
-            <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                  <Eye className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-lg font-black text-slate-900">تفاصيل الزيارة</h2>
-                  <p className="text-[11px] text-slate-400 font-mono">{selectedVisit.id}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedVisit(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center"
-                aria-label="إغلاق"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] text-slate-400 font-bold">العميل</p>
-                  <p className="font-black text-slate-900 mt-0.5">{selectedVisit.customerName}</p>
-                  <p className="text-[10px] text-slate-500 font-mono mt-0.5">{selectedVisit.customerCode}</p>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] text-slate-400 font-bold">نوع الزيارة</p>
-                  <p className="font-black text-blue-600 mt-0.5">{selectedVisit.type}</p>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] text-slate-400 font-bold">التاريخ والتوقيت</p>
-                  <p className="font-black text-slate-800 mt-0.5">
-                    {formatArabicDateWithDay(selectedVisit.date)} {selectedVisit.time || ''}
-                  </p>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                  <p className="text-[10px] text-slate-400 font-bold">الحالة</p>
-                  <p
-                    className={`font-black mt-0.5 ${
-                      selectedVisit.status === 'منفذة' ? 'text-emerald-600' : 'text-amber-600'
-                    }`}
-                  >
-                    {selectedVisit.status}
-                  </p>
-                </div>
-              </div>
-
-              {/* الموافقة المزدوجة ودورة حياة أمر البيع */}
-              {selectedVisit.type === 'أمر بيع' && (
-                <div className="p-3 rounded-2xl border border-indigo-100 bg-indigo-50/40 space-y-2 text-xs">
-                  <div className="flex items-center justify-between">
-                    <span className="font-black text-indigo-800">🛒 أمر البيع</span>
-                    {selectedVisit.linkedOrderNumber && (
-                      <span className="font-mono font-bold text-indigo-700">
-                        {selectedVisit.linkedOrderNumber}
-                      </span>
-                    )}
-                  </div>
-                  {selectedVisit.orderLifecycleStage && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-500 font-bold">المرحلة الحالية:</span>
-                      <span className="px-2 py-0.5 rounded-lg bg-indigo-600 text-white font-black text-[10px]">
-                        {selectedVisit.orderLifecycleStage}
-                      </span>
-                    </div>
-                  )}
-                  {selectedVisit.orderApprovalTrail && (
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <div className="p-2 rounded-xl bg-white border border-slate-100">
-                        <div className="text-[10px] text-slate-400 font-bold">اعتماد المشرف/مدير الفرع</div>
-                        <div
-                          className={`font-black mt-0.5 ${
-                            selectedVisit.orderApprovalTrail.firstApprovalStatus === 'approved'
-                              ? 'text-emerald-600'
-                              : selectedVisit.orderApprovalTrail.firstApprovalStatus === 'rejected'
-                              ? 'text-rose-600'
-                              : 'text-amber-600'
-                          }`}
-                        >
-                          {selectedVisit.orderApprovalTrail.firstApprovalStatus === 'approved'
-                            ? 'معتمد ✅'
-                            : selectedVisit.orderApprovalTrail.firstApprovalStatus === 'rejected'
-                            ? 'مرفوض ❌'
-                            : 'بانتظار الاعتماد ⏳'}
-                        </div>
-                      </div>
-                      <div className="p-2 rounded-xl bg-white border border-slate-100">
-                        <div className="text-[10px] text-slate-400 font-bold">الاعتماد النهائي (الإدارة/القطاع)</div>
-                        <div
-                          className={`font-black mt-0.5 ${
-                            selectedVisit.orderApprovalTrail.finalApprovalStatus === 'approved'
-                              ? 'text-emerald-600'
-                              : selectedVisit.orderApprovalTrail.finalApprovalStatus === 'rejected'
-                              ? 'text-rose-600'
-                              : 'text-amber-600'
-                          }`}
-                        >
-                          {selectedVisit.orderApprovalTrail.finalApprovalStatus === 'approved'
-                            ? 'معتمد ✅'
-                            : selectedVisit.orderApprovalTrail.finalApprovalStatus === 'rejected'
-                            ? 'مرفوض ❌'
-                            : 'بانتظار الاعتماد ⏳'}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  {selectedVisit.creditOverrideDetail?.exceeded && (
-                    <div className="mt-1 p-2 rounded-xl bg-rose-50 border border-rose-100">
-                      <div className="font-bold text-rose-700 text-[11px]">⚠️ تجاوز حد الائتمان</div>
-                      <p className="text-[10px] text-slate-600 mt-1">
-                        {selectedVisit.creditOverrideDetail.overrideReason || '—'}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* المبالغ */}
-              {(selectedVisit.collectedAmount > 0 || selectedVisit.returnValue > 0) && (
-                <div className="p-3 bg-blue-50/50 rounded-2xl border border-blue-100 flex items-center justify-between text-xs">
-                  <span className="font-bold text-slate-700">المبلغ المسجل:</span>
-                  <span className="font-black text-base text-blue-700">
-                    {formatCurrency(selectedVisit.collectedAmount || selectedVisit.returnValue || 0)}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-2 mt-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700">الأصناف المضافة</span>
+                  <span className="text-xs font-black text-blue-600">
+                    {form.visitItems.reduce((s, i) => s + i.amount, 0).toLocaleString()} ج.م
                   </span>
                 </div>
-              )}
-
-              {/* الملاحظات وإفادة العميل */}
-              {selectedVisit.notes && (
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
-                  <p className="text-[10px] text-slate-400 font-bold mb-1">ملاحظات / إفادة العميل</p>
-                  <p className="font-bold text-slate-800 leading-relaxed">{selectedVisit.notes}</p>
-                </div>
-              )}
-
-              {/* صور المرتجع */}
-              {selectedVisit.returnImages && selectedVisit.returnImages.length > 0 && (
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
-                  <p className="text-[10px] text-slate-400 font-bold mb-2">صور مرفقة بالزيارة</p>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedVisit.returnImages.map((img, idx) => (
-                      <div
-                        key={idx}
-                        className="w-16 h-16 rounded-xl border border-slate-200 overflow-hidden cursor-pointer hover:opacity-90"
-                        onClick={() => setLightboxImage(img)}
-                      >
-                        <img src={img} className="w-full h-full object-cover" alt="visit attachment" />
+                {form.visitItems.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-xs font-bold text-slate-800">{item.productName}</span>
+                      <div className="text-[10px] text-slate-400">
+                        {item.cartonCount} كرتونة • {item.pieceCount} قطعة
                       </div>
-                    ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeVisitItem(item.id)}
+                      className="text-rose-500 hover:text-rose-700"
+                      title="حذف"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
+                ))}
+              </div>
+
+              {formErrors.length > 0 && (
+                <div className="p-2 rounded-xl bg-rose-50/60 border border-rose-200/50 text-rose-800 text-xs font-bold text-right">
+                  {formErrors.map((err, i) => (
+                    <div key={i}>{err}</div>
+                  ))}
                 </div>
               )}
 
-              <div className="flex justify-end pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setSelectedVisit(null)}
-                  className="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition"
-                >
-                  إغلاق
-                </button>
-              </div>
+              <button
+                type="submit"
+                className="w-full h-11 bg-gradient-to-r from-[#009488] to-[#0e7a6e] text-white font-black text-sm rounded-xl shadow-lg shadow-[#009488]/30 hover:shadow-[#009488]/50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                <Clock className="w-4 h-4" />
+                <span>تسجيل الزيارة</span>
+              </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* 8. Lightbox Zoom */}
-      {lightboxImage && (
-        <div
-          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setLightboxImage(null);
-          }}
-          role="dialog"
-          aria-modal="true"
-        >
-          <button
-            type="button"
-            onClick={() => setLightboxImage(null)}
-            className="absolute top-4 left-4 z-20 w-10 h-10 rounded-full bg-white/10 text-white backdrop-blur-md hover:bg-white/20 transition flex items-center justify-center"
-          >
-            <X className="w-5 h-5" />
-          </button>
-          <div className="relative flex items-center justify-center max-w-[90vh] max-h-[90vh]">
-            <img
-              src={lightboxImage}
-              alt="return preview"
-              className="max-w-[85vw] max-h-[85vh] rounded-2xl shadow-2xl object-contain bg-white p-2 border border-white/20"
-            />
-          </div>
+          </form>
         </div>
       )}
     </div>
