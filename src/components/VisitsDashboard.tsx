@@ -27,11 +27,12 @@ import { formatCurrency } from '../services/invoiceService';
 import type { CustomerVisit, ReturnedItem, Product, VisitItem } from '../types';
 import { EmptyState } from './ui/EmptyState';
 
-const SIMPLE_VISIT_TYPES: { id: string; label: string }[] = [
-  { id: 'دورية', label: 'زيارة دورية' },
-  { id: 'تحصيل', label: 'تحصيل' },
-  { id: 'فاتورة مرتجع لدي العميل', label: 'فاتورة مرتجع لدي العميل' },
-  { id: 'متابعة', label: 'متابعة' },
+const SIMPLE_VISIT_TYPES: { id: string; label: string; color: string }[] = [
+  { id: 'دورية', label: 'زيارة دورية', color: 'bg-blue-50 text-blue-700 border-blue-100' },
+  { id: 'تحصيل', label: 'تحصيل', color: 'bg-emerald-50 text-emerald-700 border-emerald-100' },
+  { id: 'فاتورة مرتجع لدي العميل', label: 'مرتجع', color: 'bg-amber-50 text-amber-700 border-amber-100' },
+  { id: 'متابعة', label: 'متابعة', color: 'bg-purple-50 text-purple-700 border-purple-100' },
+  { id: 'أمر بيع', label: 'أمر بيع (فاتورة)', color: 'bg-indigo-50 text-indigo-700 border-indigo-100' },
 ];
 
 interface ReturnItemForm {
@@ -71,6 +72,16 @@ export const VisitsDashboard: React.FC = () => {
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [selectedVisit, setSelectedVisit] = useState<CustomerVisit | null>(null);
   const [flash, setFlash] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+  const [showCreditOverride, setShowCreditOverride] = useState(false);
+  const [showOrderModal, setShowOrderModal] = useState(false);
+  const [creditWarning, setCreditWarning] = useState<{
+    exceeded: boolean;
+    balanceBefore: number;
+    creditLimit: number;
+    balanceAfter: number;
+    overdueBalance: number;
+    requiredDownPayment: number;
+  } | null>(null);
 
   const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -89,6 +100,12 @@ export const VisitsDashboard: React.FC = () => {
     returnItems: [] as ReturnItemForm[],
     returnImages: [] as string[],
     visitItems: [] as VisitItem[],
+    /* أمر البيع من الزيارة */
+    orderAmount: 0,
+    orderNotes: '',
+    orderPaymentMethod: 'نقدي (كاش)' as 'نقدي (كاش)' | 'آجل (30 يوم)' | 'آجل (60 يوم)' | 'تحويل بنكي' | 'شيك',
+    /* تجاوز الحد الائتماني */
+    creditOverrideReason: '',
   });
 
   const myCustomers = useMemo(() => {
@@ -201,6 +218,7 @@ export const VisitsDashboard: React.FC = () => {
     const errors: string[] = [];
     if (!form.customerId) errors.push('يرجى اختيار العميل');
     if (form.type === 'تحصيل' && form.collectedAmount <= 0) errors.push('يرجى إدخال مبلغ التحصيل');
+    if (form.type === 'أمر بيع' && form.orderAmount <= 0) errors.push('يرجى إدخال مبلغ الأمر');
     if (form.type === 'فاتورة مرتجع لدي العميل') {
       if (form.returnItems.length === 0) errors.push('يرجى إضافة صنف واحد على الأقل للمرتجع');
       if (form.returnValue <= 0) errors.push('يرجى إدخال قيمة المرتجع');
@@ -217,6 +235,27 @@ export const VisitsDashboard: React.FC = () => {
     const c = myCustomers.find((x) => x.id === form.customerId);
     const isReturn = form.type === 'فاتورة مرتجع لدي العميل';
 
+    // حساب تحذير الحد الائتماني لنوع أمر بيع
+    if (form.type === 'أمر بيع' && c) {
+      const balanceBefore = Number(c.currentBalance ?? c.balance ?? 0);
+      const creditLimit = Number(c.creditLimit ?? 0);
+      const overdueBalance = Number(c.overdueBalance ?? 0);
+      const orderAmt = Number(form.orderAmount || 0);
+      const balanceAfter = balanceBefore + orderAmt;
+      const exceeded = creditLimit > 0 && balanceAfter > creditLimit;
+      const requiredDown = exceeded ? Math.max(0, balanceAfter - creditLimit) : 0;
+      setCreditWarning({
+        exceeded,
+        balanceBefore,
+        creditLimit,
+        balanceAfter,
+        overdueBalance,
+        requiredDownPayment: requiredDown,
+      });
+    } else {
+      setCreditWarning(null);
+    }
+
     const result = addVisit({
       customerId: form.customerId,
       customerName: c?.name || form.customerName || '',
@@ -230,9 +269,16 @@ export const VisitsDashboard: React.FC = () => {
       supervisorName: r?.supervisorName || '',
       status: 'منفذة',
       type: form.type as any,
-      outcome: isReturn ? 'مرتجع لدي العميل' : form.type === 'تحصيل' ? 'تم التحصيل' : 'متابعة فقط',
+      outcome:
+        isReturn
+          ? 'مرتجع لدي العميل'
+          : form.type === 'تحصيل'
+          ? 'تم التحصيل'
+          : form.type === 'أمر بيع'
+          ? 'تم عمل طلبية'
+          : 'متابعة فقط',
       collectedAmount: isReturn ? 0 : form.collectedAmount,
-      orderAmount: 0,
+      orderAmount: form.type === 'أمر بيع' ? form.orderAmount : 0,
       notes: form.notes,
       isReturn,
       returnValue: isReturn ? form.returnValue : 0,
@@ -252,6 +298,19 @@ export const VisitsDashboard: React.FC = () => {
       returnImages: isReturn ? form.returnImages : undefined,
       allowSameDaySecondVisit: isReturn ? true : undefined,
       visitItems: form.visitItems.length > 0 ? form.visitItems : undefined,
+      creditOverrideDetail:
+        form.type === 'أمر بيع' && creditWarning
+          ? {
+              exceeded: creditWarning.exceeded,
+              customerBalanceBefore: creditWarning.balanceBefore,
+              customerCreditLimit: creditWarning.creditLimit,
+              customerBalanceAfter: creditWarning.balanceAfter,
+              overdueBalance: creditWarning.overdueBalance,
+              requiredDownPayment: creditWarning.requiredDownPayment,
+              overrideReason: form.creditOverrideReason,
+              overridePending: true,
+            }
+          : undefined,
     });
 
     if (!result.success) {
@@ -292,7 +351,11 @@ export const VisitsDashboard: React.FC = () => {
       }
       setFlash({ tone: 'success', text: `${created.message} — تم إشعار الإدارة للمراجعة.` });
     } else {
-      setFlash({ tone: 'success', text: 'تم حفظ الزيارة بنجاح ✅' });
+      if (form.type === 'أمر بيع' && creditWarning && creditWarning.exceeded) {
+        setShowCreditOverride(true);
+      } else {
+        setFlash({ tone: 'success', text: 'تم حفظ الزيارة بنجاح ✅' });
+      }
     }
 
     setShowForm(false);
@@ -305,9 +368,13 @@ export const VisitsDashboard: React.FC = () => {
       time: '09:00',
       type: 'تحصيل',
       collectedAmount: 0,
+      orderAmount: 0,
+      orderNotes: '',
+      orderPaymentMethod: 'نقدي (كاش)',
       notes: '',
       returnValue: 0,
       returnReason: '',
+      creditOverrideReason: '',
       returnItems: [],
       returnImages: [],
       visitItems: [],
@@ -982,6 +1049,8 @@ export const VisitsDashboard: React.FC = () => {
                       customerName: c?.name || '',
                       customerCode: c?.code || '',
                     });
+                    setCreditWarning(null);
+                    setShowCreditOverride(false);
                   }}
                   className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
@@ -993,6 +1062,38 @@ export const VisitsDashboard: React.FC = () => {
                   ))}
                 </select>
               </label>
+
+              {/* بطاقة موقف العميل المالي (تظهر بعد الاختيار) */}
+              {form.customerId && (
+                <div className="mt-3 p-3 rounded-2xl border border-slate-200 bg-slate-50/60">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-black text-slate-700">موقف العميل المالي</span>
+                    <span className="text-[10px] font-bold text-slate-400">رصيد • حد ائتمان • مستحقات</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div className="p-2 rounded-xl bg-white border border-slate-100">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase">الرصيد الحالي</div>
+                      <div className="font-black text-slate-900">
+                        {(myCustomers.find((x) => x.id === form.customerId)?.currentBalance ??
+                          myCustomers.find((x) => x.id === form.customerId)?.balance ??
+                          0).toLocaleString()} ج.م
+                      </div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-white border border-slate-100">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase">الحد الائتماني</div>
+                      <div className="font-black text-slate-900">
+                        {(myCustomers.find((x) => x.id === form.customerId)?.creditLimit ?? 0).toLocaleString()} ج.م
+                      </div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-white border border-slate-100">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase">المديونية</div>
+                      <div className="font-black text-slate-900">
+                        {(myCustomers.find((x) => x.id === form.customerId)?.overdueBalance ?? 0).toLocaleString()} ج.م
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
@@ -1032,6 +1133,89 @@ export const VisitsDashboard: React.FC = () => {
                     className="mt-1 w-full rounded-xl border border-emerald-200 px-3 py-2.5 text-sm font-black bg-white text-emerald-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </label>
+              )}
+
+              {form.type === 'أمر بيع' && (
+                <div className="space-y-2">
+                  <label className="block bg-indigo-50/50 p-3 rounded-2xl border border-indigo-100">
+                    <span className="text-xs text-indigo-800 font-bold">مبلغ الأمر (ج.م) *</span>
+                    <input
+                      type="number"
+                      value={form.orderAmount || ''}
+                      onChange={(e) => setForm({ ...form, orderAmount: Number(e.target.value) })}
+                      placeholder="0.00"
+                      className="mt-1 w-full rounded-xl border border-indigo-200 px-3 py-2.5 text-sm font-bold bg-white text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-slate-600 font-bold">طريقة الدفع</span>
+                    <select
+                      value={form.orderPaymentMethod}
+                      onChange={(e) =>
+                        setForm({ ...form, orderPaymentMethod: e.target.value })
+                      }
+                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2.5 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="نقدي (كاش)">نقدي (كاش)</option>
+                      <option value="آجل (30 يوم)">آجل (30 يوم)</option>
+                      <option value="آجل (60 يوم)">آجل (60 يوم)</option>
+                      <option value="تحويل بنكي">تحويل بنكي</option>
+                      <option value="شيك">شيك</option>
+                    </select>
+                  </label>
+                  <label className="block">
+                    <span className="text-xs text-slate-600 font-bold">ملاحظات الأمر</span>
+                    <textarea
+                      value={form.orderNotes}
+                      onChange={(e) => setForm({ ...form, orderNotes: e.target.value })}
+                      rows="2"
+                      className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="ملاحظات إضافية على الأمر..."
+                    />
+                  </label>
+                </div>
+              )}
+
+              {form.type === 'أمر بيع' && creditWarning && creditWarning.exceeded && (
+                <div className="mt-2 p-3 rounded-2xl border border-[var(--app-risk-line)] bg-[var(--app-risk-tint)]/50">
+                  <div className="flex items-start gap-2 text-xs">
+                    <AlertTriangle className="w-4 h-4 text-[var(--app-risk-text)] mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                      <div className="font-bold text-[var(--app-risk-text)] mb-1">
+                        ⚠️ تجاوز الحد الائتماني أو وجود مديونية
+                      </div>
+                      <div className="text-slate-700 space-y-1">
+                        <div>
+                          <span className="font-bold">الرصيد قبل الأمر:</span>{' '}
+                          {creditWarning.balanceBefore.toLocaleString()} ج.م
+                        </div>
+                        <div>
+                          <span className="font-bold">الحد الائتماني:</span>{' '}
+                          {creditWarning.creditLimit.toLocaleString()} ج.م
+                        </div>
+                        <div>
+                          <span className="font-bold">الرصيد المتوقع بعد الأمر:</span>{' '}
+                          {creditWarning.balanceAfter.toLocaleString()} ج.م
+                        </div>
+                        <div>
+                          <span className="font-bold">المديونية الحالية:</span>{' '}
+                          {creditWarning.overdueBalance.toLocaleString()} ج.م
+                        </div>
+                        <div>
+                          <span className="font-bold">المقدم المطلوب:</span>{' '}
+                          {creditWarning.requiredDownPayment.toLocaleString()} ج.م
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowCreditOverride(true)}
+                        className="mt-2 px-3 py-1.5 rounded-xl bg-[var(--app-risk)] text-white text-xs font-bold hover:opacity-90 transition"
+                      >
+                        تسجيل تفاصيل التجاوز وإرسال للإدارة
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
 
               {/* أصناف الزيارة */}
@@ -1215,6 +1399,104 @@ export const VisitsDashboard: React.FC = () => {
               </div>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* 6.5. Modal: تفاصيل تجاوز الحد الائتماني (للأمر البيع) */}
+      {showCreditOverride && (
+        <div
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setShowCreditOverride(false);
+          }}
+        >
+          <div className="relative z-[60] bg-white rounded-3xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100">
+            <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] flex items-center justify-center">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <h2 className="text-lg font-black text-slate-900">تفاصيل تجاوز الحد الائتماني</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreditOverride(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center"
+                aria-label="إغلاق"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {creditWarning && (
+              <>
+                <div className="space-y-3 text-xs mb-4">
+                  <div className="flex justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-slate-600 font-bold">الرصيد قبل الأمر:</span>
+                    <span className="font-black">{creditWarning.balanceBefore.toLocaleString()} ج.م</span>
+                  </div>
+                  <div className="flex justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-slate-600 font-bold">الحد الائتماني:</span>
+                    <span className="font-black">{creditWarning.creditLimit.toLocaleString()} ج.م</span>
+                  </div>
+                  <div className="flex justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-slate-600 font-bold">الرصيد المتوقع بعد الأمر:</span>
+                    <span className="font-black text-[var(--app-risk-text)]">{creditWarning.balanceAfter.toLocaleString()} ج.م</span>
+                  </div>
+                  <div className="flex justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-slate-600 font-bold">المديونية الحالية:</span>
+                    <span className="font-black">{creditWarning.overdueBalance.toLocaleString()} ج.م</span>
+                  </div>
+                  <div className="flex justify-between p-2 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-slate-600 font-bold">المقدم المطلوب:</span>
+                    <span className="font-black text-[var(--app-risk-text)]">{creditWarning.requiredDownPayment.toLocaleString()} ج.م</span>
+                  </div>
+                </div>
+
+                <label className="block">
+                  <span className="text-xs text-slate-600 font-bold">تفاصيل التجاوز ومبررات الطلب (تُرسل للإدارة) *</span>
+                  <textarea
+                    value={form.creditOverrideReason}
+                    onChange={(e) => setForm({ ...form, creditOverrideReason: e.target.value })}
+                    rows="4"
+                    className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="اكتب تفاصيل سبب التجاوز ومبررات الموافقة على الأمر..."
+                  />
+                </label>
+
+                <p className="text-[10px] text-slate-400 mt-2">
+                  بعد حفظ الزيارة، سيبقى الأمر في انتظار موافقة الإدارة قبل الانتقال إلى مرحلة التجهيز والمتابعة وإغلاق الطلبية.
+                </p>
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreditOverride(false)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-slate-600 text-xs font-bold hover:bg-slate-50 transition"
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!form.creditOverrideReason.trim()) {
+                        setFlash({ tone: 'error', text: 'يرجى كتابة تفاصيل التجاوز قبل الإرسال' });
+                        return;
+                      }
+                      setShowCreditOverride(false);
+                      setFlash({
+                        tone: 'success',
+                        text:
+                          'تم تسجيل تفاصيل التجاوز وإرسال الأمر في انتظار موافقة الإدارة ✅',
+                      });
+                    }}
+                    className="px-6 py-2.5 rounded-xl bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-white text-xs font-black shadow-md shadow-[var(--app-risk)]/20 transition active:scale-95"
+                  >
+                    إرسال للإدارة
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
