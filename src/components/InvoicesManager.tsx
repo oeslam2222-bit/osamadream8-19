@@ -449,118 +449,124 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         </div>
 
 
-        {/* KPI Cards Row - Professional Design */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          {/* Total Invoices */}
-          <div className="bg-white rounded-3xl border border-border-primary shadow-sm p-4 flex items-center gap-3.5 min-h-[96px]">
-            <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 shadow-sm">
-              <Receipt className="w-7 h-7" />
+        {/* KPI Cards Row - Matching Reference Design */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Shortage/Warning Card (Red) */}
+          <div className="bg-red-50 border border-red-100 rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black text-red-800 tracking-tight uppercase">فواتير بها نواقص</p>
+                <p className="text-3xl font-black text-red-700 tabular-nums">{tabCounts.shortage.toLocaleString('en-US')}</p>
+                <span className="text-[10px] font-bold text-red-600 mt-1 flex items-center gap-1">
+                  <ChevronLeft className="w-3 h-3" /> غير الفواتير
+                </span>
+              </div>
             </div>
-            <div className="min-w-0">
-              <span className="block text-[10px] font-black text-slate-500 tracking-wider uppercase">إجمالي الفواتير</span>
-              <span className="block text-2xl font-black text-slate-900 leading-tight tabular-nums">{tabCounts.all.toLocaleString('en-US')}</span>
-              <span className="block text-[10px] font-bold text-blue-600 mt-0.5 flex items-center gap-1">
-                <ChevronLeft className="w-3 h-3" /> عرض الكل
-              </span>
-            </div>
-            <div className="ml-auto text-[10px] font-bold text-slate-300">📊</div>
           </div>
 
-          {/* Pending Invoices */}
-          <div className="bg-white rounded-3xl border border-border-primary shadow-sm p-4 flex items-center gap-3.5 min-h-[96px]">
-            <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 shadow-sm">
-              <Clock className="w-7 h-7" />
+          {/* Approved Card (Green) */}
+          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black text-emerald-800 tracking-tight uppercase">الفواتير المعتمدة</p>
+                <p className="text-3xl font-black text-emerald-700 tabular-nums">{tabCounts.approved.toLocaleString('en-US')}</p>
+                <span className="text-[10px] font-bold text-emerald-600 mt-1 flex items-center gap-1">
+                  <ChevronLeft className="w-3 h-3" /> غير الفواتير
+                </span>
+              </div>
             </div>
-            <div className="min-w-0">
-              <span className="block text-[10px] font-black text-slate-500 tracking-wider uppercase">المعلقة للمراجعة</span>
-              <span className="block text-2xl font-black text-slate-900 leading-tight tabular-nums">{tabCounts.pending.toLocaleString('en-US')}</span>
-              <span className="block text-[10px] font-bold text-amber-600 mt-0.5 flex items-center gap-1">
-                <ChevronLeft className="w-3 h-3" /> مراجعة
-              </span>
-            </div>
-            <div className="ml-auto text-[10px] font-bold text-slate-300">⏳</div>
           </div>
 
-          {/* Approved Invoices */}
-          <div className="bg-white rounded-3xl border border-border-primary shadow-sm p-4 flex items-center gap-3.5 min-h-[96px]">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 shadow-sm">
-              <CheckCircle2 className="w-7 h-7" />
+          {/* Processing Card (Amber) */}
+          <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                <Clock className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black text-amber-800 tracking-tight uppercase">الفواتير المعالجة</p>
+                <p className="text-3xl font-black text-amber-700 tabular-nums">{tabCounts.pending.toLocaleString('en-US')}</p>
+                <span className="text-[10px] font-bold text-amber-600 mt-1 flex items-center gap-1">
+                  <ChevronLeft className="w-3 h-3" /> غير الفواتير
+                </span>
+              </div>
             </div>
-            <div className="min-w-0">
-              <span className="block text-[10px] font-black text-slate-500 tracking-wider uppercase">المعتمدة والصادرة</span>
-              <span className="block text-2xl font-black text-slate-900 leading-tight tabular-nums">{tabCounts.approved.toLocaleString('en-US')}</span>
-              <span className="block text-[10px] font-bold text-emerald-600 mt-0.5 flex items-center gap-1">
-                <ChevronLeft className="w-3 h-3" /> التفاصيل
-              </span>
-            </div>
-            <div className="ml-auto text-[10px] font-bold text-slate-300">✅</div>
           </div>
 
-          {/* Shortage Invoices */}
-          <div className="bg-white rounded-3xl border border-border-primary shadow-sm p-4 flex items-center gap-3.5 min-h-[96px]">
-            <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 shadow-sm">
-              <AlertTriangle className="w-7 h-7" />
+          {/* Total Card (Blue) */}
+          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0">
+                <FileText className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-black text-blue-800 tracking-tight uppercase">إجمالي الفواتير</p>
+                <p className="text-3xl font-black text-blue-700 tabular-nums">{tabCounts.all.toLocaleString('en-US')}</p>
+                <span className="text-[10px] font-bold text-blue-600 mt-1 flex items-center gap-1">
+                  <ChevronLeft className="w-3 h-3" /> غير الفواتير
+                </span>
+              </div>
             </div>
-            <div className="min-w-0">
-              <span className="block text-[10px] font-black text-slate-500 tracking-wider uppercase">بها نواقص / ناقصة</span>
-              <span className="block text-2xl font-black text-slate-900 leading-tight tabular-nums">{tabCounts.shortage.toLocaleString('en-US')}</span>
-              <span className="block text-[10px] font-bold text-rose-600 mt-0.5 flex items-center gap-1">
-                <ChevronLeft className="w-3 h-3" /> مراجعة
-              </span>
-            </div>
-            <div className="ml-auto text-[10px] font-bold text-slate-300">⚠️</div>
           </div>
         </div>
       </div>
-      {/* Filters + quick tabs */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* تصدير Excel */}
-          <button
-            type="button"
-            onClick={handleExportList}
-            title="تصدير الفواتير المعروضة حالياً (بنفس الفلاتر) إلى ملف Excel"
-            className="flex items-center gap-2 bg-[#1d4ed8] hover:bg-[#1a45bf] text-white px-3.5 py-2.5 rounded-xl text-xs font-black shadow-sm transition active:scale-95 cursor-pointer whitespace-nowrap"
-          >
-            <Download className="w-4 h-4" />
-            <span>تصدير Excel</span>
-          </button>
-
-          {/* بحث */}
-          <div className="relative flex-1 min-w-[220px]">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="بحث برقم الفاتورة أو اسم العميل..."
-              className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 transition"
-            />
-          </div>
-
-          {/* حالة الفاتورة */}
-          <div className="flex flex-col justify-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 min-w-[140px]">
-            <span className="text-[9px] text-slate-400 font-bold leading-none mb-0.5">حالة الفاتورة</span>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="bg-transparent font-black text-slate-800 text-xs focus:outline-none cursor-pointer w-full"
+      {/* Filters Bar */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* Left: Export + Search */}
+          <div className="flex items-center gap-4 flex-wrap min-w-0">
+            <button
+              type="button"
+              onClick={handleExportList}
+              title="تصدير الفواتير إلى ملف Excel"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-black shadow-sm transition active:scale-95 cursor-pointer whitespace-nowrap"
             >
-              <option value="الكل">الكل</option>
-              <option value="فواتير الأصناف المتوفرة">الأصناف المتوفرة</option>
-              <option value="فواتير النواقص">النواقص (-NQ)</option>
-              <option value="قيد مراجعة المشرف">قيد مراجعة المشرف</option>
-              <option value="معلقة بانتظار اعتماد الفرع">بانتظار مدير الفرع</option>
-              <option value="في انتظار اعتماد الإدارة">في انتظار الإدارة</option>
-              <option value="معتمدة ومصروفة من المخزن">معتمدة ومصروفة</option>
-              <option value="مرفوضة / ملغاة">مرفوضة / ملغاة</option>
-            </select>
+              <Download className="w-4 h-4" />
+              <span>تصدير Excel</span>
+            </button>
+
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="ابحث برقم الفاتورة أو اسم العميل..."
+                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+              />
+            </div>
           </div>
 
-          {/* المندوب */}
-          {currentUser?.role !== 'sales_rep' && (
-            <div className="flex flex-col justify-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 min-w-[140px]">
-              <span className="text-[9px] text-slate-400 font-bold leading-none mb-0.5">المندوب</span>
+          {/* Right filters */}
+          <div className="flex items-center gap-4 flex-wrap min-w-0">
+            {/* حالة الفاتورة */}
+            <div className="flex flex-col justify-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 min-w-[150px]">
+              <span className="text-[10px] font-bold text-slate-500 leading-none mb-1">حالة الفاتورة</span>
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="bg-transparent font-black text-slate-800 text-sm focus:outline-none cursor-pointer w-full"
+              >
+                <option value="الكل">الكل</option>
+                <option value="فواتير الأصناف المتوفرة">الأصناف المتوفرة</option>
+                <option value="فواتير النواقص">النواقص (-NQ)</option>
+                <option value="قيد مراجعة المشرف">قيد مراجعة المشرف</option>
+                <option value="معلقة بانتظار اعتماد الفرع">بانتظار مدير الفرع</option>
+                <option value="في انتظار اعتماد الإدارة">في انتظار الإدارة</option>
+                <option value="معتمدة ومصروفة من المخزن">معتمدة ومصروفة</option>
+                <option value="مرفوضة / ملغاة">مرفوضة / ملغاة</option>
+              </select>
+            </div>
+            {/* المندوب */}
+            {currentUser?.role !== 'sales_rep' && (
+              <div className="flex flex-col justify-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 min-w-[150px]">
+                <span className="text-[10px] font-bold text-slate-500 leading-none mb-1">المندوب</span>
               <select
                 value={selectedRepFilter}
                 onChange={(e) => setSelectedRepFilter(e.target.value)}
@@ -575,24 +581,24 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
           )}
 
-          {/* الفرع */}
-          {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') && (
-            <div className="flex flex-col justify-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 min-w-[140px]">
-              <span className="text-[9px] text-slate-400 font-bold leading-none mb-0.5">الفرع</span>
-              <select
-                value={selectedBranchFilter}
-                onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                className="bg-transparent font-black text-slate-800 text-xs focus:outline-none cursor-pointer w-full"
-              >
-                <option value="الكل">الكل</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.name}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+            {/* الفرع */}
+            {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') && (
+              <div className="flex flex-col justify-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 min-w-[150px]">
+                <span className="text-[10px] font-bold text-slate-500 leading-none mb-1">الفرع</span>
+                <select
+                  value={selectedBranchFilter}
+                  onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                  className="bg-transparent font-black text-slate-800 text-sm focus:outline-none cursor-pointer w-full"
+                >
+                  <option value="الكل">الكل</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.name}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
           {/* التاريخ من / إلى */}
           <div className="flex items-end gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
@@ -627,6 +633,9 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
+          </div>
+        </div>
+      </div>
 
         {/* Quick filter tabs (شكل أزرار الموديل الكحلية) + مبدّل الفواتير/التحصيلات */}
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -709,8 +718,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         )}
       </div>
 
-          </div>
-        </div>
 
       {/* Invoices List Table */}
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
