@@ -109,6 +109,11 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [feedbackError, setFeedbackError] = useState<string | null>(null);
   const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
 
+  // Credit Override Exception Modal State
+  const [showCreditOverrideModal, setShowCreditOverrideModal] = useState<boolean>(false);
+  const [creditOverrideReason, setCreditOverrideReason] = useState<string>('');
+  const [isSubmittingOverride, setIsSubmittingOverride] = useState<boolean>(false);
+
   // Quick Catalog Search & Add in Step 1
   const [isCatalogPickerOpen, setIsCatalogPickerOpen] = useState<boolean>(false);
   const [catalogSearch, setCatalogSearch] = useState('');
@@ -319,6 +324,10 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         customerOverdueBalance: overdue,
         creditLimitExceeded: isExceeded,
         requiredDownPayment: reqDown,
+        creditOverrideRequested: isCreditExceeded && showCreditOverrideModal,
+        creditOverrideReason: creditOverrideReason.trim() || undefined,
+        creditOverrideRequestedBy: isCreditExceeded && showCreditOverrideModal ? currentUser?.name : undefined,
+        creditOverrideRequestedAt: isCreditExceeded && showCreditOverrideModal ? new Date().toISOString() : undefined,
       });
 
       if (!result.success || !result.invoice) {
@@ -1326,6 +1335,89 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         </div>
 
       </div>
+
+      {/* Credit Override Exception Request Modal */}
+      {showCreditOverrideModal && (
+        <div className="fixed inset-0 z-60 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in">
+          <div className="absolute inset-0" onClick={() => setShowCreditOverrideModal(false)} aria-hidden="true" />
+          <div className="relative z-10 bg-white rounded-[var(--app-radius)] border border-[var(--app-line)] shadow-2xl w-full max-w-md p-6 sm:p-8 animate-in mi-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-[var(--app-ink)] text-lg">طلب استثناء خاص من الإدارة</h3>
+                  <p className="text-xs text-slate-500">تجاوز الحد الائتماني للعميل</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreditOverrideModal(false)}
+                className="text-slate-400 hover:text-[var(--app-risk-text)] transition"
+                aria-label="إغلاق"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] rounded-xl p-3 mb-4">
+              <div className="flex items-start gap-2 text-xs text-[var(--app-risk-text)] font-bold space-y-1">
+                <div><AlertCircle className="w-3 h-3 shrink-0 mt-0.5" /></div>
+                <div className="space-y-0.5">
+                  <div>مبلغ التجاوز: <strong className="text-[var(--app-risk-text)]">{formatCurrency(balAfter - creditLimitVal)}</strong></div>
+                  {creditLimitVal > 0 && (
+                    <div>نسبة التجاوز: <strong className="text-[var(--app-risk-text)] font-bold">{(balAfter / creditLimitVal * 100).toFixed(0)}% من الحد الائتماني</strong></div>
+                  )}
+                  <div>الرصيد المتوقع بعد الفاتورة: <strong className="text-[var(--app-risk-text)]">{formatCurrency(balAfter)}</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-[11px] font-bold text-[var(--app-ink)] mb-1">سبب طلب الاستثناء (مطلوب):</label>
+              <textarea
+                rows={4}
+                value={creditOverrideReason}
+                onChange={(e) => setCreditOverrideReason(e.target.value)}
+                placeholder="اذكر سبب طلب الاستثناء الخاص من الإدارة لتجاوز الحد الائتماني..."
+                className="w-full bg-slate-soft border border-[var(--app-line)] rounded-[var(--app-btn-radius)] p-2.5 text-[11px] text-[var(--app-ink)] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] transition"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setShowCreditOverrideModal(false)}
+                className="flex-1 px-4 py-2.5 rounded-[var(--app-btn-radius)] text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200 hover:bg-slate-200 transition cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!creditOverrideReason.trim()) {
+                    setFeedbackError('يرجى كتابة سبب طلب الاستثناء.');
+                    return;
+                  }
+                  setShowCreditOverrideModal(false);
+                  setIsSubmittingOverride(true);
+                  setTimeout(() => {
+                    setIsSubmittingOverride(false);
+                    setFeedbackSuccess('تم إرسال طلب الاستثناء الخاص إلى الإدارة للموافقة عليه.');
+                    setCurrentStep(3);
+                  }, 1000);
+                }}
+                disabled={isSubmittingOverride}
+                className="flex-1 px-4 py-2.5 rounded-[var(--app-btn-radius)] text-xs font-bold text-white bg-[var(--app-risk)] hover:bg-[var(--app-risk)] transition active:scale-95 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmittingOverride ? 'جاري الإرسال...' : 'إرسال الطلب للإدارة'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
