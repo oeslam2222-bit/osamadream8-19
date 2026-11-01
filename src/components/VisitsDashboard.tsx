@@ -241,8 +241,8 @@ export const VisitsDashboard: React.FC = () => {
     return errors.length === 0;
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = async (e?: React.FormEvent, allowCreditOverride = false) => {
+    e?.preventDefault();
     if (!validateForm()) return;
 
     const r = users.find((u) => u.id === form.repId);
@@ -270,8 +270,8 @@ export const VisitsDashboard: React.FC = () => {
       setCreditWarning(null);
     }
 
-    // إذا كان أمر بيع وتجاوز الائتمان، نعرض شاشة التفاصيل أولًا ولا نحفظ الزيارة بعد
-    if (form.type === 'أمر بيع' && creditWarning && creditWarning.exceeded) {
+    // إذا كان أمر بيع وتجاوز الائتمان ولم يؤكّد المستخدم بعد، نعرض شاشة التفاصيل أولًا
+    if (form.type === 'أمر بيع' && creditWarning && creditWarning.exceeded && !allowCreditOverride) {
       setShowCreditOverride(true);
       return;
     }
@@ -1550,11 +1550,8 @@ export const VisitsDashboard: React.FC = () => {
                         return;
                       }
                       setShowCreditOverride(false);
-                      setFlash({
-                        tone: 'success',
-                        text:
-                          'تم تسجيل تفاصيل التجاوز وإرسال الأمر في انتظار موافقة الإدارة ✅',
-                      });
+                      // المتابعة بالحفظ مع السماح بتجاوز الائتمان
+                      void submit(undefined, true);
                     }}
                     className="px-6 py-2.5 rounded-xl bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-white text-xs font-black shadow-md shadow-[var(--app-risk)]/20 transition active:scale-95"
                   >
