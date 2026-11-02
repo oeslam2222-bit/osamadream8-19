@@ -130,7 +130,6 @@ import {
   productIdentityKey,
   sanitizeCustomers,
 } from './appContextHelpers';
-import { deduplicateProductsByUnifiedCode } from '../services/productIdentity';
 import { useUiPreferences } from './useUiPreferences';
 import { resolveCustomerDuesValue } from '../services/customerDues';
 import { hashPassword, verifyPassword, withHashedCredential } from '../services/passwordService';
@@ -4096,15 +4095,21 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const importProductsList = (newProducts: Product[], mode: 'merge' | 'replace' = 'replace') => {
-    // فلترة الوارد حسب قطاع المستخدم الحالي لمنع خلط بيانات المنزلي مع الكهرباء
+    // الأدمن/المطور بيرفعوا كتالوج الشركة كامل، فمينفعش نفلتر لهم قطاع واحد:
+    // الفلتر ده كان بيرمي أصناف قطاع الكهرباء كلها وقت الاستيراد.
+    const isAdminLevel = currentUser?.role === 'admin' || currentUser?.role === 'developer';
     const userSector = currentUser?.sector;
     const sectorFilteredIncoming = newProducts.filter((p) => {
+      if (isAdminLevel) return true;
       if (!userSector || userSector === 'all' || userSector === 'both') return true;
       return !p.sector || p.sector === userSector || p.sector === 'both' || p.sector === 'all';
     });
 
-    // توحيد الصنف بنفس الكود الموحد مع ألوان/مقاسات مختلفة → منتج واحد
-    const dedupedIncoming = deduplicateProductsByUnifiedCode(sectorFilteredIncoming);
+    // الدمج على **الكود** فقط (نفس `productIdentityKey` ونفس قيد
+    // UNIQUE(code) على السيرفر). الدمج على الكود الموحد كان بيحوّل كل
+    // الصفوف اللي بتشترك في كود موحد (كرتونة/قطعة، ألوان، مقاسات) لصف
+    // واحد ويضيّع رصيد وأسعار باقي الصفوف — وده سبب 6000 صف بيبقوا 3000 صنف.
+    const dedupedIncoming = deduplicateProductArray(sectorFilteredIncoming);
 
     // Automatically register any newly encountered branch names dynamically
     setBranches((prevBranches) => {

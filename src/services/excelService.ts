@@ -1030,6 +1030,96 @@ export function parseRawRowsToProducts(rawRows: any[]): {
 export { countDuplicateProductRows as countDuplicateCodeRows } from './productIdentity';
 
 /**
+ * دمج تبويبات ملف الأصناف في جدول واحد بنفس شكل الصفوف اللي
+ * `parseRawRowsToProducts` متوقعها (صف عنوان + صفوف بيانات).
+ *
+ * ليه: `parseExcelProducts` و`fetchAndParseGoogleSheet` كانوا بيقروا
+ * **أول تبويب بس** (`SheetNames[0]`). لو ملف المخزون مقسوم تبويبات
+ * (منزلي / كهرباء)، التبويب التاني مكانش بيتقرأ خالص — فالأصناف بتاعته
+ * متسجلة في الشيت و«مش موجودة» في التطبيق، والعدد اللي بيتزامن بيطلع
+ * نص العدد الحقيقي.
+ *
+ * التبويبات اللي مش شيت أصناف (عنوانها مش فيه كود/اسم صنف) بتتخطى،
+ * وعنوان أول تبويب صالح هو اللي بيتستخدم كمرجع للأعمدة.
+ */
+export function combineProductSheets(sheets: any[][][]): any[][] {
+  const looksLikeProductsHeader = (row: any[]): boolean => {
+    if (!Array.isArray(row)) return false;
+    const sheetCells = row.map((cell) => String(cell ?? '').trim()).filter(Boolean);
+    if (sheetCells.length < 3) return false;
+
+    const norms = sheetCells.map((cell) => normalizeHeader(cell));
+    const hasCode = norms.some((norm) => norm.includes('كود') || norm.includes('code') || norm.includes('barcode'));
+    const hasName = norms.some(
+      (norm) =>
+        norm.includes('اسم') ||
+        norm.includes('الصنف') ||
+        norm.includes('البيان') ||
+        norm.includes('name') ||
+        norm.includes('item') ||
+        norm.includes('product')
+    );
+    // لازم دليل إن ده جدول أصناف فعلاً: كود + اسم، أو اسم + سعر/رصيد.
+    // من غير الشرط ده أي تبويب فيه عمود «اسم المندوب» كان بيتقرأ كأصناف.
+    const hasQtyOrPrice = norms.some(
+      (norm) =>
+        norm.includes('سعر') ||
+        norm.includes('price') ||
+        norm.includes('مخزون') ||
+        norm.includes('رصيد') ||
+        norm.includes('كميه') ||
+        norm.includes('كمية') ||
+        norm.includes('شد') ||
+        norm.includes('فاكتور') ||
+        norm.includes('factor') ||
+        norm.includes('stock') ||
+        norm.includes('qty')
+    );
+
+    return (hasCode && hasName) || (hasName && hasQtyOrPrice) || (hasCode && hasQtyOrPrice);
+  };
+
+  const findHeaderIndex = (rows: any[][]): number => {
+    for (let i = 0; i < Math.min(rows.length, 5); i++) {
+      if (looksLikeProductsHeader(rows[i])) return i;
+    }
+    return -1;
+  };
+
+  let canonicalHeader: any[] | null = null;
+  const dataRows: any[][] = [];
+
+  sheets.forEach((rows) => {
+    if (!Array.isArray(rows) || rows.length === 0) return;
+    const headerIndex = findHeaderIndex(rows);
+    if (headerIndex === -1) return;
+    if (!canonicalHeader) canonicalHeader = rows[headerIndex];
+    dataRows.push(...rows.slice(headerIndex + 1));
+  });
+
+  if (!canonicalHeader) return [];
+  return [canonicalHeader as any[], ...dataRows];
+}
+
+/**
+ * Fetch the whole workbook as XLSX so every sector tab is read, not just gid=0.
+ * Falls back to null when the file is not public.
+ */
+async function fetchGoogleSheetsWorkbook(sheetId: string): Promise<any | null> {
+  try {
+    const response = await fetch(
+      `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`
+    );
+    if (!response.ok) return null;
+    const buffer = await response.arrayBuffer();
+    if (!buffer || buffer.byteLength < 128) return null;
+    return XLSX.read(new Uint8Array(buffer), { type: 'array' });
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Smart Excel / CSV file parser for Dream Distribution product inventory
  */
 export async function parseExcelProducts(file: File): Promise<{
@@ -1045,12 +1135,20 @@ export async function parseExcelProducts(file: File): Promise<{
         const buffer = e.target?.result as ArrayBuffer;
         const workbook = parseExcelOrCsvBuffer(buffer, file.name);
 
-        const firstSheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[firstSheetName];
-
-        const rawRows: any[] = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+        // كل التبويبات مش أول واحد بس: ملف المخزون ممكن يكون مقسوم
+        // (منزلي / كهرباء)، وأول تبويب لوحده كان بيخلي نص الأصناف بره النظام.
+        const sheetRows = workbook.SheetNames.map(
+          (name) => XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: '' }) as any[][]
+        );
+        const rawRows: any[] = combineProductSheets(sheetRows);
         const result = parseRawRowsToProducts(rawRows);
-        resolve(result);
+        resolve({
+          ...result,
+          errors:
+            result.products.length === 0
+              ? [...result.errors, `تم فحص ${workbook.SheetNames.length} تبويب في الملف.`]
+              : result.errors,
+        });
       } catch (err: any) {
         resolve({
           products: [],
@@ -1089,7 +1187,26 @@ export async function fetchAndParseGoogleSheet(googleSheetUrlOrId: string): Prom
     };
   }
 
+  // لو المستخدم حدّد تبويب معيّن في الرابط (gid) بنحترمه ونقرأه هو بس.
+  const hasExplicitTab = /[#&?]gid=\d+/.test(googleSheetUrlOrId);
+  const { sheetId } = extractGoogleSpreadsheetId(googleSheetUrlOrId);
+
   try {
+    // المسار الأساسي: نحمّل الملف كامل (xlsx) ونقرأ **كل التبويبات**.
+    // الـCSV بيرجّع تبويب واحد بس (gid)، وده كان بيخلي أصناف التبويب
+    // التاني (كهرباء مثلاً) بره النظام نهائيًا.
+    if (sheetId && !hasExplicitTab) {
+      const workbook = await fetchGoogleSheetsWorkbook(sheetId);
+      if (workbook) {
+        const sheetRows = workbook.SheetNames.map(
+          (name: string) => XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: '' }) as any[][]
+        );
+        const combined = combineProductSheets(sheetRows);
+        const parsed = parseRawRowsToProducts(combined);
+        if (parsed.products.length > 0) return parsed;
+      }
+    }
+
     const response = await fetch(csvUrl);
     if (!response.ok) {
       throw new Error(`تعذر جلب الشيت (كود ${response.status}). يرجى التأكد من أن الشيت منشور للعامة (Anyone with the link can view).`);

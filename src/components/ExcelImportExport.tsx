@@ -42,6 +42,7 @@ import {
   mergeTwoCustomers
 } from '../services/customerDeduplicationService';
 import { normalizeArabicText } from '../services/arabicMatchingService';
+import { normalizeProductCodeKey } from '../services/productIdentity';
 import {
   downloadCustomerAnalyticsTemplate,
   exportCustomerAnalyticsToExcel
@@ -445,24 +446,46 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         throw new Error(res.errors.join(' • '));
       }
 
-      // Deduplicate products by code/unifiedCode and tag with activeSectorTab
+      // Deduplicate products by code within the same sector and tag missing sectors.
+      // مهم: القطاع اللي الشيت بيقول عليه (عمود «القطاع») هو الأساس، والدمج
+      // على الكود + القطاع — الدمج بالكود لوحده كان بيبلع صنف الكهرباء لو
+      // ليه نفس كود صنف منزلي، والدمج على الكود الموحد كان بيحوّل الألوان
+      // والمقاسات لصف واحد.
       const prodMap = new Map<string, Product>();
       res.products.forEach((p) => {
-        const k = (p.code || p.unifiedCode || p.name).trim().toLowerCase();
-        if (k) {
-          prodMap.set(k, {
-            ...p,
-            sector: activeSectorTab,
-          });
-        }
+        const sector = p.sector || activeSectorTab;
+        const codeKey = normalizeProductCodeKey(p.code || p.unifiedCode);
+        const key = codeKey
+          ? `${codeKey}|${sector}`
+          : `name:${normalizeArabicText(p.name || '').replace(/\s+/g, '')}|${sector}`;
+        prodMap.set(key, {
+          ...p,
+          sector,
+        });
       });
       const dedupedProducts = Array.from(prodMap.values());
 
       importProductsList(dedupedProducts, 'replace');
 
+      const sectorCounts = dedupedProducts.reduce(
+        (acc, p) => {
+          if (p.sector === 'electrical') acc.electrical += 1;
+          else if (p.sector === 'both') acc.both += 1;
+          else acc.home += 1;
+          return acc;
+        },
+        { home: 0, electrical: 0, both: 0 }
+      );
+      const mergedRows = Math.max(0, res.totalRows - dedupedProducts.length);
+
       setSheetSuccess((prev) => ({
         ...prev,
-        [key]: `تم بنجاح جلب وتحديث ${dedupedProducts.length} صنف لـ (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'}) ومطابقة الأسعار ورصيد المخازن!`
+        [key]:
+          `تم قراءة ${res.totalRows.toLocaleString('ar-EG')} صف وتحديث ${dedupedProducts.length.toLocaleString('ar-EG')} صنف ` +
+          `(منزلي: ${sectorCounts.home} • كهرباء: ${sectorCounts.electrical}` +
+          `${sectorCounts.both ? ` • مشترك: ${sectorCounts.both}` : ''})` +
+          `${mergedRows > 0 ? ` — وتم دمج ${mergedRows} صف مكرر بنفس الكود` : ''}. ` +
+          'الأسعار والأرصدة اتطابقت.'
       }));
       return { ok: true, message: `تم تحديث ${dedupedProducts.length} صنف` };
     } catch (err: any) {
