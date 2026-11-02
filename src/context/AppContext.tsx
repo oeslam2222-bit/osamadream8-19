@@ -6711,23 +6711,75 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const getVisibleProducts = (): Product[] => {
-    // القطاع: لو activeSectorFilter محدد 'all' تعرض جميع الأصناف، وإلا تفلتر حسب المنزلي أو الكهرباء
+    // 1. فلترة حسب القطاع (من الفلاتر النشطة أو قطاع المستخدم)
     const sectorFiltered = filterBySector(products, currentUser?.sector);
+
+    // إذا كان المستخدم أدمن/مطور: يعرض все المنتجات (مع فلتر الفرع إذا تم تحديده)
     if (!currentUser || currentUser.role === 'admin' || currentUser.role === 'developer') {
-      return sectorFiltered;
+      let result = sectorFiltered;
+      // فلتر الفرع: إذا تم تحديد فرع معين في الشاشة، نعرض فقط منتجات هذا الفرع
+      if (selectedBranchFilter && selectedBranchFilter !== 'الكل') {
+        result = result.filter((p) => {
+          if (p.branchName && isBranchMatch(p.branchName, selectedBranchFilter, { allowUnassigned: false })) return true;
+          if (p.branchStocks && p.branchStocks[selectedBranchFilter] > 0) return true;
+          // المنتجات بدون فرع محدد تُعرض للجميع (بضاعة مركزية)
+          if (!p.branchName || p.branchName === '') return true;
+          return false;
+        });
+      }
+      // فرز: الأصناف اللي فيها مخزون أولاً (فرع + أكتوبر)
+      return result.sort((a, b) => {
+        const stockA = (a.branchStockActual || 0) + (a.mainWarehouseActual || 0);
+        const stockB = (b.branchStockActual || 0) + (b.mainWarehouseActual || 0);
+        return stockB - stockA;
+      });
     }
 
+    // للمستخدمين العاديين (مندوب، مشرف، مدير فرع)
     const branchName = currentUser.branchName;
+    const userSector = currentUser.sector;
+
     return sectorFiltered.map((product) => {
-      const branchStock = branchName ? getBranchStockForProduct(product, branchName) : (product.branchStockActual || 0);
+      // مخزون فرع المستخدم
+      let branchStock = 0;
+      if (branchName) {
+        branchStock = getBranchStockForProduct(product, branchName) || 0;
+      }
+
+      // مخزون أكتوبر يُضاف إذا كان المنتج من نفس sector أو عام/كلاهما
+      const productSector = product.sector;
+      const sameSector =
+        !productSector ||
+        productSector === userSector ||
+        productSector === 'both' ||
+        productSector === 'all';
+      const octoberStock = sameSector ? (product.mainWarehouseActual || 0) : 0;
+
+      // مخزون المندوب الموحد للعرض = فرع + أكتوبر
+      const totalStock = branchStock + octoberStock;
+
       return {
         ...product,
-        branchStockActual: branchStock,
-        branchStockReserved: typeof product.branchStockReserved === 'number' ? product.branchStockReserved : branchStock,
+        // نحتفظ بالقيمة الأصلية في حقل منفصل إذا لزم الأمر ailleurs
+        _branchOnlyStock: branchStock,
+        _octoberStock: octoberStock,
+        // القيمة المعروضة للمندوب = مجموع الفرع وأكتوبر
+        branchStockActual: totalStock,
+        branchStockReserved:
+          typeof product.branchStockReserved === 'number'
+            ? product.branchStockReserved
+            : totalStock,
         mainWarehouseActual: product.mainWarehouseActual || 0,
         mainWarehouseReserved: product.mainWarehouseReserved || 0,
-        branchStocks: product.branchStocks || (branchName ? { [branchName]: branchStock } : {}),
+        branchStocks:
+          product.branchStocks ||
+          (branchName ? { [branchName]: branchStock } : {}),
       };
+    }).sort((a, b) => {
+      // فرز: الأصناف اللي فيها مخزون أولاً (وفقاً لمخزون المندوب الإجمالي)
+      const stockA = a.branchStockActual || 0;
+      const stockB = b.branchStockActual || 0;
+      return stockB - stockA;
     });
   };
 
