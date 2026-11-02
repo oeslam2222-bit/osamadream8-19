@@ -42,7 +42,7 @@ import {
   ChevronRight,
   PackageSearch
 } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/themeContext';
 import { formatCurrency } from '../services/invoiceService';
@@ -93,7 +93,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     toggleDataSaverMode,
     isPrivacyMode,
     togglePrivacyMode,
-    triggerInstallPrompt,
     installPromptEvent,
     isInstallModalOpen,
     setIsInstallModalOpen,
@@ -103,8 +102,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const toggleTheme = () => setIsDark(!isDark);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(true);
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
   const [internalSidebarCollapsed, setInternalSidebarCollapsed] = useState<boolean>(() => {
@@ -129,20 +126,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     }
   };
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const standalone =
-        window.matchMedia('(display-mode: standalone)').matches ||
-        (window.navigator as any).standalone === true ||
-        document.referrer.includes('android-app://');
-      setIsStandalone(!!standalone);
-      const dismissed = localStorage.getItem('tantawy_pwa_banner_dismissed');
-      if (!standalone && !dismissed) {
-        setShowInstallBanner(true);
-      }
-    }
-  }, []);
-
   const cartSummary = getCartSummary();
   const todayLabel = new Date().toLocaleDateString('ar-EG', {
     weekday: 'long',
@@ -155,7 +138,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const roleNames: Record<UserRole, { label: string; bg: string; text: string }> = {
     admin: { label: 'الآدمن (الإدارة العامة)', bg: 'bg-[var(--app-risk)] border-[var(--app-risk)]', text: 'text-[#ef4444]' },
-    developer: { label: 'المطور (الدعم التقني)', bg: 'bg-[var(--app-warn)] border-[var(--app-warn)]', text: 'text-[#d97706]' },
+    developer: { label: 'المطور (الدعم التقني)', bg: 'bg-[var(--app-accent)] border-[var(--app-accent)]', text: 'text-white' },
     branch_manager: { label: 'مدير الفرع', bg: 'bg-[var(--app-navy)] border-[var(--app-navy)]', text: 'text-[#60a5fa]' },
     supervisor: { label: 'مشرف المناديب', bg: 'bg-[var(--app-navy)] border-[var(--app-navy)]', text: 'text-[#60a5fa]' },
     sales_rep: { label: 'المندوب', bg: 'bg-[var(--app-ok)] border-[var(--app-ok)]', text: 'text-[#0d9488]' },
@@ -208,43 +191,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      {/* Smart Mobile PWA Install Banner */}
-      {showInstallBanner && !isStandalone && (
-        <div className="bg-gradient-to-r from-[var(--app-warn)] via-[var(--app-warn)] to-[var(--app-warn)] text-slate-950 px-3 py-1.5 text-xs font-bold flex items-center justify-between shadow-md print:hidden border-b border-[var(--app-warn)]">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <img src="/pwa-192x192.png" alt="الطنطاوي" className="w-6 h-6 rounded-lg border border-slate-900/30 shadow-sm shrink-0" />
-            <div className="leading-tight truncate">
-              <span className="font-black text-[11px] sm:text-xs block text-slate-950 truncate">تثبيت تطبيق مجموعة الطنطاوي</span>
-              <span className="text-[9px] sm:text-[10px] text-slate-900/80 font-bold block truncate">أيقونة نقية بدون علامة كروم وبدون شريط متصفح</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={() => {
-                if (installPromptEvent && typeof installPromptEvent.prompt === 'function') {
-                  triggerInstallPrompt();
-                } else {
-                  setIsInstallModalOpen(true);
-                }
-              }}
-              className="bg-slate-950 hover:bg-slate-900 active:scale-95 text-[#d97706] px-2.5 py-1 rounded-lg text-[11px] font-black shadow transition cursor-pointer whitespace-nowrap"
-            >
-              تثبيت الآن
-            </button>
-            <button
-              onClick={() => {
-                setShowInstallBanner(false);
-                try { localStorage.setItem('tantawy_pwa_banner_dismissed', 'true'); } catch {}
-              }}
-              className="p-1 text-slate-950/70 hover:text-slate-950 rounded-md transition"
-              title="إغلاق الإشعار"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-
       <header className="tantawy-topbar sticky top-0 z-40 bg-white text-slate-900 shadow-sm border-b border-[var(--app-line)]">
         {/* Top Banner - Compact on mobile with large touch controls */}
         <div className="max-w-7xl mx-auto px-2 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2">
@@ -261,9 +207,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setIsMobileDrawerOpen(true)}
               aria-label="القائمة الرئيسية"
               title="القائمة الرئيسية"
-              className="h-10 px-2.5 rounded-xl bg-navy-deep hover:bg-blue-deep4 text-[#d97706] flex items-center gap-1.5 font-black text-xs shadow-xs cursor-pointer border border-[var(--app-ok)]"
+              className="h-10 px-2.5 rounded-xl bg-navy-deep hover:bg-blue-deep4 text-[#5eead4] flex items-center gap-1.5 font-black text-xs shadow-xs cursor-pointer border border-[var(--app-ok)]"
             >
-              <Menu className="w-4 h-4 text-[#d97706] shrink-0" />
+              <Menu className="w-4 h-4 text-[#5eead4] shrink-0" />
               <span className="text-[11px]">القائمة</span>
             </button>
             <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-navy-deep p-1 border-2 border-[var(--app-ok)] shadow-md shadow-teal-500/20 flex items-center justify-center shrink-0 overflow-hidden">
@@ -290,7 +236,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}>
               {isOffline ? (
                 <>
-                  <WifiOff className="w-3.5 h-3.5 animate-pulse text-[var(--app-warn)]" />
+                  <WifiOff className="w-3.5 h-3.5 animate-pulse text-[var(--app-risk)]" />
                   <span className="text-[11px] font-black">أوفلاين</span>
                 </>
               ) : (
@@ -309,7 +255,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="flex items-center justify-center gap-1.5 px-3 h-11 rounded-xl text-xs font-black border border-[var(--app-line)] bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer shadow-2xs active:scale-95"
               title="الإعدادات، السياسة والخصوصية، معلومات المنظومة، والقائمين على الفكرة"
             >
-              <Settings className="w-4 h-4 text-[var(--app-warn-text)]" />
+              <Settings className="w-4 h-4 text-slate-500" />
               <span className="hidden sm:inline">الإعدادات وعن النظام</span>
             </button>
 
@@ -341,7 +287,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               {isDark ? (
                 <>
-                  <Sun className="w-4 h-4 text-amber-500 shrink-0" />
+                  <Sun className="w-4 h-4 text-[var(--app-accent)] shrink-0" />
                   <span className="hidden sm:inline">النهاري</span>
                 </>
               ) : (
@@ -357,7 +303,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={() => flushPendingInvoices()}
-                className="flex items-center justify-center gap-1.5 bg-[var(--app-warn)] hover:brightness-95 text-white px-3 h-11 rounded-xl text-xs font-black transition cursor-pointer shadow-sm animate-pulse border border-[rgba(155,112,39,.35)]"
+                className="flex items-center justify-center gap-1.5 bg-[var(--app-accent)] hover:brightness-95 text-white px-3 h-11 rounded-xl text-xs font-black transition cursor-pointer shadow-sm animate-pulse border border-[var(--app-accent)]"
                 title="فواتير مسجلة أوفلاين بانتظار المزامنة مع السيرفر"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
@@ -408,7 +354,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <span
                   aria-hidden="true"
-                  className="w-7 h-7 shrink-0 rounded-full bg-gradient-to-tr from-slate-900 to-[var(--app-warn)] text-white text-xs font-black flex items-center justify-center shadow-xs"
+                  className="w-7 h-7 shrink-0 rounded-full bg-gradient-to-tr from-slate-900 to-[var(--app-accent)] text-white text-xs font-black flex items-center justify-center shadow-xs"
                 >
                   {((currentUser.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أ').charAt(0)}
                 </span>
@@ -416,7 +362,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="text-xs font-black text-slate-900 flex items-center gap-1">
                     {(currentUser.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أسامة'}
                   </div>
-                  <div className="text-[10px] text-[var(--app-warn-text)] font-bold">
+                  <div className="text-[10px] text-slate-500 font-bold">
                     {roleNames[currentUser.role]?.label || currentUser.role}
                   </div>
                 </div>
@@ -430,7 +376,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {/* Profile Header */}
                   <div className="flex items-center gap-3 pb-3 border-b border-slate-800/80">
                     <div className="relative">
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[var(--app-warn)] to-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black text-lg shadow-md">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[var(--app-accent)] to-teal-700 text-white flex items-center justify-center font-black text-lg shadow-md">
                         {((currentUser.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أ').charAt(0)}
                       </div>
                       <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-[var(--app-ok)] rounded-full border-2 border-slate-950" />
@@ -443,7 +389,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       <div className="text-[11px] text-slate-400 truncate mt-0.5">
                         {currentUser.email || 'Osama@dream.com'}
                       </div>
-                      <div className="mt-1.5 inline-block text-[10px] px-2.5 py-0.5 rounded-full font-black bg-[var(--app-warn)] text-[#d97706] border border-[var(--app-warn)]">
+                      <div className="mt-1.5 inline-block text-[10px] px-2.5 py-0.5 rounded-full font-black bg-[var(--app-accent)] text-white border border-[var(--app-accent)]">
                         {roleNames[currentUser.role]?.label || currentUser.role || 'المطور التقني'}
                       </div>
                     </div>
@@ -453,7 +399,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="py-3 space-y-2 text-[11px] border-b border-slate-800/80 text-slate-300">
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400 font-bold">الفرع المخصص:</span>
-                      <span className="font-black text-[#d97706] truncate max-w-[180px]">
+                      <span className="font-black text-[#5eead4] truncate max-w-[180px]">
                         {currentUser.branchName || 'الفرع الرئيسي - 6 أكتوبر'}
                       </span>
                     </div>
@@ -560,16 +506,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => setActiveTab(item.id)}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition whitespace-nowrap cursor-pointer ${
                     isActive
-                      ? 'bg-[var(--app-warn)] text-slate-950 shadow-sm font-bold'
+                      ? 'bg-[var(--app-accent)] text-white shadow-sm font-bold'
                       : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-slate-950' : 'text-[#d97706]'}`} />
+                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-[#5eead4]'}`} />
                   <span>{item.label}</span>
                   {item.badge && item.badge > 0 ? (
                     <span
                       className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                        isActive ? 'bg-slate-950 text-[#d97706]' : 'bg-[var(--app-risk)] text-white'
+                        isActive ? 'bg-slate-950 text-[#5eead4]' : 'bg-[var(--app-risk)] text-white'
                       }`}
                     >
                       {item.badge}
@@ -592,7 +538,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 onClick={handleToggleSidebar}
                 title="توسيع القائمة الجانبية"
-                className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-[#d97706] flex items-center justify-center transition cursor-pointer active:scale-95 shadow-2xs"
+                className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-[#5eead4] flex items-center justify-center transition cursor-pointer active:scale-95 shadow-2xs"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
@@ -612,11 +558,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                     aria-current={isActive ? 'page' : undefined}
                     className={`relative w-11 h-11 rounded-xl flex items-center justify-center transition cursor-pointer group ${
                       isActive
-                        ? 'bg-[var(--app-warn)] text-slate-950 font-black shadow-md'
+                        ? 'bg-[var(--app-accent)] text-white font-black shadow-md'
                         : 'text-blue-soft3 hover:bg-white/[0.08] hover:text-white'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-slate-950' : 'text-blue-soft2 group-hover:text-[#d97706]'}`} />
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-blue-soft2 group-hover:text-[#5eead4]'}`} />
                     {item.badge && item.badge > 0 ? (
                       <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-[var(--app-risk)] px-1 text-center text-[9px] font-black text-white flex items-center justify-center shadow-xs">
                         {item.badge}
@@ -631,7 +577,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="pt-4 border-t border-white/10 w-full flex flex-col items-center">
               <div
                 title={`${currentUser.name} (${roleNames[currentUser.role]?.label || currentUser.role}) - ${currentUser.branchName}`}
-                className="w-9 h-9 rounded-full bg-[var(--app-warn)] text-slate-950 font-black text-xs flex items-center justify-center cursor-pointer shadow-xs"
+                className="w-9 h-9 rounded-full bg-[var(--app-accent)] text-white font-black text-xs flex items-center justify-center cursor-pointer shadow-xs"
               >
                 {(currentUser.name || '').trim().charAt(0)}
               </div>
@@ -652,7 +598,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 onClick={handleToggleSidebar}
                 title="تصغير القائمة لتوسيع مساحة عرض المنتجات"
-                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-[#d97706] flex items-center justify-center transition cursor-pointer shrink-0"
+                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-[#5eead4] flex items-center justify-center transition cursor-pointer shrink-0"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -690,7 +636,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="mt-6 border-t border-white/10 pt-4 px-2 text-[11px] leading-6 text-[#60a5fa]">
               <div className="font-bold text-white">{currentUser.name}</div>
               <div>{roleNames[currentUser.role]?.label || currentUser.role}</div>
-              <div className="mt-0.5 text-[#d97706]">{currentUser.branchName}</div>
+              <div className="mt-0.5 text-[#5eead4]">{currentUser.branchName}</div>
             </div>
           </>
         )}
@@ -719,7 +665,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="relative">
                     <Icon className={`w-5 h-5 mb-0.5 transition-transform ${isActive ? 'scale-110 text-[color:var(--brand-teal)] stroke-[2.5]' : 'stroke-[1.8]'}`} />
                     {item.badge && item.badge > 0 ? (
-                      <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-[color:var(--brand-amber)] text-slate-950 font-black text-[9px] flex items-center justify-center px-1">
+                      <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-[color:var(--brand-teal)] text-white font-black text-[9px] flex items-center justify-center px-1">
                         {item.badge}
                       </span>
                     ) : null}
@@ -737,7 +683,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               onClick={() => setIsMobileDrawerOpen(true)}
               aria-label="القائمة الكاملة"
-              className="relative flex flex-col items-center justify-center flex-1 py-1 px-1 transition cursor-pointer min-h-[44px] text-[var(--app-warn-text)] hover:text-[var(--app-warn-text)] font-bold"
+              className="relative flex flex-col items-center justify-center flex-1 py-1 px-1 transition cursor-pointer min-h-[44px] text-slate-500 hover:text-[color:var(--brand-teal)] font-bold"
             >
               <div className="relative">
                 <Menu className="w-5 h-5 mb-0.5 stroke-[2.2]" />
@@ -786,10 +732,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="px-4 py-3 bg-black/20 border-b border-white/5 flex items-center justify-between">
               <div>
                 <div className="font-black text-xs text-white">{currentUser.name}</div>
-                <div className="text-[10px] text-[#d97706] font-bold">{roleNames[currentUser.role]?.label || currentUser.role}</div>
+                <div className="text-[10px] text-[#5eead4] font-bold">{roleNames[currentUser.role]?.label || currentUser.role}</div>
                 <div className="text-[10px] text-slate-300">{currentUser.branchName}</div>
               </div>
-              <div className="w-10 h-10 rounded-full bg-[var(--app-warn)] text-slate-950 font-black text-sm flex items-center justify-center shadow-xs">
+              <div className="w-10 h-10 rounded-full bg-[var(--app-accent)] text-white font-black text-sm flex items-center justify-center shadow-xs">
                 {(currentUser.name || '').trim().charAt(0)}
               </div>
             </div>
@@ -810,17 +756,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                     }}
                     className={`w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-2xl text-right text-xs font-bold transition cursor-pointer ${
                       isActive
-                        ? 'bg-[var(--app-warn)] text-slate-950 font-black shadow-md'
+                        ? 'bg-[var(--app-accent)] text-white font-black shadow-md'
                         : 'text-slate-200 hover:bg-white/10 hover:text-white'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-slate-950' : 'text-[#0d9488]'}`} />
+                      <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-[#0d9488]'}`} />
                       <span className="text-[13px]">{item.label}</span>
                     </div>
                     {item.badge && item.badge > 0 ? (
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                        isActive ? 'bg-slate-950 text-[#d97706]' : 'bg-[var(--app-risk)] text-white'
+                        isActive ? 'bg-slate-950 text-[#5eead4]' : 'bg-[var(--app-risk)] text-white'
                       }`}>
                         {item.badge}
                       </span>
@@ -840,7 +786,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }}
                 className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-bold transition cursor-pointer"
               >
-                <Settings className="w-4 h-4 text-[#d97706]" />
+                <Settings className="w-4 h-4 text-[#5eead4]" />
                 <span>إعدادات النظام والخصوصية</span>
               </button>
               <button

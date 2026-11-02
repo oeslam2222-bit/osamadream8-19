@@ -49,7 +49,7 @@ export const normalizeProductCodeKey = (raw?: string | number | null): string =>
  * تابع له. إزالة # هنا كانت تدمج المتغيرات الخمسة في صف واحد قبل أن تصل
  * لمرحلة التجميع، فتضيع الألوان والمقاسات والرصيد الخاص بكل متغير.
  */
-const normalizeVariantCodeKey = (raw?: string | number | null): string => {
+export const normalizeVariantCodeKey = (raw?: string | number | null): string => {
   if (raw === undefined || raw === null) return '';
   let value = String(raw).trim();
   if (!value) return '';
@@ -59,28 +59,30 @@ const normalizeVariantCodeKey = (raw?: string | number | null): string => {
   return value.toLowerCase();
 };
 
+const normalizeTextKey = (value?: string | number | null): string =>
+  String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\u0640\u064B-\u0652]/g, '')
+    .replace(/\s+/g, ' ');
+
+
 export const productIdentityKey = (p: Product): string => {
-  // الكود الفرعي هو هوية الصف. نحافظ على # و -1 و _02 حتى تظل كل
-  // المتغيرات مستقلة، بينما groupProductsIntoParents يجمعها تحت الكود الأساسي.
+  // هوية الصنف = الكود الأساسي + الكود الموحد.
+  // الكود الأساسي قد يتكرر 10 مرات بنفس الاسم ولكن بكود موحد / لون / حجم / مخزون مختلف.
+  // كل صف في الشيت يبقى صنف مستقل في الكتالوج — لا دمج، لا حذف.
   const code = normalizeVariantCodeKey(p.code);
-  if (code) return `code:${code}`;
+  const unified = normalizeVariantCodeKey(p.unifiedCode);
+  if (code && unified) return `c:${code}|u:${unified}`;
+  if (code && !unified) return `c:${code}|u:none`;
+  if (!code && unified) return `c:none|u:${unified}`;
 
-  // مفيش كود: نرجع للمفتاح المركّب (الاسم/الكود الموحد/الباركود/اللون/الحجم)
-  // عشان الصفوف اللي بتتكرر بنفس الوصف تدمج مع بعض، والصفوف المختلفة تفضل
-  // متفرقة. وده أحسن من الرجوع للـid، لأن الـid بيتغيّر بتغيّر ترتيب الشيت.
-  const name = (p.name || '').toString().trim().toLowerCase();
-  const unified = normalizeProductCodeKey(p.unifiedCode);
-  const barcode = (p.barcode || '').toString().trim().toLowerCase();
-  const color = (p.color || '').toString().trim().toLowerCase();
-  const size = (p.size || '').toString().trim().toLowerCase();
-  if (name || unified) {
-    return `composite:${name}|${unified}|${barcode}|${color}|${size}`;
-  }
-
-  // مفيش أي مفتاح عمل خالص: نرجع للـid عشان الصفوف المختلفة تفضل متفرقة
-  // بدل ما تنطمي في صف واحد ونضيّع أصناف.
-  const id = (p.id || '').toString().trim().toLowerCase();
-  return `id:${id || barcode || String(p)}`;
+  // مفيش كود أساس ولا كود موحد: نرجع للون + الحجم + الاسم كهوية.
+  const color = normalizeTextKey(p.color);
+  const size = normalizeTextKey(p.size);
+  const name = normalizeTextKey(p.name);
+  const barcode = normalizeTextKey(p.barcode);
+  return `c:none|u:none|${name}|${color}|${size}|${barcode}`;
 };
 
 /**

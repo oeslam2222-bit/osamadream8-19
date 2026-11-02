@@ -3,7 +3,7 @@ import { inferBranchFromText, normalizeArabicText } from '../services/arabicMatc
 import { deduplicateAndMergeCustomers } from '../services/customerDeduplicationService';
 import { calculateCustomerFinancials, isSummaryOrTotalRow } from '../services/customerFinancialService';
 import { resolveCustomerDuesValue } from '../services/customerDues';
-import { productIdentityKey, deduplicateProductArray, normalizeProductCodeKey } from '../services/productIdentity';
+import { productIdentityKey, deduplicateProductArray, normalizeProductCodeKey, normalizeVariantCodeKey } from '../services/productIdentity';
 import { resolveProductPricing, stripPlaceholderText } from '../services/productPricing';
 
 export const STORAGE_KEYS = {
@@ -168,6 +168,18 @@ export const hasDuplicateUserIdentity = (candidate: Partial<User>, list: User[],
   });
 };
 
+/**
+ * عمود الصورة في الشيت مش دايماً رابط. الخانة الفاضية بتتحول `0` في الإكسل،
+ * فكان بيتولد `<img src="0">` والبراوزر يطلب `/0` ويرجع 404 في الكونسول.
+ */
+export const sanitizeStoredImageUrl = (value?: string): string | undefined => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return undefined;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^data:image\//i.test(raw)) return raw;
+  return undefined;
+};
+
 export const sanitizeProducts = (list: Product[]): Product[] => {
   if (!Array.isArray(list)) return [];
   const usedIds = new Set<string>();
@@ -220,6 +232,7 @@ export const sanitizeProducts = (list: Product[]): Product[] => {
     return {
       ...p,
       id: rowId,
+      imageUrl: sanitizeStoredImageUrl(p.imageUrl),
       // `(blank)` و`((blank))` مش بيانات — بتتشال من النص نفسه عشان متظهرش في الكارت.
       // لو الاسم كله كان placeholder بنرجع لكود الصنف بدل ما نعرض كلمة blank.
       name: stripPlaceholderText(p.name) || (p.code ? `صنف ${p.code}` : 'صنف بدون اسم'),
@@ -272,7 +285,7 @@ export const deduplicateTargetRecords = (records: TargetRecord[]): TargetRecord[
  * التعريف: الصنف = الكود. راجع الملف ده للسبب (قاعدة البيانات عليها
  * `UNIQUE(lower(trim(code)))` على جدول products، فالكود هو الهوية).
  */
-export { productIdentityKey, normalizeProductCodeKey, deduplicateProductArray } from '../services/productIdentity';
+export { productIdentityKey, normalizeProductCodeKey, normalizeVariantCodeKey, deduplicateProductArray } from '../services/productIdentity';
 
 export const sanitizeCustomers = (list: Customer[]): Customer[] => {
   if (!Array.isArray(list)) return [];
