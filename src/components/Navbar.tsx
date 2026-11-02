@@ -42,7 +42,7 @@ import {
   ChevronRight,
   PackageSearch
 } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/themeContext';
 import { formatCurrency } from '../services/invoiceService';
@@ -93,7 +93,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     toggleDataSaverMode,
     isPrivacyMode,
     togglePrivacyMode,
-    triggerInstallPrompt,
     installPromptEvent,
     isInstallModalOpen,
     setIsInstallModalOpen,
@@ -103,8 +102,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const toggleTheme = () => setIsDark(!isDark);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(true);
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
   const [internalSidebarCollapsed, setInternalSidebarCollapsed] = useState<boolean>(() => {
@@ -128,20 +125,6 @@ export const Navbar: React.FC<NavbarProps> = ({
       });
     }
   };
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const standalone =
-        window.matchMedia('(display-mode: standalone)').matches ||
-        (window.navigator as any).standalone === true ||
-        document.referrer.includes('android-app://');
-      setIsStandalone(!!standalone);
-      const dismissed = localStorage.getItem('tantawy_pwa_banner_dismissed');
-      if (!standalone && !dismissed) {
-        setShowInstallBanner(true);
-      }
-    }
-  }, []);
 
   const cartSummary = getCartSummary();
   const todayLabel = new Date().toLocaleDateString('ar-EG', {
@@ -208,43 +191,6 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      {/* Smart Mobile PWA Install Banner */}
-      {showInstallBanner && !isStandalone && (
-        <div className="bg-gradient-to-r from-[var(--app-warn)] via-[var(--app-warn)] to-[var(--app-warn)] text-slate-950 px-3 py-1.5 text-xs font-bold flex items-center justify-between shadow-md print:hidden border-b border-[var(--app-warn)]">
-          <div className="flex items-center gap-2 overflow-hidden">
-            <img src="/pwa-192x192.png" alt="الطنطاوي" className="w-6 h-6 rounded-lg border border-slate-900/30 shadow-sm shrink-0" />
-            <div className="leading-tight truncate">
-              <span className="font-black text-[11px] sm:text-xs block text-slate-950 truncate">تثبيت تطبيق مجموعة الطنطاوي</span>
-              <span className="text-[9px] sm:text-[10px] text-slate-900/80 font-bold block truncate">أيقونة نقية بدون علامة كروم وبدون شريط متصفح</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              onClick={() => {
-                if (installPromptEvent && typeof installPromptEvent.prompt === 'function') {
-                  triggerInstallPrompt();
-                } else {
-                  setIsInstallModalOpen(true);
-                }
-              }}
-              className="bg-slate-950 hover:bg-slate-900 active:scale-95 text-[#d97706] px-2.5 py-1 rounded-lg text-[11px] font-black shadow transition cursor-pointer whitespace-nowrap"
-            >
-              تثبيت الآن
-            </button>
-            <button
-              onClick={() => {
-                setShowInstallBanner(false);
-                try { localStorage.setItem('tantawy_pwa_banner_dismissed', 'true'); } catch {}
-              }}
-              className="p-1 text-slate-950/70 hover:text-slate-950 rounded-md transition"
-              title="إغلاق الإشعار"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-
       <header className="tantawy-topbar sticky top-0 z-40 bg-white text-slate-900 shadow-sm border-b border-[var(--app-line)]">
         {/* Top Banner - Compact on mobile with large touch controls */}
         <div className="max-w-7xl mx-auto px-2 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2">
