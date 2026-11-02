@@ -2030,18 +2030,12 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
       };
     });
 
-    // The products table treats a normalized code as unique, even when imported
-    // rows have different IDs. Keep only the last row for each code in this save.
-    const productsByKey = new Map<string, (typeof payload)[number]>();
-    payload.forEach((product) => {
-      const key = product.code
-        ? `code:${product.code.toLowerCase()}`
-        : `id:${product.id}`;
-      productsByKey.set(key, product);
-    });
-    const deduplicatedPayload = Array.from(productsByKey.values());
-    const productsWithCode = deduplicatedPayload.filter((product) => product.code);
-    const productsWithoutCode = deduplicatedPayload.filter((product) => !product.code);
+    // Each product row is saved independently — no merging by code.
+    // The same code can appear multiple times (different colors/sizes/stocks).
+    // The UNIQUE(code) constraint on Supabase 'products' table must be removed
+    // or changed to UNIQUE(code, unified_code) for this to work fully.
+    const productsWithCode = payload.filter((product) => product.code);
+    const productsWithoutCode = payload.filter((product) => !product.code);
     let saveError: string | undefined;
 
     const saveChunks = async (
@@ -2058,7 +2052,10 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
       }
     };
 
-    await saveChunks(productsWithCode, 'code');
+    // Save all rows with code using id-based conflict resolution
+    // (Supabase UNIQUE(code) constraint may reject duplicates — see notes above)
+    await saveChunks(productsWithCode, 'id');
+    await saveChunks(productsWithoutCode, 'id');
     await saveChunks(productsWithoutCode, 'id');
 
     if (saveError) return { success: false, error: saveError };
