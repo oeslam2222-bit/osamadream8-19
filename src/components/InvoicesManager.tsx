@@ -525,7 +525,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               type="button"
               onClick={handleExportList}
               title="تصدير الفواتير إلى ملف Excel"
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-black shadow-sm transition active:scale-95 cursor-pointer whitespace-nowrap"
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-black shadow-sm transition active:scale-95 cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>تصدير Excel</span>
@@ -652,7 +652,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 key={tab.key}
                 type="button"
                 onClick={() => setSelectedStatus(tab.key)}
-                className={`px-3.5 py-2 rounded-xl text-[11px] font-black whitespace-nowrap transition cursor-pointer border ${
+                className={`px-3.5 py-2 rounded-xl text-[11px] font-black transition cursor-pointer border ${
                   selectedStatus === tab.key
                     ? 'bg-[var(--app-navy)] text-white border-[var(--app-navy)] shadow-sm'
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
@@ -715,7 +715,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
             <button
               onClick={() => setSelectedBranchFilter('الكل')}
-              className="app-btn app-btn-primary px-3 text-[11px] whitespace-nowrap"
+              className="app-btn app-btn-primary px-3 text-[11px]"
             >
               عرض كل الفروع
             </button>

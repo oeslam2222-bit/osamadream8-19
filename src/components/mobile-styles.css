@@ -1,0 +1,980 @@
+/* ============================================================
+   Mobile Responsive & Typography Utilities - مجموعة الطنطاوي
+   ============================================================ */
+
+/* Typography Scale */
+.font-display-xs { font-size: 0.75rem; font-weight: 700; }
+.font-display-sm { font-size: 0.875rem; font-weight: 700; }
+.font-display-md { font-size: 1rem; font-weight: 700; }
+.font-display-lg { font-size: 1.25rem; font-weight: 800; }
+
+.text-mobile-sm { font-size: 0.75rem; }
+.text-mobile-md { font-size: 0.875rem; }
+.text-mobile-lg { font-size: 1rem; }
+
+/* Padding Utilities */
+.p-mobile-xs { padding: 0.5rem; }
+.p-mobile-sm { padding: 0.75rem; }
+.p-mobile-md { padding: 1rem; }
+.p-mobile-lg { padding: 1.25rem; }
+
+.px-mobile-sm { padding-left: 0.75rem; padding-right: 0.75rem; }
+.px-mobile-md { padding-left: 1rem; padding-right: 1rem; }
+
+.py-mobile-sm { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.py-mobile-md { padding-top: 1rem; padding-bottom: 1rem; }
+
+.mb-mobile-sm { margin-bottom: 0.75rem; }
+.mb-mobile-md { margin-bottom: 1rem; }
+.mt-mobile-sm { margin-top: 0.75rem; }
+.mt-mobile-md { margin-top: 1rem; }
+
+/* Card Padding */
+.card-p-mobile-xs { padding: 0.5rem; }
+.card-p-mobile-sm { padding: 0.75rem; }
+.card-p-mobile-md { padding: 1rem; }
+
+/* Table Cell Padding */
+.table-p-mobile-xs { padding: 0.4rem 0.5rem; }
+.table-p-mobile-sm { padding: 0.6rem 0.75rem; }
+.table-p-mobile-md { padding: 0.8rem 1rem; }
+
+/* Button Heights */
+.btn-h-mobile-sm { height: 2.5rem; }
+.btn-h-mobile-md { height: 2.75rem; }
+
+/* Input Heights */
+.input-h-mobile-sm { height: 2.5rem; }
+.input-h-mobile-md { height: 2.75rem; }
+
+/* Responsive Grid */
+.grid-mobile-cols-1 { grid-template-columns: repeat(1, 1fr); }
+.grid-mobile-cols-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-mobile-cols-3 { grid-template-columns: repeat(3, 1fr); }
+
+/* Shadow & Radius */
+.shadow-mobile-sm { box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); }
+.shadow-mobile-md { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+
+.rounded-mobile-sm { border-radius: 0.5rem; }
+.rounded-mobile-md { border-radius: 0.75rem; }
+.rounded-mobile-lg { border-radius: 1rem; }
+
+/* Mobile-specific typography */
+@media (max-width: 640px) {
+  .text-mobile-h1 { font-size: 1.5rem; font-weight: 800; line-height: 1.2; }
+  .text-mobile-h2 { font-size: 1.25rem; font-weight: 700; line-height: 1.3; }
+  .text-mobile-body { font-size: 0.95rem; font-weight: 500; line-height: 1.5; }
+  .text-mobile-caption { font-size: 0.8rem; font-weight: 500; line-height: 1.4; color: #64748b; }
+  
+  .p-mobile-layout { padding: 0.75rem; }
+  .rounded-mobile-card { border-radius: 0.75rem; }
+  .table-cell-mobile { padding: 0.75rem 0.5rem; }
+  .btn-mobile { height: 2.75rem; font-size: 0.875rem; font-weight: 700; }
+  .input-mobile { height: 2.75rem; font-size: 0.875rem; padding: 0 1rem; }
+  .grid-mobile-1 { grid-template-columns: 1fr; }
+  .grid-mobile-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gap-mobile-sm { gap: 0.5rem; }
+  .gap-mobile-md { gap: 1rem; }
+  .text-mobile-center { text-align: center; }
+  .show-mobile { display: block; }
+  .hide-mobile { display: none; }
+  .badge-mobile { padding: 0.25rem 0.5rem; font-size: 0.75rem; font-weight: 700; border-radius: 0.375rem; }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .text-mobile-h1 { font-size: 1.75rem; }
+  .text-mobile-h2 { font-size: 1.5rem; }
+  .p-mobile-layout { padding: 1rem; }
+  .grid-mobile-2 { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 1025px) {
+  .text-mobile-h1 { font-size: 2rem; }
+  .text-mobile-h2 { font-size: 1.75rem; }
+  .p-mobile-layout { padding: 1.5rem; }
+}
+
+/* Table responsive on mobile */
+.table-responsive-mobile {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-row-mobile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.table-cell-mobile {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.table-cell-label-mobile {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Mobile cards */
+.card-mobile {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+}
+
+.card-mobile-header {
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: #0f172a;
+}
+
+.card-mobile-value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+/* Mobile buttons */
+.btn-mobile-primary {
+  background: linear-gradient(to right, #009488, #0e7a6e);
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  padding: 0.625rem 1rem;
+  height: 2.75rem;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.18s ease;
+}
+
+.btn-mobile-primary:hover {
+  box-shadow: 0 4px 12px rgba(0, 148, 136, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-mobile-primary:active {
+  transform: translateY(0);
+}
+
+/* Mobile inputs */
+.input-mobile {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  height: 2.75rem;
+  width: 100%;
+  transition: all 0.18s ease;
+}
+
+.input-mobile:focus {
+  outline: none;
+  border-color: #009488;
+  box-shadow: 0 0 0 3px rgba(0, 148, 136, 0.2);
+}
+
+/* Mobile badges */
+.badge-mobile {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.badge-mobile-success {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #d1fae5;
+}
+
+.badge-mobile-warning {
+  background: #fef3c7;
+  color: #d97706;
+  border: 1px solid #fcd34d;
+}
+
+.badge-mobile-danger {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+/* Table header mobile */
+.table-header-mobile {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 0.5rem;
+  padding: 0.75rem 0.5rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+/* Table row mobile */
+.table-row-mobile-compact {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 0.5rem;
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+
+/* Divider */
+.divider-mobile {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 0.75rem 0;
+}
+
+/* Section */
+.section-mobile {
+  margin-bottom: 1rem;
+}
+
+.section-title-mobile {
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Footer mobile */
+.footer-mobile {
+  padding: 0.75rem 1rem;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  text-align: center;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* Input group mobile */
+.input-group-mobile {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  padding: 0 0.75rem;
+  height: 2.75rem;
+}
+
+.input-group-mobile input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.875rem;
+  color: #0f172a;
+}
+
+.input-group-mobile-icon {
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+/* List item mobile */
+.list-item-mobile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.875rem;
+  color: #0f172a;
+}
+
+.list-item-mobile:last-child {
+  border-bottom: none;
+}
+
+.list-item-icon-mobile {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  color: #009488;
+  font-size: 1rem;
+}
+
+/* Status badge mobile */
+.status-badge-mobile {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 0.375rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status-badge-mobile-success {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.status-badge-mobile-warning {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.status-badge-mobile-danger {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* Table section mobile */
+.table-section-mobile {
+  margin-bottom: 1rem;
+  background: #ffffff;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.table-section-header-mobile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.table-section-title-mobile {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.table-section-count-mobile {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+/* Action buttons mobile */
+.action-btn-mobile {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.action-btn-mobile:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.action-btn-mobile-primary {
+  background: #009488;
+  color: #ffffff;
+}
+
+.action-btn-mobile-primary:hover {
+  background: #0e7a6e;
+}
+
+/* ============================================================
+   تحسين الجداول على الموبايل - تطبيق تلقائي على جميع الجداول
+   ============================================================ */
+
+/* تحسين خلايا الجدول على الموبايل */
+@media (max-width: 640px) {
+  /* خلايا الجدول - زيادة المسافات والحجم */
+  table th, table td {
+    padding: 0.75rem 0.5rem !important;
+    font-size: 0.85rem !important;
+    line-height: 1.4 !important;
+  }
+  
+  /* رؤوس الجدول */
+  table thead th {
+    font-size: 0.7rem !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    color: #64748b !important;
+    padding: 0.75rem 0.5rem !important;
+  }
+  
+  /* نص الخلايا */
+  table td {
+    font-size: 0.85rem !important;
+    font-weight: 500 !important;
+    color: #0f172a !important;
+  }
+  
+  /* خلايا čísل */
+  table td.font-mono, table td[class*=\"font-mono\"] {
+    font-size: 0.85rem !important;
+  }
+  
+  /* خلايا الأزرار */
+  table td button {
+    min-height: 2.75rem !important;
+    font-size: 0.875rem !important;
+    font-weight: 700 !important;
+    padding: 0.625rem 1rem !important;
+  }
+  
+  /* خلايا الصور */
+  table td img, table td .w-14, table td .w-16 {
+    width: 2.5rem !important;
+    height: 2.5rem !important;
+    min-width: 2.5rem !important;
+    min-height: 2.5rem !important;
+  }
+  
+  /* أزرار الإضافة للمنتجات */
+  table td button[class*=\"bg-blue-600\"], table td button[class*=\"bg-indigo-600\"] {
+    background: linear-gradient(to right, #009488, #0e7a6e) !important;
+    color: #ffffff !important;
+    font-weight: 700 !important;
+    border-radius: 0.5rem !important;
+    padding: 0.625rem 1rem !important;
+    height: 2.75rem !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.5rem !important;
+  }
+  
+  /* أزرار المفضلة */
+  table td button.w-8, table td button.w-10 {
+    width: 2.75rem !important;
+    height: 2.75rem !important;
+    min-width: 2.75rem !important;
+    min-height: 2.75rem !important;
+    border-radius: 0.5rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  
+  table td button.w-8 svg, table td button.w-10 svg {
+    width: 1.25rem !important;
+    height: 1.25rem !important;
+  }
+  
+  /* شارات الحالة */
+  table td span.px-2, table td span.px-3 {
+    padding: 0.375rem 0.625rem !important;
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    border-radius: 0.5rem !important;
+  }
+  
+  /* شارات الصنف (منزلي/كهرباء) */
+  table td span.bg-amber-100, table td span.bg-blue-50 {
+    font-size: 0.75rem !important;
+    padding: 0.375rem 0.75rem !important;
+    border-radius: 0.5rem !important;
+  }
+  
+  /* شارات المخزون */
+  table td span.bg-emerald-50, table td span.bg-blue-50, table td span.bg-rose-50, table td span.bg-slate-100 {
+    font-size: 0.75rem !important;
+    padding: 0.5rem 0.75rem !important;
+    border-radius: 0.5rem !important;
+  }
+  
+  /* تحسين تسعير المنتجات */
+  table td[class*=\"font-mono\"] {
+    font-variant-numeric: tabular-nums !important;
+  }
+  
+  /* تحسين fila الجدول */
+  table tr {
+    transition: background-color 0.15s ease !important;
+  }
+  
+  table tr:hover {
+    background-color: #f8fafc !important;
+  }
+  
+  /* تحسين رأس الجدول */
+  table thead {
+    background: #f8fafc !important;
+  }
+  
+  /* تحسين خلايا السعر */
+  table td.text-right.font-mono {
+    font-variant-numeric: tabular-nums !important;
+  }
+  
+  /* تحسين خلايا الكمية */
+  table td.text-center.font-mono {
+    font-variant-numeric: tabular-nums !important;
+  }
+}
+
+/* تحسين أزرار الإضافة على الموبايل */
+@media (max-width: 640px) {
+  /* أي زر إضافة في الجدول */
+  button[class*=\"bg-blue-600\"], button[class*=\"bg-blue-700\"] {
+    min-height: 2.75rem !important;
+    font-size: 0.875rem !important;
+    font-weight: 700 !important;
+    padding: 0.625rem 1rem !important;
+    border-radius: 0.5rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.5rem !important;
+  }
+  
+  /* أي أيقونة في زر */
+  button svg {
+    width: 1.25rem !important;
+    height: 1.25rem !important;
+  }
+}
+
+/* تحسين البطاقات على الموبايل */
+@media (max-width: 640px) {
+  /* جميع البطاقات */
+  .rounded-3xl, .rounded-2xl {
+    border-radius: 0.75rem !important;
+  }
+  
+  /* كروت المؤشرات (KPI cards) */
+  div[class*=\"rounded-3xl\"][class*=\"shadow-2xl\"], div[class*=\"rounded-2xl\"][class*=\"shadow-2xl\"] {
+    padding: 1rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+  
+  /* أرقام KPI كبيرة */
+  .text-2xl.font-black, .text-3xl.font-black, .text-4xl.font-black, .text-5xl.font-black {
+    font-size: 1.5rem !important;
+    font-weight: 800 !important;
+  }
+  
+  /* تسميات KPI */
+  .text-xs.font-bold, .text-[11px].font-bold {
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+  }
+}
+
+/* تحسين النماذج على الموبايل */
+@media (max-width: 640px) {
+  /* حقول الإدخال */
+  input[type=\"text\"], input[type=\"password\"], input[type=\"number\"], input[type=\"email\"], input[type=\"date\"], input[type=\"time\"], select, textarea {
+    min-height: 2.75rem !important;
+    font-size: 0.875rem !important;
+    padding: 0.625rem 1rem !important;
+    border-radius: 0.5rem !important;
+    border: 1px solid #cbd5e1 !important;
+    background: #f8fafc !important;
+  }
+  
+  input[type=\"text\"]:focus, input[type=\"password\"]:focus, input[type=\"number\"]:focus, input[type=\"email\"]:focus, input[type=\"date\"]:focus, input[type=\"time\"]:focus, select:focus, textarea:focus {
+    outline: none !important;
+    border-color: #009488 !important;
+    box-shadow: 0 0 0 3px rgba(0, 148, 136, 0.2) !important;
+  }
+  
+  /* أزرار الإرسال */
+  button[type=\"submit\"] {
+    min-height: 2.75rem !important;
+    font-size: 0.875rem !important;
+    font-weight: 700 !important;
+    padding: 0.625rem 1rem !important;
+    border-radius: 0.5rem !important;
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.5rem !important;
+  }
+}
+
+/* تحسين الأزرار العامة على الموبايل */
+@media (max-width: 640px) {
+  /* أزرار الإجراءات */
+  button.px-3, button.px-4, button.px-5, button.px-6 {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+    min-height: 2.75rem !important;
+    font-size: 0.875rem !important;
+    font-weight: 700 !important;
+  }
+  
+  /* أزرار صغيرة */
+  button.w-8, button.w-10, button.h-8, button.h-10 {
+    width: 2.75rem !important;
+    height: 2.75rem !important;
+    min-width: 2.75rem !important;
+    min-height: 2.75rem !important;
+    border-radius: 0.5rem !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  
+  button.w-8 svg, button.w-10 svg, button.h-8 svg, button.h-10 svg {
+    width: 1.25rem !important;
+    height: 1.25rem !important;
+  }
+}
+
+/* تحسين النصوص على الموبايل */
+@media (max-width: 640px) {
+  /* العناوين الكبيرة */
+  h1, h2, h3 {
+    font-weight: 800 !important;
+    line-height: 1.2 !important;
+  }
+  
+  h1 { font-size: 1.75rem !important; }
+  h2 { font-size: 1.5rem !important; }
+  h3 { font-size: 1.25rem !important; }
+  
+  /* النصوص العادية */
+  p, span, div, label {
+    line-height: 1.5 !important;
+  }
+  
+  /* تسميات الحقول */
+  label, .font-bold.text-xs, .font-bold.text-sm {
+    font-size: 0.75rem !important;
+    font-weight: 700 !important;
+    color: #64748b !important;
+  }
+  
+  /* النصوص الأساسية */
+  .text-sm, .text-base {
+    font-size: 0.875rem !important;
+    color: #0f172a !important;
+  }
+  
+  /* النص الثانوي */
+  .text-slate-600, .text-secondary, .text-muted {
+    color: #64748b !important;
+    font-size: 0.75rem !important;
+  }
+}
+
+/* تحسين العناوين والفلاتر على الموبايل */
+@media (max-width: 640px) {
+  /* صف الفلاتر */
+  .flex-wrap.gap-2, .flex-wrap.gap-3, .flex-wrap.gap-4 {
+    gap: 0.5rem !important;
+    flex-wrap: wrap !important;
+  }
+  
+  /* تحديدات الفلاتر */
+  select {
+    min-height: 2.75rem !important;
+    font-size: 0.875rem !important;
+    padding: 0.625rem 1rem !important;
+    border-radius: 0.5rem !important;
+  }
+  
+  /* أزرار الفلاتر */
+  .flex-wrap button {
+    min-height: 2.75rem !important;
+    font-size: 0.875rem !important;
+    font-weight: 700 !important;
+    padding: 0.625rem 1rem !important;
+    border-radius: 0.5rem !important;
+    white-space: nowrap !important;
+  }
+}
+
+/* تحسين التذييل على الموبايل */
+@media (max-width: 640px) {
+  .footer-mobile, footer, div[class*=\"mt-auto\"][class*=\"pt-4\"] {
+    padding: 0.75rem 1rem !important;
+    font-size: 0.7rem !important;
+    color: #94a3b8 !important;
+    text-align: center !important;
+    border-top: 1px solid #e2e8f0 !important;
+  }
+}
+
+/* تحسين نموذج تسجيل الدخول على الموبايل */
+@media (max-width: 640px) {
+  /* بطاقة تسجيل الدخول */
+  .bg-white.rounded-3xl, .bg-white.rounded-2xl {
+    padding: 1rem !important;
+    margin: 0.5rem !important;
+    max-width: 100% !important;
+  }
+  
+  /* حقول النموذج */
+  .bg-white.rounded-3xl input, .bg-white.rounded-2xl input {
+    min-height: 2.75rem !important;
+    font-size: 0.875rem !important;
+    padding: 0.625rem 1rem !important;
+  }
+  
+  /* زر تسجيل الدخول */
+  .bg-white.rounded-3xl button[type=\"submit\"], .bg-white.rounded-2xl button[type=\"submit\"] {
+    min-height: 2.75rem !important;
+    font-size: 0.875rem !important;
+    font-weight: 700 !important;
+    padding: 0.625rem 1rem !important;
+    width: 100% !important;
+  }
+}
+
+/* ============================================================
+   إصلاح نصوص الأزرار المقطوعة والخطوط الصغيرة على الموبايل
+   ============================================================ */
+
+/* إزالة nowrap من الأزرار على الموبايل لمنع قطع النص */
+@media (max-width: 640px) {
+  /* إزالة whitespace-nowrap من جميع الأزرار */
+  button[class*="whitespace-nowrap"],
+  button[class*="whitespace-nowrap"] * {
+    white-space: normal !important;
+    overflow-wrap: break-word !important;
+    word-wrap: break-word !important;
+    overflow: visible !important;
+  }
+  
+  /* زيادة حجم الخط في الأزرار */
+  button.text-xs,
+  button[class*="text-xs"] {
+    font-size: 0.875rem !important;
+    padding: 0.625rem 1rem !important;
+  }
+  
+  button.text-sm {
+    font-size: 0.95rem !important;
+    padding: 0.75rem 1rem !important;
+  }
+  
+  /* تحسين نصوص الأزرار القصيرة */
+  button span,
+  button div {
+    overflow-wrap: break-word !important;
+    word-break: normal !important;
+  }
+  
+  /* تحسين تصريف النصوص في البطاقات */
+  .text-xs {
+    font-size: 0.875rem !important;
+  }
+  
+  .text-sm {
+    font-size: 0.95rem !important;
+  }
+  
+  .text-\[10px\] {
+    font-size: 0.875rem !important;
+  }
+  
+  .text-\[11px\] {
+    font-size: 0.9rem !important;
+  }
+  
+  /* تحسين مسافات الأزرار */
+  button.px-3 {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+  
+  button.px-4 {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+  
+  button.py-2 {
+    padding-top: 0.75rem !important;
+    padding-bottom: 0.75rem !important;
+  }
+  
+  button.py-2\.5 {
+    padding-top: 0.875rem !important;
+    padding-bottom: 0.875rem !important;
+  }
+  
+  /* تحسين مسافات الجدول على الموبايل */
+  table th, table td {
+    padding: 0.75rem 0.5rem !important;
+    font-size: 0.85rem !important;
+  }
+  
+  /* تحسين العناوين الفرعية */
+  .font-bold.text-xs,
+  .font-bold.text-sm {
+    font-size: 0.875rem !important;
+  }
+  
+  /* تحسين نص التسميات */
+  .text-slate-600.text-xs,
+  .text-slate-500.text-xs,
+  .text-slate-400.text-xs,
+  .text-red-800.text-xs,
+  .text-emerald-800.text-xs,
+  .text-amber-800.text-xs,
+  .text-blue-800.text-xs {
+    font-size: 0.8rem !important;
+  }
+  
+  /* تحسين العناوين في البطاقات */
+  h2.text-xl, h2.text-sm {
+    font-size: 1.25rem !important;
+  }
+  
+  h3.text-sm, h3.text-xs {
+    font-size: 1rem !important;
+  }
+  
+  /* تحسين حقل البحث */
+  input[type="text"], input[type="search"] {
+    min-height: 2.75rem !important;
+    font-size: 0.875rem !important;
+    padding: 0.625rem 1rem !important;
+  }
+  
+  /* تحسين أزرار التصفية */
+  .flex-wrap button,
+  button[class*="rounded-xl"][class*="border"] {
+    min-height: 2.75rem !important;
+    font-size: 0.875rem !important;
+    padding: 0.625rem 1rem !important;
+    white-space: normal !important;
+    text-align: center !important;
+  }
+}
+
+/* تحسين الجداول على الموبايل - عرض أفقي */
+@media (max-width: 640px) {
+  .overflow-x-auto {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  
+  /* تحسين رؤوس الجدول */
+  table thead th {
+    white-space: nowrap !important;
+    padding: 0.75rem 0.5rem !important;
+    font-size: 0.75rem !important;
+  }
+  
+  /* تحسين خلايا البيانات */
+  table td {
+    white-space: normal !important;
+    overflow-wrap: break-word !important;
+    padding: 0.75rem 0.5rem !important;
+    font-size: 0.85rem !important;
+  }
+}
+
+/* تحسين الأزرار الطويلة على الموبايل */
+@media (max-width: 640px) {
+  button[class*="px-4"][class*="py-2"] {
+    min-width: 200px !important;
+    max-width: 100% !important;
+    text-align: center !important;
+  }
+  
+  /* تحسين زر "مزمنة جميع الشحنات" والأزرار الطويلة */
+  button[class*="bg-blue-600"],
+  button[class*="bg-amber-600"],
+  button[class*="bg-rose-600"],
+  button[class*="bg-emerald-600"] {
+    min-height: 3rem !important;
+    font-size: 0.95rem !important;
+    padding: 0.75rem 1rem !important;
+    white-space: normal !important;
+    text-align: center !important;
+  }
+}
+
+/* تحسين النصوص الطويلة في العناوين */
+@media (max-width: 640px) {
+  h1, h2, h3, h4, h5, h6 {
+    line-height: 1.3 !important;
+    overflow-wrap: break-word !important;
+  }
+  
+  .font-black {
+    line-height: 1.2 !important;
+  }
+}
+
+/* تحسين البطاقات على الموبايل */
+@media (max-width: 640px) {
+  .bg-white.rounded-2xl,
+  .bg-white.rounded-3xl,
+  .bg-white.rounded-xl {
+    padding: 1rem !important;
+    margin-bottom: 1rem !important;
+  }
+  
+  /* تحسين كروت الإحصائيات */
+  div[class*="rounded-2xl"][class*="shadow-2xl"],
+  div[class*="rounded-3xl"][class*="shadow-2xl"] {
+    padding: 1rem !important;
+    margin-bottom: 0.75rem !important;
+  }
+  
+  /* تحسين الأرقام الكبيرة في كروت الإحصائيات */
+  .text-3xl.font-black,
+  .text-4xl.font-black,
+  .text-5xl.font-black {
+    font-size: 1.5rem !important;
+  }
+  
+  .text-xs.font-bold,
+  .text-\[10px\].font-bold {
+    font-size: 0.75rem !important;
+  }
+}
+
+/* تحسين التذييل على الموبايل */
+@media (max-width: 640px) {
+  .mt-auto.pt-4.pb-2,
+  footer,
+  div[class*="mt-auto"][class*="pt-4"] {
+    padding: 0.75rem 1rem !important;
+    font-size: 0.7rem !important;
+    text-align: center !important;
+    border-top: 1px solid #e2e8f0 !important;
+  }
+}

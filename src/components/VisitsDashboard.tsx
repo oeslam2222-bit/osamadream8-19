@@ -7,6 +7,8 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  AlertCircle,
+  CheckCircle2,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
@@ -105,7 +107,7 @@ export const VisitsDashboard: React.FC = () => {
       repId: r?.id || currentUser?.id || '',
       repName: r?.name || currentUser?.name || '',
       branchName: r?.branchName || c?.branchName || '',
-      sector: r?.sector || currentUser?.sector || undefined,
+      sector: r?.sector || c?.sector || currentUser?.sector || undefined,
       supervisorId: r?.supervisorId,
       supervisorName: r?.supervisorName || '',
       status: 'منفذة',
@@ -369,13 +371,7 @@ export const VisitsDashboard: React.FC = () => {
                     {v.repName || '-'}
                   </td>
                   <td className="px-4 py-3.5 text-slate-700 text-right">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      v.sector === 'home'
-                        ? 'bg-blue-50 text-blue-700 border-blue-100'
-                        : v.sector === 'electrical'
-                        ? 'bg-amber-50 text-amber-700 border-amber-100'
-                        : 'bg-slate-100 text-slate-700 border-slate-200'
-                    }`}>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${v.sector === 'home' ? 'bg-blue-50 text-blue-700 border-blue-100' : v.sector === 'electrical' ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                       {v.sector === 'home' ? 'منزلي 🏠' : v.sector === 'electrical' ? 'كهرباء ⚡' : '-'}
                     </span>
                   </td>
@@ -638,6 +634,107 @@ export const VisitsDashboard: React.FC = () => {
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* Visit Details Modal */}
+      {selectedVisit && (
+        <div
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setSelectedVisit(null);
+          }}
+        >
+          <div className="relative z-[60] bg-white rounded-3xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100" dir="rtl">
+            <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <Eye className="w-5 h-5" />
+                </div>
+                <h2 className="text-lg font-black text-slate-900">تفاصيل الزيارة</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedVisit(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center"
+                aria-label="إغلاق"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 rounded-xl border border-slate-100 bg-slate-50">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">العميل</span>
+                  <div className="font-black text-slate-900">{selectedVisit.customerName}</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">{selectedVisit.customerCode || '-'}</div>
+                </div>
+                <div className="p-3 rounded-xl border border-slate-100 bg-slate-50">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">المندوب</span>
+                  <div className="font-black text-slate-900">{selectedVisit.repName || '-'}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 rounded-xl border border-slate-100 bg-slate-50">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">التاريخ والوقت</span>
+                  <div className="font-black text-slate-900">{selectedVisit.date}</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">{selectedVisit.time}</div>
+                </div>
+                <div className="p-3 rounded-xl border border-slate-100 bg-slate-50">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">النوع</span>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${(selectedVisit.type as string) === 'تحصيل' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : (selectedVisit.type as string) === 'دورية' ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-purple-50 text-purple-700 border-purple-100'}`}>
+                    {selectedVisit.type}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 rounded-xl border border-slate-100 bg-slate-50">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">الفرع</span>
+                  <div className="font-black text-slate-900">{selectedVisit.branchName || '-'}</div>
+                </div>
+                <div className="p-3 rounded-xl border border-slate-100 bg-slate-50">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">القطاع</span>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${selectedVisit.sector === 'home' ? 'bg-blue-50 text-blue-700 border-blue-100' : selectedVisit.sector === 'electrical' ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                    {selectedVisit.sector === 'home' ? 'منزلي 🏠' : selectedVisit.sector === 'electrical' ? 'كهرباء ⚡' : '-'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl border border-slate-100 bg-slate-50">
+                <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">الحالة</span>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${selectedVisit.status === 'منفذة' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                  {selectedVisit.status}
+                </span>
+              </div>
+
+              {selectedVisit.collectedAmount && selectedVisit.collectedAmount > 0 && (
+                <div className="p-3 rounded-xl border border-slate-100 bg-slate-50">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">مبلغ التحصيل</span>
+                  <div className="font-black text-slate-900">{formatCurrency(selectedVisit.collectedAmount)} ج.م</div>
+                </div>
+              )}
+
+              {selectedVisit.notes && (
+                <div className="p-3 rounded-xl border border-slate-100 bg-slate-50">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">ملاحظات الزيارة</span>
+                  <div className="font-black text-slate-900">{selectedVisit.notes}</div>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedVisit(null)}
+                className="px-6 py-2.5 rounded-xl bg-[var(--app-navy)] text-white font-black text-xs transition hover:bg-[var(--app-navy)]"
+              >
+                إغلاق
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

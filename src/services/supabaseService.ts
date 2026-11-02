@@ -4,6 +4,7 @@ import { withHashedCredential } from './passwordService';
 import { pickUserColumns, sanitizeSupervisorId } from './userRowPayload';
 import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from './customerDues';
 import { normalizeArabicText } from './arabicMatchingService';
+import { classifyError, handleSupabaseError, withRetry, NetworkErrorType } from './networkErrorHandler';
 
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rxthpgmlcsfckstpqhqf.supabase.co';
 export const SUPABASE_ANON_KEY =
@@ -37,6 +38,19 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     autoRefreshToken: true,
   },
 });
+
+// Reconnect Supabase Realtime when page comes back from Back-Forward Cache (BFCache)
+if (typeof window !== 'undefined') {
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+      try {
+        supabase.realtime.connect();
+      } catch {
+        // Realtime reconnect failed silently
+      }
+    }
+  });
+}
 
 export interface SupabaseSyncStatus {
   connected: boolean;
@@ -521,7 +535,8 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
     return { success: true };
   } catch (e: any) {
     console.error('Supabase customer save exception:', e);
-    return { success: false, error: e?.message };
+    const { message } = handleSupabaseError(e, "saveUsersToSupabase");
+    return { success: false, error: message };
   }
 }
 
@@ -700,7 +715,8 @@ export async function fetchTargetsFromSupabase(): Promise<{ success: boolean; ta
     }
     return { success: true, targets: rows };
   } catch (error: any) {
-    return { success: false, error: error?.message || 'فشل تحميل التارجت المشترك' };
+    const { message } = handleSupabaseError(error, 'fetchTargetsFromSupabase');
+    return { success: false, error: message };
   }
 }
 
@@ -889,7 +905,8 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
       }
       return { success: false, error: 'لم يتم العثور على مستخدمين في أي من الجداول' };
     } catch (err: any) {
-      return { success: false, error: err?.message || 'خطأ في جلب المستخدمين من Supabase' };
+      const { type, message } = handleSupabaseError(err, 'fetchUsersFromSupabase');
+      return { success: false, error: message };
     } finally {
       activeUsersFetchPromise = null;
     }
@@ -1018,7 +1035,8 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
 
     return { success: false, error: 'لم يتم العثور على المستخدم في أي جدول بقاعدة البيانات' };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'تعذر الاتصال بقاعدة البيانات السحابية' };
+    const { message } = handleSupabaseError(err, 'findUserInSupabase');
+    return { success: false, error: message };
   }
 }
 
@@ -1123,7 +1141,8 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
 
     return firstError ? { success: false, error: firstError } : { success: true };
   } catch (e: any) {
-    return { success: false, error: e?.message };
+    const { message } = handleSupabaseError(e, "saveUsersToSupabase");
+    return { success: false, error: message };
   }
 }
 
@@ -1302,7 +1321,8 @@ export async function saveUserToSupabase(user: User, currentUsersList?: User[]):
 
     return primary.error ? { success: false, error: primary.error } : { success: true };
   } catch (e: any) {
-    return { success: false, error: e?.message };
+    const { message } = handleSupabaseError(e, "saveUsersToSupabase");
+    return { success: false, error: message };
   }
 }
 
@@ -1343,7 +1363,8 @@ export async function deleteUserFromSupabase(userId: string): Promise<{ success:
 
     return { success: true };
   } catch (e: any) {
-    return { success: false, error: e?.message };
+    const { message } = handleSupabaseError(e, "saveUsersToSupabase");
+    return { success: false, error: message };
   }
 }
 
@@ -1430,7 +1451,8 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
     return { success: false, error: invErr?.message || ordFullErr?.message || ordMinErr?.message };
   } catch (e: any) {
     console.warn('Supabase Invoice Save Exception:', e);
-    return { success: false, error: e?.message };
+    const { message } = handleSupabaseError(e, "saveUsersToSupabase");
+    return { success: false, error: message };
   }
 }
 
@@ -1653,7 +1675,8 @@ export async function fetchInvoicesFromSupabase(limitOrScope: number | InvoiceFe
 
     return { success: true, invoices: [] };
   } catch (err: any) {
-    return { success: false, error: err?.message || 'خطأ في جلب الفواتير من Supabase' };
+    const { message } = handleSupabaseError(err, 'fetchInvoicesFromSupabase');
+    return { success: false, error: message };
   }
 }
 
@@ -1694,7 +1717,8 @@ export async function deleteInvoiceFromSupabase(
     return { success: true, error: errors.length > 0 ? errors.join(' | ') : undefined };
   } catch (e: any) {
     console.warn('Supabase delete invoice exception:', e);
-    return { success: false, error: e?.message };
+    const { message } = handleSupabaseError(e, "saveUsersToSupabase");
+    return { success: false, error: message };
   }
 }
 
@@ -1760,7 +1784,8 @@ export async function deleteVisitFromSupabase(
     return { success: true, error: errors.length > 0 ? errors.join(' | ') : undefined };
   } catch (e: any) {
     console.warn('Supabase delete visit exception:', e);
-    return { success: false, error: e?.message };
+    const { message } = handleSupabaseError(e, "saveUsersToSupabase");
+    return { success: false, error: message };
   }
 }
 
@@ -1888,7 +1913,8 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
     return { success: true };
   } catch (e: any) {
     console.error('Supabase products save error:', e);
-    return { success: false, error: e?.message };
+    const { message } = handleSupabaseError(e, "saveUsersToSupabase");
+    return { success: false, error: message };
   }
 }
 
@@ -2028,7 +2054,8 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
 
     return { success: true, products: [] };
   } catch (err: any) {
-    return { success: false, error: err?.message };
+    const { message } = handleSupabaseError(err, 'fetchProductsFromSupabase');
+    return { success: false, error: message };
   }
 }
 
@@ -2145,7 +2172,8 @@ export async function fetchVisitsFromSupabase(
 
     return { success: true, visits: mapped, scoped: scopedUsed };
   } catch (err: any) {
-    return { success: false, error: err?.message };
+    const { message } = handleSupabaseError(err, 'fetchVisitsFromSupabase');
+    return { success: false, error: message };
   }
 }
 

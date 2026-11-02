@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import {
   AlertCircle,
   ArrowRight,
@@ -10,7 +11,6 @@ import {
   ShoppingCart,
   Users as Users2,
 } from 'lucide-react';
-import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 
 interface LoginPageProps {
@@ -62,21 +62,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   return (
     <div
       dir="rtl"
-      className="login-canvas-v2 min-h-[100dvh] antialiased selection:bg-[rgba(201,154,67,.28)] bg-[#0a1628] text-slate-900"
+      className="login-canvas-v2 min-h-screen antialiased selection:bg-[rgba(201,154,67,.28)] bg-[#0a1628] text-slate-900"
     >
-      {/* Background accents */}
+      {/* Background accents - تدرجات خلفية خفيفة */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-[#123157]/30 blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-amber-500/10 blur-[100px]" />
-        <div className="absolute top-0 left-0 w-full h-full opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(currentColor 1px, transparent 1px)' }} />
+        <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-[#123157]/25 blur-[140px]" />
+        <div className="absolute bottom-[-20%] right-[-20%] w-[50%] h-[50%] rounded-full bg-amber-500/8 blur-[120px]" />
+        <div className="absolute top-0 left-0 w-full h-full opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(currentColor 1px, transparent 1px)' }} />
       </div>
 
-      <div className="relative z-10 w-full max-w-[1200px] mx-auto my-1 sm:my-2 min-h-[100dvh] flex flex-col lg:flex-row items-center justify-center gap-0 p-3 sm:p-6 overflow-hidden">
-        {/* Left: Login Card (white) */}
-        <div className="lg:w-1/2 w-full flex items-center justify-center p-4 sm:p-6">
+      {/* Main container - متجاوب مع جميع الشاشات */}
+      <div className="relative z-10 w-full mx-auto my-1 min-h-screen flex flex-col lg:flex-row items-center justify-center gap-0 p-3 sm:p-6 overflow-hidden">
+        
+        {/* Right: Login Card (white) - على اليمين للموبايل وسطح المكتب */}
+        <div className="lg:w-1/2 w-full flex items-center justify-center p-3 sm:p-6 max-w-[520px]">
           <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 sm:p-8 flex flex-col">
             {/* Logo */}
-            <div className="flex items-center justify-center mb-4">
+            <div className="flex items-center justify-center mb-6">
               <div className="w-16 h-16 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center shadow-sm overflow-hidden">
                 <img
                   src="/tantawy-brand-logo.svg?v=3.1"
@@ -87,30 +89,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
             </div>
 
             {/* Title */}
-            <div className="text-center mb-6">
-              <h2 className="text-xl font-black text-slate-900 mb-1 tracking-tight">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-black text-slate-900 mb-1 tracking-tight">
                 مندرج<span className="text-[#009488]"> دريم</span>
               </h2>
-              <p className="text-xs font-bold text-[#009488] uppercase tracking-widest mb-2">
+              <p className="text-xs font-bold text-[#009488] uppercase tracking-widest mt-2">
                 مجموعة الطنطاوي
               </p>
-              <p className="text-[12px] text-slate-500 leading-relaxed max-w-xs mx-auto">
+              <p className="text-[11px] text-slate-500 leading-relaxed max-w-xs mx-auto mt-3">
                 مرحباً بك في نظام مندرج دريم، يرجى تسجيل الدخول للمنظومة
               </p>
             </div>
 
-            {/* Error */}
+            {/* Error message */}
             {loginError && (
-              <div className="mb-5 p-3 rounded-xl bg-rose-50/70 border border-rose-200/60 text-rose-800 text-[12px] font-bold text-right">
-                <AlertCircle className="w-3.5 h-3.5 inline mr-1.5" />
+              <div className="mb-6 p-3 rounded-xl bg-rose-50/70 border border-rose-200/60 text-rose-800 text-sm font-bold text-right">
+                <AlertCircle className="w-4 h-4 inline mr-2" />
                 {loginError}
               </div>
             )}
 
             <form onSubmit={handleLoginSubmit} className="flex flex-col gap-4">
-              {/* Identifier */}
+              {/* Username field */}
               <div className="space-y-2">
-                <label className="block text-[11px] font-bold text-slate-500 text-right">
+                <label className="block text-xs font-bold text-slate-600 text-right">
                   البريد الإلكتروني أو اسم المستخدم
                 </label>
                 <div className="relative group">
@@ -121,15 +123,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                     placeholder="مثال: osama@dream.com أو osama"
                     required
                     autoComplete="username"
-                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus:ring-[#009488]/50 focus:border-transparent outline-none transition-all text-sm font-medium placeholder-slate-400"
+                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus-ring-[#009488]/50 focus:border-transparent outline-none transition-all font-medium text-sm placeholder-slate-400"
                   />
                   <UserIcon className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#009488] transition-colors" />
                 </div>
               </div>
 
-              {/* Password */}
+              {/* Password field */}
               <div className="space-y-2">
-                <label className="block text-[11px] font-bold text-slate-500 text-right">
+                <label className="block text-xs font-bold text-slate-600 text-right">
                   كلمة المرور
                 </label>
                 <div className="relative group">
@@ -137,10 +139,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                     type={showPassword ? 'text' : 'password'}
                     value={loginPassword}
                     onChange={(e) => setLoginPassword(e.target.value)}
-                    placeholder="أدخل كلمة المرور"
+                    placeholder="أدخل كلمة المرور المسجلة بقاعدة البيانات"
                     required
                     autoComplete="current-password"
-                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus:ring-[#009488]/50 focus:border-transparent outline-none transition-all text-sm font-medium placeholder-slate-400"
+                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus-ring-[#009488]/50 focus:border-transparent outline-none transition-all font-medium text-sm placeholder-slate-400"
                   />
                   <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#009488] transition-colors" />
                   <button
@@ -154,7 +156,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
               </div>
 
               {/* Remember me */}
-              <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] text-slate-500 text-sm">
+              <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] text-slate-600 text-sm">
                 <input
                   type="checkbox"
                   className="w-3.5 h-3.5 rounded border-slate-300 text-[#009488] focus:ring-[#009488] bg-white"
@@ -163,7 +165,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                 تذكرني على هذا الجهاز
               </label>
 
-              {/* Login button */}
+              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={isLoggingIn}
@@ -192,8 +194,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
           </div>
         </div>
 
-        {/* Right: Dark branding panel */}
-        <div className="lg:w-1/2 w-full flex flex-col items-center justify-center p-4 sm:p-8 bg-[#0a1628] text-white rounded-3xl shadow-2xl border border-white/10 backdrop-blur-sm">
+        {/* Left: Dark branding panel - على اليسار فقط في سطح المكتب */}
+        <div className="lg:w-1/2 w-full flex flex-col items-center justify-center p-3 sm:p-8 bg-[#0a1628] text-white rounded-3xl shadow-2xl border border-white/10 backdrop-blur-sm max-w-[600px]">
           <div className="text-center mb-8">
             <span className="text-[10px] font-bold text-[#009488] uppercase tracking-widest block mb-2">
               TANTAWY GROUP
@@ -204,7 +206,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
             <h2 className="text-4xl lg:text-6xl font-black tracking-tight leading-tight mb-6">
               مندرج<span className="text-[#009488]"> دريم</span>
             </h2>
-            <p className="text-[13px] lg:text-base text-slate-300 mb-6 max-w-lg mx-auto leading-relaxed font-medium">
+            <p className="text-[12px] lg:text-base text-slate-300 mb-6 max-w-lg mx-auto leading-relaxed font-medium">
               معا.. نحو مستقبل أفضل
             </p>
             <p className="text-[11px] text-slate-500 max-w-lg mx-auto leading-relaxed">
@@ -221,6 +223,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
         </div>
       </div>
 
+      {/* Footer */}
       <div className="mt-auto pt-4 pb-2 w-full">
         <div className="flex items-center justify-center gap-2 text-[10px] text-white/50 font-bold uppercase tracking-wider">
           <span className="w-1 h-1 rounded-full bg-[#009488]" />
