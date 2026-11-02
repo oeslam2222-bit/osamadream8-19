@@ -168,6 +168,18 @@ export const hasDuplicateUserIdentity = (candidate: Partial<User>, list: User[],
   });
 };
 
+/**
+ * عمود الصورة في الشيت مش دايماً رابط. الخانة الفاضية بتتحول `0` في الإكسل،
+ * فكان بيتولد `<img src="0">` والبراوزر يطلب `/0` ويرجع 404 في الكونسول.
+ */
+export const sanitizeStoredImageUrl = (value?: string): string | undefined => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return undefined;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^data:image\//i.test(raw)) return raw;
+  return undefined;
+};
+
 export const sanitizeProducts = (list: Product[]): Product[] => {
   if (!Array.isArray(list)) return [];
   const usedIds = new Set<string>();
@@ -220,6 +232,7 @@ export const sanitizeProducts = (list: Product[]): Product[] => {
     return {
       ...p,
       id: rowId,
+      imageUrl: sanitizeStoredImageUrl(p.imageUrl),
       // `(blank)` و`((blank))` مش بيانات — بتتشال من النص نفسه عشان متظهرش في الكارت.
       // لو الاسم كله كان placeholder بنرجع لكود الصنف بدل ما نعرض كلمة blank.
       name: stripPlaceholderText(p.name) || (p.code ? `صنف ${p.code}` : 'صنف بدون اسم'),

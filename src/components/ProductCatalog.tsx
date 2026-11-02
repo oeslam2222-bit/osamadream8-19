@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { sanitizeStoredImageUrl } from '../context/appContextHelpers';
 import { useTheme } from '../context/themeContext';
 import { ProductImage } from './ProductImage';
 import {
@@ -1258,8 +1259,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       className="flex items-center justify-center p-1"
                     >
                       <div className="w-14 h-14 rounded-xl bg-surface-alt border border-border-primary overflow-hidden flex items-center justify-center cursor-pointer hover:shadow-[0_0_15px_rgba(0,148,136,0.3)] transition-all duration-200 shadow-sm">
-                        {p.imageUrl ? (
-                          <img src={p.imageUrl} alt={p.name} className="w-full h-full object-cover" />
+                        {sanitizeStoredImageUrl(p.imageUrl) ? (
+                          <img
+                            src={sanitizeStoredImageUrl(p.imageUrl)}
+                            alt={p.name}
+                            className="w-full h-full object-cover"
+                          />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-light text-[10px] font-bold">
                             📦

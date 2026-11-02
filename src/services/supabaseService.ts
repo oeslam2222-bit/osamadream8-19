@@ -189,6 +189,87 @@ export async function testSupabaseConnection(): Promise<SupabaseSyncStatus> {
   }
 }
 
+export interface TableWriteProbe {
+  table: string;
+  ok: boolean;
+  code?: string;
+  message?: string;
+  note?: string;
+}
+
+/**
+ * فحص صلاحية الكتابة الفعلية على الجداول.
+ *
+ * فحص الاتصال العادي بيعدّ صفوف بس (قراءة) — عشان كده الشاشة تقول «متصل»
+ * والكتابة تفشل من غير أي رسالة: سياسة RLS بتفلتر الصف في التحديث وترجع
+ * 204 بدون error، والحاجة نفسها بتحصل لو العمود أو القيد مرفوض.
+ *
+ * هنا بنعمل تحديث بنفس القيمة ونطلب الصفوف الراجعة بـ .select('id'):
+ *  - error  → الكتابة مرفوضة (بنعرض كود Postgres والرسالة).
+ *  - 0 صفوف → الكتابة متفلترة بسياسة RLS (مفيش error بس مفيش حفظ).
+ *  - صف راجع → الكتابة شغالة فعلاً.
+ * التحديث بنفس القيمة مش بيغيّر أي بيانات.
+ */
+export async function probeWriteAccess(): Promise<TableWriteProbe[]> {
+  const tables = ['users', 'customers', 'products', 'orders', 'targets', 'visits'];
+  const probes: TableWriteProbe[] = [];
+
+  for (const table of tables) {
+    try {
+      const { data, error } = await supabase.from(table).select('*').limit(1);
+      if (error) {
+        probes.push({ table, ok: false, code: error.code, message: error.message, note: 'تعذرت القراءة' });
+        continue;
+      }
+      if (!data || data.length === 0) {
+        probes.push({ table, ok: true, note: 'الجدول فاضي — مفيش صف لاختبار الكتابة' });
+        continue;
+      }
+
+      const row = data[0];
+      const column = Object.keys(row).find(
+        (key) =>
+          key !== 'id' &&
+          (typeof row[key] === 'string' || typeof row[key] === 'number' || row[key] === null)
+      );
+      if (!column) {
+        probes.push({ table, ok: true, note: 'مفيش عمود بسيط للاختبار' });
+        continue;
+      }
+
+      const { data: updatedRows, error: writeError } = await supabase
+        .from(table)
+        .update({ [column]: row[column] })
+        .eq('id', row.id)
+        .select('id');
+
+      if (writeError) {
+        probes.push({
+          table,
+          ok: false,
+          code: writeError.code,
+          message: writeError.message,
+          note: `فشل التحديث على (${column})`,
+        });
+      } else if (!updatedRows || updatedRows.length === 0) {
+        probes.push({
+          table,
+          ok: false,
+          code: 'RLS',
+          message: 'التحديث رجع 0 صفوف بدون خطأ — الكتابة متفلترة بسياسة RLS',
+          note: `العمود ${column}`,
+        });
+      } else {
+        probes.push({ table, ok: true, note: `الكتابة متاحة (${column})` });
+      }
+    } catch (e: any) {
+      probes.push({ table, ok: false, message: e?.message || 'خطأ غير معروف' });
+    }
+  }
+
+  return probes;
+}
+
 /**
  * Which slice of the customer base a device is allowed to download.
  *
@@ -1080,24 +1161,83 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
       new Map(usersPayload.map((payload) => [String(payload.id), payload])).values()
     );
 
-    const { data: existingRows } = await supabase.from('users').select('id');
+    const { data: existingRows } = await supabase.from('users').select('id, username, email');
     const existingIds = new Set((existingRows || []).map((row: any) => String(row.id)));
 
-    const rowsToUpdate = dedupedPayloads.filter((payload) => existingIds.has(String(payload.id)));
-    const rowsToInsert = dedupedPayloads.filter((payload) => !existingIds.has(String(payload.id)));
+    // خرائط الهوية: جدول users عليه قيد فريد على اسم المستخدم/الإيميل كمان،
+    // فمحاولة إدخال صف جديد بنفس الاسم بمعرّف مختلف بترجع 409 (23505)
+    // والصف ما بيتحفظش خالص. بنطابق الهوية الأول ونحدّث الصف الموجود.
+    const idByUsername = new Map<string, string>();
+    const idByEmail = new Map<string, string>();
+    (existingRows || []).forEach((row: any) => {
+      const id = String(row.id || '');
+      if (!id) return;
+      const uname = String(row.username || '').trim().toLowerCase();
+      const email = String(row.email || '').trim().toLowerCase();
+      if (uname) idByUsername.set(uname, id);
+      if (email) idByEmail.set(email, id);
+    });
+
+    // صفوف بنفس اسم المستخدم/الإيميل جوه نفس الدفعة بتضرب 409 برضه،
+    // فبنحتفظ بأول واحد بس (الأخير كان هيغطي على الأول بنفس القيد).
+    const seenIdentities = new Set<string>();
+    const uniquePayloads = dedupedPayloads.filter((payload) => {
+      const identity = String(payload.username || payload.email || '').trim().toLowerCase();
+      if (!identity) return true;
+      if (seenIdentities.has(identity)) return false;
+      seenIdentities.add(identity);
+      return true;
+    });
+
+    const rowsToUpdate: { targetId: string; payload: Record<string, any> }[] = [];
+    const rowsToInsert: Record<string, any>[] = [];
+    const adoptedIdentities: string[] = [];
+
+    uniquePayloads.forEach((payload) => {
+      const localId = String(payload.id || '');
+      if (!localId) return;
+
+      if (existingIds.has(localId)) {
+        rowsToUpdate.push({ targetId: localId, payload });
+        return;
+      }
+
+      const uname = String(payload.username || '').trim().toLowerCase();
+      const email = String(payload.email || '').trim().toLowerCase();
+      const existingIdByIdentity = (uname && idByUsername.get(uname)) || (email && idByEmail.get(email)) || '';
+
+      if (existingIdByIdentity) {
+        // نفس المستخدم موجود على السيرفر بمعرّف تاني: بنحدّثه بدل ما نعمل صف مكرر.
+        adoptedIdentities.push(`${uname || email} → ${existingIdByIdentity}`);
+        rowsToUpdate.push({ targetId: existingIdByIdentity, payload });
+        return;
+      }
+
+      rowsToInsert.push(payload);
+    });
+
+    const blockedUpdates: string[] = [];
 
     for (let i = 0; i < rowsToUpdate.length; i += 20) {
       const batch = rowsToUpdate.slice(i, i + 20);
       const results = await Promise.allSettled(
-        batch.map(async (payload) => {
-          const { id, ...changes } = pickUserColumns('users', payload);
-          if (!id || Object.keys(changes).length === 0) return null;
-          return supabase.from('users').update(changes).eq('id', id);
+        batch.map(async ({ targetId, payload }) => {
+          const { id: _ignoredId, ...changes } = pickUserColumns('users', payload);
+          if (!targetId || Object.keys(changes).length === 0) return null;
+          // .select('id') مقصود: تحديث مقفول بسياسة RLS بيرجع 204 من غير أي error،
+          // فبنشوف الصفوف الراجعة عشان نعرف إن الكتابة عدّت فعلاً.
+          const res = await supabase.from('users').update(changes).eq('id', targetId).select('id');
+          if (res.error) {
+            if (!firstError) firstError = res.error.message;
+          } else if (!res.data || res.data.length === 0) {
+            blockedUpdates.push(targetId);
+          }
+          return res;
         })
       );
       results.forEach((result) => {
-        if (result.status === 'fulfilled' && result.value?.error && !firstError) {
-          firstError = result.value.error.message;
+        if (result.status === 'rejected' && !firstError) {
+          firstError = String((result as PromiseRejectedResult).reason || 'فشل تحديث المستخدمين');
         }
       });
     }
@@ -1107,8 +1247,7 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
         .slice(i, i + 50)
         .map((payload) => pickUserColumns('users', payload));
 
-      // upsert صريح على المفتاح الأساسي: لو السجل موجود يتحدّث، ولو جديد يُضاف —
-      // مفيش أي فرصة لخطأ 409 على نفس الـ id (والـ IDs مضمونة بدون تكرار فوق).
+      // upsert صريح على المفتاح الأساسي: لو السجل موجود يتحدّث، ولو جديد يُضاف —.
       const { error } = await supabase.from('users').upsert(chunk, { onConflict: 'id' });
       if (!error) continue;
 
@@ -1117,6 +1256,19 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
         const result = await writeUserRowSafely('users', row, 'upsert');
         if (result.error && !firstError) firstError = result.error;
       }
+    }
+
+    if (adoptedIdentities.length > 0) {
+      console.info(
+        '[Supabase][users] تم تحديث صفوف موجودة بنفس اسم المستخدم/الإيميل بدل إدخال صفوف مكررة (منع 409):',
+        adoptedIdentities
+      );
+    }
+    if (blockedUpdates.length > 0) {
+      console.warn(
+        '[Supabase][users] تحديثات رجعت 0 صفوف بدون خطأ — الكتابة على جدول users مقفولة بسياسة RLS:',
+        blockedUpdates
+      );
     }
 
     // 2) المرايا القديمة: تحديث الموجود فقط (بدون إدخال → بدون 409)

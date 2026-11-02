@@ -216,6 +216,13 @@ export function cleanGoogleSheetImageUrl(raw: string): string {
     }
   }
 
+  // 10. أي قيمة مش رابط صورة فعلي (زي "0" أو "-" أو "لا يوجد") بترجع فاضية.
+  //     الخانة الفاضية في الإكسل بتتحول صفر، والسيل "0" كان بيطلع
+  //     <img src="0"> فيطلب البراوزر /0 ويرجع 404 في الكونسول.
+  if (!/^https?:\/\//i.test(clean) && !/^data:image\//i.test(clean)) {
+    return '';
+  }
+
   return clean;
 }
 

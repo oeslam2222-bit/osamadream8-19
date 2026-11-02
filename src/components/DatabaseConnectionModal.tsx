@@ -20,6 +20,7 @@ import {
   HardDrive
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { probeWriteAccess, TableWriteProbe } from '../services/supabaseService';
 
 interface DatabaseConnectionModalProps {
   isOpen: boolean;
@@ -42,8 +43,29 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
 
   const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
+  const [writeProbes, setWriteProbes] = useState<TableWriteProbe[] | null>(null);
+  const [isProbing, setIsProbing] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleProbeWrites = async () => {
+    setIsProbing(true);
+    setWriteProbes(null);
+    try {
+      const probes = await probeWriteAccess();
+      setWriteProbes(probes);
+      const failed = probes.filter((probe) => !probe.ok);
+      setTestResult(
+        failed.length === 0
+          ? 'كل الجداول بتقبل الكتابة فعلاً ✅'
+          : `في ${failed.length} جدول رافض الكتابة — شوف تفاصيل الفحص تحت`
+      );
+    } catch (e: any) {
+      setTestResult(e?.message || 'فشل فحص الكتابة على الجداول');
+    } finally {
+      setIsProbing(false);
+    }
+  };
 
   const handleTestPing = async () => {
     setIsTesting(true);
@@ -87,7 +109,7 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
         <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white p-5 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shadow-lg ${
-              isConnected ? 'bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)]' : 'bg-[var(--app-warn)] text-[#d97706] border border-[var(--app-warn)]'
+              isConnected ? 'bg-[var(--app-ok)] text-white border border-[var(--app-ok)]' : 'bg-white/10 text-[#fde68a] border border-white/20'
             }`}>
               <Database className="w-5 h-5" />
             </div>
@@ -96,8 +118,8 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
                 <span>حالة قاعدة البيانات والمزامنة</span>
                 <span className={`text-[11px] px-2 py-0.5 rounded-full font-bold border ${
                   isConnected
-                    ? 'bg-[var(--app-ok)] text-[#0d9488] border-[var(--app-ok)]'
-                    : 'bg-[var(--app-warn)] text-[#d97706] border-[var(--app-warn)]'
+                    ? 'bg-[var(--app-ok-tint)] text-[#5eead4] border-[var(--app-ok-line)]'
+                    : 'bg-white/10 text-[#fde68a] border-white/20'
                 }`}>
                   {isConnected ? 'متصل بالسحابة 🟢' : 'وضع أوفلاين 🟡'}
                 </span>
@@ -164,6 +186,43 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
               >
                 <X className="w-3.5 h-3.5" />
               </button>
+            </div>
+          )}
+
+          {/* Write-access probe: «متصل» مش معناها إن الكتابة شغالة */}
+          {writeProbes && (
+            <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2 animate-in fade-in">
+              <div className="flex items-center gap-2 font-black text-xs text-slate-700">
+                <HardDrive className="w-4 h-4 text-slate-500" />
+                <span>فحص صلاحية الكتابة على الجداول</span>
+              </div>
+              <div className="space-y-1.5">
+                {writeProbes.map((probe) => (
+                  <div
+                    key={probe.table}
+                    className={`flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl border text-[11px] font-bold ${
+                      probe.ok
+                        ? 'bg-[var(--app-ok-tint)] border-[var(--app-ok-line)] text-[var(--app-ok-text)]'
+                        : 'bg-[var(--app-risk-tint)] border-[var(--app-risk-line)] text-[var(--app-risk-text)]'
+                    }`}
+                  >
+                    <span className="font-mono" dir="ltr">{probe.table}</span>
+                    <span className="flex-1 text-right">
+                      {probe.ok ? 'الكتابة متاحة' : `مرفوضة${probe.code ? ` (${probe.code})` : ''}`}
+                      {probe.note ? ` — ${probe.note}` : ''}
+                    </span>
+                    {!probe.ok && probe.message && (
+                      <span className="w-full text-[10px] font-mono opacity-90" dir="ltr">
+                        {probe.message}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-slate-500 leading-relaxed">
+                لو جدول ظهر «مرفوضة (RLS)»: الكتابة محتاجة سياسة على السيرفر (Supabase → Authentication → Policies)
+                أو مفتاح service_role. التحديث المستخدم في الفحص بنفس القيمة، فمفيش أي بيانات اتغيرت.
+              </p>
             </div>
           )}
 
@@ -251,12 +310,12 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
           {/* Offline Queue Status */}
           <div className="p-4 rounded-2xl bg-slate-900 text-white flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-[var(--app-warn)] text-[#d97706] flex items-center justify-center font-black">
+              <div className="w-9 h-9 rounded-xl bg-white/10 text-[#5eead4] flex items-center justify-center font-black">
                 <HardDrive className="w-5 h-5" />
               </div>
               <div>
                 <div className="text-xs font-bold text-slate-300">طابور التغييرات الأوفلاين (IndexedDB)</div>
-                <div className="text-sm font-black text-[#d97706]">
+                <div className="text-sm font-black text-[#5eead4]">
                   {offlineQueueCount === 0 ? 'لا توجد عمليات معلقة • كل شيء متزامن ✅' : `${offlineQueueCount} عملية مسجلة بانتظار المزامنة ⏳`}
                 </div>
               </div>
@@ -265,7 +324,7 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
               <button
                 onClick={handleFullSync}
                 disabled={isTesting}
-                className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black px-3.5 py-2 rounded-xl text-xs transition cursor-pointer flex items-center gap-1.5 shadow"
+                className="bg-[var(--app-accent)] hover:bg-[#00827a] text-white font-black px-3.5 py-2 rounded-xl text-xs transition cursor-pointer flex items-center gap-1.5 shadow"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
                 <span>مزامنة الآن</span>
@@ -295,14 +354,24 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2">
+        <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={handleProbeWrites}
+            disabled={isProbing}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-black bg-white border border-slate-300 text-slate-800 hover:bg-slate-100 transition cursor-pointer active:scale-95 disabled:opacity-50"
+          >
+            <HardDrive className={`w-3.5 h-3.5 text-slate-500 ${isProbing ? 'animate-pulse' : ''}`} />
+            <span>فحص الكتابة على الجداول 🗄️</span>
+          </button>
+
           <button
             type="button"
             onClick={handleTestPing}
             disabled={isTesting}
             className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-slate-900 hover:bg-slate-800 text-white transition cursor-pointer active:scale-95 disabled:opacity-50"
           >
-            <Zap className={`w-3.5 h-3.5 text-[#d97706] ${isTesting ? 'animate-pulse' : ''}`} />
+            <Zap className={`w-3.5 h-3.5 text-[#5eead4] ${isTesting ? 'animate-pulse' : ''}`} />
             <span>اختبار الاتصال السحابي ⚡</span>
           </button>
 
@@ -310,7 +379,7 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
             type="button"
             onClick={handleFullSync}
             disabled={isTesting}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 transition cursor-pointer active:scale-95 disabled:opacity-50"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-black bg-[var(--app-accent)] hover:bg-[#00827a] text-white transition cursor-pointer active:scale-95 disabled:opacity-50"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isTesting ? 'animate-spin' : ''}`} />
             <span>مزامنة شاملة 🔄</span>
