@@ -82,13 +82,13 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in overflow-y-auto">
       <div
-        className="bg-slate-900 border border-[var(--app-warn)] text-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-200"
+        className="bg-[#0f2b38] border border-[var(--app-accent)] text-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-200"
         dir="rtl"
       >
         {/* Header with Luxury Brand Emblem & Status */}
-        <div className="relative bg-gradient-to-b from-[var(--app-warn)] via-slate-900 to-slate-900 p-6 text-center border-b border-slate-800">
+        <div className="relative bg-gradient-to-b from-[#0f2b38] via-[#0f2b38] to-[#0a1c30] p-6 text-center border-b border-[#1b4676]">
           <button
             onClick={onClose}
             className="absolute top-4 left-4 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800/80 border border-slate-700 transition cursor-pointer"
@@ -99,7 +99,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
 
           {/* Luxury App Icon Preview with Standalone Badge */}
           <div className="relative w-24 h-24 mx-auto mb-3">
-            <div className="w-full h-full rounded-2xl bg-navy-dark2 border-2 border-[var(--app-warn)] p-2 shadow-2xl shadow-amber-500/20 flex items-center justify-center overflow-hidden">
+            <div className="w-full h-full rounded-2xl bg-[#15345c] border-2 border-[var(--app-accent)] p-1 shadow-2xl shadow-[0_0_20px_rgba(0,148,136,0.15)] flex items-center justify-center overflow-hidden">
               <img
                 src="/pwa-512x512.png"
                 alt="مجموعة الطنطاوي"
@@ -113,14 +113,9 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
             </div>
           </div>
 
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--app-warn)] border border-[var(--app-warn)] text-[#d97706] text-xs font-black mb-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-[#d97706]" />
-            <span>تثبيت تطبيق مجموعة الطنطاوي الرسمي (PWA)</span>
-          </div>
-
-          <h3 className="text-xl font-black text-white">تثبيت التطبيق على الموبايل بدون علامة كروم</h3>
-          <p className="text-xs text-slate-300 mt-1 max-w-sm mx-auto leading-relaxed">
-            احصل على التطبيق الأصلي كبرنامج حقيقي في شاشة التطبيقات وهاتفك بدون شريط المتصفح وبأيقونة الطنطاوي الصافية.
+          <h3 className="text-xl font-black text-white tracking-tight">تثبيت تطبيق الطنطاوي على هاتفك</h3>
+          <p className="text-xs text-slate-300 mt-1.5 max-w-sm mx-auto leading-relaxed">
+            أضف أيقونة التطبيق إلى شاشة هاتفك كبرنامج حقيقي، بدون شريط المتصفح وبأيقونة مجموعة الطنطاوي الصافية.
           </p>
         </div>
 
@@ -128,41 +123,41 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
         <div className="p-5 sm:p-6 space-y-5 max-h-[75vh] overflow-y-auto custom-scrollbar">
           
           {/* Important Explanation: Chrome Badge Solution Box */}
-          <div className="bg-[var(--app-warn)] border border-[var(--app-warn)] rounded-2xl p-4 space-y-2 text-xs">
-            <div className="flex items-center gap-2 text-[#d97706] font-black text-sm">
-              <AlertTriangle className="w-4 h-4 text-[#d97706] shrink-0" />
-              <span>سر اختفاء علامة جوجل كروم ⚠️</span>
+          <div className="bg-[#15345c]/60 border border-[#1b4676]/50 rounded-2xl p-4 space-y-3 text-xs">
+            <div className="flex items-center gap-2 text-[var(--app-accent)] font-black text-sm">
+              <AlertTriangle className="w-4 h-4 text-[var(--app-accent)] shrink-0" />
+              <span>كيفية إظهار الأيقونة الأصلية دون علامة كروم</span>
             </div>
-            <p className="text-slate-200 leading-relaxed text-[11px]">
-              تظهر علامة جوجل كروم الصغيرة في زاوية الأيقونة إذا اخترت سابقاً <strong className="text-[#d97706]">"إضافة إلى الشاشة الرئيسية" كإختصار ويب (Shortcut)</strong>.
+            <p className="text-slate-300 leading-relaxed text-[11px]">
+              إذا ظهرت أيقونة التطبيق مع علامة متصفح صغيرة، فهذا يعني أنك اخترت سابقاً <strong className="text-white">"إضافة إلى الشاشة الرئيسية"</strong> كإختصار ويب بدلاً من التثبيت الفعلي.
             </p>
-            <div className="bg-slate-950/80 rounded-xl p-2.5 border border-[var(--app-warn)] text-[11px] space-y-1 text-slate-300">
-              <div className="flex items-center gap-2 text-[#0d9488] font-bold">
+            <div className="bg-[#0a1c30]/50 rounded-xl p-3 border border-[#1b4676]/40 space-y-2 text-[11px] text-slate-200">
+              <div className="flex items-center gap-2 text-[var(--app-accent)] font-bold">
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>الحل لإظهار الأيقونة الأصلية النقية 100%:</span>
+                <span>الخطوات الصحيحة:</span>
               </div>
-              <ol className="list-decimal list-inside space-y-1 text-[11px] text-slate-200 pr-1">
-                <li><strong className="text-[#ef4444]">احذف الاختصار القديم</strong> الموجود على شاشتك الذي تظهر عليه علامة كروم.</li>
-                <li>اضغط زر <strong className="text-[#d97706]">«تثبيت التطبيق الآن»</strong> بالأسفل.</li>
-                <li>اختر دائماً <strong className="text-[#0d9488]">«تثبيت» (Install)</strong> وليس مجرد إضافة رابط.</li>
+              <ol className="list-decimal list-inside space-y-1.5 pr-1">
+                <li><strong className="text-[#ef4444]">احذف الإختصار القديم</strong> الذي يظهر عليه علامة كروم من شاشتك.</li>
+                <li>اضغط زر <strong className="text-white">«تثبيت التطبيق الآن»</strong> بالأسفل.</li>
+                <li>اختر دائماً <strong className="text-[var(--app-accent)]">«تثبيت» (Install)</strong> وليس مجرد إضافة رابط.</li>
               </ol>
             </div>
           </div>
 
           {/* Quick Features Highlight */}
           <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800">
-              <Zap className="w-5 h-5 text-[#d97706] mx-auto mb-1" />
+            <div className="bg-[#15345c]/40 p-2.5 rounded-2xl border border-[#1b4676]/40">
+              <Zap className="w-5 h-5 text-[var(--app-accent)] mx-auto mb-1.5" />
               <div className="text-[11px] font-black text-white">سرعة فائقة</div>
               <div className="text-[9px] text-slate-400">فتح مباشر دون تحميل</div>
             </div>
-            <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800">
-              <ShieldCheck className="w-5 h-5 text-[#0d9488] mx-auto mb-1" />
+            <div className="bg-[#15345c]/40 p-2.5 rounded-2xl border border-[#1b4676]/40">
+              <ShieldCheck className="w-5 h-5 text-[var(--app-accent)] mx-auto mb-1.5" />
               <div className="text-[11px] font-black text-white">توفير الباقة</div>
               <div className="text-[9px] text-slate-400">تخزين الصور في الهاتف</div>
             </div>
-            <div className="bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800">
-              <Smartphone className="w-5 h-5 text-[#60a5fa] mx-auto mb-1" />
+            <div className="bg-[#15345c]/40 p-2.5 rounded-2xl border border-[#1b4676]/40">
+              <Smartphone className="w-5 h-5 text-[#60a5fa] mx-auto mb-1.5" />
               <div className="text-[11px] font-black text-white">شاشة كاملة</div>
               <div className="text-[9px] text-slate-400">بدون شريط المتصفح</div>
             </div>
@@ -170,7 +165,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
 
           {/* Status Message if user triggered install */}
           {installStatusMsg && (
-            <div className="p-3 bg-[var(--app-warn)] border border-[var(--app-warn)] text-[#d97706] rounded-xl text-xs font-bold text-center animate-in fade-in">
+            <div className="p-3 bg-[#15345c]/60 border border-[#1b4676]/50 text-[var(--app-accent)] rounded-xl text-xs font-bold text-center animate-in fade-in">
               {installStatusMsg}
             </div>
           )}
@@ -179,84 +174,72 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
           {installPromptEvent && !isInstalled && (
             <button
               onClick={handleNativeInstall}
-              className="w-full py-4 bg-gradient-to-r from-[var(--app-warn)] via-[var(--app-warn)] to-[var(--app-warn)] hover:from-[var(--app-warn)] hover:to-[var(--app-warn)] text-slate-950 font-black rounded-2xl shadow-xl shadow-amber-500/25 text-sm flex items-center justify-center gap-2.5 transition transform active:scale-98 cursor-pointer border border-[var(--app-warn-line)]"
+              className="w-full py-4 bg-gradient-to-r from-[var(--app-accent)] to-teal-700 hover:from-[#00827a] hover:to-[#006d62] text-white font-black rounded-2xl shadow-xl shadow-[0_0_20px_rgba(0,148,136,0.25)] text-sm flex items-center justify-center gap-2.5 transition transform active:scale-98 cursor-pointer border border-[var(--app-accent)]"
             >
               <Download className="w-5 h-5 animate-bounce" />
-              <span>تثبيت التطبيق الرسمي الآن (بدون علامة كروم) ⚡</span>
+              <span>تثبيت التطبيق الرسمي الآن (بدون علامة متصفح)</span>
             </button>
           )}
 
           {/* Direct APK Download & External APK Section */}
-          <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-[var(--app-navy)] p-4 rounded-2xl border border-[var(--app-navy)] space-y-2.5">
+          <div className="bg-gradient-to-r from-[#0f2b38] via-[#0a1c30] to-[#15345c] p-4 rounded-2xl border border-[#1b4676] space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-[#60a5fa] font-black text-xs sm:text-sm">
                 <Smartphone className="w-4 h-4 text-[#60a5fa]" />
                 <span>ملف تطبيق أندرويد مباشر (APK) 📱</span>
               </div>
-              <span className="text-[10px] bg-[var(--app-navy)] text-[#60a5fa] px-2 py-0.5 rounded-full font-bold border border-[var(--app-navy)]">
+              <span className="text-[10px] bg-[#1b4676] text-[#60a5fa] px-2 py-0.5 rounded-full font-bold border border-[#1b4676]">
                 Direct APK
               </span>
             </div>
-            <p className="text-[11px] text-amber-300/90 leading-relaxed font-bold bg-amber-500/10 border border-amber-500/20 p-2 rounded-xl">
-              تنبيه: هذه هي النسخة الأولى التجريبية، وسيتم التطوير بشكل تقني أفضل ومستمر بإذن الله.
+            <p className="text-[11px] text-[#60a5fa]/90 leading-relaxed font-bold bg-[#1b4676]/40 border border-[#1b4676]/40 p-2 rounded-xl">
+              التنزيل المباشر لملف التطبيق لهواتف أندرويد، وسيتم التطوير بشكل أفضل مستمراً بإذن الله.
             </p>
-            <div className="flex items-center gap-2 pt-1">
-              <a
-                href="/tantawy-sales.apk"
-                download="tantawy-sales.apk"
-                className="flex-1 py-2.5 px-3 bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-md cursor-pointer"
-              >
-                <Download className="w-4 h-4" />
-                <span>تنزيل ملف APK لهواتف الأندرويد</span>
-              </a>
-              <a
-                href="https://www.pwabuilder.com"
-                target="_blank"
-                rel="noreferrer"
-                className="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
-                title="موقع PWABuilder الرسمي المجاني لتحويل الموقع إلى APK / Google Play"
-              >
-                <ExternalLink className="w-3.5 h-3.5 text-[#d97706]" />
-                <span>PWABuilder مجاناً</span>
-              </a>
-            </div>
+            <a
+              href="/tantawy-sales.apk"
+              download="tantawy-sales.apk"
+              className="w-full py-2.5 px-3 bg-[#1b4676] hover:bg-[#15345c] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-md cursor-pointer"
+            >
+              <Download className="w-4 h-4" />
+              <span>تنزيل ملف APK للأندرويد</span>
+            </a>
           </div>
 
           {/* Detailed Step-by-Step Instructions based on Device */}
           <div className="space-y-3">
             <div className="text-xs font-black text-slate-300 flex items-center justify-between">
               <span>خطوات التثبيت من المتصفح:</span>
-              <span className="text-[10px] text-[#d97706] font-bold">لضمان إزالة علامة كروم</span>
+              <span className="text-[10px] text-[var(--app-accent)] font-bold">لضمان إزالة علامة كروم</span>
             </div>
 
             {/* Android Chrome Instructions */}
             {(!isIOS || isAndroid) && (
-              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 text-xs">
-                <div className="font-black text-[#d97706] flex items-center gap-2">
-                  <Smartphone className="w-4 h-4 text-[#d97706]" />
+              <div className="bg-[#0a1c30]/50 p-4 rounded-2xl border border-[#1b4676]/40 space-y-3 text-xs">
+                <div className="font-black text-[var(--app-accent)] flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-[var(--app-accent)]" />
                   <span>خطوات التثبيت على هواتف أندرويد (سامسونج، شاومي، أوبو، فيفو...):</span>
                 </div>
                 
                 <div className="space-y-2.5 text-slate-300 leading-relaxed text-[11px]">
-                  <div className="flex items-start gap-2.5 bg-slate-900/80 p-2 rounded-xl border border-slate-800">
-                    <span className="w-5 h-5 rounded-full bg-[var(--app-warn)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">1</span>
+                  <div className="flex items-start gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
+                    <span className="w-5 h-5 rounded-full bg-[var(--app-accent)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">1</span>
                     <div>
-                      <span>اضغط على قائمة <strong>الخيارات (الثلاث نقاط)</strong> <MoreVertical className="w-3.5 h-3.5 inline text-[#d97706] mx-0.5" /> بأعلى شاشة متصفح Google Chrome.</span>
+                      <span>اضغط على قائمة <strong>الخيارات (الثلاث نقاط)</strong> <MoreVertical className="w-3.5 h-3.5 inline text-[var(--app-accent)] mx-0.5" /> بأعلى شاشة متصفح Google Chrome.</span>
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-2.5 bg-slate-900/80 p-2 rounded-xl border border-slate-800">
-                    <span className="w-5 h-5 rounded-full bg-[var(--app-warn)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">2</span>
+                  <div className="flex items-start gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
+                    <span className="w-5 h-5 rounded-full bg-[var(--app-accent)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">2</span>
                     <div>
                       <span>ابحث عن خيار <strong className="text-[#0d9488]">"تثبيت التطبيق" (Install app)</strong> <Download className="w-3.5 h-3.5 inline text-[#0d9488] mx-0.5" />.</span>
-                      <p className="text-[10px] text-[#d97706] font-semibold mt-0.5">
+                      <p className="text-[10px] text-[var(--app-accent)] font-semibold mt-0.5">
                         ⚠️ ملحوظة: تجنب خيار "إضافة إلى الشاشة الرئيسية" واختر دائماً "تثبيت التطبيق".
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-start gap-2.5 bg-slate-900/80 p-2 rounded-xl border border-slate-800">
-                    <span className="w-5 h-5 rounded-full bg-[var(--app-warn)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">3</span>
+                  <div className="flex items-start gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
+                    <span className="w-5 h-5 rounded-full bg-[var(--app-accent)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">3</span>
                     <div>
                       <span>اضغط <strong>تثبيت (Install)</strong> لتأكيد التثبيت.</span>
                       <p className="text-[10px] text-[#0d9488] font-bold mt-0.5">
@@ -270,22 +253,22 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
 
             {/* iOS Safari Instructions */}
             {isIOS && (
-              <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3 text-xs">
-                <div className="font-black text-[#d97706] flex items-center gap-2">
-                  <Smartphone className="w-4 h-4 text-[#d97706]" />
+              <div className="bg-[#0a1c30]/50 p-4 rounded-2xl border border-[#1b4676]/40 space-y-3 text-xs">
+                <div className="font-black text-[var(--app-accent)] flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-[var(--app-accent)]" />
                   <span>خطوات التثبيت على الآيفون والآيباد (iPhone / iPad - Safari):</span>
                 </div>
                 <div className="space-y-2 text-slate-300 leading-relaxed text-[11px]">
-                  <div className="flex items-center gap-2.5 bg-slate-900/80 p-2 rounded-xl border border-slate-800">
-                    <span className="w-5 h-5 rounded-full bg-[var(--app-warn)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0">1</span>
+                  <div className="flex items-center gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
+                    <span className="w-5 h-5 rounded-full bg-[var(--app-accent)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0">1</span>
                     <span>اضغط على زر <strong>المشاركة (Share)</strong> <Share className="w-3.5 h-3.5 inline text-[#60a5fa] mx-1" /> في أسفل متصفح Safari.</span>
                   </div>
-                  <div className="flex items-center gap-2.5 bg-slate-900/80 p-2 rounded-xl border border-slate-800">
-                    <span className="w-5 h-5 rounded-full bg-[var(--app-warn)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0">2</span>
+                  <div className="flex items-center gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
+                    <span className="w-5 h-5 rounded-full bg-[var(--app-accent)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0">2</span>
                     <span>مرر لأسفل واختر <strong>"إضافة إلى الصفحة الرئيسية" (Add to Home Screen)</strong> <PlusSquare className="w-3.5 h-3.5 inline text-[#0d9488] mx-1" />.</span>
                   </div>
-                  <div className="flex items-center gap-2.5 bg-slate-900/80 p-2 rounded-xl border border-slate-800">
-                    <span className="w-5 h-5 rounded-full bg-[var(--app-warn)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0">3</span>
+                  <div className="flex items-center gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
+                    <span className="w-5 h-5 rounded-full bg-[var(--app-accent)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0">3</span>
                     <span>اضغط على <strong>إضافة (Add)</strong> بالأعلى. ستظهر أيقونة التطبيق الفخمة فوراً بدون علامة متصفح.</span>
                   </div>
                 </div>
@@ -297,17 +280,17 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
           <div className="pt-2">
             <button
               onClick={() => setShowTroubleshooting(!showTroubleshooting)}
-              className="w-full text-right text-xs text-[#d97706] hover:text-[#d97706] font-bold flex items-center justify-between p-2.5 bg-slate-950/60 rounded-xl border border-slate-800 transition cursor-pointer"
+              className="w-full text-right text-xs text-[var(--app-accent)] hover:text-[var(--app-accent)] font-bold flex items-center justify-between p-2.5 bg-[#0a1c30]/40 rounded-xl border border-[#1b4676]/40 transition cursor-pointer"
             >
               <span className="flex items-center gap-1.5">
-                <HelpCircle className="w-4 h-4 text-[#d97706]" />
+                <HelpCircle className="w-4 h-4 text-[var(--app-accent)]" />
                 <span>ما زالت علامة كروم ظاهرة على الأيقونة؟ اضغط هنا للحل</span>
               </span>
               <span className="text-slate-400">{showTroubleshooting ? '▲' : '▼'}</span>
             </button>
 
             {showTroubleshooting && (
-              <div className="mt-2 p-3 bg-slate-950 rounded-xl border border-slate-800 text-[11px] text-slate-300 space-y-2 leading-relaxed">
+              <div className="mt-2 p-3 bg-[#0a1c30]/40 rounded-xl border border-[#1b4676]/40 text-[11px] text-slate-300 space-y-2 leading-relaxed">
                 <p>
                   <strong>1. تأكد من فتح الرابط داخل تطبيق Chrome مباشرة:</strong> إذا فتحت الرابط من داخل واتساب، اضغط على الثلاث نقاط بالأعلى واختر <em>"فتح في متصفح Chrome"</em> أولاً.
                 </p>
@@ -324,7 +307,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
           {/* Close Action Button */}
           <button
             onClick={onClose}
-            className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-2xl text-xs transition cursor-pointer"
+            className="w-full py-3 bg-[#1b4676] hover:bg-[#15345c] text-white font-bold rounded-2xl text-xs transition cursor-pointer"
           >
             إغلاق النافذة
           </button>
