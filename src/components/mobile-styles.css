@@ -1,0 +1,415 @@
+/* ============================================================
+   Mobile Responsive & Typography Utilities - مجموعة الطنطاوي
+   ============================================================ */
+
+/* Typography Scale */
+.font-display-xs { font-size: 0.75rem; font-weight: 700; }
+.font-display-sm { font-size: 0.875rem; font-weight: 700; }
+.font-display-md { font-size: 1rem; font-weight: 700; }
+.font-display-lg { font-size: 1.25rem; font-weight: 800; }
+
+.text-mobile-sm { font-size: 0.75rem; }
+.text-mobile-md { font-size: 0.875rem; }
+.text-mobile-lg { font-size: 1rem; }
+
+/* Padding Utilities */
+.p-mobile-xs { padding: 0.5rem; }
+.p-mobile-sm { padding: 0.75rem; }
+.p-mobile-md { padding: 1rem; }
+.p-mobile-lg { padding: 1.25rem; }
+
+.px-mobile-sm { padding-left: 0.75rem; padding-right: 0.75rem; }
+.px-mobile-md { padding-left: 1rem; padding-right: 1rem; }
+
+.py-mobile-sm { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.py-mobile-md { padding-top: 1rem; padding-bottom: 1rem; }
+
+.mb-mobile-sm { margin-bottom: 0.75rem; }
+.mb-mobile-md { margin-bottom: 1rem; }
+.mt-mobile-sm { margin-top: 0.75rem; }
+.mt-mobile-md { margin-top: 1rem; }
+
+/* Card Padding */
+.card-p-mobile-xs { padding: 0.5rem; }
+.card-p-mobile-sm { padding: 0.75rem; }
+.card-p-mobile-md { padding: 1rem; }
+
+/* Table Cell Padding */
+.table-p-mobile-xs { padding: 0.4rem 0.5rem; }
+.table-p-mobile-sm { padding: 0.6rem 0.75rem; }
+.table-p-mobile-md { padding: 0.8rem 1rem; }
+
+/* Button Heights */
+.btn-h-mobile-sm { height: 2.5rem; }
+.btn-h-mobile-md { height: 2.75rem; }
+
+/* Input Heights */
+.input-h-mobile-sm { height: 2.5rem; }
+.input-h-mobile-md { height: 2.75rem; }
+
+/* Responsive Grid */
+.grid-mobile-cols-1 { grid-template-columns: repeat(1, 1fr); }
+.grid-mobile-cols-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-mobile-cols-3 { grid-template-columns: repeat(3, 1fr); }
+
+/* Shadow & Radius */
+.shadow-mobile-sm { box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1); }
+.shadow-mobile-md { box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+
+.rounded-mobile-sm { border-radius: 0.5rem; }
+.rounded-mobile-md { border-radius: 0.75rem; }
+.rounded-mobile-lg { border-radius: 1rem; }
+
+/* Mobile-specific typography */
+@media (max-width: 640px) {
+  .text-mobile-h1 { font-size: 1.5rem; font-weight: 800; line-height: 1.2; }
+  .text-mobile-h2 { font-size: 1.25rem; font-weight: 700; line-height: 1.3; }
+  .text-mobile-body { font-size: 0.95rem; font-weight: 500; line-height: 1.5; }
+  .text-mobile-caption { font-size: 0.8rem; font-weight: 500; line-height: 1.4; color: #64748b; }
+  
+  .p-mobile-layout { padding: 0.75rem; }
+  .rounded-mobile-card { border-radius: 0.75rem; }
+  .table-cell-mobile { padding: 0.75rem 0.5rem; }
+  .btn-mobile { height: 2.75rem; font-size: 0.875rem; font-weight: 700; }
+  .input-mobile { height: 2.75rem; font-size: 0.875rem; padding: 0 1rem; }
+  .grid-mobile-1 { grid-template-columns: 1fr; }
+  .grid-mobile-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .gap-mobile-sm { gap: 0.5rem; }
+  .gap-mobile-md { gap: 1rem; }
+  .text-mobile-center { text-align: center; }
+  .show-mobile { display: block; }
+  .hide-mobile { display: none; }
+  .badge-mobile { padding: 0.25rem 0.5rem; font-size: 0.75rem; font-weight: 700; border-radius: 0.375rem; }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .text-mobile-h1 { font-size: 1.75rem; }
+  .text-mobile-h2 { font-size: 1.5rem; }
+  .p-mobile-layout { padding: 1rem; }
+  .grid-mobile-2 { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 1025px) {
+  .text-mobile-h1 { font-size: 2rem; }
+  .text-mobile-h2 { font-size: 1.75rem; }
+  .p-mobile-layout { padding: 1.5rem; }
+}
+
+/* Table responsive on mobile */
+.table-responsive-mobile {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-row-mobile {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.table-cell-mobile {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.table-cell-label-mobile {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Mobile cards */
+.card-mobile {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+}
+
+.card-mobile-header {
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: #0f172a;
+}
+
+.card-mobile-value {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+/* Mobile buttons */
+.btn-mobile-primary {
+  background: linear-gradient(to right, #009488, #0e7a6e);
+  color: #ffffff;
+  font-weight: 700;
+  border-radius: 0.5rem;
+  padding: 0.625rem 1rem;
+  height: 2.75rem;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.18s ease;
+}
+
+.btn-mobile-primary:hover {
+  box-shadow: 0 4px 12px rgba(0, 148, 136, 0.3);
+  transform: translateY(-1px);
+}
+
+.btn-mobile-primary:active {
+  transform: translateY(0);
+}
+
+/* Mobile inputs */
+.input-mobile {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  padding: 0.625rem 1rem;
+  font-size: 0.875rem;
+  height: 2.75rem;
+  width: 100%;
+  transition: all 0.18s ease;
+}
+
+.input-mobile:focus {
+  outline: none;
+  border-color: #009488;
+  box-shadow: 0 0 0 3px rgba(0, 148, 136, 0.2);
+}
+
+/* Mobile badges */
+.badge-mobile {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.badge-mobile-success {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #d1fae5;
+}
+
+.badge-mobile-warning {
+  background: #fef3c7;
+  color: #d97706;
+  border: 1px solid #fcd34d;
+}
+
+.badge-mobile-danger {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+/* Table header mobile */
+.table-header-mobile {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 0.5rem;
+  padding: 0.75rem 0.5rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+}
+
+/* Table row mobile */
+.table-row-mobile-compact {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+  gap: 0.5rem;
+  padding: 0.75rem 0.5rem;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+
+/* Divider */
+.divider-mobile {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 0.75rem 0;
+}
+
+/* Section */
+.section-mobile {
+  margin-bottom: 1rem;
+}
+
+.section-title-mobile {
+  font-size: 0.875rem;
+  font-weight: 700;
+  margin-bottom: 0.5rem;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Footer mobile */
+.footer-mobile {
+  padding: 0.75rem 1rem;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  text-align: center;
+  border-top: 1px solid #e2e8f0;
+}
+
+/* Input group mobile */
+.input-group-mobile {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  padding: 0 0.75rem;
+  height: 2.75rem;
+}
+
+.input-group-mobile input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.875rem;
+  color: #0f172a;
+}
+
+.input-group-mobile-icon {
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+/* List item mobile */
+.list-item-mobile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.875rem;
+  color: #0f172a;
+}
+
+.list-item-mobile:last-child {
+  border-bottom: none;
+}
+
+.list-item-icon-mobile {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  color: #009488;
+  font-size: 1rem;
+}
+
+/* Status badge mobile */
+.status-badge-mobile {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 0.375rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.status-badge-mobile-success {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.status-badge-mobile-warning {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.status-badge-mobile-danger {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* Table section mobile */
+.table-section-mobile {
+  margin-bottom: 1rem;
+  background: #ffffff;
+  border-radius: 0.75rem;
+  border: 1px solid #e2e8f0;
+  overflow: hidden;
+}
+
+.table-section-header-mobile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.table-section-title-mobile {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.table-section-count-mobile {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+/* Action buttons mobile */
+.action-btn-mobile {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: #f8fafc;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.action-btn-mobile:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.action-btn-mobile-primary {
+  background: #009488;
+  color: #ffffff;
+}
+
+.action-btn-mobile-primary:hover {
+  background: #0e7a6e;
+}
