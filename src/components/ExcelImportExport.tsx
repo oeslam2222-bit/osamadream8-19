@@ -33,7 +33,7 @@ import {
   Home,
   X
 } from 'lucide-react';
-import React, { useId, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   cleanCustomerCode,
@@ -78,6 +78,9 @@ import {
 
 type SheetKey = keyof PublishedDataSources;
 
+/** نتيجة كل عملية مزامنة — لازم ترجع للمستدعي عشان "مزامنة الكل" تعرف مين نجح ومين فشل */
+type SyncResult = { ok: boolean; message: string };
+
 export interface ExcelImportExportProps {
   onNavigateToItemSales?: () => void;
 }
@@ -99,6 +102,13 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
     wipeAllProductsAndData,
     selectedBranchFilter
   } = useApp();
+
+  // دليل العملاء المحدَّث دائماً: "مزامنة الكل" بتنفذ أكثر من استيراد في نفس الدورة،
+  // والقيمة القديمة من الـ closure بتخلي ربط مبيعات الأصناف بالعملاء الجدد يفشل.
+  const customersRef = useRef(customers);
+  useEffect(() => {
+    customersRef.current = customers;
+  }, [customers]);
 
   // Active sector tab (قطاع الأدوات المنزلية / قطاع الكهرباء)
   const [activeSectorTab, setActiveSectorTab] = useState<'home' | 'electrical'>('home');
@@ -189,12 +199,13 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
   };
 
   // 1. Sync Customers Sheet (العملاء والمديونيات)
-  const handleSyncCustomers = async (urlOverride?: string) => {
+  const handleSyncCustomers = async (urlOverride?: string, batch = false): Promise<SyncResult> => {
     const key = getSectorKey('customers');
     const url = (urlOverride || sourceUrls[key] || '').trim();
     if (!url) {
-      setSheetErrors((prev) => ({ ...prev, [key]: `يرجى إدخال رابط Google Sheet الخاص بعملاء ${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'} أولاً` }));
-      return;
+      const message = `يرجى إدخال رابط Google Sheet الخاص بعملاء ${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'} أولاً`;
+      setSheetErrors((prev) => ({ ...prev, [key]: message }));
+      return { ok: false, message };
     }
     setSyncingKey(key);
     setSheetErrors((prev) => ({ ...prev, [key]: null }));
@@ -225,21 +236,24 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         ...prev,
         [key]: `تم بنجاح تحديث ${importResult.count} عميل فريد لـ (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'})، وحذف أي مكررات سابقة. البيانات محدثة ومتاحة الآن للمناديب والمشرفين.`
       }));
+      return { ok: true, message: `تم تحديث ${importResult.count} عميل فريد` };
     } catch (err: any) {
-      setSheetErrors((prev) => ({ ...prev, [key]: err?.message || 'فشلت مزامنة شيت العملاء' }));
+      const message = err?.message || 'فشلت مزامنة شيت العملاء';
+      setSheetErrors((prev) => ({ ...prev, [key]: message }));
+      return { ok: false, message };
     } finally {
-      setSyncingKey(null);
+      if (!batch) setSyncingKey(null);
     }
   };
 
   // 2. Sync Customer Item Sales Sheet (شيت مبيعات العملاء بالصنف)
-  // 2. Sync Customer Item Sales Sheet (شيت مبيعات العملاء بالصنف)
-  const handleSyncCustomerSales = async (urlOverride?: string) => {
+  const handleSyncCustomerSales = async (urlOverride?: string, batch = false): Promise<SyncResult> => {
     const key = getSectorKey('customerSales');
     const url = (urlOverride || sourceUrls[key] || '').trim();
     if (!url) {
-      setSheetErrors((prev) => ({ ...prev, [key]: `يرجى إدخال رابط Google Sheet الخاص بمبيعات ${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'} بالصنف أولاً` }));
-      return;
+      const message = `يرجى إدخال رابط Google Sheet الخاص بمبيعات ${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'} بالصنف أولاً`;
+      setSheetErrors((prev) => ({ ...prev, [key]: message }));
+      return { ok: false, message };
     }
     setSyncingKey(key);
     setSheetErrors((prev) => ({ ...prev, [key]: null }));
@@ -253,7 +267,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       const itemSalesRes = await fetchCustomerItemSalesFromGoogleSheet(url);
       if (itemSalesRes.sales && itemSalesRes.sales.length > 0) {
         // Automatically link customer codes with master customer directory to resolve branch and sales rep
-        const enrichedRes = enrichCustomerItemSalesWithDirectory(itemSalesRes.sales, customers);
+        const enrichedRes = enrichCustomerItemSalesWithDirectory(itemSalesRes.sales, customersRef.current);
         const finalSales = enrichedRes.enriched.map((s) => ({
           ...s,
           sector: activeSectorTab,
@@ -270,7 +284,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         const phoneMap = new Map<string, Customer>();
         const nameMap = new Map<string, Customer>();
 
-        customers.forEach((c) => {
+        customersRef.current.forEach((c) => {
           const cd = cleanCustomerCode(c.code);
           if (cd) codeMap.set(cd, c);
           const ph = cleanCustomerPhone(c.phone);
@@ -289,7 +303,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
           custTotals.set(k, prev);
         });
 
-        const updatedCustomers = [...customers];
+        const updatedCustomers = [...customersRef.current];
         let updatedCount = 0;
         let newCount = 0;
 
@@ -341,7 +355,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
           ...prev,
           [key]: `تم بنجاح مزامنة ${finalSales.length.toLocaleString('ar-EG')} حركة مبيعات صنف لـ (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'})، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) لاستخراج فروعهم ومناديبهم تلقائياً بدون تكرار! البيانات متاحة الآن في قسم "مبيعات الأصناف".`
         }));
-        return;
+        return { ok: true, message: `تم مزامنة ${finalSales.length} حركة مبيعات صنف` };
       }
 
       // Fallback: regular customer target sheet parser
@@ -354,7 +368,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       const phoneMap = new Map<string, Customer>();
       const nameMap = new Map<string, Customer>();
 
-      customers.forEach((c) => {
+      customersRef.current.forEach((c) => {
         const cd = cleanCustomerCode(c.code);
         if (cd) codeMap.set(cd, c);
         const ph = cleanCustomerPhone(c.phone);
@@ -362,7 +376,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         if (c.name) nameMap.set(normalizeArabicText(c.name).replace(/\s+/g, ''), c);
       });
 
-      const updatedCustomers = [...customers];
+      const updatedCustomers = [...customersRef.current];
       let updatedCount = 0;
       let newCount = 0;
 
@@ -399,20 +413,24 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         ...prev,
         [key]: `تم بنجاح تحديث أرقام مبيعات وتارجت ${updatedCount} عميل قائم وإدراج ${newCount} عميل جديد لـ (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'}) بدون تكرار!`
       }));
+      return { ok: true, message: `تم تحديث ${updatedCount} عميل وإدراج ${newCount} عميل جديد` };
     } catch (err: any) {
-      setSheetErrors((prev) => ({ ...prev, [key]: err?.message || 'فشلت مزامنة شيت مبيعات العملاء' }));
+      const message = err?.message || 'فشلت مزامنة شيت مبيعات العملاء';
+      setSheetErrors((prev) => ({ ...prev, [key]: message }));
+      return { ok: false, message };
     } finally {
-      setSyncingKey(null);
+      if (!batch) setSyncingKey(null);
     }
   };
 
   // 3. Sync Products Sheet (الأصناف والمخزون والأسعار)
-  const handleSyncProducts = async (urlOverride?: string) => {
+  const handleSyncProducts = async (urlOverride?: string, batch = false): Promise<SyncResult> => {
     const key = getSectorKey('products');
     const url = (urlOverride || sourceUrls[key] || '').trim();
     if (!url) {
-      setSheetErrors((prev) => ({ ...prev, [key]: `يرجى إدخال رابط Google Sheet الخاص بأصناف ${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'} أولاً` }));
-      return;
+      const message = `يرجى إدخال رابط Google Sheet الخاص بأصناف ${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'} أولاً`;
+      setSheetErrors((prev) => ({ ...prev, [key]: message }));
+      return { ok: false, message };
     }
     setSyncingKey(key);
     setSheetErrors((prev) => ({ ...prev, [key]: null }));
@@ -446,20 +464,24 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         ...prev,
         [key]: `تم بنجاح جلب وتحديث ${dedupedProducts.length} صنف لـ (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'}) ومطابقة الأسعار ورصيد المخازن!`
       }));
+      return { ok: true, message: `تم تحديث ${dedupedProducts.length} صنف` };
     } catch (err: any) {
-      setSheetErrors((prev) => ({ ...prev, [key]: err?.message || 'فشلت مزامنة شيت الأصناف والمخزون' }));
+      const message = err?.message || 'فشلت مزامنة شيت الأصناف والمخزون';
+      setSheetErrors((prev) => ({ ...prev, [key]: message }));
+      return { ok: false, message };
     } finally {
-      setSyncingKey(null);
+      if (!batch) setSyncingKey(null);
     }
   };
 
   // 4. Sync Targets Sheet (أهداف ومبيعات المناديب)
-  const handleSyncTargets = async (urlOverride?: string) => {
+  const handleSyncTargets = async (urlOverride?: string, batch = false): Promise<SyncResult> => {
     const key = getSectorKey('targets');
     const url = (urlOverride || sourceUrls[key] || '').trim();
     if (!url) {
-      setSheetErrors((prev) => ({ ...prev, [key]: `يرجى إدخال رابط Google Sheet الخاص بأهداف ${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'} أولاً` }));
-      return;
+      const message = `يرجى إدخال رابط Google Sheet الخاص بأهداف ${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'} أولاً`;
+      setSheetErrors((prev) => ({ ...prev, [key]: message }));
+      return { ok: false, message };
     }
     setSyncingKey(key);
     setSheetErrors((prev) => ({ ...prev, [key]: null }));
@@ -478,20 +500,24 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         ...prev,
         [key]: `تم بنجاح تحديث شيت أهداف المناديب لـ (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'}) (${res.count} سجل) بدون تكرار! ظهرت مباشرة في لوحة متابعة الأداء.`
       }));
+      return { ok: true, message: `تم تحديث ${res.count} سجل هدف` };
     } catch (err: any) {
-      setSheetErrors((prev) => ({ ...prev, [key]: err?.message || 'فشلت مزامنة شيت الأهداف' }));
+      const message = err?.message || 'فشلت مزامنة شيت الأهداف';
+      setSheetErrors((prev) => ({ ...prev, [key]: message }));
+      return { ok: false, message };
     } finally {
-      setSyncingKey(null);
+      if (!batch) setSyncingKey(null);
     }
   };
 
   // 5. Sync Offers Sheet (العروض والخصومات)
-  const handleSyncOffers = async (urlOverride?: string) => {
+  const handleSyncOffers = async (urlOverride?: string, batch = false): Promise<SyncResult> => {
     const key = getSectorKey('offers');
     const url = (urlOverride || sourceUrls[key] || '').trim();
     if (!url) {
-      setSheetErrors((prev) => ({ ...prev, [key]: `يرجى إدخال رابط Google Sheet الخاص بجدول عروض ${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'} أولاً` }));
-      return;
+      const message = `يرجى إدخال رابط Google Sheet الخاص بجدول عروض ${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'} أولاً`;
+      setSheetErrors((prev) => ({ ...prev, [key]: message }));
+      return { ok: false, message };
     }
     setSyncingKey(key);
     setSheetErrors((prev) => ({ ...prev, [key]: null }));
@@ -503,16 +529,19 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
       // Read sheet and match promo prices / discounts
       const res = await fetchAndParseGoogleSheet(url);
+      let appliedOffersCount = 0;
       if (res.products && res.products.length > 0) {
         // Merge promotional pricing into existing products catalog
-        let appliedOffersCount = 0;
         const offerMap = new Map<string, { promoPrice?: number; discount?: number }>();
         res.products.forEach((p) => {
           const k = (p.code || p.unifiedCode || '').trim().toLowerCase();
-          if (k && (p.promoPrice || p.cartonPrice)) {
+          // سعر العرض الحقيقي فقط: السعر العادي (cartonPrice) مش عرض،
+          // وإلا كل صنف في الشيت كان بيتحسب "عرض مفعل" بالغلط.
+          const promo = p.promoPrice || p.offerPrice || 0;
+          if (k && promo > 0) {
             offerMap.set(k, {
-              promoPrice: p.promoPrice || p.cartonPrice,
-              discount: p.promoPrice && p.cartonPrice ? Math.round(((p.cartonPrice - p.promoPrice) / p.cartonPrice) * 100) : undefined,
+              promoPrice: promo,
+              discount: p.cartonPrice ? Math.round(((p.cartonPrice - promo) / p.cartonPrice) * 100) : undefined,
             });
           }
         });
@@ -544,92 +573,71 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
           [key]: `تم حفظ وتأكيد رابط شيت عروض (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'}) بنجاح وهو متصل ومتاح للاستخدام الدائم.`
         }));
       }
+      return { ok: true, message: `تم تطبيق أسعار العروض على ${appliedOffersCount} صنف` };
     } catch (err: any) {
-      setSheetErrors((prev) => ({ ...prev, [key]: err?.message || 'فشلت مزامنة شيت العروض' }));
+      const message = err?.message || 'فشلت مزامنة شيت العروض';
+      setSheetErrors((prev) => ({ ...prev, [key]: message }));
+      return { ok: false, message };
     } finally {
-      setSyncingKey(null);
+      if (!batch) setSyncingKey(null);
     }
   };
 
   // Master One-Click Sync for All 5 Sheets of the Active Sector Concurrently
   const handleSyncAllSheets = async () => {
-    setSyncingKey('all');
     const sectorName = activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية';
+
+    const jobs: { label: string; key: SheetKey; run: (url: string, batch: boolean) => Promise<SyncResult> }[] = [
+      { label: 'العملاء', key: getSectorKey('customers'), run: handleSyncCustomers },
+      { label: 'مبيعات العملاء', key: getSectorKey('customerSales'), run: handleSyncCustomerSales },
+      { label: 'الأصناف', key: getSectorKey('products'), run: handleSyncProducts },
+      { label: 'الأهداف', key: getSectorKey('targets'), run: handleSyncTargets },
+      { label: 'العروض', key: getSectorKey('offers'), run: handleSyncOffers },
+    ];
+
+    setSyncingKey('all');
     setMasterSyncProgress(`بدء مزامنة كافة الشيتات الـ 5 لـ (${sectorName})...`);
 
     let syncedCount = 0;
     const errors: string[] = [];
 
-    const custKey = getSectorKey('customers');
-    const salesKey = getSectorKey('customerSales');
-    const prodKey = getSectorKey('products');
-    const targetKey = getSectorKey('targets');
-    const offerKey = getSectorKey('offers');
-
-    // 1. Customers
-    if (sourceUrls[custKey]) {
-      setMasterSyncProgress(`1/5: جاري قراءة وتحديث شيت قاعدة عملاء ${sectorName} بدون تكرار...`);
-      try {
-        await handleSyncCustomers(sourceUrls[custKey]);
-        syncedCount++;
-      } catch (e: any) {
-        errors.push(`العملاء: ${e?.message}`);
+    try {
+      for (let i = 0; i < jobs.length; i++) {
+        const job = jobs[i];
+        const url = (sourceUrls[job.key] || '').trim();
+        if (!url) {
+          // الرابط غير محفوظ: بنسجله كفشل بدل ما نعدّه نجاح وهمي.
+          errors.push(`${job.label}: لا يوجد رابط محفوظ لهذا الشيت`);
+          continue;
+        }
+        setMasterSyncProgress(`${i + 1}/5: جاري قراءة وتحديث شيت ${job.label} لـ ${sectorName}...`);
+        const result = await job.run(url, true);
+        if (result.ok) {
+          syncedCount++;
+        } else {
+          errors.push(`${job.label}: ${result.message}`);
+        }
       }
-    }
 
-    // 2. Customer Sales
-    if (sourceUrls[salesKey]) {
-      setMasterSyncProgress(`2/5: جاري دمج وتحديث شيت مبيعات عملاء ${sectorName}...`);
-      try {
-        await handleSyncCustomerSales(sourceUrls[salesKey]);
-        syncedCount++;
-      } catch (e: any) {
-        errors.push(`مبيعات العملاء: ${e?.message}`);
+      // Final dedup safety sweep
+      setMasterSyncProgress('فحص نهائي وتأكيد منع التكرار وتحديث أجهزة المناديب...');
+      cleanAndDeduplicateCustomers();
+
+      if (syncedCount === jobs.length) {
+        setMasterSyncProgress(
+          `اكتملت المزامنة بنجاح! تم تحديث ${syncedCount} شيت رئيسي وتعميم البيانات في ثوانٍ معدودة بدون أي تكرار.`
+        );
+      } else if (syncedCount > 0) {
+        setMasterSyncProgress(`تم تحديث ${syncedCount} من ${jobs.length} شيت. لم يكتمل: ${errors.join(' • ')}`);
+      } else {
+        setMasterSyncProgress(`لم يتم تحديث أي شيت. الأسباب: ${errors.join(' • ')}`);
       }
+    } catch (e: any) {
+      setMasterSyncProgress(`توقفت المزامنة بسبب خطأ غير متوقع: ${e?.message || e}`);
+    } finally {
+      setSyncingKey(null);
+      setTimeout(() => setMasterSyncProgress(null), 10000);
     }
-
-    // 3. Products
-    if (sourceUrls[prodKey]) {
-      setMasterSyncProgress(`3/5: جاري قراءة وتحديث شيت أصناف وكتالوج ${sectorName}...`);
-      try {
-        await handleSyncProducts(sourceUrls[prodKey]);
-        syncedCount++;
-      } catch (e: any) {
-        errors.push(`الأصناف: ${e?.message}`);
-      }
-    }
-
-    // 4. Targets
-    if (sourceUrls[targetKey]) {
-      setMasterSyncProgress(`4/5: جاري قراءة وتحديث شيت أهداف وتارجت ${sectorName}...`);
-      try {
-        await handleSyncTargets(sourceUrls[targetKey]);
-        syncedCount++;
-      } catch (e: any) {
-        errors.push(`الأهداف: ${e?.message}`);
-      }
-    }
-
-    // 5. Offers
-    if (sourceUrls[offerKey]) {
-      setMasterSyncProgress(`5/5: جاري تطبيق شيت عروض وتخفيضات ${sectorName}...`);
-      try {
-        await handleSyncOffers(sourceUrls[offerKey]);
-        syncedCount++;
-      } catch (e: any) {
-        errors.push(`العروض: ${e?.message}`);
-      }
-    }
-
-    // Final dedup safety sweep
-    setMasterSyncProgress('فحص نهائي وتأكيد منع التكرار وتحديث أجهزة المناديب...');
-    cleanAndDeduplicateCustomers();
-
-    setMasterSyncProgress(
-      `اكتملت المزامنة بنجاح! تم تحديث ${syncedCount} شيت رئيسي وتعميم البيانات في ثوانٍ معدودة بدون أي تكرار.`
-    );
-    setSyncingKey(null);
-    setTimeout(() => setMasterSyncProgress(null), 8000);
   };
 
   // Run Dedup Audit on Demand
@@ -650,8 +658,9 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
   const handleUploadCustomerFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setSyncingKey('customers');
-    setSheetErrors((prev) => ({ ...prev, customers: null }));
+    const key = getSectorKey('customers');
+    setSyncingKey(key);
+    setSheetErrors((prev) => ({ ...prev, [key]: null }));
     try {
       const res = await parseExcelCustomers(file);
       if (res.errors.length > 0 && res.customers.length === 0) {
@@ -662,13 +671,12 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         sector: activeSectorTab,
       }));
       const importRes = await importCustomersList(sectorTagged, 'replace');
-      const key = getSectorKey('customers');
       setSheetSuccess((prev) => ({
         ...prev,
         [key]: `تم بنجاح رفع ملف الإكسل وتحديث ${importRes.count} عميل لـ (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'}) بدون تكرار!`
       }));
     } catch (err: any) {
-      setSheetErrors((prev) => ({ ...prev, customers: err?.message || 'فشل رفع ملف العملاء' }));
+      setSheetErrors((prev) => ({ ...prev, [key]: err?.message || 'فشل رفع ملف العملاء' }));
     } finally {
       setSyncingKey(null);
       if (fileInputCustomersRef.current) fileInputCustomersRef.current.value = '';
@@ -678,14 +686,15 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
   const handleUploadCustomerSalesFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setSyncingKey('customerSales');
-    setSheetErrors((prev) => ({ ...prev, customerSales: null }));
+    const key = getSectorKey('customerSales');
+    setSyncingKey(key);
+    setSheetErrors((prev) => ({ ...prev, [key]: null }));
     try {
       // 1. Try parsing customer item sales format first
       const itemSalesRes = await parseExcelCustomerItemSales(file);
       if (itemSalesRes.sales && itemSalesRes.sales.length > 0) {
         // Automatically link customer codes with master customer directory to resolve branch and sales rep
-        const enrichedRes = enrichCustomerItemSalesWithDirectory(itemSalesRes.sales, customers);
+        const enrichedRes = enrichCustomerItemSalesWithDirectory(itemSalesRes.sales, customersRef.current);
         const finalSales = enrichedRes.enriched;
         await saveCustomerItemSales(finalSales, 'merge');
 
@@ -699,7 +708,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         const phoneMap = new Map<string, Customer>();
         const nameMap = new Map<string, Customer>();
 
-        customers.forEach((c) => {
+        customersRef.current.forEach((c) => {
           const cd = cleanCustomerCode(c.code);
           if (cd) codeMap.set(cd, c);
           const ph = cleanCustomerPhone(c.phone);
@@ -718,7 +727,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
           custTotals.set(k, prev);
         });
 
-        const updatedCustomers = [...customers];
+        const updatedCustomers = [...customersRef.current];
         let updatedCount = 0;
         let newCount = 0;
 
@@ -766,7 +775,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
         setSheetSuccess((prev) => ({
           ...prev,
-          customerSales: `ت���� بنجاح رفع ملف الإكسل وتحديث ${finalSales.length.toLocaleString('ar-EG')} حركة صنف، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) وتحديد فروعهم ومناديبهم تلقائياً بدون تكرار!`
+          [key]: `تم بنجاح رفع ملف الإكسل وتحديث ${finalSales.length.toLocaleString('ar-EG')} حركة صنف، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) وتحديد فروعهم ومناديبهم تلقائياً بدون تكرار!`
         }));
         return;
       }
@@ -778,7 +787,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       }
 
       // Merge in place with existing customers
-      const updatedCustomers = [...customers];
+      const updatedCustomers = [...customersRef.current];
       let updatedCount = 0;
       let newCount = 0;
 
@@ -786,7 +795,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       const phoneMap = new Map<string, Customer>();
       const nameMap = new Map<string, Customer>();
 
-      customers.forEach((c) => {
+      customersRef.current.forEach((c) => {
         const cd = cleanCustomerCode(c.code);
         if (cd) codeMap.set(cd, c);
         const ph = cleanCustomerPhone(c.phone);
@@ -820,10 +829,10 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
       setSheetSuccess((prev) => ({
         ...prev,
-        customerSales: `تم بنجاح رفع ملف مبيعات العملاء وتحديث ${updatedCount} عميل قائم وإدراج ${newCount} عميل جديد بدون أي تكرار!`
+        [key]: `تم بنجاح رفع ملف مبيعات العملاء وتحديث ${updatedCount} عميل قائم وإدراج ${newCount} عميل جديد بدون أي تكرار!`
       }));
     } catch (err: any) {
-      setSheetErrors((prev) => ({ ...prev, customerSales: err?.message || 'فشل رفع ملف مبيعات العملاء' }));
+      setSheetErrors((prev) => ({ ...prev, [key]: err?.message || 'فشل رفع ملف مبيعات العملاء' }));
     } finally {
       setSyncingKey(null);
       if (fileInputSalesRef.current) fileInputSalesRef.current.value = '';
@@ -833,8 +842,9 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
   const handleUploadProductsFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setSyncingKey('products');
-    setSheetErrors((prev) => ({ ...prev, products: null }));
+    const key = getSectorKey('products');
+    setSyncingKey(key);
+    setSheetErrors((prev) => ({ ...prev, [key]: null }));
     try {
       const res = await parseExcelProducts(file);
       if (res.errors.length > 0 && res.products.length === 0) {
@@ -845,13 +855,12 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         sector: p.sector || activeSectorTab,
       }));
       importProductsList(sectorTagged, 'replace');
-      const key = getSectorKey('products');
       setSheetSuccess((prev) => ({
         ...prev,
         [key]: `تم بنجاح استيراد ${res.products.length} صنف من ملف الإكسل لـ (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'}) وتحديث أرصدة المخازن والأسعار!`
       }));
     } catch (err: any) {
-      setSheetErrors((prev) => ({ ...prev, products: err?.message || 'فشل رفع ملف الأصناف' }));
+      setSheetErrors((prev) => ({ ...prev, [key]: err?.message || 'فشل رفع ملف الأصناف' }));
     } finally {
       setSyncingKey(null);
       if (fileInputProductsRef.current) fileInputProductsRef.current.value = '';
@@ -861,17 +870,18 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
   const handleUploadTargetsFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setSyncingKey('targets');
-    setSheetErrors((prev) => ({ ...prev, targets: null }));
+    const key = getSectorKey('targets');
+    setSyncingKey(key);
+    setSheetErrors((prev) => ({ ...prev, [key]: null }));
     try {
       const res = await importTargetsFromExcel(file);
       if (!res.success) throw new Error(res.message);
       setSheetSuccess((prev) => ({
         ...prev,
-        targets: `تم بنجاح استيراد ${res.count} سجل هدف من ملف الإكسل بدون تكرار!`
+        [key]: `تم بنجاح استيراد ${res.count} سجل هدف من ملف الإكسل بدون تكرار!`
       }));
     } catch (err: any) {
-      setSheetErrors((prev) => ({ ...prev, targets: err?.message || 'فشل رفع ملف الأهداف' }));
+      setSheetErrors((prev) => ({ ...prev, [key]: err?.message || 'فشل رفع ملف الأهداف' }));
     } finally {
       setSyncingKey(null);
       if (fileInputTargetsRef.current) fileInputTargetsRef.current.value = '';
@@ -895,9 +905,16 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
     const activeOffersCount = products.filter((p) => p.promoPrice && p.promoPrice > 0).length;
 
-    const connectedSheetsCount = (Object.keys(sourceUrls) as SheetKey[]).filter(
-      (k) => isValidPublishedSource(sources[k])
-    ).length;
+    // 5 شيتات القطاع الحالي فقط — العدّاد القديم كان بيمشي على كل المفاتيح
+    // (بما فيها شيتات القطاع التاني) فيطلع مثلاً 8 / 5.
+    const sectorSheetKeys: SheetKey[] = [
+      getSectorKey('customers'),
+      getSectorKey('customerSales'),
+      getSectorKey('products'),
+      getSectorKey('targets'),
+      getSectorKey('offers'),
+    ];
+    const connectedSheetsCount = sectorSheetKeys.filter((k) => isValidPublishedSource(sources[k])).length;
 
     return {
       totalCustomers,
@@ -913,7 +930,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       activeOffersCount,
       connectedSheetsCount,
     };
-  }, [customers, products, targets, sources, sourceUrls]);
+  }, [customers, products, targets, sources, sourceUrls, activeSectorTab]);
 
   // Google Apps Script sample
   const sampleAppsScript = `// كود Google Apps Script لمزامنة Google Sheets مع نظام دريم للتوزيع تلقائياً
@@ -981,13 +998,13 @@ function onEdit(e) {
       <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-[#12283e] text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 space-y-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[var(--app-warn)] border border-[var(--app-warn)] text-[#d97706] rounded-xl text-xs font-black">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 border border-white/15 text-[#5eead4] rounded-xl text-xs font-black">
               <Sparkles className="w-4 h-4" />
               <span>مركز إدارة الشيتات السحابية الخمس المركزية (صفحة واحدة موحدة)</span>
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
-              <FileSpreadsheet className="w-8 h-8 text-[#d97706]" />
+              <FileSpreadsheet className="w-8 h-8 text-[#5eead4]" />
               <span>لوحة الربط والمزامنة المركزية لملفات الإكسل وجوجل شيت</span>
             </h1>
 
@@ -1000,15 +1017,15 @@ function onEdit(e) {
           <div className="flex items-center gap-3 shrink-0 flex-wrap">
             <div className="bg-white/10 backdrop-blur-xs border border-white/10 rounded-2xl p-4 text-center min-w-[120px]">
               <div className="text-[11px] text-slate-300 font-bold">الشيتات المتصلة</div>
-              <div className="text-2xl font-black text-[#0d9488] font-mono mt-0.5">
+              <div className="text-2xl font-black text-[#5eead4] font-mono mt-0.5">
                 {metrics.connectedSheetsCount} / 5
               </div>
-              <div className="text-[10px] text-[#0d9488] font-bold mt-1">🟢 سحابية Live</div>
+              <div className="text-[10px] text-[#5eead4] font-bold mt-1">🟢 سحابية Live</div>
             </div>
 
             <div className="bg-white/10 backdrop-blur-xs border border-white/10 rounded-2xl p-4 text-center min-w-[120px]">
               <div className="text-[11px] text-slate-300 font-bold">قاعدة العملاء</div>
-              <div className="text-2xl font-black text-[#d97706] font-mono mt-0.5">
+              <div className="text-2xl font-black text-[#5eead4] font-mono mt-0.5">
                 {metrics.totalCustomers.toLocaleString('ar-EG')}
               </div>
               <div className="text-[10px] text-slate-300 mt-1">عميل فريد (0 تكرار)</div>
@@ -1023,7 +1040,7 @@ function onEdit(e) {
               type="button"
               onClick={handleSyncAllSheets}
               disabled={syncingKey !== null}
-              className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs sm:text-sm shadow-lg transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              className="bg-[var(--app-accent)] hover:bg-[#00827a] text-white font-black px-5 py-2.5 rounded-xl text-xs sm:text-sm shadow-lg transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
               {syncingKey === 'all' ? (
                 <>
@@ -1032,7 +1049,7 @@ function onEdit(e) {
                 </>
               ) : (
                 <>
-                  <CloudLightning className="w-4 h-4 text-slate-950" />
+                  <CloudLightning className="w-4 h-4 text-white" />
                   <span>مزامنة جميع الشيتات الـ 5 دفعة واحدة</span>
                 </>
               )}
@@ -1041,9 +1058,9 @@ function onEdit(e) {
             <button
               type="button"
               onClick={handleRunDedupAudit}
-              className="bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)] font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer"
+              className="bg-white/10 hover:bg-white/20 text-white border border-white/15 font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer"
             >
-              <ShieldCheck className="w-4 h-4 text-[#0d9488]" />
+              <ShieldCheck className="w-4 h-4 text-[#5eead4]" />
               <span>فحص ومنع التكرار الشامل (0 تكرار)</span>
             </button>
           </div>
@@ -1052,7 +1069,7 @@ function onEdit(e) {
             <button
               type="button"
               onClick={() => setIsWipeModalOpen(true)}
-              className="bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-[#ef4444] border border-[var(--app-risk)] font-bold px-3.5 py-2 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+              className="bg-white/10 hover:bg-rose-500/20 text-[#fecaca] border border-[var(--app-risk-line)] font-bold px-3.5 py-2 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>تصفير ومسح البيانات للبدء من جديد</span>
@@ -1062,18 +1079,18 @@ function onEdit(e) {
 
         {/* Master Sync Progress Bar */}
         {masterSyncProgress && (
-          <div className="bg-surface border border-border-primary rounded-3xl p-6 shadow-lg animate-in fade-in slide-in-from-top-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-lg animate-in fade-in slide-in-from-top-4">
             <div className="flex items-center justify-between gap-4 mb-3">
-              <span className="font-black text-primary text-sm">جاري المزامنة</span>
-              <span className="text-muted text-xs font-mono">{masterSyncProgress}</span>
+              <span className="font-black text-slate-900 text-sm">جاري المزامنة</span>
+              <span className="text-slate-600 text-xs font-mono">{masterSyncProgress}</span>
             </div>
-            <div className="w-full bg-border-primary/30 h-3 rounded-full overflow-hidden border border-border-primary/50">
+            <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden border border-slate-300">
               <div
-                className="h-full bg-accent text-inverse transition-all duration-500 ease-out animate-pulse"
+                className="h-full bg-[var(--app-accent)] transition-all duration-500 ease-out animate-pulse"
                 style={{ width: '60%' }}
               />
             </div>
-            <p className="mt-3 text-muted text-[10px] leading-relaxed">
+            <p className="mt-3 text-slate-500 text-[10px] leading-relaxed">
               يتم معالجة البيانات في الخلفية. يمكنك الاستمرار في استخدام التطبيق أثناء المزامنة.
             </p>
           </div>
@@ -1081,15 +1098,15 @@ function onEdit(e) {
 
         {/* Dedup Audit Notice */}
         {dedupNotice && (
-          <div className="bg-[var(--app-ok)] border border-[var(--app-ok)] text-[#0d9488] p-4 rounded-2xl text-xs sm:text-sm flex items-center justify-between gap-3 animate-in fade-in">
+          <div className="bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] p-4 rounded-2xl text-xs sm:text-sm flex items-center justify-between gap-3 animate-in fade-in">
             <div className="flex items-center gap-2.5 font-bold">
-              <ShieldCheck className="w-5 h-5 text-[#0d9488] shrink-0" />
+              <ShieldCheck className="w-5 h-5 text-[var(--app-ok-text)] shrink-0" />
               <span>{dedupNotice.message}</span>
             </div>
             <button
               type="button"
               onClick={() => setDedupNotice(null)}
-              className="text-[#0d9488] hover:text-white p-1"
+              className="text-[var(--app-ok-text)] hover:text-[var(--app-risk-text)] p-1"
             >
               <X className="w-4 h-4" />
             </button>
@@ -1098,25 +1115,25 @@ function onEdit(e) {
       </div>
 
       {/* Reassurance & Zero-Duplication Guarantee Banner */}
-      <div className="bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[var(--app-warn-text)] text-xs">
+      <div className="bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-[var(--app-ok-text)] text-xs">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-[var(--app-ok)] text-white flex items-center justify-center font-black shrink-0">
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <strong className="block text-sm font-black text-[var(--app-warn-text)]">
+            <strong className="block text-sm font-black text-[var(--app-ok-text)]">
               ضمان عدم تكرار البيانات وتحديث المناديب فورياً (Strict In-Place Deduplication)
             </strong>
-            <p className="text-[var(--app-warn-text)] text-[11px] mt-0.5">
+            <p className="text-[var(--app-ok-text)] text-[11px] mt-0.5">
               كل شيت يتم مزامنته أو رفعه يمر تلقائياً عبر محرك الفحص الذكي (المطابقة بالكود الموحد، رقم الهاتف، واسم النشاط). يتم تحديث بيانات نفس العميل والصنف في مكانه بدون مضاعفة السجلات أو خلق صفوف مكررة.
             </p>
           </div>
         </div>
         <div className="shrink-0 flex items-center gap-2">
-          <span className="px-3 py-1.5 rounded-xl bg-white border border-[var(--app-warn-line)] font-bold text-[11px] text-[var(--app-warn-text)]">
+          <span className="px-3 py-1.5 rounded-xl bg-white border border-[var(--app-ok-line)] font-bold text-[11px] text-[var(--app-ok-text)]">
             ✓ كود موحد
           </span>
-          <span className="px-3 py-1.5 rounded-xl bg-white border border-[var(--app-warn-line)] font-bold text-[11px] text-[var(--app-warn-text)]">
+          <span className="px-3 py-1.5 rounded-xl bg-white border border-[var(--app-ok-line)] font-bold text-[11px] text-[var(--app-ok-text)]">
             ✓ تحديث لحظي للموظفين
           </span>
         </div>
@@ -1129,7 +1146,7 @@ function onEdit(e) {
           onClick={() => setActiveSectorTab('home')}
           className={`flex-1 py-3 px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2.5 transition cursor-pointer ${
             activeSectorTab === 'home'
-              ? 'bg-[var(--app-warn)] text-slate-950 shadow-md ring-2 ring-[var(--app-warn)]'
+              ? 'bg-[var(--app-accent)] text-white shadow-md ring-2 ring-[var(--app-accent)]'
               : 'text-slate-300 hover:text-white hover:bg-slate-800'
           }`}
         >
@@ -1149,7 +1166,7 @@ function onEdit(e) {
           const custKey = getSectorKey('customers');
           const isConnected = isValidPublishedSource(sources[custKey]);
           const sectorTitle = activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية';
-          const sectorColor = activeSectorTab === 'electrical' ? 'text-amber-600 bg-amber-50 border-amber-100' : 'text-blue-600 bg-blue-50 border-blue-100';
+          const sectorColor = activeSectorTab === 'electrical' ? 'text-teal-800 bg-teal-50 border-teal-100' : 'text-blue-600 bg-blue-50 border-blue-100';
           return (
             <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200 group">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
@@ -1225,7 +1242,7 @@ function onEdit(e) {
                       value={sourceUrls[custKey] || ''}
                       onChange={(e) => setSourceUrls((prev) => ({ ...prev, [custKey]: e.target.value }))}
                       placeholder={`رابط شيت Google Sheet لعملاء ${sectorTitle}...`}
-                      className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-ok)] font-medium"
+                      className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
                     />
                   </div>
 
@@ -1297,9 +1314,9 @@ function onEdit(e) {
               <button
                 type="button"
                 onClick={generateSampleCustomersTemplate}
-                className="bg-white border border-slate-200 hover:bg-amber-50 hover:border-amber-300 text-amber-700 font-bold px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                className="bg-white border border-slate-200 hover:bg-teal-50 hover:border-teal-300 text-teal-800 font-bold px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer active:scale-95"
               >
-                <Download className="w-3.5 h-3.5 text-amber-600" />
+                <Download className="w-3.5 h-3.5 text-[var(--app-accent)]" />
                 <span>تحميل نموذج إكسل معتمد</span>
               </button>
             </div>
@@ -1307,7 +1324,7 @@ function onEdit(e) {
             <button
               type="button"
               onClick={() => exportCustomersToExcel(customers, selectedBranchFilter)}
-              className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-700 text-white font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
+              className="bg-[var(--app-accent)] hover:bg-[#00827a] text-white font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
               <span>تصدير قاعدة العملاء ({customers.length})</span>
@@ -1319,7 +1336,7 @@ function onEdit(e) {
         <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200 group">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 text-white flex items-center justify-center font-black shrink-0 shadow-lg shadow-[0_0_20px_rgba(0,0,0,0.08)]">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-r from-[var(--app-accent)] to-teal-700 text-white flex items-center justify-center font-black shrink-0 shadow-lg shadow-[0_0_20px_rgba(0,0,0,0.08)]">
                 <BarChart3 className="w-7 h-7" />
               </div>
               <div className="flex-1 min-w-0">
@@ -1334,7 +1351,7 @@ function onEdit(e) {
                   }`}>
                     {isValidPublishedSource(sources.customerSales) ? '● متصل سحابياً' : '○ غير متصل'}
                   </span>
-                  <span className="bg-amber-50 text-amber-700 text-[10px] px-2 py-0.5 rounded-lg font-bold border border-amber-100">
+                  <span className="bg-teal-50 text-teal-800 text-[10px] px-2 py-0.5 rounded-lg font-bold border border-teal-100">
                     مبيعات الأصناف وأوامر البيع 2026
                   </span>
                 </div>
@@ -1365,7 +1382,7 @@ function onEdit(e) {
           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
             <div className="flex items-center justify-between">
               <label htmlFor="customer-sales-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
+                <Globe className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
                 <span>رابط Google Sheet الخاص بمبيعات العملاء الشهرية والتحصيل (دمج مباشر بدون تكرار):</span>
               </label>
               {sourceUrls.customerSales && (
@@ -1373,9 +1390,9 @@ function onEdit(e) {
                   href={sourceUrls.customerSales}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-[var(--app-warn-text)] hover:underline flex items-center gap-1 font-bold"
+                  className="text-xs text-[var(--app-navy-text)] hover:underline flex items-center gap-1 font-bold"
                 >
-                  <span>فتح ا��شيت في Google Sheets</span>
+                  <span>فتح الشيت في Google Sheets</span>
                   <ExternalLink className="w-3.5 h-3.5" />
                 </a>
               )}
@@ -1390,7 +1407,7 @@ function onEdit(e) {
                   value={sourceUrls.customerSales}
                   onChange={(e) => setSourceUrls((prev) => ({ ...prev, customerSales: e.target.value }))}
                   placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] font-medium"
+                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
                 />
               </div>
 
@@ -1472,7 +1489,7 @@ function onEdit(e) {
                 onClick={() => exportCustomerAnalyticsToExcel(customers, 'تقرير_مبيعات_كافة_العملاء_2026')}
                 className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-[#d97706]" />
+                <FileSpreadsheet className="w-3.5 h-3.5 text-[#5eead4]" />
                 <span>تصدير إكسل (مبيعات العملاء)</span>
               </button>
             </div>
@@ -1480,7 +1497,7 @@ function onEdit(e) {
         </div>
 
         {/* ---------------- CARD 3: Products, Inventory & Prices (شيت الأصناف والمخزون والأسعار) ---------------- */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
               <div className="w-12 h-12 rounded-2xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)] flex items-center justify-center font-black shrink-0">
@@ -1554,7 +1571,7 @@ function onEdit(e) {
                   value={sourceUrls.products}
                   onChange={(e) => setSourceUrls((prev) => ({ ...prev, products: e.target.value }))}
                   placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-navy)] font-medium"
+                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
                 />
               </div>
 
@@ -1642,7 +1659,7 @@ function onEdit(e) {
         </div>
 
         {/* ---------------- CARD 4: Sales Rep Targets & Collections (شيت أهداف ومبيعات المناديب) ---------------- */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
               <div className="w-12 h-12 rounded-2xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)] flex items-center justify-center font-black shrink-0">
@@ -1716,7 +1733,7 @@ function onEdit(e) {
                   value={sourceUrls.targets}
                   onChange={(e) => setSourceUrls((prev) => ({ ...prev, targets: e.target.value }))}
                   placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-navy)] font-medium"
+                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
                 />
               </div>
 
@@ -1797,14 +1814,14 @@ function onEdit(e) {
               onClick={exportTargetsReport}
               className="bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-[#d97706]" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-[#5eead4]" />
               <span>تصدير تقرير أهداف المناديب ({targets.length})</span>
             </button>
           </div>
         </div>
 
         {/* ---------------- CARD 5: Promotional Offers & Discounts (شيت العروض الترويجية والخصومات) ---------------- */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-slate-300 transition">
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
               <div className="w-12 h-12 rounded-2xl bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)] flex items-center justify-center font-black shrink-0">
@@ -1872,7 +1889,7 @@ function onEdit(e) {
                   value={sourceUrls.offers}
                   onChange={(e) => setSourceUrls((prev) => ({ ...prev, offers: e.target.value }))}
                   placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-risk)] font-medium"
+                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
                 />
               </div>
 
@@ -1883,7 +1900,7 @@ function onEdit(e) {
               >
                 {savedUrlNotice === 'offers' ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-[#ef4444]" />
+                    <Check className="w-3.5 h-3.5 text-[#5eead4]" />
                     <span>تم حفظ الرابط ✓</span>
                   </>
                 ) : (
@@ -1931,8 +1948,8 @@ function onEdit(e) {
       <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
-            <FileCheck className="w-5 h-5 text-[#d97706]" />
-            <h4 className="font-extrabold text-sm text-[#d97706]">
+            <FileCheck className="w-5 h-5 text-[#5eead4]" />
+            <h4 className="font-extrabold text-sm text-[#5eead4]">
               الأعمدة الأساسية المقروءة والمدعومة تلقائياً في الشيتات الخمس:
             </h4>
           </div>
@@ -1943,14 +1960,14 @@ function onEdit(e) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
           <div className="bg-white/5 p-3 rounded-2xl border border-white/10 space-y-1.5">
-            <strong className="text-[#0d9488] block font-black">شيت العملاء والمديونيات:</strong>
+            <strong className="text-[#5eead4] block font-black">شيت العملاء والمديونيات:</strong>
             <p className="text-slate-300 text-[11px] leading-5">
               كود العميل، اسم العميل، الفرع، اسم المندوب، المشرف، المنطقة، رقم الهاتف، المديونية الحالية، الحد الائتماني، حالة الدين، صلاحية التعامل.
             </p>
           </div>
 
           <div className="bg-white/5 p-3 rounded-2xl border border-white/10 space-y-1.5">
-            <strong className="text-[#d97706] block font-black">شيت مبيعات العملاء والتارجت:</strong>
+            <strong className="text-[#5eead4] block font-black">شيت مبيعات العملاء والتارجت:</strong>
             <p className="text-slate-300 text-[11px] leading-5">
               كود العميل، اسم العميل، مبيعات 2026، مبيعات 2025، نسبة النمو %، تحصيلات 2026، مبيعات الشهور 1 إلى 12، تحصيلات الشهور 1 إلى 12، تارجت العميل.
             </p>
@@ -1988,7 +2005,7 @@ function onEdit(e) {
             </p>
 
             <div className="relative">
-              <pre className="bg-slate-950 text-[#0d9488] p-4 rounded-2xl overflow-x-auto text-[11px] font-mono leading-relaxed" dir="ltr">
+              <pre className="bg-slate-950 text-[#5eead4] p-4 rounded-2xl overflow-x-auto text-[11px] font-mono leading-relaxed" dir="ltr">
                 {sampleAppsScript}
               </pre>
               <button
@@ -1998,7 +2015,7 @@ function onEdit(e) {
               >
                 {copiedScript ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-[#0d9488]" />
+                    <Check className="w-3.5 h-3.5 text-[#5eead4]" />
                     <span>تم النسخ ✓</span>
                   </>
                 ) : (
@@ -2034,7 +2051,7 @@ function onEdit(e) {
                   type="checkbox"
                   checked={wipeInvoicesToo}
                   onChange={(e) => setWipeInvoicesToo(e.target.checked)}
-                  className="rounded text-[var(--app-warn-text)] focus:ring-[var(--app-warn)] w-4 h-4"
+                  className="rounded text-[var(--app-accent)] focus:ring-[var(--app-accent)] w-4 h-4"
                 />
                 <span>مسح سجل الفواتير والطلبيات السابقة أيضاً</span>
               </label>
