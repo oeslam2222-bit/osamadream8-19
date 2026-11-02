@@ -1204,25 +1204,39 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       </div>
 
       {/* ERP Table View (Desktop\/Laptop) */}
-      <div className="catalog-erp-wrap hidden lg:block overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-3xl shadow-lg bg-white dark:bg-[#0f172a] animate-in fade-in">
+      <div className="catalog-erp-wrap hidden lg:block overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-3xl shadow-lg bg-white dark:bg-[#0f172a] animate-in fade-in min-w-[1200px]">
         <table className="catalog-erp-table w-full text-left border-collapse text-sm">
+          <colgroup>
+            <col style={{ width: 50 }} />
+            <col style={{ width: 60 }} />
+            <col style={{ width: 90 }} />
+            <col style={{ width: 90 }} />
+            <col style={{ width: 200 }} />
+            <col style={{ width: 70 }} />
+            <col style={{ width: 90 }} />
+            <col style={{ width: 90 }} />
+            <col style={{ width: 50 }} />
+            {showAllWarehouses ? COMPANY_WAREHOUSES.map(() => <col style={{ width: 60 }} />) : [<col style={{ width: 80 }} />, <col style={{ width: 80 }} />]}
+            <col style={{ width: 40 }} />
+            <col style={{ width: 100 }} />
+          </colgroup>
           <thead className="bg-[#0f2b38] text-white font-bold border-b border-[#1b4676] uppercase tracking-wider text-xs select-none sticky top-0 z-10">
             <tr>
-              <th className="p-3 text-right w-10 text-white font-bold">#</th>
-              <th className="p-3 text-center w-14 text-white font-bold">الصورة</th>
-              <th className="p-3 text-right w-20 text-white font-bold">كود المنتج</th>
-              <th className="p-3 text-right w-20 text-white font-bold">الكود الموحد</th>
-              <th className="p-3 text-right text-white font-bold min-w-[170px]">اسم المنتج</th>
-              <th className="p-3 text-center w-16 text-white font-bold">القطاع</th>
-              <th className="p-3 text-right w-20 text-white font-bold">سعر القطعة</th>
-              <th className="p-3 text-right w-20 text-white font-bold">سعر الكرتونة</th>
-              <th className="p-3 text-center w-12 text-white font-bold">الشدة</th>
+              <th className="p-2 text-right text-white font-bold">#</th>
+              <th className="p-2 text-center text-white font-bold">الصورة</th>
+              <th className="p-2 text-right text-white font-bold">كود المنتج</th>
+              <th className="p-2 text-right text-white font-bold">الكود الموحد</th>
+              <th className="p-2 text-right text-white font-bold">اسم المنتج</th>
+              <th className="p-2 text-center text-white font-bold">القطاع</th>
+              <th className="p-2 text-right text-white font-bold">سعر القطعة</th>
+              <th className="p-2 text-right text-white font-bold">سعر الكرتونة</th>
+              <th className="p-2 text-center text-white font-bold">الشدة</th>
               {showAllWarehouses ? (
                 <>
                   {COMPANY_WAREHOUSES.map((wh) => (
                     <th
                       key={wh.key}
-                      className={`p-2.5 text-center w-14 text-white font-bold text-[10px] ${
+                      className={`p-2 text-center text-white font-bold text-[10px] ${
                         wh.isCentral ? 'bg-[#006d62]' : ''
                       }`}
                       title={wh.label}
@@ -1233,12 +1247,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </>
               ) : (
                 <>
-                  <th className="p-3 text-center w-20 text-white font-bold">مخزون الفرع</th>
-                  <th className="p-3 text-center w-20 text-white font-bold bg-[#006d62]">مخزون أكتوبر</th>
+                  <th className="p-2 text-center text-white font-bold">مخزون الفرع</th>
+                  <th className="p-2 text-center text-white font-bold bg-[#006d62]">مخزون أكتوبر</th>
                 </>
               )}
-              <th className="p-3 text-center w-12 text-white font-bold">المفضلة</th>
-              <th className="p-3 text-center w-24 text-white font-bold">إجراء</th>
+              <th className="p-2 text-center text-white font-bold">المفضلة</th>
+              <th className="p-2 text-center text-white font-bold">إضافة للسلة</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200/50 dark:divide-slate-700/50">
@@ -1256,8 +1270,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
               return (
                 <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition group bg-white dark:bg-[#0f172a]">
-                  <td className="p-3 text-right font-black text-slate-600 dark:text-slate-400 text-xs">{globalIdx}</td>
-                  <td className="p-3 text-center">
+                  <td className="p-2 text-right font-black text-slate-600 dark:text-slate-400 text-xs">{globalIdx}</td>
+                  <td className="p-2 text-center">
                     <button
                       type="button"
                       onClick={() => {
@@ -1268,7 +1282,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       }}
                       className="flex items-center justify-center p-1"
                     >
-                      <div className="w-14 h-14 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden flex items-center justify-center cursor-pointer hover:shadow-[0_0_15px_rgba(0,148,136,0.2)] transition-all duration-200 shadow-sm">
+                      <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden flex items-center justify-center cursor-pointer hover:shadow-[0_0_15px_rgba(0,148,136,0.2)] transition-all duration-200 shadow-sm">
                         {sanitizeStoredImageUrl(p.imageUrl) ? (
                           <img
                             src={sanitizeStoredImageUrl(p.imageUrl)}
@@ -1283,56 +1297,44 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       </div>
                     </button>
                   </td>
-                  <td className="p-3 text-right font-black text-slate-900 dark:text-slate-100 text-xs font-mono">{p.code || '—'}</td>
-                  <td className="p-3 text-center">
-                    {(() => {
-                      const c = (p.code || '').trim().toLowerCase();
-                      const n = c ? codeRepeatCount.get(c) : 0;
-                      if (!c || n <= 1) return null;
-                      return (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200 shadow-sm">
-                          Mكرر {n} مرة
-                          <AlertTriangle className="w-3 h-3 ml-0.5" />
-                        </span>
-                      );
-                    })()}
+                  <td className="p-2 text-right font-black text-slate-900 dark:text-slate-100 text-xs font-mono truncate">{p.code || '—'}</td>
+                  <td className="p-2 text-right text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                    {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
                   </td>
-                  <td className="p-3 text-right font-bold text-slate-900 dark:text-slate-100 truncate max-w-[220px]" title={displayName}>
+                  <td className="p-2 text-right font-black text-slate-900 dark:text-slate-100 truncate" title={displayName}>
                     {displayName || `صنف ${p.code}`}
                   </td>
-                  <td className="p-3 text-center">
+                  <td className="p-2 text-center">
                     <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black shrink-0 ${
                       isElec ? 'bg-teal-100 text-teal-800 border border-teal-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
                     }`}>
                       {isElec ? '⚡ كهرباء' : '🏠 منزلي'}
                     </span>
                   </td>
-                  <td className="p-3 text-right font-black text-slate-900 dark:text-slate-100">
-                    <div className="font-black text-slate-900 dark:text-slate-100">
-                      {priceInfo.piecePrice > 0 ? formatCurrency(priceInfo.piecePrice) : '—'}
-                    </div>
+                  <td className="p-2 text-right font-black text-slate-900 dark:text-slate-100">
+                    {priceInfo.piecePrice > 0 ? (
+                      <span className="font-black">{formatCurrency(priceInfo.piecePrice)}</span>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
                     <span className="text-[10px] text-slate-400 block">/قطعة</span>
                   </td>
-                  <td className="p-3 text-right font-black text-slate-900 dark:text-slate-100">
+                  <td className="p-2 text-right font-black text-slate-900 dark:text-slate-100">
                     {priceInfo.factor > 1 && priceInfo.cartonPrice > 0 ? (
-                      <div>
-                        <div className="font-black text-slate-900 dark:text-slate-100">
-                          {formatCurrency(priceInfo.cartonPrice)}
-                        </div>
-                        <span className="text-[10px] text-slate-400 block">/كرتونة</span>
-                      </div>
+                      <span className="font-black">{formatCurrency(priceInfo.cartonPrice)}</span>
                     ) : (
-                      <span className="text-slate-400 text-xs">قطعة فردي</span>
+                      <span className="text-slate-400 text-xs">فردي</span>
                     )}
+                    <span className="text-[10px] text-slate-400 block">/كرتونة</span>
                   </td>
-                  <td className="p-3 text-center font-mono">
+                  <td className="p-2 text-center font-mono">
                     {priceInfo.factor > 1 ? (
-                      <span className="inline-block bg-teal-50 text-teal-800 border border-teal-200 text-xs px-2 py-0.5 rounded-md font-bold">
+                      <span className="inline-block bg-teal-50 text-teal-800 border border-teal-200 text-[10px] px-1.5 py-0.5 rounded-md font-bold">
                         {priceInfo.factor} ق/ك
                       </span>
                     ) : (
-                      <span className="inline-block bg-slate-100 text-slate-600 text-[11px] px-2 py-0.5 rounded-md font-bold">
-                        1 قطعه
+                      <span className="inline-block bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0.5 rounded-md font-bold">
+                        1
                       </span>
                     )}
                   </td>
@@ -1341,8 +1343,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       {COMPANY_WAREHOUSES.map((wh) => {
                         const stock = getWarehouseStock(p, wh.key);
                         return (
-                          <td key={wh.key} className={`p-3 text-center ${wh.isCentral ? 'bg-slate-50/50' : ''}`}>
-                            <span className={`px-2 py-0.5 rounded-lg text-xs font-black ${
+                          <td key={wh.key} className={`p-2 text-center ${wh.isCentral ? 'bg-slate-50/50' : ''}`}>
+                            <span className={`px-1.5 py-0.5 rounded-lg text-[10px] font-black ${
                               stock > 0
                                 ? 'bg-teal-50 text-teal-800 border border-teal-200'
                                 : 'bg-slate-100 text-slate-400 border border-slate-200'
@@ -1355,15 +1357,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </>
                   ) : (
                     <>
-                      <td className="p-3 text-center">
-                        <span className={`px-2.5 py-1 rounded-lg text-xs font-black ${
+                      <td className="p-2 text-center">
+                        <span className={`px-1.5 py-0.5 rounded-lg text-[10px] font-black ${
                           branchStock > 0 ? 'bg-teal-50 text-teal-800 border border-teal-200' : 'bg-slate-100 text-slate-400 border border-slate-200'
                         }`}>
                           {branchStock}
                         </span>
                       </td>
-                      <td className="p-3 text-center bg-slate-50/50">
-                        <span className={`px-2.5 py-1 rounded-lg text-xs font-black ${
+                      <td className="p-2 text-center bg-slate-50/50">
+                        <span className={`px-1.5 py-0.5 rounded-lg text-[10px] font-black ${
                           octoberStock > 0 ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-400 border border-slate-200'
                         }`}>
                           {octoberStock}
@@ -1371,32 +1373,32 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       </td>
                     </>
                   )}
-                  <td className="p-3 text-center">
+                  <td className="p-2 text-center">
                     <button
                       type="button"
                       onClick={() => toggleFavorite(p.id)}
                       aria-label={Boolean(favorites[p.id]) ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
-                      className={`w-8 h-8 rounded-lg border flex items-center justify-center transition cursor-pointer shrink-0 ${
+                      className={`w-7 h-7 rounded-lg border flex items-center justify-center transition cursor-pointer shrink-0 ${
                         favorites[p.id]
                           ? 'bg-teal-50 border-teal-200 text-teal-600'
                           : 'border-slate-200 text-slate-600 hover:text-slate-900 bg-white'
                       }`}
                     >
-                      <Heart className={`w-4 h-4 ${favorites[p.id] ? 'fill-teal-600' : ''}`} />
+                      <Heart className={`w-3.5 h-3.5 ${favorites[p.id] ? 'fill-teal-600' : ''}`} />
                     </button>
                   </td>
-                  <td className="p-3 text-center">
+                  <td className="p-2 text-center">
                     <button
                       type="button"
                       onClick={() => handleAddToCart(p)}
                       disabled={branchStock <= 0 && octoberStock <= 0}
-                      className={`w-full py-2 px-3 rounded-xl text-xs font-black transition-all shadow-sm flex items-center justify-center gap-1.5 ${
+                      className={`w-full py-2 px-2 rounded-xl text-[10px] font-black transition-all shadow-sm flex items-center justify-center gap-1 ${
                         branchStock <= 0 && octoberStock <= 0
                           ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
                           : 'bg-[#0f2b38] hover:bg-[#006d62] text-white shadow-md shadow-[#0f2b38]/30 active:scale-95 cursor-pointer'
                       }`}
                     >
-                      <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
+                      <ShoppingCart className="w-3 h-3 shrink-0" />
                       <span>إضافة</span>
                     </button>
                   </td>
@@ -1405,7 +1407,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             })}
             {paginatedProducts.length === 0 && (
               <tr>
-                <td colSpan={showAllWarehouses ? 19 : 13} className="p-8 text-center text-slate-500 font-bold">
+                <td colSpan={showAllWarehouses ? 18 : 12} className="p-8 text-center text-slate-500 font-bold">
                   <Package className="w-8 h-8 mx-auto text-slate-400 mb-2" />
                   <p className="text-slate-600">لم يتم العثور على أصناف مطابقة للبحث أو الفلاتر المحددة</p>
                 </td>
