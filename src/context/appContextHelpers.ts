@@ -184,10 +184,10 @@ export const sanitizeProducts = (list: Product[]): Product[] => {
   if (!Array.isArray(list)) return [];
   const usedIds = new Set<string>();
 
-  // Product code is the stable business key. Repeated imports must update the
-  // existing row instead of creating another catalog item.
-  const uniqueList = deduplicateProductArray(list.filter(Boolean));
-  return uniqueList.map((rawProduct, index) => {
+  // لا دمج: كل صف وارد يبقى صنف مستقل في الكتالوج، حتى لو الكود مكرر مع اختلاف
+  // اللون أو المقاس أو المخزون. كل صف يأخذ رقم تعريفي فريد (product-row-N)،
+  // فمفيش دمج أو حذف لأي صف من الشيت.
+  return list.filter(Boolean).map((rawProduct, index) => {
     const p = { ...rawProduct };
     const originalId = String(p.id || '').trim();
     let rowId = originalId || `product-row-${index + 1}`;
