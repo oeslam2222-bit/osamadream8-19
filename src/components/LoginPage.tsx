@@ -123,9 +123,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                     placeholder="مثال: osama@dream.com أو osama"
                     required
                     autoComplete="username"
-                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus-ring-[#009488]/50 focus:border-transparent outline-none transition-all font-medium text-sm placeholder-slate-400"
+                    className="w-full h-11 pr-10 pl-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-left focus:ring-2 focus-ring-[#009488]/50 focus:border-transparent outline-none transition-all font-medium text-sm placeholder-slate-400"
                   />
-                  <UserIcon className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#009488] transition-colors" />
+                  <UserIcon className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#009488] transition-colors" />
                 </div>
               </div>
 
@@ -142,9 +142,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                     placeholder="أدخل كلمة المرور المسجلة بقاعدة البيانات"
                     required
                     autoComplete="current-password"
-                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus-ring-[#009488]/50 focus:border-transparent outline-none transition-all font-medium text-sm placeholder-slate-400"
+                    className="w-full h-11 pr-10 pl-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-left focus:ring-2 focus-ring-[#009488]/50 focus:border-transparent outline-none transition-all font-medium text-sm placeholder-slate-400"
                   />
-                  <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#009488] transition-colors" />
+                  <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#009488] transition-colors" />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
