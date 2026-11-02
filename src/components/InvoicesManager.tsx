@@ -1383,7 +1383,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         </div>
                       </td>
                     </tr>
-                      {expandedInvoiceId === invoice.id && <tr key={`${invoice.id}-financial`} className="bg-slate-50 dark:bg-slate-800/40"><td colSpan={10} className="p-4">Test</td></tr>}
                   );
                 })}
               </tbody>
