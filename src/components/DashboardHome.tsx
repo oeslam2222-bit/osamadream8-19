@@ -546,7 +546,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         {/* Left Card: 3D Emblem Card matching the GEONEX / Brand Card in Image */}
         <div className="md:col-span-5 bg-gradient-to-tr from-slate-950 via-[#0e172a] to-[#1e1b4b] rounded-3xl p-5 border border-slate-800 shadow-xl flex flex-col justify-between text-white relative overflow-hidden">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-xs font-black text-[#d97706] tracking-wider">مندوب دريم • TANTAWY</span>
+            <span className="text-xs font-black text-[#0d9488] tracking-wider">مندوب دريم • TANTAWY</span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)]">
               <span className="w-2 h-2 rounded-full bg-[var(--app-ok)] animate-ping" />
               <span>الحالة : ACTIVE</span>
@@ -554,7 +554,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           </div>
 
           <div className="flex items-center gap-4 my-2">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[var(--app-warn)] via-[var(--app-risk)] to-[var(--app-navy)] p-0.5 shadow-2xl shrink-0 flex items-center justify-center">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[var(--app-accent)] to-[var(--app-navy)] p-0.5 shadow-2xl shrink-0 flex items-center justify-center">
               <div className="w-full h-full bg-slate-950 rounded-2xl flex items-center justify-center text-2xl">
                 📱
               </div>
@@ -571,7 +571,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <button
               type="button"
               onClick={() => setIsInstallModalOpen(true)}
-              className="flex-1 bg-gradient-to-r from-[var(--app-warn)] to-[var(--app-warn)] hover:from-[var(--app-warn)] hover:to-[var(--app-warn)] text-slate-950 font-black py-2.5 px-4 rounded-xl text-xs transition cursor-pointer shadow-md flex items-center justify-center gap-2 active:scale-95"
+              className="flex-1 bg-gradient-to-r from-[var(--app-accent)] to-[#006d62] hover:from-[#006d62] hover:to-[#005f5f] text-white font-black py-2.5 px-4 rounded-xl text-xs transition cursor-pointer shadow-md flex items-center justify-center gap-2 active:scale-95"
             >
               <Download className="w-4 h-4" />
               <span>تحميل وتثبيت التطبيق 📲</span>
@@ -593,7 +593,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         <div className="md:col-span-7 bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
             <div className="flex items-center gap-2">
-              <span className="w-8 h-8 rounded-xl bg-[var(--app-warn)] text-[var(--app-warn-text)] flex items-center justify-center font-black">
+              <span className="w-8 h-8 rounded-xl bg-[var(--app-accent)] text-white flex items-center justify-center font-black">
                 📋
               </span>
               <div>
