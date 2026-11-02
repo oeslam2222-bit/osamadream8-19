@@ -42,7 +42,6 @@ import {
   mergeTwoCustomers
 } from '../services/customerDeduplicationService';
 import { normalizeArabicText } from '../services/arabicMatchingService';
-import { normalizeProductCodeKey } from '../services/productIdentity';
 import {
   downloadCustomerAnalyticsTemplate,
   exportCustomerAnalyticsToExcel
@@ -446,28 +445,17 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         throw new Error(res.errors.join(' • '));
       }
 
-      // Deduplicate products by code within the same sector and tag missing sectors.
-      // مهم: القطاع اللي الشيت بيقول عليه (عمود «القطاع») هو الأساس، والدمج
-      // على الكود + القطاع — الدمج بالكود لوحده كان بيبلع صنف الكهرباء لو
-      // ليه نفس كود صنف منزلي، والدمج على الكود الموحد كان بيحوّل الألوان
-      // والمقاسات لصف واحد.
-      const prodMap = new Map<string, Product>();
-      res.products.forEach((p) => {
-        const sector = p.sector || activeSectorTab;
-        const codeKey = normalizeProductCodeKey(p.code || p.unifiedCode);
-        const key = codeKey
-          ? `${codeKey}|${sector}`
-          : `name:${normalizeArabicText(p.name || '').replace(/\s+/g, '')}|${sector}`;
-        prodMap.set(key, {
-          ...p,
-          sector,
-        });
-      });
-      const dedupedProducts = Array.from(prodMap.values());
+      // لا دمج: كل صف في الشيت يبقى صنف مستقل في الكتالوج، حتى لو الكود مكرر
+      // 10 مرات باختلاف اللون أو المقاس أو المخزون. القطاع يُؤخذ من عمود الشيت،
+      // والفيولتر الافتراضي هو قطاع التبويب المحدد.
+      const productsToImport = res.products.map((p) => ({
+        ...p,
+        sector: p.sector || activeSectorTab,
+      }));
 
-      importProductsList(dedupedProducts, 'replace');
+      importProductsList(productsToImport, 'replace');
 
-      const sectorCounts = dedupedProducts.reduce(
+      const sectorCounts = productsToImport.reduce(
         (acc, p) => {
           if (p.sector === 'electrical') acc.electrical += 1;
           else if (p.sector === 'both') acc.both += 1;
@@ -476,18 +464,19 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         },
         { home: 0, electrical: 0, both: 0 }
       );
-      const mergedRows = Math.max(0, res.totalRows - dedupedProducts.length);
 
       setSheetSuccess((prev) => ({
         ...prev,
         [key]:
-          `تم قراءة ${res.totalRows.toLocaleString('ar-EG')} صف وتحديث ${dedupedProducts.length.toLocaleString('ar-EG')} صنف ` +
+          `تم قراءة ${res.totalRows.toLocaleString('ar-EG')} صف من الشيت ورفعهم جميعاً للكتالوج ` +
           `(منزلي: ${sectorCounts.home} • كهرباء: ${sectorCounts.electrical}` +
-          `${sectorCounts.both ? ` • مشترك: ${sectorCounts.both}` : ''})` +
-          `${mergedRows > 0 ? ` — وتم دمج ${mergedRows} صف مكرر بنفس الكود` : ''}. ` +
-          'الأسعار والأرصدة اتطابقت.'
+          `${sectorCounts.both ? ` • مشترك: ${sectorCounts.both}` : ''}). ` +
+          'لا يوجد دمج أو حذف للأصناف المكررة — كل صف ظهر كمنتج مستقل، حتى لو الكود مكرر باختلاف اللون أو المقاس أو المخزون. الأسعار والأرصدة اتطابقت.'
       }));
-      return { ok: true, message: `تم تحديث ${dedupedProducts.length} صنف` };
+      return {
+        ok: true,
+        message: `تم رفع ${productsToImport.length.toLocaleString('ar-EG')} صنف`,
+      };
     } catch (err: any) {
       const message = err?.message || 'فشلت مزامنة شيت الأصناف والمخزون';
       setSheetErrors((prev) => ({ ...prev, [key]: message }));

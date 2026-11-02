@@ -126,8 +126,6 @@ import {
   sanitizeProducts,
   deduplicateCustomersArray,
   deduplicateTargetRecords,
-  deduplicateProductArray,
-  productIdentityKey,
   normalizeVariantCodeKey,
   sanitizeCustomers,
 } from './appContextHelpers';
