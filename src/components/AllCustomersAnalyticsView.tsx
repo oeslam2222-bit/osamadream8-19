@@ -2061,11 +2061,22 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               );
             })}
           </div>
-          <div className="hidden md:block overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-3xl shadow-lg bg-white dark:bg-[#0f172a] animate-in fade-in min-w-[1200px]">
             <table className="cust-table w-full text-right border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-100 text-slate-700 font-extrabold border-b border-slate-200 whitespace-nowrap">
-                  <th className="p-3 text-center w-10">#</th>
+              <colgroup>
+                <col style={{ width: 50 }} />
+                <col style={{ width: 100 }} />
+                <col style={{ width: 130 }} />
+                <col style={{ width: 150 }} />
+                <col style={{ width: 120 }} />
+                <col style={{ width: 110 }} />
+                <col style={{ width: 100 }} />
+                <col style={{ width: 100 }} />
+                <col style={{ width: 120 }} />
+              </colgroup>
+              <thead className="bg-[#0f2b38] text-white font-bold border-b border-[#1b4676] uppercase tracking-wider text-xs select-none sticky top-0 z-10">
+                <tr className="">
+                  <th className="p-2 text-center text-white font-bold">#</th>
                   {visibleColumnDefs.map((def) =>
                     def.sortKey ? (
                       <th
@@ -2078,7 +2089,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                             setSortOrder(def.sortKey === 'name' || def.sortKey === 'code' ? 'asc' : 'desc');
                           }
                         }}
-                        className={`p-3 cursor-pointer hover:bg-slate-200/60 transition ${columnAlignClass(def.align)}`}
+                        className={`p-2 text-right text-white font-bold cursor-pointer hover:bg-slate-200/60 transition ${columnAlignClass(def.align)}`}
                       >
                         <div className={`cf-th-inner ${def.align === 'start' ? 'cf-th-inner-start' : ''}`}>
                           <span>{def.label}</span>
@@ -2086,29 +2097,29 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         </div>
                       </th>
                     ) : (
-                      <th key={def.key} className={`p-3 ${columnAlignClass(def.align)}`}>
+                      <th key={def.key} className={`p-2 text-right text-white font-bold ${columnAlignClass(def.align)}`}>
                         {def.label}
                       </th>
                     )
                   )}
-                  <th className="p-3 text-center">الإجراءات</th>
+                  <th className="p-2 text-center text-white font-bold">الإجراءات</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-200/50 dark:divide-slate-700/50">
                 {paginatedCustomers.map((c, index) => (
                   <tr
                     key={c.id || c.code}
                     onClick={() => setQuickCustomer(c)}
-                    className="hover:bg-slate-deep3 transition cursor-pointer group"
+                    className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition group bg-white dark:bg-[#0f172a]"
                   >
-                    <td className="p-3 text-center font-bold text-slate-400">
+                    <td className="p-2 text-center font-black text-slate-600 dark:text-slate-400 text-xs">
                       {(currentPage - 1) * pageSize + index + 1}
                     </td>
 
                     {visibleColumnDefs.map((def) => (
                       <td
                         key={def.key}
-                        className={`p-3 ${columnAlignClass(def.align)} ${
+                        className={`p-2 ${columnAlignClass(def.align)} ${
                           def.key === 'name' || def.key === 'region' ? '' : 'whitespace-nowrap'
                         }`}
                       >
@@ -2116,27 +2127,27 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                       </td>
                     ))}
 
-                    <td className="p-3 text-center whitespace-nowrap">
-                      <div className="flex items-center justify-center gap-1.5">
+                    <td className="p-2 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1">
                         <button
                           onClick={(event) => {
                             event.stopPropagation();
                             setQuickCustomer(c);
                           }}
-                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                          className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
                           title="تفاصيل سريعة"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={(event) => {
                             event.stopPropagation();
                             setSelectedCustomer(c);
                           }}
-                          className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-[var(--app-ok-text)] transition cursor-pointer"
+                          className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-[var(--app-ok-text)] transition cursor-pointer"
                           title="فتح الملف الكامل 360°"
                         >
-                          <ExternalLink className="w-4 h-4" />
+                          <ExternalLink className="w-3.5 h-3.5" />
                         </button>
                         {onOpenNewOrderForCustomer && (
                           <button
@@ -2144,10 +2155,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                               event.stopPropagation();
                               onOpenNewOrderForCustomer(c);
                             }}
-                            className="px-2 py-1.5 rounded-lg bg-[var(--app-accent)] hover:bg-amber-deep2 text-deep-slate font-black text-[11px] transition flex items-center gap-1 cursor-pointer"
+                            className="px-2 py-1 rounded-lg bg-[var(--app-accent)] hover:bg-[#006d62] text-white font-black text-[10px] transition flex items-center gap-1 cursor-pointer"
                             title="إنشاء طلبية جديدة"
                           >
-                            <ShoppingCart className="w-3.5 h-3.5" />
+                            <ShoppingCart className="w-3 h-3" />
                             <span className="hidden xl:inline">طلب</span>
                           </button>
                         )}
