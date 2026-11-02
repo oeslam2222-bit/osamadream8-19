@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { InstallPromptEvent } from '../types';
 import { safeLocalStorageSet } from '../services/storageService';
 import { STORAGE_KEYS } from './appContextHelpers';
@@ -10,6 +10,8 @@ import { STORAGE_KEYS } from './appContextHelpers';
  */
 export function useUiPreferences() {
   // PWA Install Prompt State & Data Saver Mode
+  // مش بنعترض حدث beforeinstallprompt خالص (مفيش preventDefault)، فالتثبيت
+  // التلقائي مسؤولية المتصفح، والتطبيق بيشرح الطريقة اليدوية بس.
   const [installPromptEvent, setInstallPromptEvent] = useState<InstallPromptEvent | null>(null);
   const [canInstallPwa, setCanInstallPwa] = useState<boolean>(false);
   const [isInstallModalOpen, setIsInstallModalOpen] = useState<boolean>(false);
@@ -56,19 +58,6 @@ export function useUiPreferences() {
       return next;
     });
   };
-
-  useEffect(() => {
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setInstallPromptEvent(e as unknown as InstallPromptEvent);
-      setCanInstallPwa(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
-  }, []);
 
   const triggerInstallPrompt = async (): Promise<boolean> => {
     if (installPromptEvent && typeof installPromptEvent.prompt === 'function') {
