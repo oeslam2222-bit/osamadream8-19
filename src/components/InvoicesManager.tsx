@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   ChevronsLeft,
   ChevronsRight,
   Clock,
@@ -87,7 +88,68 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   const [rejectModalInvoiceId, setRejectModalInvoiceId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('نفاذ الكمية أو طلب العميل إلغاء الطلبية');
   const [returnModalInvoice, setReturnModalInvoice] = useState<Invoice | null>(null);
+  const [expandedInvoiceId, setExpandedInvoiceId] = useState<string | null>(null);
+
+  const toggleInvoiceExpand = (id: string) => {
+    setExpandedInvoiceId(expandedInvoiceId === id ? null : id);
+  };
   const [returnReason, setReturnReason] = useState<string>('مرتجع بطلب العميل واسترجاع البضاعة للمخزن');
+
+  const renderExpandedRow = (invoice: Invoice) => (
+    <tr key={`${invoice.id}-financial`} className="bg-slate-50 dark:bg-slate-800/40">
+      <td colSpan={10} className="p-4">
+        <div className="bg-[#0f2b38]/30 border border-[#1b4676]/50 rounded-2xl p-4 dark:border-[#1b4676]/30">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-4">
+            <div className="flex items-center gap-2">
+              <User className="w-5 h-5 text-[var(--app-accent)]" />
+              <h4 className="font-black text-slate-900 dark:text-slate-100 text-sm">الموقف المالي للعميل</h4>
+            </div>
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              العميل: <span className="font-black">{invoice.customerName}</span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
+              <div className="text-[10px] text-slate-500 font-bold uppercase">إجمالي الفواتير</div>
+              <div className="text-lg font-black text-slate-900 dark:text-slate-100 mt-1">{1}</div>
+            </div>
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
+              <div className="text-[10px] text-slate-500 font-bold uppercase">الإجمالي المسجل</div>
+              <div className="text-lg font-black text-slate-900 dark:text-slate-100 mt-1">{formatCurrency(invoice.estimatedGrandTotal)}</div>
+            </div>
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
+              <div className="text-[10px] text-slate-500 font-bold uppercase">الم collected</div>
+              <div className="text-lg font-black text-green-700 dark:text-green-400 mt-1">{formatCurrency(invoice.customerBalanceAfter || 0)}</div>
+            </div>
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3">
+              <div className="text-[10px] text-slate-500 font-bold uppercase">المتبقي</div>
+              <div className="text-lg font-black text-[var(--app-risk)] dark:text-[var(--app-risk)] mt-1">{formatCurrency(Math.max(0, (invoice.customerBalanceBefore || 0)))}</div>
+            </div>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700/50">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-black text-slate-700 dark:text-slate-300">الحد الائتماني</span>
+              <span className="text-xs font-black text-slate-900 dark:text-slate-100">{formatCurrency(invoice.customerCreditLimit || 0)}</span>
+            </div>
+            <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2">
+              <div
+                className="h-2 rounded-full bg-[var(--app-accent)]"
+                style={{
+                  width: Math.min(100, ((invoice.customerBalanceBefore || 0) / Math.max((invoice.customerCreditLimit || 1), 1)) * 100),
+                }}
+              ></div>
+            </div>
+            <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+              استخدام الائتمان: {invoice.customerCreditLimit > 0 ? Math.round(((invoice.customerBalanceBefore || 0) / invoice.customerCreditLimit) * 100) : 0}%
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+
   const [auditInvoice, setAuditInvoice] = useState<Invoice | null>(null);
   const [isAuditOpen, setIsAuditOpen] = useState(false);
   const [previewExcelInvoice, setPreviewExcelInvoice] = useState<Invoice | null>(null);
@@ -1004,6 +1066,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                       {/* Client */}
                       <td className="p-2">
                         <div className="font-black text-slate-900 dark:text-slate-100 text-sm mb-1 truncate">{invoice.customerName}</div>
+                          <ChevronDown className={`w-3 h-3 ${expandedInvoiceId === invoice.id ? 'rotate-180' : ''} text-slate-400 ml-2 transition-transform cursor-pointer`} onClick={(e) => { e.stopPropagation(); toggleInvoiceExpand(invoice.id); }} />
                         <CreditStatusBadge
                           invoice={invoice}
                           onClick={() => {
@@ -1320,6 +1383,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         </div>
                       </td>
                     </tr>
+                      {expandedInvoiceId === invoice.id && <tr key={`${invoice.id}-financial`} className="bg-slate-50 dark:bg-slate-800/40"><td colSpan={10} className="p-4">Test</td></tr>}
                   );
                 })}
               </tbody>
