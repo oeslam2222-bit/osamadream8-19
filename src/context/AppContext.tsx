@@ -128,6 +128,7 @@ import {
   deduplicateTargetRecords,
   deduplicateProductArray,
   productIdentityKey,
+  normalizeVariantCodeKey,
   sanitizeCustomers,
 } from './appContextHelpers';
 import { useUiPreferences } from './useUiPreferences';
@@ -4105,11 +4106,21 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       return !p.sector || p.sector === userSector || p.sector === 'both' || p.sector === 'all';
     });
 
-    // الدمج على **الكود** فقط (نفس `productIdentityKey` ونفس قيد
-    // UNIQUE(code) على السيرفر). الدمج على الكود الموحد كان بيحوّل كل
-    // الصفوف اللي بتشترك في كود موحد (كرتونة/قطعة، ألوان، مقاسات) لصف
-    // واحد ويضيّع رصيد وأسعار باقي الصفوف — وده سبب 6000 صف بيبقوا 3000 صنف.
-    const dedupedIncoming = deduplicateProductArray(sectorFilteredIncoming);
+    // لا دمج: كل صف في الشيت يبقى صنف مستقل في الكتالوج.
+    // الكود الأساسي قد يتكرر 10 مرات (نفس الاسم، كود موحد/لون/حجم/مخزون مختلف) —
+    // ونحفظهم جميعًا. الكود الموحد يجب أن يكون فريدًا (لا يتكرر).
+    const dedupedIncoming = [...sectorFilteredIncoming];
+
+    // كشف الأكواد المكررة داخل الشيت نفسه (نفس الكود الأساسي يتكرر)
+    const codeCount = new Map<string, number>();
+    sectorFilteredIncoming.forEach((p) => {
+      const c = normalizeVariantCodeKey(p.code);
+      if (c) codeCount.set(c, (codeCount.get(c) || 0) + 1);
+    });
+    const duplicatedCodes = Array.from(codeCount.entries())
+      .filter(([, n]) => n > 1)
+      .map(([c]) => c)
+      .sort();
 
     // Automatically register any newly encountered branch names dynamically
     setBranches((prevBranches) => {
@@ -4185,32 +4196,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
      * بتعتبره صنف جديد، فالصف بيفضل في الكتالوج من غير ما حد ياخد باله.
      * دلوقتي التنين نفس الدالة، فمفيش طريق للبتر.
      */
-    const getProductMatchKey = (p: Product): string => productIdentityKey(p);
-
-    const existingById = new Map<string, Product>();
-    const existingByKey = new Map<string, Product>();
-    products.forEach((p) => {
-      if (p.id) existingById.set(p.id, p);
-      const key = getProductMatchKey(p);
-      if (key) existingByKey.set(key, p);
-    });
-
-    // Update existing products from incoming sheet data or insert new items
-    const processedIncoming = dedupedIncoming.map((incoming) => {
-      const existing = (incoming.id && existingById.get(incoming.id)) || existingByKey.get(getProductMatchKey(incoming));
-      if (existing) {
-        // UPDATE existing record with fresh sheet stock, prices, factor, and unified model code
-        const merged: Product = {
-          ...existing,
-          ...incoming,
-          id: existing.id,
-          imageUrl: incoming.imageUrl || existing.imageUrl,
-          cloudinaryPublicId: incoming.cloudinaryPublicId || existing.cloudinaryPublicId || incoming.code,
-        };
-        return protectReserved(merged);
-      }
-      return protectReserved(incoming);
-    });
+    // لا مطابقة للكود القديم: كل منتج وارد يُحفظ كما هو (مع رقم تعريفي فريد داخلي).
+    const processedIncoming = dedupedIncoming.map((incoming) => protectReserved({ ...incoming, id: incoming.id || `prod-${Date.now()}-${Math.random().toString(36).slice(2,6)}` }));
 
     let finalUpdated: Product[] = [];
     if (mode === 'replace') {
@@ -4224,10 +4211,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
       setProducts(finalUpdated);
     } else {
-      // Upsert: update matched existing items and append genuinely new codes
-      const incomingKeys = new Set(processedIncoming.map(getProductMatchKey));
-      const untouchedExisting = products.filter((p) => !incomingKeys.has(getProductMatchKey(p)));
-      finalUpdated = sanitizeProducts([...untouchedExisting, ...processedIncoming]);
+      // Upsert: أضف كل المنتجات الواردة الجديدة، وحافظ على القائمة الحالية.
+      finalUpdated = sanitizeProducts([...products, ...processedIncoming]);
       setProducts(finalUpdated);
     }
 
@@ -4255,7 +4240,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       branchName: currentUser?.branchName || 'الفرع الرئيسي',
       action: 'import_products',
       actionTitle: `استيراد ومزامنة ${sectorFilteredIncoming.length} صنف من شيت الإكسل (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'})`,
-      details: `تم تحديث بيانات وشدات وأسعار ${sectorFilteredIncoming.length} صنف مع الحفاظ على حجوزات المناديب النشطة ومزامنتها مع قاعدة البيانات المركزية.`,
+      details: `تم حفظ ${sectorFilteredIncoming.length} صنف من الشيت${duplicatedCodes.length > 0 ? ` (${duplicatedCodes.length} كود مكرر: ${duplicatedCodes.slice(0,5).join('، ')}${duplicatedCodes.length>5?'…':''})` : ''} مع الحفاظ على حجوزات المناديب النشطة.`,
       badgeType: 'info',
     });
   };

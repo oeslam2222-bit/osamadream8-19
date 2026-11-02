@@ -405,6 +405,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     isProductElectrical,
   ]);
 
+  // احسب عدد تكرار كل كود أساسي في القائمة المعروضة (لإظهار شارة "مكرر X مرة" عند البحث)
+  const codeRepeatCount = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredProducts.forEach((p) => {
+      const c = (p.code || '').trim().toLowerCase();
+      if (c) map.set(c, (map.get(c) || 0) + 1);
+    });
+    return map;
+  }, [filteredProducts]);
+
   // Smart Search Suggestions: لو كتب حرف يظهرله اقتراحات فورية وأقرب أصناف مطابقة
   const searchSuggestions = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -1274,6 +1284,19 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </button>
                   </td>
                   <td className="p-3 text-right font-mono font-bold text-secondary text-xs">{p.code || '—'}</td>
+                  <td className="p-3 text-center">
+                    {(() => {
+                      const c = (p.code || '').trim().toLowerCase();
+                      const n = c ? codeRepeatCount.get(c) : 0;
+                      if (!c || n <= 1) return null;
+                      return (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 shadow-sm animate-pulse">
+                          Mكرر {n} مرة
+                          <AlertTriangle className="w-3 h-3 ml-0.5" />
+                        </span>
+                      );
+                    })()}
+                  </td>
                   <td className="p-3 text-right font-mono text-muted text-xs">
                     {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
                   </td>

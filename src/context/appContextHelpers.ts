@@ -3,7 +3,7 @@ import { inferBranchFromText, normalizeArabicText } from '../services/arabicMatc
 import { deduplicateAndMergeCustomers } from '../services/customerDeduplicationService';
 import { calculateCustomerFinancials, isSummaryOrTotalRow } from '../services/customerFinancialService';
 import { resolveCustomerDuesValue } from '../services/customerDues';
-import { productIdentityKey, deduplicateProductArray, normalizeProductCodeKey } from '../services/productIdentity';
+import { productIdentityKey, deduplicateProductArray, normalizeProductCodeKey, normalizeVariantCodeKey } from '../services/productIdentity';
 import { resolveProductPricing, stripPlaceholderText } from '../services/productPricing';
 
 export const STORAGE_KEYS = {
@@ -285,7 +285,7 @@ export const deduplicateTargetRecords = (records: TargetRecord[]): TargetRecord[
  * التعريف: الصنف = الكود. راجع الملف ده للسبب (قاعدة البيانات عليها
  * `UNIQUE(lower(trim(code)))` على جدول products، فالكود هو الهوية).
  */
-export { productIdentityKey, normalizeProductCodeKey, deduplicateProductArray } from '../services/productIdentity';
+export { productIdentityKey, normalizeProductCodeKey, normalizeVariantCodeKey, deduplicateProductArray } from '../services/productIdentity';
 
 export const sanitizeCustomers = (list: Customer[]): Customer[] => {
   if (!Array.isArray(list)) return [];
