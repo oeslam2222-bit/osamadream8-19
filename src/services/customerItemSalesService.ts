@@ -1126,12 +1126,16 @@ export async function pushCustomerItemSalesToSupabase(
     for (let i = 0; i < sales.length; i += batchSize) {
       const slice = sales.slice(i, i + batchSize);
       const batch = slice.map((s, idx) => {
-        // ID ثابت دقيق ومتوافق مع UUID و TEXT في PostgreSQL لمنع أخطاء النوع
-        const naturalKey = `${String(s.customerAccount || 'UNK')}|${String(s.itemCode || 'UNK')}|${String(s.month || '0')}|${String(s.salesOrder || '0')}`;
-        const deterministicUuid = toValidUUID(naturalKey);
-        const finalId = s.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.id)
-          ? s.id.toLowerCase()
-          : deterministicUuid;
+        // ID ثابت دقيق ومتوافق مع UUID و TEXT في PostgreSQL لمنع أخطاء النوع والتعارض
+        let finalId: string;
+        if (s.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.id)) {
+          finalId = s.id.toLowerCase();
+        } else if (s.id && s.id.trim().length > 0) {
+          finalId = toValidUUID(s.id.trim());
+        } else {
+          const naturalKey = `${String(s.customerAccount || 'UNK')}|${String(s.itemCode || 'UNK')}|${String(s.month || '0')}|${String(s.salesOrder || '0')}|${String(s.date || '')}|${i + idx}`;
+          finalId = toValidUUID(naturalKey);
+        }
 
         return {
           id: finalId,
@@ -1158,17 +1162,35 @@ export async function pushCustomerItemSalesToSupabase(
         };
       });
 
+      // إزالة أي سجلات مكررة لنفس الـ id داخل نفس الدفعة نهائياً لمنع خطأ Postgres 21000
+      const dedupedBatch = Array.from(
+        new Map(batch.map((row) => [row.id, row])).values()
+      );
+
       const { error } = await supabase
         .from('customer_item_sales')
-        .upsert(batch, { onConflict: 'id' });
+        .upsert(dedupedBatch, { onConflict: 'id' });
 
       if (error) {
-        console.error('Supabase batch upsert error:', error);
-        return {
-          success: false,
-          syncedCount,
-          error: `تعذر حفظ الدفعة ${Math.floor(i / batchSize) + 1} من ${Math.ceil(sales.length / batchSize)}: ${error.message}`
-        };
+        console.warn('Initial batch upsert error, trying sub-batches:', error.message);
+        let subErrorOccurred = false;
+        // المحاولة على دفعات أصغر لضمان الحفظ
+        for (let j = 0; j < dedupedBatch.length; j += 25) {
+          const subBatch = dedupedBatch.slice(j, j + 25);
+          const { error: subErr } = await supabase
+            .from('customer_item_sales')
+            .upsert(subBatch, { onConflict: 'id' });
+          if (subErr) {
+            console.error('Supabase batch upsert error:', subErr);
+            subErrorOccurred = true;
+            return {
+              success: false,
+              syncedCount,
+              error: `تعذر حفظ الدفعة ${Math.floor(i / batchSize) + 1} من ${Math.ceil(sales.length / batchSize)}: ${subErr.message}`
+            };
+          }
+        }
+        if (subErrorOccurred) continue;
       }
 
       syncedCount += slice.length;

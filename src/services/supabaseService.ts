@@ -496,9 +496,10 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
       };
     });
 
+    const dedupedPayload = Array.from(new Map(payload.map((r) => [r.id, r])).values());
     const failures: string[] = [];
-    for (let i = 0; i < payload.length; i += 100) {
-      const chunk = payload.slice(i, i + 100);
+    for (let i = 0; i < dedupedPayload.length; i += 100) {
+      const chunk = dedupedPayload.slice(i, i + 100);
       const { error: err1 } = await supabase.from('customers').upsert(chunk);
       if (err1) {
         // The dues columns require add_customer_financial_columns.sql. Retry the
@@ -2047,6 +2048,13 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
           imageUrl: p.image_url || undefined,
           cloudinaryPublicId: p.cloudinary_public_id || undefined,
           barcode: p.barcode || undefined,
+          unifiedCode: p.unified_code || p.unifiedCode || undefined,
+          branchStocks: p.branch_stocks || p.branchStocks || undefined,
+          sector: p.sector || (
+            `${p.item_group || ''} ${p.category || ''} ${p.department || ''} ${p.family_name || ''} ${p.name || ''}`.includes('كهرب')
+              ? 'electrical'
+              : 'home'
+          ),
         };
       });
       return { success: true, products: mapped };
@@ -2247,11 +2255,12 @@ export async function saveVisitsToSupabase(visits: CustomerVisit[]): Promise<{ s
       };
     });
 
+    const dedupedPayload = Array.from(new Map(payload.map((v) => [v.id, v])).values());
     const CHUNK_SIZE = 100;
     let savedCount = 0;
 
-    for (let i = 0; i < payload.length; i += CHUNK_SIZE) {
-      const chunk = payload.slice(i, i + CHUNK_SIZE);
+    for (let i = 0; i < dedupedPayload.length; i += CHUNK_SIZE) {
+      const chunk = dedupedPayload.slice(i, i + CHUNK_SIZE);
       // .select() متشال عن قصد: الـ data راجع مش بيستخدم، وطلبه بيرجّع
       // الصفوف كلها تاني — وحدّ PostgREST في الاستجابة 1,000 صف، فكان
       // ممكن يفشل الدفعات الكبيرة من غير سبب واضح.

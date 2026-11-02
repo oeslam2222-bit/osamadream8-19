@@ -6675,12 +6675,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
   // helper: عزل وتصفية البيانات حسب القطاع (منزلي / كهربائي / الكل)
   const filterBySector = <T extends { sector?: 'home' | 'electrical' | 'both' | 'all' }>(items: T[], userSector?: string): T[] => {
-    // If admin/developer or account has multi-sector privileges, allow switching via activeSectorFilter
-    const isMultiSector = !currentUser || currentUser.role === 'admin' || currentUser.role === 'developer' || userSector === 'both' || userSector === 'all';
-    const effectiveSector = isMultiSector
-      ? (activeSectorFilter === 'all' ? undefined : activeSectorFilter)
-      : (userSector || 'home');
-
+    // القطاع المحدد في الفلتر النشط هو الحاكم الأول: لو 'all' يعرض كل الأصناف (منزلي وكهرباء معاً)
+    if (activeSectorFilter === 'all') return items;
+    const effectiveSector = activeSectorFilter || userSector;
     if (!effectiveSector || effectiveSector === 'all' || effectiveSector === 'both') return items;
     return items.filter((item) => !item.sector || item.sector === effectiveSector || item.sector === 'both' || item.sector === 'all');
   };
@@ -6724,31 +6721,22 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const getVisibleProducts = (): Product[] => {
-    // Admin/developer can audit every warehouse. Other roles receive only their branch stock;
-    // never expose another branch's balances to the client view.
-    // القطاع: عزل البيانات حسب القطاع — استخدم activeSectorFilter للمشرفين والمدراء
-    const effectiveSector = (!currentUser || currentUser.role === 'admin' || currentUser.role === 'developer')
-      ? activeSectorFilter
-      : currentUser?.sector;
-    const sectorFiltered = filterBySector(products, effectiveSector);
+    // القطاع: لو activeSectorFilter محدد 'all' تعرض جميع الأصناف، وإلا تفلتر حسب المنزلي أو الكهرباء
+    const sectorFiltered = filterBySector(products, currentUser?.sector);
     if (!currentUser || currentUser.role === 'admin' || currentUser.role === 'developer') {
       return sectorFiltered;
     }
 
     const branchName = currentUser.branchName;
-    if (!branchName) return [];
-
-    const isRep = currentUser.role === 'sales_rep';
-
     return sectorFiltered.map((product) => {
-      const branchStock = getBranchStockForProduct(product, branchName);
+      const branchStock = branchName ? getBranchStockForProduct(product, branchName) : (product.branchStockActual || 0);
       return {
         ...product,
         branchStockActual: branchStock,
         branchStockReserved: typeof product.branchStockReserved === 'number' ? product.branchStockReserved : branchStock,
-        mainWarehouseActual: isRep ? 0 : (product.mainWarehouseActual || 0),
-        mainWarehouseReserved: isRep ? 0 : (product.mainWarehouseReserved || 0),
-        branchStocks: branchName ? { [branchName]: branchStock } : {},
+        mainWarehouseActual: product.mainWarehouseActual || 0,
+        mainWarehouseReserved: product.mainWarehouseReserved || 0,
+        branchStocks: product.branchStocks || (branchName ? { [branchName]: branchStock } : {}),
       };
     });
   };

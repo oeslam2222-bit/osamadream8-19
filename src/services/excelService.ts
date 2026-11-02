@@ -423,18 +423,16 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       !norm.includes('عائله') &&
       !norm.includes('فرع') &&
       !norm.includes('مندوب') &&
+      !norm.includes('صنف') &&
       (norm === 'اسمالمنتج' ||
-        norm === 'اسمالصنف' ||
         norm === 'productname' ||
-        norm === 'itemname' ||
         norm.includes('اسمالمنتج') ||
         norm.includes('productname') ||
-        norm.includes('اسمالصنف') ||
         norm === 'الاسم' ||
         norm === 'اسم' ||
         norm.includes('البيان'))
     ) {
-      if (colMap.name === -1 || norm === 'اسمالمنتج' || norm === 'اسمالصنف' || norm.includes('اسمالصنف')) {
+      if (colMap.name === -1 || norm === 'اسمالمنتج') {
         colMap.name = idx;
       }
     }
@@ -486,31 +484,37 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     ) {
       colMap.cartonPrice = idx;
     }
-    // 7. Item group (المجموعة الرئيسية / القسم / الماركة / البراند)
+    // 7. الصنف / اسم الصنف / Item group (المجموعة الرئيسية / القسم / الصنف)
     else if (
+      norm === 'اسمالصنف' ||
+      norm === 'الصنف' ||
+      norm === 'صنف' ||
       norm === 'itemgroup' ||
       norm === 'item_group' ||
       norm === 'item group' ||
-      norm.includes('itemgroup') ||
+      norm.includes('اسمالصنف') ||
       norm.includes('مجموعةالاصناف') ||
       norm.includes('مجموعةالأصناف') ||
       norm.includes('مجموعةالصنف') ||
       norm.includes('مجموعهالصنف') ||
       norm.includes('المجموعةالرئيسية') ||
       norm.includes('المجموعهالرئيسيه') ||
-      norm.includes('المجموعةالرئيسيه') ||
-      norm.includes('المجموعهالرئيسية') ||
       norm.includes('المجموعة') ||
       norm.includes('المجموعه') ||
       norm.includes('البراند') ||
       norm.includes('الماركة') ||
       norm.includes('الماركه')
     ) {
-      colMap.itemGroup = idx;
-      colMap.department = idx;
+      if (colMap.itemGroup === -1 || norm === 'اسمالصنف' || norm === 'الصنف') {
+        colMap.itemGroup = idx;
+        colMap.department = idx;
+      }
     }
-    // 8. Family Name (عائلة الصنف / الفئة / المجموعة الفرعية / التصنيف)
+    // 8. الصنف بالعائلة / Family Name (عائلة الصنف / الفئة / المجموعة الفرعية / التصنيف)
     else if (
+      norm === 'الصنفبالعائله' ||
+      norm === 'الصنفبالعائلة' ||
+      norm.includes('الصنفبالعائل') ||
       norm === 'familyname' ||
       norm === 'family_name' ||
       norm === 'family name' ||
@@ -713,17 +717,17 @@ export function parseRawRowsToProducts(rawRows: any[]): {
   });
 
   // Positional fallback for the exact 19 columns:
-  // [الكود الموحد, كود المنتج, اسم المنتج, الحجم, عدد القطع, سعر القطعة, Item group, Family Name, اللون, البحيرة, الفيوم, القاهرة, المنيا, ديمشلت, مخزون اكتوبر, منوف, منيا القمح, سعر العرض, لينك الصوره]
+  // [كود المنتج, كود موحد, اسم المنتج, الحجم, اللون, اسم الصنف, الصنف بالعائله, Factor, سعر القطعه, البحيرة, الفيوم, القاهرة, المنيا, ديمشلت, مخزون اكتوبر, منوف, منيا القمح, لينك الصور, القطاع]
   if ((colMap.unifiedCode === -1 || colMap.code === -1) && headers.length >= 10) {
-    if (colMap.unifiedCode === -1) colMap.unifiedCode = 0;
-    if (colMap.code === -1) colMap.code = 1;
+    if (colMap.code === -1) colMap.code = 0;
+    if (colMap.unifiedCode === -1) colMap.unifiedCode = 1;
     if (colMap.name === -1 && headers.length > 2) colMap.name = 2;
     if (colMap.size === -1 && headers.length > 3) colMap.size = 3;
-    if (colMap.factor === -1 && headers.length > 4) { colMap.factor = 4; colMap.cartonQuantity = 4; }
-    if (colMap.cartonPrice === -1 && colMap.salesPrice === -1 && headers.length > 5) colMap.cartonPrice = 5;
-    if (colMap.itemGroup === -1 && headers.length > 6) { colMap.itemGroup = 6; colMap.department = 6; }
-    if (colMap.familyName === -1 && headers.length > 7) { colMap.familyName = 7; colMap.classification = 7; }
-    if (colMap.color === -1 && headers.length > 8) colMap.color = 8;
+    if (colMap.color === -1 && headers.length > 4) colMap.color = 4;
+    if (colMap.itemGroup === -1 && headers.length > 5) { colMap.itemGroup = 5; colMap.department = 5; }
+    if (colMap.familyName === -1 && headers.length > 6) { colMap.familyName = 6; colMap.classification = 6; }
+    if (colMap.factor === -1 && headers.length > 7) { colMap.factor = 7; colMap.cartonQuantity = 7; }
+    if (colMap.salesPrice === -1 && headers.length > 8) { colMap.salesPrice = 8; colMap.piecePrice = 8; }
     if (colMap.stockBeheira === -1 && headers.length > 9) colMap.stockBeheira = 9;
     if (colMap.stockFayoum === -1 && headers.length > 10) colMap.stockFayoum = 10;
     if (colMap.stockCairo === -1 && headers.length > 11) colMap.stockCairo = 11;
@@ -732,9 +736,8 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     if (colMap.stockOctober === -1 && headers.length > 14) { colMap.stockOctober = 14; colMap.mainWarehouseActual = 14; }
     if (colMap.stockMenouf === -1 && headers.length > 15) colMap.stockMenouf = 15;
     if (colMap.stockMeq === -1 && headers.length > 16) colMap.stockMeq = 16;
-    if (colMap.promoPrice === -1 && headers.length > 17) colMap.promoPrice = 17;
-    if (colMap.imageUrl === -1 && headers.length > 18) colMap.imageUrl = 18;
-    if (colMap.sector === -1 && headers.length > 19) colMap.sector = 19;
+    if (colMap.imageUrl === -1 && headers.length > 17) colMap.imageUrl = 17;
+    if (colMap.sector === -1 && headers.length > 18) colMap.sector = 18;
   }
 
   // Track code occurrences to ensure 100% of rows (all 5500+) get unique IDs without overwriting

@@ -59,7 +59,16 @@ import {
 } from '../services/pdfService';
 import { Customer, Product } from '../types';
 import { getBranchStockForProduct } from '../services/arabicMatchingService';
-import { ModernCartDrawer } from './ModernCartDrawer';
+export const COMPANY_WAREHOUSES = [
+  { key: 'مخزون اكتوبر', label: 'أكتوبر (المركزي)', shortLabel: 'أكتوبر', isCentral: true },
+  { key: 'القاهرة', label: 'القاهرة', shortLabel: 'القاهرة', isCentral: false },
+  { key: 'البحيرة', label: 'البحيرة', shortLabel: 'البحيرة', isCentral: false },
+  { key: 'الفيوم', label: 'الفيوم', shortLabel: 'الفيوم', isCentral: false },
+  { key: 'المنيا', label: 'المنيا', shortLabel: 'المنيا', isCentral: false },
+  { key: 'ديمشلت', label: 'ديمشلت', shortLabel: 'ديمشلت', isCentral: false },
+  { key: 'منوف', label: 'منوف', shortLabel: 'منوف', isCentral: false },
+  { key: 'منيا القمح', label: 'منيا القمح', shortLabel: 'م.القمح', isCentral: false },
+] as const;
 
 interface ProductCatalogProps {
   onOpenCart?: () => void;
@@ -117,6 +126,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [selectedStatus, setSelectedStatus] = useState<string>('الكل');
   // إخفاء الأصناف ذات الرصيد الصفري (المخزن الرئيسي ومخزن الفرع = 0) افتراضياً
   const [onlyInStock, setOnlyInStock] = useState<boolean>(true);
+  // عرض أرصدة كافة المخازن الـ 8 تفصيلياً (7 فروع + مخزن أكتوبر)
+  const [showAllWarehouses, setShowAllWarehouses] = useState<boolean>(false);
   // لوحة "المزيد من الفلتر" — مطوية افتراضياً عشان الشريط يفضل زي التصميم
   const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
   const [sortBy, setSortBy] = useState<
@@ -242,32 +253,45 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     [currentActiveBranch]
   );
 
-  // Dynamic Departments
+  const getWarehouseStock = useCallback((p: Product, warehouseKey: string): number => {
+    if (warehouseKey === 'مخزون اكتوبر' || warehouseKey.includes('اكتوبر') || warehouseKey.includes('أكتوبر')) {
+      return p.mainWarehouseActual || (p.branchStocks?.['مخزون اكتوبر'] ?? p.branchStocks?.['الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'] ?? 0);
+    }
+    if (p.branchStocks) {
+      if (p.branchStocks[warehouseKey] !== undefined) return p.branchStocks[warehouseKey];
+      if (p.branchStocks[`فرع ${warehouseKey}`] !== undefined) return p.branchStocks[`فرع ${warehouseKey}`];
+    }
+    return getBranchStockForProduct(p, `فرع ${warehouseKey}`);
+  }, []);
+
+  // Dynamic Departments -> عمود "الصنف" (Item group / Department)
   const departmentsList = useMemo(() => {
     const set = new Set<string>();
     products.forEach((p) => {
-      const d = (p.department || p.category || p.itemGroup || '').trim();
-      if (d) set.add(d);
+      const raw = p.itemGroup || p.department || p.category || '';
+      const d = stripPlaceholderText(raw).trim();
+      if (d && d !== 'عام' && !d.toLowerCase().includes('blank')) set.add(d);
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
   }, [products]);
 
-  // Dynamic Brands / Categories
+  // Dynamic Brands / Categories -> عمود "الصنف بالعائلة" (Family Name / Classification)
   const brandsList = useMemo(() => {
     const set = new Set<string>();
     products.forEach((p) => {
-      const b = (p.familyName || p.classification || p.category || '').trim();
-      if (b && b !== 'عام' && b !== 'فئة A') set.add(b);
+      const raw = p.familyName || p.classification || '';
+      const b = stripPlaceholderText(raw).trim();
+      if (b && b !== 'عام' && b !== 'فئة A' && !b.toLowerCase().includes('blank')) set.add(b);
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
   }, [products]);
 
-  // Check if a product belongs to electrical sector
+  // Check if a product belongs to electrical sector (القطاع الكهربائي)
   const isProductElectrical = useCallback((p: Product) => {
     if (p.sector === 'electrical') return true;
-    if (p.sector === 'home') return false;
-    const checkStr = `${p.department || ''} ${p.category || ''} ${p.itemGroup || ''} ${p.familyName || ''} ${p.name || ''}`.toLowerCase();
-    return (
+    if (p.sector === 'both' || p.sector === 'all') return true;
+    const checkStr = `${p.sector || ''} ${p.department || ''} ${p.category || ''} ${p.itemGroup || ''} ${p.familyName || ''} ${p.name || ''}`.toLowerCase();
+    const hasElectricalKeywords =
       // Arabic keywords
       checkStr.includes('كهربا') ||
       checkStr.includes('لمبة') ||
@@ -278,10 +302,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       checkStr.includes('قاطع') ||
       checkStr.includes('فيشة') ||
       checkStr.includes('لقمة') ||
+      checkStr.includes('دواية') ||
       checkStr.includes('وش') ||
       checkStr.includes('سبوت') ||
       checkStr.includes('كشاف') ||
-      // English keywords (for Excel-synced products)
+      // English keywords
       checkStr.includes('electrical') ||
       checkStr.includes('electric') ||
       checkStr.includes('cable') ||
@@ -292,20 +317,21 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       checkStr.includes('socket') ||
       checkStr.includes('plug') ||
       checkStr.includes('breaker') ||
-      checkStr.includes('fuse')
-    );
+      checkStr.includes('fuse');
+
+    if (hasElectricalKeywords) return true;
+    if (p.sector === 'home') return false;
+    return false;
   }, []);
 
   // Filtered Products
   const filteredProducts = useMemo(() => {
     let result = getVisibleProducts().filter((p) => {
-      // 1. Sector filter: home vs electrical — يعمل لكل المستخدمين، ليس فقط الأدمن
-      const effectiveSector = activeSectorFilter !== 'all' ? activeSectorFilter : (currentUser?.sector || 'all');
-
-      if (effectiveSector && effectiveSector !== 'all') {
+      // 1. Sector filter: home vs electrical — عندما يختار المستخدم 'all' تعرض جميع القطاعات (منزلي وكهرباء)
+      if (activeSectorFilter !== 'all') {
         const isElec = isProductElectrical(p);
-        if (effectiveSector === 'electrical' && !isElec) return false;
-        if (effectiveSector === 'home' && isElec && p.sector !== 'both' && p.sector !== 'all') return false;
+        if (activeSectorFilter === 'electrical' && !isElec) return false;
+        if (activeSectorFilter === 'home' && isElec && p.sector !== 'both' && p.sector !== 'all') return false;
       }
 
       // 2. Hide products with 0 stock in both main warehouse and rep's branch
@@ -326,15 +352,17 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         if (!matchesName && !matchesCode && !matchesUnified && !matchesBarcode) return false;
       }
 
-      // 4. Department filter
+      // 4. Department / الصنف filter
       if (selectedDept !== 'الكل') {
-        const pDept = (p.department || p.category || p.itemGroup || '').trim();
+        const rawDept = p.itemGroup || p.department || p.category || '';
+        const pDept = stripPlaceholderText(rawDept).trim();
         if (pDept !== selectedDept) return false;
       }
 
-      // 5. Brand filter
+      // 5. Brand / الصنف بالعائلة filter
       if (selectedBrand !== 'الكل') {
-        const pBrand = (p.familyName || p.classification || p.category || '').trim();
+        const rawBrand = p.familyName || p.classification || '';
+        const pBrand = stripPlaceholderText(rawBrand).trim();
         if (pBrand !== selectedBrand) return false;
       }
 
@@ -468,17 +496,19 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       })
     : null;
 
-  // Add item to cart with quantity
+  // Add item to cart with quantity (ذكي: لو الشدة = 1 يضاف كقطع، ولو أكبر يضاف ككرتونة)
   const handleAddToCart = (product: Product) => {
+    const factor = product.cartonQuantity ?? product.factor ?? 1;
+    const isSingle = factor <= 1;
+    const type = isSingle ? 'piece' : (cardOrderTypes[product.id] || 'carton');
     const qty = cardQuantities[product.id] || 1;
-    const type = cardOrderTypes[product.id] || 'carton';
 
     const branchStock = getProductBranchStock(product);
     const octoberStock = product.mainWarehouseActual || 0;
     const totalAvail = branchStock + octoberStock;
 
     if (totalAvail <= 0) {
-      setStockErrorToast(`الصنف (${product.name}) غير متوفر حالياً في أي مخزن!`);
+      setStockErrorToast(`الصنف (${stripPlaceholderText(product.name)}) غير متوفر حالياً في أي مخزن!`);
       setTimeout(() => setStockErrorToast(null), 3500);
       return;
     }
@@ -491,8 +521,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     }
 
     setAddedItemToast({
-      name: product.name,
-      count: `${qty} ${type === 'carton' ? 'كرتونة' : 'قطعة'}`,
+      name: stripPlaceholderText(product.name),
+      count: isSingle ? `${qty} قطعة` : `${qty} ${type === 'carton' ? 'كرتونة' : 'قطعة'}`,
     });
     setTimeout(() => setAddedItemToast(null), 3000);
   };
@@ -600,7 +630,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           </div>
 
           {/* Left side: Prominent Search Bar with Smart Autocomplete Suggestions */}
-          <div className="relative w-full lg:max-w-xl" ref={searchWrapperRef}>
+          <div className="relative w-full lg:max-w-xl z-20" ref={searchWrapperRef}>
           <div className="relative">
             <input
               type="text"
@@ -614,7 +644,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   setShowSearchSuggestions(true);
                 }
               }}
-              placeholder="ابحث باسم المنتج أو كود العميل أو الكود الموحد ..."
+              placeholder="ابحث باسم المنتج أو كود المنتج أو الكود الموحد ..."
               className="w-full pl-10 pr-11 py-3 bg-white border border-white/60 rounded-2xl text-xs sm:text-sm font-bold text-secondary placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-white/70 shadow-lg transition"
             />
             <Search className="w-5 h-5 text-light absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -635,7 +665,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
           {/* Smart Suggestions Dropdown - يظهر فور كتابة أي حرف أو رقم */}
           {showSearchSuggestions && searchTerm.trim().length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-slate-200 shadow-xl z-50 overflow-hidden divide-y divide-border-primary/30 max-h-96 overflow-y-auto">
+            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl z-[100] overflow-hidden divide-y divide-border-primary/30 max-h-96 overflow-y-auto">
               <div className="px-3.5 py-2 bg-slate-50 flex items-center justify-between text-[11px] font-bold text-light">
                 <span>اقتراحات البحث الذكي ({searchSuggestions.length} صنف)</span>
                 <span className="text-[10px] text-blue-600 font-extrabold">اضغط لاختيار الصنف</span>
@@ -748,8 +778,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       )}
 
-      {/* 2. KPI cards: مخزون الفرع / مخزون أكتوبر / المرتجعات / التحصيلات */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
+      {/* 2. Focused Inventory Stock KPI Cards (3 Cards) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
         {/* مخزون فرع المندوب */}
         <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0">
@@ -761,7 +791,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <p className="text-2xl font-black text-blue-700 tracking-tight leading-tight">
                 {stats.branchCartons.toLocaleString('en-US')}
               </p>
-              <p className="text-[10px] text-light font-bold leading-tight">رصيد متاح</p>
+              <p className="text-[10px] text-light font-bold leading-tight">رصيد متاح بالفرع ({currentActiveBranch})</p>
             </div>
           </div>
           <button
@@ -775,18 +805,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           </button>
         </div>
 
-        {/* مخزون أكتوبر */}
+        {/* مخزون أكتوبر المركزي */}
         <div className="bg-white rounded-2xl border border-emerald-100 shadow-sm p-4 flex items-center justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
               <Package className="w-6 h-6" />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] text-light font-black leading-tight">مخزون أكتوبر</p>
+              <p className="text-[11px] text-light font-black leading-tight">المخزن الرئيسي (أكتوبر)</p>
               <p className="text-2xl font-black text-emerald-600 tracking-tight leading-tight">
                 {stats.octoberCartons.toLocaleString('en-US')}
               </p>
-              <p className="text-[10px] text-light font-bold leading-tight">رصيد متاح</p>
+              <p className="text-[10px] text-light font-bold leading-tight">رصيد مركزي متاح للسحب</p>
             </div>
           </div>
           <button
@@ -800,62 +830,87 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           </button>
         </div>
 
-        {/* مرتجعات تحتاج مراجعة */}
-        <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-4 flex items-center justify-between gap-2">
+        {/* الأصناف المتوفرة للطلب */}
+        <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm p-4 flex items-center justify-between gap-2 sm:col-span-2 lg:col-span-1">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-12 h-12 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
-              <RotateCcw className="w-6 h-6" />
+            <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+              <Sparkles className="w-6 h-6" />
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] text-light font-black leading-tight">مرتجعات</p>
-              <p className="text-2xl font-black text-orange-500 tracking-tight leading-tight">
-                {opsStats.returnsPending.toLocaleString('en-US')}
+              <p className="text-[11px] text-light font-black leading-tight">الأصناف المتوفرة للطلب</p>
+              <p className="text-2xl font-black text-indigo-600 tracking-tight leading-tight">
+                {stats.availableItemsCount.toLocaleString('en-US')}
               </p>
-              <p className="text-[10px] text-light font-bold leading-tight">تحتاج مراجعة</p>
+              <p className="text-[10px] text-light font-bold leading-tight">أصناف بمخزون &gt; 0 في الفرع أو أكتوبر</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => onNavigateToTab?.('returns')}
-            title="فتح المرتجعات"
-            aria-label="فتح المرتجعات"
-            className="w-8 h-8 rounded-full bg-orange-50 text-orange-500 hover:bg-orange-100 flex items-center justify-center shrink-0 transition cursor-pointer"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
         </div>
-
-        {/* التحصيلات - مزال حسب الطلب */}
-        {/* 
-        <div className="bg-white rounded-2xl border border-violet-100 shadow-sm p-4 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-12 h-12 rounded-xl bg-violet-50 text-violet-500 flex items-center justify-center shrink-0">
-              <Coins className="w-6 h-6" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] text-light font-black leading-tight">التحصيلات</p>
-              <p className="text-2xl font-black text-violet-600 tracking-tight leading-tight">
-                {opsStats.collectionsCount.toLocaleString('en-US')}
-              </p>
-              <p className="text-[10px] text-light font-bold leading-tight">عدد عمليات التحصيل</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => onNavigateToTab?.('visits')}
-            title="فتح الزيارات والتحصيلات"
-            aria-label="فتح الزيارات والتحصيلات"
-            className="w-8 h-8 rounded-full bg-violet-50 text-violet-500 hover:bg-violet-100 flex items-center justify-center shrink-0 transition cursor-pointer"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-        </div>
-        */}
       </div>
 
       {/* 3. Filter Bar */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 select-none">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 select-none space-y-3">
         <div className="flex flex-wrap items-center gap-2">
+          {/* القطاعات (منزلي / كهرباء / كل القطاعات) - واضحة ومباشرة بنقرة واحدة */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSectorFilter('all');
+                saveCatalogFilters();
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                activeSectorFilter === 'all'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              🌐 كل القطاعات
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSectorFilter('home');
+                saveCatalogFilters();
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                activeSectorFilter === 'home'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              🏠 منزلي
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSectorFilter('electrical');
+                saveCatalogFilters();
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                activeSectorFilter === 'electrical'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              ⚡ كهرباء
+            </button>
+          </div>
+
+          {/* زر التبديل لعرض تفاصيل الـ 8 مخازن (7 فروع + مخزن أكتوبر المركزي) */}
+          <button
+            type="button"
+            onClick={() => setShowAllWarehouses((v) => !v)}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
+              showAllWarehouses
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'
+            }`}
+            title="عرض كشف أرصدة المخازن الـ 8 لكل صنف"
+          >
+            <Building className="w-4 h-4" />
+            <span>{showAllWarehouses ? 'عرض مختصر (فرعك + أكتوبر)' : 'عرض أرصدة الـ 8 مخازن'}</span>
+          </button>
+
           {/* المزيد من الفلتر (يفتح لوحة الفلاتر المتقدمة) */}
           <button
             type="button"
@@ -911,15 +966,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <ChevronDown className="w-3.5 h-3.5 text-light absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
-          {/* كل الماركات (Family Name) */}
+          {/* الصنف بالعائلة (من عمود الصنف بالعائله / Family Name) */}
           <div className="relative">
             <select
               value={selectedBrand}
               onChange={(e) => setSelectedBrand(e.target.value)}
-              aria-label="كل الماركات"
+              aria-label="الصنف بالعائلة"
               className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-secondary focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[180px]"
             >
-              <option value="الكل">كل الماركات</option>
+              <option value="الكل">الصنف بالعائلة (الكل)</option>
               {brandsList.map((b) => (
                 <option key={b} value={b}>
                   {b}
@@ -929,15 +984,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <ChevronDown className="w-3.5 h-3.5 text-light absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
 
-          {/* كل الأقسام (Item group) */}
+          {/* الصنف (من عمود اسم الصنف / Item group) */}
           <div className="relative">
             <select
               value={selectedDept}
               onChange={(e) => setSelectedDept(e.target.value)}
-              aria-label="كل الأقسام"
+              aria-label="الصنف"
               className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-secondary focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[180px]"
             >
-              <option value="الكل">كل الأقسام</option>
+              <option value="الكل">الصنف (الكل)</option>
               {departmentsList.map((d) => (
                 <option key={d} value={d}>
                   {d}
@@ -989,42 +1044,37 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <span>المتوفر بالمخازن فقط (مخزون &gt; 0)</span>
             </button>
 
-            {/* القطاعات */}
-            {isAdminOrDev ? (
-              <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
-                <button
-                  type="button"
-                  onClick={() => setActiveSectorFilter('all')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                    activeSectorFilter === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'text-muted hover:text-primary'
-                  }`}
-                >
-                  🌐 كل القطاعات ({products.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveSectorFilter('home')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                    activeSectorFilter === 'home' ? 'bg-blue-600 text-white shadow-xs' : 'text-muted hover:text-primary'
-                  }`}
-                >
-                  🏠 منزلي
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveSectorFilter('electrical')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                    activeSectorFilter === 'electrical' ? 'bg-blue-600 text-white shadow-xs' : 'text-muted hover:text-primary'
-                  }`}
-                >
-                  ⚡ كهرباء
-                </button>
-              </div>
-            ) : (
-              <span className="text-xs font-black text-secondary bg-blue-50 border border-blue-200 px-3.5 py-2 rounded-xl flex items-center gap-1.5">
-                {currentUser?.sector === 'electrical' ? '⚡ كتالوج قطاع الكهرباء' : '🏠 كتالوج القطاع المنزلي'}
-              </span>
-            )}
+            {/* أزرار القطاع: متاحة لكافة المستخدمين لتصفح منزلي أو كهرباء أو كل الأصناف */}
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveSectorFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                  activeSectorFilter === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'text-muted hover:text-primary'
+                }`}
+                title="عرض جميع أصناف المنزلي والكهرباء معاً"
+              >
+                🌐 كل القطاعات ({products.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSectorFilter('home')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                  activeSectorFilter === 'home' ? 'bg-blue-600 text-white shadow-xs' : 'text-muted hover:text-primary'
+                }`}
+              >
+                🏠 منزلي {currentUser?.sector === 'home' ? '⭐' : ''}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSectorFilter('electrical')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                  activeSectorFilter === 'electrical' ? 'bg-blue-600 text-white shadow-xs' : 'text-muted hover:text-primary'
+                }`}
+              >
+                ⚡ كهرباء {currentUser?.sector === 'electrical' ? '⭐' : ''}
+              </button>
+            </div>
 
             {/* تصدير PDF */}
             <button
@@ -1145,21 +1195,39 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* ERP Table View (Desktop\/Laptop) */}
       <div className="catalog-erp-wrap hidden lg:block overflow-x-auto border border-border-primary rounded-3xl shadow-lg bg-surface animate-in mi-fade-in">
         <table className="catalog-erp-table w-full text-left border-collapse text-sm">
-          <thead className="bg-navy text-white font-extrabold border-b border-navy/50 uppercase tracking-wider">
+          <thead className="bg-[#0f1b2d] text-white font-extrabold border-b border-slate-800 uppercase tracking-wider text-xs select-none">
             <tr>
-              <th className="p-3 text-right w-16 text-white font-black uppercase tracking-tighter">#</th>
-              <th className="p-3 text-center w-20 text-white font-black uppercase tracking-tighter">الصورة</th>
-              <th className="p-3 text-right text-white font-black uppercase tracking-tighter">كود المنتج</th>
-              <th className="p-3 text-right text-white font-black uppercase tracking-tighter">الكود الموحد</th>
-              <th className="p-3 text-right text-white font-black uppercase tracking-tighter">اسم المنتج</th>
-              <th className="p-3 text-center w-20 text-white font-black uppercase tracking-tighter">القطاع</th>
-              <th className="p-3 text-right w-24 text-white font-black uppercase tracking-tighter">سعر القطعة</th>
-              <th className="p-3 text-right w-24 text-white font-black uppercase tracking-tighter">سعر الكرتونة</th>
-              <th className="p-3 text-center w-16 text-white font-black uppercase tracking-tighter">الشدة</th>
-              <th className="p-3 text-center w-20 text-white font-black uppercase tracking-tighter">مخزون الفرع</th>
-              <th className="p-3 text-center w-20 text-white font-black uppercase tracking-tighter">مخزون أكتوبر</th>
-              <th className="p-3 text-center w-16 text-white font-black uppercase tracking-tighter">المفضلة</th>
-              <th className="p-3 text-center w-24 text-white font-black uppercase tracking-tighter">إجراء</th>
+              <th className="p-3 text-right w-12 text-white font-black">#</th>
+              <th className="p-3 text-center w-16 text-white font-black">الصورة</th>
+              <th className="p-3 text-right w-24 text-white font-black">كود المنتج</th>
+              <th className="p-3 text-right w-24 text-white font-black">الكود الموحد</th>
+              <th className="p-3 text-right text-white font-black min-w-[180px]">اسم المنتج</th>
+              <th className="p-3 text-center w-20 text-white font-black">القطاع</th>
+              <th className="p-3 text-right w-24 text-white font-black">سعر القطعة</th>
+              <th className="p-3 text-right w-24 text-white font-black">سعر الكرتونة</th>
+              <th className="p-3 text-center w-16 text-white font-black">الشدة</th>
+              {showAllWarehouses ? (
+                <>
+                  {COMPANY_WAREHOUSES.map((wh) => (
+                    <th
+                      key={wh.key}
+                      className={`p-3 text-center w-18 text-white font-black text-[11px] ${
+                        wh.isCentral ? 'bg-blue-900/70 border-x border-blue-800/50' : ''
+                      }`}
+                      title={wh.label}
+                    >
+                      {wh.shortLabel}
+                    </th>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <th className="p-3 text-center w-24 text-white font-black">مخزون الفرع</th>
+                  <th className="p-3 text-center w-24 text-white font-black bg-blue-900/40">مخزون أكتوبر</th>
+                </>
+              )}
+              <th className="p-3 text-center w-14 text-white font-black">المفضلة</th>
+              <th className="p-3 text-center w-28 text-white font-black">إجراء</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-primary/30">
@@ -1176,8 +1244,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               const globalIdx = (currentPage - 1) * itemsPerPage + rowIdx + 1;
 
               return (
-                <tr key={p.id} className="hover:bg-surface-hover transition group bg-surface">
-                  <td className="p-3 text-right font-bold text-light">{globalIdx}</td>
+                <tr key={p.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition group bg-surface">
+                  <td className="p-3 text-right font-bold text-light text-xs">{globalIdx}</td>
                   <td className="p-3 text-center">
                     <button
                       type="button"
@@ -1200,46 +1268,86 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       </div>
                     </button>
                   </td>
-                  <td className="p-3 text-right font-mono font-bold text-secondary">{p.code || '—'}</td>
-                  <td className="p-3 text-right font-mono text-muted">
+                  <td className="p-3 text-right font-mono font-bold text-secondary text-xs">{p.code || '—'}</td>
+                  <td className="p-3 text-right font-mono text-muted text-xs">
                     {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
                   </td>
-                  <td className="p-3 text-right font-bold text-primary truncate max-w-[200px]" title={displayName}>
+                  <td className="p-3 text-right font-bold text-primary truncate max-w-[220px]" title={displayName}>
                     {displayName || `صنف ${p.code}`}
                   </td>
                   <td className="p-3 text-center">
-                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-bold shrink-0 ${
+                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black shrink-0 ${
                       isElec ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
                     }`}>
                       {isElec ? '⚡ كهرباء' : '🏠 منزلي'}
                     </span>
                   </td>
-                  <td className="p-3 text-right font-mono text-secondary">
-                    {priceInfo.displayPrice > 0 ? formatCurrency(priceInfo.displayPrice) : '—'}
-                    <span className="text-[10px] text-light block">/قطعة</span>
+                  <td className="p-3 text-right font-mono">
+                    <div className="font-bold text-slate-800 dark:text-slate-100">
+                      {priceInfo.piecePrice > 0 ? formatCurrency(priceInfo.piecePrice) : '—'}
+                    </div>
+                    <span className="text-[10px] text-slate-400 block">/قطعة</span>
                   </td>
-                  <td className="p-3 text-right font-mono text-secondary">
-                    {priceInfo.displayPrice > 0 && priceInfo.factor > 1
-                      ? formatCurrency(priceInfo.displayPrice * priceInfo.factor)
-                      : '—'}
+                  <td className="p-3 text-right font-mono">
+                    {priceInfo.factor > 1 && priceInfo.cartonPrice > 0 ? (
+                      <div>
+                        <div className="font-bold text-slate-800 dark:text-slate-100">
+                          {formatCurrency(priceInfo.cartonPrice)}
+                        </div>
+                        <span className="text-[10px] text-slate-400 block">/كرتونة</span>
+                      </div>
+                    ) : (
+                      <span className="text-slate-400 text-xs">قطعة فردي</span>
+                    )}
                   </td>
-                  <td className="p-3 text-center font-mono text-secondary">
-                    {priceInfo.factor > 1 ? priceInfo.factor : 1}
+                  <td className="p-3 text-center font-mono">
+                    {priceInfo.factor > 1 ? (
+                      <span className="inline-block bg-amber-50 text-amber-800 border border-amber-200 text-xs px-2 py-0.5 rounded-md font-bold">
+                        {priceInfo.factor} ق/ك
+                      </span>
+                    ) : (
+                      <span className="inline-block bg-slate-100 text-slate-600 text-[11px] px-2 py-0.5 rounded-md font-bold">
+                        1 قطعه
+                      </span>
+                    )}
                   </td>
-                  <td className="p-3 text-center">
-                    <span className={`px-2 py-1 rounded-lg text-[11px] font-bold ${
-                      branchStock > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
-                    }`}>
-                      {branchStock}
-                    </span>
-                  </td>
-                  <td className="p-3 text-center">
-                    <span className={`px-2 py-1 rounded-lg text-[11px] font-bold ${
-                      octoberStock > 0 ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-light border border-slate-200'
-                    }`}>
-                      {octoberStock}
-                    </span>
-                  </td>
+                  {showAllWarehouses ? (
+                    <>
+                      {COMPANY_WAREHOUSES.map((wh) => {
+                        const stock = getWarehouseStock(p, wh.key);
+                        return (
+                          <td key={wh.key} className={`p-3 text-center ${wh.isCentral ? 'bg-blue-50/30' : ''}`}>
+                            <span className={`px-2 py-0.5 rounded-lg text-xs font-black ${
+                              stock > 0
+                                ? wh.isCentral
+                                  ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                                  : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-slate-100 text-slate-400 border border-slate-200'
+                            }`}>
+                              {stock}
+                            </span>
+                          </td>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <>
+                      <td className="p-3 text-center">
+                        <span className={`px-2.5 py-1 rounded-lg text-xs font-black ${
+                          branchStock > 0 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}>
+                          {branchStock}
+                        </span>
+                      </td>
+                      <td className="p-3 text-center bg-blue-50/20">
+                        <span className={`px-2.5 py-1 rounded-lg text-xs font-black ${
+                          octoberStock > 0 ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-light border border-slate-200'
+                        }`}>
+                          {octoberStock}
+                        </span>
+                      </td>
+                    </>
+                  )}
                   <td className="p-3 text-center">
                     <button
                       type="button"
@@ -1259,13 +1367,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       type="button"
                       onClick={() => handleAddToCart(p)}
                       disabled={branchStock <= 0 && octoberStock <= 0}
-                      className="w-full py-1.5 rounded-lg text-xs font-bold transition shadow-sm flex items-center justify-center gap-1.5 ${
+                      className={`w-full py-2 px-3 rounded-xl text-xs font-black transition-all shadow-sm flex items-center justify-center gap-1.5 ${
                         branchStock <= 0 && octoberStock <= 0
-                          ? 'bg-slate-200 text-light cursor-not-allowed'
-                          : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95 cursor-pointer'
-                      }"
+                          ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
+                          : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md shadow-blue-600/30 active:scale-95 cursor-pointer'
+                      }`}
                     >
-                      <ShoppingCart className="w-3 h-3" />
+                      <ShoppingCart className="w-3.5 h-3.5 shrink-0" />
                       <span>إضافة</span>
                     </button>
                   </td>
@@ -1274,7 +1382,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             })}
             {paginatedProducts.length === 0 && (
               <tr>
-                <td colSpan={11} className="p-8 text-center text-light font-bold">
+                <td colSpan={showAllWarehouses ? 19 : 13} className="p-8 text-center text-light font-bold">
                   <Package className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                   <p>لم يتم العثور على أصناف مطابقة للبحث أو الفلاتر المحددة</p>
                 </td>
@@ -1428,23 +1536,51 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </div>
               </div>
 
-              {/* Stock Row: مخزون الفرع (Green) + مخزون أكتوبر (Blue) */}
-              <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="bg-emerald-50/70 border border-emerald-100 rounded-xl p-2 text-emerald-800">
-                  <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-emerald-700">
-                    <Store className="w-3.5 h-3.5" />
-                    <span>مخزون الفرع</span>
+              {/* Stock Row: 8 Warehouses or Default 2 */}
+              {showAllWarehouses ? (
+                <div className="space-y-1 bg-slate-50 border border-slate-200/80 rounded-xl p-2">
+                  <div className="text-[10px] font-black text-slate-500 mb-1 flex items-center justify-between">
+                    <span>🏢 أرصدة الـ 8 مخازن:</span>
                   </div>
-                  <div className="text-base font-black mt-0.5">{branchStock}</div>
-                </div>
-                <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-2 text-blue-800">
-                  <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-blue-700">
-                    <Calendar className="w-3.5 h-3.5" />
-                    <span>مخزون أكتوبر</span>
+                  <div className="grid grid-cols-4 gap-1 text-center">
+                    {COMPANY_WAREHOUSES.map((wh) => {
+                      const stock = getWarehouseStock(p, wh.key);
+                      return (
+                        <div
+                          key={wh.key}
+                          className={`rounded-lg p-1 border text-[10px] ${
+                            stock > 0
+                              ? wh.isCentral
+                                ? 'bg-blue-50 border-blue-200 text-blue-900 font-bold'
+                                : 'bg-emerald-50 border-emerald-200 text-emerald-900 font-bold'
+                              : 'bg-white border-slate-100 text-slate-400'
+                          }`}
+                        >
+                          <div className="text-[9px] truncate">{wh.shortLabel}</div>
+                          <div className="font-mono font-black text-xs">{stock}</div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div className="text-base font-black mt-0.5">{octoberStock}</div>
                 </div>
-              </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 text-center">
+                  <div className="bg-emerald-50/70 border border-emerald-100 rounded-xl p-2 text-emerald-800">
+                    <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-emerald-700">
+                      <Store className="w-3.5 h-3.5" />
+                      <span>مخزون الفرع</span>
+                    </div>
+                    <div className="text-base font-black mt-0.5">{branchStock}</div>
+                  </div>
+                  <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-2 text-blue-800">
+                    <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-blue-700">
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>مخزون أكتوبر</span>
+                    </div>
+                    <div className="text-base font-black mt-0.5">{octoberStock}</div>
+                  </div>
+                </div>
+              )}
 
               {/* Action Row: إضافة للفاتورة + عداد الكمية */}
               <div className="space-y-2 pt-1 border-t border-slate-100">

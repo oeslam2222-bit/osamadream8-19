@@ -43,18 +43,27 @@ const EDGE_JUNK = /^[\s\-_/|,•·]+|[\s\-_/|,•·]+$/g;
  */
 export function stripPlaceholderText(raw: string | number | null | undefined): string {
   if (raw === null || raw === undefined) return '';
-  let text = String(raw);
-  if (!text.trim()) return '';
+  let text = String(raw).trim();
+  if (!text) return '';
 
-  text = text.replace(PARENTHESISED_PLACEHOLDER, ' ');
-  text = text.replace(BARE_PLACEHOLDER, ' ');
-  text = text.replace(NOON_PLACEHOLDER, ' ');
+  // لو كانت الخلية أو النص بالكامل عبارة عن blank أو ((blank)) أو (null) أو مشتقاتها بأي عدد أقواس
+  if (/^[\(\[\{\s]*\b(?:blank|null|none|nil|undefined|n\/?a|فاضي|بدون|لا يوجد|غير محدد)\b[\)\]\}\s]*$/i.test(text)) {
+    return '';
+  }
+
+  // إزالة أي كلمات placeholder داخل النص
+  text = text.replace(/[\(\[\{]+\s*(?:blank|null|none|nil|undefined|n\/?a)\s*[\)\]\}]+/gi, ' ');
+  text = text.replace(/(?:^|[\s\-_/|,•·])(?:blank|null|none|nil|undefined|n\/?a)(?=$|[\s\-_/|,•·])/gi, ' ');
+  text = text.replace(/(?:^|[\s\-_/|,•·])نون(?=$|[\s\-_/|,•·])/gi, ' ');
   text = text.replace(/\u00A0/g, ' ');
   text = text.replace(/\s{2,}/g, ' ');
-  // "أحمر - (blank) - كبير" بعد الشيل بيسيب فاصلين ورا بعض — بنلمّهم في فاصل واحد.
   text = text.replace(/(?:[-|,•·]\s*){2,}/g, (run) => `${run.trim().charAt(0)} `);
   text = text.replace(/\s{2,}/g, ' ');
-  text = text.replace(EDGE_JUNK, '');
+  text = text.replace(/^[\s\-_/|,•·\(\)]+|[\s\-_/|,•·\(\)]+$/g, '');
+
+  if (/^[\(\[\{\s]*\b(?:blank|null|none)\b[\)\]\}\s]*$/i.test(text)) {
+    return '';
+  }
 
   return text.trim();
 }
