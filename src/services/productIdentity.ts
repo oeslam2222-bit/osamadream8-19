@@ -68,20 +68,24 @@ const normalizeTextKey = (value?: string | number | null): string =>
 
 
 export const productIdentityKey = (p: Product): string => {
-  // هوية الصنف = الكود الأساسي + الكود الموحد.
-  // الكود الأساسي قد يتكرر 10 مرات بنفس الاسم ولكن بكود موحد / لون / حجم / مخزون مختلف.
-  // كل صف في الشيت يبقى صنف مستقل في الكتالوج — لا دمج، لا حذف.
   const code = normalizeVariantCodeKey(p.code);
   const unified = normalizeVariantCodeKey(p.unifiedCode);
-  if (code && unified) return `c:${code}|u:${unified}`;
-  if (code && !unified) return `c:${code}|u:none`;
-  if (!code && unified) return `c:none|u:${unified}`;
-
-  // مفيش كود أساس ولا كود موحد: نرجع للون + الحجم + الاسم كهوية.
   const color = normalizeTextKey(p.color);
   const size = normalizeTextKey(p.size);
   const name = normalizeTextKey(p.name);
   const barcode = normalizeTextKey(p.barcode);
+
+  // هوية الصنف = الكود + الكود الموحد + اللون + الحجم.
+  // الكود الأساسي قد يتكرر 10 مرات بنفس الاسم ولكن بلون/حجم/مخزون مختلف —
+  // كل صف في الشيت يبقى صنف مستقل في الكتالوج، لا دمج، لا حذف.
+  let key = '';
+  if (code) key += `c:${code}`;
+  if (unified) key += `|u:${unified}`;
+  if (color) key += `|col:${color}`;
+  if (size) key += `|sz:${size}`;
+  if (key) return key;
+
+  // مفيش كود أساس ولا كود موحد: نرجع للون + الحجم + الاسم كهوية.
   return `c:none|u:none|${name}|${color}|${size}|${barcode}`;
 };
 
