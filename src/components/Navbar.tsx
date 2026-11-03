@@ -207,7 +207,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setIsMobileDrawerOpen(true)}
               aria-label="القائمة الرئيسية"
               title="القائمة الرئيسية"
-              className="h-10 px-2.5 rounded-xl bg-navy-deep hover:bg-blue-deep4 text-[#5eead4] flex items-center gap-1.5 font-black text-xs shadow-xs cursor-pointer border border-[var(--app-ok)]"
+              className="h-9 px-2 rounded-lg bg-navy-deep hover:bg-blue-deep4 text-[#5eead4] flex items-center gap-1 font-black text-[11px] shadow-xs cursor-pointer border border-[var(--app-ok)]"
             >
               <Menu className="w-4 h-4 text-[#5eead4] shrink-0" />
               <span className="text-[11px]">القائمة</span>
@@ -708,7 +708,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           />
 
           {/* Drawer Content */}
-          <div className="relative w-full max-w-xs sm:max-w-sm bg-navy-deep text-white h-full shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-200">
+          <div className="relative w-[min(86vw,20rem)] bg-navy-deep text-white h-full shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-200">
             {/* Drawer Header */}
             <div className="p-4 border-b border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
