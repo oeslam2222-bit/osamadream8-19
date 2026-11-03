@@ -149,6 +149,13 @@ import {
   markQueuedMutationFailure,
   removeQueuedMutations,
 } from '../services/offlineQueueService';
+import {
+  fetchWithOfflineFallback,
+  writeWithOfflineQueue,
+  getOfflineQueueCount,
+  saveOfflineSnapshot,
+} from '../services/offlineFirstService';
+import { useSync } from './syncContext';
 
 /** سطور السيرفر → سجلات التوقعات (نفس الخريطة للبوت وللتحميل حسب الطلب). */
 function mapForecastRows(rows: any[]): CollectionForecastRecord[] {
@@ -309,7 +316,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const savedSession = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_DATA);
+    const savedSession =
+      localStorage.getItem(STORAGE_KEYS.CURRENT_USER_DATA) ||
+      sessionStorage.getItem(STORAGE_KEYS.CURRENT_USER_DATA);
     if (!savedSession) return null;
     try {
       return JSON.parse(savedSession) as User;
@@ -809,7 +818,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return localStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true';
+    return (
+      localStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true' ||
+      sessionStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true'
+    );
   });
 
   // Never accept a user/session transferred through a URL or an old browser cache.
@@ -1131,6 +1143,74 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       isMounted = false;
     };
+  }, []);
+
+  // --- Bridge: expose the real offline-queue drainer to SyncContext ---
+  const flushOfflineQueue = async (): Promise<{ success: boolean; syncedCount: number }> => {
+    const items = await getQueuedMutations();
+    if (items.length === 0) {
+      setOfflineQueueCount(0);
+      return { success: true, syncedCount: 0 };
+    }
+    let synced = 0;
+    for (const item of items) {
+      try {
+        switch (item.entity) {
+          case 'invoices':
+            if (item.op === 'upsert' && item.payload) {
+              await saveInvoiceToSupabase(item.payload as Invoice);
+            } else if (item.op === 'delete') {
+              await deleteInvoiceFromSupabase(item.entityId);
+            }
+            break;
+          case 'customers':
+            if (item.op === 'upsert' && item.payload) {
+              await saveCustomerToSupabase(item.payload as Customer);
+            } else if (item.op === 'delete') {
+              await deleteCustomerFromSupabase(item.entityId);
+            }
+            break;
+          case 'visits':
+            if (item.op === 'upsert' && item.payload) {
+              await saveVisitsToSupabase([item.payload as any]);
+            } else if (item.op === 'delete') {
+              await deleteVisitFromSupabase(item.entityId);
+            }
+            break;
+          case 'products':
+            if (item.payload) {
+              await saveProductsToSupabase([item.payload as any]);
+            }
+            break;
+          default:
+            break;
+        }
+        await removeQueuedMutations([item.id]);
+        synced++;
+      } catch {
+        await markQueuedMutationFailure([item.id], 'flush retry failed');
+      }
+    }
+    const remaining = await countQueuedMutations();
+    setOfflineQueueCount(remaining);
+    return { success: remaining === 0, syncedCount: synced };
+  };
+
+  const sync = useSync();
+  sync.setFlushRef(flushOfflineQueue);
+
+  // Register Background Sync so the browser can wake the app and drain the
+  // offline outbox even when the tab is backgrounded (Facebook-like behaviour).
+  useEffect(() => {
+    if ('serviceWorker' in navigator && 'SyncManager' in window) {
+      navigator.serviceWorker.ready.then((registration) => {
+        if (registration.sync) {
+          registration.sync.register('sync-offline-data').catch(() => {
+            // Background Sync not supported by this browser — ignore silently.
+          });
+        }
+      });
+    }
   }, []);
 
   // Supabase State & Sync
@@ -2867,25 +2947,45 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
       lastManualRefreshRef.current = now;
 
-      const result = await fetchInvoicesFromSupabase(
-        buildInvoiceFetchScope(currentUser, users)
+      const offlineResult = await fetchWithOfflineFallback<Invoice>(
+        'invoices',
+        () =>
+          fetchInvoicesFromSupabase(buildInvoiceFetchScope(currentUser, users)).then((r) => ({
+            success: r.success,
+            data: r.invoices,
+            error: r.error,
+          })),
+        isOffline
       );
-      if (!result.success || !result.invoices) {
-        return { success: false, count: 0, message: result.error || 'تعذر الاتصال بقاعدة البيانات لجلب الفواتير' };
+
+      if (offlineResult.source === 'empty' && !offlineResult.success) {
+        return {
+          success: false,
+          count: 0,
+          message: offlineResult.error || 'لا يوجد اتصال بالإنترنت ولا فواتير محفوظة محلياً',
+        };
       }
-      const remoteInvoices = result.invoices;
+
+      const invoicesToShow = offlineResult.data;
       setInvoices((prev) => {
         const remoteById = new Map<string, Invoice>();
-        remoteInvoices.forEach((inv) => remoteById.set(inv.id, inv));
+        invoicesToShow.forEach((inv) => remoteById.set(inv.id, inv));
         const localOnly = prev.filter((inv) => !remoteById.has(inv.id));
         const next = [...Array.from(remoteById.values()), ...localOnly];
-        idbSet(STORAGE_KEYS.INVOICES, next);
+        if (offlineResult.source === 'network') {
+          idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
+        }
         return next;
       });
+
+      const sourceLabel =
+        offlineResult.source === 'network'
+          ? `من السيرفر (${invoicesToShow.length})`
+          : 'من النسخة المحفوظة محلياً';
       return {
         success: true,
-        count: remoteInvoices.length,
-        message: `تم تحديث أحدث ${remoteInvoices.length} فاتورة من السيرفر بنجاح.`,
+        count: invoicesToShow.length,
+        message: `تم تحديث الفواتير ${sourceLabel}.${offlineResult.error ? ' ملاحظة: ' + offlineResult.error : ''}`,
       };
     } catch (err: any) {
       return { success: false, count: 0, message: err?.message || 'خطأ غير متوقع أثناء تحديث الفواتير' };
@@ -3458,7 +3558,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   // --- Authentication System ---
   const login = async (
     identifier: string,
-    password?: string
+    password?: string,
+    rememberMe = true
   ): Promise<{
     success: boolean;
     message: string;
@@ -3594,6 +3695,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
     }
 
+    // Offline guard: if no network and no locally-stored password, we cannot verify credentials offline
+    if (isOffline && !serverAuthUserId && storedCredential.length === 0) {
+      return {
+        success: false,
+        errorType: 'no_password',
+        message: 'لا يمكن التحقق من كلمة المرور أوفلاين لأن كلمة المرور غير محفوظة محلياً لهذا الحساب. يرجى تسجيل الدخول مرة واحدة عند وجود إنترنت لحفظ بيانات الدخول محلياً.',
+      };
+    }
+
     if (serverAuthUserId) {
       // Authenticated on server already
     } else if (storedCredential.length > 0) {
@@ -3626,8 +3736,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     setCurrentUser(found);
     setIsAuthenticated(true);
-    localStorage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, found.id);
+
+    const storage = rememberMe ? window.localStorage : window.sessionStorage;
+    storage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
+    storage.setItem(STORAGE_KEYS.CURRENT_USER_ID, found.id);
+    try {
+      storage.setItem(STORAGE_KEYS.CURRENT_USER_DATA, JSON.stringify(found));
+    } catch {
+      // quota exceeded — keep the lighter keys only
+    }
 
     recordAuditLog({
       userId: found.id,
@@ -3705,9 +3822,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const logout = () => {
     setCurrentUser(null);
     setIsAuthenticated(false);
-    localStorage.removeItem(STORAGE_KEYS.IS_AUTH);
-    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
-    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_DATA);
+    // مسح الجلسة من localStorage و sessionStorage (لدعم "تذكرني" وجلسات المتصفح المؤقتة)
+    for (const storage of [window.localStorage, window.sessionStorage]) {
+      storage.removeItem(STORAGE_KEYS.IS_AUTH);
+      storage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
+      storage.removeItem(STORAGE_KEYS.CURRENT_USER_DATA);
+    }
     clearCart();
     // لو الجلسة كانت على Supabase Auth، اقفلها هناك كمان. لو مفيش جلسة
     // (وضع legacy) أو فيه مشكلة شبكة، سيبتها بهدوء — حالة العميل المحلية

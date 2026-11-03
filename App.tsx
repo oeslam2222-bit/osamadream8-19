@@ -203,9 +203,9 @@ const MainLayout: React.FC = () => {
       
       {/* Offline Status Top Bar if offline */}
       {isOffline && (
-        <div className="bg-amber-600 text-white text-xs py-1.5 px-4 text-center font-bold flex items-center justify-center gap-2 shadow-inner">
-          <WifiOff className="w-3.5 h-3.5" />
-          <span>أنت تعمل حالياً في وضع عدم الاتصال (Offline) - يتم حفظ الفواتير محلياً والربط تلقائياً فور عودة الشبكة</span>
+        <div className="bg-[#d97706] text-white text-xs sm:text-sm py-2 px-3 sm:px-4 text-center font-bold flex items-center justify-center gap-2 shadow-inner border-b border-white/30">
+          <WifiOff className="w-4 h-4 sm:w-4.5 sm:h-4.5 animate-pulse" />
+          <span className="leading-none">أنت تعمل حالياً في وضع عدم الاتصال - يتم حفظ البيانات محلياً والربط تلقائياً فور عودة الشبكة</span>
         </div>
       )}
 
@@ -221,7 +221,7 @@ const MainLayout: React.FC = () => {
       />
 
       {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}
-      <main className="flex-1 max-w-none w-full mx-auto px-2 sm:px-4 md:px-6 py-3 sm:py-6 pb-24 md:pb-8">
+      <main className="flex-1 max-w-none w-full mx-auto px-3 sm:px-4 md:px-6 py-4 sm:py-6 pb-32 md:pb-8 min-h-[calc(100vh-56px)]">
         <Suspense fallback={<TabLoadingSkeleton />}>
           {activeTab === 'home' && (
             <DashboardHome

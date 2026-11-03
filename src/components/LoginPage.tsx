@@ -23,6 +23,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   const [loginIdentifier, setLoginIdentifier] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
@@ -45,7 +46,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
     }
 
     try {
-      const result = await login(loginIdentifier, loginPassword);
+      const result = await login(loginIdentifier, loginPassword, rememberMe);
       setIsLoggingIn(false);
 
       if (!result.success) {
@@ -72,10 +73,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
       </div>
 
       {/* Main container - متجاوب مع جميع الشاشات */}
-      <div className="relative z-10 w-full mx-auto my-1 min-h-screen flex flex-col lg:flex-row items-center justify-center gap-0 p-3 sm:p-6 overflow-hidden">
+      <div className="relative z-10 w-full mx-auto my-1 min-h-[calc(100vh-2rem)] flex flex-col lg:flex-row items-center justify-center gap-0 p-3 sm:p-6 overflow-hidden">
         
         {/* Right: Login Card (white) - على اليمين للموبايل وسطح المكتب */}
-        <div className="lg:w-1/2 w-full flex items-center justify-center p-3 sm:p-6 max-w-[520px]">
+        <div className="lg:w-full lg:max-w-[520px] w-full flex items-center justify-center p-3 sm:p-6">
           <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 sm:p-8 flex flex-col">
             {/* Logo */}
             <div className="flex items-center justify-center mb-6">
@@ -109,7 +110,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
               </div>
             )}
 
-            <form onSubmit={handleLoginSubmit} className="flex flex-col gap-4">
+            <form onSubmit={handleLoginSubmit} className="flex flex-col gap-5">
               {/* Username field */}
               <div className="space-y-2">
                 <label className="block text-xs font-bold text-slate-600 text-right">
@@ -123,9 +124,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                     placeholder="مثال: osama@dream.com أو osama"
                     required
                     autoComplete="username"
-                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus-ring-[#009488]/50 focus:border-transparent outline-none transition-all font-medium text-sm placeholder-slate-400"
+                    className="w-full h-12 pl-11 pr-4 bg-[#f8fafc] border border-slate-200 rounded-2xl text-slate-900 focus:ring-2 focus-ring-[#009488]/50 focus:border-transparent outline-none transition-all font-medium text-sm placeholder-slate-400"
                   />
-                  <UserIcon className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#009488] transition-colors" />
+                  <UserIcon className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#009488] transition-colors" />
                 </div>
               </div>
 
@@ -142,24 +143,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                     placeholder="أدخل كلمة المرور المسجلة بقاعدة البيانات"
                     required
                     autoComplete="current-password"
-                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus-ring-[#009488]/50 focus:border-transparent outline-none transition-all font-medium text-sm placeholder-slate-400"
+                    className="w-full h-12 pl-11 pr-4 bg-[#f8fafc] border border-slate-200 rounded-2xl text-slate-900 focus:ring-2 focus-ring-[#009488]/50 focus:border-transparent outline-none transition-all font-medium text-sm placeholder-slate-400"
                   />
-                  <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#009488] transition-colors" />
+                  <Lock className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#009488] transition-colors" />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="text-slate-400 hover:text-[#009488] absolute left-3 top-1/2 -translate-y-1/2 transition-colors p-1"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
               </div>
 
               {/* Remember me */}
-              <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] text-slate-600 text-sm">
+              <label className="flex items-center gap-2.5 cursor-pointer select-none text-sm text-slate-600 font-medium">
                 <input
                   type="checkbox"
-                  className="w-3.5 h-3.5 rounded border-slate-300 text-[#009488] focus:ring-[#009488] bg-white"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="w-5 h-5 rounded border-slate-300 text-[#009488] focus:ring-[#009488] bg-white cursor-pointer"
                   defaultChecked
                 />
                 تذكرني على هذا الجهاز
@@ -169,17 +172,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
               <button
                 type="submit"
                 disabled={isLoggingIn}
-                className="w-full h-11 bg-gradient-to-r from-[#009488] to-[#0e7a6e] text-white font-black text-sm rounded-xl shadow-lg shadow-[#009488]/30 hover:shadow-[#009488]/50 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full h-12 bg-gradient-to-r from-[#009488] to-[#0e7a6e] text-white font-black text-base rounded-2xl shadow-lg shadow-[#009488]/40 hover:shadow-[#009488]/60 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {isLoggingIn ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    <span>جاري تسجيل الدخول...</span>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-sm">جاري تسجيل الدخول...</span>
                   </>
                 ) : (
                   <>
-                    <span>تسجيل الدخول</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <span className="text-sm">تسجيل الدخول</span>
+                    <ArrowRight className="w-4 h-4" />
                   </>
                 )}
               </button>
@@ -195,7 +198,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
         </div>
 
         {/* Left: Dark branding panel - على اليسار فقط في سطح المكتب */}
-        <div className="lg:w-1/2 w-full flex flex-col items-center justify-center p-3 sm:p-8 bg-[#0a1628] text-white rounded-3xl shadow-2xl border border-white/10 backdrop-blur-sm max-w-[600px]">
+        <div className="hidden lg:flex flex flex-col items-center justify-center p-3 sm:p-8 bg-[#0a1628] text-white rounded-3xl shadow-2xl border border-white/10 backdrop-blur-sm max-w-[600px]">
           <div className="text-center mb-8">
             <span className="text-[10px] font-bold text-[#009488] uppercase tracking-widest block mb-2">
               TANTAWY GROUP

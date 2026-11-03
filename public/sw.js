@@ -207,3 +207,17 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 });
+
+// --- Background Sync: when the browser fires the registered sync event,
+// notify all open clients so they can drain the offline outbox. ---
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'sync-offline-data') {
+    event.waitUntil(
+      self.clients.matchAll({ includeUncontrolled: true }).then((clients) => {
+        clients.forEach((client) => {
+          client.postMessage({ type: 'BG_SYNC_REQUEST' });
+        });
+      })
+    );
+  }
+});
