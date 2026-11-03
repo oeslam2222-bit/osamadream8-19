@@ -42,7 +42,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   const flushRef = useRef<(() => Promise<{ success: boolean; syncedCount: number }>) | null>(null);
 
-  const setFlushRefFn = useCallback(
+  const setFlushRef = useCallback(
     (fn: () => Promise<{ success: boolean; syncedCount: number }>) => {
       flushRef.current = fn;
     },
@@ -127,11 +127,11 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(() => ({
     isOffline, syncStatus, isSupabaseSyncing, pendingInvoicesCount, offlineQueueCount,
     backgroundSyncSupported, lastSyncedAt, supabaseStatus,
-    syncData, flushPendingInvoices, registerBackgroundSync, setFlushRefFn,
+    syncData, flushPendingInvoices, registerBackgroundSync, setFlushRef,
     setIsOffline, setSyncStatus, setIsSupabaseSyncing, setPendingInvoicesCount
   }), [isOffline, syncStatus, isSupabaseSyncing, pendingInvoicesCount, offlineQueueCount,
     backgroundSyncSupported, lastSyncedAt, supabaseStatus, syncData, flushPendingInvoices,
-    registerBackgroundSync, setFlushRefFn, setIsOffline, setSyncStatus, setIsSupabaseSyncing, setPendingInvoicesCount]);
+    registerBackgroundSync, setFlushRef, setIsOffline, setSyncStatus, setIsSupabaseSyncing, setPendingInvoicesCount]);
 
   return (
     <SyncContext.Provider value={value}>
