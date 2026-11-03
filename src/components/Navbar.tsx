@@ -657,11 +657,11 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => setActiveTab(item.id)}
                   aria-current={isActive ? 'page' : undefined}
                   className={`relative flex flex-col items-center justify-center flex-1 py-1 px-2 transition cursor-pointer min-h-[48px] group ${
-                    isActive ? 'text-[#009488] font-black' : 'text-slate-500 hover:text-slate-700 font-medium'
+                    isActive ? 'text-[#009488] font-black' : 'text-slate-300 hover:text-slate-100 font-medium'
                   }`}
                 >
                   <div className="relative z-10">
-                    <Icon className={`w-5 h-5 mb-0.5 transition-all duration-200 ${isActive ? 'scale-110 text-[#009488] fill-[#009488] stroke-[#009488] stroke-[2.2]' : 'text-slate-400 stroke-[1.6] hover:text-slate-700 hover:stroke-slate-700'}`} />
+                    <Icon className={`w-5 h-5 mb-0.5 transition-all duration-200 ${isActive ? 'scale-110 text-[#009488] fill-[#009488] stroke-[#009488] stroke-[2.2]' : 'text-slate-300 stroke-[1.6] hover:text-slate-100 hover:stroke-slate-100'}`} />
                     {item.badge && item.badge > 0 ? (
                       <span className="absolute -top-1 -right-1 z-20 min-w-[20px] h-[20px] rounded-full bg-[#ef4444] text-white font-black text-[9px] leading-none flex items-center justify-center px-1 shadow-md border-2 border-white">
                         {item.badge}
@@ -681,7 +681,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               onClick={() => setIsMobileDrawerOpen(true)}
               aria-label="القائمة الكاملة"
-              className="relative flex flex-col items-center justify-center flex-1 px-2 transition cursor-pointer min-h-[48px] group text-slate-500 hover:text-[#009488] font-medium"
+              className="relative flex flex-col items-center justify-center flex-1 px-2 transition cursor-pointer min-h-[48px] group text-slate-300 hover:text-[#009488] font-medium""
             >
               <div className="relative z-10">
                 <Menu className={`w-5 h-5 mb-0.5 transition-all duration-200 group-hover:text-[#009488] stroke-[2.2]`} />
@@ -757,12 +757,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                     }}
                     className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-right font-bold transition-all duration-200 cursor-pointer ${
                       isActive
-                        ? 'bg-[#009488]/15 text-white border border-[#009488]/40 shadow-lg shadow-[#009488]/20'
-                        : 'text-slate-300 hover:text-white hover:bg-white/5 border-transparent'
+                        ? 'bg-[#009488]/20 text-white border border-[#009488]/50 shadow-lg shadow-[#009488]/30'
+                        : 'text-slate-100 hover:text-white hover:bg-white/10 border-transparent'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <Icon className={`w-5 h-5 shrink-0 transition-colors duration-200 ${isActive ? 'text-[#009488]' : 'text-slate-500'}`} />
+                      <Icon className={`w-5 h-5 shrink-0 transition-colors duration-200 ${isActive ? 'text-[#009488]' : 'text-slate-300'}`} />
                       <span className="text-sm font-bold truncate">{item.label}</span>
                     </div>
                     {item.badge && item.badge > 0 ? (
