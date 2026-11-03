@@ -135,7 +135,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
     const totalDebt = repCustomers.reduce((sum, c) => sum + (Number(c.currentBalance ?? c.balance ?? 0)), 0);
     const totalOverdue = repCustomers.reduce((sum, c) => sum + (Number(c.overdueBalance ?? 0)), 0);
-    const totalCreditLimit = repCustomers.reduce((sum, c) => sum + (Number(c.customerCreditLimit ?? 0)), 0);
+    const totalCreditLimit = repCustomers.reduce((sum, c) => sum + (Number(c.creditLimit ?? 0)), 0);
     const customerCount = repCustomers.length;
 
     return {

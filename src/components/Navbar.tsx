@@ -656,22 +656,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   onClick={() => setActiveTab(item.id)}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`relative flex flex-col items-center justify-center flex-1 py-1 px-2 transition cursor-pointer min-h-[48px] group ${
-                    isActive ? 'text-[#009488] font-black' : 'text-slate-300 hover:text-slate-100 font-medium'
+                  className={`relative flex flex-col items-center justify-center flex-1 min-w-0 py-1 px-1 transition cursor-pointer min-h-[44px] group ${
+                    isActive ? 'text-[#00796f] font-black' : 'text-slate-600 hover:text-[#00796f] font-medium'
                   }`}
                 >
                   <div className="relative z-10">
-                    <Icon className={`w-5 h-5 mb-0.5 transition-all duration-200 ${isActive ? 'scale-110 text-[#009488] fill-[#009488] stroke-[#009488] stroke-[2.2]' : 'text-slate-300 stroke-[1.6] hover:text-slate-100 hover:stroke-slate-100'}`} />
+                    <Icon className={`w-[18px] h-[18px] mb-0.5 transition-all duration-200 ${isActive ? 'text-[#00796f] stroke-[2.2]' : 'text-slate-500 stroke-[1.8] group-hover:text-[#00796f]'}`} />
                     {item.badge && item.badge > 0 ? (
                       <span className="absolute -top-1 -right-1 z-20 min-w-[20px] h-[20px] rounded-full bg-[#ef4444] text-white font-black text-[9px] leading-none flex items-center justify-center px-1 shadow-md border-2 border-white">
                         {item.badge}
                       </span>
                     ) : null}
                   </div>
-                  <span className={`text-[10px] leading-none truncate font-bold group-hover:opacity-100 transition-opacity ${isActive ? 'font-black' : 'font-medium'}`}>{item.label}</span>
-                  {isActive && (
-                    <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-[#009488] shadow-sm" />
-                  )}
+                  <span className={`text-[10px] leading-tight truncate font-bold group-hover:opacity-100 transition-opacity ${isActive ? 'font-black' : 'font-medium'}`}>{item.label}</span>
                 </button>
               );
             })}
@@ -681,17 +678,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               onClick={() => setIsMobileDrawerOpen(true)}
               aria-label="القائمة الكاملة"
-              className="relative flex flex-col items-center justify-center flex-1 px-2 transition cursor-pointer min-h-[48px] group text-slate-300 hover:text-[#009488] font-medium"
+              className="relative flex flex-col items-center justify-center flex-1 min-w-0 px-1 transition cursor-pointer min-h-[44px] group text-slate-600 hover:text-[#00796f] font-medium"
             >
               <div className="relative z-10">
-                <Menu className={`w-5 h-5 mb-0.5 transition-all duration-200 group-hover:text-[#009488] stroke-[2.2]`} />
+                <Menu className={`w-[18px] h-[18px] mb-0.5 transition-all duration-200 group-hover:text-[#00796f] stroke-[2.2]`} />
                 {pendingApprovalsCount > 0 && (
                   <span className="absolute -top-1 -right-1 z-20 min-w-[20px] h-[20px] rounded-full bg-[#ef4444] text-white font-black text-[9px] leading-none flex items-center justify-center px-1 shadow-md border-2 border-white">
                     {pendingApprovalsCount}
                   </span>
                 )}
               </div>
-              <span className={`text-[10px] leading-none font-bold group-hover:opacity-100 transition-opacity`}>القائمة</span>
+              <span className={`text-[10px] leading-tight font-bold group-hover:opacity-100 transition-opacity`}>القائمة</span>
             </button>
           </>
       </nav>

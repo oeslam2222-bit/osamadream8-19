@@ -160,8 +160,6 @@ export async function writeWithOfflineQueue<T>(
         op,
         entityId,
         payload: payload as any,
-        queuedAt: Date.now(),
-        attempts: 0,
       });
       return {
         success: true,
@@ -179,8 +177,6 @@ export async function writeWithOfflineQueue<T>(
       op,
       entityId,
       payload: payload as any,
-      queuedAt: Date.now(),
-      attempts: 0,
     });
     return {
       success: true,

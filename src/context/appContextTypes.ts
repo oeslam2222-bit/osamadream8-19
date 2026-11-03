@@ -88,7 +88,7 @@ export interface AppContextType {
   }>;
 
   // Auth actions
-  login: (identifier: string, password: string) => Promise<{
+  login: (identifier: string, password: string, rememberMe?: boolean) => Promise<{
     success: boolean;
     message: string;
     user?: User;

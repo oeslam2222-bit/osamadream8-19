@@ -131,6 +131,7 @@ import {
 } from './appContextHelpers';
 import { useUiPreferences } from './useUiPreferences';
 import { resolveCustomerDuesValue } from '../services/customerDues';
+import { upsertProductsByIdentity } from '../services/productIdentity';
 import { hashPassword, verifyPassword, withHashedCredential } from '../services/passwordService';
 import {
   getAuthMode,
@@ -4280,8 +4281,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
       setProducts(finalUpdated);
     } else {
-      // Upsert: أضف كل المنتجات الواردة الجديدة، وحافظ على القائمة الحالية.
-      finalUpdated = sanitizeProducts([...products, ...processedIncoming]);
+      // Stable imported IDs let repeat uploads update rows without duplicating them.
+      finalUpdated = sanitizeProducts(upsertProductsByIdentity(products, processedIncoming));
       setProducts(finalUpdated);
     }
 
