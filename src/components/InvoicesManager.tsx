@@ -750,7 +750,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             <div className="md:hidden p-3 flex flex-col gap-3">
               {displayedInvoices.map((invoice) => {
                 const style = statusStyles[invoice.status] || {
-                  bg: 'app-badge neutral',
+                  bg: 'bg-teal-50 text-teal-700 border border-teal-200',
                   label: invoice.status
                 };
                 const isPending =
@@ -774,7 +774,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 return (
                   <div
                     key={invoice.id}
-                    className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 space-y-3 hover:border-[var(--app-ok)] transition"
+                    className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-4 hover:border-[var(--app-ok)] transition-all"
                   >
                     {/* Header: Number + Status */}
                     <div className="flex items-start justify-between gap-2">
@@ -788,49 +788,52 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           </span>
                         )}
                       </div>
-                      <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-black ${style.bg} ${style.text || ''}`}>
+                      <span className={`text-[11px] px-3 py-1 rounded-full font-black border ${style.bg}`}>
                         {style.label || invoice.status}
                       </span>
                     </div>
 
                     {/* Customer & Rep Details */}
-                    <div>
+                    <div className="space-y-1.5">
                       <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
                         <Building2 className="w-3.5 h-3.5 text-[var(--app-ok-text)] shrink-0" />
                         <span className="truncate">{invoice.customerName}</span>
                       </div>
-                      <div className="text-[11px] text-slate-500 font-medium mt-1 flex items-center gap-2 flex-wrap">
-                        <span>المندوب: <strong className="text-slate-700">{invoice.repName}</strong></span>
-                        <span>·</span>
+                      <div className="text-[11px] text-slate-500 font-medium flex items-center gap-2 flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <User className="w-3 h-3 text-[var(--app-navy-text)] shrink-0" />
+                          <span className="font-black">{invoice.repName}</span>
+                        </span>
+                        <span className="text-slate-400">·</span>
                         <span>{invoice.branchName}</span>
-                        <span>·</span>
-                        <span className="font-mono">{invoice.date}</span>
+                        <span className="text-slate-400">·</span>
+                        <span className="font-mono text-slate-600">{invoice.date}</span>
                       </div>
                     </div>
 
                     {/* Stats Strip */}
                     <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <div>
+                      <div className="flex-1">
                         <div className="text-[10px] text-slate-400 font-bold">الكميات المطلوبة</div>
                         <div className="text-xs font-black text-slate-800 mt-0.5">
                           {invoice.totalCartons} كرتونة ({invoice.totalPieces} قطعة)
                         </div>
                       </div>
-                      <div className="text-left">
+                      <div className="text-left flex-1">
                         <div className="text-[10px] text-slate-400 font-bold">إجمالي الفاتورة</div>
-                        <div className="text-sm font-black text-[var(--app-ok-text)] mt-0.5 font-mono">
+                        <div className="text-base font-black text-[var(--app-ok-text)] mt-0.5 font-mono">
                           {formatCurrency(invoice.estimatedGrandTotal)}
                         </div>
                       </div>
                     </div>
 
                     {/* Actions Strip */}
-                    <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-slate-100">
+                    <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-100">
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => onViewInvoice(invoice)}
-                          className="h-8 px-3 rounded-xl bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-bold text-xs flex items-center gap-1 transition shadow-xs cursor-pointer"
+                          className="h-9 px-3.5 rounded-xl bg-[var(--app-ok)] hover:bg-teal-600 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-md cursor-pointer active:scale-95"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           <span>عرض</span>
@@ -840,7 +843,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => onEditInvoice(invoice)}
-                            className="h-8 px-2.5 rounded-xl bg-[var(--app-warn-tint)] hover:bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)] font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                            className="h-9 px-3 rounded-xl bg-[var(--app-warn-tint)] hover:bg-[var(--app-warn)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)] font-bold text-xs flex items-center gap-1.5 transition cursor-pointer active:scale-95"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                             <span>تعديل</span>
@@ -851,7 +854,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => handleApproveClick(invoice.id)}
-                            className="h-8 px-2.5 rounded-xl bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-bold text-xs flex items-center gap-1 transition cursor-pointer"
+                            className="h-9 px-3 rounded-xl bg-[var(--app-ok)] hover:bg-teal-600 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-md cursor-pointer active:scale-95"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" />
                             <span>اعتماد</span>
@@ -863,18 +866,18 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         <button
                           type="button"
                           onClick={() => downloadInvoicePDF(invoice)}
-                          className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer"
+                          className="w-9 h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center transition shadow-md cursor-pointer active:scale-95"
                           title="تحميل PDF"
                         >
-                          <Download className="w-3.5 h-3.5" />
+                          <Download className="w-4 h-4" />
                         </button>
                         <button
                           type="button"
                           onClick={() => setPreviewExcelInvoice(invoice)}
-                          className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition cursor-pointer"
+                          className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer active:scale-95"
                           title="معاينة إكسل"
                         >
-                          <FileSpreadsheet className="w-3.5 h-3.5" />
+                          <FileSpreadsheet className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
