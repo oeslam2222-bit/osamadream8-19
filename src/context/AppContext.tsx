@@ -1145,59 +1145,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // --- Bridge: expose the real offline-queue drainer to SyncContext ---
-  const flushOfflineQueue = async (): Promise<{ success: boolean; syncedCount: number }> => {
-    const items = await getQueuedMutations();
-    if (items.length === 0) {
-      setOfflineQueueCount(0);
-      return { success: true, syncedCount: 0 };
-    }
-    let synced = 0;
-    for (const item of items) {
-      try {
-        switch (item.entity) {
-          case 'invoices':
-            if (item.op === 'upsert' && item.payload) {
-              await saveInvoiceToSupabase(item.payload as Invoice);
-            } else if (item.op === 'delete') {
-              await deleteInvoiceFromSupabase(item.entityId);
-            }
-            break;
-          case 'customers':
-            if (item.op === 'upsert' && item.payload) {
-              await saveCustomerToSupabase(item.payload as Customer);
-            } else if (item.op === 'delete') {
-              await deleteCustomerFromSupabase(item.entityId);
-            }
-            break;
-          case 'visits':
-            if (item.op === 'upsert' && item.payload) {
-              await saveVisitsToSupabase([item.payload as any]);
-            } else if (item.op === 'delete') {
-              await deleteVisitFromSupabase(item.entityId);
-            }
-            break;
-          case 'products':
-            if (item.payload) {
-              await saveProductsToSupabase([item.payload as any]);
-            }
-            break;
-          default:
-            break;
-        }
-        await removeQueuedMutations([item.id]);
-        synced++;
-      } catch {
-        await markQueuedMutationFailure([item.id], 'flush retry failed');
-      }
-    }
-    const remaining = await countQueuedMutations();
-    setOfflineQueueCount(remaining);
-    return { success: remaining === 0, syncedCount: synced };
-  };
-
   const sync = useSync();
-  sync.setFlushRef(flushOfflineQueue);
 
   // Register Background Sync so the browser can wake the app and drain the
   // offline outbox even when the tab is backgrounded (Facebook-like behaviour).
@@ -1757,6 +1705,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     return { success: failed.length === 0, syncedCount: done.length };
   };
+
+  // Bridge: expose the real offline-queue drainer to SyncContext
+  sync.setFlushRef(flushOfflineQueue);
 
   const productSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const targetSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
