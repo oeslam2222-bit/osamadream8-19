@@ -516,12 +516,20 @@ button svg,
     border-collapse: collapse;
   }
 
-  /* Touch targets >= 44px on mobile for comfortable rep usage */
+  /* Keep controls compact without sacrificing tap accessibility. */
   button:not(.btn-compact):not(.chip-btn):not(.inline-icon-btn),
   input:not([type="checkbox"]):not([type="radio"]),
   select {
-    min-height: 44px;
+  min-height: 40px;
   }
+
+  .tantawy-topbar > div { padding-block: 0.375rem !important; }
+  .tantawy-mobile-nav button { min-height: 40px !important; }
+  .tantawy-mobile-nav { padding-block: 0.25rem !important; }
+  .tantawy-sidebar { width: min(82vw, 19rem); }
+  .tantawy-sidebar button { min-height: 40px; }
+  main { padding-bottom: 5.25rem !important; }
+
 
   /* Table-to-card view switchers */
   .table-view-desktop { display: none !important; }

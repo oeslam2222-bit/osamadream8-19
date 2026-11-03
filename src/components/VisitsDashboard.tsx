@@ -10,7 +10,6 @@ import {
   AlertCircle,
   CheckCircle2,
   Calendar,
-  RotateCcw,
   Wallet,
   Search,
   Filter,
@@ -31,7 +30,6 @@ import { EmptyState } from './ui/EmptyState';
 const SIMPLE_VISIT_TYPES: { id: string; label: string; color: string }[] = [
   { id: 'دورية', label: 'زيارة دورية', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800' },
   { id: 'تحصيل', label: 'زيارة تحصيل', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' },
-  { id: 'مرتجع', label: 'مرتجع / فحص', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800' },
   { id: 'متابعة', label: 'متابعة حساب', color: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800' },
 ];
 
@@ -183,7 +181,6 @@ export const VisitsDashboard: React.FC = () => {
       result = result.filter((v) => {
         const t = v.type || '';
         if (typeFilter === 'تحصيل') return t.includes('تحصيل');
-        if (typeFilter === 'مرتجع') return t.includes('مرتجع') || v.outcome?.includes('مرتجع');
         if (typeFilter === 'دورية') return t.includes('دورية');
         if (typeFilter === 'متابعة') return t.includes('متابعة');
         return t === typeFilter;
@@ -243,10 +240,8 @@ export const VisitsDashboard: React.FC = () => {
   const stats = useMemo(() => {
     const total = filtered.length;
     const completed = filtered.filter((v) => v.status === 'منفذة').length;
-    const returns = filtered.filter(
+    const pending = filtered.filter(
       (v) =>
-        v.type?.includes('مرتجع') ||
-        v.outcome?.includes('مرتجع') ||
         (v.status as string) === 'معلقة' ||
         v.status === 'مجدولة' ||
         v.status === 'لم تتم'
@@ -262,7 +257,7 @@ export const VisitsDashboard: React.FC = () => {
     return {
       total,
       completed,
-      returns,
+      pending,
       collectionCount: collectionVisits.length,
       totalCollected,
     };
@@ -406,14 +401,14 @@ export const VisitsDashboard: React.FC = () => {
               مرتجعات ومتابعة
             </span>
             <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-              <RotateCcw className="w-5 h-5" />
+              <Clock className="w-5 h-5" />
             </div>
           </div>
           <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
-            {stats.returns.toLocaleString()}
+            {stats.pending.toLocaleString()}
           </div>
           <div className="text-[11px] text-amber-700 dark:text-amber-300 font-bold mt-1.5 flex items-center gap-1">
-            <span>تحتاج مراجعة أو متابعة</span>
+            <span>زيارات تحتاج متابعة</span>
           </div>
           <div className="absolute bottom-0 right-0 left-0 h-1 bg-gradient-to-r from-amber-500 to-orange-400 opacity-80" />
         </div>

@@ -4701,6 +4701,29 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
     }
 
+    // Every sales order is also a distinct customer visit, even when another
+    // visit or return was recorded for the same customer earlier that day.
+    if (matchedCustomer) {
+      const visitResult = addVisit({
+        customerId: matchedCustomer.id,
+        customerName: matchedCustomer.name,
+        customerCode: matchedCustomer.code,
+        date: formattedDate,
+        time: formattedTime,
+        repId: assignedRepId,
+        repName: assignedRepName,
+        branchName: orderBranch,
+        type: 'زيارة بيع وطلبية',
+        outcome: 'تم عمل طلبية',
+        status: 'منفذة',
+        notes: `زيارة تلقائية مرتبطة بطلبية المبيعات ${newInvoiceNumber}`,
+        allowSameDaySecondVisit: true,
+      });
+      if (!visitResult.success) {
+        console.warn('[v0] Automatic sales visit was not recorded:', visitResult.message);
+      }
+    }
+
     // Auto push to Supabase Cloud Database
     saveInvoiceWithQueue(primaryInvoice).catch((e) => console.warn('Supabase invoice save failed:', e));
 
