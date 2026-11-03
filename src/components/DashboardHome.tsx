@@ -2,7 +2,6 @@ import React, { useMemo, useState, useEffect } from 'react';
 import {
   ShoppingCart,
   Users,
-  Receipt,
   Wallet,
   CalendarCheck,
   Package,
@@ -386,22 +385,6 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         {/* The 10 Big Action Cards Grid (مطابقة دقيقة لتوزيع الكروت بالصورة) */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
           
-          {/* Tile 1: فاتورة جديدة (الأخضر البارز في الصورة) */}
-          <button
-            type="button"
-            onClick={handleStartOrder}
-            className="group relative bg-gradient-to-br from-[var(--app-ok)] via-[var(--app-ok)] to-[var(--app-ok)] text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-lg hover:shadow-xl hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-ok)] min-h-[140px] sm:min-h-[160px]"
-          >
-            <div className="absolute top-2.5 right-2.5 bg-white/20 backdrop-blur-xs text-[10px] font-black px-2 py-0.5 rounded-full">
-              الأهم ⭐
-            </div>
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white text-[var(--app-ok-text)] flex items-center justify-center shadow-md mb-2.5 group-hover:scale-110 transition duration-200">
-              <Receipt className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
-            </div>
-            <span className="font-black text-sm sm:text-base leading-tight">فاتورة جديدة</span>
-            <span className="text-[10px] text-[#0d9488] font-bold mt-1">إنشاء طلب بيع جديد</span>
-          </button>
-
           {/* Tile 2: المبيعات والفواتير */}
           <button
             type="button"
