@@ -1307,12 +1307,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     <span className="text-[10px] text-slate-400 block font-normal">/قطعة</span>
                   </td>
                   <td className="p-3 text-right font-black text-slate-900 dark:text-white">
-                    {priceInfo.factor > 1 && priceInfo.cartonPrice > 0 ? (
+                    {priceInfo.cartonPrice > 0 ? (
                       <span className="font-black font-mono">{formatCurrency(priceInfo.cartonPrice)}</span>
                     ) : (
                       <span className="text-slate-400 text-xs font-normal">فردي</span>
                     )}
-                    <span className="text-[10px] text-slate-400 block font-normal">/كرتونة</span>
+                    <span className={`text-[10px] text-slate-400 block font-normal ${isElec ? 'text-amber-700 dark:text-amber-400 font-black' : ''}`}>
+                      {isElec ? 'كرتونة' : '/كرتونة'}
+                    </span>
                   </td>
                   <td className="p-3 text-center font-mono">
                     {priceInfo.factor > 1 ? (
@@ -1387,10 +1389,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <button
                         type="button"
                         onClick={() => handleAddToCart(p)}
-                        className="w-full py-2 px-2.5 rounded-xl text-xs font-black transition-all bg-[#0f2b38] hover:bg-[#00827a] text-white shadow-xs active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                        className="w-full py-2.5 px-3 rounded-xl text-sm font-black transition-all bg-[#009488] hover:bg-[#0e7a6e] text-white shadow-md shadow-teal-500/30 active:scale-95 cursor-pointer flex items-center justify-center gap-1.5 border border-white/20"
                       >
-                        <ShoppingCart className="w-3.5 h-3.5 shrink-0 text-teal-300" />
-                        <span>إضافة</span>
+                        <ShoppingCart className="w-4 h-4 shrink-0 text-white" />
+                        <span>إضافة للسلة</span>
                       </button>
                     )}
                   </td>
