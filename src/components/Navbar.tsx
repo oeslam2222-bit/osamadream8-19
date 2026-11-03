@@ -681,7 +681,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               onClick={() => setIsMobileDrawerOpen(true)}
               aria-label="القائمة الكاملة"
-              className="relative flex flex-col items-center justify-center flex-1 px-2 transition cursor-pointer min-h-[48px] group text-slate-300 hover:text-[#009488] font-medium""
+              className="relative flex flex-col items-center justify-center flex-1 px-2 transition cursor-pointer min-h-[48px] group text-slate-300 hover:text-[#009488] font-medium"
             >
               <div className="relative z-10">
                 <Menu className={`w-5 h-5 mb-0.5 transition-all duration-200 group-hover:text-[#009488] stroke-[2.2]`} />
