@@ -652,7 +652,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 key={tab.key}
                 type="button"
                 onClick={() => setSelectedStatus(tab.key)}
-                className={`px-3.5 py-2 rounded-xl text-[11px] font-black transition cursor-pointer border ${
+                className={`px-3.5 py-2 rounded-xl text-[11px] font-black transition cursor-pointer border whitespace-nowrap shrink-0 ${
                   selectedStatus === tab.key
                     ? 'bg-[var(--app-navy)] text-white border-[var(--app-navy)] shadow-sm'
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
@@ -663,7 +663,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             ))}
           </div>
 
-          <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200">
+          <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200 shrink-0">
             {[
               { key: 'all' as const, label: 'عرض الكل' },
               { key: 'invoices' as const, label: 'الفواتير' },
@@ -673,7 +673,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 key={seg.key}
                 type="button"
                 onClick={() => setViewSegment(seg.key)}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer whitespace-nowrap ${
                   viewSegment === seg.key ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
@@ -683,24 +683,25 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           </div>
         </div>
 
-        {/* ملخص الأرقام السفلية - Matching Reference Design */}
-        <div className="bg-surface border border-border-input rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4 text-xs font-bold text-slate-500">
-            <span>
-              إجمالي المبيعات: <span className="text-slate-900 font-black app-num">{formatCurrency(metrics.totalRevenue)}</span>
-            </span>
-            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">|</span>
-            <span>
-              الكراتين: <span className="text-slate-900 font-black app-num">{metrics.totalCartons.toLocaleString('en-US')}</span>
-            </span>
-            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">|</span>
-            <span>
-              القطع: <span className="text-slate-900 font-black app-num">{metrics.totalPieces.toLocaleString('en-US')}</span>
-            </span>
-            <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">|</span>
-            <span>
-              عدد الفواتير: <span className="text-slate-900 font-black app-num">{metrics.count.toLocaleString('en-US')}</span>
-            </span>
+        {/* ملخص الأرقام السفلية - Responsive Grid for all screens */}
+        <div className="bg-surface border border-border-input rounded-2xl p-3 sm:p-4 shadow-sm">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5 text-xs font-bold text-slate-500">
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 sm:p-3 rounded-xl border border-slate-200/70 dark:border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-1 min-w-0">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">إجمالي المبيعات:</span>
+              <span className="text-slate-900 dark:text-white font-black text-sm app-num whitespace-nowrap">{formatCurrency(metrics.totalRevenue)}</span>
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 sm:p-3 rounded-xl border border-slate-200/70 dark:border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-1 min-w-0">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">الكراتين:</span>
+              <span className="text-slate-900 dark:text-white font-black text-sm app-num whitespace-nowrap">{metrics.totalCartons.toLocaleString('en-US')}</span>
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 sm:p-3 rounded-xl border border-slate-200/70 dark:border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-1 min-w-0">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">القطع:</span>
+              <span className="text-slate-900 dark:text-white font-black text-sm app-num whitespace-nowrap">{metrics.totalPieces.toLocaleString('en-US')}</span>
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 sm:p-3 rounded-xl border border-slate-200/70 dark:border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-1 min-w-0">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">عدد الفواتير:</span>
+              <span className="text-slate-900 dark:text-white font-black text-sm app-num whitespace-nowrap">{metrics.count.toLocaleString('en-US')}</span>
+            </div>
           </div>
         </div>
 

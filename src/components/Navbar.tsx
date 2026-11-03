@@ -715,13 +715,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <img src="/icon.svg" alt="طنطاوي جروب" className="w-9 h-9 rounded-xl object-contain border border-[var(--app-ok)] shadow-xs" />
                 <div>
                   <div className="font-black text-sm text-white">طنطاوي جروب</div>
-                  <div className="text-[10px] text-[#0d9488] font-semibold">القائمة الرئيسية والتطبيقات</div>
+                  <div className="text-[10px] text-teal-300 font-extrabold">القائمة الرئيسية والتطبيقات</div>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsMobileDrawerOpen(false)}
-                className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+                className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition cursor-pointer"
                 title="إغلاق القائمة"
               >
                 <X className="w-5 h-5" />
@@ -729,11 +729,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             {/* User Profile Summary */}
-            <div className="px-4 py-3 bg-black/20 border-b border-white/5 flex items-center justify-between">
+            <div className="px-4 py-3 bg-black/30 border-b border-white/10 flex items-center justify-between">
               <div>
-                <div className="font-black text-xs text-white">{currentUser.name}</div>
-                <div className="text-[10px] text-[#5eead4] font-bold">{roleNames[currentUser.role]?.label || currentUser.role}</div>
-                <div className="text-[10px] text-slate-300">{currentUser.branchName}</div>
+                <div className="font-black text-sm text-white">{currentUser.name}</div>
+                <div className="text-[11px] text-teal-300 font-extrabold">{roleNames[currentUser.role]?.label || currentUser.role}</div>
+                <div className="text-[11px] text-slate-200 font-bold">{currentUser.branchName}</div>
               </div>
               <div className="w-10 h-10 rounded-full bg-[var(--app-accent)] text-white font-black text-sm flex items-center justify-center shadow-xs">
                 {(currentUser.name || '').trim().charAt(0)}
@@ -741,8 +741,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             {/* Nav Items List */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-1">
-              <div className="text-[10px] font-bold text-[#0d9488] px-2 pb-1">أقسام النظام المتاحة لحسابك:</div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+              <div className="text-xs font-black text-teal-300 px-2 pb-1">أقسام النظام المتاحة لحسابك:</div>
               {filteredNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -756,17 +756,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                     }}
                     className={`w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-2xl text-right text-xs font-bold transition cursor-pointer ${
                       isActive
-                        ? 'bg-[var(--app-accent)] text-white font-black shadow-md'
-                        : 'text-slate-200 hover:bg-white/10 hover:text-white'
+                        ? 'bg-[#009488] text-white font-black shadow-lg ring-1 ring-teal-300/40 border border-teal-300/50'
+                        : 'text-white hover:bg-white/15 bg-white/[0.05] border border-white/[0.07]'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-[#0d9488]'}`} />
-                      <span className="text-[13px]">{item.label}</span>
+                      <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-teal-300'}`} />
+                      <span className="text-[13px] font-black">{item.label}</span>
                     </div>
                     {item.badge && item.badge > 0 ? (
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                        isActive ? 'bg-slate-950 text-[#5eead4]' : 'bg-[var(--app-risk)] text-white'
+                        isActive ? 'bg-slate-950 text-teal-300' : 'bg-rose-500 text-white shadow-xs'
                       }`}>
                         {item.badge}
                       </span>
@@ -777,16 +777,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             {/* Drawer Footer Actions */}
-            <div className="p-4 border-t border-white/10 space-y-2 bg-navy-dark3">
+            <div className="p-4 border-t border-white/10 space-y-2 bg-[#091b29]">
               <button
                 type="button"
                 onClick={() => {
                   setIsSettingsModalOpen(true);
                   setIsMobileDrawerOpen(false);
                 }}
-                className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-slate-200 text-xs font-bold transition cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition cursor-pointer"
               >
-                <Settings className="w-4 h-4 text-[#5eead4]" />
+                <Settings className="w-4 h-4 text-teal-300" />
                 <span>إعدادات النظام والخصوصية</span>
               </button>
               <button
@@ -795,7 +795,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setIsMobileDrawerOpen(false);
                   logout();
                 }}
-                className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-[#ef4444] text-xs font-bold border border-[var(--app-risk)] transition cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-rose-500/20 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/40 text-xs font-black transition cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
                 <span>تسجيل الخروج</span>

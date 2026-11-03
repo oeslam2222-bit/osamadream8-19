@@ -199,7 +199,7 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="tantawy-shell min-h-[100dvh] bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-[var(--app-warn)] selection:text-slate-950" dir="rtl">
+    <div className={`tantawy-shell ${isSidebarCollapsed ? 'sidebar-collapsed' : ''} min-h-[100dvh] bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-[var(--app-warn)] selection:text-slate-950`} dir="rtl">
       {/* Splash Screen - shown on first app load */}
       <SplashScreen
         isOpen={splashOpen}

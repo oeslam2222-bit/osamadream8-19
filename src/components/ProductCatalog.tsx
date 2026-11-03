@@ -790,19 +790,19 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       )}
 
       {/* 2. Focused Inventory Stock KPI Cards (3 Cards) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-3.5">
         {/* مخزون فرع المندوب */}
-        <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-4 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-              <Store className="w-6 h-6" />
+        <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-3.5 sm:p-4 flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <Store className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div className="min-w-0">
-              <p className="text-[11px] text-light font-black leading-tight">مخزون فرع المندوب</p>
-              <p className="text-2xl font-black text-blue-700 tracking-tight leading-tight">
-                {stats.branchCartons.toLocaleString('en-US')}
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] sm:text-xs text-light font-black leading-tight whitespace-nowrap truncate">مخزون فرع المندوب</p>
+              <p className="text-xl sm:text-2xl font-black text-blue-700 tracking-tight leading-tight whitespace-nowrap">
+                {stats.branchCartons.toLocaleString('en-US')} <span className="text-[11px] font-bold text-blue-500">كرتونة</span>
               </p>
-              <p className="text-[10px] text-light font-bold leading-tight">رصيد متاح بالفرع ({currentActiveBranch})</p>
+              <p className="text-[10px] text-light font-bold leading-tight whitespace-nowrap truncate">رصيد متاح بالفرع ({currentActiveBranch})</p>
             </div>
           </div>
           <button
@@ -817,17 +817,17 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
 
         {/* مخزون أكتوبر المركزي */}
-        <div className="bg-white rounded-2xl border border-emerald-100 shadow-sm p-4 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-              <Package className="w-6 h-6" />
+        <div className="bg-white rounded-2xl border border-emerald-100 shadow-sm p-3.5 sm:p-4 flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <Package className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div className="min-w-0">
-              <p className="text-[11px] text-light font-black leading-tight">المخزن الرئيسي (أكتوبر)</p>
-              <p className="text-2xl font-black text-emerald-600 tracking-tight leading-tight">
-                {stats.octoberCartons.toLocaleString('en-US')}
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] sm:text-xs text-light font-black leading-tight whitespace-nowrap truncate">المخزن الرئيسي (أكتوبر)</p>
+              <p className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight leading-tight whitespace-nowrap">
+                {stats.octoberCartons.toLocaleString('en-US')} <span className="text-[11px] font-bold text-emerald-500">كرتونة</span>
               </p>
-              <p className="text-[10px] text-light font-bold leading-tight">رصيد مركزي متاح للسحب</p>
+              <p className="text-[10px] text-light font-bold leading-tight whitespace-nowrap truncate">رصيد مركزي متاح للسحب</p>
             </div>
           </div>
           <button
@@ -842,17 +842,17 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
 
         {/* الأصناف المتوفرة للطلب */}
-        <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm p-4 flex items-center justify-between gap-2 sm:col-span-2 lg:col-span-1">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-              <Sparkles className="w-6 h-6" />
+        <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm p-3.5 sm:p-4 flex items-center justify-between gap-2 sm:col-span-2 lg:col-span-1 min-w-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div className="min-w-0">
-              <p className="text-[11px] text-light font-black leading-tight">الأصناف المتوفرة للطلب</p>
-              <p className="text-2xl font-black text-indigo-600 tracking-tight leading-tight">
-                {stats.availableItemsCount.toLocaleString('en-US')}
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] sm:text-xs text-light font-black leading-tight whitespace-nowrap truncate">الأصناف المتوفرة للطلب</p>
+              <p className="text-xl sm:text-2xl font-black text-indigo-600 tracking-tight leading-tight whitespace-nowrap">
+                {stats.availableItemsCount.toLocaleString('en-US')} <span className="text-[11px] font-bold text-indigo-500">صنف متاح</span>
               </p>
-              <p className="text-[10px] text-light font-bold leading-tight">أصناف بمخزون &gt; 0 في الفرع أو أكتوبر</p>
+              <p className="text-[10px] text-light font-bold leading-tight whitespace-nowrap truncate">بمخزون &gt; 0 في الفرع أو أكتوبر</p>
             </div>
           </div>
         </div>
