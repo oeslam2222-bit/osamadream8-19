@@ -2327,10 +2327,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       if (!shouldFetchFull) {
         stamp = await fetchCustomerContentStamp(customerFetchScope);
-        const stampComparable =
-          stamp !== null && (stamp.count !== null || stamp.maxUpdatedAt !== null);
-
-        if (stampComparable) {
+        if (stamp && (stamp.count !== null || stamp.maxUpdatedAt !== null)) {
           const unchanged =
             lastStampWasKnown &&
             stamp.count === lastCustomerStamp?.count &&
@@ -6761,7 +6758,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     // القطاع المحدد في الفلتر النشط هو الحاكم الأول: لو 'all' يعرض كل الأصناف (منزلي وكهرباء معاً)
     if (activeSectorFilter === 'all') return items;
     const effectiveSector = activeSectorFilter || userSector;
-    if (!effectiveSector || effectiveSector === 'all' || effectiveSector === 'both') return items;
+    if (!effectiveSector) return items;
     return items.filter((item) => !item.sector || item.sector === effectiveSector || item.sector === 'both' || item.sector === 'all');
   };
 
