@@ -49,7 +49,7 @@
   --app-blue: #3882f6;
   --app-blue-soft: #eff6ff;
   --app-canvas: #f8fafc;
-  --app-line: #e2e8f0;
+  --app-line: #cbd5e1;
   --app-muted: #64748b;
   --app-accent: #009488;
   /* Tantawy Group Reference Design Tokens */
@@ -1149,4 +1149,60 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
 @keyframes mi-slide-right {
   from { opacity: 0; transform: translateX(20px); }
   to { opacity: 1; transform: translateX(0); }
+}
+
+/* ===== Mobile Padding Improvements ===== */
+@media (max-width: 767px) {
+  /* Increase main container padding on mobile */
+  main { padding-inline: 1rem !important; padding-bottom: 2rem !important; }
+  
+  /* Increase card padding on mobile */
+  .ord-card, .panel-navy, .bg-white.rounded-\\[var\\\\(--app-btn-radius\\\\\\)], 
+  .bg-slate-50.rounded-\\[var\\\\(--app-btn-radius\\\\\\)],
+  .ord-empty {
+    padding: 1rem !important;
+  }
+  
+  /* Larger touch targets on mobile */
+  button[class*="ord-cta"], button[class*="btn-primary"] {
+    min-height: 52px !important;
+    font-size: 14px !important;
+    padding-inline: 1rem !important;
+  }
+  
+  /* More spacing between form elements on mobile */
+  .space-y-3 > *, .space-y-4 > *, .space-y-2 > * {
+    margin-bottom: 0.75rem !important;
+  }
+  
+  /* Increase input padding on mobile */
+  input[class*="rounded-\\[var\\\\(--app-btn-radius\\\\\\)"] {
+    min-height: 48px !important;
+    padding: 0.85rem 1rem !important;
+    font-size: 14px !important;
+  }
+  
+  /* Make select dropdowns more usable on mobile */
+  select[class*="rounded-\\[var\\\\(--app-btn-radius\\\\\\)"] {
+    min-height: 48px !important;
+    font-size: 14px !important;
+  }
+  
+  /* KPI cards more padding on mobile */
+  .kpi-strip .kp {
+    padding: 0.85rem 1rem !important;
+  }
+  
+  /* Sidebar/header more breathing room on mobile */
+  .tantawy-topbar > div {
+    padding-inline: 0.75rem !important;
+  }
+}
+
+/* Tablet padding */
+@media (min-width: 768px) and (max-width: 1023px) {
+  main { padding-inline: 1.25rem !important; }
+  .ord-card, .panel-navy {
+    padding: 1.25rem !important;
+  }
 }
