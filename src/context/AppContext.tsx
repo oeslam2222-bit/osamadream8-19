@@ -4714,7 +4714,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         repName: assignedRepName,
         branchName: orderBranch,
         type: 'زيارة بيع وطلبية',
-        outcome: `طلبية مبيعات ${newInvoiceNumber}`,
+        outcome: 'تم عمل طلبية',
         status: 'منفذة',
         notes: `زيارة تلقائية مرتبطة بطلبية المبيعات ${newInvoiceNumber}`,
         allowSameDaySecondVisit: true,
