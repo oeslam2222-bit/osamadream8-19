@@ -55,6 +55,12 @@
   --app-radius: 14px;
   --app-btn-radius: 10px;
 
+  /* High-contrast aliases used by the catalog and shared cards. */
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #334155;
+  --color-text-light: #64748b;
+  --color-text-muted: #64748b;
+
   /* ---- مشتقات الهوية (نص / خلفيات / حدود) لتوحيد الألوان في كل الصفحات ---- */
   --app-ok-text: #0f7a68;
   --app-ok-tint: rgba(0, 148, 136, .10);
@@ -219,6 +225,9 @@
 
 /* Text color utilities */
 @layer utilities {
+  .text-primary { color: var(--color-text-primary); }
+  .text-secondary { color: var(--color-text-secondary); }
+  .text-light { color: var(--color-text-light); }
   .text-muted { color: var(--color-text-muted); }
   .text-gray { color: var(--color-text-gray); }
   .text-slate { color: var(--color-text-slate); }
