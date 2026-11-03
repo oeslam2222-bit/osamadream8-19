@@ -29,6 +29,11 @@
 }
 
 :root {
+  --font-sm: clamp(0.8rem, 0.75rem + 0.2vw, 0.9rem);
+  --font-base: clamp(0.9rem, 0.85rem + 0.3vw, 1rem);
+  --font-lg: clamp(1.1rem, 1rem + 0.5vw, 1.35rem);
+  --font-xl: clamp(1.4rem, 1.2rem + 1vw, 2rem);
+  --space: clamp(0.5rem, 0.4rem + 0.5vw, 1rem);
   --app-ink: #0f172a;
   --app-navy: #0f2b38;
   --app-blue: #3882f6;
@@ -497,9 +502,34 @@ button svg,
   .text-4xl { font-size: 1.75rem !important; line-height: 1.1 !important; }
   .text-3xl { font-size: 1.5rem !important; line-height: 1.15 !important; }
 
-  /* Let dense data remain usable without forcing the entire page wide. */
-  table { min-width: 620px; }
-  .overflow-x-auto { -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+  /* Let dense tables scroll internally without forcing whole page wide */
+  .overflow-x-auto,
+  .table-responsive,
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    max-width: 100%;
+  }
+  .overflow-x-auto table,
+  .table-responsive table,
+  .table-wrap table {
+    min-width: 620px;
+  }
+  table {
+    border-collapse: collapse;
+  }
+
+  /* Touch targets >= 44px on mobile for comfortable rep usage */
+  button:not(.btn-compact):not(.chip-btn):not(.inline-icon-btn),
+  input:not([type="checkbox"]):not([type="radio"]),
+  select {
+    min-height: 44px;
+  }
+
+  /* Table-to-card view switchers */
+  .table-view-desktop { display: none !important; }
+  .cards-view-mobile { display: grid !important; gap: var(--space); }
 
   /* Dialog-like fixed surfaces use the full viewport on phones. */
   [role="dialog"] {

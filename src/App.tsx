@@ -230,8 +230,8 @@ const MainLayout: React.FC = () => {
         setIsDark={setIsDark}
       />
 
-      {/* Content Container - Fixed width for proper display on all screens */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-5 lg:px-8 py-4 sm:py-6 pb-24 md:pb-10">
+      {/* Content Container - Fluid responsive container with min-w-0 to prevent overflow */}
+      <main className="flex-1 w-full max-w-[1440px] mx-auto px-2.5 sm:px-4 lg:px-6 py-3 sm:py-5 pb-24 md:pb-10 min-w-0">
         <Suspense fallback={<TabLoadingSkeleton />}>
           {activeTab === 'home' && allowedTabs.includes('home') && (
             <DashboardHome
@@ -343,7 +343,7 @@ const MainLayout: React.FC = () => {
       {appToastMsg && (
         <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] bg-slate-900 dark:bg-[var(--app-ok)] text-white border-2 border-[var(--app-ok)] rounded-2xl p-3.5 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom duration-300">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="w-8 h-8 rounded-xl bg-[var(--app-ok)] text-[#0d9488] flex items-center justify-center shrink-0 font-black">
+            <span className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 font-black shadow-xs">
               ✓
             </span>
             <p className="text-xs font-bold leading-snug">{appToastMsg}</p>

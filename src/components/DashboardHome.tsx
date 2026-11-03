@@ -546,9 +546,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         {/* Left Card: 3D Emblem Card matching the GEONEX / Brand Card in Image */}
         <div className="md:col-span-5 bg-gradient-to-tr from-slate-950 via-[#0e172a] to-[#1e1b4b] rounded-3xl p-5 border border-slate-800 shadow-xl flex flex-col justify-between text-white relative overflow-hidden">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-xs font-black text-[#d97706] tracking-wider">مندوب دريم • TANTAWY</span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)]">
-              <span className="w-2 h-2 rounded-full bg-[var(--app-ok)] animate-ping" />
+            <span className="text-xs font-black text-amber-400 tracking-wider">مندوب دريم • TANTAWY</span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
               <span>الحالة : ACTIVE</span>
             </span>
           </div>

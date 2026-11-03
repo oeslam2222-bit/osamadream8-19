@@ -1203,40 +1203,26 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       </div>
 
-      {/* ERP Table View (Desktop\/Laptop) */}
-      <div className="catalog-erp-wrap hidden lg:block overflow-x-auto border border-slate-200 dark:border-slate-700 rounded-3xl shadow-lg bg-white dark:bg-[#0f172a] animate-in fade-in min-w-[1200px]">
-        <table className="catalog-erp-table w-full text-left border-collapse text-sm">
-          <colgroup>
-            <col style={{ width: 50 }} />
-            <col style={{ width: 60 }} />
-            <col style={{ width: 90 }} />
-            <col style={{ width: 90 }} />
-            <col style={{ width: 200 }} />
-            <col style={{ width: 70 }} />
-            <col style={{ width: 90 }} />
-            <col style={{ width: 90 }} />
-            <col style={{ width: 50 }} />
-            {showAllWarehouses ? COMPANY_WAREHOUSES.map(() => <col style={{ width: 60 }} />) : [<col style={{ width: 80 }} />, <col style={{ width: 80 }} />]}
-            <col style={{ width: 40 }} />
-            <col style={{ width: 100 }} />
-          </colgroup>
-          <thead className="bg-[#0f2b38] text-white font-bold border-b border-[#1b4676] uppercase tracking-wider text-xs select-none sticky top-0 z-10">
+      {/* ERP Table View (Desktop/Laptop) */}
+      <div className="catalog-erp-wrap hidden lg:block w-full overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs bg-white dark:bg-[#0f172a] animate-in fade-in">
+        <table className="catalog-erp-table w-full min-w-[1100px] text-right border-collapse text-xs">
+          <thead className="bg-[#0f2b38] text-white font-black border-b border-[#1b4676] select-none sticky top-0 z-10">
             <tr>
-              <th className="p-2 text-right text-white font-bold">#</th>
-              <th className="p-2 text-center text-white font-bold">الصورة</th>
-              <th className="p-2 text-right text-white font-bold">كود المنتج</th>
-              <th className="p-2 text-right text-white font-bold">الكود الموحد</th>
-              <th className="p-2 text-right text-white font-bold">اسم المنتج</th>
-              <th className="p-2 text-center text-white font-bold">القطاع</th>
-              <th className="p-2 text-right text-white font-bold">سعر القطعة</th>
-              <th className="p-2 text-right text-white font-bold">سعر الكرتونة</th>
-              <th className="p-2 text-center text-white font-bold">الشدة</th>
+              <th className="p-3 text-center text-white font-black w-12">#</th>
+              <th className="p-3 text-center text-white font-black w-16">الصورة</th>
+              <th className="p-3 text-right text-white font-black w-28">كود المنتج</th>
+              <th className="p-3 text-right text-white font-black w-24">الكود الموحد</th>
+              <th className="p-3 text-right text-white font-black min-w-[200px]">اسم المنتج</th>
+              <th className="p-3 text-center text-white font-black w-24">القطاع</th>
+              <th className="p-3 text-right text-white font-black w-24">سعر القطعة</th>
+              <th className="p-3 text-right text-white font-black w-24">سعر الكرتونة</th>
+              <th className="p-3 text-center text-white font-black w-20">الشدة</th>
               {showAllWarehouses ? (
                 <>
                   {COMPANY_WAREHOUSES.map((wh) => (
                     <th
                       key={wh.key}
-                      className={`p-2 text-center text-white font-bold text-[10px] ${
+                      className={`p-3 text-center text-white font-black text-[11px] ${
                         wh.isCentral ? 'bg-[#006d62]' : ''
                       }`}
                       title={wh.label}
@@ -1247,15 +1233,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </>
               ) : (
                 <>
-                  <th className="p-2 text-center text-white font-bold">مخزون الفرع</th>
-                  <th className="p-2 text-center text-white font-bold bg-[#006d62]">مخزون أكتوبر</th>
+                  <th className="p-3 text-center text-white font-black w-24">مخزون الفرع</th>
+                  <th className="p-3 text-center text-white font-black w-28 bg-[#006d62]">مخزون أكتوبر</th>
                 </>
               )}
-              <th className="p-2 text-center text-white font-bold">المفضلة</th>
-              <th className="p-2 text-center text-white font-bold">إضافة للسلة</th>
+              <th className="p-3 text-center text-white font-black w-14">المفضلة</th>
+              <th className="p-3 text-center text-white font-black w-28">إضافة للسلة</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200/50 dark:divide-slate-700/50">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold">
             {paginatedProducts.map((p, rowIdx) => {
               const branchStock = getProductBranchStock(p);
               const octoberStock = p.mainWarehouseActual || 0;
@@ -1267,11 +1253,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               });
               const displayName = stripPlaceholderText(p.name);
               const globalIdx = (currentPage - 1) * itemsPerPage + rowIdx + 1;
+              const isOutOfStock = branchStock <= 0 && octoberStock <= 0;
 
               return (
-                <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition group bg-white dark:bg-[#0f172a]">
-                  <td className="p-2 text-right font-black text-slate-600 dark:text-slate-400 text-xs">{globalIdx}</td>
-                  <td className="p-2 text-center">
+                <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition group bg-white dark:bg-[#0f172a]">
+                  <td className="p-3 text-center font-black text-slate-500 dark:text-slate-400 text-xs">{globalIdx}</td>
+                  <td className="p-3 text-center">
                     <button
                       type="button"
                       onClick={() => {
@@ -1280,9 +1267,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                           setLightboxImage({ src: img, alt: p.name });
                         }
                       }}
-                      className="flex items-center justify-center p-1"
+                      className="flex items-center justify-center mx-auto"
                     >
-                      <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden flex items-center justify-center cursor-pointer hover:shadow-[0_0_15px_rgba(0,148,136,0.2)] transition-all duration-200 shadow-sm">
+                      <div className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden flex items-center justify-center cursor-pointer hover:shadow-md transition shadow-xs">
                         {sanitizeStoredImageUrl(p.imageUrl) ? (
                           <img
                             src={sanitizeStoredImageUrl(p.imageUrl)}
@@ -1290,50 +1277,50 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                             className="w-full h-full object-cover"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-slate-400 text-[10px] font-bold">
+                          <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs font-bold">
                             📦
                           </div>
                         )}
                       </div>
                     </button>
                   </td>
-                  <td className="p-2 text-right font-black text-slate-900 dark:text-slate-100 text-xs font-mono truncate">{p.code || '—'}</td>
-                  <td className="p-2 text-right text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                  <td className="p-3 text-right font-black text-slate-900 dark:text-white text-xs font-mono truncate">{p.code || '—'}</td>
+                  <td className="p-3 text-right text-xs font-mono font-bold text-teal-700 dark:text-teal-400 truncate">
                     {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
                   </td>
-                  <td className="p-2 text-right font-black text-slate-900 dark:text-slate-100 truncate" title={displayName}>
+                  <td className="p-3 text-right font-black text-slate-900 dark:text-white truncate max-w-[240px]" title={displayName}>
                     {displayName || `صنف ${p.code}`}
                   </td>
-                  <td className="p-2 text-center">
-                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black shrink-0 ${
-                      isElec ? 'bg-teal-100 text-teal-800 border border-teal-200' : 'bg-blue-50 text-blue-700 border border-blue-200'
+                  <td className="p-3 text-center">
+                    <span className={`inline-block px-2.5 py-0.5 rounded-lg text-[10px] font-black shrink-0 ${
+                      isElec ? 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300' : 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300'
                     }`}>
                       {isElec ? '⚡ كهرباء' : '🏠 منزلي'}
                     </span>
                   </td>
-                  <td className="p-2 text-right font-black text-slate-900 dark:text-slate-100">
+                  <td className="p-3 text-right font-black text-slate-900 dark:text-white">
                     {priceInfo.piecePrice > 0 ? (
-                      <span className="font-black">{formatCurrency(priceInfo.piecePrice)}</span>
+                      <span className="font-black font-mono">{formatCurrency(priceInfo.piecePrice)}</span>
                     ) : (
                       <span className="text-slate-400">—</span>
                     )}
-                    <span className="text-[10px] text-slate-400 block">/قطعة</span>
+                    <span className="text-[10px] text-slate-400 block font-normal">/قطعة</span>
                   </td>
-                  <td className="p-2 text-right font-black text-slate-900 dark:text-slate-100">
+                  <td className="p-3 text-right font-black text-slate-900 dark:text-white">
                     {priceInfo.factor > 1 && priceInfo.cartonPrice > 0 ? (
-                      <span className="font-black">{formatCurrency(priceInfo.cartonPrice)}</span>
+                      <span className="font-black font-mono">{formatCurrency(priceInfo.cartonPrice)}</span>
                     ) : (
-                      <span className="text-slate-400 text-xs">فردي</span>
+                      <span className="text-slate-400 text-xs font-normal">فردي</span>
                     )}
-                    <span className="text-[10px] text-slate-400 block">/كرتونة</span>
+                    <span className="text-[10px] text-slate-400 block font-normal">/كرتونة</span>
                   </td>
-                  <td className="p-2 text-center font-mono">
+                  <td className="p-3 text-center font-mono">
                     {priceInfo.factor > 1 ? (
-                      <span className="inline-block bg-teal-50 text-teal-800 border border-teal-200 text-[10px] px-1.5 py-0.5 rounded-md font-bold">
+                      <span className="inline-block bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-[10px] px-2 py-0.5 rounded-md font-black">
                         {priceInfo.factor} ق/ك
                       </span>
                     ) : (
-                      <span className="inline-block bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0.5 rounded-md font-bold">
+                      <span className="inline-block bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] px-2 py-0.5 rounded-md font-bold">
                         1
                       </span>
                     )}
@@ -1343,11 +1330,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       {COMPANY_WAREHOUSES.map((wh) => {
                         const stock = getWarehouseStock(p, wh.key);
                         return (
-                          <td key={wh.key} className={`p-2 text-center ${wh.isCentral ? 'bg-slate-50/50' : ''}`}>
-                            <span className={`px-1.5 py-0.5 rounded-lg text-[10px] font-black ${
+                          <td key={wh.key} className={`p-3 text-center ${wh.isCentral ? 'bg-teal-50/30 dark:bg-teal-950/20' : ''}`}>
+                            <span className={`px-2 py-0.5 rounded-lg text-xs font-black font-mono ${
                               stock > 0
-                                ? 'bg-teal-50 text-teal-800 border border-teal-200'
-                                : 'bg-slate-100 text-slate-400 border border-slate-200'
+                                ? 'bg-teal-50 text-teal-800 border border-teal-200 dark:bg-teal-950/40 dark:text-teal-300'
+                                : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-800 dark:border-slate-700'
                             }`}>
                               {stock}
                             </span>
@@ -1357,59 +1344,64 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </>
                   ) : (
                     <>
-                      <td className="p-2 text-center">
-                        <span className={`px-1.5 py-0.5 rounded-lg text-[10px] font-black ${
-                          branchStock > 0 ? 'bg-teal-50 text-teal-800 border border-teal-200' : 'bg-slate-100 text-slate-400 border border-slate-200'
+                      <td className="p-3 text-center">
+                        <span className={`px-2.5 py-1 rounded-xl text-xs font-black font-mono ${
+                          branchStock > 0
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
+                            : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-800 dark:border-slate-700'
                         }`}>
                           {branchStock}
                         </span>
                       </td>
-                      <td className="p-2 text-center bg-slate-50/50">
-                        <span className={`px-1.5 py-0.5 rounded-lg text-[10px] font-black ${
-                          octoberStock > 0 ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-slate-100 text-slate-400 border border-slate-200'
+                      <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/20">
+                        <span className={`px-2.5 py-1 rounded-xl text-xs font-black font-mono ${
+                          octoberStock > 0
+                            ? 'bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300'
+                            : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-800 dark:border-slate-700'
                         }`}>
                           {octoberStock}
                         </span>
                       </td>
                     </>
                   )}
-                  <td className="p-2 text-center">
+                  <td className="p-3 text-center">
                     <button
                       type="button"
                       onClick={() => toggleFavorite(p.id)}
                       aria-label={Boolean(favorites[p.id]) ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
-                      className={`w-7 h-7 rounded-lg border flex items-center justify-center transition cursor-pointer shrink-0 ${
+                      className={`w-8 h-8 rounded-xl border flex items-center justify-center transition cursor-pointer mx-auto ${
                         favorites[p.id]
-                          ? 'bg-teal-50 border-teal-200 text-teal-600'
-                          : 'border-slate-200 text-slate-600 hover:text-slate-900 bg-white'
+                          ? 'bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-950/40'
+                          : 'border-slate-200 text-slate-400 hover:text-slate-800 dark:border-slate-700 dark:text-slate-400 bg-white dark:bg-slate-800'
                       }`}
                     >
-                      <Heart className={`w-3.5 h-3.5 ${favorites[p.id] ? 'fill-teal-600' : ''}`} />
+                      <Heart className={`w-4 h-4 ${favorites[p.id] ? 'fill-rose-600' : ''}`} />
                     </button>
                   </td>
-                  <td className="p-2 text-center">
-                    <button
-                      type="button"
-                      onClick={() => handleAddToCart(p)}
-                      disabled={branchStock <= 0 && octoberStock <= 0}
-                      className={`w-full py-2 px-2 rounded-xl text-[10px] font-black transition-all shadow-sm flex items-center justify-center gap-1 ${
-                        branchStock <= 0 && octoberStock <= 0
-                          ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed opacity-60'
-                          : 'bg-[#0f2b38] hover:bg-[#006d62] text-white shadow-md shadow-[#0f2b38]/30 active:scale-95 cursor-pointer'
-                      }`}
-                    >
-                      <ShoppingCart className="w-3 h-3 shrink-0" />
-                      <span>إضافة</span>
-                    </button>
+                  <td className="p-3 text-center">
+                    {isOutOfStock ? (
+                      <span className="inline-block py-1 px-2 rounded-xl text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 dark:text-slate-500 border border-slate-200 dark:border-slate-700 text-center">
+                        نفد الرصيد
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleAddToCart(p)}
+                        className="w-full py-2 px-2.5 rounded-xl text-xs font-black transition-all bg-[#0f2b38] hover:bg-[#00827a] text-white shadow-xs active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <ShoppingCart className="w-3.5 h-3.5 shrink-0 text-teal-300" />
+                        <span>إضافة</span>
+                      </button>
+                    )}
                   </td>
                 </tr>
               );
             })}
             {paginatedProducts.length === 0 && (
               <tr>
-                <td colSpan={showAllWarehouses ? 18 : 12} className="p-8 text-center text-slate-500 font-bold">
+                <td colSpan={showAllWarehouses ? COMPANY_WAREHOUSES.length + 11 : 13} className="p-8 text-center text-slate-500 font-bold">
                   <Package className="w-8 h-8 mx-auto text-slate-400 mb-2" />
-                  <p className="text-slate-600">لم يتم العثور على أصناف مطابقة للبحث أو الفلاتر المحددة</p>
+                  <p className="text-slate-600 dark:text-slate-400">لم يتم العثور على أصناف مطابقة للبحث أو الفلاتر المحددة</p>
                 </td>
               </tr>
             )}
@@ -1460,18 +1452,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           return (
             <div
               key={p.id}
-              className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition p-4 flex flex-col justify-between space-y-3 group"
+              className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition p-4 flex flex-col justify-between space-y-3 group"
             >
               {/* Card Top Row: Status Badge (يمين) + Sector Chip + Favorite (يسار) */}
               <div className="flex items-center justify-between gap-1.5">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="shrink-0">{statusBadge}</span>
                   {isElectrical ? (
-                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-amber-100 text-amber-700 border border-amber-200 text-[10px] font-black">
+                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 text-[10px] font-black">
                       ⚡ كهرباء
                     </span>
                   ) : (
-                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 text-[10px] font-black">
+                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 text-[10px] font-black">
                       🏠 منزلي
                     </span>
                   )}
@@ -1481,10 +1473,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   type="button"
                   onClick={() => toggleFavorite(p.id)}
                   aria-label="إضافة للمفضلة"
-                  className={`w-8 h-8 rounded-full border flex items-center justify-center transition cursor-pointer shrink-0 ${
+                  className={`w-9 h-9 rounded-2xl border flex items-center justify-center transition cursor-pointer shrink-0 ${
                     isFav
-                      ? 'bg-rose-50 border-rose-200 text-rose-600'
-                      : 'border-slate-200 text-slate-600 hover:text-muted bg-white'
+                      ? 'bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-950/40'
+                      : 'border-slate-200 text-slate-400 hover:text-slate-800 dark:border-slate-700 dark:text-slate-400 bg-white dark:bg-slate-800'
                   }`}
                 >
                   <Heart className={`w-4 h-4 ${isFav ? 'fill-rose-600' : ''}`} />
@@ -1493,7 +1485,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
               {/* Product Image */}
               <div
-                className="w-full aspect-square rounded-xl bg-slate-50/50 flex items-center justify-center p-3 overflow-hidden cursor-pointer group-hover:scale-[1.02] transition-transform"
+                className="w-full aspect-square rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 flex items-center justify-center p-3 overflow-hidden cursor-pointer group-hover:scale-[1.02] transition-transform"
                 onClick={() => {
                   const img = getProductImageUrl(p, cloudinaryConfig);
                   if (img && !img.startsWith('data:image/svg+xml')) {
@@ -1514,48 +1506,48 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
               {/* Product Title & Department */}
               <div className="text-center space-y-1">
-                <div className="text-[10px] text-light font-bold leading-tight">
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold leading-tight">
                   {stripPlaceholderText(p.department) || stripPlaceholderText(p.itemGroup) || 'عام'}
                   {stripPlaceholderText(p.familyName) ? ` • ${stripPlaceholderText(p.familyName)}` : ''}
                 </div>
                 <h3
                   onClick={() => setSelectedProductForModal(p)}
-                  className="font-black text-primary text-sm leading-snug line-clamp-2 min-h-[38px] hover:text-blue-600 cursor-pointer transition"
+                  className="font-black text-slate-900 dark:text-white text-sm leading-snug line-clamp-2 min-h-[38px] hover:text-teal-600 cursor-pointer transition"
                   title={displayName}
                 >
                   {displayName || `صنف ${p.code}`}
                 </h3>
-                <div className="text-[11px] text-light font-bold flex items-center justify-center gap-2">
+                <div className="text-xs text-slate-500 dark:text-slate-400 font-bold flex items-center justify-center gap-2">
                   {priceInfo.displayPrice > 0 ? (
-                    <span className="text-primary font-black text-xs">
+                    <span className="text-slate-900 dark:text-white font-black text-sm">
                       {formatCurrency(priceInfo.displayPrice)}{' '}
-                      <span className="text-[10px] text-light font-normal">/ {priceInfo.unitLabel}</span>
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">/ {priceInfo.unitLabel}</span>
                     </span>
                   ) : (
                     '—'
                   )}
                   {priceInfo.factor > 1 ? (
-                    <span className="text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded text-[10px]">
+                    <span className="text-teal-800 bg-teal-50 dark:bg-teal-950/40 dark:text-teal-300 border border-teal-200 dark:border-teal-800 px-2 py-0.5 rounded-md text-[10px] font-black">
                       {priceInfo.factor} ق/ك
                     </span>
                   ) : null}
                   {stripPlaceholderText(p.size) && (
-                    <span className="text-light text-[10px]">({stripPlaceholderText(p.size)})</span>
+                    <span className="text-slate-400 text-[10px]">({stripPlaceholderText(p.size)})</span>
                   )}
                 </div>
               </div>
 
               {/* Codes Row: كود المنتج (Item number) + الكود الموحد */}
               <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-1.5">
-                  <span className="text-[10px] text-light block font-bold">كود المنتج</span>
-                  <span className="font-mono font-bold text-secondary text-xs truncate block" title={p.code}>
+                <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl p-2">
+                  <span className="text-[10px] text-slate-400 block font-bold mb-0.5">كود المنتج</span>
+                  <span className="font-mono font-black text-slate-900 dark:text-white text-xs truncate block" title={p.code}>
                     {p.code || 'PRD—'}
                   </span>
                 </div>
-                <div className="bg-slate-50 border border-slate-100 rounded-xl p-1.5">
-                  <span className="text-[10px] text-light block font-bold">الكود الموحد</span>
-                  <span className="font-mono font-bold text-secondary text-xs truncate block" title={p.unifiedCode}>
+                <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl p-2">
+                  <span className="text-[10px] text-slate-400 block font-bold mb-0.5">الكود الموحد</span>
+                  <span className="font-mono font-black text-teal-700 dark:text-teal-400 text-xs truncate block" title={p.unifiedCode}>
                     {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
                   </span>
                 </div>
@@ -1563,22 +1555,22 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
               {/* Stock Row: 8 Warehouses or Default 2 */}
               {showAllWarehouses ? (
-                <div className="space-y-1 bg-slate-50 border border-slate-200/80 rounded-xl p-2">
-                  <div className="text-[10px] font-black text-slate-500 mb-1 flex items-center justify-between">
-                    <span>🏢 أرصدة الـ 8 مخازن:</span>
+                <div className="space-y-1 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-2.5">
+                  <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between">
+                    <span>🏢 أرصدة المخازن:</span>
                   </div>
-                  <div className="grid grid-cols-4 gap-1 text-center">
+                  <div className="grid grid-cols-4 gap-1.5 text-center">
                     {COMPANY_WAREHOUSES.map((wh) => {
                       const stock = getWarehouseStock(p, wh.key);
                       return (
                         <div
                           key={wh.key}
-                          className={`rounded-lg p-1 border text-[10px] ${
+                          className={`rounded-xl p-1 border text-[10px] ${
                             stock > 0
                               ? wh.isCentral
-                                ? 'bg-blue-50 border-blue-200 text-blue-900 font-bold'
-                                : 'bg-emerald-50 border-emerald-200 text-emerald-900 font-bold'
-                              : 'bg-white border-slate-100 text-slate-400'
+                                ? 'bg-blue-50 border-blue-200 text-blue-900 font-bold dark:bg-blue-950/40 dark:text-blue-300'
+                                : 'bg-emerald-50 border-emerald-200 text-emerald-900 font-bold dark:bg-emerald-950/40 dark:text-emerald-300'
+                              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'
                           }`}
                         >
                           <div className="text-[9px] truncate">{wh.shortLabel}</div>
@@ -1590,51 +1582,51 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2 text-center">
-                  <div className="bg-emerald-50/70 border border-emerald-100 rounded-xl p-2 text-emerald-800">
-                    <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-emerald-700">
+                  <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-2.5 text-emerald-800 dark:text-emerald-300">
+                    <div className="flex items-center justify-center gap-1 text-[11px] font-black text-emerald-700 dark:text-emerald-400">
                       <Store className="w-3.5 h-3.5" />
                       <span>مخزون الفرع</span>
                     </div>
-                    <div className="text-base font-black mt-0.5">{branchStock}</div>
+                    <div className="text-base font-black font-mono mt-0.5">{branchStock}</div>
                   </div>
-                  <div className="bg-blue-50/70 border border-blue-100 rounded-xl p-2 text-blue-800">
-                    <div className="flex items-center justify-center gap-1 text-[11px] font-bold text-blue-700">
+                  <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-2xl p-2.5 text-blue-800 dark:text-blue-300">
+                    <div className="flex items-center justify-center gap-1 text-[11px] font-black text-blue-700 dark:text-blue-400">
                       <Calendar className="w-3.5 h-3.5" />
                       <span>مخزون أكتوبر</span>
                     </div>
-                    <div className="text-base font-black mt-0.5">{octoberStock}</div>
+                    <div className="text-base font-black font-mono mt-0.5">{octoberStock}</div>
                   </div>
                 </div>
               )}
 
               {/* Action Row: إضافة للفاتورة + عداد الكمية */}
-              <div className="space-y-2 pt-1 border-t border-slate-100">
+              <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800">
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                   <button
                     type="button"
                     onClick={() => handleAddToCart(p)}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-black py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 text-xs whitespace-nowrap shadow-sm transition active:scale-95 cursor-pointer"
+                    className="flex-1 min-h-[44px] bg-[#0f2b38] hover:bg-[#00827a] text-white font-black py-2.5 px-3 rounded-2xl flex items-center justify-center gap-1.5 text-xs whitespace-nowrap shadow-sm transition active:scale-95 cursor-pointer"
                   >
-                    <ShoppingCart className="w-3.5 h-3.5" />
+                    <ShoppingCart className="w-4 h-4 text-teal-300" />
                     <span>إضافة للفاتورة</span>
                   </button>
 
-                  <div className="flex items-center justify-between border border-slate-200 rounded-xl bg-slate-50 overflow-hidden w-full sm:w-28 shrink-0">
+                  <div className="flex items-center justify-between border border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50 dark:bg-slate-800 overflow-hidden w-full sm:w-28 shrink-0 min-h-[44px]">
                     <button
                       type="button"
                       onClick={() => handleQtyChange(p.id, 1)}
-                      className="w-9 h-8 flex items-center justify-center text-slate-600 hover:bg-slate-200 text-sm font-bold transition cursor-pointer"
+                      className="w-10 h-full flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-bold transition cursor-pointer"
                       aria-label="زيادة الكمية"
                     >
                       +
                     </button>
-                    <span className="flex-1 text-center font-black text-primary text-xs">
+                    <span className="flex-1 text-center font-black text-slate-900 dark:text-white text-xs font-mono">
                       {currentQty}
                     </span>
                     <button
                       type="button"
                       onClick={() => handleQtyChange(p.id, -1)}
-                      className="w-9 h-8 flex items-center justify-center text-muted hover:bg-slate-200 text-sm font-bold transition cursor-pointer"
+                      className="w-10 h-full flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-bold transition cursor-pointer"
                       aria-label="تقليل الكمية"
                     >
                       -

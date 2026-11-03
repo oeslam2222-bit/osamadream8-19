@@ -237,11 +237,11 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                     <span className="text-slate-400 text-[11px] ml-1 font-medium">كود الصنف:</span>
                     <span className="font-mono font-black text-[#d97706]">{parentProduct.primaryCode}</span>
                     {parentProduct.variants.length > 1 ? (
-                      <span className="bg-[var(--app-warn)] text-[#d97706] text-[10px] px-1.5 py-0.2 rounded mr-1 font-bold">
+                      <span className="bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 text-[10px] px-2 py-0.5 rounded-lg mr-1 font-bold">
                         مكرر بالشيت ({parentProduct.variants.length}) 🔍
                       </span>
                     ) : (
-                      <span className="bg-[var(--app-ok)] text-[#0d9488] text-[10px] px-1.5 py-0.2 rounded mr-1 font-bold">
+                      <span className="bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 text-[10px] px-2 py-0.5 rounded-lg mr-1 font-bold">
                         فريد 🔍
                       </span>
                     )}

@@ -198,7 +198,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                 {/* Financial & Legal Compliance */}
                 <div className="bg-slate-50 border border-[var(--app-line)] rounded-2xl p-4 space-y-2 hover:border-[var(--app-warn)] transition">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[var(--app-ok)] text-[#0d9488] flex items-center justify-center font-black shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center font-black shrink-0">
                       <Scale className="w-5 h-5" />
                     </div>
                     <div>

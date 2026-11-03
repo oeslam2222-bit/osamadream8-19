@@ -205,11 +205,11 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
 
               {/* Credit Status Badge */}
               <span
-                className={`text-[11px] font-black px-2 py-0.5 rounded-full shrink-0 flex items-center gap-1 ${
+                className={`text-[11px] font-black px-2.5 py-0.5 rounded-full shrink-0 flex items-center gap-1.5 ${
                   isExceeded
-                    ? 'bg-[var(--app-risk)] text-[#ef4444] border border-[var(--app-risk)]'
+                    ? 'bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800'
                     : hasCreditLimit
-                    ? 'bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)]'
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800'
                     : isDark
                     ? 'bg-slate-800 text-slate-300 border border-slate-700'
                     : 'bg-white text-slate-700 border border-slate-200'
@@ -217,12 +217,12 @@ export const CustomerFinancialSummaryCard: React.FC<CustomerFinancialSummaryCard
               >
                 {isExceeded ? (
                   <>
-                    <ShieldAlert className="w-3 h-3 text-[#ef4444]" />
+                    <ShieldAlert className="w-3 h-3 text-rose-600 dark:text-rose-400" />
                     <span>تجاوز الحد</span>
                   </>
                 ) : hasCreditLimit ? (
                   <>
-                    <ShieldCheck className="w-3 h-3 text-[#0d9488]" />
+                    <ShieldCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
                     <span>ضمن الحد</span>
                   </>
                 ) : (
