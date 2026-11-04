@@ -1,41 +1,48 @@
-import React from 'react';
-import { Home, Package, Receipt, Users, MoreHorizontal } from 'lucide-react';
+import { Home, Package, Receipt, Users, Truck } from 'lucide-react';
 
 interface BottomNavProps {
   activeTab: string;
-  onTabChange: (tab: string) => void;
+  onTabChange: (screen: string) => void;
+  allowedScreens?: string[];
 }
 
 const navItems = [
-  { key: 'dashboard', label: 'الرئيسية', icon: Home },
-  { key: 'catalog', label: 'الكتالوج', icon: Package },
-  { key: 'invoices', label: 'الفواتير', icon: Receipt },
-  { key: 'customers', label: 'العملاء', icon: Users },
-  { key: 'more', label: 'المزيد', icon: MoreHorizontal },
-] as const;
+  { id: 'dashboard', label: 'الرئيسية', icon: Home, color: 'bg-amber-500 text-amber-600' },
+  { id: 'catalog', label: 'الكتالوج', icon: Package, color: 'bg-blue-500 text-blue-600' },
+  { id: 'invoices', label: 'الفواتير', icon: Receipt, color: 'bg-emerald-500 text-emerald-600' },
+  { id: 'customers', label: 'العملاء', icon: Users, color: 'bg-indigo-500 text-indigo-600' },
+  { id: 'neworder', label: 'فاتورة جديدة', icon: Truck, color: 'bg-rose-500 text-rose-600' },
+];
 
-export const BottomNav: React.FC<BottomNavProps> = ({
-  activeTab,
-  onTabChange,
-}) => {
+export function BottomNav({ activeTab, onTabChange, allowedScreens }: BottomNavProps) {
+  const items = allowedScreens ? navItems.filter(i => allowedScreens.includes(i.id)) : navItems;
+
   return (
-    <nav className="fixed bottom-0 right-0 left-0 z-40 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 shadow-soft safe-area-bottom">
-      <div className="flex items-center justify-around px-2 py-3 md:py-2 h-20">
-        {navItems.map((item) => {
+    <nav className="fixed bottom-0 left-0 right-0 z-[50] h-20 bg-white/95 backdrop-blur-xl border-t border-slate-200 dark:bg-slate-950/95 dark:border-slate-800">
+      <div className="flex items-center justify-around h-full px-2 sm:px-4">
+        {items.map((item) => {
           const Icon = item.icon;
-          const isActive = activeTab === item.key;
+          const isActive = activeTab === item.id;
+          const [bg, text] = item.color.split(' ');
+
           return (
             <button
-              key={item.key}
-              onClick={() => onTabChange(item.key)}
-              className={`flex flex-col items-center justify-center gap-1 w-full touch-target transition-colors duration-200 ${isActive ? 'text-amber-600 dark:text-amber-400' : 'text-slate-500 dark:text-slate-500'}`}
+              key={item.id}
+              onClick={() => onTabChange(item.id)}
+              className={`flex flex-col items-center justify-center gap-1 w-full h-full px-2 py-1.5 rounded-2xl transition-all duration-200 ${
+                isActive
+                  ? `${bg}/20 ${text} shadow-[0_0_20px_rgba(0,0,0,0.08)]`
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+              }`}
             >
-              <Icon className={`w-6 h-6 ${isActive ? '' : 'opacity-70'}`} />
-              <span className="text-[10px] font-bold">{item.label}</span>
+              <Icon className={`w-5 h-5 ${isActive ? '' : 'opacity-60'}`} />
+              <span className={`text-[10px] font-black leading-none ${isActive ? '' : 'opacity-70'}`}>
+                {item.label}
+              </span>
             </button>
           );
         })}
       </div>
     </nav>
   );
-};
+}

@@ -1,83 +1,36 @@
-import {
-  Building2,
-  CloudLightning,
-  FileSpreadsheet,
-  FileText,
-  Layers,
-  Loader2,
-  Package,
-  Plus,
-  Receipt,
-  Server,
-  ShieldCheck,
-  ShoppingCart,
-  Users,
-  Wifi,
-  WifiOff
-} from 'lucide-react';
-import { Onboarding } from "./components/Onboarding";
-import { SplashScreen } from "./components/SplashScreen";
-import { ToastProvider } from "./components/ui/Toast";
-import React, { Component, ErrorInfo, Suspense, useEffect, useMemo, useState } from 'react';
-import { DashboardHome } from './components/DashboardHome';
+import React, { Component, ErrorInfo, Suspense, useState, useEffect } from 'react';
+import { Loader2, Package, Home, Receipt, Users, Barcode } from 'lucide-react';
 import { LoginPage } from './components/LoginPage';
-import { Navbar } from './components/Navbar';
-import { ProductCatalog } from './components/ProductCatalog';
-import { AllCustomersAnalyticsView } from './components/AllCustomersAnalyticsView';
-import { CustomerItemSalesView } from './components/CustomerItemSalesView';
-import { SupervisorDashboard } from './components/SupervisorDashboard';
-import { InvoicesManager } from './components/InvoicesManager';
-import { InventoryStockView } from './components/InventoryStockView';
-import { ExcelImportExport } from './components/ExcelImportExport';
-import { UserManager } from './components/UserManager';
-import { SystemWorkflowGuide } from './components/SystemWorkflowGuide';
-import { TargetPerformanceDashboard } from './components/TargetPerformanceDashboard';
-import { VisitsDashboard } from './components/VisitsDashboard';
-import { UnifiedReturnsView } from './components/UnifiedReturnsView';
-import { PermissionManagerModal } from './components/PermissionManagerModal';
-import { OrderBuilderModal } from './components/OrderBuilderModal';
-import { AppProvider, useApp } from './context/AppContext';
-import { ThemeProvider } from './context/themeContext';
-import { getUserAllowedTabs, getCustomPermissions, UserPermissionOverride } from './services/permissionService';
+import { ToastProvider } from './components/ui/Toast';
+import { ThemeProvider as AppThemeProvider } from './context/ThemeContext';
+import { AppProvider } from './context/AppContext';
 import { AuthProvider } from './context/authContext';
 import { InvoiceProvider } from './context/invoiceContext';
 import { CustomerProvider } from './context/customerContext';
 import { InventoryProvider } from './context/inventoryContext';
 import { SyncProvider } from './context/syncContext';
-import { Customer, Invoice, UserRole } from './types';
+import { Header } from './components/layout/Header';
+import { MobileHeader } from './components/layout/MobileHeader';
+import { BottomNav } from './components/layout/BottomNav';
+import { SidebarDesktop } from './components/layout/SidebarDesktop';
+import { ConnectionStatusBar } from './components/layout/ConnectionStatusBar';
+import { LoginScreen } from './screens/LoginScreen';
+import { DashboardScreen } from './screens/DashboardScreen';
+import { CatalogScreen } from './screens/CatalogScreen';
+import { InvoicesScreen } from './screens/InvoicesScreen';
+import { CustomersScreen } from './screens/CustomersScreen';
+import { InventoryScreen } from './screens/InventoryScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
+import { NotificationsScreen } from './screens/NotificationsScreen';
+import { MoreScreen } from './screens/MoreScreen';
+import { VisitsScreen } from './screens/VisitsScreen';
+import { ReportsScreen } from './screens/ReportsScreen';
+import { NewOrderScreen } from './screens/NewOrderScreen';
+import { supabase } from './services/supabaseService';
 
-export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
-  developer: [
-    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
-    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'excel', 'users', 'guide', 'permissions'
-  ],
-  admin: [
-    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
-    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'excel', 'users', 'guide', 'permissions'
-  ],
-  branch_manager: [
-    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
-    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'users', 'guide'
-  ],
-  supervisor: [
-    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
-    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'users'
-  ],
-  sales_rep: [
-    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
-  ],
-  legal_advisor: ["home"],
-  warehouse_keeper: ["home", "catalog", "returns", "inventory", "guide"],
-};
-
-// Lightweight Skeleton for tab transitions
 const TabLoadingSkeleton = () => (
   <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[350px] space-y-4 animate-in fade-in">
-    <div className="w-12 h-12 rounded-2xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] flex items-center justify-center animate-spin">
+    <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center animate-spin">
       <Loader2 className="w-6 h-6" />
     </div>
     <div className="text-center">
@@ -87,328 +40,21 @@ const TabLoadingSkeleton = () => (
   </div>
 );
 
-const MainLayout: React.FC = () => {
-  const [splashOpen, setSplashOpen] = useState(() => {
-    try {
-      return localStorage.getItem("tantawy_splash_seen") !== "true";
-    } catch {
-      return true;
-    }
-  });
-  const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
-
-  const [activeTab, setActiveTab] = useState<string>('home');
-  const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
-  const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
-  const [appToastMsg, setAppToastMsg] = useState<string | null>(null);
-  const [isDark, setIsDark] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem("tantawy_dark_mode");
-      return saved === "true";
-    } catch {
-      return false;
-    }
-  });
-
-  // Toggle dark mode class on document element
-  useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-    try {
-      localStorage.setItem("tantawy_dark_mode", String(isDark));
-    } catch {}
-  }, [isDark]);
-
-  const [customPermissionOverrides, setCustomPermissionOverrides] = useState<UserPermissionOverride[]>([]);
-
-  // Load custom permission overrides (admin-customized per user)
-  useEffect(() => {
-    let active = true;
-    getCustomPermissions().then((overrides) => {
-      if (active) setCustomPermissionOverrides(overrides);
-    }).catch(() => {});
-    return () => { active = false; };
-  }, []);
-
-  const allowedTabs = useMemo(() => {
-    if (!currentUser) return ['home'];
-    if (currentUser.role === 'admin' || currentUser.role === 'developer') {
-      return ROLE_ALLOWED_TABS.developer;
-    }
-    const baseTabs = ROLE_ALLOWED_TABS[currentUser.role] || ROLE_ALLOWED_TABS.sales_rep || ['home'];
-    const override = customPermissionOverrides.find((o) => o.userId === currentUser.id);
-    if (override && Array.isArray(override.allowedTabs) && override.allowedTabs.length > 0) {
-      // Merge role base tabs with custom override tabs so system screens are never inadvertently blocked
-      return Array.from(new Set([...baseTabs, ...override.allowedTabs]));
-    }
-    return baseTabs;
-  }, [currentUser, customPermissionOverrides]);
-
-  // Land on authorized tab and strictly guard unauthorized tabs
-  useEffect(() => {
-    if (currentUser) {
-      if (!allowedTabs.includes(activeTab)) {
-        setActiveTab('home');
-      }
-    }
-  }, [currentUser?.id, currentUser?.role, activeTab, allowedTabs]);
-
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('tantawy_sidebar_collapsed') === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const handleToggleSidebar = () => {
-    setIsSidebarCollapsed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem('tantawy_sidebar_collapsed', String(next));
-      } catch {}
-      return next;
-    });
-  };
-
-  // If user is not logged in, show dedicated Login / Registration Page
-  if (!isAuthenticated || !currentUser) {
-    return <LoginPage />;
-  }
-
-  const cartSummary = getCartSummary();
-
-  const handleOpenOrderForCustomer = (cust: Customer) => {
-    setOrderInitialCustomer(cust);
-    setActiveTab('catalog');
-  };
-
-  const handleEditInvoice = (invoice: Invoice) => {
-    const res = editPendingOrder(invoice);
-    if (res.success) {
-      if (res.customer) {
-        setOrderInitialCustomer(res.customer);
-      }
-      setIsOrderModalOpen(true);
-    } else {
-      alert(res.message);
-    }
-  };
-
-  return (
-    <div className={`tantawy-shell ${isSidebarCollapsed ? 'sidebar-collapsed' : ''} min-h-[100dvh] bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-[var(--app-warn)] selection:text-slate-950`} dir="rtl">
-      {/* Splash Screen - shown on first app load */}
-      <SplashScreen
-        isOpen={splashOpen}
-        onComplete={() => {
-          setSplashOpen(false);
-          try {
-            localStorage.setItem("tantawy_splash_seen", "true");
-          } catch {}
-        }}
-      />
-      
-      {/* Offline Status Top Bar if offline */}
-      {isOffline && (
-        <div className="bg-[var(--app-warn)] text-white text-xs py-1.5 px-4 text-center font-bold flex items-center justify-center gap-2 shadow-inner">
-          <WifiOff className="w-3.5 h-3.5" />
-          <span>أنت تعمل حالياً في وضع عدم الاتصال (Offline) - يتم حفظ الفواتير محلياً والربط تلقائياً فور عودة الشبكة</span>
-        </div>
-      )}
-
-      {/* Main Responsive Navbar */}
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onOpenCart={() => setIsOrderModalOpen(true)}
-        isSidebarCollapsed={isSidebarCollapsed}
-        onToggleSidebar={handleToggleSidebar}
-        isDark={isDark}
-        setIsDark={setIsDark}
-      />
-
-      {/* Content Container - Fluid responsive container with min-w-0 to prevent overflow */}
-      <main className="flex-1 w-full max-w-[1440px] mx-auto px-2.5 sm:px-4 lg:px-6 py-3 sm:py-5 pb-24 md:pb-10 min-w-0">
-        <Suspense fallback={<TabLoadingSkeleton />}>
-          {activeTab === 'home' && allowedTabs.includes('home') && (
-            <DashboardHome
-              onNavigateToTab={(tab) => setActiveTab(tab)}
-              onNewOrder={() => setIsOrderModalOpen(true)}
-            />
-          )}
-
-          {activeTab === 'catalog' && allowedTabs.includes('catalog') && (
-            <ProductCatalog
-              onOpenCart={() => setIsOrderModalOpen(true)}
-              selectedCustomer={orderInitialCustomer}
-              onClearSelectedCustomer={() => setOrderInitialCustomer(null)}
-              onNavigateToTab={(tab) => setActiveTab(tab)}
-              onNavigateToInvoices={(inv) => {
-                setActiveTab('invoices');
-              }}
-            />
-          )}
-
-          {(activeTab === 'all_customers' || activeTab === 'customers') && allowedTabs.includes('all_customers') && (
-            <AllCustomersAnalyticsView
-              onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
-            />
-          )}
-
-          {activeTab === 'customer_item_sales' && (allowedTabs.includes('customer_item_sales') || allowedTabs.includes('catalog')) && (
-            <CustomerItemSalesView />
-          )}
-
-          {activeTab === 'dashboard' && allowedTabs.includes('dashboard') && (
-            <SupervisorDashboard
-              onOpenNewOrder={() => setIsOrderModalOpen(true)}
-              onNavigateToTab={(tab) => setActiveTab(tab)}
-            />
-          )}
-
-          {activeTab === 'targets' && allowedTabs.includes('targets') && <TargetPerformanceDashboard />}
-
-          {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
-          {(activeTab === 'returns' || activeTab === 'returns_customers') && (allowedTabs.includes('returns') || allowedTabs.includes('returns_customers')) && (
-            <UnifiedReturnsView />
-          )}
-
-          {activeTab === 'invoices' && allowedTabs.includes('invoices') && (
-            <InvoicesManager
-              onOpenNewOrder={() => setIsOrderModalOpen(true)}
-              onViewInvoice={() => {}}
-              onEditInvoice={handleEditInvoice}
-            />
-          )}
-
-          {activeTab === 'inventory' && allowedTabs.includes('inventory') && <InventoryStockView />}
-
-          {activeTab === 'excel' && allowedTabs.includes('excel') && (
-            <ExcelImportExport onNavigateToItemSales={() => setActiveTab('customer_item_sales')} />
-          )}
-
-          {activeTab === 'users' && allowedTabs.includes('users') && <UserManager />}
-
-          {activeTab === 'guide' && allowedTabs.includes('guide') && (
-            <SystemWorkflowGuide onNavigateToTab={(tab) => setActiveTab(tab)} />
-          )}
-
-          {activeTab === 'permissions' && allowedTabs.includes('permissions') && (
-            <PermissionManagerModal isOpen={true} onClose={() => setActiveTab('home')} />
-          )}
-
-        </Suspense>
-      </main>
-
-      {/* Lazy Modals with Suspense */}
-      <Suspense fallback={null}>
-        {/* Order & Cart Builder Modal */}
-        {isOrderModalOpen && (
-          <OrderBuilderModal
-            isOpen={isOrderModalOpen}
-            initialCustomer={orderInitialCustomer}
-            onClose={() => {
-              setIsOrderModalOpen(false);
-              setOrderInitialCustomer(null);
-            }}
-            onInvoiceCreated={(inv) => {
-              setIsOrderModalOpen(false);
-              setOrderInitialCustomer(null);
-              // البقاء في نفس الصفحة (كتالوج / عملاء / رئيسية) مع تأكيد الحفظ المحلي والأوفلاين
-              setAppToastMsg(`تم حفظ أمر البيع #${inv.invoiceNumber} محلياً بنجاح في وضع الأوفلاين! المزامنة مستمرة بالخلفية.`);
-              setTimeout(() => setAppToastMsg(null), 4500);
-            }}
-          />
-        )}
-      </Suspense>
-
-      {/* Bottom Footer */}
-      <footer className="bg-white border-t border-slate-200 py-4 px-4 text-center text-xs text-slate-500 print:hidden mb-16 md:mb-0">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="font-black text-slate-900">مجموعة الطنطاوي للتجارة والتوزيع (TANTAWY GROUP)</span>
-            <span className="text-slate-300">|</span>
-            <span>نظام إدارة المبيعات والمخازن والربط السحابي وتوفير الباقة</span>
-          </div>
-          <div className="text-[11px] text-slate-400">
-            مستند للفاتورة الإلكترونية المصرية • يدعم العمل بدون إنترنت وتثبيت التطبيق PWA
-          </div>
-        </div>
-      </footer>
-
-      {/* Floating Offline Success Toast Banner */}
-      {appToastMsg && (
-        <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] bg-slate-900 dark:bg-[var(--app-ok)] text-white border-2 border-[var(--app-ok)] rounded-2xl p-3.5 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom duration-300">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 font-black shadow-xs">
-              ✓
-            </span>
-            <p className="text-xs font-bold leading-snug">{appToastMsg}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setAppToastMsg(null)}
-            className="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer text-xs shrink-0"
-          >
-            ✕
-          </button>
-        </div>
-      )}
-
-    </div>
-  );
-};
-
-// Class-based ErrorBoundary to catch any runtime exceptions on mobile browsers and prevent white screens
-interface ErrorBoundaryProps {
-  children: React.ReactNode;
-}
-
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error: Error | null;
-}
+interface ErrorBoundaryProps { children: React.ReactNode; }
+interface ErrorBoundaryState { hasError: boolean; error: Error | null; }
 
 class MobileErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-    };
-  }
-
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('App runtime error caught by MobileErrorBoundary:', error, errorInfo);
-  }
-
+  constructor(props: ErrorBoundaryProps) { super(props); this.state = { hasError: false, error: null }; }
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState { return { hasError: true, error: null }; }
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) { console.error('App runtime error:', error, errorInfo); }
   render() {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 text-center font-sans">
-          <div className="w-16 h-16 rounded-2xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black mb-4 shadow-xl">
-            <Package className="w-8 h-8" />
-          </div>
-          <h2 className="text-xl font-black text-[#d97706] mb-2">منظومة مجموعة الطنطاوي للتجارة والتوزيع</h2>
-          <p className="text-sm text-slate-300 max-w-md mb-6 leading-relaxed">
-            تم استعادة بيانات التطبيق بنجاح لمنع توقف الشاشة. اضغط على الزر أدناه لإعادة تشغيل الكتالوج.
-          </p>
-          <button
-            onClick={() => {
-              this.setState({ hasError: false, error: null });
-              window.location.reload();
-            }}
-            className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black px-6 py-3 rounded-2xl text-sm shadow-lg transition cursor-pointer active:scale-95"
-          >
-             إعادة تشغيل التطبيق
-          </button>
+          <div className="w-16 h-16 rounded-2xl bg-amber-400 text-slate-950 flex items-center justify-center font-black mb-4 shadow-xl"><Package className="w-8 h-8" /></div>
+          <h2 className="text-xl font-black text-amber-300 mb-2">منظومة مجموعة الطنطاوي للتجارة والتوزيع</h2>
+          <p className="text-sm text-slate-300 max-w-md mb-6 leading-relaxed">تم استعادة بيانات التطبيق بنجاح. اضغط على الزر أدناه لإعادة تشغيل الكتالوج.</p>
+          <button onClick={() => { this.setState({ hasError: false, error: null }); window.location.reload(); }} className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-black px-6 py-3 rounded-2xl text-sm shadow-lg transition cursor-pointer active:scale-95">إعادة تشغيل التطبيق</button>
         </div>
       );
     }
@@ -416,7 +62,140 @@ class MobileErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBound
   }
 }
 
+type ScreenName = 'login' | 'dashboard' | 'catalog' | 'invoices' | 'customers' | 'inventory' | 'settings' | 'notifications' | 'more' | 'visits' | 'reports' | 'neworder';
+
+const PHASE1_SCREENS: Record<ScreenName, boolean> = {
+  login: true,
+  dashboard: true,
+  catalog: true,
+  invoices: true,
+  customers: true,
+  neworder: true,
+  visits: true,
+  settings: false,
+  notifications: false,
+  more: false,
+  inventory: false,
+  reports: false,
+};
+
+const MOBILE_BOTTOM_NAV_SCREENS: ScreenName[] = ['dashboard', 'catalog', 'invoices', 'customers', 'neworder'];
+
+const isAuthenticated = () => { try { return localStorage.getItem('tantawy_current_user') !== null; } catch { return false; } };
+
 export function App() {
+  const [screen, setScreen] = useState<ScreenName>('login');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        localStorage.setItem('tantawy_current_user', JSON.stringify(session.user));
+        setScreen('dashboard');
+      } else {
+        try {
+          const savedUser = localStorage.getItem('tantawy_current_user');
+          setScreen(savedUser ? 'dashboard' : 'login');
+        } catch {
+          setScreen('login');
+        }
+      }
+      setAuthReady(true);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          localStorage.setItem('tantawy_current_user', JSON.stringify(session.user));
+          setScreen('dashboard');
+        } else if (event === 'SIGNED_OUT') {
+          localStorage.removeItem('tantawy_current_user');
+          setScreen('login');
+        }
+      }
+    );
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const navigateTo = (screenName: ScreenName) => {
+    if (!PHASE1_SCREENS[screenName]) return;
+    setScreen(screenName);
+    if (isMobile) setSidebarOpen(false);
+  };
+
+  const screenTitles: Record<ScreenName, string> = {
+    login: 'تسجيل الدخول',
+    dashboard: 'الرئيسية',
+    catalog: 'الكتالوج',
+    invoices: 'الفواتير',
+    customers: 'العملاء',
+    inventory: 'المخزون',
+    settings: 'الإعدادات',
+    notifications: 'الإشعارات',
+    more: 'المزيد',
+    visits: 'الزيارات',
+    reports: 'التقارير',
+    neworder: 'فاتورة جديدة',
+  };
+
+  const renderScreen = () => {
+    if (!PHASE1_SCREENS[screen]) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 text-center">
+          <div className="max-w-md bg-white rounded-2xl shadow-xl p-8 border border-slate-100">
+            <div className="w-16 h-16 mx-auto rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mb-4">
+              🔒
+            </div>
+            <h3 className="font-black text-slate-800 text-lg mb-2">هذه الصفحة غير متاحة حالياً</h3>
+            <p className="text-slate-600 text-sm mb-6">
+              جاري تفعيل هذه الميزة في الإصدارات القادمة للمرحلة الأولى.
+            </p>
+            <button
+              onClick={() => navigateTo('dashboard')}
+              className="w-full bg-amber-500 hover:bg-amber-600 text-white font-black px-6 py-3 rounded-xl transition shadow-lg active:scale-95"
+            >
+              العودة للرئيسية
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    switch (screen) {
+      case 'login': return <LoginScreen />;
+      case 'dashboard': return <DashboardScreen />;
+      case 'catalog': return <CatalogScreen />;
+      case 'invoices': return <InvoicesScreen />;
+      case 'customers': return <CustomersScreen />;
+      case 'inventory': return <InventoryScreen />;
+      case 'settings': return <SettingsScreen />;
+      case 'notifications': return <NotificationsScreen />;
+      case 'more': return <MoreScreen onNavigate={(s) => navigateTo(s as ScreenName)} onLogout={() => navigateTo('login')} />;
+      case 'visits': return <VisitsScreen />;
+      case 'reports': return <ReportsScreen />;
+      case 'neworder': return <NewOrderScreen />;
+      default: return <DashboardScreen />;
+    }
+  };
+
+  if (!authReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-slate-50 to-white">
+        <div className="text-center">
+          <div className="inline-block h-10 w-10 border-4 border-amber-300 rounded-full border-t-transparent animate-spin mb-3"></div>
+          <p className="text-slate-600 font-medium text-sm">جاري التحقق من تسجيل الدخول...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <MobileErrorBoundary>
       <AuthProvider>
@@ -424,11 +203,45 @@ export function App() {
           <CustomerProvider>
             <InventoryProvider>
               <SyncProvider>
-                <AppProvider>
-                  <ThemeProvider>
-                    <MainLayout />
-                  </ThemeProvider>
-                </AppProvider>
+                <AppThemeProvider>
+                  <AppProvider>
+                    <ToastProvider>
+                      <ConnectionStatusBar />
+                      <SidebarDesktop
+                        activeTab={screen}
+                        onTabChange={navigateTo}
+                        onCollapse={() => setSidebarOpen(false)}
+                      />
+                      <div className={"transition-all duration-300 " + (isMobile || sidebarOpen ? 'md:ml-0' : 'md:ml-64') + " min-h-screen bg-slate-50 dark:bg-slate-950"}>
+                        {!isMobile && (
+                          <Header onMenuClick={() => setSidebarOpen(!sidebarOpen)} title={screenTitles[screen]} />
+                        )}
+                        {isMobile && screen !== 'login' && (
+                          <MobileHeader
+                            title={screenTitles[screen]}
+                            notificationCount={3}
+                            onOpenNotifications={() => navigateTo('notifications')}
+                          />
+                        )}
+                        {isMobile && screen !== 'login' && (
+                          <BottomNav
+                            activeTab={screen}
+                            onTabChange={navigateTo}
+                            allowedScreens={MOBILE_BOTTOM_NAV_SCREENS}
+                          />
+                        )}
+                        {isMobile && sidebarOpen && <div className="fixed inset-0 bg-black/50 z-20 md:hidden" onClick={() => setSidebarOpen(false)} />}
+                        <main className={
+                          "min-h-[calc(100dvh-56px)] " +
+                          (isMobile ? 'pt-0 pb-24' : 'pt-4 sm:pt-6 md:pt-8 pb-4 sm:pb-6 md:pb-8') +
+                          ( !isMobile ? 'px-4 sm:px-6 md:px-8 lg:px-10' : '' )
+                        }>
+                          {screen === 'login' ? <div className="max-w-[380px] mx-auto p-4">{renderScreen()}</div> : renderScreen()}
+                        </main>
+                      </div>
+                    </ToastProvider>
+                  </AppProvider>
+                </AppThemeProvider>
               </SyncProvider>
             </InventoryProvider>
           </CustomerProvider>
