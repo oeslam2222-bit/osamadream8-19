@@ -19,7 +19,7 @@ export function BottomNav({ activeTab, onTabChange, allowedScreens }: BottomNavP
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-[50] h-20 bg-white/95 backdrop-blur-xl border-t border-slate-200 dark:bg-slate-950/95 dark:border-slate-800">
-      <div className="flex items-center justify-around h-full px-2 sm:px-4">
+      <div className="flex items-center justify-around h-full px-2 sm:px-4 max-w-full">
         {items.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
@@ -32,8 +32,8 @@ export function BottomNav({ activeTab, onTabChange, allowedScreens }: BottomNavP
               className={`flex flex-col items-center justify-center gap-1 w-full h-full px-2 py-1.5 rounded-2xl transition-all duration-200 ${
                 isActive
                   ? `${bg}/20 ${text} shadow-[0_0_20px_rgba(0,0,0,0.08)]`
-                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
-              }`}
+                  : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}
+              `}
             >
               <Icon className={`w-5 h-5 ${isActive ? '' : 'opacity-60'}`} />
               <span className={`text-[10px] font-black leading-none ${isActive ? '' : 'opacity-70'}`}>
