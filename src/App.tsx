@@ -2,7 +2,7 @@ import React, { Component, ErrorInfo, Suspense, useState, useEffect } from 'reac
 import { Loader2, Package, Home, Receipt, Users, Barcode } from 'lucide-react';
 import { LoginPage } from './components/LoginPage';
 import { ToastProvider } from './components/ui/Toast';
-import { ThemeProvider as AppThemeProvider } from './context/ThemeContext';
+import { ThemeProvider as AppThemeProvider } from './context/themeContext';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider } from './context/authContext';
 import { InvoiceProvider } from './context/invoiceContext';
