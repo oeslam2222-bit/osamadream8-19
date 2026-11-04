@@ -6,10 +6,16 @@ import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from './custome
 import { normalizeArabicText } from './arabicMatchingService';
 import { classifyError, handleSupabaseError, withRetry, NetworkErrorType } from './networkErrorHandler';
 
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rxthpgmlcsfckstpqhqf.supabase.co';
-export const SUPABASE_ANON_KEY =
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4dGhwZ21sY3NmY2tzdHBxaHFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2NDIwMzgsImV4cCI6MjEwMzIxODAzOH0.2v4eRUKQjLM0xDomaE9HAiy_qTJ6NoijNuwC3JV1ZUA';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error(
+    'Missing Supabase environment variables. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file. See .env.example for reference.'
+  );
+}
+
+export { SUPABASE_URL, SUPABASE_ANON_KEY };
 
 // Helper to normalize Supabase role strings to supported UserRole
 export function normalizeUserRole(rawRole: any, isAdminFlag?: boolean): UserRole {

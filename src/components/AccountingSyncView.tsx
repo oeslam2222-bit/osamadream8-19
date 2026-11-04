@@ -24,7 +24,6 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { COMPANY_INFO } from '../data/mockData';
 import { formatCurrency } from '../services/invoiceService';
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from '../services/supabaseService';
 
 export const AccountingSyncView: React.FC = () => {
   const {
@@ -507,22 +506,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
                 <Upload className="w-3.5 h-3.5" />
                 <span>دفع إلى Supabase (Push)</span>
               </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-              <span className="font-bold text-slate-700">Supabase Project URL:</span>
-              <code className="block bg-slate-900 text-[#0d9488] p-2.5 rounded-xl font-mono text-[11px] break-all select-all">
-                {SUPABASE_URL}
-              </code>
-            </div>
-
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-              <span className="font-bold text-slate-700">Anon Public Key:</span>
-              <code className="block bg-slate-900 text-[#d97706] p-2.5 rounded-xl font-mono text-[11px] truncate select-all">
-                {SUPABASE_ANON_KEY}
-              </code>
             </div>
           </div>
 

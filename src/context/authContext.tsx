@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useEffect } from 'react';
-import { User, UserRole, UserApprovalStatus, Branch } from '../types';
+import { User, UserRole, Branch } from '../types';
+import { supabase } from '../services/supabaseService';
+import { verifyPassword, hashPassword } from '../services/passwordService';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -8,7 +10,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   registerUser: (userData: Omit<User, 'id'>) => Promise<void>;
   updateUser: (id: string, data: Partial<User>) => Promise<void>;
   deleteUser: (id: string) => Promise<void>;
@@ -34,26 +36,134 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isAuthenticated = !!currentUser;
 
+  useEffect(() => {
+    try {
+      if (currentUser) {
+        localStorage.setItem('tantawy_current_user', JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem('tantawy_current_user');
+      }
+    } catch {}
+  }, [currentUser]);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const user: User = {
+          id: session.user.id,
+          username: session.user.email?.split('@')[0] || session.user.id,
+          email: session.user.email || '',
+          name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'مستخدم',
+          role: (session.user.user_metadata?.role as UserRole) || 'sales_rep',
+          branchName: session.user.user_metadata?.branch_name || 'الفرع الرئيسي',
+          phone: '',
+          isActive: true,
+          approvalStatus: 'active',
+        };
+        setCurrentUserState(user);
+        setIsLoading(false);
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUserState(null);
+        setIsLoading(false);
+      }
+    });
+
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (session?.user && !error) {
+        const user: User = {
+          id: session.user.id,
+          username: session.user.email?.split('@')[0] || session.user.id,
+          email: session.user.email || '',
+          name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'مستخدم',
+          role: (session.user.user_metadata?.role as UserRole) || 'sales_rep',
+          branchName: session.user.user_metadata?.branch_name || 'الفرع الرئيسي',
+          phone: '',
+          isActive: true,
+          approvalStatus: 'active',
+        };
+        setCurrentUserState(user);
+      }
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   const login = useCallback(async (username: string, password: string) => {
     setIsLoading(true);
     try {
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: username.includes('@') ? username : `${username}@tantawy.local`,
+          password,
+        });
+        if (data.user && !error) {
+          const user: User = {
+            id: data.user.id,
+            username: data.user.email?.split('@')[0] || username,
+            email: data.user.email || '',
+            name: data.user.user_metadata?.full_name || username,
+            role: (data.user.user_metadata?.role as UserRole) || 'sales_rep',
+            branchName: data.user.user_metadata?.branch_name || 'الفرع الرئيسي',
+            phone: '',
+            isActive: true,
+            approvalStatus: 'active',
+          };
+          setCurrentUserState(user);
+          return;
+        }
+      } catch { }
+
       const user = users.find(u => u.username === username);
       if (!user) throw new Error('اسم المستخدم غير صحيح');
+
+      const isValid = await verifyPassword(password, user.password || '');
+      if (!isValid) throw new Error('كلمة المرور غير صحيحة');
+
+      if (!user.isActive) throw new Error('الحرف غير نشط');
+      if (user.approvalStatus !== 'active') throw new Error('الحرف لم يتم اعتماده بعد');
+
       setCurrentUserState(user);
-      try { localStorage.setItem('tantawy_current_user', JSON.stringify(user)); } catch {}
     } finally {
       setIsLoading(false);
     }
   }, [users]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch { }
     setCurrentUserState(null);
-    try { localStorage.removeItem('tantawy_current_user'); } catch {}
   }, []);
 
   const registerUser = useCallback(async (userData: Omit<User, 'id'>) => {
-    const newUser: User = { ...userData, id: crypto.randomUUID() };
-    setUsersState(prev => [...prev, newUser]);
+    setIsLoading(true);
+    try {
+      try {
+        const { data, error } = await supabase.auth.signUp({
+          email: userData.email,
+          password: userData.password || 'temp_password_123',
+          options: {
+            data: {
+              full_name: userData.name,
+              role: userData.role,
+              branch_name: userData.branchName,
+            },
+          },
+        });
+        if (data.user && !error) {
+          const newUser: User = { ...userData, id: data.user.id, password: '' };
+          setUsersState(prev => [...prev, newUser]);
+          return;
+        }
+      } catch { }
+
+      const hashedPassword = userData.password ? await hashPassword(userData.password) : '';
+      const newUser: User = { ...userData, id: crypto.randomUUID(), password: hashedPassword };
+      setUsersState(prev => [...prev, newUser]);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
   const updateUser = useCallback(async (id: string, data: Partial<User>) => {
@@ -68,10 +178,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setBranches = useCallback((branches: Branch[]) => setBranchesState(branches), []);
   const setCurrentUser = useCallback((user: User | null) => {
     setCurrentUserState(user);
-    try {
-      if (user) localStorage.setItem('tantawy_current_user', JSON.stringify(user));
-      else localStorage.removeItem('tantawy_current_user');
-    } catch {}
   }, []);
 
   const value = useMemo(() => ({
