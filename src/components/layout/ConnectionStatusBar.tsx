@@ -4,6 +4,7 @@ import { Wifi, WifiOff, RefreshCcw } from 'lucide-react';
 export function ConnectionStatusBar() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [syncing, setSyncing] = useState(false);
+  const [offlineQueue, setOfflineQueue] = useState<Array<{type: string; data: any}>>([]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -18,9 +19,23 @@ export function ConnectionStatusBar() {
     };
   }, []);
 
+  const enqueueOfflineAction = (type: string, data: any) => {
+    setOfflineQueue(prev => [...prev, { type, data }]);
+  };
+
+  const clearOfflineQueue = () => {
+    setOfflineQueue([]);
+  };
+
   const handleRetry = () => {
     setSyncing(true);
-    setTimeout(() => setSyncing(false), 1500);
+    // Process offline queue when coming back online
+    setTimeout(() => {
+      setSyncing(false);
+      // Here you would trigger your sync logic with the offlineQueue
+      // Example: syncService.syncQueue(offlineQueue).then(clearOfflineQueue);
+      setOfflineQueue([]);
+    }, 1500);
   };
 
   return (
@@ -28,7 +43,7 @@ export function ConnectionStatusBar() {
       className={`fixed top-0 left-0 right-0 z-[60] px-4 py-2.5 text-xs font-bold text-center transition-all duration-300 ease-in-out ${
         isOnline
           ? 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-[0_4px_12px_rgba(16,185,129,0.3)] border-b border-emerald-200/30'
-          : 'bg-gradient-to-r from-rose-500 to-orange-600 text-white shadow-[0_4px_12px_rgba(244,63,94,0.4)] border-b border-rose-200/30 animate-pulse'
+          : 'bg-gradient-to-r from-rose-500 to-orange-600 text-white shadow-[0_4px_12px_rgba(244,63,94,0.4)] border-b border-rose-200/30 animate-pulse'}
       }`}
     >
       <div className="flex items-center justify-center gap-2">
@@ -52,6 +67,11 @@ export function ConnectionStatusBar() {
                 'إعادة ניסיון'
               )}
             </button>
+            {!isOnline && offlineQueue.length > 0 && (
+              <div className="mt-1 text-xs text-amber-300">
+                {offlineQueue.length} عملية pending للترقية عند عودة الاتصال
+              </div>
+            )}
           </>
         )}
       </div>
