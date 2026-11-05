@@ -131,7 +131,6 @@ import {
 } from './appContextHelpers';
 import { useUiPreferences } from './useUiPreferences';
 import { resolveCustomerDuesValue } from '../services/customerDues';
-import { upsertProductsByIdentity } from '../services/productIdentity';
 import { hashPassword, verifyPassword, withHashedCredential } from '../services/passwordService';
 import {
   getAuthMode,
@@ -150,13 +149,6 @@ import {
   markQueuedMutationFailure,
   removeQueuedMutations,
 } from '../services/offlineQueueService';
-import {
-  fetchWithOfflineFallback,
-  writeWithOfflineQueue,
-  getOfflineQueueCount,
-  saveOfflineSnapshot,
-} from '../services/offlineFirstService';
-import { useSync } from './syncContext';
 
 /** سطور السيرفر → سجلات التوقعات (نفس الخريطة للبوت وللتحميل حسب الطلب). */
 function mapForecastRows(rows: any[]): CollectionForecastRecord[] {
@@ -317,9 +309,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const savedSession =
-      localStorage.getItem(STORAGE_KEYS.CURRENT_USER_DATA) ||
-      sessionStorage.getItem(STORAGE_KEYS.CURRENT_USER_DATA);
+    const savedSession = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_DATA);
     if (!savedSession) return null;
     try {
       return JSON.parse(savedSession) as User;
@@ -819,10 +809,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    return (
-      localStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true' ||
-      sessionStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true'
-    );
+    return localStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true';
   });
 
   // Never accept a user/session transferred through a URL or an old browser cache.
@@ -1144,22 +1131,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       isMounted = false;
     };
-  }, []);
-
-  const sync = useSync();
-
-  // Register Background Sync so the browser can wake the app and drain the
-  // offline outbox even when the tab is backgrounded (Facebook-like behaviour).
-  useEffect(() => {
-    if ('serviceWorker' in navigator && 'SyncManager' in window) {
-      navigator.serviceWorker.ready.then((registration) => {
-        if (registration.sync) {
-          registration.sync.register('sync-offline-data').catch(() => {
-            // Background Sync not supported by this browser — ignore silently.
-          });
-        }
-      });
-    }
   }, []);
 
   // Supabase State & Sync
@@ -1706,9 +1677,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     return { success: failed.length === 0, syncedCount: done.length };
   };
-
-  // Bridge: expose the real offline-queue drainer to SyncContext
-  sync.setFlushRef(flushOfflineQueue);
 
   const productSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const targetSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2327,7 +2295,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       if (!shouldFetchFull) {
         stamp = await fetchCustomerContentStamp(customerFetchScope);
-        if (stamp && (stamp.count !== null || stamp.maxUpdatedAt !== null)) {
+        const stampComparable =
+          stamp !== null && (stamp.count !== null || stamp.maxUpdatedAt !== null);
+
+        if (stampComparable) {
           const unchanged =
             lastStampWasKnown &&
             stamp.count === lastCustomerStamp?.count &&
@@ -2896,45 +2867,25 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
       lastManualRefreshRef.current = now;
 
-      const offlineResult = await fetchWithOfflineFallback<Invoice>(
-        'invoices',
-        () =>
-          fetchInvoicesFromSupabase(buildInvoiceFetchScope(currentUser, users)).then((r) => ({
-            success: r.success,
-            data: r.invoices,
-            error: r.error,
-          })),
-        isOffline
+      const result = await fetchInvoicesFromSupabase(
+        buildInvoiceFetchScope(currentUser, users)
       );
-
-      if (offlineResult.source === 'empty' && !offlineResult.success) {
-        return {
-          success: false,
-          count: 0,
-          message: offlineResult.error || 'لا يوجد اتصال بالإنترنت ولا فواتير محفوظة محلياً',
-        };
+      if (!result.success || !result.invoices) {
+        return { success: false, count: 0, message: result.error || 'تعذر الاتصال بقاعدة البيانات لجلب الفواتير' };
       }
-
-      const invoicesToShow = offlineResult.data;
+      const remoteInvoices = result.invoices;
       setInvoices((prev) => {
         const remoteById = new Map<string, Invoice>();
-        invoicesToShow.forEach((inv) => remoteById.set(inv.id, inv));
+        remoteInvoices.forEach((inv) => remoteById.set(inv.id, inv));
         const localOnly = prev.filter((inv) => !remoteById.has(inv.id));
         const next = [...Array.from(remoteById.values()), ...localOnly];
-        if (offlineResult.source === 'network') {
-          idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
-        }
+        idbSet(STORAGE_KEYS.INVOICES, next);
         return next;
       });
-
-      const sourceLabel =
-        offlineResult.source === 'network'
-          ? `من السيرفر (${invoicesToShow.length})`
-          : 'من النسخة المحفوظة محلياً';
       return {
         success: true,
-        count: invoicesToShow.length,
-        message: `تم تحديث الفواتير ${sourceLabel}.${offlineResult.error ? ' ملاحظة: ' + offlineResult.error : ''}`,
+        count: remoteInvoices.length,
+        message: `تم تحديث أحدث ${remoteInvoices.length} فاتورة من السيرفر بنجاح.`,
       };
     } catch (err: any) {
       return { success: false, count: 0, message: err?.message || 'خطأ غير متوقع أثناء تحديث الفواتير' };
@@ -3507,8 +3458,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   // --- Authentication System ---
   const login = async (
     identifier: string,
-    password?: string,
-    rememberMe = true
+    password?: string
   ): Promise<{
     success: boolean;
     message: string;
@@ -3644,15 +3594,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
     }
 
-    // Offline guard: if no network and no locally-stored password, we cannot verify credentials offline
-    if (isOffline && !serverAuthUserId && storedCredential.length === 0) {
-      return {
-        success: false,
-        errorType: 'no_password',
-        message: 'لا يمكن التحقق من كلمة المرور أوفلاين لأن كلمة المرور غير محفوظة محلياً لهذا الحساب. يرجى تسجيل الدخول مرة واحدة عند وجود إنترنت لحفظ بيانات الدخول محلياً.',
-      };
-    }
-
     if (serverAuthUserId) {
       // Authenticated on server already
     } else if (storedCredential.length > 0) {
@@ -3685,15 +3626,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     setCurrentUser(found);
     setIsAuthenticated(true);
-
-    const storage = rememberMe ? window.localStorage : window.sessionStorage;
-    storage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
-    storage.setItem(STORAGE_KEYS.CURRENT_USER_ID, found.id);
-    try {
-      storage.setItem(STORAGE_KEYS.CURRENT_USER_DATA, JSON.stringify(found));
-    } catch {
-      // quota exceeded — keep the lighter keys only
-    }
+    localStorage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
+    localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, found.id);
 
     recordAuditLog({
       userId: found.id,
@@ -3771,12 +3705,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const logout = () => {
     setCurrentUser(null);
     setIsAuthenticated(false);
-    // مسح الجلسة من localStorage و sessionStorage (لدعم "تذكرني" وجلسات المتصفح المؤقتة)
-    for (const storage of [window.localStorage, window.sessionStorage]) {
-      storage.removeItem(STORAGE_KEYS.IS_AUTH);
-      storage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
-      storage.removeItem(STORAGE_KEYS.CURRENT_USER_DATA);
-    }
+    localStorage.removeItem(STORAGE_KEYS.IS_AUTH);
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_DATA);
     clearCart();
     // لو الجلسة كانت على Supabase Auth، اقفلها هناك كمان. لو مفيش جلسة
     // (وضع legacy) أو فيه مشكلة شبكة، سيبتها بهدوء — حالة العميل المحلية
@@ -4278,8 +4209,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
       setProducts(finalUpdated);
     } else {
-      // Stable imported IDs let repeat uploads update rows without duplicating them.
-      finalUpdated = sanitizeProducts(upsertProductsByIdentity(products, processedIncoming));
+      // Upsert: أضف كل المنتجات الواردة الجديدة، وحافظ على القائمة الحالية.
+      finalUpdated = sanitizeProducts([...products, ...processedIncoming]);
       setProducts(finalUpdated);
     }
 
@@ -4767,29 +4698,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         };
         setCustomers((prev) => prev.map((c) => (c.id === matched.id ? updatedCust : c)));
         saveCustomersToSupabase([updatedCust]).catch((e) => console.warn('Supabase customer update failed:', e));
-      }
-    }
-
-    // Every sales order is also a distinct customer visit, even when another
-    // visit or return was recorded for the same customer earlier that day.
-    if (matchedCustomer) {
-      const visitResult = addVisit({
-        customerId: matchedCustomer.id,
-        customerName: matchedCustomer.name,
-        customerCode: matchedCustomer.code,
-        date: formattedDate,
-        time: formattedTime,
-        repId: assignedRepId,
-        repName: assignedRepName,
-        branchName: orderBranch,
-        type: 'زيارة بيع وطلبية',
-        outcome: 'تم عمل طلبية',
-        status: 'منفذة',
-        notes: `زيارة تلقائية مرتبطة بطلبية المبيعات ${newInvoiceNumber}`,
-        allowSameDaySecondVisit: true,
-      });
-      if (!visitResult.success) {
-        console.warn('[v0] Automatic sales visit was not recorded:', visitResult.message);
       }
     }
 
@@ -6335,9 +6243,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const existingVisits = customer.visitHistory || [];
     const updatedCustomer: Customer = {
       ...customer,
-      lastVisitDate: visit.date,
+      lastVisitDate: (visit.isReturn || visit.type === 'مرتجع') ? customer.lastVisitDate : visit.date,
       nextVisitDate: visit.nextVisitDate || customer.nextVisitDate,
-      visitCount2026: (customer.visitCount2026 || 0) + 1,
+      visitCount2026: (visit.isReturn || visit.type === 'مرتجع')
+        ? (customer.visitCount2026 || 0)
+        : ((customer.visitCount2026 || 0) + 1),
       visitHistory: [newVisitObj, ...existingVisits.filter((v) => v.id !== newVisitId)],
       currentBalance: visit.collectedAmount
         ? Math.max(0, (customer.currentBalance ?? customer.balance ?? 0) - visit.collectedAmount)
@@ -6758,7 +6668,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     // القطاع المحدد في الفلتر النشط هو الحاكم الأول: لو 'all' يعرض كل الأصناف (منزلي وكهرباء معاً)
     if (activeSectorFilter === 'all') return items;
     const effectiveSector = activeSectorFilter || userSector;
-    if (!effectiveSector) return items;
+    if (!effectiveSector || effectiveSector === 'all' || effectiveSector === 'both') return items;
     return items.filter((item) => !item.sector || item.sector === effectiveSector || item.sector === 'both' || item.sector === 'all');
   };
 

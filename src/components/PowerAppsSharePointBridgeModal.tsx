@@ -46,7 +46,7 @@ export const PowerAppsSharePointBridgeModal: React.FC<PowerAppsSharePointBridgeM
     return localStorage.getItem('tantawy_sharepoint_autosync') !== 'false';
   });
 
-  const [activeTab, setActiveTab] = useState<'sync' | 'guide' | 'architecture' | 'mapping' | 'schema'>('sync');
+  const [activeTab, setActiveTab] = useState<'sync' | 'architecture' | 'mapping' | 'schema'>('sync');
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
   const [copiedSchema, setCopiedSchema] = useState(false);
@@ -183,17 +183,6 @@ export const PowerAppsSharePointBridgeModal: React.FC<PowerAppsSharePointBridgeM
             }`}
           >
             🔄 المزامنة والربط اللحظي
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('guide')}
-            className={`px-4 py-2 rounded-xl transition ${
-              activeTab === 'guide'
-                ? 'bg-[#0f233d] text-white shadow-xs'
-                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800'
-            }`}
-          >
-            📖 كيف تربط التطبيق خطوة بخطوة؟
           </button>
           <button
             type="button"
@@ -384,80 +373,6 @@ export const PowerAppsSharePointBridgeModal: React.FC<PowerAppsSharePointBridgeM
                     </p>
                   </div>
                 </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'guide' && (
-            <div className="space-y-4 text-xs leading-relaxed">
-              <div className="p-4 rounded-2xl bg-teal-50/80 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800">
-                <h4 className="font-black text-teal-950 dark:text-teal-200 text-sm mb-1 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-teal-600" />
-                  <span>دليل الربط العملي في ٤ خطوات بسيطة:</span>
-                </h4>
-                <p className="text-[11px] text-teal-800 dark:text-teal-300 font-bold">
-                  خطوات عملية لربط تطبيق المندوب مع قائمة SharePoint وتطبيق الإدارة على Microsoft Power Apps.
-                </p>
-              </div>
-
-              {/* Step 1 */}
-              <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-teal-600 text-white font-black text-xs flex items-center justify-center">١</span>
-                  <h5 className="font-black text-slate-900 dark:text-white text-xs">تجهيز قائمة SharePoint (قاعدة البيانات المشتركة)</h5>
-                </div>
-                <ol className="list-decimal list-inside space-y-1.5 text-slate-600 dark:text-slate-300 font-bold text-[11px] pr-2">
-                  <li>افتح موقع SharePoint الخاص بالشركة (مثال: <code className="font-mono text-teal-600">https://company.sharepoint.com/sites/SalesPortal</code>).</li>
-                  <li>اضغط على <strong>+ New</strong> ثم اختر <strong>List</strong> ثم <strong>Blank list</strong>.</li>
-                  <li>اكتب اسم القائمة: <strong className="text-teal-600">{listName}</strong> واضغط Create.</li>
-                  <li>من زر <strong>+ Add column</strong>، أضف الأعمدة المذكورة في تبويب <strong>"أعمدة قائمة SharePoint"</strong> (مثل CustomerName, GrandTotal, RepName, Status).</li>
-                </ol>
-              </div>
-
-              {/* Step 2 */}
-              <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-teal-600 text-white font-black text-xs flex items-center justify-center">٢</span>
-                  <h5 className="font-black text-slate-900 dark:text-white text-xs">إنشاء الـ Flow في Power Automate لاستقبال الفواتير</h5>
-                </div>
-                <ol className="list-decimal list-inside space-y-1.5 text-slate-600 dark:text-slate-300 font-bold text-[11px] pr-2">
-                  <li>افتح <code className="font-mono text-teal-600">make.powerautomate.com</code> ثم اضغط <strong>Create</strong> واختر <strong>Instant cloud flow</strong>.</li>
-                  <li>اختر المشغل: <strong>When an HTTP request is received</strong>.</li>
-                  <li>اضغط <em>Use sample payload to generate schema</em> والصق الكود من تبويب <strong>"JSON Schema للـ Power Automate"</strong>.</li>
-                  <li>أضف الخطوة التالية: <strong>SharePoint - Create item</strong>. اختر موقعك وحدد القائمة <strong className="text-teal-600">{listName}</strong>.</li>
-                  <li>اربط كل حقل بالبيانات المقابلة له من الـ Request Body (مثل Title ← InvoiceNumber، CustomerName ← CustomerName).</li>
-                  <li>احفظ الـ Flow، وانسخ رابط الـ <strong>HTTP POST URL</strong> المتولد وضعه في خانة <strong>"رابط Power Automate Webhook"</strong> في هذا التطبيق!</li>
-                </ol>
-              </div>
-
-              {/* Step 3 */}
-              <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-teal-600 text-white font-black text-xs flex items-center justify-center">٣</span>
-                  <h5 className="font-black text-slate-900 dark:text-white text-xs">بناء شاشة الاعتمادات في Microsoft Power Apps للإدارة</h5>
-                </div>
-                <ol className="list-decimal list-inside space-y-1.5 text-slate-600 dark:text-slate-300 font-bold text-[11px] pr-2">
-                  <li>افتح <code className="font-mono text-teal-600">make.powerapps.com</code> واضغط <strong>Start from data</strong> واختر <strong>SharePoint</strong>.</li>
-                  <li>اختر القائمة <strong className="text-teal-600">{listName}</strong> — سينشئ Power Apps تطبيقاً كاملاً في ثوانٍ به شاشة عرض وبحث!</li>
-                  <li>في شاشة التفاصيل، أضف زرين كبيرين للمدير:
-                    <ul className="list-disc list-inside pr-4 mt-1 space-y-1 text-slate-500 dark:text-slate-400 font-mono text-[10px]">
-                      <li>زر <strong>اعتماد الفاتورة</strong>: <br/><code className="text-emerald-600 dark:text-emerald-400">Patch(Tantawy_SalesInvoices_Approvals, Gallery1.Selected, &#123; Status: "معتمدة", ApprovalNotes: "تم الاعتماد من الإدارة" &#125;)</code></li>
-                      <li>زر <strong>رفض الطلب</strong>: <br/><code className="text-rose-600 dark:text-rose-400">Patch(Tantawy_SalesInvoices_Approvals, Gallery1.Selected, &#123; Status: "مرفوضة", ApprovalNotes: "تجاوز حد الائتمان" &#125;)</code></li>
-                    </ul>
-                  </li>
-                </ol>
-              </div>
-
-              {/* Step 4 */}
-              <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-teal-600 text-white font-black text-xs flex items-center justify-center">٤</span>
-                  <h5 className="font-black text-slate-900 dark:text-white text-xs">التحديث العكسي: كيف يعرف تطبيق المندوب بقرار المدير؟</h5>
-                </div>
-                <ol className="list-decimal list-inside space-y-1.5 text-slate-600 dark:text-slate-300 font-bold text-[11px] pr-2">
-                  <li><strong>الطريقة السريعة بنقرة واحدة:</strong> يضغط المندوب أو المشرف زر <strong>"مزامنة الاعتمادات الآن 🔄"</strong> الموجود في التطبيق فيتم فوراً جلب القرارات الجديدة من SharePoint وتحديث حالة الفاتورة.</li>
-                  <li><strong>المزامنة التلقائية اللحظية (Webhooks):</strong> يمكن عمل Flow إضافي بسيط في Power Automate بمشغل <em>When an item is modified</em>: إذا تغيرت الحالة إلى "معتمدة"، يُرسل إشعاراً أو بريداً أو Webhook مباشر للتطبيق.</li>
-                </ol>
               </div>
             </div>
           )}

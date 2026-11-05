@@ -63,26 +63,26 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
       </div>
 
       {/* Brand name */}
-      <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2 font-tajawal text-white drop-shadow-md">
+      <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2 font-tajawal">
         مجموعة الطنطاوي
       </h2>
-      <p className="text-teal-300 text-sm sm:text-base font-semibold uppercase tracking-wider mb-8 drop-shadow-sm">
+      <p className="text-teal-200 text-sm sm:text-base font-semibold uppercase tracking-wider mb-8">
         Tantawy Group - نظام المبيعات والمخازن
       </p>
 
       {/* Progress card */}
-      <div className="w-full max-w-xs bg-white/10 border border-white/20 rounded-2xl p-4 backdrop-blur-md shadow-xl">
-        <div className="flex justify-between mb-2 text-xs font-bold text-teal-300 drop-shadow-sm">
+      <div className="w-full max-w-xs bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm shadow-xl">
+        <div className="flex justify-between mb-2 text-xs font-bold text-teal-200">
           <span>جاري التحضير</span>
           <span>{Math.round(progress)}%</span>
         </div>
-        <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden border border-white/20">
+        <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden border border-white/10">
           <div
-            className="h-full bg-teal-400 rounded-full transition-all duration-500 ease-out animate-pulse-shadow shadow-[0_0_10px_rgba(0,148,136,0.6)]"
+            className="h-full bg-teal-400 rounded-full transition-all duration-500 ease-out animate-pulse-shadow"
             style={{ width: `${progress}%` }}
           />
         </div>
-        <p className="text-teal-200 text-[10px] mt-3 font-medium drop-shadow-sm">{item.label}</p>
+        <p className="text-teal-100 text-[10px] mt-3 font-medium">{item.label}</p>
       </div>
 
       {/* Decorative dots */}

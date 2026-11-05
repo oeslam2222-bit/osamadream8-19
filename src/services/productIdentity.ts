@@ -133,34 +133,6 @@ export const deduplicateProductArray = (list: Product[]): Product[] => {
   return distinct;
 };
 
-export const upsertProductsByIdentity = (existing: Product[], incoming: Product[]): Product[] => {
-  const products: Product[] = [];
-  const indexById = new Map<string, number>();
-  const indexByIdentity = new Map<string, number>();
-
-  [...existing, ...incoming].forEach((product) => {
-    const identity = productIdentityKey(product);
-    const index = indexById.get(product.id) ?? indexByIdentity.get(identity);
-
-    if (index === undefined) {
-      const newIndex = products.push(product) - 1;
-      indexById.set(product.id, newIndex);
-      indexByIdentity.set(identity, newIndex);
-      return;
-    }
-
-    const previous = products[index];
-    const previousIdentity = productIdentityKey(previous);
-    if (indexByIdentity.get(previousIdentity) === index) indexByIdentity.delete(previousIdentity);
-    products[index] = { ...previous, ...product, id: previous.id || product.id };
-    indexById.set(product.id, index);
-    indexById.set(products[index].id, index);
-    indexByIdentity.set(productIdentityKey(products[index]), index);
-  });
-
-  return products;
-};
-
 /**
  * دeduplicate منتجات بناءً على الكود الموحد (unifiedCode) أولاً.
  * لو نفس الكود الموحد بألوان/أحجام مختلفة → تدمج كمنتج واحد مع تعدد الألوان.

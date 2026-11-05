@@ -59,7 +59,6 @@ const SIMPLE_VISIT_TYPES: { id: string; label: string; color: string }[] = [
   { id: 'دورية', label: 'زيارة دورية', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800' },
   { id: 'تحصيل', label: 'زيارة تحصيل', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' },
   { id: 'طلب بيع', label: 'طلب بيع وتوريد', color: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800' },
-  { id: 'مرتجع', label: 'مرتجع / فحص بضاعة', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800' },
   { id: 'متابعة', label: 'متابعة حساب', color: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800' },
 ];
 
@@ -86,17 +85,25 @@ export const VisitsDashboard: React.FC = () => {
     updateCustomer,
   } = useApp();
 
-  // عرض كل الزيارات بما فيها زيارات المرتجع المسجلة للعميل
+  // استبعاد المرتجعات تماماً من شاشة الزيارات لأن طلب المرتجع له دورته المستقلة
   const getVisibleVisitsSafe = (): CustomerVisit[] => {
     const v = getVisibleVisits();
-    return Array.isArray(v) ? v : [];
+    const arr = Array.isArray(v) ? v : [];
+    return arr.filter(
+      (visit) =>
+        !visit.isReturn &&
+        visit.type !== 'مرتجع' &&
+        visit.type !== 'فاتورة مرتجع لدي العميل' &&
+        visit.outcome !== 'مرتجع لدي العميل' &&
+        !visit.returnStatus
+    );
   };
   const visits: CustomerVisit[] = getVisibleVisitsSafe();
 
   const [search, setSearch] = useState('');
   const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'week' | 'month'>('month');
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'منفذة' | 'معلقة' | 'ملغاة' | 'مرتجعة'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'منفذة' | 'معلقة' | 'ملغاة'>('all');
   const [repFilter, setRepFilter] = useState<string>('all');
   const [sectorFilter, setSectorFilter] = useState<'all' | 'home' | 'electrical'>('all');
   const [pageSize, setPageSize] = useState<number>(10);
@@ -242,10 +249,7 @@ export const VisitsDashboard: React.FC = () => {
           ? 'تم التحصيل'
           : form.type === 'طلب بيع'
           ? 'تم عمل طلبية'
-          : form.type === 'مرتجع'
-          ? 'مرتجع لدي العميل'
           : 'متابعة فقط',
-      isReturn: form.type === 'مرتجع',
       collectedAmount: form.collectedAmount,
       notes: form.notes,
       location: visitLocation,
@@ -257,6 +261,7 @@ export const VisitsDashboard: React.FC = () => {
     }
 
     setFlash({ tone: 'success', text: 'تم تسجيل الزيارة بنجاح بالمنظومة وتوثيق الموقع ✅' });
+    setTimeout(() => setFlash(null), 4000);
     setTimeout(() => setFlash(null), 4000);
 
     setShowForm(false);
@@ -299,7 +304,6 @@ export const VisitsDashboard: React.FC = () => {
         const t = v.type || '';
         if (typeFilter === 'تحصيل') return t.includes('تحصيل');
         if (typeFilter === 'طلب بيع') return t.includes('طلب بيع') || t.includes('بيغ') || v.outcome?.includes('طلبية');
-        if (typeFilter === 'مرتجع') return t.includes('مرتجع') || v.outcome?.includes('مرتجع') || Boolean(v.isReturn);
         if (typeFilter === 'دورية') return t.includes('دورية');
         if (typeFilter === 'متابعة') return t.includes('متابعة');
         return t === typeFilter;
@@ -310,9 +314,6 @@ export const VisitsDashboard: React.FC = () => {
       result = result.filter((v) => {
         if (statusFilter === 'معلقة') {
           return (v.status as string) === 'معلقة' || v.status === 'مجدولة' || v.status === 'لم تتم';
-        }
-        if (statusFilter === 'مرتجعة') {
-          return v.outcome?.includes('مرتجع') || v.type?.includes('مرتجع') || Boolean(v.isReturn);
         }
         return (v.status as string) === statusFilter;
       });
@@ -654,7 +655,6 @@ export const VisitsDashboard: React.FC = () => {
               <option value="تحصيل">تحصيل 💰</option>
               <option value="دورية">زيارة دورية 📋</option>
               <option value="طلب بيع">طلب بيع وتوريد 📦</option>
-              <option value="مرتجع">مرتجع وفحص بضاعة 🔄</option>
               <option value="متابعة">متابعة حساب 👥</option>
             </select>
           </div>
@@ -673,7 +673,6 @@ export const VisitsDashboard: React.FC = () => {
               <option value="all">كل الحالات</option>
               <option value="منفذة">منفذة ✅</option>
               <option value="معلقة">معلقة / مجدولة ⏳</option>
-              <option value="مرتجعة">مرتجعة 🔄</option>
               <option value="ملغاة">ملغاة ❌</option>
             </select>
           </div>

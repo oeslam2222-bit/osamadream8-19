@@ -4,9 +4,8 @@ const STORAGE_KEY = 'tantawy_dark_mode';
 
 interface ThemeContextType {
   isDark: boolean;
-  theme: 'light' | 'dark';
   toggleTheme: () => void;
-  setTheme: (theme: 'light' | 'dark') => void;
+  setTheme: (dark: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -19,8 +18,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       return false;
     }
   });
-
-  const theme = isDark ? 'dark' : 'light';
 
   // Apply dark class to root element and persist preference
   useEffect(() => {
@@ -39,12 +36,12 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setIsDark((prev) => !prev);
   };
 
-  const setTheme = (newTheme: 'light' | 'dark') => {
-    setIsDark(newTheme === 'dark');
+  const setTheme = (dark: boolean) => {
+    setIsDark(dark);
   };
 
   return (
-    <ThemeContext.Provider value={{ isDark, theme, toggleTheme, setTheme }}>
+    <ThemeContext.Provider value={{ isDark, toggleTheme, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );

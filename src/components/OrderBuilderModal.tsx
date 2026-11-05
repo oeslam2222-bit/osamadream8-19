@@ -114,40 +114,6 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const [creditOverrideReason, setCreditOverrideReason] = useState<string>('');
   const [isSubmittingOverride, setIsSubmittingOverride] = useState<boolean>(false);
 
-  // Representative Selection for Financial Position Display
-  const [selectedFinancialRepId, setSelectedFinancialRepId] = useState<string>(() => currentUser?.id || '');
-  const activeFinancialRepUser = useMemo(() => {
-    return users.find((u) => u.id === selectedFinancialRepId) || currentUser;
-  }, [users, selectedFinancialRepId, currentUser]);
-
-  // Rep Financial Position Calculation (based on customers assigned to this rep)
-  const repFinancialPosition = useMemo(() => {
-    const rep = activeFinancialRepUser;
-    if (!rep) return null;
-
-    // Get customers assigned to this rep
-    const repCustomers = customers.filter((c) => {
-      const cRepId = c.repId || '';
-      const cRepName = c.repName || c.salesRepName || '';
-      const repName = rep.name || '';
-      return cRepId === rep.id || cRepName === repName || cRepId === selectedFinancialRepId;
-    });
-
-    const totalDebt = repCustomers.reduce((sum, c) => sum + (Number(c.currentBalance ?? c.balance ?? 0)), 0);
-    const totalOverdue = repCustomers.reduce((sum, c) => sum + (Number(c.overdueBalance ?? 0)), 0);
-    const totalCreditLimit = repCustomers.reduce((sum, c) => sum + (Number(c.creditLimit ?? 0)), 0);
-    const customerCount = repCustomers.length;
-
-    return {
-      repName: rep.name || 'المندوب',
-      totalDebt,
-      totalOverdue,
-      totalCreditLimit,
-      customerCount,
-      remainingCredit: totalCreditLimit > 0 ? totalCreditLimit - totalDebt : 0,
-    };
-  }, [customers, selectedFinancialRepId, activeFinancialRepUser]);
-
   // Quick Catalog Search & Add in Step 1
   const [isCatalogPickerOpen, setIsCatalogPickerOpen] = useState<boolean>(false);
   const [catalogSearch, setCatalogSearch] = useState('');
@@ -1088,55 +1054,6 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                       </div>
                     </div>
                   )}
-
-                  {/* Rep Financial Position Selector */}
-                  <div className="ord-card p-3 sm:p-4 rounded-[var(--app-btn-radius)] border border-[var(--app-line)] mb-3">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4 text-[var(--app-accent)]" />
-                        <span className="font-black text-xs sm:text-sm">موقف المندوب المالي</span>
-                      </div>
-                      <select
-                        value={selectedFinancialRepId}
-                        onChange={(e) => setSelectedFinancialRepId(e.target.value)}
-                        className="w-auto sm:w-48 rounded-[var(--app-btn-radius)] px-2.5 py-1.5 text-xs border border-[var(--app-line)] bg-white/50 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] transition"
-                      >
-                        {users
-                          .filter((u) => u.role === 'sales_rep' || u.id === currentUser?.id)
-                          .map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.name || 'المندوب'}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                    {repFinancialPosition && (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        <div className="p-2 rounded-[var(--app-btn-radius)] bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                          <div className="text-[10px] t-muted font-bold">اسم المندوب</div>
-                          <div className="font-black text-xs sm:text-sm truncate">{repFinancialPosition.repName}</div>
-                        </div>
-                        <div className="p-2 rounded-[var(--app-btn-radius)] bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/30">
-                          <div className="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">إجمالي مديونية العملاء</div>
-                          <div className="dream-amt t-navy text-xs sm:text-sm">{formatCurrency(repFinancialPosition.totalDebt)}</div>
-                        </div>
-                        <div className="p-2 rounded-[var(--app-btn-radius)] bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/30">
-                          <div className="text-[10px] text-rose-700 dark:text-rose-400 font-bold">المستحقات المتأخرة</div>
-                          <div className={`dream-amt text-xs sm:text-sm ${repFinancialPosition.totalOverdue > 0 ? 't-risk' : 't-muted'}`}>
-                            {formatCurrency(repFinancialPosition.totalOverdue)}
-                          </div>
-                        </div>
-                        <div className="p-2 rounded-[var(--app-btn-radius)] bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30">
-                          <div className="text-[10px] text-blue-700 dark:text-blue-400 font-bold">الحد الائتماني الإجمالي</div>
-                          <div className="dream-amt t-navy text-xs sm:text-sm">{repFinancialPosition.totalCreditLimit > 0 ? formatCurrency(repFinancialPosition.totalCreditLimit) : 'غير محدود'}</div>
-                        </div>
-                        <div className="p-2 rounded-[var(--app-btn-radius)] bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30">
-                          <div className="text-[10px] text-amber-700 dark:text-amber-400 font-bold">عدد عملاء المندوب</div>
-                          <div className="dream-amt t-navy text-xs sm:text-sm">{repFinancialPosition.customerCount}</div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
 
                   {/* 4 Financial KPIs Grid */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">

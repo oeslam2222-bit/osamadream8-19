@@ -8,7 +8,7 @@
  * التشغيل: bun scripts/validate-product-import-sectors.ts
  */
 import { combineProductSheets, parseRawRowsToProducts } from '../src/services/excelService';
-import { deduplicateProductArray, countDuplicateProductRows, upsertProductsByIdentity } from '../src/services/productIdentity';
+import { deduplicateProductArray, countDuplicateProductRows } from '../src/services/productIdentity';
 
 const fail: string[] = [];
 const check = (name: string, actual: unknown, expected: unknown) => {
@@ -67,26 +67,6 @@ check(
   deduplicateProductArray(sharedUnified).length,
   countDuplicateProductRows(sharedUnified).uniqueCount
 );
-
-const existingCatalog = sharedUnified.map((product, index) => ({
-  ...product,
-  id: `stable-product-${index}`,
-  branchStockActual: 2,
-  piecePrice: 10,
-}));
-const refreshedSheet = existingCatalog.map((product) => ({
-  ...product,
-  id: `reimported-product-${product.code}`,
-  branchStockActual: 8,
-  piecePrice: 25,
-}));
-const legacyDuplicate = { ...existingCatalog[0], id: 'legacy-duplicate', branchStockActual: 3 };
-const firstMerge = upsertProductsByIdentity([...existingCatalog, legacyDuplicate], refreshedSheet);
-const repeatedMerge = upsertProductsByIdentity(firstMerge, refreshedSheet);
-check('إعادة رفع الشيت لا تكرر الأصناف', repeatedMerge.length, existingCatalog.length);
-check('المتغيرات المختلفة تظل محفوظة', repeatedMerge.map((product) => product.code), ['A-1', 'A-2']);
-check('الرصيد والسعر يتحدثان عند إعادة الرفع', repeatedMerge.map((product) => [product.branchStockActual, product.piecePrice]), [[8, 25], [8, 25]]);
-check('معرفات الأصناف تظل ثابتة', repeatedMerge.map((product) => product.id), ['stable-product-0', 'stable-product-1']);
 
 const duplicated = parseRawRowsToProducts([
   ['كود المنتج', 'اسم المنتج', 'القطاع'],
