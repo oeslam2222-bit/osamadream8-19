@@ -398,37 +398,37 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         
         {/* ================= HEADER & STEPPER BAR ================= */}
         <div className="shrink-0">
-          <div className="navy-panel text-white p-3 sm:p-4">
+          <div className="bg-[#0f2b38] text-white p-3.5 sm:p-4 border-b border-white/10">
             <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl grid place-items-center shrink-0 icon-brass shadow-sm">
-                  <Receipt className="w-5 h-5" />
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-teal-500/20 text-teal-300 border border-teal-400/30 grid place-items-center shrink-0 shadow-sm">
+                  <Receipt className="w-5 h-5 text-teal-300" />
                 </div>
                 <div>
-                  <h2 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
-                    <span>شاشة كاشير الفاتورة</span>
-                    <span className="badge-brass-dark text-[10px] px-2 py-0.5 rounded-full">
+                  <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                    <span className="text-white">شاشة كاشير الفاتورة</span>
+                    <span className="bg-teal-500/20 text-teal-300 border border-teal-400/40 text-[10px] px-2 py-0.5 rounded-full font-black">
                       خطوة {currentStep} من 3
                     </span>
                   </h2>
-                  <p className="text-[11px] text-white/70">
-                    {activeBranch} • المندوب: <span className="t-brass font-bold">{activeRepUser?.name}</span>
+                  <p className="text-xs text-slate-300 font-bold mt-0.5">
+                    {activeBranch} • المندوب: <span className="text-teal-300 font-black">{activeRepUser?.name}</span>
                   </p>
                 </div>
               </div>
 
               <button
                 onClick={onClose}
-                className="btn-ondark p-2 rounded-xl transition cursor-pointer"
+                className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
                 title="إغلاق"
               >
-                <X className="w-5 h-5" />
+                <X className="w-5 h-5 text-white" />
               </button>
             </div>
           </div>
 
           {/* Stepper Progress Tabs */}
-          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
             {/* Step 1 */}
             <button
               type="button"
@@ -436,7 +436,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               className={`p-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold transition border ${
                 currentStep === 1
                   ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
               }`}
             >
               <span className={`w-5 h-5 rounded-full grid place-items-center text-[11px] font-black shrink-0 ${
@@ -444,11 +444,12 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   ? 'bg-white text-blue-600'
                   : cart.length > 0 && currentStep > 1
                   ? 'bg-emerald-500 text-white'
-                  : 'bg-slate-100 text-slate-600'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
               }`}>
                 {cart.length > 0 && currentStep > 1 ? '✓' : '1'}
               </span>
-              <span className="truncate">١. اختيار المنتجات</span>
+              <span className="sm:hidden font-black">١. المنتجات</span>
+              <span className="hidden sm:inline font-black">١. اختيار المنتجات</span>
               {cart.length > 0 && (
                 <span className="hidden sm:inline-block text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full font-bold">
                   {cart.length}
@@ -466,7 +467,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               className={`p-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold transition border ${
                 currentStep === 2
                   ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
               }`}
             >
               <span className={`w-5 h-5 rounded-full grid place-items-center text-[11px] font-black shrink-0 ${
@@ -474,11 +475,12 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   ? 'bg-white text-blue-600'
                   : activeCustomer && currentStep > 2
                   ? 'bg-emerald-500 text-white'
-                  : 'bg-slate-100 text-slate-600'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
               }`}>
                 {activeCustomer && currentStep > 2 ? '✓' : '2'}
               </span>
-              <span className="truncate">٢. العميل والماليات</span>
+              <span className="sm:hidden font-black">٢. العميل</span>
+              <span className="hidden sm:inline font-black">٢. العميل والماليات</span>
             </button>
 
             {/* Step 3 */}
@@ -498,17 +500,18 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               className={`p-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold transition border ${
                 currentStep === 3
                   ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
               }`}
             >
               <span className={`w-5 h-5 rounded-full grid place-items-center text-[11px] font-black shrink-0 ${
                 currentStep === 3
                   ? 'bg-white text-blue-600'
-                  : 'bg-slate-100 text-slate-600'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
               }`}>
                 3
               </span>
-              <span className="truncate">٣. تأكيد وحفظ</span>
+              <span className="sm:hidden font-black">٣. التأكيد</span>
+              <span className="hidden sm:inline font-black">٣. تأكيد وحفظ</span>
             </button>
           </div>
         </div>
@@ -832,22 +835,22 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                       return (
                         <div
                           key={p.id}
-                          className="p-2.5 bg-blue-soft-light border border-[var(--app-line)] rounded-[var(--app-btn-radius)] flex items-center justify-between gap-2 hover:border-slate-border transition"
+                          className="p-3 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-between gap-3 hover:border-teal-400 transition"
                         >
                           <div className="min-w-0 flex-1">
-                            <div className="font-bold text-[var(--app-ink)] text-xs truncate" title={p.name}>
+                            <div className="font-bold text-slate-900 dark:text-white text-xs truncate" title={p.name}>
                               {p.name}
                             </div>
-                            <div className="flex items-center gap-1.5 text-[10px] mt-0.5">
-                              <span className="font-mono t-warn font-bold">
-                                {p.code}
+                            <div className="flex items-center gap-2 text-[10.5px] mt-1 flex-wrap">
+                              <span className="font-mono text-amber-700 dark:text-amber-400 font-bold whitespace-nowrap">
+                                كود: {p.code}
                               </span>
                               {p.unifiedCode && (
-                                <span className="font-mono t-navy font-bold">
+                                <span className="font-mono text-teal-700 dark:text-teal-300 font-black whitespace-nowrap">
                                   #{p.unifiedCode.replace('#', '')}
                                 </span>
                               )}
-                              <span className="t-muted">
+                              <span className="text-slate-500 font-bold whitespace-nowrap">
                                 ({formatCurrency(
                                   p.piecePrice && p.piecePrice > 0
                                     ? Math.round(p.piecePrice * (p.cartonQuantity || 1) * 100) / 100
@@ -855,16 +858,18 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                                 )})
                               </span>
                             </div>
-                            <div className="text-[10px] t-muted mt-0.5">
-                              الفرع: <strong className={branchStock > 0 ? 't-ok app-num' : 't-muted app-num'}>{branchStock}</strong> • أكتوبر: <strong className="t-warn app-num">{octoberStock}</strong>
+                            <div className="text-[10px] text-slate-500 font-bold mt-1 flex items-center gap-2 whitespace-nowrap">
+                              <span>الفرع: <strong className={branchStock > 0 ? 'text-emerald-600 font-black' : 'text-slate-400'}>{branchStock} ك</strong></span>
+                              <span>•</span>
+                              <span>أكتوبر: <strong className="text-blue-600 font-black">{octoberStock} ك</strong></span>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1 shrink-0">
+                          <div className="flex items-center gap-1.5 shrink-0">
                             <button
                               type="button"
                               onClick={() => handleQuickAddProduct(p, 1, 'carton')}
-                              className="btn-primary px-2 py-1.5 text-[11px] cursor-pointer"
+                              className="px-2.5 py-1.5 rounded-lg bg-[#0f2b38] hover:bg-[#009488] text-white text-[11px] font-black transition cursor-pointer shadow-xs whitespace-nowrap"
                               title="إضافة 1 كرتونة"
                             >
                               + كرتونة
@@ -872,7 +877,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                             <button
                               type="button"
                               onClick={() => handleQuickAddProduct(p, 1, 'piece')}
-                              className="app-btn-ghost px-2 py-1.5 text-[11px] cursor-pointer"
+                              className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold transition cursor-pointer whitespace-nowrap"
                               title="إضافة 1 قطعة"
                             >
                               + قطعة

@@ -372,9 +372,10 @@ button svg,
   flex-shrink: 0;
 }
 
-/* Prevent long Arabic labels and financial values from breaking layouts. */
+/* Prevent long Arabic labels and numbers from breaking unnaturally */
 [dir="rtl"] {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 /* Fast smooth transitions and hardware acceleration for modals */
@@ -593,9 +594,27 @@ img, video {
   min-width: 0;
 }
 
-.safe-area-inset-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-area-inset-bottom { padding-bottom: max(0.65rem, env(safe-area-inset-bottom, 0px)); }
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* React Native Mobile App Dimensional Standard */
+html, body {
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 768px) {
+  html, body {
+    width: 100%;
+    overflow-x: hidden;
+  }
+  .tantawy-mobile-nav {
+    padding-bottom: max(0.65rem, env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
 
 /* Tantawy operations system: cool paper, deep ink, restrained brass. */
 body { background: var(--app-canvas); color: var(--app-ink); }

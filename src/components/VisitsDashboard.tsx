@@ -10,6 +10,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Calendar,
+  RotateCcw,
   Wallet,
   Search,
   Filter,
@@ -21,15 +22,44 @@ import {
   ArrowUpDown,
   Phone,
   FileText,
+  ExternalLink,
+  Navigation2,
+  Crosshair,
+  Compass,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
-import type { CustomerVisit } from '../types';
+import type { Customer, CustomerVisit } from '../types';
 import { EmptyState } from './ui/EmptyState';
+
+// Helper to calculate distance between two coordinates in meters
+function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3; // Earth radius in metres
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return Math.round(R * c);
+}
+
+function formatDistance(meters: number): string {
+  if (meters < 1000) {
+    return `${meters} متر`;
+  }
+  return `${(meters / 1000).toFixed(1)} كم`;
+}
 
 const SIMPLE_VISIT_TYPES: { id: string; label: string; color: string }[] = [
   { id: 'دورية', label: 'زيارة دورية', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800' },
   { id: 'تحصيل', label: 'زيارة تحصيل', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' },
+  { id: 'طلب بيع', label: 'طلب بيع وتوريد', color: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800' },
+  { id: 'مرتجع', label: 'مرتجع / فحص بضاعة', color: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800' },
   { id: 'متابعة', label: 'متابعة حساب', color: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800' },
 ];
 
@@ -53,8 +83,10 @@ export const VisitsDashboard: React.FC = () => {
     getVisibleVisits,
     getVisibleCustomers,
     addVisit,
+    updateCustomer,
   } = useApp();
 
+  // عرض كل الزيارات بما فيها زيارات المرتجع المسجلة للعميل
   const getVisibleVisitsSafe = (): CustomerVisit[] => {
     const v = getVisibleVisits();
     return Array.isArray(v) ? v : [];
@@ -75,6 +107,11 @@ export const VisitsDashboard: React.FC = () => {
   const [flash, setFlash] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
   const [todayStr] = useState(() => new Date().toISOString().slice(0, 10));
 
+  // Geolocation & Geofencing states
+  const [repGps, setRepGps] = useState<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
+  const [isCapturingGps, setIsCapturingGps] = useState(false);
+  const [gpsNotice, setGpsNotice] = useState<string | null>(null);
+
   const initialForm: VisitForm = {
     customerId: '',
     customerName: '',
@@ -93,6 +130,62 @@ export const VisitsDashboard: React.FC = () => {
     return getVisibleCustomers();
   }, [customers, users, currentUser, getVisibleCustomers]);
 
+  const selectedCustomerObj = useMemo(() => {
+    if (!form.customerId) return null;
+    return myCustomers.find((c) => c.id === form.customerId) || null;
+  }, [form.customerId, myCustomers]);
+
+  // Request Rep current GPS position
+  const requestCurrentRepGps = (): Promise<{ latitude: number; longitude: number; accuracy?: number } | null> => {
+    return new Promise((resolve) => {
+      if (!('geolocation' in navigator)) {
+        setGpsNotice('متصفحك لا يدعم نظام تحديد المواقع GPS');
+        resolve(null);
+        return;
+      }
+      setIsCapturingGps(true);
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setIsCapturingGps(false);
+          const coords = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+          };
+          setRepGps(coords);
+          resolve(coords);
+        },
+        (err) => {
+          setIsCapturingGps(false);
+          console.warn('Geolocation capture notice:', err.message);
+          setGpsNotice('يرجى السماح بالوصول للموقع لالتقاط إحداثيات المتجر بدقة.');
+          resolve(null);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      );
+    });
+  };
+
+  // Pin customer GPS permanently into customer record
+  const handlePinCustomerLocation = async () => {
+    if (!selectedCustomerObj) return;
+    setGpsNotice('جاري تحديد إحداثيات موقع المتجر عبر الأقمار الصناعية...');
+    const coords = await requestCurrentRepGps();
+    if (!coords) return;
+
+    const updatedCustomer: Customer = {
+      ...selectedCustomerObj,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      locationAddress: selectedCustomerObj.address || selectedCustomerObj.region || selectedCustomerObj.branchName || '',
+      locationCapturedAt: new Date().toISOString(),
+      locationCapturedBy: currentUser?.name || 'المندوب',
+    };
+
+    updateCustomer(updatedCustomer);
+    setGpsNotice(`تم بنجاح حفظ وتثبيت إحداثيات المتجر (${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}) في ملف العميل! ستظهر تلقائياً في كل زياراته القادمة.`);
+  };
+
   const [formErrors, setFormErrors] = useState<string[]>([]);
 
   const validateForm = (): boolean => {
@@ -109,6 +202,26 @@ export const VisitsDashboard: React.FC = () => {
 
     const r = users.find((u) => u.id === form.repId);
     const c = myCustomers.find((x) => x.id === form.customerId);
+
+    // If rep GPS isn't captured yet, try a quick capture or submit with existing
+    const visitLocation = repGps
+      ? {
+          latitude: repGps.latitude,
+          longitude: repGps.longitude,
+          accuracy: repGps.accuracy,
+          timestamp: new Date().toISOString(),
+          address: c?.address || c?.region || '',
+          mapUrl: `https://www.google.com/maps/search/?api=1&query=${repGps.latitude},${repGps.longitude}`,
+        }
+      : c?.latitude && c?.longitude
+      ? {
+          latitude: c.latitude,
+          longitude: c.longitude,
+          address: c.address || c.region || '',
+          mapUrl: `https://www.google.com/maps/search/?api=1&query=${c.latitude},${c.longitude}`,
+          timestamp: new Date().toISOString(),
+        }
+      : undefined;
 
     const result = addVisit({
       customerId: form.customerId,
@@ -127,11 +240,15 @@ export const VisitsDashboard: React.FC = () => {
       outcome:
         form.type === 'تحصيل'
           ? 'تم التحصيل'
+          : form.type === 'طلب بيع'
+          ? 'تم عمل طلبية'
           : form.type === 'مرتجع'
           ? 'مرتجع لدي العميل'
           : 'متابعة فقط',
+      isReturn: form.type === 'مرتجع',
       collectedAmount: form.collectedAmount,
       notes: form.notes,
+      location: visitLocation,
     });
 
     if (!result.success) {
@@ -139,7 +256,7 @@ export const VisitsDashboard: React.FC = () => {
       return;
     }
 
-    setFlash({ tone: 'success', text: 'تم تسجيل الزيارة بنجاح بالمنظومة ✅' });
+    setFlash({ tone: 'success', text: 'تم تسجيل الزيارة بنجاح بالمنظومة وتوثيق الموقع ✅' });
     setTimeout(() => setFlash(null), 4000);
 
     setShowForm(false);
@@ -181,6 +298,8 @@ export const VisitsDashboard: React.FC = () => {
       result = result.filter((v) => {
         const t = v.type || '';
         if (typeFilter === 'تحصيل') return t.includes('تحصيل');
+        if (typeFilter === 'طلب بيع') return t.includes('طلب بيع') || t.includes('بيغ') || v.outcome?.includes('طلبية');
+        if (typeFilter === 'مرتجع') return t.includes('مرتجع') || v.outcome?.includes('مرتجع') || Boolean(v.isReturn);
         if (typeFilter === 'دورية') return t.includes('دورية');
         if (typeFilter === 'متابعة') return t.includes('متابعة');
         return t === typeFilter;
@@ -193,7 +312,7 @@ export const VisitsDashboard: React.FC = () => {
           return (v.status as string) === 'معلقة' || v.status === 'مجدولة' || v.status === 'لم تتم';
         }
         if (statusFilter === 'مرتجعة') {
-          return v.outcome?.includes('مرتجع') || v.type?.includes('مرتجع');
+          return v.outcome?.includes('مرتجع') || v.type?.includes('مرتجع') || Boolean(v.isReturn);
         }
         return (v.status as string) === statusFilter;
       });
@@ -240,11 +359,8 @@ export const VisitsDashboard: React.FC = () => {
   const stats = useMemo(() => {
     const total = filtered.length;
     const completed = filtered.filter((v) => v.status === 'منفذة').length;
-    const pending = filtered.filter(
-      (v) =>
-        (v.status as string) === 'معلقة' ||
-        v.status === 'مجدولة' ||
-        v.status === 'لم تتم'
+    const gpsVerified = filtered.filter(
+      (v) => Boolean(v.location?.latitude && v.location?.longitude)
     ).length;
     const collectionVisits = filtered.filter(
       (v) => v.type?.includes('تحصيل') || Number(v.collectedAmount || 0) > 0
@@ -257,7 +373,7 @@ export const VisitsDashboard: React.FC = () => {
     return {
       total,
       completed,
-      pending,
+      gpsVerified,
       collectionCount: collectionVisits.length,
       totalCollected,
     };
@@ -394,23 +510,23 @@ export const VisitsDashboard: React.FC = () => {
           <div className="absolute bottom-0 right-0 left-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400 opacity-80" />
         </div>
 
-        {/* Returns / Pending Card */}
-        <div className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-amber-300 dark:hover:border-amber-700 transition">
+        {/* GPS Geofenced / Verified Visits Card */}
+        <div className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-teal-300 dark:hover:border-teal-700 transition">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs sm:text-sm font-black text-slate-600 dark:text-slate-300">
-              مرتجعات ومتابعة
+              زيارات موثقة (GPS)
             </span>
-            <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-              <Clock className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-2xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
+              <MapPin className="w-5 h-5" />
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
-            {stats.pending.toLocaleString()}
+          <div className="text-2xl sm:text-3xl font-black text-teal-600 dark:text-teal-400 tracking-tight">
+            {stats.gpsVerified.toLocaleString()}
           </div>
-          <div className="text-[11px] text-amber-700 dark:text-amber-300 font-bold mt-1.5 flex items-center gap-1">
-            <span>زيارات تحتاج متابعة</span>
+          <div className="text-[11px] text-teal-700 dark:text-teal-300 font-bold mt-1.5 flex items-center gap-1">
+            <span>نسبة التوثيق: {stats.total > 0 ? Math.round((stats.gpsVerified / stats.total) * 100) : 0}%</span>
           </div>
-          <div className="absolute bottom-0 right-0 left-0 h-1 bg-gradient-to-r from-amber-500 to-orange-400 opacity-80" />
+          <div className="absolute bottom-0 right-0 left-0 h-1 bg-gradient-to-r from-teal-500 to-cyan-400 opacity-80" />
         </div>
 
         {/* Collections Amount Card */}
@@ -537,7 +653,8 @@ export const VisitsDashboard: React.FC = () => {
               <option value="all">كل الأنواع</option>
               <option value="تحصيل">تحصيل 💰</option>
               <option value="دورية">زيارة دورية 📋</option>
-              <option value="مرتجع">مرتجع / فحص 🔄</option>
+              <option value="طلب بيع">طلب بيع وتوريد 📦</option>
+              <option value="مرتجع">مرتجع وفحص بضاعة 🔄</option>
               <option value="متابعة">متابعة حساب 👥</option>
             </select>
           </div>
@@ -818,6 +935,18 @@ export const VisitsDashboard: React.FC = () => {
                       >
                         {v.sector === 'electrical' ? '⚡ كهرباء' : '🏠 منزلي'}
                       </span>
+                      {v.location?.latitude && v.location?.longitude && (
+                        <a
+                          href={v.location.mapUrl || `https://www.google.com/maps/search/?api=1&query=${v.location.latitude},${v.location.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 flex items-center gap-1 hover:bg-teal-100"
+                        >
+                          <MapPin className="w-2.5 h-2.5" />
+                          <span>GPS موثق</span>
+                        </a>
+                      )}
                     </div>
                   </div>
 
@@ -1072,6 +1201,118 @@ export const VisitsDashboard: React.FC = () => {
                 </div>
               )}
 
+              {/* GPS Geofencing & Customer Location Capture */}
+              {selectedCustomerObj && (
+                <div className="p-4 rounded-2xl border border-teal-200 dark:border-teal-800/80 bg-gradient-to-br from-teal-50/70 to-cyan-50/40 dark:from-teal-950/30 dark:to-cyan-950/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-teal-600 text-white flex items-center justify-center shadow-xs">
+                        <MapPin className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-black text-slate-800 dark:text-slate-100">
+                        تحديد وتوثيق موقع العميل (GPS)
+                      </span>
+                    </div>
+                    {selectedCustomerObj.latitude && selectedCustomerObj.longitude ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
+                        إحداثيات مسجلة ✅
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                        موقع غير مثبت 📍
+                      </span>
+                    )}
+                  </div>
+
+                  {/* If customer has saved GPS */}
+                  {selectedCustomerObj.latitude && selectedCustomerObj.longitude ? (
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between text-xs bg-white/80 dark:bg-slate-800/70 p-2.5 rounded-xl border border-teal-100 dark:border-teal-900">
+                        <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                          الإحداثيات: <span className="font-mono text-teal-700 dark:text-teal-400 font-black">{selectedCustomerObj.latitude.toFixed(5)}, {selectedCustomerObj.longitude.toFixed(5)}</span>
+                        </div>
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${selectedCustomerObj.latitude},${selectedCustomerObj.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-[11px] font-black text-teal-700 dark:text-teal-300 hover:underline"
+                        >
+                          <span>خرائط Google</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+
+                      {/* Rep proximity check if rep GPS is available */}
+                      {repGps ? (
+                        (() => {
+                          const dist = calculateDistanceMeters(
+                            repGps.latitude,
+                            repGps.longitude,
+                            selectedCustomerObj.latitude!,
+                            selectedCustomerObj.longitude!
+                          );
+                          const isWithinRange = dist <= 200; // 200 meters geofence
+                          return (
+                            <div className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between ${
+                              isWithinRange
+                                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 text-emerald-800 dark:text-emerald-200'
+                                : 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 text-amber-800 dark:text-amber-200'
+                            }`}>
+                              <div className="flex items-center gap-1.5">
+                                <Crosshair className="w-3.5 h-3.5 shrink-0" />
+                                <span>{isWithinRange ? 'أنت داخل نطاق المتجر (موثق)' : 'أنت خارج نطاق المتجر المسجل'}</span>
+                              </div>
+                              <span className="font-black font-mono">المسافة: {formatDistance(dist)}</span>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => requestCurrentRepGps()}
+                          disabled={isCapturingGps}
+                          className="w-full py-2 px-3 rounded-xl bg-white dark:bg-slate-800 border border-teal-200 dark:border-teal-700 text-teal-800 dark:text-teal-200 text-xs font-black hover:bg-teal-50 dark:hover:bg-slate-700 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Navigation2 className={`w-3.5 h-3.5 ${isCapturingGps ? 'animate-spin' : ''}`} />
+                          <span>{isCapturingGps ? 'جاري تحديد موقعك الحالي...' : 'تحقق من قربك لمتجر العميل (تأكيد النطاق)'}</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handlePinCustomerLocation}
+                        disabled={isCapturingGps}
+                        className="text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-teal-700 dark:hover:text-teal-300 underline block text-center w-full"
+                      >
+                        🔄 نقل أو تحديث إحداثيات المتجر بموقعي الحالي
+                      </button>
+                    </div>
+                  ) : (
+                    /* Customer has no saved GPS yet */
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-slate-600 dark:text-slate-300 font-semibold leading-relaxed">
+                        هذا العميل لم يتم تثبيت موقعه بعد. يمكنك الآن بنقرة واحدة التقاط وتثبيت موقع متجره عبر GPS ليتم حفظه بملف العميل ويظهر تلقائياً في كل الزيارات القادمة.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handlePinCustomerLocation}
+                        disabled={isCapturingGps}
+                        className="w-full py-2.5 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-xs shadow-sm transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <MapPin className={`w-4 h-4 ${isCapturingGps ? 'animate-bounce' : ''}`} />
+                        <span>{isCapturingGps ? 'جاري التقاط الإحداثيات...' : '📍 التقاط وتثبيت إحداثيات العميل الآن (GPS)'}</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {gpsNotice && (
+                    <div className="text-[11px] font-bold text-teal-800 dark:text-teal-200 bg-teal-100/70 dark:bg-teal-950/50 p-2 rounded-xl">
+                      {gpsNotice}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Type and Date */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="block">
@@ -1268,6 +1509,30 @@ export const VisitsDashboard: React.FC = () => {
                   )}
                 </div>
               </div>
+
+              {/* GPS Geolocation Verification */}
+              {selectedVisit.location?.latitude && selectedVisit.location?.longitude && (
+                <div className="p-3.5 rounded-2xl border border-teal-200 dark:border-teal-800 bg-teal-50/60 dark:bg-teal-950/40">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] text-teal-800 dark:text-teal-300 font-black flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5" />
+                      موقع الزيارة الموثق (GPS)
+                    </span>
+                    <a
+                      href={selectedVisit.location.mapUrl || `https://www.google.com/maps/search/?api=1&query=${selectedVisit.location.latitude},${selectedVisit.location.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] font-black text-teal-700 dark:text-teal-300 hover:underline flex items-center gap-1"
+                    >
+                      <span>عرض على الخريطة</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                  <div className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                    {selectedVisit.location.latitude.toFixed(5)}, {selectedVisit.location.longitude.toFixed(5)}
+                  </div>
+                </div>
+              )}
 
               {/* Notes */}
               {selectedVisit.notes && (

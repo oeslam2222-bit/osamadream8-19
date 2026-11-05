@@ -191,12 +191,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="tantawy-topbar sticky top-0 z-40 bg-[#0b1f29] text-white shadow-sm border-b border-white/10">
+      <header className="tantawy-topbar sticky top-0 z-40 bg-white text-slate-900 shadow-sm border-b border-[var(--app-line)]">
         {/* Top Banner - Compact on mobile with large touch controls */}
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2">
+        <div className="max-w-7xl mx-auto px-2 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2">
           
-          {/* Date pill (desktop: hidden on mobile) */}
-          <div className="hidden lg:block rounded-xl border border-white/10 bg-[#091824]/50 px-3.5 py-2 text-sm font-semibold text-[#5eead4] backdrop-blur-sm">
+          {/* Date pill (desktop: the brand lives in the sidebar) */}
+          <div className="hidden lg:block rounded-xl border border-[var(--app-line)] bg-white px-3.5 py-2 text-sm font-semibold text-slate-600">
             {todayLabel}
           </div>
 
@@ -207,19 +207,23 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => setIsMobileDrawerOpen(true)}
               aria-label="القائمة الرئيسية"
               title="القائمة الرئيسية"
-              className="h-10 w-10 rounded-xl bg-[#009488] hover:bg-[#0e7a6e] text-white flex items-center justify-center shadow-md shadow-teal-500/30 transition-all active:scale-95 cursor-pointer border border-white/20"
+              className="h-10 px-2.5 rounded-xl bg-navy-deep hover:bg-blue-deep4 text-[#5eead4] flex items-center gap-1.5 font-black text-xs shadow-xs cursor-pointer border border-[var(--app-ok)]"
             >
-              <Menu className="w-5 h-5 text-white shrink-0" />
+              <Menu className="w-4 h-4 text-[#5eead4] shrink-0" />
+              <span className="text-[11px]">القائمة</span>
             </button>
-            <div className="h-10 w-10 sm:h-11 sm:w-11 rounded-2xl bg-white/10 p-1 border-2 border-white/20 shadow-md flex items-center justify-center shrink-0 overflow-hidden">
+            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-navy-deep p-1 border-2 border-[var(--app-ok)] shadow-md shadow-teal-500/20 flex items-center justify-center shrink-0 overflow-hidden">
               <img src="/icon.svg" alt="طنطاوي جروب - Tantawy Group" className="h-full w-full object-contain" />
             </div>
-            <div className="flex items-center gap-1.5">
-              <div className="flex items-center gap-1">
-                <h1 className="font-black text-sm sm:text-base tracking-tight text-white flex items-center gap-1">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h1 className="font-black text-sm sm:text-base tracking-tight text-slate-900 flex items-center gap-1">
                   <span>طنطاوي جروب</span>
                 </h1>
               </div>
+              <p className="text-[10px] text-slate-500 hidden sm:block">
+                تطبيق المبيعات
+              </p>
             </div>
           </div>
 
@@ -638,9 +642,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
       </aside>
 
-      <nav className="tantawy-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#ffffff] border-t border-slate-200/60 flex items-center justify-around px-3 py-2 sm:py-2.5 shadow-2xl safe-area-inset-bottom print:hidden" aria-label="التنقل">
-        {/* Nav gradient accent line on top */}
-        <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-[#009488] via-[#0e7a6e] to-[#009488] opacity-60" />
+      <nav className="tantawy-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0c1e33] text-white border-t border-[#1a385c] flex items-center justify-around py-1.5 px-2 shadow-2xl safe-area-inset-bottom print:hidden" aria-label="التنقل">
         <>
             {[
               { id: 'home', label: 'الرئيسية', icon: Home },
@@ -656,19 +658,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   onClick={() => setActiveTab(item.id)}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`relative flex flex-col items-center justify-center flex-1 min-w-0 py-1 px-1 transition cursor-pointer min-h-[44px] group ${
-                    isActive ? 'text-[#00796f] font-black' : 'text-slate-600 hover:text-[#00796f] font-medium'
+                  className={`relative flex flex-col items-center justify-center flex-1 py-1.5 px-1 transition-all cursor-pointer min-h-[48px] rounded-xl ${
+                    isActive
+                      ? 'bg-[#009488] text-white font-black shadow-lg shadow-teal-950/50'
+                      : 'text-slate-300 hover:text-white hover:bg-white/5 font-bold'
                   }`}
                 >
-                  <div className="relative z-10">
-                    <Icon className={`w-[18px] h-[18px] mb-0.5 transition-all duration-200 ${isActive ? 'text-[#00796f] stroke-[2.2]' : 'text-slate-500 stroke-[1.8] group-hover:text-[#00796f]'}`} />
+                  <div className="relative">
+                    <Icon className={`w-5 h-5 mb-0.5 transition-transform ${isActive ? 'scale-110 text-white stroke-[2.5]' : 'stroke-[2] text-slate-300'}`} />
                     {item.badge && item.badge > 0 ? (
-                      <span className="absolute -top-1 -right-1 z-20 min-w-[20px] h-[20px] rounded-full bg-[#ef4444] text-white font-black text-[9px] leading-none flex items-center justify-center px-1 shadow-md border-2 border-white">
+                      <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-rose-500 text-white font-black text-[9px] flex items-center justify-center px-1 shadow-sm">
                         {item.badge}
                       </span>
                     ) : null}
                   </div>
-                  <span className={`text-[10px] leading-tight truncate font-bold group-hover:opacity-100 transition-opacity ${isActive ? 'font-black' : 'font-medium'}`}>{item.label}</span>
+                  <span className="text-[11px] tracking-tight truncate font-black">{item.label}</span>
                 </button>
               );
             })}
@@ -678,17 +682,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               onClick={() => setIsMobileDrawerOpen(true)}
               aria-label="القائمة الكاملة"
-              className="relative flex flex-col items-center justify-center flex-1 min-w-0 px-1 transition cursor-pointer min-h-[44px] group text-slate-600 hover:text-[#00796f] font-medium"
+              className="relative flex flex-col items-center justify-center flex-1 py-1.5 px-1 transition cursor-pointer min-h-[48px] rounded-xl text-slate-300 hover:text-white hover:bg-white/5 font-bold"
             >
-              <div className="relative z-10">
-                <Menu className={`w-[18px] h-[18px] mb-0.5 transition-all duration-200 group-hover:text-[#00796f] stroke-[2.2]`} />
+              <div className="relative">
+                <Menu className="w-5 h-5 mb-0.5 stroke-[2.2] text-teal-300" />
                 {pendingApprovalsCount > 0 && (
-                  <span className="absolute -top-1 -right-1 z-20 min-w-[20px] h-[20px] rounded-full bg-[#ef4444] text-white font-black text-[9px] leading-none flex items-center justify-center px-1 shadow-md border-2 border-white">
+                  <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-rose-500 text-white font-black text-[9px] flex items-center justify-center px-1 shadow-sm">
                     {pendingApprovalsCount}
                   </span>
                 )}
               </div>
-              <span className={`text-[10px] leading-tight font-bold group-hover:opacity-100 transition-opacity`}>القائمة</span>
+              <span className="text-[11px] tracking-tight truncate font-black text-slate-200">القائمة</span>
             </button>
           </>
       </nav>
@@ -703,44 +707,41 @@ export const Navbar: React.FC<NavbarProps> = ({
           />
 
           {/* Drawer Content */}
-          <div className="relative w-[min(90vw,22rem)] bg-[#0b1f29] text-white h-full shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-300 border-l border-white/10">
-            {/* Drawer Header - Brand */}
-            <div className="p-5 border-b border-white/10 flex items-center justify-between bg-[#091824]/50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-[#009488] to-[#0e7a6e] flex items-center justify-center shadow-lg shadow-teal-500/30 overflow-hidden border border-white/10">
-                  <img src="/icon.svg" alt="طنطاوي جروب" className="w-full h-full object-contain" />
-                </div>
+          <div className="relative w-full max-w-xs sm:max-w-sm bg-navy-deep text-white h-full shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-200">
+            {/* Drawer Header */}
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <img src="/icon.svg" alt="طنطاوي جروب" className="w-9 h-9 rounded-xl object-contain border border-[var(--app-ok)] shadow-xs" />
                 <div>
-                  <div className="font-black text-sm text-white tracking-tight">طنطاوي جروب</div>
-                  <div className="text-[10px] text-[#5eead4] font-bold tracking-wider">منظومة المبيعات والمخازن</div>
+                  <div className="font-black text-sm text-white">طنطاوي جروب</div>
+                  <div className="text-[10px] text-teal-300 font-extrabold">القائمة الرئيسية والتطبيقات</div>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsMobileDrawerOpen(false)}
-                className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-white flex items-center justify-center transition-all active:scale-95 border border-white/10"
+                className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 text-white flex items-center justify-center transition cursor-pointer"
                 title="إغلاق القائمة"
               >
-                <X className="w-5 h-5 stroke-white" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* User Profile Section */}
-            <div className="px-5 py-4 border-b border-white/10 bg-[#08141c]/40 flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#009488] to-[#0e7a6e] flex items-center justify-center font-black text-lg shadow-md">
-                {(currentUser.name || 'أ').charAt(0)}
+            {/* User Profile Summary */}
+            <div className="px-4 py-3 bg-black/30 border-b border-white/10 flex items-center justify-between">
+              <div>
+                <div className="font-black text-sm text-white">{currentUser.name}</div>
+                <div className="text-[11px] text-teal-300 font-extrabold">{roleNames[currentUser.role]?.label || currentUser.role}</div>
+                <div className="text-[11px] text-slate-200 font-bold">{currentUser.branchName}</div>
               </div>
-              <div className="min-w-0 flex-1">
-                <div className="font-black text-sm text-white truncate">{currentUser.name}</div>
-                <div className="text-[11px] text-[#5eead4] font-bold truncate">{roleNames[currentUser.role]?.label || currentUser.role}</div>
-                <div className="text-[10px] text-slate-400 truncate mt-0.5">{currentUser.branchName}</div>
+              <div className="w-10 h-10 rounded-full bg-[var(--app-accent)] text-white font-black text-sm flex items-center justify-center shadow-xs">
+                {(currentUser.name || '').trim().charAt(0)}
               </div>
-              <div className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
             </div>
 
             {/* Nav Items List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-1">
-              <div className="px-2 pb-2 text-[10px] font-black text-[#5eead4] uppercase tracking-wider">أقسام النظام</div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
+              <div className="text-xs font-black text-teal-300 px-2 pb-1">أقسام النظام المتاحة لحسابك:</div>
               {filteredNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -752,18 +753,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setActiveTab(item.id);
                       setIsMobileDrawerOpen(false);
                     }}
-                    className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl text-right font-bold transition-all duration-200 cursor-pointer ${
+                    className={`w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-2xl text-right text-xs font-bold transition cursor-pointer ${
                       isActive
-                        ? 'bg-[#009488]/20 text-white border border-[#009488]/50 shadow-lg shadow-[#009488]/30'
-                        : 'text-slate-100 hover:text-white hover:bg-white/10 border-transparent'
+                        ? 'bg-[#009488] text-white font-black shadow-lg ring-1 ring-teal-300/40 border border-teal-300/50'
+                        : 'text-white hover:bg-white/15 bg-white/[0.05] border border-white/[0.07]'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <Icon className={`w-5 h-5 shrink-0 transition-colors duration-200 ${isActive ? 'text-[#009488]' : 'text-slate-300'}`} />
-                      <span className="text-sm font-bold truncate">{item.label}</span>
+                      <Icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-white' : 'text-teal-300'}`} />
+                      <span className="text-[13px] font-black">{item.label}</span>
                     </div>
                     {item.badge && item.badge > 0 ? (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-[#ef4444] text-white shadow-xs">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                        isActive ? 'bg-slate-950 text-teal-300' : 'bg-rose-500 text-white shadow-xs'
+                      }`}>
                         {item.badge}
                       </span>
                     ) : null}
@@ -773,26 +776,25 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             {/* Drawer Footer Actions */}
-            <div className="p-5 border-t border-white/10 space-y-2 bg-[#08141c]">
+            <div className="p-4 border-t border-white/10 space-y-2 bg-[#091b29]">
               <button
                 type="button"
                 onClick={() => {
                   setIsSettingsModalOpen(true);
                   setIsMobileDrawerOpen(false);
                 }}
-                className="w-full flex items-center justify-center gap-2.5 h-11 rounded-xl bg-white/5 hover:bg-white/10 text-[#5eead4] border border-white/10 text-sm font-bold transition-all active:scale-95"
+                className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition cursor-pointer"
               >
-                <Settings className="w-4 h-4 text-[#5eead4]" />
-                <span>إعدادات النظام</span>
+                <Settings className="w-4 h-4 text-teal-300" />
+                <span>إعدادات النظام والخصوصية</span>
               </button>
-              <div className="h-px bg-white/5 mx-2" />
               <button
                 type="button"
                 onClick={() => {
                   setIsMobileDrawerOpen(false);
                   logout();
                 }}
-                className="w-full flex items-center justify-center gap-2.5 h-11 rounded-xl bg-[#ef4444]/10 hover:bg-[#ef4444]/20 text-[#fca5a5] border border-[#ef4444]/30 text-sm font-bold transition-all active:scale-95"
+                className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-rose-500/20 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/40 text-xs font-black transition cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
                 <span>تسجيل الخروج</span>

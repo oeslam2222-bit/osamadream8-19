@@ -1924,7 +1924,7 @@ function onEdit(e) {
                 type="button"
                 onClick={() => handleSyncOffers()}
                 disabled={syncingKey === 'offers' || !sourceUrls.offers.trim()}
-                className="bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+                className="bg-rose-600 hover:bg-rose-700 text-white font-black px-5 py-3 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-md shrink-0 cursor-pointer disabled:bg-slate-300 disabled:text-slate-600 dark:disabled:bg-slate-800 dark:disabled:text-slate-400 disabled:cursor-not-allowed"
               >
                 {syncingKey === 'offers' ? (
                   <>

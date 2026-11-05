@@ -402,6 +402,13 @@ export interface Customer {
   legalStatus?: string;              // حالة النزاع أو التسوية (pending, settlement, resolved, etc.)
   legalNotes?: string;               // إفادة المستشار القانوني
 
+  // --- الموقع الجغرافي وتحديد إحداثيات العميل GPS ---
+  latitude?: number;                 // خط العرض GPS
+  longitude?: number;                // خط الطول GPS
+  locationAddress?: string;          // وصف الموقع أو العنوان الجغرافي
+  locationCapturedAt?: string;       // تاريخ ووقت تثبيت الإحداثيات
+  locationCapturedBy?: string;       // المندوب الذي وثّق الموقع
+
   sector?: 'home' | 'electrical' | 'both' | 'all';  // القطاع (منزلي / كهربائي) - لعزل البيانات بين القطاعات
   notes?: string;
   createdAt?: string;

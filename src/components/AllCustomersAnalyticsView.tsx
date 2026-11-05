@@ -164,10 +164,23 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const isBranchManager = currentUser?.role === 'branch_manager';
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
-  // Confidential Currency Formatter (respects Privacy Mode for executive security)
   const formatMoney = (amount: number | undefined | null): string => {
     if (isPrivacyMode) return '•••••• ج.م';
     return formatCurrency(amount || 0);
+  };
+
+  // Compact Currency Formatter for small 3-column mobile metric cards (prevents ... truncation)
+  const formatCompactMoney = (amount: number | undefined | null): string => {
+    if (isPrivacyMode) return '••••';
+    const num = Number(amount || 0);
+    if (Math.abs(num) >= 1_000_000) {
+      const millions = num / 1_000_000;
+      return `${millions % 1 === 0 ? millions.toFixed(0) : millions.toFixed(1)} م ج.م`;
+    }
+    if (Math.abs(num) >= 100_000) {
+      return `${Math.round(num / 1_000)} ألف ج.م`;
+    }
+    return formatCurrency(num);
   };
 
   // Deduplication state & notification banner
@@ -1981,48 +1994,63 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
                   {/* 3-Column Financial Metrics Bar */}
                   <div className="grid grid-cols-3 gap-1.5 pt-1">
-                    <div className="rounded-xl bg-slate-soft/80 border border-slate-soft2 p-2 text-right">
-                      <div className="text-[9px] text-deep-slate font-bold">المديونية</div>
-                      <div className="font-black text-[var(--app-navy)] text-xs sm:text-sm mt-0.5 truncate" title={isPrivacyMode ? 'مخفي' : formatMoney(bal)}>
-                        {formatMoney(bal)}
+                    <div className="rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 p-2 text-right min-w-0">
+                      <div className="text-[9px] text-slate-500 dark:text-slate-400 font-bold whitespace-nowrap">المديونية</div>
+                      <div className="font-black text-[var(--app-navy)] dark:text-white text-xs sm:text-sm mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis font-mono" title={isPrivacyMode ? 'مخفي' : formatMoney(bal)}>
+                        {formatCompactMoney(bal)}
                       </div>
-                      <div className="cdebt-bar" aria-hidden="true">
+                      <div className="cdebt-bar mt-1" aria-hidden="true">
                         <span
                           className={creditUsage > 100 ? 'is-over' : creditUsage >= 80 ? 'is-high' : 'is-ok'}
                           style={{ width: `${Math.min(100, Math.max(limit > 0 ? 3 : 0, creditUsage))}%` }}
                         />
                       </div>
-                      <div className={`text-[8px] font-bold mt-0.5 ${creditUsage > 100 ? 'text-[var(--app-risk-text)]' : 'text-slate-500'}`}>
-                        {limit > 0 ? `حد ${formatMoney(limit)} · ${creditUsage}%` : 'بدون حد'}
+                      <div className={`text-[8.5px] font-bold mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis ${creditUsage > 100 ? 'text-rose-600' : 'text-slate-500'}`} title={limit > 0 ? `حد ${formatMoney(limit)} · ${creditUsage}%` : 'بدون حد'}>
+                        {limit > 0 ? `حد ${formatCompactMoney(limit)} · ${creditUsage}%` : 'بدون حد'}
                       </div>
                     </div>
 
-                    <div className="rounded-xl bg-red-deep/80 border border-red-soft p-2 text-right">
-                      <div className="text-[9px] text-rose font-bold">المستحقات</div>
-                      <div className="font-black text-[var(--app-risk-text)] text-xs sm:text-sm mt-0.5 truncate">
-                        {formatMoney(overdue)}
+                    <div className="rounded-xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40 p-2 text-right min-w-0">
+                      <div className="text-[9px] text-rose-600 dark:text-rose-400 font-bold whitespace-nowrap">المستحقات</div>
+                      <div className="font-black text-rose-700 dark:text-rose-300 text-xs sm:text-sm mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis font-mono" title={formatMoney(overdue)}>
+                        {formatCompactMoney(overdue)}
                       </div>
                     </div>
 
-                    <div className="rounded-xl bg-teal-soft/80 border border-teal-soft p-2 text-right">
-                      <div className="text-[9px] text-success font-bold">إجمالي المسدد</div>
-                      <div className="font-black text-[var(--app-ok-text)] text-xs sm:text-sm mt-0.5 truncate">
-                        {formatMoney(paidAmount)}
+                    <div className="rounded-xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/40 p-2 text-right min-w-0">
+                      <div className="text-[9px] text-emerald-700 dark:text-emerald-400 font-bold whitespace-nowrap">إجمالي المسدد</div>
+                      <div className="font-black text-emerald-800 dark:text-emerald-300 text-xs sm:text-sm mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis font-mono" title={formatMoney(paidAmount)}>
+                        {formatCompactMoney(paidAmount)}
                       </div>
-                      {colRate > 0 && <div className="text-[8px] text-[var(--app-ok-text)] font-bold mt-0.5">سداد {colRate}%</div>}
+                      {colRate > 0 && <div className="text-[8.5px] text-emerald-700 dark:text-emerald-400 font-bold mt-0.5 whitespace-nowrap">سداد {colRate}%</div>}
                     </div>
                   </div>
 
-                  {/* Warning banner if big debt without phone */}
-                  {!c.phone && bal >= 1000000 && (
-                    <div className="rounded-xl border border-[var(--app-warn-line)] bg-[var(--app-warn-tint)] px-2.5 py-1.5 text-[10px] font-bold text-[var(--app-warn-text)] flex items-center gap-1.5">
-                      <AlertCircle className="w-3.5 h-3.5 text-[var(--app-warn-text)] shrink-0" />
-                      <span>عميل بمديونية كبيرة بدون رقم هاتف مسجل</span>
-                    </div>
-                  )}
+                  {/* Customer GPS & Phone Warning */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {c.latitude && c.longitude ? (
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${c.latitude},${c.longitude}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 text-[9.5px] font-bold flex items-center gap-1 hover:bg-emerald-100 transition"
+                        title="فتح موقع العميل في Google Maps"
+                      >
+                        <MapPin className="w-3 h-3 text-emerald-600" />
+                        <span>موقع GPS مسجل 📍</span>
+                      </a>
+                    ) : null}
+
+                    {!c.phone && bal >= 1000000 && (
+                      <div className="rounded-lg border border-[var(--app-warn-line)] bg-[var(--app-warn-tint)] px-2 py-0.5 text-[9.5px] font-bold text-[var(--app-warn-text)] flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3 text-[var(--app-warn-text)] shrink-0" />
+                        <span>مديونية بدون هاتف</span>
+                      </div>
+                    )}
+                  </div>
 
                   {/* Quick Action Footer Strip */}
-                  <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-slate-100">
+                  <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-1.5">
                       {c.phone ? (
                         <a
@@ -2030,7 +2058,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           className="h-8 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 transition"
                           title="اتصال هاتفي بالعميل"
                         >
-                          <Phone className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
+                          <Phone className="w-3.5 h-3.5 text-emerald-600" />
                           <span>اتصال</span>
                         </a>
                       ) : null}
@@ -2039,10 +2067,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         <button
                           type="button"
                           onClick={() => onOpenNewOrderForCustomer(c)}
-                          className="h-8 px-2.5 rounded-xl bg-[var(--app-navy)] hover:bg-navy-deep5 text-white font-bold text-[11px] flex items-center gap-1 transition shadow-xs cursor-pointer"
+                          className="h-8 px-3 rounded-xl bg-[#0f2b38] hover:bg-[#009488] text-white font-black text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0"
                           title="بدء طلبية بيع جديدة"
                         >
-                          <ShoppingCart className="w-3.5 h-3.5" />
+                          <ShoppingCart className="w-3.5 h-3.5 text-teal-300" />
                           <span>+ طلبية</span>
                         </button>
                       )}
@@ -2051,10 +2079,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <button
                       type="button"
                       onClick={() => setQuickCustomer(c)}
-                      className="h-8 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-[var(--app-ok-text)] font-black text-xs flex items-center gap-1 transition cursor-pointer"
+                      className="h-8 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs flex items-center gap-1 transition cursor-pointer shrink-0"
                     >
+                      <ChevronLeft className="w-3.5 h-3.5 text-slate-500" />
                       <span>التفاصيل</span>
-                      <ChevronLeft className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>

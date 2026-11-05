@@ -33,7 +33,8 @@ import {
   Building2,
   Boxes,
   Truck,
-  RefreshCw
+  RefreshCw,
+  Share2,
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -45,6 +46,7 @@ import { CreditAuditModal } from './CreditAuditModal';
 import { CreditStatusBadge } from './CreditStatusBadge';
 import { OrderReturnModal } from './OrderReturnModal';
 import { ExcelInvoicePreviewModal } from './ExcelInvoicePreviewModal';
+import { PowerAppsSharePointBridgeModal } from './PowerAppsSharePointBridgeModal';
 import { EmptyState } from './ui/EmptyState';
 
 interface InvoicesManagerProps {
@@ -95,6 +97,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [showPowerAppsModal, setShowPowerAppsModal] = useState(false);
 
   // Auto-refresh invoices on component mount (uses cached data if refreshed recently)
   useEffect(() => {
@@ -429,6 +432,16 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setShowPowerAppsModal(true)}
+              className="flex items-center gap-1.5 px-3 h-10 rounded-xl text-xs font-black border border-teal-300 dark:border-teal-700 bg-teal-50 dark:bg-teal-950/40 text-teal-800 dark:text-teal-300 hover:bg-teal-100 transition cursor-pointer shadow-2xs active:scale-95"
+              title="ربط ومزامنة أوامر البيع والاعتمادات مع Microsoft Power Apps & SharePoint"
+            >
+              <Share2 className="w-4 h-4 text-teal-600 dark:text-teal-400" />
+              <span className="hidden md:inline">ربط Power Apps & SharePoint</span>
+              <span className="md:hidden">Power Apps</span>
+            </button>
+
+            <button
               onClick={handleManualRefresh}
               disabled={isRefreshing}
               className="flex items-center gap-1.5 px-3 h-10 rounded-xl text-xs font-bold border border-[var(--app-line)] bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer shadow-2xs active:scale-95"
@@ -750,7 +763,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             <div className="md:hidden p-3 flex flex-col gap-3">
               {displayedInvoices.map((invoice) => {
                 const style = statusStyles[invoice.status] || {
-                  bg: 'bg-teal-50 text-teal-700 border border-teal-200',
+                  bg: 'app-badge neutral',
                   label: invoice.status
                 };
                 const isPending =
@@ -774,7 +787,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 return (
                   <div
                     key={invoice.id}
-                    className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-4 hover:border-[var(--app-ok)] transition-all"
+                    className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 space-y-3 hover:border-[var(--app-ok)] transition"
                   >
                     {/* Header: Number + Status */}
                     <div className="flex items-start justify-between gap-2">
@@ -788,64 +801,61 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           </span>
                         )}
                       </div>
-                      <span className={`text-[11px] px-3 py-1 rounded-full font-black border ${style.bg}`}>
+                      <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-black ${style.bg} ${style.text || ''}`}>
                         {style.label || invoice.status}
                       </span>
                     </div>
 
                     {/* Customer & Rep Details */}
-                    <div className="space-y-1.5">
+                    <div>
                       <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
                         <Building2 className="w-3.5 h-3.5 text-[var(--app-ok-text)] shrink-0" />
                         <span className="truncate">{invoice.customerName}</span>
                       </div>
-                      <div className="text-[11px] text-slate-500 font-medium flex items-center gap-2 flex-wrap">
-                        <span className="flex items-center gap-1">
-                          <User className="w-3 h-3 text-[var(--app-navy-text)] shrink-0" />
-                          <span className="font-black">{invoice.repName}</span>
-                        </span>
-                        <span className="text-slate-400">·</span>
+                      <div className="text-[11px] text-slate-500 font-medium mt-1 flex items-center gap-2 flex-wrap">
+                        <span>المندوب: <strong className="text-slate-700">{invoice.repName}</strong></span>
+                        <span>·</span>
                         <span>{invoice.branchName}</span>
-                        <span className="text-slate-400">·</span>
-                        <span className="font-mono text-slate-600">{invoice.date}</span>
+                        <span>·</span>
+                        <span className="font-mono">{invoice.date}</span>
                       </div>
                     </div>
 
                     {/* Stats Strip */}
                     <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
-                      <div className="flex-1">
+                      <div>
                         <div className="text-[10px] text-slate-400 font-bold">الكميات المطلوبة</div>
                         <div className="text-xs font-black text-slate-800 mt-0.5">
                           {invoice.totalCartons} كرتونة ({invoice.totalPieces} قطعة)
                         </div>
                       </div>
-                      <div className="text-left flex-1">
+                      <div className="text-left">
                         <div className="text-[10px] text-slate-400 font-bold">إجمالي الفاتورة</div>
-                        <div className="text-base font-black text-[var(--app-ok-text)] mt-0.5 font-mono">
+                        <div className="text-sm font-black text-[var(--app-ok-text)] mt-0.5 font-mono">
                           {formatCurrency(invoice.estimatedGrandTotal)}
                         </div>
                       </div>
                     </div>
 
                     {/* Actions Strip */}
-                    <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-100">
-                      <div className="flex items-center gap-1.5">
+                    <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <button
                           type="button"
                           onClick={() => onViewInvoice(invoice)}
-                          className="h-9 px-3.5 rounded-xl bg-[var(--app-ok)] hover:bg-teal-600 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-md cursor-pointer active:scale-95"
+                          className="h-9 px-3.5 rounded-xl bg-[#009488] hover:bg-[#007a70] text-white font-black text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0"
                         >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>عرض</span>
+                          <Eye className="w-4 h-4 text-white shrink-0" />
+                          <span className="text-white font-black">عرض</span>
                         </button>
 
                         {canEditPending && onEditInvoice && (
                           <button
                             type="button"
                             onClick={() => onEditInvoice(invoice)}
-                            className="h-9 px-3 rounded-xl bg-[var(--app-warn-tint)] hover:bg-[var(--app-warn)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)] font-bold text-xs flex items-center gap-1.5 transition cursor-pointer active:scale-95"
+                            className="h-9 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
                           >
-                            <Pencil className="w-3.5 h-3.5" />
+                            <Pencil className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                             <span>تعديل</span>
                           </button>
                         )}
@@ -854,19 +864,19 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => handleApproveClick(invoice.id)}
-                            className="h-9 px-3 rounded-xl bg-[var(--app-ok)] hover:bg-teal-600 text-white font-bold text-xs flex items-center gap-1.5 transition shadow-md cursor-pointer active:scale-95"
+                            className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0"
                           >
-                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
                             <span>اعتماد</span>
                           </button>
                         )}
                       </div>
 
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         <button
                           type="button"
                           onClick={() => downloadInvoicePDF(invoice)}
-                          className="w-9 h-9 rounded-xl bg-teal-600 hover:bg-teal-700 text-white flex items-center justify-center transition shadow-md cursor-pointer active:scale-95"
+                          className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center transition cursor-pointer"
                           title="تحميل PDF"
                         >
                           <Download className="w-4 h-4" />
@@ -874,10 +884,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         <button
                           type="button"
                           onClick={() => setPreviewExcelInvoice(invoice)}
-                          className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition cursor-pointer active:scale-95"
+                          className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center transition cursor-pointer"
                           title="معاينة إكسل"
                         >
-                          <FileSpreadsheet className="w-4 h-4" />
+                          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
                         </button>
                       </div>
                     </div>
@@ -1662,6 +1672,13 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           onClose={() => setPreviewExcelInvoice(null)}
         />
       )}
+
+      {/* Power Apps & SharePoint Integration Modal */}
+      <PowerAppsSharePointBridgeModal
+        isOpen={showPowerAppsModal}
+        onClose={() => setShowPowerAppsModal(false)}
+        invoices={invoices}
+      />
 
     </div>
   );
