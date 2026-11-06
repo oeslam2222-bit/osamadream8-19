@@ -31,8 +31,8 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    background: #eef3f8;
-    color: #17283d;
+    background: var(--bg-body);
+    color: var(--text-primary);
   }
   body { margin: 0; min-width: 320px; }
   #root { min-height: 100dvh; }
@@ -62,6 +62,19 @@
   --app-ok: #009488;    /* success / teal */
   --app-warn: #f59e0b;  /* caution / amber */
   --app-risk: #ef4444;  /* risk / red */
+  /* Semantic accent tints / lines / text (used by stat-card icons & chips) */
+  --app-ok-tint: #ecfdf5;
+  --app-ok-line: #99f6e4;
+  --app-ok-text: #065f46;
+  --app-warn-tint: #fffbeb;
+  --app-warn-line: #fcd34d;
+  --app-warn-text: #92400e;
+  --app-risk-tint: #fef2f2;
+  --app-risk-line: #fca5a5;
+  --app-risk-text: #991b1b;
+  --app-navy-tint: #f0f9ff;
+  --app-navy-line: #bfdbfe;
+  --app-navy-text: #1e3a8a;
   --app-radius: 14px;
   --app-btn-radius: 10px;
   /* Design-system scale (added for visual consistency) */
@@ -85,7 +98,7 @@
   /* ===== Semantic color tokens for consistent theming ===== */
   /* Backgrounds */
   --bg-body: #eef3f8;
-  --bg-surface: #ffffff;
+  --bg-surface: #f8fafc;
   --bg-surface-alt: #f1f5f9;
   --bg-surface-hover: #f8fafc;
   --bg-input: #ffffff;
@@ -191,6 +204,18 @@
     --sector-electrical-text: #fcd34d;
     --sector-both-bg: #5b21b6;
     --sector-both-text: #e9d5ff;
+    --app-ok-tint: rgba(16,185,129,0.12);
+    --app-ok-line: rgba(45,212,191,0.25);
+    --app-ok-text: #6ee7b7;
+    --app-warn-tint: rgba(245,158,11,0.12);
+    --app-warn-line: rgba(251,191,36,0.25);
+    --app-warn-text: #fde047;
+    --app-risk-tint: rgba(239,68,68,0.12);
+    --app-risk-line: rgba(251,113,133,0.25);
+    --app-risk-text: #fca5a5;
+    --app-navy-tint: rgba(30,58,138,0.12);
+    --app-navy-line: rgba(191,219,254,0.25);
+    --app-navy-text: #bfdbfe;
   }
 }
 
@@ -243,6 +268,18 @@
   --sector-electrical-text: #fcd34d;
   --sector-both-bg: #5b21b6;
   --sector-both-text: #e9d5ff;
+    --app-ok-tint: rgba(16,185,129,0.12);
+    --app-ok-line: rgba(45,212,191,0.25);
+    --app-ok-text: #6ee7b7;
+    --app-warn-tint: rgba(245,158,11,0.12);
+    --app-warn-line: rgba(251,191,36,0.25);
+    --app-warn-text: #fde047;
+    --app-risk-tint: rgba(239,68,68,0.12);
+    --app-risk-line: rgba(251,113,133,0.25);
+    --app-risk-text: #fca5a5;
+    --app-navy-tint: rgba(30,58,138,0.12);
+    --app-navy-line: rgba(191,219,254,0.25);
+    --app-navy-text: #bfdbfe;
 }
 
 /* Utility classes for dark mode tokens */
@@ -1149,4 +1186,78 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
 @keyframes mi-slide-right {
   from { opacity: 0; transform: translateX(20px); }
   to { opacity: 1; transform: translateX(0); }
+}
+
+/* ============================================================
+   GLOBAL DARK MODE POLISH — converts hard-coded light colors
+   to theme-aware values when .dark class is active.
+   Excludes inputs, buttons, modals, and nav so they keep
+   their own deliberate styling.
+   ============================================================ */
+
+/* Day mode — soften pure white cards across the whole app so they’re not harsh */
+.bg-white:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  background-color: #f8fafc !important;
+}
+
+/* Backgrounds — white / slate tints → dark surfaces */
+.dark:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) .bg-white,
+.dark .bg-white:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  background-color: #1e293b !important;
+}
+.dark .bg-slate-50:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  background-color: #0f172a !important;
+}
+.dark .bg-slate-100:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  background-color: #1e293b !important;
+}
+
+/* Tinted accent cards → dark tints */
+.dark .bg-amber-50:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  background-color: rgba(245,158,11,0.15) !important;
+}
+.dark .bg-emerald-50:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  background-color: rgba(16,185,129,0.15) !important;
+}
+.dark .bg-indigo-50:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  background-color: rgba(99,102,241,0.15) !important;
+}
+.dark .bg-blue-50:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  background-color: rgba(59,130,246,0.15) !important;
+}
+.dark .bg-rose-50:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  background-color: rgba(244,63,94,0.15) !important;
+}
+
+/* Text — slate dark → light */
+.dark .text-slate-900:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  color: #f8fafc !important;
+}
+.dark .text-slate-800:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  color: #cbd5e1 !important;
+}
+.dark .text-slate-700:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  color: #94a3b8 !important;
+}
+.dark .text-slate-600:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  color: #94a3b8 !important;
+}
+
+/* Borders — slate light → dark */
+.dark .border-slate-200:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  border-color: #334155 !important;
+}
+.dark .border-slate-300:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  border-color: #475569 !important;
+}
+
+/* Shadows — soften for dark mode */
+.dark .shadow-sm:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2) !important;
+}
+.dark .shadow-md:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  box-shadow: 0 4px 6px rgba(0,0,0,0.35), 0 2px 4px rgba(0,0,0,0.25) !important;
+}
+.dark .shadow-lg:not(input):not(button):not(select):not(textarea):not([role="dialog"]):not(nav) {
+  box-shadow: 0 10px 15px rgba(0,0,0,0.4), 0 4px 6px rgba(0,0,0,0.3) !important;
 }

@@ -366,7 +366,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         
         <div className="flex items-center justify-between px-1">
           <div>
-            <h2 className="text-base sm:text-lg font-black text-slate-900 flex items-center gap-2">
+            <h2 className="text-base sm:text-lg font-black text-[var(--text-primary)] dark:text-white flex items-center gap-2">
               <LayoutGrid className="w-5 h-5 text-[var(--app-warn-text)]" />
               <span>القائمة الرئيسية والاختصارات</span>
             </h2>
@@ -375,7 +375,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </p>
           </div>
           
-          <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+          <span className="text-xs font-bold text-[var(--text-muted)] dark:text-slate-400 bg-[var(--bg-surface-alt)] dark:bg-slate-900/40 px-3 py-1 rounded-full border border-[var(--app-line)] dark:border-slate-700">
             كل القائمة
           </span>
         </div>
@@ -387,7 +387,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
-            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
           >
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-warn-line)]">
               <TrendingUp className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
@@ -402,7 +402,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab('catalog')}
-            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
           >
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-ok-line)]">
               <ShoppingCart className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
@@ -417,7 +417,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab('catalog')}
-            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
           >
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-risk-line)]">
               <Flame className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
@@ -430,7 +430,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab('all_customers')}
-            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
           >
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-navy-line)]">
               <Users className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
@@ -445,7 +445,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab('inventory')}
-            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
           >
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-ok-line)]">
               <Package className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
@@ -458,7 +458,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab('visits')}
-            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
           >
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-navy-line)]">
               <CalendarCheck className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
@@ -471,7 +471,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
-            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
           >
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-ok-line)]">
               <Wallet className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
@@ -484,7 +484,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab('returns')}
-            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
           >
             <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-navy-line)]">
               <RotateCcw className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
@@ -497,9 +497,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab(isAdminOrDev ? 'excel' : 'targets')}
-            className="group bg-white hover:bg-slate-50 text-slate-900 rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-slate-200 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-slate-300/50">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--bg-surface-alt)] dark:bg-slate-900/40 text-[var(--text-secondary)] dark:text-slate-300 flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-line)] dark:border-slate-700/50">
               {isAdminOrDev ? (
                 <FileSpreadsheet className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5] text-[var(--app-ok-text)]" />
               ) : (
@@ -571,14 +571,14 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         </div>
 
         {/* Right Card: Quick 5-Step Order Guide (خطوات إنشاء الطلب المنضبطة للمندوب) */}
-        <div className="md:col-span-7 bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col justify-between">
+        <div className="md:col-span-7 bg-[var(--bg-surface)] dark:bg-slate-800 rounded-3xl p-5 border border-[var(--app-line)] dark:border-slate-700 shadow-sm flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
             <div className="flex items-center gap-2">
               <span className="w-8 h-8 rounded-xl bg-[var(--app-warn)] text-[var(--app-warn-text)] flex items-center justify-center font-black">
                 📋
               </span>
               <div>
-                <h4 className="font-black text-slate-900 text-sm">خطوات إنشاء الطلبية للمندوب</h4>
+                <h4 className="font-black text-[var(--text-primary)] dark:text-white text-sm">خطوات إنشاء الطلبية للمندوب</h4>
                 <p className="text-[11px] text-slate-500">سير العمل المعتمد لإصدار فواتير دقيقة ومراجعة المخزون</p>
               </div>
             </div>
@@ -587,27 +587,27 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-center text-xs">
-            <div className="bg-slate-50 rounded-2xl p-2.5 border border-slate-200/60">
+            <div className="bg-[var(--bg-surface-alt)] dark:bg-slate-900/50 rounded-2xl p-2.5 border border-[var(--app-line)] dark:border-slate-700/60">
               <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">1</div>
-              <div className="font-black text-slate-800 text-[11px]">فتح الكتالوج</div>
+              <div className="font-black text-[var(--text-primary)] dark:text-white text-[11px]">فتح الكتالوج</div>
               <div className="text-[10px] text-slate-500 mt-0.5">تصفح الأصناف المتاحة</div>
             </div>
 
-            <div className="bg-slate-50 rounded-2xl p-2.5 border border-slate-200/60">
+            <div className="bg-[var(--bg-surface-alt)] dark:bg-slate-900/50 rounded-2xl p-2.5 border border-[var(--app-line)] dark:border-slate-700/60">
               <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">2</div>
-              <div className="font-black text-slate-800 text-[11px]">إضافة للسلة</div>
+              <div className="font-black text-[var(--text-primary)] dark:text-white text-[11px]">إضافة للسلة</div>
               <div className="text-[10px] text-slate-500 mt-0.5">تحديد كراتين وقطع</div>
             </div>
 
-            <div className="bg-slate-50 rounded-2xl p-2.5 border border-slate-200/60">
+            <div className="bg-[var(--bg-surface-alt)] dark:bg-slate-900/50 rounded-2xl p-2.5 border border-[var(--app-line)] dark:border-slate-700/60">
               <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">3</div>
-              <div className="font-black text-slate-800 text-[11px]">اختيار العميل</div>
+              <div className="font-black text-[var(--text-primary)] dark:text-white text-[11px]">اختيار العميل</div>
               <div className="text-[10px] text-slate-500 mt-0.5">من قائمة عملائك</div>
             </div>
 
-            <div className="bg-slate-50 rounded-2xl p-2.5 border border-slate-200/60">
+            <div className="bg-[var(--bg-surface-alt)] dark:bg-slate-900/50 rounded-2xl p-2.5 border border-[var(--app-line)] dark:border-slate-700/60">
               <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">4</div>
-              <div className="font-black text-slate-800 text-[11px]">مراجعة الائتمان</div>
+              <div className="font-black text-[var(--text-primary)] dark:text-white text-[11px]">مراجعة الائتمان</div>
               <div className="text-[10px] text-slate-500 mt-0.5">فحص المديونية والحد</div>
             </div>
 

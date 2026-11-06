@@ -94,7 +94,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
 
   return (
     <ToastProvider>
-      <div className={`tantawy-shell min-h-[100dvh] flex flex-col text-slate-900 font-sans antialiased selection:bg-amber-400 selection:text-slate-950 ${isDark ? 'bg-surface text-primary' : 'bg-slate-100'} dir="rtl`}>
+      <div className={`tantawy-shell min-h-[100dvh] flex flex-col text-[var(--text-primary)] font-sans antialiased selection:bg-amber-400 selection:text-slate-950 ${isDark ? 'bg-surface text-primary' : 'bg-[var(--bg-body)] text-[var(--text-primary)]'} dir="rtl`}>
         {isOffline && (
           <div className="bg-[#d97706] text-white text-xs sm:text-sm py-2 px-3 sm:px-4 text-center font-bold flex items-center justify-center gap-2 shadow-inner border-b border-white/30">
             <WifiOff className="w-4 h-4 sm:w-4.5 sm:h-4.5 animate-pulse" />
