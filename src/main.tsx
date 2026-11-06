@@ -3,6 +3,7 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 import './components/mobile-styles.css';
+import './styles/beautiful-cards.css';
 
 // Apply dark mode before render to prevent flash; default to dark for the new brand identity
 try {

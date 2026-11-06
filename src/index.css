@@ -29,38 +29,36 @@
 }
 
 :root {
+  /* --- Typography scale --- */
   --font-sm: clamp(0.8rem, 0.75rem + 0.2vw, 0.9rem);
   --font-base: clamp(0.9rem, 0.85rem + 0.3vw, 1rem);
   --font-lg: clamp(1.1rem, 1rem + 0.5vw, 1.35rem);
   --font-xl: clamp(1.4rem, 1.2rem + 1vw, 2rem);
   --space: clamp(0.5rem, 0.4rem + 0.5vw, 1rem);
-  --app-bg: #0d1117;
-  --app-surface: #121b27;
-  --app-surface-2: #1a2433;
-  --app-ink: #f5f7fa;
-  --app-text: #f5f7fa;
-  --app-soft: #c5d0dd;
-  --app-navy: #0f2b38;
-  --app-blue: #4aa3ff;
-  --app-blue-soft: #11263d;
-  --app-canvas: #0d1117;
-  --app-line: rgba(148, 163, 184, 0.22);
-  --app-muted: #a7b5c7;
-  --app-accent: #3dd8b0;
-  /* Tantawy Group Reference Design Tokens */
-  --brand-teal: #009488;
-  --brand-teal-dark: #0f2b38;
-  --brand-teal-light: #e6f7f5;
-  --brand-blue: #3882f6;
-  --brand-amber: #f59e0b;
-  --brand-purple: #6366f1;
-  --app-ok: #009488;    /* success / teal */
-  --app-warn: #f59e0b;  /* caution / amber */
-  --app-risk: #ef4444;  /* risk / red */
-  --app-radius: 14px;
-  --app-btn-radius: 10px;
 
-  /* ---- مشتقات الهوية (نص / خلفيات / حدود) لتوحيد الألوان في كل الصفحات ---- */
+  /* ============ LIGHT MODE (نهاري) ============ */
+  --app-bg: #ffffff;
+  --app-surface: #f7f9fb;
+  --app-surface-2: #eef2f5;
+  --app-ink: #0f172a;
+  --app-text: #0f172a;
+  --app-soft: #64748b;
+  --app-muted: #94a3b8;
+  --app-line: #e2e8f0;
+  --app-line-weak: #f1f5f9;
+
+  /* Brand - Tantawy Teal */
+  --brand-teal: #009488;
+  --brand-teal-dark: #007a71;
+  --brand-teal-light: #e6f7f5;
+  --brand-navy: #0f2b38;
+  --brand-amber: #f59e0b;
+
+  /* Semantic colors */
+  --app-ok: #009488;
+  --app-warn: #f59e0b;
+  --app-risk: #ef4444;
+
   --app-ok-text: #0f7a68;
   --app-ok-tint: rgba(0, 148, 136, .10);
   --app-ok-line: rgba(0, 148, 136, .38);
@@ -70,22 +68,25 @@
   --app-risk-text: #dc2626;
   --app-risk-tint: rgba(239, 68, 68, .10);
   --app-risk-line: rgba(239, 68, 68, .35);
+
+  /* Navy */
   --app-navy-text: #0f2b38;
   --app-navy-tint: rgba(15, 43, 56, .08);
   --app-navy-line: rgba(15, 43, 56, .25);
-  /* Design-system scale (added for visual consistency) */
+
+  /* Radii & Shadows */
   --r-sm: 8px;
   --r-md: 12px;
   --r-lg: 16px;
   --r-xl: 24px;
   --r-pill: 999px;
-  --sh-sm: 0 1px 2px rgba(15, 23, 42, .06);
+  --sh-sm: 0 1px 3px rgba(15, 23, 42, .06);
   --sh-md: 0 4px 12px rgba(15, 23, 42, .08);
   --sh-lg: 0 12px 32px rgba(15, 23, 42, .12);
   --ease: .18s ease;
   --focus-ring: 0 0 0 3px rgba(0, 148, 136, .35);
 
-  /* Arbitrary-value hex replacements (Tailwind v4 does not support bg-[#hex] in class names) */
+  /* Arbitrary value replacements */
   --color-warn-soft: #f7f0e1;
   --color-warn-soft-hover: #f0e5cb;
   --color-slate-soft: #eef3f8;
@@ -127,9 +128,6 @@
   --color-text-amber-dark: #a97f2f;
   --color-text-slate-soft9: #a9c4de;
   --color-bg-amber-deep3: #b98e3c;
-  /* Legacy tone aliases (original hex values). These CSS variables were
-     referenced by utility classes but never defined, so those backgrounds
-     fell back to transparent and white text vanished on white surfaces. */
   --color-bg-teal-dark: #079f96;
   --color-bg-blue-deep2: #2878bd;
   --color-bg-blue-deep3: #2563eb;
@@ -139,8 +137,134 @@
   --color-bg-slate-dark: #0f1c2e;
   --color-bg-slate-deep2: #1b2a40;
   --color-border-deep: #22344d;
-  /* Remaining tone tokens that utility classes referenced but were missing
-     (recovered from the original hex palette). */
+  --color-bg-navy-deep: #102b4e;
+  --color-bg-navy-deep2: #17395f;
+  --color-bg-navy-dark2: #0f172a;
+  --color-bg-navy-dark3: #0a1c30;
+  --color-bg-blue-deep: #eaf0f6;
+  --color-bg-blue-deep4: #1a3861;
+  --color-bg-blue-deep5: #1a3861;
+  --color-bg-blue-deep6: #2a4a7a;
+  --color-bg-blue-pale: #e8f1fa;
+  --color-bg-blue-soft2: #ebf4fa;
+  --color-bg-blue-very-pale: #f8fbfe;
+  --color-bg-teal-pale: #e6f7f5;
+  --color-bg-teal-soft: #e8f6f0;
+  --color-bg-green-pale: #e8f5ef;
+  --color-bg-green-soft: #e8f3ee;
+  --color-bg-red-pale: #fdf5f5;
+  --color-bg-red-soft2: #fdf1f1;
+  --color-bg-red-deep: #953f3f;
+  --color-bg-amber-pale: #fbf4e6;
+  --color-bg-amber-soft: #fdf8ed;
+  --color-bg-amber-light: #fffdf7;
+  --color-bg-slate-deep: #f1f8f4;
+  --color-placeholder: #64748b;
+  --color-border-amber: #e6d9b8;
+  --color-border-amber-soft: #e8dcba;
+  --color-border-teal: #c4ebe6;
+  --color-border-deep3: #22344d;
+  --color-border-amber-soft2: #e6d9b8;
+  --color-bg-slate-soft7: #e8f0f8;
+}
+
+/* ============ DARK MODE (ليلي) ============ */
+.dark {
+  --app-bg: #0a0f17;
+  --app-surface: #111927;
+  --app-surface-2: #162130;
+  --app-ink: #f5f7fa;
+  --app-text: #f5f7fa;
+  --app-soft: #94a3b8;
+  --app-muted: #64748b;
+  --app-line: #1e293b;
+  --app-line-weak: #1e293b;
+
+  --brand-teal: #2dd4bf;
+  --brand-teal-dark: #14b8a6;
+  --brand-teal-light: #064e3b;
+  --brand-navy: #0f2b38;
+  --brand-amber: #fbbf24;
+
+  --app-ok: #2dd4bf;
+  --app-warn: #fbbf24;
+  --app-risk: #f87171;
+
+  --app-ok-text: #6ee7b7;
+  --app-ok-tint: rgba(45, 212, 191, .15);
+  --app-ok-line: rgba(34, 197, 94, .35);
+  --app-warn-text: #fcd34d;
+  --app-warn-tint: rgba(251, 191, 36, .15);
+  --app-warn-line: rgba(245, 158, 11, .35);
+  --app-risk-text: #fca5a5;
+  --app-risk-tint: rgba(239, 68, 68, .10);
+  --app-risk-line: rgba(239, 68, 68, .30);
+
+  --app-navy-text: #e2e8f0;
+  --app-navy-tint: rgba(15, 43, 56, .20);
+  --app-navy-line: rgba(15, 43, 56, .35);
+
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+  --r-pill: 999px;
+  --sh-sm: 0 1px 3px rgba(0, 0, 0, .30);
+  --sh-md: 0 4px 12px rgba(0, 0, 0, .40);
+  --sh-lg: 0 12px 32px rgba(0, 0, 0, .50);
+  --ease: .18s ease;
+  --focus-ring: 0 0 0 3px rgba(45, 212, 191, .35);
+
+  --color-warn-soft: #fdf4e1;
+  --color-warn-soft-hover: #f0e5cb;
+  --color-slate-soft: #eef3f8;
+  --color-blue-soft: #f2f6fa;
+  --color-blue-soft-light: #fbfdff;
+  --color-slate-light: #f4f7fa;
+  --color-blue-gray: #f3f6fa;
+  --color-red-soft: #fdfafa;
+  --color-orange-soft: #fdfbf5;
+  --color-red-light: #f9eaea;
+  --color-blue-very-light: #eef3fa;
+  --color-navy-dark: #0f172a;
+  --color-navy-panel: #0f233d;
+  --color-navy-hover: #1a3861;
+  --color-text-teal-soft5: #9fdcc2;
+  --color-text-teal-soft6: #a9d3bd;
+  --color-bg-green-deep2: #256b4a;
+  --color-bg-rose-deep2: #9b3a3a;
+  --color-bg-amber-deep2: #b98a35;
+  --color-bg-slate-deep3: #fbf8f1;
+  --color-bg-blue-very-pale2: #f8fbfe;
+  --color-bg-navy-deep5: #0b2039;
+  --color-bg-amber-very-pale: #fff8e8;
+  --color-bg-rose-deep4: #953f3f;
+  --color-bg-blue-deep7: #1e5f9d;
+  --color-bg-teal-main: #009488;
+  --color-text-teal-soft7: #8fd0b0;
+  --color-bg-slate-deep4: #0b2140;
+  --color-text-slate-soft8: #c9dbec;
+  --color-bg-slate-very-pale: #fafcff;
+  --color-bg-slate-50-light: #f8fafc;
+  --color-bg-slate-chip: #f1f5f9;
+  --color-bg-navy-dark4: #0b1f39;
+  --color-bg-amber-main: #c99a43;
+  --color-bg-teal-dark-hover: #008378;
+  --color-bg-blue-main: #3882f6;
+  --color-bg-warn-main: #f59e0b;
+  --color-bg-warn-dark: #d97706;
+  --color-text-amber-dark: #a97f2f;
+  --color-text-slate-soft9: #a9c4de;
+  --color-bg-amber-deep3: #b98e3c;
+  --color-bg-teal-dark: #079f96;
+  --color-bg-blue-deep2: #2878bd;
+  --color-bg-blue-deep3: #2563eb;
+  --color-bg-amber-deep: #f19b24;
+  --color-bg-indigo: #4f46e5;
+  --color-bg-indigo-deep: #4338ca;
+  --color-bg-slate-dark: #0f1c2e;
+  --color-bg-slate-deep2: #1b2a40;
+  --color-border-deep: #22344d;
   --color-bg-navy-deep: #102b4e;
   --color-bg-navy-deep2: #17395f;
   --color-bg-navy-dark2: #0f172a;
@@ -172,62 +296,24 @@
   --color-bg-slate-soft7: #e8f0f8;
 }
 
-/* Utility classes replacing arbitrary hex bg-* classes */
-@layer utilities {
-  .bg-warn-soft { background-color: var(--color-warn-soft); }
-  .bg-warn-soft-hover { background-color: var(--color-warn-soft-hover); }
-  .bg-slate-soft { background-color: var(--color-slate-soft); }
-  .bg-blue-soft { background-color: var(--color-blue-soft); }
-  .bg-blue-soft-light { background-color: var(--color-blue-soft-light); }
-  .bg-slate-light { background-color: var(--color-slate-light); }
-  .bg-blue-gray { background-color: var(--color-blue-gray); }
-  .bg-red-soft { background-color: var(--color-red-soft); }
-  .bg-orange-soft { background-color: var(--color-orange-soft); }
-  .bg-red-light { background-color: var(--color-red-light); }
-  .bg-blue-very-light { background-color: var(--color-blue-very-light); }
-  .bg-navy-dark { background-color: var(--color-navy-dark); }
-  .bg-navy-panel { background-color: var(--color-navy-panel); }
-  .bg-navy-hover { background-color: var(--color-navy-hover); }
-  .bg-navy-deep { background-color: var(--color-navy-deep); }
-  .bg-navy-deep2 { background-color: var(--color-navy-deep2); }
-  .bg-amber-light { background-color: var(--color-bg-amber-light); }
-  .bg-amber-soft { background-color: var(--color-bg-amber-soft); }
-  .bg-amber-pale { background-color: var(--color-bg-amber-pale); }
-  .bg-red-pale { background-color: var(--color-bg-red-pale); }
-  .bg-red-soft2 { background-color: var(--color-bg-red-soft2); }
-  .bg-red-deep { background-color: var(--color-bg-red-deep); }
-  .bg-green-pale { background-color: var(--color-bg-green-pale); }
-  .bg-green-soft { background-color: var(--color-bg-green-soft); }
-  .bg-blue-pale { background-color: var(--color-bg-blue-pale); }
-  .bg-blue-soft2 { background-color: var(--color-bg-blue-soft2); }
-  .bg-blue-deep { background-color: var(--color-bg-blue-deep); }
-  .bg-teal-pale { background-color: var(--color-bg-teal-pale); }
-  .bg-teal-soft { background-color: var(--color-bg-teal-soft); }
-  .bg-blue-very-pale { background-color: var(--color-bg-blue-very-pale); }
-  .bg-slate-deep { background-color: var(--color-bg-slate-deep); }
-  .bg-amber-deep { background-color: var(--color-bg-amber-deep); }
-  .bg-indigo { background-color: var(--color-bg-indigo); }
-  .bg-indigo-deep { background-color: var(--color-bg-indigo-deep); }
-  .bg-blue-deep2 { background-color: var(--color-bg-blue-deep2); }
-  .bg-blue-deep3 { background-color: var(--color-bg-blue-deep3); }
-  .bg-blue-deep4 { background-color: var(--color-bg-blue-deep4); }
-  .bg-blue-deep5 { background-color: var(--color-bg-blue-deep5); }
-  .bg-blue-deep6 { background-color: var(--color-bg-blue-deep6); }
-  .bg-slate-deep2 { background-color: var(--color-bg-slate-deep2); }
-  .bg-green-deep { background-color: var(--color-bg-green-deep); }
-  .bg-slate-dark { background-color: var(--color-bg-slate-dark); }
-  .bg-navy-dark2 { background-color: var(--color-bg-navy-dark2); }
-  .bg-navy-dark3 { background-color: var(--color-bg-navy-dark3); }
-  .bg-navy-dark4 { background-color: var(--color-bg-navy-dark4); }
-  .bg-teal-dark { background-color: var(--color-bg-teal-dark); }
+/* Mobile-safe touch targets & line height for Arabic */
+html, body {
+  font-family: 'Cairo', 'Tajawal', 'IBM Plex Sans Arabic', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans Arabic', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  background: var(--app-bg);
+  color: var(--app-text);
+  line-height: 1.6;
+}
+body { margin: 0; min-width: 320px; background: var(--app-bg); color: var(--app-text); }
+#root { min-height: 100dvh; }
+
+button, input, select, textarea {
+  font-family: inherit;
 }
 
-/* Text color utilities */
 @layer utilities {
-  .text-muted { color: var(--color-text-muted); }
-  .text-gray { color: var(--color-text-gray); }
-  .text-slate { color: var(--color-text-slate); }
-  .text-warn { color: var(--color-text-warn); }
   .text-warn-deep { color: var(--color-text-warn-deep); }
   .text-blue { color: var(--color-text-blue); }
   .text-amber { color: var(--color-text-amber); }
@@ -337,6 +423,37 @@
   --app-canvas: #0d1117;
 }
 
+/* ============ Tantawy shell — light (day) & dark (night) structure ============ */
+/* Day (default / :root): light surfaces, dark ink */
+.tantawy-shell {
+  background: var(--app-bg) !important;
+  color: var(--app-text) !important;
+}
+.tantawy-topbar {
+  background: var(--app-surface) !important;
+  border-color: var(--app-line) !important;
+  color: var(--app-text) !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08) !important;
+  backdrop-filter: none !important;
+}
+.tantawy-topbar * {
+  color: var(--app-text) !important;
+}
+.tantawy-sidebar {
+  background: #0f172a !important;   /* غامق دائم كمظهر الوضع الليلي */
+  border-left-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+.tantawy-mobile-nav {
+  background: var(--app-surface) !important;
+  border-top-color: var(--app-line) !important;
+  color: var(--app-text) !important;
+}
+.tantawy-mobile-nav button[aria-current="page"] {
+  color: var(--app-navy) !important;
+}
+
+/* Night (.dark): dark surfaces, light ink */
 .dark body,
 .dark html {
   background: var(--app-bg) !important;
@@ -358,6 +475,14 @@
   background: rgba(18, 27, 39, 0.95) !important;
   border-color: var(--app-line) !important;
   box-shadow: 0 8px 24px rgba(2, 6, 23, 0.32);
+}
+.dark .tantawy-mobile-nav {
+  background: #0f172a !important;
+  border-top-color: #1e293b !important;
+  color: #e2e8f0 !important;
+}
+.dark .tantawy-mobile-nav button[aria-current="page"] {
+  color: #60a5fa !important;
 }
 
 .dark .bg-warn-soft { background-color: #251d13 !important; }
@@ -1927,6 +2052,33 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
   background: #e6f7f5; color: #046b62; font-size: 10px; font-weight: 900;
 }
 .cf-switch.on .cf-switch-count { background: #fff; }
+
+/* ---------- Customer Profile Screen ---------- */
+.tantawy-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.profile-branch-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  border: 1px solid;
+  white-space: nowrap;
+}
 
 /* Dark mode overrides */
 .dark {

@@ -23,7 +23,8 @@ import { DashboardHome } from './components/DashboardHome';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
-import { AllCustomersAnalyticsView } from './components/AllCustomersAnalyticsView';
+import { BranchTeamOverview } from './components/BranchTeamOverview';
+import { RepProfileView } from './components/RepProfileView';
 import { CustomerItemSalesView } from './components/CustomerItemSalesView';
 import { SupervisorDashboard } from './components/SupervisorDashboard';
 import { InvoicesManager } from './components/InvoicesManager';
@@ -38,7 +39,7 @@ import { UnifiedReturnsView } from './components/UnifiedReturnsView';
 import { PermissionManagerModal } from './components/PermissionManagerModal';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { AppProvider, useApp } from './context/AppContext';
-import { ThemeProvider } from './context/themeContext';
+import { ThemeProvider, useTheme } from './context/themeContext';
 import { getUserAllowedTabs, getCustomPermissions, UserPermissionOverride } from './services/permissionService';
 import { AuthProvider } from './context/authContext';
 import { InvoiceProvider } from './context/invoiceContext';
@@ -49,27 +50,27 @@ import { Customer, Invoice, UserRole } from './types';
 
 export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
-    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
+    'home', 'catalog', 'customer_item_sales',
     'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'excel', 'users', 'guide', 'permissions'
+    'inventory', 'excel', 'users', 'guide', 'permissions', 'reps_team', 'rep_profile'
   ],
   admin: [
-    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
+    'home', 'catalog', 'customer_item_sales',
     'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'excel', 'users', 'guide', 'permissions'
+    'inventory', 'excel', 'users', 'guide', 'permissions', 'reps_team', 'rep_profile'
   ],
   branch_manager: [
-    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
+    'home', 'catalog', 'customer_item_sales',
     'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'users', 'guide'
+    'inventory', 'users', 'guide', 'reps_team', 'rep_profile'
   ],
   supervisor: [
-    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
+    'home', 'catalog', 'customer_item_sales',
     'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'users'
+    'inventory', 'users', 'reps_team', 'rep_profile'
   ],
   sales_rep: [
-    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'collection'
+    'home', 'catalog', 'customer_item_sales', 'collection', 'reps_team', 'rep_profile'
   ],
   legal_advisor: ["home"],
   warehouse_keeper: ["home", "catalog", "returns", "inventory", "guide"],
@@ -99,29 +100,13 @@ const MainLayout: React.FC = () => {
   const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
 
   const [activeTab, setActiveTab] = useState<string>('home');
+  const [selectedRepId, setSelectedRepId] = useState<string | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [appToastMsg, setAppToastMsg] = useState<string | null>(null);
-  const [isDark, setIsDark] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem("tantawy_dark_mode");
-      return saved === null ? true : saved === "true";
-    } catch {
-      return true;
-    }
-  });
-
-  // Toggle dark mode class on document element
-  useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-    try {
-      localStorage.setItem("tantawy_dark_mode", String(isDark));
-    } catch {}
-  }, [isDark]);
+  // الثيم موحد عبر ThemeContext (المصدر الوحيد للحقيقة): يقرأ التفضيل المحفوظ
+  // من localStorage ويضيف/يزيل الكلاس .dark على جذر المستند تلقائياً.
+  const { isDark } = useTheme();
 
   const [customPermissionOverrides, setCustomPermissionOverrides] = useState<UserPermissionOverride[]>([]);
 
@@ -227,8 +212,6 @@ const MainLayout: React.FC = () => {
         onOpenCart={() => setIsOrderModalOpen(true)}
         isSidebarCollapsed={isSidebarCollapsed}
         onToggleSidebar={handleToggleSidebar}
-        isDark={isDark}
-        setIsDark={setIsDark}
       />
 
       {/* Content Container - Fluid responsive container with min-w-0 to prevent overflow */}
@@ -250,12 +233,6 @@ const MainLayout: React.FC = () => {
               onNavigateToInvoices={(inv) => {
                 setActiveTab('invoices');
               }}
-            />
-          )}
-
-          {(activeTab === 'all_customers' || activeTab === 'customers') && allowedTabs.includes('all_customers') && (
-            <AllCustomersAnalyticsView
-              onOpenNewOrderForCustomer={(cust) => handleOpenOrderForCustomer(cust)}
             />
           )}
 
@@ -288,6 +265,29 @@ const MainLayout: React.FC = () => {
           )}
 
           {activeTab === 'inventory' && allowedTabs.includes('inventory') && <InventoryStockView />}
+
+          {activeTab === 'reps_team' && allowedTabs.includes('reps_team') && (
+            <BranchTeamOverview
+              onRepSelected={(rep) => {
+                setSelectedRepId(rep.id);
+                setActiveTab('rep_profile');
+              }}
+              onBackToBranches={() => {
+                setSelectedRepId(null);
+                setActiveTab('reps_team');
+              }}
+            />
+          )}
+
+          {activeTab === 'rep_profile' && allowedTabs.includes('rep_profile') && selectedRepId && (
+            <RepProfileView
+              repId={selectedRepId}
+              onBack={() => {
+                setSelectedRepId(null);
+                setActiveTab('reps_team');
+              }}
+            />
+          )}
 
           {activeTab === 'excel' && allowedTabs.includes('excel') && (
             <ExcelImportExport onNavigateToItemSales={() => setActiveTab('customer_item_sales')} />
