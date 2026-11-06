@@ -2,6 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { EncouragementProvider } from './src/components/EncouragementSystem';
 
 const CHUNK_RECOVERY_KEY = 'tantawy:chunk-recovery';
 
@@ -68,6 +69,8 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <EncouragementProvider>
+      <App />
+    </EncouragementProvider>
   </StrictMode>,
 );
