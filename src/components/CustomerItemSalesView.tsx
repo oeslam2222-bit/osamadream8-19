@@ -89,7 +89,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   onOpenNewOrderForCustomer,
   onNavigateToExcel
 }) => {
-  const { currentUser, users, customers, products } = useApp();
+  const { currentUser, users, customers, products, activeSectorFilter } = useApp();
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   const [salesRecords, setSalesRecords] = useState<CustomerItemSaleRecord[]>([]);
@@ -284,9 +284,37 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   };
 
   const rbacSales = useMemo(() => {
-    if (showAllSalesOverride) return enrichedSalesRecords;
-    return filterCustomerItemSalesByRBAC(enrichedSalesRecords, currentUser, users, customers);
-  }, [enrichedSalesRecords, currentUser, users, customers, showAllSalesOverride]);
+    const authorizedSales = showAllSalesOverride
+      ? enrichedSalesRecords
+      : filterCustomerItemSalesByRBAC(enrichedSalesRecords, currentUser, users, customers);
+    const effectiveSector = isAdminOrDev
+      ? activeSectorFilter
+      : currentUser?.sector === 'home' || currentUser?.sector === 'electrical'
+        ? currentUser.sector
+        : activeSectorFilter;
+    if (effectiveSector === 'all') return authorizedSales;
+
+    const customersByReference = new Map<string, Customer>();
+    const customersByName = new Map<string, Customer[]>();
+    customers.forEach((customer) => {
+      if (customer.id) customersByReference.set(customer.id.toLowerCase(), customer);
+      if (customer.code) customersByReference.set(customer.code.toLowerCase(), customer);
+      const normalizedName = customer.name.trim().toLowerCase();
+      if (normalizedName) customersByName.set(normalizedName, [...(customersByName.get(normalizedName) || []), customer]);
+    });
+
+    return authorizedSales.filter((record) => {
+      const references = [record.linkedCustomerId, record.linkedCustomerCode, record.customerAccount]
+        .filter((value): value is string => Boolean(value))
+        .map((value) => value.trim().toLowerCase());
+      const customer = references.map((reference) => customersByReference.get(reference)).find(Boolean);
+      const normalizedName = (record.invoicingName || '').trim().toLowerCase();
+      const nameMatches = customersByName.get(normalizedName);
+      const resolvedCustomer = customer || (nameMatches?.length === 1 ? nameMatches[0] : undefined);
+      const sector = resolvedCustomer?.sector;
+      return sector === effectiveSector || sector === 'both' || sector === 'all';
+    });
+  }, [enrichedSalesRecords, currentUser, users, customers, showAllSalesOverride, activeSectorFilter, isAdminOrDev]);
 
   const distinctGroups = useMemo(() => {
     const set = new Set<string>();

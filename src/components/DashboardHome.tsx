@@ -34,7 +34,6 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
-import { filterCustomersByRBAC } from '../services/customerAnalyticsService';
 import { isArabicNameMatch, isBranchMatch } from '../services/arabicMatchingService';
 import { Customer, CustomerVisit, Invoice } from '../types';
 
@@ -60,6 +59,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
     getVisibleVisits,
     getVisibleTargets,
     getVisibleProducts,
+    getVisibleCustomers,
     isOffline,
     activeSectorFilter,
     setActiveSectorFilter,
@@ -81,10 +81,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   const [metricPeriod, setMetricPeriod] = useState<'today' | 'all'>('today');
 
   // Customer Filtering
-  const visibleCustomers = useMemo(
-    () => filterCustomersByRBAC(customers, currentUser, users),
-    [customers, currentUser, users]
-  );
+  const visibleCustomers = useMemo(() => getVisibleCustomers(), [getVisibleCustomers, customers]);
 
   const visits = getVisibleVisits();
   const visibleInvoices = useMemo(() => getVisibleInvoices(), [getVisibleInvoices, invoices]);
@@ -586,13 +583,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               </div>
             </div>
             
-            <button
-              type="button"
-              onClick={handleStartOrder}
-              className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-black px-3.5 py-1.5 rounded-xl cursor-pointer shadow-xs transition"
-            >
-              ابدأ الآن ⚡
-            </button>
+
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-center text-xs">

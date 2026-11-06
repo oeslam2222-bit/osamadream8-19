@@ -115,6 +115,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     forecasts,
     loadForecastsForYear,
     getVisibleInvoices,
+    getVisibleCustomers,
     getVisibleTargets,
     getVisibleVisits,
   } = useApp();
@@ -477,7 +478,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     });
 
     // Customers in scope (Strict Privacy Enforcement)
-    const scopedCustomers = customers.filter((c) => {
+    const scopedCustomers = getVisibleCustomers().filter((c) => {
       if (isSalesRep) {
         return doesCustomerBelongToRep(c, currentUser);
       }
@@ -516,6 +517,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     visits,
     forecasts,
     customers,
+    getVisibleCustomers,
     users,
     selectedYear,
     selectedQuarter,

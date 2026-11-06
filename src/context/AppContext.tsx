@@ -150,6 +150,20 @@ import {
   removeQueuedMutations,
 } from '../services/offlineQueueService';
 
+type ActiveSector = 'all' | 'home' | 'electrical';
+
+function resolveEffectiveSector(user: User | null, activeSector: ActiveSector, fallbackSector?: string): ActiveSector {
+  if (user?.role === 'admin' || user?.role === 'developer') return activeSector;
+  const accountSector = user?.sector || fallbackSector;
+  if (accountSector === 'home' || accountSector === 'electrical') return accountSector;
+  return activeSector;
+}
+
+function matchesSector(recordSector: string | undefined, effectiveSector: ActiveSector): boolean {
+  if (effectiveSector === 'all') return true;
+  return recordSector === effectiveSector || recordSector === 'both' || recordSector === 'all';
+}
+
 /** سطور السيرفر → سجلات التوقعات (نفس الخريطة للبوت وللتحميل حسب الطلب). */
 function mapForecastRows(rows: any[]): CollectionForecastRecord[] {
   return rows.map((r: any) => ({
@@ -612,7 +626,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const getVisibleTargets = () => {
-    const scoped = filterBySector(targets, currentUser?.sector);
+    const scoped = filterBySector(targets, currentUser?.sector, (record) => inferTargetSector(record, users));
     return filterTargetsForUser(scoped, currentUser, users, customers);
   };
 
@@ -5958,7 +5972,21 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const getVisibleInvoices = (): Invoice[] => {
     if (!currentUser) return [];
 
-    const scopedInvoices = filterBySector(invoices, currentUser.sector);
+    const customersByReference = new Map<string, Customer>();
+    const customersByName = new Map<string, Customer[]>();
+    customers.forEach((customer) => {
+      if (customer.id) customersByReference.set(customer.id, customer);
+      if (customer.code) customersByReference.set(customer.code, customer);
+      const normalizedName = normalizeArabicText(customer.name || '');
+      if (normalizedName) customersByName.set(normalizedName, [...(customersByName.get(normalizedName) || []), customer]);
+    });
+    const scopedInvoices = filterBySector(invoices, currentUser.sector, (invoice) => {
+      const reference = invoice.customerId || invoice.customerCode || '';
+      const byReference = customersByReference.get(reference);
+      const byUniqueName = customersByName.get(normalizeArabicText(invoice.customerName || ''));
+      const customer = byReference || (byUniqueName?.length === 1 ? byUniqueName[0] : undefined);
+      return invoice.sector || customer?.sector;
+    });
 
     // Admin & Developer: Full oversight, filtered by branch selector if selected
     if (currentUser.role === 'admin' || currentUser.role === 'developer') {
@@ -6044,19 +6072,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const visibleVisits = useMemo((): CustomerVisit[] => {
     if (!currentUser) return [];
 
-    // Sector scoping (قطاع منزلي / كهربا): نعزل الزيارات اللي ضمن القطاع المطلوب.
-    const isSectorAllowed = (v: CustomerVisit): boolean => {
-      const cust = v.customerId ? customers.find((c) => c.id === v.customerId) : undefined;
-      const sec = cust?.sector;
-      const eff: string | undefined =
-        currentUser.sector && currentUser.sector !== 'all' && currentUser.sector !== 'both'
-          ? currentUser.sector
-          : currentUser.role === 'admin' || currentUser.role === 'developer'
-            ? (activeSectorFilter === 'all' ? undefined : activeSectorFilter)
-            : undefined;
-      if (!eff || eff === 'all' || eff === 'both') return true;
-      if (!sec) return true;
-      return sec === eff || sec === 'both' || sec === 'all';
+    const customersByReference = new Map<string, Customer>();
+    customers.forEach((customer) => {
+      if (customer.id) customersByReference.set(customer.id, customer);
+      if (customer.code) customersByReference.set(customer.code, customer);
+    });
+    const effectiveSector = resolveEffectiveSector(currentUser, activeSectorFilter);
+    const isSectorAllowed = (visit: CustomerVisit): boolean => {
+      const customer = customersByReference.get(visit.customerId || '') || customersByReference.get(visit.customerCode || '');
+      return matchesSector(visit.sector || customer?.sector, effectiveSector);
     };
 
       // Admin & Developer: Full oversight across branches, filtered by selected branch if set
@@ -6113,7 +6137,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   // customers and users (everything else is a module-level helper), so those are the
   // real dependencies.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visits, customers, users, currentUser, selectedBranchFilter]);
+  }, [visits, customers, users, currentUser, selectedBranchFilter, activeSectorFilter]);
 
   const getVisibleVisits = useCallback(() => visibleVisits, [visibleVisits]);
 
@@ -6663,13 +6687,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     return { total: list.length, completed, scheduled: list.filter((v) => v.status === 'مجدولة').length, lastVisit: list.filter((v) => v.status === 'منفذة').sort((a, b) => b.date.localeCompare(a.date))[0]?.date, nextVisit: list.filter((v) => v.status === 'مجدولة' && v.date >= new Date().toISOString().slice(0, 10)).sort((a, b) => a.date.localeCompare(b.date))[0]?.date };
   };
 
-  // helper: عزل وتصفية البيانات حسب القطاع (منزلي / كهربائي / الكل)
-  const filterBySector = <T extends { sector?: 'home' | 'electrical' | 'both' | 'all' }>(items: T[], userSector?: string): T[] => {
-    // القطاع المحدد في الفلتر النشط هو الحاكم الأول: لو 'all' يعرض كل الأصناف (منزلي وكهرباء معاً)
-    if (activeSectorFilter === 'all') return items;
-    const effectiveSector = activeSectorFilter || userSector;
-    if (!effectiveSector || effectiveSector === 'all' || effectiveSector === 'both') return items;
-    return items.filter((item) => !item.sector || item.sector === effectiveSector || item.sector === 'both' || item.sector === 'all');
+  // The account's assigned sector is a hard boundary; only admins can switch globally.
+  const filterBySector = <T extends { sector?: 'home' | 'electrical' | 'both' | 'all' }>(
+    items: T[],
+    userSector?: string,
+    resolveItemSector?: (item: T) => string | undefined
+  ): T[] => {
+    const effectiveSector = resolveEffectiveSector(currentUser, activeSectorFilter, userSector);
+    if (effectiveSector === 'all') return items;
+    return items.filter((item) => matchesSector(item.sector || resolveItemSector?.(item), effectiveSector));
   };
 
   const getVisibleCustomers = (): Customer[] => {
@@ -6711,8 +6737,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const getVisibleProducts = (): Product[] => {
-    // القطاع: لو activeSectorFilter محدد 'all' تعرض جميع الأصناف، وإلا تفلتر حسب المنزلي أو الكهرباء
-    const sectorFiltered = filterBySector(products, currentUser?.sector);
+    const sectorFiltered = filterBySector(products, currentUser?.sector, (product) => {
+      const text = normalizeArabicText(`${product.department || ''} ${product.category || ''} ${product.itemGroup || ''} ${product.familyName || ''} ${product.name || ''}`);
+      const electricalTerms = ['كهربا', 'لمبه', 'مفتاح', 'كابل', 'سلك', 'شاسيه', 'قاطع', 'فيشه', 'لقمه', 'دوايه', 'وش', 'سبوت', 'كشاف', 'electrical', 'electric', 'cable', 'wire', 'switch', 'bulb', 'lamp', 'socket', 'plug', 'breaker', 'fuse'];
+      return electricalTerms.some((term) => text.includes(normalizeArabicText(term))) ? 'electrical' : 'home';
+    });
     if (!currentUser || currentUser.role === 'admin' || currentUser.role === 'developer') {
       return sectorFiltered;
     }

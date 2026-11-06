@@ -52,7 +52,9 @@
   --brand-teal-dark: #007a71;
   --brand-teal-light: #e6f7f5;
   --brand-navy: #0f2b38;
-  --brand-amber: #f59e0b;
+  --team-primary: #009488;
+--team-secondary: #0f2b38;
+--team-accent: #f59e0b;
 
   /* Semantic colors */
   --app-ok: #009488;

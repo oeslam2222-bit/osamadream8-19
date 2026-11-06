@@ -107,7 +107,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
     }>();
 
     const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
-    const sourceInvoices = isAdminOrDev ? invoices : getVisibleInvoices();
+    const sourceInvoices = getVisibleInvoices();
 
     // 1. Initialize branches based on permission
     const allowedBranches = isAdminOrDev
