@@ -148,7 +148,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6" dir="rtl">
+    <div className="dashboard-mobile-scale space-y-4 sm:space-y-6" dir="rtl">
       
       {/* ========================================================================= */}
       {/* 1. TOP HERO SECTION (مستوحى بدقة من الصورة المرفقة مع أحدث تكنولوجيا تفاعلية) */}
