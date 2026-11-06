@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'branch_manager' | 'supervisor' | 'sales_rep' | 'developer' | 'legal_advisor' | 'warehouse_keeper';
+export type UserRole = 'admin' | 'branch_manager' | 'supervisor' | 'sales_rep' | 'developer' | 'technical_support' | 'legal_advisor' | 'warehouse_keeper';
 
 export type SectorType = 'home' | 'electrical' | 'both' | 'all';
 

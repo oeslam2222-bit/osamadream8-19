@@ -100,7 +100,8 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
     importTargetsFromGoogleSheet,
     exportTargetsReport,
     wipeAllProductsAndData,
-    selectedBranchFilter
+    selectedBranchFilter,
+    syncCustomersIncrementally,
   } = useApp();
 
   // دليل العملاء المحدَّث دائماً: "مزامنة الكل" بتنفذ أكثر من استيراد في نفس الدورة،
@@ -227,7 +228,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       }));
 
       // Merge and update customers in place with strict deduplication
-      const importResult = await importCustomersList(sectorTagged, 'replace');
+      const importResult = await importCustomersList(sectorTagged, 'merge');
       if (!importResult.success) {
         throw new Error(importResult.message);
       }
@@ -349,7 +350,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         });
 
         const finalDeduped = deduplicateAndMergeCustomers(updatedCustomers).customers;
-        await importCustomersList(finalDeduped, 'replace');
+        await importCustomersList(finalDeduped, 'merge');
 
         setSheetSuccess((prev) => ({
           ...prev,
@@ -407,7 +408,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       });
 
       const finalDeduped = deduplicateAndMergeCustomers(updatedCustomers).customers;
-      await importCustomersList(finalDeduped, 'replace');
+      await importCustomersList(finalDeduped, 'merge');
 
       setSheetSuccess((prev) => ({
         ...prev,
@@ -682,7 +683,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         ...c,
         sector: activeSectorTab,
       }));
-      const importRes = await importCustomersList(sectorTagged, 'replace');
+      const importRes = await importCustomersList(sectorTagged, 'merge');
       setSheetSuccess((prev) => ({
         ...prev,
         [key]: `تم بنجاح رفع ملف الإكسل وتحديث ${importRes.count} عميل لـ (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'}) بدون تكرار!`
@@ -783,7 +784,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         });
 
         const finalDeduped = deduplicateAndMergeCustomers(updatedCustomers).customers;
-        await importCustomersList(finalDeduped, 'replace');
+        await importCustomersList(finalDeduped, 'merge');
 
         setSheetSuccess((prev) => ({
           ...prev,
@@ -837,7 +838,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       });
 
       const finalDeduped = deduplicateAndMergeCustomers(updatedCustomers).customers;
-      await importCustomersList(finalDeduped, 'replace');
+      await importCustomersList(finalDeduped, 'merge');
 
       setSheetSuccess((prev) => ({
         ...prev,
@@ -957,7 +958,8 @@ function onEdit(e) {
     setTimeout(() => setCopiedScript(false), 3000);
   };
 
-  const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+  const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'technical_support';
+  const isDevOrSupport = currentUser?.role === 'developer' || currentUser?.role === 'technical_support';
 
   if (!isAdminOrDev) {
     return (
@@ -1075,6 +1077,26 @@ function onEdit(e) {
               <ShieldCheck className="w-4 h-4 text-[#5eead4]" />
               <span>فحص ومنع التكرار الشامل (0 تكرار)</span>
             </button>
+
+            {/* مزامنة العملاء التراكمية من السيرفر — للمطور والدعم الفني فقط */}
+            {isDevOrSupport && (
+              <button
+                type="button"
+                onClick={async () => {
+                  const res = await syncCustomersIncrementally();
+                  alert(
+                    res.success
+                      ? res.message || 'تم مزامنة العملاء من السيرفر بنجاح'
+                      : 'فشل المزامنة: ' + (res.message || 'خطأ غير معروف')
+                  );
+                }}
+                className="bg-[#1e3a8a] hover:bg-[#1e408f] text-white font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                title="يسحب فقط العملاء الجدد أو اللي اتعدلوا منذ آخر مزامنة (لا يستبدل الـ 5000 عميل)"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span>مزامنة العملاء من السيرفر (تراكمي)</span>
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
