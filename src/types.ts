@@ -411,6 +411,10 @@ export interface Customer {
 
   sector?: 'home' | 'electrical' | 'both' | 'all';  // القطاع (منزلي / كهربائي) - لعزل البيانات بين القطاعات
   notes?: string;
+  /** رابط صورة البروفايل المخزنة على Cloudinary (مضغوطة ~100-150 كيلو بايت) */
+  profileImageUrl?: string;
+  /** المعرّف العام للصورة على Cloudinary (للحذف أو التبديل لاحقاً) */
+  profileImagePublicId?: string;
   createdAt?: string;
 }
 
