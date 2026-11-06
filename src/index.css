@@ -17,10 +17,10 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    background: #eef3f8;
-    color: #17283d;
+    background: var(--app-bg);
+    color: var(--app-text);
   }
-  body { margin: 0; min-width: 320px; }
+  body { margin: 0; min-width: 320px; background: var(--app-bg); color: var(--app-text); }
   #root { min-height: 100dvh; }
 
   button, input, select, textarea {
@@ -34,14 +34,19 @@
   --font-lg: clamp(1.1rem, 1rem + 0.5vw, 1.35rem);
   --font-xl: clamp(1.4rem, 1.2rem + 1vw, 2rem);
   --space: clamp(0.5rem, 0.4rem + 0.5vw, 1rem);
-  --app-ink: #0f172a;
+  --app-bg: #0d1117;
+  --app-surface: #121b27;
+  --app-surface-2: #1a2433;
+  --app-ink: #f5f7fa;
+  --app-text: #f5f7fa;
+  --app-soft: #c5d0dd;
   --app-navy: #0f2b38;
-  --app-blue: #3882f6;
-  --app-blue-soft: #eff6ff;
-  --app-canvas: #f8fafc;
-  --app-line: #e2e8f0;
-  --app-muted: #64748b;
-  --app-accent: #009488;
+  --app-blue: #4aa3ff;
+  --app-blue-soft: #11263d;
+  --app-canvas: #0d1117;
+  --app-line: rgba(148, 163, 184, 0.22);
+  --app-muted: #a7b5c7;
+  --app-accent: #3dd8b0;
   /* Tantawy Group Reference Design Tokens */
   --brand-teal: #009488;
   --brand-teal-dark: #0f2b38;
@@ -317,6 +322,44 @@
 }
 
 /* Dark mode overrides for the soft backgrounds */
+.dark {
+  --app-bg: #0d1117;
+  --app-surface: #121b27;
+  --app-surface-2: #1a2433;
+  --app-text: #f5f7fa;
+  --app-ink: #f5f7fa;
+  --app-soft: #c5d0dd;
+  --app-muted: #a7b5c7;
+  --app-line: rgba(148, 163, 184, 0.22);
+  --app-accent: #3dd8b0;
+  --app-blue: #4aa3ff;
+  --app-navy: #0f2b38;
+  --app-canvas: #0d1117;
+}
+
+.dark body,
+.dark html {
+  background: var(--app-bg) !important;
+  color: var(--app-text) !important;
+}
+
+.dark .tantawy-shell,
+.dark main,
+.dark .tantawy-topbar,
+.dark .tantawy-topbar * {
+  color: var(--app-text);
+}
+
+.dark .tantawy-shell {
+  background: var(--app-bg);
+}
+
+.dark .tantawy-topbar {
+  background: rgba(18, 27, 39, 0.95) !important;
+  border-color: var(--app-line) !important;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.32);
+}
+
 .dark .bg-warn-soft { background-color: #251d13 !important; }
 .dark .bg-warn-soft-hover { background-color: #3a2a16 !important; }
 .dark .bg-slate-soft { background-color: #172330 !important; }
@@ -331,6 +374,12 @@
 .dark .bg-navy-dark { background-color: #090e17 !important; }
 .dark .bg-navy-panel { background-color: #1a2b40 !important; }
 .dark .bg-navy-hover { background-color: #25457a !important; }
+.dark .bg-white { background-color: var(--app-surface) !important; }
+.dark footer {
+  background: var(--app-surface) !important;
+  border-color: var(--app-line) !important;
+  color: var(--app-muted) !important;
+}
 
 /* Mobile & Touch Performance Optimization */
 * {
@@ -615,9 +664,12 @@ main .font-black { font-weight: 800 !important; }
 /* Dark mode must win over the light-mode !important rule above, otherwise
    headings, table titles and the user name stay dark navy on the dark
    cards (invisible at night). */
+.dark main .bg-white { background-color: var(--app-surface) !important; }
 .dark main .text-slate-900 { color: #f8fafc !important; }
 .dark main .text-slate-400 { color: #a8b7c8 !important; }
 .dark main .text-amber-600, .dark main .text-amber-700 { color: #fde047 !important; }
+.dark main .bg-slate-50 { background-color: #101a27 !important; }
+.dark main .border-slate-200 { border-color: rgba(148,163,184,0.22) !important; }
 main .bg-slate-50 { background-color: #f4f7fa !important; }
 main .border-slate-200 { border-color: var(--app-line) !important; }
 

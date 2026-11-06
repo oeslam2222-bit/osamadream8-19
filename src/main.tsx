@@ -4,9 +4,10 @@ import App from './App.tsx';
 import './index.css';
 import './components/mobile-styles.css';
 
-// Apply dark mode before render to prevent flash
+// Apply dark mode before render to prevent flash; default to dark for the new brand identity
 try {
-  if (localStorage.getItem('tantawy_dark_mode') === 'true') {
+  const saved = localStorage.getItem('tantawy_dark_mode');
+  if (saved === null || saved === 'true') {
     document.documentElement.classList.add('dark');
   }
 } catch {}

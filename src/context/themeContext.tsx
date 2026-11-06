@@ -13,9 +13,10 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [isDark, setIsDark] = useState<boolean>(() => {
     try {
-      return localStorage.getItem(STORAGE_KEY) === 'true';
+      const saved = localStorage.getItem(STORAGE_KEY);
+      return saved === null ? true : saved === 'true';
     } catch {
-      return false;
+      return true;
     }
   });
 

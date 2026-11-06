@@ -193,72 +193,62 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="tantawy-topbar sticky top-0 z-40 bg-white text-slate-900 shadow-sm border-b border-[var(--app-line)]">
-        {/* Top Banner - Compact on mobile with large touch controls */}
-        <div className="max-w-7xl mx-auto px-2 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2">
-          
-          {/* Date pill (desktop: the brand lives in the sidebar) */}
-          <div className="hidden lg:block rounded-xl border border-[var(--app-line)] bg-white px-3.5 py-2 text-sm font-semibold text-slate-600">
+      <header className="tantawy-topbar sticky top-0 z-40 border-b border-[var(--app-line)] bg-gradient-to-r from-[#09111a] via-[#111c2a] to-[#0f1f2d] text-slate-100 shadow-[0_12px_30px_rgba(2,6,23,0.25)] backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-2 py-2 sm:px-6 sm:py-2.5">
+          <div className="hidden rounded-2xl border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-semibold text-slate-200 shadow-inner lg:block">
             {todayLabel}
           </div>
 
-          {/* Brand & Logo + Mobile Menu Trigger (mobile / tablet) */}
           <div className="flex items-center gap-2 sm:gap-3 lg:hidden">
             <button
               type="button"
               onClick={() => setIsMobileDrawerOpen(true)}
               aria-label="القائمة الرئيسية"
               title="القائمة الرئيسية"
-              className="h-10 px-2.5 rounded-xl bg-navy-deep hover:bg-blue-deep4 text-[#5eead4] flex items-center gap-1.5 font-black text-xs shadow-xs cursor-pointer border border-[var(--app-ok)]"
+              className="flex h-10 items-center gap-1.5 rounded-xl border border-[#3dd8b0]/40 bg-[#0f2b38] px-2.5 text-[11px] font-black text-[#5eead4] shadow-lg shadow-[#0f2b38]/30 transition hover:bg-[#163b45]"
             >
-              <Menu className="w-4 h-4 text-[#5eead4] shrink-0" />
-              <span className="text-[11px]">القائمة</span>
+              <Menu className="h-4 w-4 shrink-0" />
+              <span>القائمة</span>
             </button>
-            <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-2xl bg-navy-deep p-1 border-2 border-[var(--app-ok)] shadow-md shadow-teal-500/20 flex items-center justify-center shrink-0 overflow-hidden">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-[#3dd8b0]/80 bg-[#0f2b38] p-1 shadow-md shadow-[#3dd8b0]/20 sm:h-10 sm:w-10">
               <img src="/icon.svg" alt="طنطاوي جروب - Tantawy Group" className="h-full w-full object-contain" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <h1 className="font-black text-sm sm:text-base tracking-tight text-slate-900 flex items-center gap-1">
-                  <span>طنطاوي جروب</span>
-                </h1>
-              </div>
-              <p className="text-[10px] text-slate-500 hidden sm:block">
-                تطبيق المبيعات
-              </p>
+              <h1 className="flex items-center gap-1 text-sm font-black tracking-tight text-white sm:text-base">
+                <span>طنطاوي جروب</span>
+              </h1>
+              <p className="hidden text-[10px] text-slate-300 sm:block">تطبيق المبيعات</p>
             </div>
           </div>
 
-          {/* Status Indicators, User Info, & Actions */}
           <div className="flex items-center gap-1.5 sm:gap-2.5">
             
             {/* Offline / Online Status Badge */}
-            <div className={`flex items-center gap-1 px-2.5 h-11 rounded-full text-xs font-bold border ${
-              isOffline ? 'panel-warn' : 'panel-ok'
+            <div className={`flex h-11 items-center gap-1 rounded-full border px-2.5 text-xs font-bold shadow-inner ${
+              isOffline ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
             }`}>
               {isOffline ? (
                 <>
-                  <WifiOff className="w-3.5 h-3.5 animate-pulse text-[var(--app-risk)]" />
+                  <WifiOff className="h-3.5 w-3.5 animate-pulse text-amber-300" />
                   <span className="text-[11px] font-black">أوفلاين</span>
                 </>
               ) : (
                 <>
-                  <Wifi className="w-3.5 h-3.5 text-[var(--app-ok)]" />
+                  <Wifi className="h-3.5 w-3.5 text-emerald-300" />
                   <span className="hidden md:inline">متصل</span>
                 </>
               )}
             </div>
 
-            {/* Settings, About & Privacy Modal Trigger Button */}
             <button
               id="navbar-settings-and-about-btn"
               type="button"
               onClick={() => setIsSettingsModalOpen(true)}
-              className="flex items-center justify-center gap-1.5 px-3 h-11 rounded-xl text-xs font-black border border-[var(--app-line)] bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer shadow-2xs active:scale-95"
+              className="flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-slate-100 transition hover:bg-white/10 active:scale-95"
               title="الإعدادات، السياسة والخصوصية، معلومات المنظومة، والقائمين على الفكرة"
             >
-              <Settings className="w-4 h-4 text-slate-500" />
-              <span className="hidden sm:inline">الإعدادات وعن النظام</span>
+              <Settings className="h-4 w-4 text-slate-200" />
+              <span className="hidden sm:inline">الإعدادات</span>
             </button>
 
             {/* Notifications Button */}
@@ -266,35 +256,33 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 type="button"
                 onClick={onOpenNotificationCenter}
-                className={`flex items-center justify-center gap-1.5 px-3 h-11 rounded-xl text-xs font-black border border-[var(--app-line)] bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer shadow-2xs active:scale-95 relative group`}
+                className="group relative flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-slate-100 transition hover:bg-white/10 active:scale-95"
                 title={`الإشعارات (${notificationCount} غير مقروء)`}
                 aria-label="مركز الإشعارات"
               >
-                <Bell className={`w-4 h-4 shrink-0 ${notificationCount > 0 ? "text-rose-500 animate-bounce" : "text-slate-500"}`} />
+                <Bell className={`h-4 w-4 shrink-0 ${notificationCount > 0 ? 'animate-bounce text-rose-400' : 'text-slate-200'}`} />
                 {notificationCount > 0 && (
-                  <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-rose-500 rounded-full border border-white border-2"></span>
+                  <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-[#0f172a] bg-rose-500"></span>
                 )}
                 <span className="hidden sm:inline">الإشعارات</span>
               </button>
             )}
 
-
-            {/* Dark/Light Mode Toggle Button */}
             <button
               id="navbar-dark-mode-toggle"
               type="button"
               onClick={toggleTheme}
-              className="flex items-center justify-center gap-1.5 px-3 h-11 rounded-xl text-xs font-black border border-[var(--app-line)] bg-white hover:bg-slate-50 text-slate-700 transition cursor-pointer shadow-2xs active:scale-95"
+              className="flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-slate-100 transition hover:bg-white/10 active:scale-95"
               title={isDark ? 'الوضع النهاري' : 'الوضع الليلي'}
             >
               {isDark ? (
                 <>
-                  <Sun className="w-4 h-4 text-[var(--app-accent)] shrink-0" />
+                  <Sun className="h-4 w-4 shrink-0 text-[#f4d48c]" />
                   <span className="hidden sm:inline">النهاري</span>
                 </>
               ) : (
                 <>
-                  <Moon className="w-4 h-4 text-indigo-500 shrink-0" />
+                  <Moon className="h-4 w-4 shrink-0 text-indigo-300" />
                   <span className="hidden sm:inline">الليلي</span>
                 </>
               )}

@@ -530,7 +530,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         </div>
       </div>
       {/* Filters Bar */}
-      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+      <div className="bg-[#101a27] border border-white/10 rounded-2xl p-4 shadow-[0_18px_35px_rgba(7,12,19,0.32)]">
         <div className="flex flex-wrap items-center justify-between gap-4">
           {/* Left: Export + Search */}
           <div className="flex items-center gap-4 flex-wrap min-w-0">
@@ -538,7 +538,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               type="button"
               onClick={handleExportList}
               title="تصدير الفواتير إلى ملف Excel"
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-black shadow-sm transition active:scale-95 cursor-pointer"
+              className="flex items-center gap-2 bg-[var(--app-blue)] hover:brightness-110 text-white px-4 py-2.5 rounded-xl text-sm font-black shadow-sm transition active:scale-95 cursor-pointer"
             >
               <Download className="w-4 h-4" />
               <span>تصدير Excel</span>
@@ -551,7 +551,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="ابحث برقم الفاتورة أو اسم العميل..."
-                className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+                className="w-full pl-9 pr-4 py-2.5 bg-slate-900/70 border border-white/10 rounded-xl text-sm font-bold text-slate-100 placeholder:text-slate-400 focus:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-blue)] transition"
               />
             </div>
           </div>
@@ -559,15 +559,15 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           {/* Right filters */}
           <div className="flex items-center gap-4 flex-wrap min-w-0">
             {/* حالة الفاتورة */}
-            <div className="flex flex-col justify-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 min-w-[150px]">
-              <span className="text-[10px] font-bold text-slate-500 leading-none mb-1">حالة الفاتورة</span>
+            <div className="flex flex-col justify-center bg-slate-900/80 border border-white/10 rounded-xl px-3 py-2 min-w-[150px]">
+              <span className="text-[10px] font-bold text-slate-400 leading-none mb-1">حالة الفاتورة</span>
               <select
                 value={selectedStatus}
                 onChange={(e) => setSelectedStatus(e.target.value)}
-                className="bg-transparent font-black text-slate-800 text-sm focus:outline-none cursor-pointer w-full"
+                className="bg-transparent font-black text-slate-100 text-sm focus:outline-none cursor-pointer w-full"
               >
                 <option value="الكل">الكل</option>
-                <option value="فواتير الأصناف المتوفرة">الأصناف المتوفرة</option>
+                <option value="فواتير الأصناف المتوفارة">الأصناف المتوفرة</option>
                 <option value="فواتير النواقص">النواقص (-NQ)</option>
                 <option value="قيد مراجعة المشرف">قيد مراجعة المشرف</option>
                 <option value="معلقة بانتظار اعتماد الفرع">بانتظار مدير الفرع</option>
@@ -578,12 +578,12 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
             {/* المندوب */}
             {currentUser?.role !== 'sales_rep' && (
-              <div className="flex flex-col justify-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 min-w-[150px]">
-                <span className="text-[10px] font-bold text-slate-500 leading-none mb-1">المندوب</span>
+              <div className="flex flex-col justify-center bg-slate-900/80 border border-white/10 rounded-xl px-3 py-2 min-w-[150px]">
+                <span className="text-[10px] font-bold text-slate-400 leading-none mb-1">المندوب</span>
               <select
                 value={selectedRepFilter}
                 onChange={(e) => setSelectedRepFilter(e.target.value)}
-                className="bg-transparent font-black text-slate-800 text-xs focus:outline-none cursor-pointer w-full"
+                className="bg-transparent font-black text-slate-100 text-xs focus:outline-none cursor-pointer w-full"
               >
                 {repsList.map((r) => (
                   <option key={r} value={r}>
@@ -596,12 +596,12 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
             {/* الفرع */}
             {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') && (
-              <div className="flex flex-col justify-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 min-w-[150px]">
-                <span className="text-[10px] font-bold text-slate-500 leading-none mb-1">الفرع</span>
+              <div className="flex flex-col justify-center bg-slate-900/80 border border-white/10 rounded-xl px-3 py-2 min-w-[150px]">
+                <span className="text-[10px] font-bold text-slate-400 leading-none mb-1">الفرع</span>
                 <select
                   value={selectedBranchFilter}
                   onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                  className="bg-transparent font-black text-slate-800 text-sm focus:outline-none cursor-pointer w-full"
+                  className="bg-transparent font-black text-slate-100 text-sm focus:outline-none cursor-pointer w-full"
                 >
                   <option value="الكل">الكل</option>
                   {branches.map((b) => (
@@ -614,7 +614,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             )}
 
           {/* التاريخ من / إلى */}
-          <div className="flex items-end gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5">
+          <div className="flex items-end gap-2 bg-slate-900/80 border border-white/10 rounded-xl px-3 py-1.5">
             <Calendar className="w-4 h-4 text-slate-400 mb-1.5 shrink-0" />
             <div className="flex flex-col">
               <span className="text-[9px] text-slate-400 font-bold leading-none mb-0.5">من</span>
@@ -623,7 +623,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
                 aria-label="من تاريخ"
-                className="bg-transparent font-black text-slate-800 text-[11px] focus:outline-none cursor-pointer"
+                className="bg-transparent font-black text-slate-100 text-[11px] focus:outline-none cursor-pointer"
               />
             </div>
             <div className="flex flex-col">
@@ -633,7 +633,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
                 aria-label="إلى تاريخ"
-                className="bg-transparent font-black text-slate-800 text-[11px] focus:outline-none cursor-pointer"
+                className="bg-transparent font-black text-slate-100 text-[11px] focus:outline-none cursor-pointer"
               />
             </div>
             {(dateFrom || dateTo) && (
@@ -641,7 +641,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 type="button"
                 onClick={() => { setDateFrom(''); setDateTo(''); }}
                 title="مسح فلتر التاريخ"
-                className="text-slate-400 hover:text-rose-600 mb-1 cursor-pointer"
+                className="text-slate-400 hover:text-rose-400 mb-1 cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -668,7 +668,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 className={`px-3.5 py-2 rounded-xl text-[11px] font-black transition cursor-pointer border whitespace-nowrap shrink-0 ${
                   selectedStatus === tab.key
                     ? 'bg-[var(--app-navy)] text-white border-[var(--app-navy)] shadow-sm'
-                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    : 'bg-slate-900/70 text-slate-300 border-white/10 hover:border-slate-500 hover:text-white'
                 }`}
               >
                 {tab.label} ({tab.count})
@@ -676,7 +676,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             ))}
           </div>
 
-          <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200 shrink-0">
+          <div className="inline-flex p-1 rounded-xl bg-slate-900/70 border border-white/10 shrink-0">
             {[
               { key: 'all' as const, label: 'عرض الكل' },
               { key: 'invoices' as const, label: 'الفواتير' },
@@ -687,7 +687,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 type="button"
                 onClick={() => setViewSegment(seg.key)}
                 className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer whitespace-nowrap ${
-                  viewSegment === seg.key ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  viewSegment === seg.key ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 {seg.label}
@@ -739,7 +739,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
 
       {/* Invoices List Table */}
-      <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-[#0f172a] rounded-3xl shadow-[0_20px_50px_rgba(15,23,42,0.35)] border border-white/10 overflow-hidden">
         
         {accessibleInvoices.length === 0 ? (
           <EmptyState
@@ -897,9 +897,9 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
 
             {/* Desktop Table View */}
-            <div className="hidden md:block overflow-x-auto">
+            <div className="hidden md:block overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_18px_35px_rgba(15,40,70,0.08)]">
               <table className="w-full text-right text-xs">
-              <thead className="bg-[var(--app-navy)] text-white/90 font-black">
+              <thead className="bg-gradient-to-r from-[#0d2238] via-[#123157] to-[#0f2b38] text-white/90 font-black">
                 <tr>
                   <th className="p-3 text-[11px] whitespace-nowrap">رقم الفاتورة</th>
                   <th className="p-3 text-[11px] whitespace-nowrap">العميل</th>
@@ -913,7 +913,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                   <th className="p-3 text-[11px] text-center whitespace-nowrap">الإجراءات</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 bg-slate-50/40">
                 {displayedInvoices.map((invoice) => {
                   const style = statusStyles[invoice.status] || {
                     bg: 'app-badge neutral',
@@ -1466,15 +1466,15 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
       {/* Client Financial Status Panel (الموقف المالي للعميل المحدد) */}
       {activeInvoice && (
-        <div className="bg-slate-50 border border-slate-200 rounded-3xl p-4 sm:p-5 shadow-sm">
+        <div className="bg-[#101a27] border border-white/10 rounded-3xl p-4 sm:p-5 shadow-[0_18px_35px_rgba(7,12,19,0.28)]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
             <div className="flex items-center gap-3">
               <ShieldCheck className="w-7 h-7 text-[var(--app-ok)] shrink-0" />
               <div>
-                <div className="text-xs font-black text-slate-500">الموقف المالي للعميل المحدد</div>
-                <div className="text-sm font-black text-slate-900 flex items-center gap-1.5">
+                <div className="text-xs font-black text-slate-400">الموقف المالي للعميل المحدد</div>
+                <div className="text-sm font-black text-white flex items-center gap-1.5">
                   {activeInvoice.customerName}
-                  <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
+                  <span className="text-[10px] bg-emerald-500/10 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-400/25">
                     نشط
                   </span>
                 </div>
@@ -1482,43 +1482,43 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
             <button
               onClick={() => setSelectedInvoiceId(null)}
-              className="text-xs font-black text-slate-400 hover:text-slate-700 underline underline-offset-2 transition"
+              className="text-xs font-black text-slate-400 hover:text-slate-200 underline underline-offset-2 transition"
             >
               إلغاء التحديد
             </button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <div className="bg-white p-3 rounded-2xl border border-slate-100">
+            <div className="bg-slate-900/80 p-3 rounded-2xl border border-white/10">
               <div className="text-[10px] text-slate-400 font-bold mb-1">حد الائتمان المعتمد</div>
-              <div className="text-2xl font-black text-[var(--app-navy)] app-num">
+              <div className="text-2xl font-black text-white app-num">
                 {formatCurrency(creditSummary?.limit ?? activeInvoice.customerCreditLimit ?? 0)}
               </div>
-              <div className="text-[10px] text-slate-500 mt-1">رصيد العميل قبل الفاتورة</div>
-              <div className="text-lg font-black text-slate-600 app-num">
+              <div className="text-[10px] text-slate-400 mt-1">رصيد العميل قبل الفاتورة</div>
+              <div className="text-lg font-black text-slate-200 app-num">
                 {formatCurrency(creditSummary?.before ?? activeInvoice.customerBalanceBefore ?? 0)}
               </div>
             </div>
 
-            <div className="bg-white p-3 rounded-2xl border border-slate-100">
+            <div className="bg-slate-900/80 p-3 rounded-2xl border border-white/10">
               <div className="text-[10px] text-slate-400 font-bold mb-1">قيمـة الفاتورة الحالية</div>
-              <div className="text-2xl font-black text-[var(--app-ok-text)] app-num">
+              <div className="text-2xl font-black text-[var(--app-ok)] app-num">
                 {formatCurrency(creditSummary?.total ?? activeInvoice.estimatedGrandTotal)}
               </div>
-              <div className="text-[10px] text-slate-500 mt-1">رصيد العميل بعد الفاتورة</div>
-              <div className="text-lg font-black text-slate-600 app-num">
+              <div className="text-[10px] text-slate-400 mt-1">رصيد العميل بعد الفاتورة</div>
+              <div className="text-lg font-black text-slate-200 app-num">
                 {formatCurrency(creditSummary?.after ?? 0)}
               </div>
             </div>
 
-            <div className="bg-white p-3 rounded-2xl border border-slate-100 sm:col-span-2 lg:col-span-1 flex flex-col justify-center items-center">
+            <div className="bg-slate-900/80 p-3 rounded-2xl border border-white/10 sm:col-span-2 lg:col-span-1 flex flex-col justify-center items-center">
               <div className="text-[10px] text-slate-400 font-bold mb-2">نسبة الاستهلاك من الحد</div>
               <div className="relative w-full max-w-xs">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] text-slate-500 font-bold">0%</span>
-                  <span className="text-[10px] text-slate-500 font-bold">100%</span>
+                  <span className="text-[10px] text-slate-400 font-bold">0%</span>
+                  <span className="text-[10px] text-slate-400 font-bold">100%</span>
                 </div>
-                <div className="w-full bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                <div className="w-full bg-slate-700/80 rounded-full h-2.5 overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-700 ${
                       creditSummary?.exceeded
@@ -1531,7 +1531,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                   />
                 </div>
                 <div className="flex items-center justify-between mt-1">
-                  <span className="text-[10px] font-black">{creditSummary?.usagePct ?? 0}% مستخدم</span>
+                  <span className="text-[10px] font-black text-slate-200">{creditSummary?.usagePct ?? 0}% مستخدم</span>
                   {creditSummary?.exceeded && (
                     <span className="text-[10px] font-black text-[var(--app-risk)]">
                       ⚠️ تجاوز الحد
@@ -1542,8 +1542,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-xs font-black text-slate-600 flex items-center gap-2">
+          <div className="mt-4 pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs font-black text-slate-300 flex items-center gap-2">
               <span>الحالة: </span>
               {creditSummary?.exceeded ? (
                 <span className="text-[var(--app-risk)] font-black">تجاوز الحد الائتماني — يتطلب دفعة نقدية</span>
@@ -1560,30 +1560,30 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       {/* Reject / Cancel Order Reason Prompt Modal */}
       {rejectModalInvoiceId && (
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="bg-[#101a27] rounded-3xl max-w-lg w-full p-6 space-y-4 shadow-2xl border border-white/10">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <h3 className="font-black text-sm text-[var(--app-risk)] flex items-center gap-2">
                 <XCircle className="w-5 h-5 text-[var(--app-risk)]" />
                 <span>إلغاء أو رفض الطلبية وإرجاع المخزون</span>
               </h3>
               <button onClick={() => setRejectModalInvoiceId(null)}>
-                <X className="w-5 h-5 text-slate-400 hover:text-slate-700 cursor-pointer" />
+                <X className="w-5 h-5 text-slate-400 hover:text-slate-200 cursor-pointer" />
               </button>
             </div>
 
-            <div className="bg-red-light border border-[rgba(179,74,74,.25)] text-[var(--app-risk)] p-3 rounded-2xl text-xs space-y-1">
-              <div className="font-bold flex items-center gap-1.5 text-[var(--app-risk)]">
-                <CheckCircle2 className="w-4 h-4 text-[var(--app-risk)]" />
+            <div className="bg-red-500/10 border border-red-400/20 text-red-300 p-3 rounded-2xl text-xs space-y-1">
+              <div className="font-bold flex items-center gap-1.5 text-red-300">
+                <CheckCircle2 className="w-4 h-4 text-red-300" />
                 <span>إرجاع البضاعة تلقائياً للمخزن:</span>
               </div>
-              <p className="text-[var(--app-risk)] leading-relaxed">
+              <p className="text-red-200 leading-relaxed">
                 سيقوم النظام فوراً بإلغاء الطلبية وفك الحجز وإرجاع كافة الكراتين إلى رصيد المخزن المتاح للبيع.
               </p>
             </div>
 
             {/* Quick Presets */}
             <div className="space-y-1.5">
-              <label className="block font-bold text-slate-700 text-xs">أسباب الإلغاء الشائعة (اختر سريعاً):</label>
+              <label className="block font-bold text-slate-300 text-xs">أسباب الإلغاء الشائعة (اختر سريعاً):</label>
               <div className="flex flex-wrap gap-1.5">
                 {[
                   'طلب العميل إلغاء الطلبية',
@@ -1599,7 +1599,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                     className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition cursor-pointer ${
                       rejectReason === reasonText
                         ? 'bg-[var(--app-risk)] text-white border-transparent'
-                        : 'bg-white text-gray border-slate-200 hover:border-slate-border'
+                        : 'bg-slate-900 text-slate-300 border-white/10 hover:border-slate-500'
                     }`}
                   >
                     {reasonText}
@@ -1609,13 +1609,13 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
 
             <div className="text-xs space-y-1">
-              <label className="block font-bold text-slate-700">بيان وسبب الإلغاء:</label>
+              <label className="block font-bold text-slate-300">بيان وسبب الإلغاء:</label>
               <textarea
                 rows={2}
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="اكتب سبب إلغاء أو رفض الطلبية..."
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-lg text-xs font-medium"
+                className="w-full p-2.5 bg-slate-900 border border-white/10 rounded-lg text-xs font-medium text-slate-100 placeholder:text-slate-400"
               />
             </div>
 

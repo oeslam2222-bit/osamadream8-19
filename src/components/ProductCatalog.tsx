@@ -623,63 +623,59 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   };
 
   return (
-    <div className="tantawy-screen space-y-5 pb-16" dir="rtl">
-      {/* 1. Hero Banner & Search */}
-      <div className="catalog-hero">
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 sm:p-5">
-          {/* Right side: Title */}
+    <div className="tantawy-screen space-y-5 pb-16 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.1),_transparent_32%),_linear-gradient(180deg,_rgba(10,14,20,0.84),_rgba(10,14,20,0.96))]" dir="rtl">
+      <div className="catalog-hero overflow-hidden rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(61,216,176,0.28),transparent_30%),linear-gradient(135deg,#10293d_0%,#0d1b2a_45%,#08131d_100%)] shadow-[0_18px_40px_rgba(2,6,23,0.32)]">
+        <div className="relative z-10 flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3.5">
-            <div className="w-14 h-14 rounded-2xl bg-white/15 backdrop-blur border border-white/25 text-white flex items-center justify-center shadow-lg shrink-0">
-              <ShoppingCart className="w-7 h-7" />
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white shadow-lg backdrop-blur-sm">
+              <ShoppingCart className="h-7 w-7" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-[26px] font-black text-white tracking-tight">كتالوج الأصناف</h1>
-              <p className="text-[11px] sm:text-xs text-white/75 font-bold mt-0.5">
+              <h1 className="text-2xl font-black tracking-tight text-white sm:text-[26px]">كتالوج الأصناف</h1>
+              <p className="mt-0.5 text-[11px] font-bold text-white/75 sm:text-xs">
                 اختر المنتجات بسهولة وأضفها إلى فاتورتك
               </p>
             </div>
           </div>
 
-          {/* Left side: Prominent Search Bar with Smart Autocomplete Suggestions */}
-          <div className="relative w-full lg:max-w-xl z-20" ref={searchWrapperRef}>
-          <div className="relative">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setShowSearchSuggestions(true);
-              }}
-              onFocus={() => {
-                if (searchTerm.trim().length > 0) {
+          <div className="relative z-20 w-full lg:max-w-xl" ref={searchWrapperRef}>
+            <div className="relative">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
                   setShowSearchSuggestions(true);
-                }
-              }}
-              placeholder="ابحث باسم المنتج أو كود المنتج أو الكود الموحد ..."
-              className="w-full pl-10 pr-11 py-3 bg-white border border-white/60 rounded-2xl text-xs sm:text-sm font-bold text-secondary placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-white/70 shadow-lg transition"
-            />
-            <Search className="w-5 h-5 text-light absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchTerm('');
-                  setShowSearchSuggestions(false);
                 }}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-light hover:text-muted p-1"
-                title="مسح البحث"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+                onFocus={() => {
+                  if (searchTerm.trim().length > 0) {
+                    setShowSearchSuggestions(true);
+                  }
+                }}
+                placeholder="ابحث باسم المنتج أو كود المنتج أو الكود الموحد ..."
+                className="w-full rounded-2xl border border-white/60 bg-white/95 py-3 pl-10 pr-11 text-xs font-bold text-slate-800 shadow-lg shadow-slate-950/20 transition placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#3dd8b0]/70 sm:text-sm"
+              />
+              <Search className="pointer-events-none absolute right-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setShowSearchSuggestions(false);
+                  }}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                  title="مسح البحث"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
 
-          {/* Smart Suggestions Dropdown - يظهر فور كتابة أي حرف أو رقم */}
           {showSearchSuggestions && searchTerm.trim().length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl border border-slate-200 shadow-2xl z-[100] overflow-hidden divide-y divide-border-primary/30 max-h-96 overflow-y-auto">
-              <div className="px-3.5 py-2 bg-slate-50 flex items-center justify-between text-[11px] font-bold text-light">
+            <div className="absolute left-0 right-0 top-full z-[100] mt-2 max-h-96 overflow-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl divide-y divide-slate-200">
+              <div className="flex items-center justify-between bg-slate-50 px-3.5 py-2 text-[11px] font-bold text-slate-600">
                 <span>اقتراحات البحث الذكي ({searchSuggestions.length} صنف)</span>
-                <span className="text-[10px] text-blue-600 font-extrabold">اضغط لاختيار الصنف</span>
+                <span className="text-[10px] font-extrabold text-blue-600">اضغط لاختيار الصنف</span>
               </div>
 
               {searchSuggestions.length > 0 ? (
@@ -1409,15 +1405,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </table>
       </div>
 
-      {/* 4b. Product Cards Grid (Mobile) — نفس الأعمدة归类 في كروت */}
-      <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+      {/* 4b. Product Cards Grid (Mobile) — تصميم احترافي ومريح للعين على الهواتف */}
+      <div className="lg:hidden grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 sm:gap-4">
         {paginatedProducts.map((p, idx) => {
           const branchStock = getProductBranchStock(p);
           const octoberStock = p.mainWarehouseActual || 0;
           const isFav = Boolean(favorites[p.id]);
           const currentQty = cardQuantities[p.id] || 1;
           const isElectrical = isProductElectrical(p);
-          // سعر واحد متسق: صنف شدة 1 = سعر قطعة، وغيره = سعر كرتونة (قطعة × شدة).
           const priceInfo = resolveDisplayPrice({
             piecePrice: p.piecePrice ?? p.salesPrice,
             cartonPrice: p.cartonPrice,
@@ -1425,7 +1420,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           });
           const displayName = stripPlaceholderText(p.name);
 
-          // Status Badge
           let statusBadge = (
             <span className="px-2.5 py-1 rounded-full whitespace-nowrap shrink-0 text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shadow-xs">
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
@@ -1452,18 +1446,17 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           return (
             <div
               key={p.id}
-              className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs hover:shadow-md transition p-4 flex flex-col justify-between space-y-3 group"
+              className="group flex flex-col justify-between space-y-3 rounded-[28px] border border-slate-200/80 bg-gradient-to-br from-white via-slate-50 to-slate-100 p-3.5 shadow-[0_10px_25px_rgba(15,23,42,0.08)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_32px_rgba(15,23,42,0.12)] dark:border-slate-800 dark:bg-gradient-to-br dark:from-[#111b2a] dark:via-[#0f172a] dark:to-[#0d1320]"
             >
-              {/* Card Top Row: Status Badge (يمين) + Sector Chip + Favorite (يسار) */}
-              <div className="flex items-center justify-between gap-1.5">
+              <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="shrink-0">{statusBadge}</span>
                   {isElectrical ? (
-                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 text-[10px] font-black">
+                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
                       ⚡ كهرباء
                     </span>
                   ) : (
-                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 text-[10px] font-black">
+                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap rounded-lg border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
                       🏠 منزلي
                     </span>
                   )}
@@ -1473,19 +1466,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   type="button"
                   onClick={() => toggleFavorite(p.id)}
                   aria-label="إضافة للمفضلة"
-                  className={`w-9 h-9 rounded-2xl border flex items-center justify-center transition cursor-pointer shrink-0 ${
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border transition ${
                     isFav
-                      ? 'bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-950/40'
-                      : 'border-slate-200 text-slate-400 hover:text-slate-800 dark:border-slate-700 dark:text-slate-400 bg-white dark:bg-slate-800'
+                      ? 'border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-900/60 dark:bg-rose-950/40'
+                      : 'border-slate-200 bg-white text-slate-400 hover:text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
                   }`}
                 >
                   <Heart className={`w-4 h-4 ${isFav ? 'fill-rose-600' : ''}`} />
                 </button>
               </div>
 
-              {/* Product Image */}
               <div
-                className="w-full aspect-square rounded-2xl bg-slate-50/80 dark:bg-slate-800/40 flex items-center justify-center p-3 overflow-hidden cursor-pointer group-hover:scale-[1.02] transition-transform"
+                className="flex aspect-square w-full cursor-pointer items-center justify-center overflow-hidden rounded-[22px] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-sky-50 p-3 shadow-inner transition-transform duration-200 group-hover:scale-[1.01] dark:border-slate-700 dark:from-slate-800/80 dark:via-slate-900/60 dark:to-slate-800/50"
                 onClick={() => {
                   const img = getProductImageUrl(p, cloudinaryConfig);
                   if (img && !img.startsWith('data:image/svg+xml')) {
@@ -1504,60 +1496,57 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 />
               </div>
 
-              {/* Product Title & Department */}
-              <div className="text-center space-y-1">
-                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold leading-tight">
+              <div className="space-y-1 text-center">
+                <div className="text-[10px] font-bold leading-tight text-slate-500 dark:text-slate-400">
                   {stripPlaceholderText(p.department) || stripPlaceholderText(p.itemGroup) || 'عام'}
                   {stripPlaceholderText(p.familyName) ? ` • ${stripPlaceholderText(p.familyName)}` : ''}
                 </div>
                 <h3
                   onClick={() => setSelectedProductForModal(p)}
-                  className="font-black text-slate-900 dark:text-white text-sm leading-snug line-clamp-2 min-h-[38px] hover:text-teal-600 cursor-pointer transition"
+                  className="min-h-[38px] cursor-pointer text-sm font-black leading-snug text-slate-900 transition hover:text-teal-600 dark:text-white"
                   title={displayName}
                 >
                   {displayName || `صنف ${p.code}`}
                 </h3>
-                <div className="text-xs text-slate-500 dark:text-slate-400 font-bold flex items-center justify-center gap-2">
+                <div className="flex flex-wrap items-center justify-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
                   {priceInfo.displayPrice > 0 ? (
-                    <span className="text-slate-900 dark:text-white font-black text-sm">
-                      {formatCurrency(priceInfo.displayPrice)}{' '}
-                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">/ {priceInfo.unitLabel}</span>
+                    <span className="text-sm font-black text-slate-900 dark:text-white">
+                      {formatCurrency(priceInfo.displayPrice)}
+                      <span className="ml-1 text-[11px] font-normal text-slate-500 dark:text-slate-400">/ {priceInfo.unitLabel}</span>
                     </span>
                   ) : (
                     '—'
                   )}
                   {priceInfo.factor > 1 ? (
-                    <span className="text-teal-800 bg-teal-50 dark:bg-teal-950/40 dark:text-teal-300 border border-teal-200 dark:border-teal-800 px-2 py-0.5 rounded-md text-[10px] font-black">
+                    <span className="rounded-md border border-teal-200 bg-teal-50 px-2 py-0.5 text-[10px] font-black text-teal-800 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-300">
                       {priceInfo.factor} ق/ك
                     </span>
                   ) : null}
                   {stripPlaceholderText(p.size) && (
-                    <span className="text-slate-400 text-[10px]">({stripPlaceholderText(p.size)})</span>
+                    <span className="text-[10px] text-slate-400">({stripPlaceholderText(p.size)})</span>
                   )}
                 </div>
               </div>
 
-              {/* Codes Row: كود المنتج (Item number) + الكود الموحد */}
               <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl p-2">
-                  <span className="text-[10px] text-slate-400 block font-bold mb-0.5">كود المنتج</span>
-                  <span className="font-mono font-black text-slate-900 dark:text-white text-xs truncate block" title={p.code}>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/80">
+                  <span className="mb-0.5 block text-[10px] font-bold text-slate-400">كود المنتج</span>
+                  <span className="block truncate font-mono text-xs font-black text-slate-900 dark:text-white" title={p.code}>
                     {p.code || 'PRD—'}
                   </span>
                 </div>
-                <div className="bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl p-2">
-                  <span className="text-[10px] text-slate-400 block font-bold mb-0.5">الكود الموحد</span>
-                  <span className="font-mono font-black text-teal-700 dark:text-teal-400 text-xs truncate block" title={p.unifiedCode}>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/80">
+                  <span className="mb-0.5 block text-[10px] font-bold text-slate-400">الكود الموحد</span>
+                  <span className="block truncate font-mono text-xs font-black text-teal-700 dark:text-teal-400" title={p.unifiedCode}>
                     {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
                   </span>
                 </div>
               </div>
 
-              {/* Stock Row: 8 Warehouses or Default 2 */}
               {showAllWarehouses ? (
-                <div className="space-y-1 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-2xl p-2.5">
-                  <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 mb-1 flex items-center justify-between">
-                    <span>🏢 أرصدة المخازن:</span>
+                <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 p-2.5 dark:border-slate-700 dark:bg-slate-800/60">
+                  <div className="mb-1 flex items-center justify-between text-[10px] font-black text-slate-500 dark:text-slate-400">
+                    <span>🏢 أرصدة المخازن</span>
                   </div>
                   <div className="grid grid-cols-4 gap-1.5 text-center">
                     {COMPANY_WAREHOUSES.map((wh) => {
@@ -1565,16 +1554,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       return (
                         <div
                           key={wh.key}
-                          className={`rounded-xl p-1 border text-[10px] ${
+                          className={`rounded-xl border p-1 text-[10px] ${
                             stock > 0
                               ? wh.isCentral
-                                ? 'bg-blue-50 border-blue-200 text-blue-900 font-bold dark:bg-blue-950/40 dark:text-blue-300'
-                                : 'bg-emerald-50 border-emerald-200 text-emerald-900 font-bold dark:bg-emerald-950/40 dark:text-emerald-300'
-                              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-400'
+                                ? 'border-blue-200 bg-blue-50 text-blue-900 font-bold dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300'
+                                : 'border-emerald-200 bg-emerald-50 text-emerald-900 font-bold dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                              : 'border-slate-200 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-800'
                           }`}
                         >
-                          <div className="text-[9px] truncate">{wh.shortLabel}</div>
-                          <div className="font-mono font-black text-xs">{stock}</div>
+                          <div className="truncate text-[9px]">{wh.shortLabel}</div>
+                          <div className="font-mono text-xs font-black">{stock}</div>
                         </div>
                       );
                     })}
@@ -1582,51 +1571,50 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2 text-center">
-                  <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-2.5 text-emerald-800 dark:text-emerald-300">
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-2.5 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
                     <div className="flex items-center justify-center gap-1 text-[11px] font-black text-emerald-700 dark:text-emerald-400">
                       <Store className="w-3.5 h-3.5" />
                       <span>مخزون الفرع</span>
                     </div>
-                    <div className="text-base font-black font-mono mt-0.5">{branchStock}</div>
+                    <div className="mt-0.5 font-mono text-base font-black">{branchStock}</div>
                   </div>
-                  <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-2xl p-2.5 text-blue-800 dark:text-blue-300">
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-2.5 text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300">
                     <div className="flex items-center justify-center gap-1 text-[11px] font-black text-blue-700 dark:text-blue-400">
                       <Calendar className="w-3.5 h-3.5" />
                       <span>مخزون أكتوبر</span>
                     </div>
-                    <div className="text-base font-black font-mono mt-0.5">{octoberStock}</div>
+                    <div className="mt-0.5 font-mono text-base font-black">{octoberStock}</div>
                   </div>
                 </div>
               )}
 
-              {/* Action Row: إضافة للفاتورة + عداد الكمية */}
-              <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-800">
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="space-y-2 border-t border-slate-100 pt-2 dark:border-slate-800">
+                <div className="flex items-stretch gap-2">
                   <button
                     type="button"
                     onClick={() => handleAddToCart(p)}
-                    className="flex-1 min-h-[44px] bg-[#0f2b38] hover:bg-[#00827a] text-white font-black py-2.5 px-3 rounded-2xl flex items-center justify-center gap-1.5 text-xs whitespace-nowrap shadow-sm transition active:scale-95 cursor-pointer"
+                    className="flex min-h-[46px] flex-1 items-center justify-center gap-1.5 rounded-2xl bg-[#0f2b38] px-3 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-[#00827a] active:scale-[0.98]"
                   >
-                    <ShoppingCart className="w-4 h-4 text-teal-300" />
+                    <ShoppingCart className="h-4 w-4 text-teal-300" />
                     <span>إضافة للفاتورة</span>
                   </button>
 
-                  <div className="flex items-center justify-between border border-slate-200 dark:border-slate-700 rounded-2xl bg-slate-50 dark:bg-slate-800 overflow-hidden w-full sm:w-28 shrink-0 min-h-[44px]">
+                  <div className="flex min-h-[46px] w-[120px] shrink-0 items-center justify-between overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800">
                     <button
                       type="button"
                       onClick={() => handleQtyChange(p.id, 1)}
-                      className="w-10 h-full flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-bold transition cursor-pointer"
+                      className="flex h-full w-10 items-center justify-center text-sm font-bold text-slate-700 transition hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
                       aria-label="زيادة الكمية"
                     >
                       +
                     </button>
-                    <span className="flex-1 text-center font-black text-slate-900 dark:text-white text-xs font-mono">
+                    <span className="flex-1 text-center text-xs font-black text-slate-900 dark:text-white font-mono">
                       {currentQty}
                     </span>
                     <button
                       type="button"
                       onClick={() => handleQtyChange(p.id, -1)}
-                      className="w-10 h-full flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 text-sm font-bold transition cursor-pointer"
+                      className="flex h-full w-10 items-center justify-center text-sm font-bold text-slate-700 transition hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
                       aria-label="تقليل الكمية"
                     >
                       -

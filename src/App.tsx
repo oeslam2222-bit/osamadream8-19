@@ -77,13 +77,13 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
 
 // Lightweight Skeleton for tab transitions
 const TabLoadingSkeleton = () => (
-  <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[350px] space-y-4 animate-in fade-in">
-    <div className="w-12 h-12 rounded-2xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] flex items-center justify-center animate-spin">
+  <div className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.16),_transparent_40%),_linear-gradient(180deg,_rgba(15,23,42,0.92),_rgba(15,23,42,0.98))] p-8 shadow-[0_20px_45px_rgba(2,6,23,0.38)] flex flex-col items-center justify-center min-h-[350px] space-y-4 animate-in fade-in">
+    <div className="w-12 h-12 rounded-2xl bg-[rgba(245,158,11,0.16)] text-[var(--app-warn)] ring-1 ring-[rgba(245,158,11,0.35)] flex items-center justify-center animate-spin">
       <Loader2 className="w-6 h-6" />
     </div>
     <div className="text-center">
-      <h3 className="font-black text-slate-800 text-sm">جاري تحميل البيانات...</h3>
-      <p className="text-xs text-slate-500 mt-1">يتم جلب محتويات القسم وتجهيزها بأعلى سرعة</p>
+      <h3 className="font-black text-white text-sm">جاري تحميل البيانات...</h3>
+      <p className="text-xs text-slate-300 mt-1">يتم جلب محتويات القسم وتجهيزها بأعلى سرعة</p>
     </div>
   </div>
 );
@@ -105,9 +105,9 @@ const MainLayout: React.FC = () => {
   const [isDark, setIsDark] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem("tantawy_dark_mode");
-      return saved === "true";
+      return saved === null ? true : saved === "true";
     } catch {
-      return false;
+      return true;
     }
   });
 
@@ -200,7 +200,7 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className={`tantawy-shell ${isSidebarCollapsed ? 'sidebar-collapsed' : ''} min-h-[100dvh] bg-slate-100 flex flex-col text-slate-900 font-sans antialiased selection:bg-[var(--app-warn)] selection:text-slate-950`} dir="rtl">
+    <div className={`tantawy-shell ${isSidebarCollapsed ? 'sidebar-collapsed' : ''} min-h-[100dvh] bg-[var(--app-bg)] flex flex-col text-[var(--app-text)] font-sans antialiased selection:bg-[var(--app-warn)] selection:text-slate-950`} dir="rtl">
       {/* Splash Screen - shown on first app load */}
       <SplashScreen
         isOpen={splashOpen}
@@ -232,7 +232,7 @@ const MainLayout: React.FC = () => {
       />
 
       {/* Content Container - Fluid responsive container with min-w-0 to prevent overflow */}
-      <main className="flex-1 w-full max-w-[1440px] mx-auto px-2.5 sm:px-4 lg:px-6 py-3 sm:py-5 pb-24 md:pb-10 min-w-0">
+      <main className="flex-1 w-full max-w-[1440px] mx-auto px-2.5 sm:px-4 lg:px-6 py-3 sm:py-5 pb-24 md:pb-10 min-w-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.08),_transparent_34%),_linear-gradient(180deg,_rgba(10,14,20,0.78),_rgba(10,14,20,0.9))]">
         <Suspense fallback={<TabLoadingSkeleton />}>
           {activeTab === 'home' && allowedTabs.includes('home') && (
             <DashboardHome
@@ -329,12 +329,12 @@ const MainLayout: React.FC = () => {
       </Suspense>
 
       {/* Bottom Footer */}
-      <footer className="bg-white border-t border-slate-200 py-4 px-4 text-center text-xs text-slate-500 print:hidden mb-16 md:mb-0">
+      <footer className="border-t border-white/10 bg-[linear-gradient(180deg,_rgba(9,15,24,0.94),_rgba(15,23,42,0.98))] py-4 px-4 text-center text-xs text-[var(--app-muted)] print:hidden mb-16 md:mb-0 shadow-[0_-10px_30px_rgba(2,6,23,0.2)]">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="font-black text-slate-900">مجموعة الطنطاوي للتجارة والتوزيع (TANTAWY GROUP)</span>
-            <span className="text-slate-300">|</span>
-            <span>نظام إدارة المبيعات والمخازن والربط السحابي وتوفير الباقة</span>
+            <span className="font-black text-white">مجموعة الطنطاوي للتجارة والتوزيع (TANTAWY GROUP)</span>
+            <span className="text-slate-400">|</span>
+            <span className="text-slate-300">نظام إدارة المبيعات والمخازن والربط السحابي وتوفير الباقة</span>
           </div>
           <div className="text-[11px] text-slate-400">
             مستند للفاتورة الإلكترونية المصرية • يدعم العمل بدون إنترنت وتثبيت التطبيق PWA

@@ -62,7 +62,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   return (
     <div
       dir="rtl"
-      className="login-canvas-v2 min-h-screen antialiased selection:bg-[rgba(201,154,67,.28)] bg-[#0a1628] text-slate-900"
+      className="login-canvas-v2 min-h-screen antialiased selection:bg-[rgba(201,154,67,.28)] bg-[#091827] text-slate-100"
     >
       {/* Background accents - تدرجات خلفية خفيفة */}
       <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
@@ -76,10 +76,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
         
         {/* Right: Login Card (white) - على اليمين للموبايل وسطح المكتب */}
         <div className="lg:w-1/2 w-full flex items-center justify-center p-3 sm:p-6 max-w-[520px]">
-          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 p-6 sm:p-8 flex flex-col">
+          <div className="w-full max-w-md bg-[#0f2138] rounded-3xl shadow-[0_20px_60px_rgba(2,6,23,0.45)] border border-white/10 p-6 sm:p-8 flex flex-col">
             {/* Logo */}
             <div className="flex items-center justify-center mb-6">
-              <div className="w-16 h-16 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center shadow-sm overflow-hidden">
+              <div className="w-16 h-16 rounded-full bg-[#122843] border border-white/10 flex items-center justify-center shadow-sm overflow-hidden">
                 <img
                   src="/tantawy-brand-logo.svg?v=3.1"
                   alt="Tantawy Group"
@@ -90,20 +90,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
 
             {/* Title */}
             <div className="text-center mb-8">
-              <h2 className="text-2xl font-black text-slate-900 mb-1 tracking-tight">
-                مندرج<span className="text-[#009488]"> دريم</span>
+              <h2 className="text-2xl font-black text-white mb-1 tracking-tight">
+                مندرج<span className="text-[#5fe4cd]"> دريم</span>
               </h2>
-              <p className="text-xs font-bold text-[#009488] uppercase tracking-widest mt-2">
+              <p className="text-xs font-bold text-[#5fe4cd] uppercase tracking-widest mt-2">
                 مجموعة الطنطاوي
               </p>
-              <p className="text-[11px] text-slate-500 leading-relaxed max-w-xs mx-auto mt-3">
+              <p className="text-[11px] text-slate-300 leading-relaxed max-w-xs mx-auto mt-3">
                 مرحباً بك في نظام مندرج دريم، يرجى تسجيل الدخول للمنظومة
               </p>
             </div>
 
             {/* Error message */}
             {loginError && (
-              <div className="mb-6 p-3 rounded-xl bg-rose-50/70 border border-rose-200/60 text-rose-800 text-sm font-bold text-right">
+              <div className="mb-6 p-3 rounded-xl bg-rose-500/10 border border-rose-400/30 text-rose-200 text-sm font-bold text-right">
                 <AlertCircle className="w-4 h-4 inline mr-2" />
                 {loginError}
               </div>
@@ -112,7 +112,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
             <form onSubmit={handleLoginSubmit} className="flex flex-col gap-4">
               {/* Username field */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-600 text-right">
+                <label className="block text-xs font-bold text-slate-300 text-right">
                   البريد الإلكتروني أو اسم المستخدم
                 </label>
                 <div className="relative group">
@@ -123,15 +123,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                     placeholder="مثال: osama@dream.com أو osama"
                     required
                     autoComplete="username"
-                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus-ring-[#009488]/50 focus:border-transparent outline-none transition-all font-medium text-sm placeholder-slate-400"
+                    className="w-full h-11 pl-10 pr-4 bg-[#11263f] border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-[#5fe4cd]/60 focus:border-transparent outline-none transition-all font-medium text-sm placeholder:text-slate-400"
                   />
-                  <UserIcon className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#009488] transition-colors" />
+                  <UserIcon className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#5fe4cd] transition-colors" />
                 </div>
               </div>
 
               {/* Password field */}
               <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-600 text-right">
+                <label className="block text-xs font-bold text-slate-300 text-right">
                   كلمة المرور
                 </label>
                 <div className="relative group">
@@ -142,13 +142,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
                     placeholder="أدخل كلمة المرور المسجلة بقاعدة البيانات"
                     required
                     autoComplete="current-password"
-                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:ring-2 focus-ring-[#009488]/50 focus:border-transparent outline-none transition-all font-medium text-sm placeholder-slate-400"
+                    className="w-full h-11 pl-10 pr-4 bg-[#11263f] border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-[#5fe4cd]/60 focus:border-transparent outline-none transition-all font-medium text-sm placeholder:text-slate-400"
                   />
-                  <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#009488] transition-colors" />
+                  <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 group-focus-within:text-[#5fe4cd] transition-colors" />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="text-slate-400 hover:text-[#009488] absolute left-3 top-1/2 -translate-y-1/2 transition-colors p-1"
+                    className="text-slate-400 hover:text-[#5fe4cd] absolute left-3 top-1/2 -translate-y-1/2 transition-colors p-1"
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
@@ -156,10 +156,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
               </div>
 
               {/* Remember me */}
-              <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] text-slate-600 text-sm">
+              <label className="flex items-center gap-2 cursor-pointer select-none text-[11px] text-slate-300 text-sm">
                 <input
                   type="checkbox"
-                  className="w-3.5 h-3.5 rounded border-slate-300 text-[#009488] focus:ring-[#009488] bg-white"
+                  className="w-3.5 h-3.5 rounded border-slate-500 text-[#5fe4cd] focus:ring-[#5fe4cd] bg-[#11263f]"
                   defaultChecked
                 />
                 تذكرني على هذا الجهاز
