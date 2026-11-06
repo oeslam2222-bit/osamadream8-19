@@ -140,6 +140,7 @@ export interface AppContextType {
   syncTargetsIncrementally: () => Promise<{ success: boolean; message?: string; added?: number; updated?: number }>;
   syncProductsIncrementally: () => Promise<{ success: boolean; message?: string; added?: number; updated?: number }>;
   syncCustomerItemSalesIncrementally: () => Promise<{ success: boolean; message?: string; added?: number; updated?: number }>;
+  syncCustomersIncrementally: () => Promise<{ success: boolean; message?: string; added?: number; updated?: number }>;
   adjustStock: (productId: string, branchChange: number, mainWarehouseChange: number, reason?: string) => void;
   recordInventoryTransaction: (tx: Omit<InventoryTransaction, 'id' | 'timestamp' | 'date'>) => void;
   checkProductAvailability: (productId: string, requestedPieces: number) => { available: boolean; remainingPieces: number; message?: string };

@@ -2829,7 +2829,7 @@ export async function fetchCustomersIncremental(
 
     let maxUpdatedAt = lastTs ?? null;
     for (const r of rows) {
-      const u = r.updated_at;
+      const u = (r as any).updated_at;
       if (u && (!maxUpdatedAt || u > maxUpdatedAt)) {
         maxUpdatedAt = u;
       }
@@ -2965,6 +2965,8 @@ export async function fetchTargetsIncremental(): Promise<{
   error?: string;
   isFullFetch?: boolean;
   maxUpdatedAt?: string | null;
+  count?: number;
+  entity?: string;
 }> {
   try {
     const lastTs = getLastSyncTs('targets');
@@ -2982,7 +2984,7 @@ export async function fetchTargetsIncremental(): Promise<{
     }
     let maxUpdatedAt = lastTs ?? null;
     for (const r of rows) {
-      const u = r.updated_at;
+      const u = (r as any).updated_at;
       if (u && (!maxUpdatedAt || u > maxUpdatedAt)) maxUpdatedAt = u;
     }
     if (maxUpdatedAt) setLastSyncTs('targets', maxUpdatedAt);
@@ -3014,6 +3016,8 @@ export async function fetchProductsIncremental(): Promise<{
   error?: string;
   isFullFetch?: boolean;
   maxUpdatedAt?: string | null;
+  count?: number;
+  entity?: string;
 }> {
   try {
     const lastTs = getLastSyncTs('products');
@@ -3040,7 +3044,7 @@ export async function fetchProductsIncremental(): Promise<{
     }
     let maxUpdatedAt = lastTs ?? null;
     for (const r of rows) {
-      const u = r.updated_at;
+      const u = (r as any).updated_at;
       if (u && (!maxUpdatedAt || u > maxUpdatedAt)) maxUpdatedAt = u;
     }
     if (maxUpdatedAt) setLastSyncTs('products', maxUpdatedAt);
@@ -3069,6 +3073,8 @@ export async function fetchCustomerItemSalesIncremental(): Promise<{
   error?: string;
   isFullFetch?: boolean;
   maxUpdatedAt?: string | null;
+  count?: number;
+  entity?: string;
 }> {
   try {
     const lastTs = getLastSyncTs('customer_item_sales');
@@ -3086,7 +3092,7 @@ export async function fetchCustomerItemSalesIncremental(): Promise<{
     }
     let maxUpdatedAt = lastTs ?? null;
     for (const r of rows) {
-      const u = r.updated_at;
+      const u = (r as any).updated_at;
       if (u && (!maxUpdatedAt || u > maxUpdatedAt)) maxUpdatedAt = u;
     }
     if (maxUpdatedAt) setLastSyncTs('customer_item_sales', maxUpdatedAt);
