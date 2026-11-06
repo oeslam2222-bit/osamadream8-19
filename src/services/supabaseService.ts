@@ -581,29 +581,23 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
 
     const dedupedPayload = Array.from(new Map(payload.map((r) => [r.id, r])).values());
     const failures: string[] = [];
+    const OMITTABLE_COLUMNS = [
+      'total_overdue_and_due', 'overdue_balance', 'due_balance', 'total_overdue',
+      'deal_eligibility', 'dealt_2026', 'dealt_in_2026',
+    ];
+
     for (let i = 0; i < dedupedPayload.length; i += 100) {
       const chunk = dedupedPayload.slice(i, i + 100);
-      const { error: err1 } = await supabase.from('customers').upsert(chunk);
+      // tyto أعمدة قد تكون غير موجودة في جدول العملاء لدى العميل (لا يوجد migration)،
+      // لذلك تُحذف قبل الإرسال لمنع خطأ 400 وتكمل عملية الرفع بالأعمدة المتاحة فقط.
+      const cleanChunk = chunk.map((row: any) => {
+        const rest: any = { ...row };
+        OMITTABLE_COLUMNS.forEach((k) => delete rest[k]);
+        return rest;
+      });
+      const { error: err1 } = await supabase.from('customers').upsert(cleanChunk);
       if (err1) {
-        // The dues columns require add_customer_financial_columns.sql. Retry the
-        // chunk without them so a missing migration degrades the dues figure
-        // instead of blocking the entire customer sync.
-        if (/column .*(total_overdue_and_due|overdue_balance|due_balance|total_overdue|deal_eligibility|dealt_2026|dealt_in_2026)|schema cache/i.test(err1.message)) {
-          const legacyChunk = chunk.map((row: any) => {
-            const {
-              total_overdue_and_due, overdue_balance, due_balance, total_overdue,
-              deal_eligibility, dealt_2026, dealt_in_2026,
-              ...rest
-            } = row;
-            return rest;
-          });
-          const { error: retryErr } = await supabase.from('customers').upsert(legacyChunk);
-          if (retryErr) {
-            failures.push(retryErr.message);
-          }
-        } else {
-          failures.push(err1.message);
-        }
+        failures.push(err1.message);
       }
     }
 
@@ -2819,8 +2813,31 @@ export async function fetchCustomersIncremental(
       query = query.in('branch_name', branchFilter);
     }
 
-    const { data, error } = await query;
-    if (error) return { success: false, error: error.message };
+    const MINIMAL_CUSTOMER_COLUMNS = 'id, code, name, phone, branch_name, updated_at';
+
+    let data: any[] = [];
+    let queryError: any = null;
+
+    try {
+      const { data: fetched, error } = await query;
+      queryError = error;
+      data = fetched || [];
+    } catch (err: any) {
+      queryError = err;
+      // لو جداول العملاء ناقصة أعمدة (total_overdue, deal_eligibility ...)،
+      // إعادة المحاولة بأعمدة أساسية فقط لتحميل البيانات بدلاً من حظر الصفحة نهائياً.
+      const fallbackQuery = supabase
+        .from('customers')
+        .select(MINIMAL_CUSTOMER_COLUMNS)
+        .order('updated_at', { ascending: true, nullsFirst: false });
+      if (!isFullFetch) fallbackQuery.gt('updated_at', lastTs);
+      if (branchFilter.length > 0) fallbackQuery.in('branch_name', branchFilter);
+      const { data: fetched, error } = await fallbackQuery;
+      queryError = error;
+      data = fetched || [];
+    }
+
+    if (queryError) return { success: false, error: queryError.message };
 
     const rows = data || [];
     if (rows.length === 0) {
