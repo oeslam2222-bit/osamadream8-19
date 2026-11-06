@@ -25,6 +25,8 @@ import {
   deleteUserFromSupabase,
   deleteVisitFromSupabase,
   fetchCustomersFromSupabase,
+  fetchCustomersIncremental,
+  mergeCustomersIncremental,
   fetchCustomerContentStamp,
   fetchInvoicesFromSupabase,
   fetchProductsFromSupabase,
@@ -6840,7 +6842,42 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         adjustStock,
         recordInventoryTransaction,
         checkProductAvailability,
+  const syncCustomersIncrementally = async (): Promise<{ success: boolean; message?: string; added?: number; updated?: number }> => {
+    try {
+      const custRes = await fetchCustomersIncremental(customerFetchScope);
+      if (!custRes.success) {
+        return { success: false, message: custRes.error || 'فشل جلب العملاء من السيرفر' };
+      }
+
+      const incoming = custRes.customers || [];
+      if (incoming.length === 0) {
+        return { success: true, message: 'لا توجد عملاء جدد للتحديث', added: 0, updated: 0 };
+      }
+
+      // دمج العملاء الجدد مع الموجودين محليًا بدون استبدال الـ 5000 عميل
+      const merged = mergeCustomersIncremental(customers, incoming);
+      const linked = linkCustomersToUsers(sanitizeCustomers(merged), users);
+      const validCustomers = deduplicateCustomersArray(linked);
+
+      setCustomers(validCustomers);
+      idbSet(STORAGE_KEYS.CUSTOMERS, validCustomers).catch(() => {});
+
+      const added = custRes.isFullFetch ? validCustomers.length : incoming.length;
+      return {
+        success: true,
+        message: custRes.isFullFetch
+          ? `تم جلب ${validCustomers.length} عميل (المرة الأولى)`
+          : `تم تحديث ${incoming.length} عميل فقط`,
+        added: custRes.isFullFetch ? validCustomers.length : incoming.length,
+        updated: custRes.isFullFetch ? 0 : incoming.length,
+      };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'حدث خطأ أثناء المزامنة التراكمية' };
+    }
+  };
+
         createOrder,
+  syncCustomersIncrementally,
   approveOrder,
   resendInvoiceEmail,
   forwardOrderToManager,

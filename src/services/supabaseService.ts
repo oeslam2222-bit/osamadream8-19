@@ -2755,3 +2755,166 @@ export async function deleteCustomerCommentFromSupabase(commentId: string): Prom
     return { success: false, error: error?.message || 'فشل حذف كومنت العميل' };
   }
 }
+
+/* ============================================================
+   INCREMENTAL CUSTOMER SYNC — يمنع إعادة تحميل 5000 عميل في كل مزامنة
+   يستخدم updated_at كـ cursor: يسحب فقط العملاء الجدد أو اللي اتعدلوا
+   بعد آخر مزامنة ناجحة، ويحدثهم محلياً (Upsert) بدلًا من استبدال الكل.
+   ============================================================ */
+
+const CUSTOMER_LAST_SYNC_KEY = 'dream_dist_customers_last_sync_ts_v1';
+
+export function getLastCustomerSyncTs(): string | null {
+  try {
+    return localStorage.getItem(CUSTOMER_LAST_SYNC_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setLastCustomerSyncTs(ts: string): void {
+  try {
+    localStorage.setItem(CUSTOMER_LAST_SYNC_KEY, ts);
+  } catch {}
+}
+
+export const CUSTOMER_SELECT_COLUMNS = [
+  'id', 'code', 'name', 'store_name', 'phone', 'address', 'governorate',
+  'branch_name', 'sector', 'rep_name', 'rep_id', 'tax_number', 'tier',
+  'credit_limit', 'balance', 'current_balance', 'notes', 'last_visit_date',
+  'visit_count_2026', 'visit_history', 'sales_2026', 'total_monthly_sales',
+  'total_overall_sales', 'collections_2026', 'total_monthly_collections',
+  'total_overall_collections', 'monthly_sales_2026', 'monthly_collections_2026',
+  'sales_2025', 'collections_2025', 'overdue_2025', 'overdue_2026',
+  'due_until_period', 'opening_balance_2026', 'has_dealt_in_2026',
+  'activity_type', 'client_type', 'payment_terms', 'guarantee_docs',
+  'guarantee_amount', 'region', 'last_collection_date', 'last_collection_amount',
+  'updated_at', 'created_at',
+].join(',');
+
+
+export async function fetchCustomersIncremental(
+  scope?: CustomerFetchScope
+): Promise<{
+  success: boolean;
+  customers?: Customer[];
+  error?: string;
+  isFullFetch?: boolean;
+  maxUpdatedAt?: string | null;
+}> {
+  try {
+    const branchFilter = scope?.branchNames?.filter((b) => b && b.trim().length > 0) || [];
+    const lastTs = getLastCustomerSyncTs();
+    const isFullFetch = !lastTs;
+
+    let query = supabase
+      .from('customers')
+      .select(CUSTOMER_SELECT_COLUMNS)
+      .order('updated_at', { ascending: true, nullsFirst: false });
+
+    if (!isFullFetch) {
+      query = query.gt('updated_at', lastTs);
+    }
+    if (branchFilter.length > 0) {
+      query = query.in('branch_name', branchFilter);
+    }
+
+    const { data, error } = await query;
+    if (error) return { success: false, error: error.message };
+
+    const rows = data || [];
+    if (rows.length === 0) {
+      return { success: true, customers: [], isFullFetch, maxUpdatedAt: lastTs };
+    }
+
+    let maxUpdatedAt = lastTs ?? null;
+    for (const r of rows) {
+      const u = r.updated_at;
+      if (u && (!maxUpdatedAt || u > maxUpdatedAt)) {
+        maxUpdatedAt = u;
+    const mapped: Customer[] = rows.map((c: any, idx: number) => {
+      return {
+        id: c.id || `cust-${idx + 1}`,
+        code: c.code || `CUST-${1000 + idx + 1}`,
+        name: c.name || '',
+        storeName: c.store_name || c.storeName || c.name || '',
+        phone: c.phone || c.mobile || '',
+        address: c.address || c.region || c.city || '',
+        governorate: c.governorate || '',
+        branchName: c.branch_name || c.branchName || '',
+        sector: ['home', 'electrical', 'both', 'all'].includes(c.sector) ? c.sector : undefined,
+        repName: c.rep_name || c.repName || '',
+        salesRepName: c.rep_name || c.repName || '',
+        repId: c.rep_id || c.repId || '',
+        taxNumber: c.tax_number || c.taxNumber || '',
+        tier: c.tier || 'نشيط',
+        creditLimit: Number(c.credit_limit ?? c.creditLimit ?? 0),
+        balance: Number(c.balance ?? c.current_balance ?? 0),
+        currentBalance: Number(c.current_balance ?? c.balance ?? 0),
+        notes: c.notes || '',
+        lastVisitDate: c.last_visit_date || c.lastVisitDate || undefined,
+        visitCount2026: c.visit_count_2026 !== undefined ? Number(c.visit_count_2026) : undefined,
+        visitHistory: c.visit_history
+          ? typeof c.visit_history === 'string'
+            ? JSON.parse(c.visit_history)
+            : c.visit_history
+          : undefined,
+        createdAt: c.created_at || new Date().toISOString(),
+        sales2026: Number(c.sales_2026 || c.sales2026 || 0),
+        totalMonthlySales: Number(c.total_monthly_sales || c.totalMonthlySales || c.sales_2026 || 0),
+        totalOverallSales: Number(c.total_overall_sales || c.totalOverallSales || 0),
+        collections2026: Number(c.collections_2026 || c.collections2026 || 0),
+        totalMonthlyCollections: Number(c.total_monthly_collections || c.totalMonthlyCollections || 0),
+        totalOverallCollections: Number(c.total_overall_collections || c.totalOverallCollections || 0),
+        sales2025: c.sales_2025 !== undefined ? Number(c.sales_2025) : null,
+        collections2025: c.collections_2025 !== undefined ? Number(c.collections_2025) : null,
+        overdue2025: c.overdue_2025 !== undefined ? Number(c.overdue_2025) : null,
+        overdue2026: c.overdue_2026 !== undefined ? Number(c.overdue_2026) : null,
+        dueUntilPeriod: c.due_until_period !== undefined ? Number(c.due_until_period) : null,
+        openingBalance2026: c.opening_balance_2026 !== undefined ? Number(c.opening_balance_2026) : null,
+        hasDealtIn2026: c.has_dealt_in_2026 !== undefined ? Boolean(c.has_dealt_in_2026) : undefined,
+        totalOverdue: c.total_overdue !== undefined ? Number(c.total_overdue) : 0,
+        totalOverdueAndDue: c.total_overdue_and_due !== undefined ? Number(c.total_overdue_and_due) : undefined,
+        overdueBalance: c.overdue_balance !== undefined ? Number(c.overdue_balance) : undefined,
+        dueBalance: c.due_balance !== undefined ? Number(c.due_balance) : undefined,
+        dealEligibility: c.deal_eligibility || undefined,
+        dealt2026: c.dealt_2026 || null,
+        dealtIn2026: c.dealt_in_2026 !== undefined ? Boolean(c.dealt_in_2026) : undefined,
+        activityType: c.activity_type || null,
+        clientType: c.client_type || null,
+        paymentTerms: c.payment_terms || null,
+        guaranteeDocs: c.guarantee_docs || null,
+        guaranteeAmount: Number(c.guarantee_amount || 0),
+        region: c.region || c.district || c.route || null,
+        lastCollectionDate: c.last_collection_date || null,
+        lastCollectionAmount: Number(c.last_collection_amount || 0),
+      };
+    });
+
+    return {
+      success: true,
+      customers: mapped,
+      isFullFetch,
+      maxUpdatedAt,
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || 'فشل في المزامنة التراكمية للعملاء',
+    };
+  }
+}
+
+export function mergeCustomersIncremental(
+  existing: Customer[],
+  incoming: Customer[]
+): Customer[] {
+  const byId = new Map<string, Customer>();
+  existing.forEach((c) => byId.set(c.id, c));
+  incoming.forEach((c) => byId.set(c.id, c));
+  return Array.from(byId.values());
+}
+
+      }
+    }
+    if (maxUpdatedAt) setLastCustomerSyncTs(maxUpdatedAt);
