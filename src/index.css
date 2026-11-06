@@ -2228,7 +2228,7 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
 .dark .border-slate-200 { border-color: #22344d !important; }
 .dark .border-slate-100 { border-color: #1a293e !important; }
 .dark .border-slate-300 { border-color: #2a3f5d !important; }
-.dark .border-[color:var(--app-line)] { border-color: #22344d !important; }
+.dark { border-color: var(--app-line) !important; }
 
 /* Dark mode: Inputs & Form elements */
 .dark input:not(.ord-step-val), .dark select, .dark textarea {
