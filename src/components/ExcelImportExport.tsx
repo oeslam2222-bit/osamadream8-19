@@ -102,6 +102,9 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
     wipeAllProductsAndData,
     selectedBranchFilter,
     syncCustomersIncrementally,
+    syncTargetsIncrementally,
+    syncProductsIncrementally,
+    syncCustomerItemSalesIncrementally,
   } = useApp();
 
   // دليل العملاء المحدَّث دائماً: "مزامنة الكل" بتنفذ أكثر من استيراد في نفس الدورة،
@@ -1080,6 +1083,7 @@ function onEdit(e) {
 
             {/* مزامنة العملاء التراكمية من السيرفر — للمطور والدعم الفني فقط */}
             {isDevOrSupport && (
+              <>
               <button
                 type="button"
                 onClick={async () => {
@@ -1093,9 +1097,61 @@ function onEdit(e) {
                 className="bg-[#1e3a8a] hover:bg-[#1e408f] text-white font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 title="يسحب فقط العملاء الجدد أو اللي اتعدلوا منذ آخر مزامنة (لا يستبدل الـ 5000 عميل)"
               >
-                <RefreshCw className="w-4 h-4" />
-                <span>مزامنة العملاء من السيرفر (تراكمي)</span>
-              </button>
+              <RefreshCw className="w-4 h-4" />
+              <span>مزامنة العملاء من السيرفر (تراكمي)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                const res = await syncTargetsIncrementally();
+                alert(
+                  res.success
+                    ? res.message || 'تم مزامنة الأهداف من السيرفر بنجاح'
+                    : 'فشل المزامنة: ' + (res.message || 'خطأ غير معروف')
+                );
+              }}
+              className="bg-[#1e3a8a] hover:bg-[#1e408f] text-white font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              title="يسحب فقط الأهداف الجدد أو اللي اتعدلوا منذ آخر مزامنة"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>مزامنة الأهداف من السيرفر (تراكمي)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                const res = await syncProductsIncrementally();
+                alert(
+                  res.success
+                    ? res.message || 'تم مزامنة الأصناف من السيرفر بنجاح'
+                    : 'فشل المزامنة: ' + (res.message || 'خطأ غير معروف')
+                );
+              }}
+              className="bg-[#1e3a8a] hover:bg-[#1e408f] text-white font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              title="يسحب فقط الأصناف الجدد أو اللي اتعدلوا منذ آخر مزامنة (بما في ذلك أسعار العروض)"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>مزامنة الأصناف والعروض من السيرفر (تراكمي)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                const res = await syncCustomerItemSalesIncrementally();
+                alert(
+                  res.success
+                    ? res.message || 'تم مزامنة مبيعات الأصناف من السيرفر بنجاح'
+                    : 'فشل المزامنة: ' + (res.message || 'خطأ غير معروف')
+                );
+              }}
+              className="bg-[#1e3a8a] hover:bg-[#1e408f] text-white font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              title="يسحب فقط سجلات مبيعات الأصناف الجدد أو اللي اتعدلوا منذ آخر مزامنة"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>مزامنة مبيعات الأصناف من السيرفر (تراكمي)</span>
+            </button>
+              </>
             )}
           </div>
 

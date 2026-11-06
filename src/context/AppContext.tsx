@@ -3,6 +3,7 @@ import { COMPANY_INFO, INITIAL_AUDIT_LOGS, INITIAL_BRANCHES, INITIAL_USERS } fro
 import { DEFAULT_CLOUDINARY_CONFIG } from '../services/cloudinaryService';
 import { clearCachedImages } from '../services/imageCacheService';
 import { idbClear, idbDelete, idbGet, idbSet, debouncedIdbSet, safeLocalStorageSet } from '../services/storageService';
+import { saveCustomerItemSales } from '../services/customerItemSalesService';
 import {
   doesCustomerBelongToBranch,
   doesCustomerBelongToRep,
@@ -30,7 +31,11 @@ import {
   fetchCustomerContentStamp,
   fetchInvoicesFromSupabase,
   fetchProductsFromSupabase,
+  fetchProductsIncremental,
+  mergeProductsIncremental,
   fetchTargetsFromSupabase,
+  fetchTargetsIncremental,
+  mergeTargetsIncremental,
   fetchVisitsFromSupabase,
   saveTargetsToSupabase,
   saveVisitsToSupabase,
@@ -55,6 +60,8 @@ import {
   saveCustomerToSupabase,
   deleteCustomerFromSupabase,
   saveProductsToSupabase,
+  fetchCustomerItemSalesIncremental,
+  mergeCustomerItemSalesIncremental,
   saveUsersToSupabase,
   saveUserToSupabase,
   supabase,
@@ -6876,8 +6883,87 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
   };
 
+  const syncTargetsIncrementally = async (): Promise<{ success: boolean; message?: string; added?: number; updated?: number }> => {
+    try {
+      const res = await fetchTargetsIncremental();
+      if (!res.success) {
+        return { success: false, message: res.error || 'فشل جلب الأهداف من السيرفر' };
+      }
+      const incoming = res.targets || [];
+      if (incoming.length === 0) {
+        return { success: true, message: 'لا توجد أهداف جديدة للتحديث', added: 0, updated: 0 };
+      }
+      const merged = mergeTargetsIncremental(targets, incoming);
+      setTargets(merged);
+      try { localStorage.setItem(STORAGE_KEYS.TARGETS, JSON.stringify(merged)); } catch {}
+      return {
+        success: true,
+        message: res.isFullFetch
+          ? `تم جلب ${merged.length} هدف (المرة الأولى)`
+          : `تم تحديث ${incoming.length} هدف فقط`,
+        added: res.isFullFetch ? merged.length : incoming.length,
+        updated: res.isFullFetch ? 0 : incoming.length,
+      };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'حدث خطأ أثناء مزامنة الأهداف' };
+    }
+  };
+
+  const syncProductsIncrementally = async (): Promise<{ success: boolean; message?: string; added?: number; updated?: number }> => {
+    try {
+      const res = await fetchProductsIncremental();
+      if (!res.success) {
+        return { success: false, message: res.error || 'فشل جلب الأصناف من السيرفر' };
+      }
+      const incoming = res.products || [];
+      if (incoming.length === 0) {
+        return { success: true, message: 'لا توجد أصناف جديدة للتحديث', added: 0, updated: 0 };
+      }
+      const merged = mergeProductsIncremental(products, incoming);
+      setProducts(merged);
+      idbSet(STORAGE_KEYS.PRODUCTS, merged).catch(() => {});
+      return {
+        success: true,
+        message: res.isFullFetch
+          ? `تم جلب ${merged.length} صنف (المرة الأولى)`
+          : `تم تحديث ${incoming.length} صنف فقط`,
+        added: res.isFullFetch ? merged.length : incoming.length,
+        updated: res.isFullFetch ? 0 : incoming.length,
+      };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'حدث خطأ أثناء مزامنة الأصناف' };
+    }
+  };
+
+  const syncCustomerItemSalesIncrementally = async (): Promise<{ success: boolean; message?: string; added?: number; updated?: number }> => {
+    try {
+      const res = await fetchCustomerItemSalesIncremental();
+      if (!res.success) {
+        return { success: false, message: res.error || 'فشل جلب مبيعات الأصناف من السيرفر' };
+      }
+      const incoming = res.sales || [];
+      if (incoming.length === 0) {
+        return { success: true, message: 'لا توجد مبيعات أصناف جديدة للتحديث', added: 0, updated: 0 };
+      }
+      await saveCustomerItemSales(incoming, 'merge');
+      return {
+        success: true,
+        message: res.isFullFetch
+          ? `تم جلب ${incoming.length} سجل مبيعات صنف (المرة الأولى)`
+          : `تم تحديث ${incoming.length} سجل مبيعات صنف فقط`,
+        added: res.isFullFetch ? incoming.length : incoming.length,
+        updated: res.isFullFetch ? 0 : incoming.length,
+      };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'حدث خطأ أثناء مزامنة مبيعات الأصناف' };
+    }
+  };
+
         createOrder,
   syncCustomersIncrementally,
+  syncTargetsIncrementally,
+  syncProductsIncrementally,
+  syncCustomerItemSalesIncrementally,
   approveOrder,
   resendInvoiceEmail,
   forwardOrderToManager,
