@@ -33,6 +33,7 @@ import { UserManager } from './components/UserManager';
 import { SystemWorkflowGuide } from './components/SystemWorkflowGuide';
 import { TargetPerformanceDashboard } from './components/TargetPerformanceDashboard';
 import { VisitsDashboard } from './components/VisitsDashboard';
+import { CollectionRecoveryDashboard } from './components/CollectionRecoveryDashboard';
 import { UnifiedReturnsView } from './components/UnifiedReturnsView';
 import { PermissionManagerModal } from './components/PermissionManagerModal';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
@@ -49,26 +50,26 @@ import { Customer, Invoice, UserRole } from './types';
 export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
     'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
-    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
+    'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   admin: [
     'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
-    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
+    'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   branch_manager: [
     'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
-    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
+    'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'users', 'guide'
   ],
   supervisor: [
     'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
-    'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices',
+    'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'users'
   ],
   sales_rep: [
-    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales',
+    'home', 'catalog', 'all_customers', 'customers', 'customer_item_sales', 'collection'
   ],
   legal_advisor: ["home"],
   warehouse_keeper: ["home", "catalog", "returns", "inventory", "guide"],
@@ -270,6 +271,8 @@ const MainLayout: React.FC = () => {
           )}
 
           {activeTab === 'targets' && allowedTabs.includes('targets') && <TargetPerformanceDashboard />}
+
+          {activeTab === 'collection' && allowedTabs.includes('collection') && <CollectionRecoveryDashboard />}
 
           {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
           {(activeTab === 'returns' || activeTab === 'returns_customers') && (allowedTabs.includes('returns') || allowedTabs.includes('returns_customers')) && (

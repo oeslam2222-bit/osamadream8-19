@@ -610,10 +610,13 @@ main .text-amber-600, main .text-amber-700 { color: #9b7027 !important; }
 main .bg-amber-500, main .bg-amber-400 { background-color: #d0a34e !important; }
 main .border-amber-400, main .border-amber-500 { border-color: #d0a34e !important; }
 main .text-slate-900 { color: #17283d !important; }
+main .text-slate-400 { color: #64748b !important; }
+main .font-black { font-weight: 800 !important; }
 /* Dark mode must win over the light-mode !important rule above, otherwise
    headings, table titles and the user name stay dark navy on the dark
    cards (invisible at night). */
 .dark main .text-slate-900 { color: #f8fafc !important; }
+.dark main .text-slate-400 { color: #a8b7c8 !important; }
 .dark main .text-amber-600, .dark main .text-amber-700 { color: #fde047 !important; }
 main .bg-slate-50 { background-color: #f4f7fa !important; }
 main .border-slate-200 { border-color: var(--app-line) !important; }
