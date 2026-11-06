@@ -896,7 +896,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setActiveCustomersCache(customers);
       idbSet(STORAGE_KEYS.CUSTOMERS, customers).catch(() => {});
       try {
-        safeLocalStorageSet(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers.slice(0, 300)));
+        safeLocalStorageSet(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
       } catch {}
     }
   }, [customers]);

@@ -236,12 +236,12 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <div className="relative group">
               <div className="w-48 h-48 rounded-3xl bg-gradient-to-tr from-[var(--app-ok)] via-slate-800 to-[var(--app-navy)] p-4 border border-[var(--app-ok)] flex flex-col items-center justify-center text-center shadow-xl backdrop-blur-sm">
                 <div className="text-5xl mb-2 animate-bounce">📊</div>
-                <div className="text-sm font-black text-[#0d9488]">منصة مبيعات ذكية</div>
-                <div className="text-[10px] text-slate-400 mt-1 max-w-[150px]">
+                <div className="text-sm font-black text-white">منصة مبيعات ذكية</div>
+                <div className="text-[10px] text-slate-300 mt-1 max-w-[150px]">
                   ربط مباشر مع المخازن، قاعدة العملاء، واعتمادات الفواتير
                 </div>
-                <div className="mt-3 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)]">
-                  <Sparkles className="w-3 h-3 text-[#0d9488]" />
+                <div className="mt-3 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-white border border-white/20">
+                  <Sparkles className="w-3 h-3 text-teal-200" />
                   <span>دريم تكنولوجي</span>
                 </div>
               </div>
@@ -383,26 +383,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           </span>
         </div>
 
-        {/* The 10 Big Action Cards Grid (مطابقة دقيقة لتوزيع الكروت بالصورة) */}
+        {/* The 9 Big Action Cards Grid (مطابقة دقيقة لتوزيع الكروت بالصورة) */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-          
-          {/* Tile 1: فاتورة جديدة (الأخضر البارز في الصورة) */}
-          <button
-            type="button"
-            onClick={handleStartOrder}
-            className="group relative bg-gradient-to-br from-[var(--app-ok)] via-[var(--app-ok)] to-[var(--app-ok)] text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-lg hover:shadow-xl hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-ok)] min-h-[140px] sm:min-h-[160px]"
-          >
-            <div className="absolute top-2.5 right-2.5 bg-white/20 backdrop-blur-xs text-[10px] font-black px-2 py-0.5 rounded-full">
-              الأهم ⭐
-            </div>
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white text-[var(--app-ok-text)] flex items-center justify-center shadow-md mb-2.5 group-hover:scale-110 transition duration-200">
-              <Receipt className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
-            </div>
-            <span className="font-black text-sm sm:text-base leading-tight">فاتورة جديدة</span>
-            <span className="text-[10px] text-[#0d9488] font-bold mt-1">إنشاء طلب بيع جديد</span>
-          </button>
 
-          {/* Tile 2: المبيعات والفواتير */}
+          {/* Tile 1: المبيعات والفواتير */}
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
@@ -417,7 +401,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </span>
           </button>
 
-          {/* Tile 3: الكتالوج والتسوق */}
+          {/* Tile 2: الكتالوج والتسوق */}
           <button
             type="button"
             onClick={() => onNavigateToTab('catalog')}
@@ -432,7 +416,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </span>
           </button>
 
-          {/* Tile 4: عروض الأسعار والخصومات */}
+          {/* Tile 3: عروض الأسعار والخصومات */}
           <button
             type="button"
             onClick={() => onNavigateToTab('catalog')}
@@ -445,7 +429,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <span className="text-[10px] text-slate-500 font-bold mt-1">تخفيضات وبونص الكراتين</span>
           </button>
 
-          {/* Tile 5: العملاء */}
+          {/* Tile 4: العملاء */}
           <button
             type="button"
             onClick={() => onNavigateToTab('all_customers')}
@@ -460,7 +444,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </span>
           </button>
 
-          {/* Tile 6: المنتجات والمخزون */}
+          {/* Tile 5: المنتجات والمخزون */}
           <button
             type="button"
             onClick={() => onNavigateToTab('inventory')}
@@ -473,7 +457,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <span className="text-[10px] text-slate-500 font-bold mt-1">الفرع والمخزن المركزي</span>
           </button>
 
-          {/* Tile 7: خطة الزيارات الميدانية */}
+          {/* Tile 6: خطة الزيارات الميدانية */}
           <button
             type="button"
             onClick={() => onNavigateToTab('visits')}
@@ -486,7 +470,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <span className="text-[10px] text-slate-500 font-bold mt-1">خط سير المندوب اليومي</span>
           </button>
 
-          {/* Tile 8: التحصيلات والماليات */}
+          {/* Tile 7: التحصيلات والماليات */}
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
@@ -499,7 +483,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <span className="text-[10px] text-slate-500 font-bold mt-1">متابعة سداد المديونيات</span>
           </button>
 
-          {/* Tile 9: المرتجعات الموحدة */}
+          {/* Tile 8: المرتجعات الموحدة */}
           <button
             type="button"
             onClick={() => onNavigateToTab('returns')}
@@ -512,7 +496,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <span className="text-[10px] text-slate-500 font-bold mt-1">تسجيل بضاعة ومتابعتها</span>
           </button>
 
-          {/* Tile 10: التارجت أو الإكسل */}
+          {/* Tile 9: التارجت أو الإكسل */}
           <button
             type="button"
             onClick={() => onNavigateToTab(isAdminOrDev ? 'excel' : 'targets')}

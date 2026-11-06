@@ -23,8 +23,6 @@ import { DashboardHome } from './components/DashboardHome';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
-import { BranchTeamOverview } from './components/BranchTeamOverview';
-import { RepProfileView } from './components/RepProfileView';
 import { CustomerItemSalesView } from './components/CustomerItemSalesView';
 import { SupervisorDashboard } from './components/SupervisorDashboard';
 import { InvoicesManager } from './components/InvoicesManager';
@@ -52,25 +50,25 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
     'home', 'catalog', 'customer_item_sales',
     'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'excel', 'users', 'guide', 'permissions', 'reps_team', 'rep_profile'
+    'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   admin: [
     'home', 'catalog', 'customer_item_sales',
     'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'excel', 'users', 'guide', 'permissions', 'reps_team', 'rep_profile'
+    'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   branch_manager: [
     'home', 'catalog', 'customer_item_sales',
     'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'users', 'guide', 'reps_team', 'rep_profile'
+    'inventory', 'users', 'guide'
   ],
   supervisor: [
     'home', 'catalog', 'customer_item_sales',
     'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'users', 'reps_team', 'rep_profile'
+    'inventory', 'users'
   ],
   sales_rep: [
-    'home', 'catalog', 'customer_item_sales', 'collection', 'reps_team', 'rep_profile'
+    'home', 'catalog', 'customer_item_sales', 'collection'
   ],
   legal_advisor: ["home"],
   warehouse_keeper: ["home", "catalog", "returns", "inventory", "guide"],
@@ -100,7 +98,6 @@ const MainLayout: React.FC = () => {
   const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
 
   const [activeTab, setActiveTab] = useState<string>('home');
-  const [selectedRepId, setSelectedRepId] = useState<string | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [appToastMsg, setAppToastMsg] = useState<string | null>(null);
@@ -136,7 +133,8 @@ const MainLayout: React.FC = () => {
   // Land on authorized tab and strictly guard unauthorized tabs
   useEffect(() => {
     if (currentUser) {
-      if (!allowedTabs.includes(activeTab)) {
+      const allowed = allowedTabs.includes(activeTab) || ['all_customers', 'customers'].includes(activeTab);
+      if (!allowed) {
         setActiveTab('home');
       }
     }
@@ -215,7 +213,7 @@ const MainLayout: React.FC = () => {
       />
 
       {/* Content Container - Fluid responsive container with min-w-0 to prevent overflow */}
-      <main className="flex-1 w-full max-w-[1440px] mx-auto px-2.5 sm:px-4 lg:px-6 py-3 sm:py-5 pb-24 md:pb-10 min-w-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.08),_transparent_34%),_linear-gradient(180deg,_rgba(10,14,20,0.78),_rgba(10,14,20,0.9))]">
+      <main className="app-main flex-1 w-full max-w-[1440px] mx-auto px-2.5 sm:px-4 lg:px-6 py-3 sm:py-5 pb-24 md:pb-10 min-w-0">
         <Suspense fallback={<TabLoadingSkeleton />}>
           {activeTab === 'home' && allowedTabs.includes('home') && (
             <DashboardHome
@@ -265,29 +263,6 @@ const MainLayout: React.FC = () => {
           )}
 
           {activeTab === 'inventory' && allowedTabs.includes('inventory') && <InventoryStockView />}
-
-          {activeTab === 'reps_team' && allowedTabs.includes('reps_team') && (
-            <BranchTeamOverview
-              onRepSelected={(rep) => {
-                setSelectedRepId(rep.id);
-                setActiveTab('rep_profile');
-              }}
-              onBackToBranches={() => {
-                setSelectedRepId(null);
-                setActiveTab('reps_team');
-              }}
-            />
-          )}
-
-          {activeTab === 'rep_profile' && allowedTabs.includes('rep_profile') && selectedRepId && (
-            <RepProfileView
-              repId={selectedRepId}
-              onBack={() => {
-                setSelectedRepId(null);
-                setActiveTab('reps_team');
-              }}
-            />
-          )}
 
           {activeTab === 'excel' && allowedTabs.includes('excel') && (
             <ExcelImportExport onNavigateToItemSales={() => setActiveTab('customer_item_sales')} />

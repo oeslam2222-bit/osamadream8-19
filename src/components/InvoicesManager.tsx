@@ -918,7 +918,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
             {/* Desktop Table View */}
             <div className="hidden md:block overflow-hidden rounded-[28px] border border-[var(--app-line)] bg-white shadow-sm">
-              <table className="w-full text-right text-xs">
+              <table className="invoice-orders-table w-full text-right text-xs">
               <thead className="bg-[var(--app-navy)] text-white font-black">
                 <tr>
                   <th className="p-3 text-[11px] font-black whitespace-nowrap uppercase tracking-tighter">رقم الفاتورة</th>

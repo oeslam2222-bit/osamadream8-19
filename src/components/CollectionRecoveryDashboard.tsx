@@ -1,13 +1,11 @@
 import {
   AlertTriangle,
-  BellRing,
   CheckCircle2,
   ChevronRight,
   Clock3,
   Coins,
   Flame,
   MapPin,
-  Megaphone,
   Search,
   ShieldCheck,
   Sparkles,
@@ -81,27 +79,6 @@ export const CollectionRecoveryDashboard: React.FC = () => {
   const [notesByCustomer, setNotesByCustomer] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<string | null>(null);
   const [confirmCustomer, setConfirmCustomer] = useState<Customer | null>(null);
-  const [notifications, setNotifications] = useState<Array<{ id: string; target: string; text: string; tone: string }>>([
-    {
-      id: 'branch-alert',
-      target: 'مدير الفرع',
-      text: 'يتم متابعة المتأخرات اليومية وتسجيل التحصيلات فوراً من شاشة المندوب.',
-      tone: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    },
-    {
-      id: 'supervisor-alert',
-      target: 'المشرف',
-      text: 'تأكد من تسجيل كل زيارة تحصيل فقط داخل صفحة الزيارات لتجنب التكرار.',
-      tone: 'bg-sky-50 text-sky-700 border-sky-200',
-    },
-    {
-      id: 'support-alert',
-      target: 'الدعم الفني',
-      text: 'التحصيلات والزيارات يتم حفظها محلياً ثم المزامنة تلقائياً في الخلفية.',
-      tone: 'bg-violet-50 text-violet-700 border-violet-200',
-    },
-  ]);
-
   const repoCustomers = useMemo(() => {
     const list = getVisibleCustomers ? getVisibleCustomers() : customers;
     const currentBranch = currentUser?.branchName;
@@ -336,12 +313,6 @@ export const CollectionRecoveryDashboard: React.FC = () => {
       ? `تم تسجيل تحصيل العميل ${customer.name} بمبلغ ${formatCurrency(amount)} بنجاح. أحسنت يا بطل`
       : result.message;
 
-    setNotifications((prev) => [{
-      id: `notice-${Date.now()}`,
-      target: 'إشعار فوري',
-      text: alertText,
-      tone: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    }, ...prev].slice(0, 4));
     setToast(alertText);
     setConfirmCustomer(null);
     setSelectedCustomerId(customer.id);
@@ -581,24 +552,6 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         </div>
 
         <div className="space-y-5">
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-800">
-              <Megaphone className="h-4 w-4 text-emerald-600" />
-              تنبيهات وتشجيعات
-            </div>
-            <div className="space-y-3">
-              {notifications.map((item) => (
-                <div key={item.id} className={`rounded-2xl border p-3 text-xs ${item.tone}`}>
-                  <div className="mb-1 flex items-center justify-between font-black">
-                    <span>{item.target}</span>
-                    <BellRing className="h-3.5 w-3.5" />
-                  </div>
-                  <p className="leading-5">{item.text}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
           <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center gap-2 text-sm font-black text-slate-800">
               <ShieldCheck className="h-4 w-4 text-sky-600" />

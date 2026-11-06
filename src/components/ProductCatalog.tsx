@@ -623,7 +623,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   };
 
   return (
-    <div className="tantawy-screen space-y-5 pb-16 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.1),_transparent_32%),_linear-gradient(180deg,_rgba(10,14,20,0.84),_rgba(10,14,20,0.96))]" dir="rtl">
+    <div className="catalog-page tantawy-screen min-w-0 w-full max-w-full space-y-5 pb-16" dir="rtl">
       <div className="catalog-hero overflow-hidden rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(61,216,176,0.28),transparent_30%),linear-gradient(135deg,#10293d_0%,#0d1b2a_45%,#08131d_100%)] shadow-[0_18px_40px_rgba(2,6,23,0.32)]">
         <div className="relative z-10 flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3.5">
@@ -788,15 +788,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* 2. Focused Inventory Stock KPI Cards (3 Cards) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-3.5">
         {/* مخزون فرع المندوب */}
-        <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-3.5 sm:p-4 flex items-center justify-between gap-2 min-w-0">
+        <div className="bg-white rounded-2xl border border-[var(--app-navy-line)] shadow-sm p-3.5 sm:p-4 flex items-center justify-between gap-2 min-w-0">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center shrink-0">
               <Store className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[11px] sm:text-xs text-light font-black leading-tight whitespace-nowrap truncate">مخزون فرع المندوب</p>
-              <p className="text-xl sm:text-2xl font-black text-blue-700 tracking-tight leading-tight whitespace-nowrap">
-                {stats.branchCartons.toLocaleString('en-US')} <span className="text-[11px] font-bold text-blue-500">كرتونة</span>
+              <p className="text-xl sm:text-2xl font-black text-[var(--app-navy-text)] tracking-tight leading-tight whitespace-nowrap">
+                {stats.branchCartons.toLocaleString('en-US')} <span className="text-[11px] font-bold text-slate-500">كرتونة</span>
               </p>
               <p className="text-[10px] text-light font-bold leading-tight whitespace-nowrap truncate">رصيد متاح بالفرع ({currentActiveBranch})</p>
             </div>
@@ -838,15 +838,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
 
         {/* الأصناف المتوفرة للطلب */}
-        <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm p-3.5 sm:p-4 flex items-center justify-between gap-2 sm:col-span-2 lg:col-span-1 min-w-0">
+        <div className="bg-white rounded-2xl border border-[var(--app-ok-line)] shadow-sm p-3.5 sm:p-4 flex items-center justify-between gap-2 sm:col-span-2 lg:col-span-1 min-w-0">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] flex items-center justify-center shrink-0">
               <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[11px] sm:text-xs text-light font-black leading-tight whitespace-nowrap truncate">الأصناف المتوفرة للطلب</p>
-              <p className="text-xl sm:text-2xl font-black text-indigo-600 tracking-tight leading-tight whitespace-nowrap">
-                {stats.availableItemsCount.toLocaleString('en-US')} <span className="text-[11px] font-bold text-indigo-500">صنف متاح</span>
+              <p className="text-xl sm:text-2xl font-black text-[var(--app-ok-text)] tracking-tight leading-tight whitespace-nowrap">
+                {stats.availableItemsCount.toLocaleString('en-US')} <span className="text-[11px] font-bold text-slate-500">صنف متاح</span>
               </p>
               <p className="text-[10px] text-light font-bold leading-tight whitespace-nowrap truncate">بمخزون &gt; 0 في الفرع أو أكتوبر</p>
             </div>

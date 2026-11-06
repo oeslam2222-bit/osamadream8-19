@@ -636,10 +636,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   };
 
   return (
-    <div className="tantawy-screen space-y-6 pb-20 max-w-none mx-auto px-2 sm:px-4">
+    <div className="user-manager-page tantawy-screen space-y-6 pb-20 max-w-none mx-auto px-2 sm:px-4">
       
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-[var(--app-navy)] to-blue-700 rounded-3xl p-5 sm:p-7 text-white shadow-lg shadow-navy/30">
+      <div className="bg-gradient-to-r from-[var(--app-navy)] to-teal-800 rounded-3xl p-5 sm:p-7 text-white shadow-lg shadow-navy/30">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-3.5">
             <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center font-black shrink-0 shadow-lg shadow-black/20 border border-white/20">
@@ -654,7 +654,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   {users.length} موظف مسجل
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-blue-100 mt-1 leading-relaxed">
+              <p className="text-xs sm:text-sm text-teal-100 mt-1 leading-relaxed">
                 إضافة المناديب والمشرفين • توزيع المناديب على المشرفين في كل فرع • سرية تامة وتحديد الصلاحيات
               </p>
             </div>

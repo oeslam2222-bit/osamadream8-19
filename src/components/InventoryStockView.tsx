@@ -899,7 +899,7 @@ export const InventoryStockView: React.FC = () => {
           {viewLayout === 'table' && filteredProducts.length > 0 && (
             <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="overflow-x-auto">
-                <table className="w-full text-right text-xs">
+                <table className="inventory-stock-table w-full text-right text-xs">
                   <thead className="bg-slate-900 text-white font-bold">
                     <tr>
                       <th className="p-3">كود المنتج / الموحد</th>
