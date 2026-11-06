@@ -58,8 +58,6 @@ interface NavbarProps {
   onOpenCart: () => void;
   isSidebarCollapsed?: boolean;
   onToggleSidebar?: () => void;
-  isDark: boolean;
-  setIsDark: (dark: boolean) => void;
   notificationCount?: number;
   onOpenNotificationCenter?: () => void;
 }
@@ -70,11 +68,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenCart,
   isSidebarCollapsed = false,
   onToggleSidebar,
-  isDark,
-  setIsDark,
   notificationCount = 0,
   onOpenNotificationCenter
 }) => {
+  const { isDark, toggleTheme } = useTheme();
   const {
     currentUser,
     logout,
@@ -101,7 +98,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   } = useApp();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const toggleTheme = () => setIsDark(!isDark);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
 
@@ -174,18 +170,19 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isFieldRole = currentUser.role === 'sales_rep' || currentUser.role === 'supervisor';
 
   const navItems = [
-    { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
+    { id: 'invoices', label: 'أوامر البيع والاعتمادات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'all_customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'invoices', label: 'أوامر البيع والاعتمادات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
+    { id: 'collection', label: 'تحصيل', icon: Wallet, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'returns', label: 'المرتجعات', icon: RotateCcw, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'inventory', label: 'المخزون', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'collection', label: 'تحصيل', icon: Wallet, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'visits', label: 'الزيارات', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'excel', label: 'الإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
     { id: 'guide', label: 'الدليل', icon: BookOpen, roles: isFieldRole ? [] : ['admin', 'branch_manager', 'developer', 'warehouse_keeper'] },
     { id: 'users', label: 'الفريق', icon: UserCheck, roles: ['admin', 'developer', 'branch_manager', 'supervisor'], badge: pendingApprovalsCount },
+    { id: 'reps_team', label: 'فريق المبيعات', icon: Users, roles: ['admin', 'developer', 'branch_manager', 'supervisor'] },
     { id: 'permissions', label: 'الصلاحيات', icon: ShieldCheck, roles: ['admin', 'developer'] },
   ];
 
@@ -268,6 +265,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
+            {/* Dark mode toggle */}
             <button
               id="navbar-dark-mode-toggle"
               type="button"
@@ -632,13 +630,13 @@ export const Navbar: React.FC<NavbarProps> = ({
         )}
       </aside>
 
-      <nav className="tantawy-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#0c1e33] text-white border-t border-[#1a385c] flex items-center justify-around py-1.5 px-2 shadow-2xl safe-area-inset-bottom print:hidden" aria-label="التنقل">
-        <>
+      <nav className="tantawy-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0c1e33] text-white border-t border-[#1a385c] flex items-center justify-around py-2 px-2.5 pb-4 shadow-2xl safe-area-inset-bottom print:hidden" aria-label="التنقل">
+        <div className="flex w-full items-center justify-around gap-1">
             {[
+              { id: 'catalog', label: 'الكتالوج', icon: Boxes, badge: cartSummary.itemCount },
+              { id: 'invoices', label: 'أوامر البيع', icon: Receipt },
               { id: 'home', label: 'الرئيسية', icon: Home },
               { id: 'all_customers', label: 'العملاء', icon: Users },
-              { id: 'invoices', label: 'أوامر البيع', icon: Receipt },
-              { id: 'catalog', label: 'الكتالوج', icon: Boxes, badge: cartSummary.itemCount },
             ].map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id || (item.id === 'all_customers' && activeTab === 'customers');
@@ -648,21 +646,21 @@ export const Navbar: React.FC<NavbarProps> = ({
                   type="button"
                   onClick={() => setActiveTab(item.id)}
                   aria-current={isActive ? 'page' : undefined}
-                  className={`relative flex flex-col items-center justify-center flex-1 py-1.5 px-1 transition-all cursor-pointer min-h-[48px] rounded-xl ${
+                  className={`relative flex flex-col items-center justify-center flex-1 py-1.5 px-1 transition-all cursor-pointer min-h-[48px] rounded-2xl ${
                     isActive
-                      ? 'bg-[#009488] text-white font-black shadow-lg shadow-teal-950/50'
-                      : 'text-slate-300 hover:text-white hover:bg-white/5 font-bold'
+                      ? 'bg-[#009488] text-white font-black shadow-lg shadow-teal-950/50 scale-[1.02]'
+                      : 'text-slate-400 hover:text-white hover:bg-white/5 font-bold hover:scale-[1.02]'
                   }`}
                 >
                   <div className="relative">
-                    <Icon className={`w-5 h-5 mb-0.5 transition-transform ${isActive ? 'scale-110 text-white stroke-[2.5]' : 'stroke-[2] text-slate-300'}`} />
+                    <Icon className={`w-5 h-5 mb-0.5 transition-transform ${isActive ? 'scale-110 text-white stroke-[2.5]' : 'stroke-[2] text-slate-400'}`} />
                     {item.badge && item.badge > 0 ? (
-                      <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-rose-500 text-white font-black text-[9px] flex items-center justify-center px-1 shadow-sm">
+                      <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-rose-500 text-white font-black text-[9px] flex items-center justify-center px-1 shadow-sm shadow-rose-500/30">
                         {item.badge}
                       </span>
                     ) : null}
                   </div>
-                  <span className="text-[11px] tracking-tight truncate font-black">{item.label}</span>
+                  <span className="text-[10px] tracking-tight truncate font-black">{item.label}</span>
                 </button>
               );
             })}
@@ -672,19 +670,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               onClick={() => setIsMobileDrawerOpen(true)}
               aria-label="القائمة الكاملة"
-              className="relative flex flex-col items-center justify-center flex-1 py-1.5 px-1 transition cursor-pointer min-h-[48px] rounded-xl text-slate-300 hover:text-white hover:bg-white/5 font-bold"
+              className="relative flex flex-col items-center justify-center flex-1 py-1.5 px-1 transition cursor-pointer min-h-[48px] rounded-2xl text-slate-400 hover:text-white hover:bg-white/5 font-bold"
             >
               <div className="relative">
                 <Menu className="w-5 h-5 mb-0.5 stroke-[2.2] text-teal-300" />
                 {pendingApprovalsCount > 0 && (
-                  <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-rose-500 text-white font-black text-[9px] flex items-center justify-center px-1 shadow-sm">
+                  <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-rose-500 text-white font-black text-[9px] flex items-center justify-center px-1 shadow-sm shadow-rose-500/30">
                     {pendingApprovalsCount}
                   </span>
                 )}
               </div>
-              <span className="text-[11px] tracking-tight truncate font-black text-slate-200">القائمة</span>
+              <span className="text-[10px] tracking-tight truncate font-black text-slate-200">القائمة</span>
             </button>
-          </>
+        </div>
       </nav>
 
       {/* Complete Mobile Navigation Slide-Over Drawer */}
@@ -717,21 +715,21 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             </div>
 
-            {/* User Profile Summary */}
-            <div className="px-4 py-3 bg-black/30 border-b border-white/10 flex items-center justify-between">
+            {/* User Profile Summary - High Contrast */}
+            <div className="px-4 py-4 bg-gradient-to-b from-[#0c1e33] to-[#0a1626] border-b border-[#1a385c] flex items-center justify-between">
               <div>
-                <div className="font-black text-sm text-white">{currentUser.name}</div>
-                <div className="text-[11px] text-teal-300 font-extrabold">{roleNames[currentUser.role]?.label || currentUser.role}</div>
-                <div className="text-[11px] text-slate-200 font-bold">{currentUser.branchName}</div>
+                <div className="font-black text-sm text-white tracking-tight">{currentUser.name}</div>
+                <div className="text-[11px] text-teal-400 font-bold">{roleNames[currentUser.role]?.label || currentUser.role}</div>
+                <div className="text-[11px] text-slate-300 font-bold">{currentUser.branchName}</div>
               </div>
-              <div className="w-10 h-10 rounded-full bg-[var(--app-accent)] text-white font-black text-sm flex items-center justify-center shadow-xs">
+              <div className="w-11 h-11 rounded-full bg-[var(--app-accent)] text-white font-black text-sm flex items-center justify-center shadow-lg shadow-teal-500/40">
                 {(currentUser.name || '').trim().charAt(0)}
               </div>
             </div>
 
-            {/* Nav Items List */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
-              <div className="text-xs font-black text-teal-300 px-2 pb-1">أقسام النظام المتاحة لحسابك:</div>
+            {/* Nav Items List - Ordered by Priority (Sales First) */}
+            <div className="flex-1 overflow-y-auto p-3 space-y-1 pb-6">
+              <div className="text-[10px] font-black text-teal-400 px-2 pb-2 uppercase tracking-wider">الأقسام المتاحة لحسابك</div>
               {filteredNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id;
@@ -765,15 +763,15 @@ export const Navbar: React.FC<NavbarProps> = ({
               })}
             </div>
 
-            {/* Drawer Footer Actions */}
-            <div className="p-4 border-t border-white/10 space-y-2 bg-[#091b29]">
+            {/* Drawer Footer Actions - With Bottom Spacing */}
+            <div className="p-4 border-t border-white/10 space-y-2 bg-[#091b29] pb-8">
               <button
                 type="button"
                 onClick={() => {
                   setIsSettingsModalOpen(true);
                   setIsMobileDrawerOpen(false);
                 }}
-                className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition cursor-pointer shadow-sm"
               >
                 <Settings className="w-4 h-4 text-teal-300" />
                 <span>إعدادات النظام والخصوصية</span>
@@ -784,7 +782,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setIsMobileDrawerOpen(false);
                   logout();
                 }}
-                className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-rose-500/20 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/40 text-xs font-black transition cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-rose-500/20 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/40 text-xs font-bold transition cursor-pointer shadow-sm"
               >
                 <LogOut className="w-4 h-4" />
                 <span>تسجيل الخروج</span>

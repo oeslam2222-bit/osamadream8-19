@@ -62,6 +62,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 }) => {
   const {
     invoices,
+    customers,
     currentUser,
     users,
     getVisibleInvoices,
@@ -78,14 +79,14 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewSegment, setViewSegment] = useState<'all' | 'invoices' | 'collections'>('all');
+  const [viewSegment, setViewSegment] = useState<'all' | 'invoices'>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('الكل');
   const [selectedRepFilter, setSelectedRepFilter] = useState<string>('الكل');
   // فلتر التاريخ (من / إلى) زي شريط الفلاتر في التصميم
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
-  // الفاتورة المحددة اللي بتظهر في لوحة "الموقف المالي للعميل" تحت الجدول
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  // العميل المختار من جدول الفواتير لعرض موقفه المالي الحي تحت الجدول
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [rejectModalInvoiceId, setRejectModalInvoiceId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<string>('نفاذ الكمية أو طلب العميل إلغاء الطلبية');
   const [returnModalInvoice, setReturnModalInvoice] = useState<Invoice | null>(null);
@@ -199,11 +200,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       if (dateTo && invDay && invDay > dateTo) return false;
 
       // 5. Segment filter (Invoices vs Collections)
-      if (viewSegment === 'collections') {
-        const isCollectionRelevant = inv.paymentMethod === 'نقدي (كاش)' || inv.status === 'معتمدة ومصروفة من المخزن' || inv.status === 'معتمدة';
-        if (!isCollectionRelevant) return false;
-      }
-
       return true;
     });
   }, [userVisibleInvoices, searchTerm, selectedStatus, selectedRepFilter, viewSegment, dateFrom, dateTo]);
@@ -252,24 +248,46 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     return accessibleInvoices.slice(start, start + itemsPerPage);
   }, [accessibleInvoices, currentPage, itemsPerPage]);
 
-  // الفاتورة اللي لوحة "الموقف المالي" بتعرضها: اللي المستخدم اختارها،
-  // وإلا أول فاتورة في الصفحة — عشان اللوحة تبقى مفيدة من غير ما يدوس حاجة.
-  const activeInvoice = useMemo(() => {
-    const picked = selectedInvoiceId ? displayedInvoices.find((i) => i.id === selectedInvoiceId) : null;
-    return picked || displayedInvoices[0] || null;
-  }, [displayedInvoices, selectedInvoiceId]);
+  // اختيار عميل من جدول الفواتير لعرض موقفه المالي الحي تحت الجدول
+  const handleSelectCustomer = (customerId: string | undefined) => {
+    if (!customerId) return;
+    setSelectedCustomerId(customerId);
+  };
 
-  // ملخص الائتمان للفاتورة المعروضة (نفس أرقام الفاتورة المحفوظة وقت الإنشاء)
-  const creditSummary = useMemo(() => {
-    if (!activeInvoice) return null;
-    const limit = Number(activeInvoice.customerCreditLimit || 0);
-    const before = Number(activeInvoice.customerBalanceBefore || 0);
-    const total = Number(activeInvoice.estimatedGrandTotal || 0);
-    const after = Number(activeInvoice.customerBalanceAfter ?? before + total);
-    const usagePct = limit > 0 ? Math.min(100, Math.round((after / limit) * 100)) : 0;
-    const exceeded = limit > 0 && after > limit;
-    return { limit, before, total, after, usagePct, exceeded };
-  }, [activeInvoice]);
+  // العميل المختار من جدول الفواتير (للإظهار في لوحة الموقف المالي تحت الجدول)
+  const selectedCustomer = useMemo(() => {
+    if (!selectedCustomerId) return null;
+    return (
+      customers.find((c) => c.id === selectedCustomerId) ??
+      customers.find((c) => c.code === selectedCustomerId) ??
+      customers.find((c) => c.name === selectedCustomerId) ??
+      null
+    );
+  }, [customers, selectedCustomerId]);
+
+  // موقف العميل المالي الحي من بيانات العملاء (يتغير تلقائياً عند تغيير العميل المختار)
+  const customerFinancialSummary = useMemo(() => {
+    if (!selectedCustomer) return null;
+    const balance = Number(selectedCustomer.currentBalance ?? selectedCustomer.balance ?? 0);
+    const overdue = Number(selectedCustomer.overdueBalance ?? selectedCustomer.totalOverdueAndDue ?? 0);
+    const limit = Number(selectedCustomer.creditLimit ?? 0);
+    const usagePct = limit > 0 ? Math.min(100, Math.round(((balance + overdue) / limit) * 100)) : 0;
+    const exceeded = limit > 0 && (balance + overdue) > limit;
+    return {
+      name: selectedCustomer.name,
+      code: selectedCustomer.code,
+      phone: selectedCustomer.phone,
+      branch: selectedCustomer.branchName,
+      sector: selectedCustomer.sector,
+      balance,
+      overdue,
+      totalDebt: balance + overdue,
+      limit,
+      usagePct,
+      exceeded,
+      creditStatus: selectedCustomer.dealEligibility || (exceeded ? 'تجاوز الحد' : 'داخل حد الائتمان'),
+    };
+  }, [selectedCustomer]);
 
   const handleExportList = () => {
     if (accessibleInvoices.length === 0) {
@@ -680,7 +698,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             {[
               { key: 'all' as const, label: 'عرض الكل' },
               { key: 'invoices' as const, label: 'الفواتير' },
-              { key: 'collections' as const, label: 'التحصيلات' },
             ].map((seg) => (
               <button
                 key={seg.key}
@@ -807,7 +824,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                     </div>
 
                     {/* Customer & Rep Details */}
-                    <div>
+                    <div
+                      onClick={() => handleSelectCustomer(invoice.customerId)}
+                      className="cursor-pointer hover:underline hover:text-[var(--app-navy)] transition"
+                    >
                       <div className="font-black text-slate-900 text-sm flex items-center gap-1.5">
                         <Building2 className="w-3.5 h-3.5 text-[var(--app-ok-text)] shrink-0" />
                         <span className="truncate">{invoice.customerName}</span>
@@ -897,11 +917,11 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
 
             {/* Desktop Table View */}
-            <div className="hidden md:block overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_18px_35px_rgba(15,40,70,0.08)]">
+            <div className="hidden md:block overflow-hidden rounded-[28px] border border-[var(--app-line)] bg-white shadow-sm">
               <table className="w-full text-right text-xs">
-              <thead className="bg-gradient-to-r from-[#0d2238] via-[#123157] to-[#0f2b38] text-white/90 font-black">
+              <thead className="bg-[var(--app-navy)] text-white font-black">
                 <tr>
-                  <th className="p-3 text-[11px] whitespace-nowrap">رقم الفاتورة</th>
+                  <th className="p-3 text-[11px] font-black whitespace-nowrap uppercase tracking-tighter">رقم الفاتورة</th>
                   <th className="p-3 text-[11px] whitespace-nowrap">العميل</th>
                   <th className="p-3 text-[11px] whitespace-nowrap">المندوب</th>
                   <th className="p-3 text-[11px] whitespace-nowrap">الفرع</th>
@@ -913,7 +933,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                   <th className="p-3 text-[11px] text-center whitespace-nowrap">الإجراءات</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 bg-slate-50/40">
+              <tbody className="divide-y divide-[var(--app-line)] bg-white">
                 {displayedInvoices.map((invoice) => {
                   const style = statusStyles[invoice.status] || {
                     bg: 'app-badge neutral',
@@ -958,7 +978,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
                   return (
 
-                    <tr key={invoice.id} className="transition border-b border-slate-50 hover:bg-slate-25">
+                    <tr key={invoice.id} className="transition border-b border-[var(--app-line)] hover:bg-slate-50 group">
 
                       {/* Invoice Number */}
                       <td className="p-3 font-mono font-black text-slate-900">
@@ -1005,7 +1025,12 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
                       {/* Client */}
                       <td className="p-3">
-                        <div className="font-extrabold text-slate-900 text-sm mb-1">{invoice.customerName}</div>
+                        <div
+                          onClick={() => handleSelectCustomer(invoice.customerId)}
+                          className="cursor-pointer hover:underline hover:text-[var(--app-navy)] transition"
+                        >
+                          <div className="font-extrabold text-slate-900 text-sm mb-1">{invoice.customerName}</div>
+                        </div>
                         <CreditStatusBadge
                           invoice={invoice}
                           onClick={() => {
@@ -1022,28 +1047,28 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
                       {/* Branch */}
                       <td className="p-3">
-                        <div className="text-[10px] text-slate-400 font-medium">{invoice.branchName}</div>
+                        <div className="text-[10px] text-slate-500 font-medium">{invoice.branchName}</div>
                       </td>
 
                       {/* Date & Time */}
                       <td className="p-3 text-slate-600">
-                        <div>{invoice.date}</div>
-                        <div className="text-[10px] text-slate-400">{invoice.time}</div>
+                        <div className="font-black text-slate-900">{invoice.date}</div>
+                        <div className="text-[10px] text-slate-500">{invoice.time}</div>
                       </td>
 
                       {/* Quantities */}
                       <td className="p-3 text-center">
-                        <div className="app-num text-[var(--app-navy)]">
+                        <div className="app-num text-[var(--app-navy)] font-black">
                           {invoice.totalCartons} كرتونة
                         </div>
-                        <div className="text-[10px] text-slate-500">
+                        <div className="text-[10px] text-slate-500 font-medium">
                           {invoice.totalPieces} قطعة
                         </div>
                       </td>
 
                       {/* Total Amount */}
                       <td className="p-3 text-left">
-                        <div className="app-num app-ink-brass text-sm font-mono">
+                        <div className="app-num app-ink-brass text-sm font-mono font-black">
                           {formatCurrency(invoice.estimatedGrandTotal)}
                         </div>
                         <div className="text-[10px] text-[var(--app-ok)]">
@@ -1053,7 +1078,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
                       {/* Payment Method */}
                       <td className="p-3 text-center">
-                        <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px] font-semibold">
+                        <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded text-[11px] font-bold border border-[var(--app-line)]">
                           {invoice.paymentMethod}
                         </span>
                       </td>
@@ -1464,95 +1489,122 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
       </div>
 
-      {/* Client Financial Status Panel (الموقف المالي للعميل المحدد) */}
-      {activeInvoice && (
+
+      {/* Client Financial Status Panel (الموقف المالي الحي للعميل المختار من الجدول) */}
+      {customerFinancialSummary && (
         <div className="bg-[#101a27] border border-white/10 rounded-3xl p-4 sm:p-5 shadow-[0_18px_35px_rgba(7,12,19,0.28)]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
             <div className="flex items-center gap-3">
-              <ShieldCheck className="w-7 h-7 text-[var(--app-ok)] shrink-0" />
+              <User className="w-7 h-7 text-[var(--app-blue)] shrink-0" />
               <div>
-                <div className="text-xs font-black text-slate-400">الموقف المالي للعميل المحدد</div>
+                <div className="text-xs font-black text-slate-400">
+                  {selectedCustomer ? 'الموقف المالي الحي للعميل المختار' : 'موقف العميل من الفاتورة المختارة'}
+                </div>
                 <div className="text-sm font-black text-white flex items-center gap-1.5">
-                  {activeInvoice.customerName}
+                  {customerFinancialSummary.name}
                   <span className="text-[10px] bg-emerald-500/10 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-400/25">
                     نشط
                   </span>
                 </div>
+                <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-2">
+                  {customerFinancialSummary.code && <span>الكود: {customerFinancialSummary.code}</span>}
+                  {customerFinancialSummary.branch && <span>· {customerFinancialSummary.branch}</span>}
+                  {customerFinancialSummary.sector && <span>· {customerFinancialSummary.sector === 'electrical' ? 'الكهربائي' : customerFinancialSummary.sector === 'both' ? 'منزلي + كهرباء' : 'المنزلي'}</span>}
+                </div>
               </div>
             </div>
             <button
-              onClick={() => setSelectedInvoiceId(null)}
+              onClick={() => setSelectedCustomerId(null)}
               className="text-xs font-black text-slate-400 hover:text-slate-200 underline underline-offset-2 transition"
             >
               إلغاء التحديد
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* رصيد العميل الحالي */}
             <div className="bg-slate-900/80 p-3 rounded-2xl border border-white/10">
-              <div className="text-[10px] text-slate-400 font-bold mb-1">حد الائتمان المعتمد</div>
+              <div className="text-[10px] text-slate-400 font-bold mb-1">الرصيد الحالي للعميل</div>
+              <div className="text-2xl font-black {customerFinancialSummary.balance > 0 ? 'text-[var(--app-risk)]' : 'text-white'} app-num">
+                {formatCurrency(customerFinancialSummary.balance)}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-1">مبلغ مستحق على العميل</div>
+            </div>
+
+            {/* المتأخرات */}
+            <div className="bg-slate-900/80 p-3 rounded-2xl border border-white/10">
+              <div className="text-[10px] text-slate-400 font-bold mb-1">المتأخرات (الديون)</div>
+              <div className="text-2xl font-black {customerFinancialSummary.overdue > 0 ? 'text-[var(--app-risk)]' : 'text-[var(--app-ok)]'} app-num">
+                {formatCurrency(customerFinancialSummary.overdue)}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-1">مديونية متأخرة السداد</div>
+            </div>
+
+            {/* إجمالي المديونية */}
+            <div className="bg-slate-900/80 p-3 rounded-2xl border border-white/10">
+              <div className="text-[10px] text-slate-400 font-bold mb-1">إجمالي المديونية</div>
+              <div className="text-2xl font-black text-[var(--app-warn)] app-num">
+                {formatCurrency(customerFinancialSummary.totalDebt)}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-1">الرصيد + المتأخرات</div>
+            </div>
+
+            {/* الحد الائتماني */}
+            <div className="bg-slate-900/80 p-3 rounded-2xl border border-white/10">
+              <div className="text-[10px] text-slate-400 font-bold mb-1">الحد الائتماني المعتمد</div>
               <div className="text-2xl font-black text-white app-num">
-                {formatCurrency(creditSummary?.limit ?? activeInvoice.customerCreditLimit ?? 0)}
+                {formatCurrency(customerFinancialSummary.limit)}
               </div>
-              <div className="text-[10px] text-slate-400 mt-1">رصيد العميل قبل الفاتورة</div>
-              <div className="text-lg font-black text-slate-200 app-num">
-                {formatCurrency(creditSummary?.before ?? activeInvoice.customerBalanceBefore ?? 0)}
-              </div>
-            </div>
-
-            <div className="bg-slate-900/80 p-3 rounded-2xl border border-white/10">
-              <div className="text-[10px] text-slate-400 font-bold mb-1">قيمـة الفاتورة الحالية</div>
-              <div className="text-2xl font-black text-[var(--app-ok)] app-num">
-                {formatCurrency(creditSummary?.total ?? activeInvoice.estimatedGrandTotal)}
-              </div>
-              <div className="text-[10px] text-slate-400 mt-1">رصيد العميل بعد الفاتورة</div>
-              <div className="text-lg font-black text-slate-200 app-num">
-                {formatCurrency(creditSummary?.after ?? 0)}
-              </div>
-            </div>
-
-            <div className="bg-slate-900/80 p-3 rounded-2xl border border-white/10 sm:col-span-2 lg:col-span-1 flex flex-col justify-center items-center">
-              <div className="text-[10px] text-slate-400 font-bold mb-2">نسبة الاستهلاك من الحد</div>
-              <div className="relative w-full max-w-xs">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] text-slate-400 font-bold">0%</span>
-                  <span className="text-[10px] text-slate-400 font-bold">100%</span>
-                </div>
-                <div className="w-full bg-slate-700/80 rounded-full h-2.5 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all duration-700 ${
-                      creditSummary?.exceeded
-                        ? 'bg-[var(--app-risk)]'
-                        : creditSummary!.usagePct > 70
-                        ? 'bg-[var(--app-warn)]'
-                        : 'bg-[var(--app-ok)]'
-                    }`}
-                    style={{ width: `${creditSummary?.usagePct ?? 0}%` }}
-                  />
-                </div>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-[10px] font-black text-slate-200">{creditSummary?.usagePct ?? 0}% مستخدم</span>
-                  {creditSummary?.exceeded && (
-                    <span className="text-[10px] font-black text-[var(--app-risk)]">
-                      ⚠️ تجاوز الحد
-                    </span>
-                  )}
-                </div>
-              </div>
+              <div className="text-[10px] text-slate-400 mt-1">سقف الائتمان المسموح</div>
             </div>
           </div>
 
-          <div className="mt-4 pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-2">
-            <div className="text-xs font-black text-slate-300 flex items-center gap-2">
-              <span>الحالة: </span>
-              {creditSummary?.exceeded ? (
-                <span className="text-[var(--app-risk)] font-black">تجاوز الحد الائتماني — يتطلب دفعة نقدية</span>
+          {/* شريط الاستهلاك */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] text-slate-400 font-bold">نسبة الاستهلاك من الحد الائتماني</span>
+              <span className="text-[10px] font-black text-slate-200">{customerFinancialSummary.usagePct}% مستخدم</span>
+            </div>
+            <div className="w-full bg-slate-700/80 rounded-full h-2.5 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-700 ${
+                  customerFinancialSummary.exceeded
+                    ? 'bg-[var(--app-risk)]'
+                    : customerFinancialSummary.usagePct > 70
+                    ? 'bg-[var(--app-warn)]'
+                    : 'bg-[var(--app-ok)]'
+                }`}
+                style={{ width: `${customerFinancialSummary.usagePct}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between mt-1">
+              {customerFinancialSummary.exceeded ? (
+                <span className="text-[10px] font-black text-[var(--app-risk)]">⚠️ تجاوز الحد الائتماني — يتطلب دفعة نقدية</span>
               ) : (
-                <span className="text-[var(--app-ok)] font-black">داخل الحد الائتماني المسموح</span>
+                <span className="text-[10px] font-black text-[var(--app-ok)]">✓ داخل الحد الائتماني المسموح</span>
               )}
             </div>
+          </div>
 
-
+          {/* حالة الائتمان التفصيلية */}
+          <div className="mt-3 p-3 rounded-2xl border border-white/10 bg-slate-900/50">
+            <div className="flex items-center gap-2 text-xs font-bold">
+              <span className="text-slate-400">حالة الائتمان:</span>
+              <span
+                className={`px-2 py-0.5 rounded-full ${
+                  customerFinancialSummary.exceeded
+                    ? 'bg-[var(--app-risk)]/20 text-[var(--app-risk)] border border-[var(--app-risk)]'
+                    : customerFinancialSummary.usagePct > 70
+                    ? 'bg-[var(--app-warn)]/20 text-[var(--app-warn)] border border-[var(--app-warn)]'
+                    : 'bg-[var(--app-ok)]/20 text-[var(--app-ok)] border border-[var(--app-ok)]'
+                }`}
+              >
+                {customerFinancialSummary.exceeded ? 'تجاوز الحد' : customerFinancialSummary.usagePct > 70 ? 'تقريباً على الحد' : 'داخل الحد الآمن'}
+              </span>
+            </div>
+            <div className="text-[10px] text-slate-400 mt-1">
+              رقم الجوال: {customerFinancialSummary.phone || 'غير متوفر'}
+            </div>
           </div>
         </div>
       )}
