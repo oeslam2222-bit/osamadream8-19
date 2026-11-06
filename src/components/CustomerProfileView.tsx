@@ -19,7 +19,7 @@ import {
   Trash2,
   RefreshCcw,
 } from 'lucide-react';
-import { formatCurrency, formatMoney } from '../services/invoiceService';
+import { formatCurrency } from '../services/invoiceService';
 import { useApp } from '../context/AppContext';
 import { Customer } from '../types';
 import { getCustomerBalance, getCustomerOverdue } from '../services/customerFilterPredicates';

@@ -36,6 +36,7 @@ export interface AppContextType {
   invoices: Invoice[];
   cart: CartItem[];
   cloudinaryConfig: CloudinaryConfig;
+  saveCustomersToSupabase: (customers: Customer[]) => Promise<{ success: boolean; error?: string }>;
   accountingLogs: AccountingSyncLog[];
   auditLogs: AuditLog[];
   recordAuditLog: (logData: Omit<AuditLog, 'id' | 'timestamp' | 'formattedTime'>) => void;
