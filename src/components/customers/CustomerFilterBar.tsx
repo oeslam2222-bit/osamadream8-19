@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronDown, RotateCcw, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronDown, RotateCcw, Search, SlidersHorizontal, X, Building2, Users, ShieldCheck, Layers } from 'lucide-react';
 import { Customer } from '../../types';
 import {
   ActivityFilter,
@@ -134,11 +134,14 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
   const [searchFocused, setSearchFocused] = useState(false);
 
   const advancedCount = [
-    value.selectedBranch,
-    value.selectedSupervisor,
-    value.selectedRep,
     value.selectedRegion,
     value.eligibilityFilter,
+    value.debtStatusFilter,
+    value.dealtFilter,
+    value.activityFilter,
+    value.orderFilter,
+    value.visitFilter,
+    value.collectionRateFilter,
   ].filter((item) => item !== 'ALL').length;
 
   const activeTags = useMemo(() => {
@@ -147,6 +150,12 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
     if (value.selectedBranch !== 'ALL') tags.push({ key: 'selectedBranch', label: `الفرع: ${value.selectedBranch}` });
     if (value.selectedSupervisor !== 'ALL') tags.push({ key: 'selectedSupervisor', label: `المشرف: ${value.selectedSupervisor}` });
     if (value.selectedRep !== 'ALL') tags.push({ key: 'selectedRep', label: `المندوب: ${value.selectedRep}` });
+    if (value.selectedSector !== 'all') {
+      tags.push({
+        key: 'selectedSector',
+        label: `القطاع: ${value.selectedSector === 'home' ? 'منزلي' : value.selectedSector === 'electrical' ? 'كهرباء' : 'القطاعين'}`,
+      });
+    }
     if (value.selectedRegion !== 'ALL') tags.push({ key: 'selectedRegion', label: `المنطقة: ${value.selectedRegion}` });
     if (value.eligibilityFilter !== 'ALL') tags.push({ key: 'eligibilityFilter', label: `التصنيف: ${value.eligibilityFilter}` });
     if (value.debtStatusFilter !== 'ALL') tags.push({ key: 'debtStatusFilter', label: `حالة السداد: ${value.debtStatusFilter}` });
@@ -207,6 +216,81 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
             <span>مسح الكل</span>
           </button>
         </div>
+      </div>
+
+      {/* الفلاتر الأساسية المباشرة (الفرع - المشرفين - المندوب - القطاع) */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/90 dark:border-slate-800 shadow-xs">
+        {/* 1. فلتر الفرع */}
+        <label className="flex flex-col gap-1 min-w-0">
+          <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5 whitespace-nowrap">
+            <Building2 className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400 shrink-0" />
+            <span>الفرع</span>
+          </span>
+          <select
+            value={value.selectedBranch}
+            onChange={(event) => onChange({ selectedBranch: event.target.value, selectedRep: 'ALL' })}
+            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-teal-500 cursor-pointer shadow-2xs"
+          >
+            <option value="ALL">جميع الفروع</option>
+            {options.branches.map((branch) => (
+              <option key={branch} value={branch}>{branch}</option>
+            ))}
+          </select>
+        </label>
+
+        {/* 2. فلتر المشرفين */}
+        <label className="flex flex-col gap-1 min-w-0">
+          <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5 whitespace-nowrap">
+            <ShieldCheck className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+            <span>المشرف</span>
+          </span>
+          <select
+            value={value.selectedSupervisor}
+            onChange={(event) => onChange({ selectedSupervisor: event.target.value })}
+            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 cursor-pointer shadow-2xs"
+          >
+            <option value="ALL">جميع المشرفين</option>
+            {options.supervisors.map((supervisor) => (
+              <option key={supervisor} value={supervisor}>{supervisor}</option>
+            ))}
+          </select>
+        </label>
+
+        {/* 3. فلتر المندوب */}
+        <label className="flex flex-col gap-1 min-w-0">
+          <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5 whitespace-nowrap">
+            <Users className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>المندوب</span>
+          </span>
+          <select
+            value={value.selectedRep}
+            onChange={(event) => onChange({ selectedRep: event.target.value })}
+            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-emerald-500 cursor-pointer shadow-2xs"
+          >
+            <option value="ALL">جميع المناديب</option>
+            {options.reps.map((rep) => (
+              <option key={rep} value={rep}>{rep}</option>
+            ))}
+          </select>
+        </label>
+
+        {/* 4. فلتر القطاع */}
+        <label className="flex flex-col gap-1 min-w-0">
+          <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5 whitespace-nowrap">
+            <Layers className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>القطاع</span>
+          </span>
+          <select
+            value={value.selectedSector}
+            onChange={(event) => onChange({ selectedSector: event.target.value as any })}
+            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer shadow-2xs"
+          >
+            <option value="all">كافة القطاعات (الكل)</option>
+            <option value="home">القطاع المنزلي 🏠</option>
+            <option value="electrical">القطاع الكهربائي ⚡</option>
+            <option value="both">القطاعين معاً 🏢</option>
+          </select>
+        </label>
       </div>
 
       {/* البحث الفوري */}
@@ -305,62 +389,17 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
       {advancedOpen && (
         <div id="customer-advanced-filters" className="cf-advanced">
           <div className="cf-grid">
-            {canFilterBranch && options.branches.length > 0 && (
+            {options.regions && options.regions.length > 0 && (
               <label className="cf-field">
-                <span>الفرع</span>
+                <span>المنطقة / المحافظة</span>
                 <select
-                  value={value.selectedBranch}
-                  onChange={(event) => onChange({ selectedBranch: event.target.value, selectedRep: 'ALL' })}
+                  value={value.selectedRegion}
+                  onChange={(event) => onChange({ selectedRegion: event.target.value })}
                 >
-                  <option value="ALL">جميع الفروع</option>
-                  {options.branches.map((branch) => (
-                    <option key={branch} value={branch}>{branch}</option>
+                  <option value="ALL">جميع المناطق</option>
+                  {options.regions.map((reg) => (
+                    <option key={reg} value={reg}>{reg}</option>
                   ))}
-                </select>
-              </label>
-            )}
-
-            {canFilterSupervisor && options.supervisors.length > 0 && (
-              <label className="cf-field">
-                <span>المشرف</span>
-                <select
-                  value={value.selectedSupervisor}
-                  onChange={(event) => onChange({ selectedSupervisor: event.target.value })}
-                >
-                  <option value="ALL">جميع المشرفين</option>
-                  {options.supervisors.map((supervisor) => (
-                    <option key={supervisor} value={supervisor}>{supervisor}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            {canFilterRep && (
-              <label className="cf-field">
-                <span>المندوب</span>
-                <select
-                  value={value.selectedRep}
-                  onChange={(event) => onChange({ selectedRep: event.target.value })}
-                >
-                  <option value="ALL">جميع المناديب</option>
-                  {options.reps.map((rep) => (
-                    <option key={rep} value={rep}>{rep}</option>
-                  ))}
-                </select>
-              </label>
-            )}
-
-            {options.sectors && options.sectors.length > 0 && (
-              <label className="cf-field">
-                <span>القطاع</span>
-                <select
-                  value={value.selectedSector}
-                  onChange={(event) => onChange({ selectedSector: event.target.value as any })}
-                >
-                  <option value="all">جميع القطاعات</option>
-                  <option value="home">منزلي 🏠</option>
-                  <option value="electrical">كهرباء ⚡</option>
-                  <option value="both">القطاعين 🏢</option>
                 </select>
               </label>
             )}

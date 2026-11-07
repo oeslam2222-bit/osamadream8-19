@@ -318,9 +318,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     } catch {}
   }, [searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, selectedSector, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, dealtFilter, orderFilter, visitFilter, collectionRateFilter, sortBy, sortOrder, CUSTOMER_FILTERS_KEY]);
 
-  // Pagination for high-performance (4000+ items)
+  // Pagination for high-performance (4000+ items) - Default to 5 customers per page
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState<number>(10);
+  const [pageSize, setPageSize] = useState<number>(5);
 
   // BI Charts Toggle
   const [showCharts, setShowCharts] = useState(false);
@@ -1007,7 +1007,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     if (patch.selectedSupervisor !== undefined) setSelectedSupervisor(patch.selectedSupervisor);
     if (patch.selectedRep !== undefined) setSelectedRep(patch.selectedRep);
     if (patch.selectedRegion !== undefined) setSelectedRegion(patch.selectedRegion);
-    if (patch.selectedSector !== undefined) setSelectedSector(patch.selectedSector);
+    if (patch.selectedSector !== undefined) {
+      setSelectedSector(patch.selectedSector);
+      if (patch.selectedSector === 'all' || patch.selectedSector === 'home' || patch.selectedSector === 'electrical') {
+        setActiveSectorFilter(patch.selectedSector);
+      }
+    }
     if (patch.eligibilityFilter !== undefined) setEligibilityFilter(patch.eligibilityFilter);
     if (patch.debtStatusFilter !== undefined) setDebtStatusFilter(patch.debtStatusFilter);
     if (patch.dealtFilter !== undefined) setDealtFilter(patch.dealtFilter);
@@ -2041,34 +2046,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       )}
 
-      {/* شريط فلترة العملاء: بحث ذكي + ترتيب المديونية + فلاتر متقدمة */}
-      {/* 🏠⚡ فلتر القطاع (منزلي / كهربائي) */}
-      {(!isRep && !isSupervisor) && (
-        <div className="bg-white border border-[color:var(--app-line)] rounded-xl p-2.5 sm:p-3 shadow-xs mb-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <span className="text-xs font-black text-slate-600 dark:text-slate-300 sm:ml-2">اختر القطاع:</span>
-          <div className="flex flex-1 gap-1 overflow-x-auto">
-            {([
-              { key: 'all', label: 'الكل', icon: <Users className="w-4 h-4" /> },
-              { key: 'home', label: 'منزلي', icon: <Home className="w-4 h-4" /> },
-              { key: 'electrical', label: 'كهربائي', icon: <Zap className="w-4 h-4" /> },
-            ] as const).map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setActiveSectorFilter(t.key)}
-                className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black whitespace-nowrap transition cursor-pointer shrink-0 ${
-                  activeSectorFilter === t.key
-                    ? 'bg-[var(--app-navy)] text-white shadow-xs shadow-[inset_0_-3px_0_var(--app-accent)]'
-                    : 'bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 hover:text-[var(--app-navy)]'
-                }`}
-              >
-                {t.icon}
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* شريط فلترة العملاء المباشر (الفرع - المشرفين - المندوب - القطاع) + البحث والترتيب */}
       <CustomerFilterBar
         value={filterBarValue}
         onChange={handleFilterChange}
@@ -2081,7 +2059,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           sectors: [...new Set(customers.map((c) => c.sector).filter(Boolean))] as ('home' | 'electrical' | 'both')[],
           debtStatuses: availableDebtStatuses,
         }}
-        canFilterBranch={isAdminOrDev}
+        canFilterBranch={isAdminOrDev || isSupervisor || isBranchManager}
         canFilterRep={!isRep}
         canFilterSupervisor={!isRep}
         debtCustomersCount={debtCustomersCount}
