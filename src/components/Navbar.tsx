@@ -184,6 +184,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'guide', label: 'الدليل', icon: BookOpen, roles: isFieldRole ? [] : ['admin', 'branch_manager', 'developer', 'warehouse_keeper'] },
     { id: 'users', label: 'الفريق', icon: UserCheck, roles: ['admin', 'developer', 'branch_manager', 'supervisor'], badge: pendingApprovalsCount },
     { id: 'permissions', label: 'الصلاحيات', icon: ShieldCheck, roles: ['admin', 'developer'] },
+    { id: 'cadre_lunch', label: 'غداء الكوادر', icon: LayoutDashboard, roles: ['admin', 'developer', 'branch_manager', 'supervisor', 'sales_rep', 'warehouse_keeper'] },
   ];
 
   const filteredNavItems = navItems.filter((item) => item.roles.includes(currentUser.role));

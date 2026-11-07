@@ -1268,9 +1268,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <div className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden flex items-center justify-center cursor-pointer hover:shadow-md transition shadow-xs">
                         {sanitizeStoredImageUrl(p.imageUrl) ? (
                           <img
-                            src={sanitizeStoredImageUrl(p.imageUrl)}
+                            src={getProductImageUrl(p, cloudinaryConfig)}
                             alt={p.name}
                             className="w-full h-full object-cover"
+                            loading="lazy"
+                            decoding="async"
+                            referrerPolicy="no-referrer"
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs font-bold">

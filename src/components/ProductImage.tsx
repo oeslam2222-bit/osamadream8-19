@@ -1,7 +1,15 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Package } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { getCandidateImageUrls, generateProductPlaceholderSvg, optimizeCloudinaryUrl } from '../services/cloudinaryService';
+import {
+  getCandidateImageUrls,
+  generateProductPlaceholderSvg,
+  optimizeCloudinaryUrl,
+} from '../services/cloudinaryService';
+import {
+  getCachedImageUrl,
+  fetchAndCacheImage,
+} from '../services/imageCacheService';
 import { CloudinaryConfig, Product } from '../types';
 
 // Global fast in-memory cache to instantly render already verified working image URLs or failed items
@@ -129,6 +137,8 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   const [candidateIndex, setCandidateIndex] = useState(0);
   const [hasExhausted, setHasExhausted] = useState(initialExhausted);
   const [isLoading, setIsLoading] = useState(!verifiedImageCache.has(productKey) && !initialExhausted && candidateUrls.length > 0);
+  /** رابط الصورة من الكاش المحلي (IndexedDB / Cache API) – لو لقيته، لا تُرسل أي طلب شبكة. */
+  const [cachedSrc, setCachedSrc] = useState<string | null>(null);
 
   useEffect(() => {
     if (candidateUrls.length === 0) {
@@ -157,6 +167,33 @@ export const ProductImage: React.FC<ProductImageProps> = ({
 
   const currentSrc = candidateUrls[candidateIndex];
 
+  // لو الصورة موجودة في الكاش المحلي (IndexedDB blob أو Cache API)، استخدمها من غير أي طلب شبكة.
+  useEffect(() => {
+    let cancelled = false;
+    if (!currentSrc || currentSrc.startsWith('data:')) {
+      setCachedSrc(null);
+      return;
+    }
+    (async () => {
+      const cached = await getCachedImageUrl(currentSrc);
+      if (!cancelled) {
+        setCachedSrc(cached ?? null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSrc]);
+
+  // إلغاء رابط blob القديم لما تتغير الصورة لتفادي تسريب الذاكرة.
+  useEffect(() => {
+    return () => {
+      if (cachedSrc && cachedSrc.startsWith('blob:')) {
+        URL.revokeObjectURL(cachedSrc);
+      }
+    };
+  }, [cachedSrc]);
+
   const handleError = () => {
     if (candidateIndex + 1 < candidateUrls.length) {
       setCandidateIndex((prev) => prev + 1);
@@ -170,6 +207,10 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   const handleLoad = () => {
     if (currentSrc) {
       verifiedImageCache.set(productKey, currentSrc);
+      // خزّن الصورة للكاش الدائم لما تُحمّل من الشبكة (إلا لو كانت أصلاً من الكاش).
+      if (!cachedSrc) {
+        void fetchAndCacheImage(currentSrc);
+      }
     }
     setIsLoading(false);
     setHasExhausted(false);
@@ -216,8 +257,8 @@ export const ProductImage: React.FC<ProductImageProps> = ({
 
       {isInView ? (
         <img
-          key={currentSrc}
-          src={currentSrc}
+          key={cachedSrc || currentSrc}
+          src={cachedSrc || currentSrc}
           alt={alt || product.name || product.code || 'صنف'}
           className={`${className} ${fitMode === 'contain' ? 'object-contain' : 'object-cover'} transition-opacity duration-200 ${
             isLoading ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
