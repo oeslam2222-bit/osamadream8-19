@@ -23,6 +23,7 @@ import { DashboardHome } from './components/DashboardHome';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
+import { AllCustomersAnalyticsView } from './components/AllCustomersAnalyticsView';
 import { CustomerItemSalesView } from './components/CustomerItemSalesView';
 import { SupervisorDashboard } from './components/SupervisorDashboard';
 import { InvoicesManager } from './components/InvoicesManager';
@@ -255,6 +256,9 @@ const MainLayout: React.FC = () => {
           {activeTab === 'collection' && allowedTabs.includes('collection') && <CollectionRecoveryDashboard />}
 
           {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
+          {(activeTab === 'all_customers' || activeTab === 'customers') && (
+            <AllCustomersAnalyticsView onOpenNewOrderForCustomer={(cust) => { setOrderInitialCustomer(cust); setActiveTab('catalog'); }} />
+          )}
           {(activeTab === 'returns' || activeTab === 'returns_customers') && (allowedTabs.includes('returns') || allowedTabs.includes('returns_customers')) && (
             <UnifiedReturnsView />
           )}
