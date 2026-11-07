@@ -255,7 +255,20 @@ function buildInvoiceFetchScope(currentUser: User | null, users: User[]): Invoic
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Auth and Session Notice
   const [authTerminationNotice, setAuthTerminationNotice] = useState<string | null>(null);
-  // فحص اتصال Supabase Auth: بيقول للإدارة هل الـ migration اتنفّذ ولا لأ.
+
+  // Keep-Alive: ping Supabase every 5 minutes to prevent free-tier auto-pause
+  // and reduce cold-start latency. Uses a tiny select (1 row) to minimize egress.
+  useEffect(() => {
+    const ping = () => {
+      supabase
+        .from('branches')
+        .select('id')
+        .limit(1)
+        .then(() => {}, () => {});    };
+    ping();
+    const id = window.setInterval(ping, 5 * 60 * 1000);
+    return () => window.clearInterval(id);
+  }, []);  // فحص اتصال Supabase Auth: بيقول للإدارة هل الـ migration اتنفّذ ولا لأ.
   // بيتحدّث مرة واحدة عند الإقلاع وخلاص — مفيش أي طلبات متكررة.
   const [serverAuthProbe, setServerAuthProbe] = useState<{
     checked: boolean;
