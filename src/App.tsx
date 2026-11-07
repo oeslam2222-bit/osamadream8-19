@@ -70,6 +70,11 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   sales_rep: [
     'home', 'catalog', 'customer_item_sales', 'collection'
   ],
+  technical_support: [
+    'home', 'catalog', 'customer_item_sales',
+    'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
+    'inventory', 'excel', 'users', 'guide', 'permissions'
+  ],
   legal_advisor: ["home"],
   warehouse_keeper: ["home", "catalog", "returns", "inventory", "guide"],
 };

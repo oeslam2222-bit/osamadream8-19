@@ -801,13 +801,13 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                       return (
                         <div
                           key={p.id}
-                          className="p-3 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-between gap-3 hover:border-teal-400 transition"
+                          className="p-3 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-teal-400 transition"
                         >
                           <div className="min-w-0 flex-1">
                             <div className="font-bold text-slate-900 dark:text-white text-xs truncate" title={p.name}>
                               {p.name}
                             </div>
-                            <div className="flex items-center gap-2 text-[10.5px] mt-1 flex-wrap">
+                            <div className="flex items-center gap-2 text-[11px] mt-1 flex-wrap">
                               <span className="font-mono text-amber-700 dark:text-amber-400 font-bold whitespace-nowrap">
                                 كود: {p.code}
                               </span>
@@ -816,7 +816,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                                   #{p.unifiedCode.replace('#', '')}
                                 </span>
                               )}
-                              <span className="text-slate-500 font-bold whitespace-nowrap">
+                              <span className="text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
                                 ({formatCurrency(
                                   p.piecePrice && p.piecePrice > 0
                                     ? Math.round(p.piecePrice * (p.cartonQuantity || 1) * 100) / 100
@@ -831,11 +831,11 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center justify-end gap-1.5 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-700/60">
                             <button
                               type="button"
                               onClick={() => handleQuickAddProduct(p, 1, 'carton')}
-                              className="px-2.5 py-1.5 rounded-lg bg-[#0f2b38] hover:bg-[#009488] text-white text-[11px] font-black transition cursor-pointer shadow-xs whitespace-nowrap"
+                              className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-[#0f2b38] hover:bg-[#009488] text-white text-[11px] font-black transition cursor-pointer shadow-xs whitespace-nowrap text-center"
                               title="إضافة 1 كرتونة"
                             >
                               + كرتونة
@@ -843,7 +843,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                             <button
                               type="button"
                               onClick={() => handleQuickAddProduct(p, 1, 'piece')}
-                              className="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold transition cursor-pointer whitespace-nowrap"
+                              className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white text-[11px] font-bold transition cursor-pointer whitespace-nowrap text-center"
                               title="إضافة 1 قطعة"
                             >
                               + قطعة

@@ -25,7 +25,10 @@ import {
   User,
   Warehouse,
   X,
-  XCircle
+  XCircle,
+  Printer,
+  FileSpreadsheet,
+  Download
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
@@ -92,6 +95,53 @@ export const UnifiedReturnsView: React.FC = () => {
   // Close/Action Modal State
   const [actionVisit, setActionVisit] = useState<CustomerVisit | null>(null);
   const [actionNote, setActionNote] = useState('');
+
+  // Print Warehouse Return Voucher State
+  const [printReturnVoucher, setPrintReturnVoucher] = useState<CustomerVisit | null>(null);
+
+  const handleExportReturnExcel = (visit: CustomerVisit) => {
+    let rows: Array<{ code: string; name: string; cartons: number; pieces: number; condition: string; reason: string }> = [];
+    if (visit.returnItemsList && Array.isArray(visit.returnItemsList) && visit.returnItemsList.length > 0) {
+      rows = visit.returnItemsList.map((item: any) => ({
+        code: item.productCode || '---',
+        name: item.productName || 'صنف مرتجع',
+        cartons: item.cartonCount || 0,
+        pieces: item.pieceCount || 0,
+        condition: item.condition === 'good_condition' ? 'سليمة قابلة للبيع' : item.condition === 'damaged' ? 'تالفة كسر/عيب' : 'منتهية الصلاحية',
+        reason: item.reason || visit.returnReason || 'مرتجع عميل',
+      }));
+    } else {
+      rows = [{
+        code: '---',
+        name: visit.returnItems || 'أصناف مرتجعة متنوعة',
+        cartons: visit.returnedCartons || 0,
+        pieces: 0,
+        condition: 'تحت الفحص بالمخزن',
+        reason: visit.returnReason || 'مرتجع عميل',
+      }];
+    }
+
+    const headers = ['كود الصنف', 'اسم الصنف', 'عدد الكراتين', 'عدد القطع', 'حالة البضاعة', 'سبب الارتجاع'];
+    const csvContent = '\uFEFF' + [
+      `إذن استلام بضاعة مرتجعة - مجموعة الطنطاوي للتجارة والتوزيع`,
+      `العميل: ${visit.customerName || ''} (كود: ${visit.customerCode || ''})`,
+      `المندوب المستلم: ${visit.repName || ''} - الفرع: ${visit.branchName || ''} - التاريخ: ${visit.date || ''}`,
+      `قيمة المرتجع التقديرية: ${visit.returnValue || 0} ج.م`,
+      '',
+      headers.join(','),
+      ...rows.map((r) => `"${r.code}","${r.name}",${r.cartons},${r.pieces},"${r.condition}","${r.reason}"`),
+    ].join('\r\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `اذن_استلام_مرتجع_${visit.customerCode || 'عميل'}_${visit.date}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 
   // Extract all return visits
   const returnVisits = useMemo(() => {
@@ -785,6 +835,27 @@ export const UnifiedReturnsView: React.FC = () => {
                         <span>رفض</span>
                       </button>
                     )}
+
+                    {/* Print Voucher & Export Excel for Warehouse Keeper */}
+                    <button
+                      type="button"
+                      onClick={() => setPrintReturnVoucher(visit)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] border border-slate-300 transition cursor-pointer"
+                      title="طباعة إذن استلام بضاعة المرتجع للمخزن"
+                    >
+                      <Printer className="w-3.5 h-3.5 text-teal-600" />
+                      <span>طباعة إذن المخزن 🖨️</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleExportReturnExcel(visit)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] border border-emerald-300 transition cursor-pointer"
+                      title="تصدير جدول الأصناف إكسل لأمين المخزن"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>إكسل الأصناف 📊</span>
+                    </button>
                   </div>
                 </div>
 
@@ -1171,6 +1242,222 @@ export const UnifiedReturnsView: React.FC = () => {
                     <span>تأكيد وتسجيل إذن المرتجع الآن</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= Printable Warehouse Return Voucher Modal ================= */}
+      {printReturnVoucher && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 overflow-y-auto"
+          dir="rtl"
+        >
+          <div className="relative w-full max-w-3xl bg-white rounded-3xl shadow-2xl border border-slate-300 overflow-hidden my-4">
+            {/* Top Toolbar (Excluded in print) */}
+            <div className="print:hidden bg-slate-900 text-white p-4 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Printer className="w-5 h-5 text-teal-400" />
+                <span className="font-black text-sm">معاينة وطباعة إذن استلام مرتجع للمخزن</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-black text-xs shadow transition cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>طباعة الإذن الآن</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExportReturnExcel(printReturnVoucher)}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs shadow transition cursor-pointer"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>تحميل كـ Excel</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPrintReturnVoucher(null)}
+                  className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Printable Voucher Paper */}
+            <div className="p-6 sm:p-8 bg-white text-slate-900 space-y-6 printable-voucher">
+              {/* Company & Document Header */}
+              <div className="border-b-2 border-slate-800 pb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs text-slate-500 font-bold">جمهورية مصر العربية</div>
+                  <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">مجموعة الطنطاوي للتجارة والتوزيع</h2>
+                  <p className="text-xs text-teal-700 font-bold mt-0.5">إدارة المستودعات واللوجستيات • إذن استلام بضاعة مرتجعة</p>
+                </div>
+                <div className="bg-slate-50 border-2 border-slate-800 rounded-2xl p-3 text-center sm:text-left min-w-[200px]">
+                  <div className="text-[11px] font-bold text-slate-500">رقم الإذن المرجعي</div>
+                  <div className="text-base font-black text-slate-900 app-num font-mono">
+                    RET-{(printReturnVoucher.id || '0000').slice(-6).toUpperCase()}
+                  </div>
+                  <div className="text-[10px] text-slate-500 font-semibold mt-1">
+                    التاريخ: {printReturnVoucher.date || new Date().toISOString().split('T')[0]}
+                  </div>
+                </div>
+              </div>
+
+              {/* Information Grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 rounded-2xl p-4 border border-slate-200">
+                <div>
+                  <span className="text-slate-400 block text-[10px] font-bold">اسم العميل:</span>
+                  <span className="font-black text-slate-900 text-sm block">{printReturnVoucher.customerName || 'عميل نقدي'}</span>
+                  <span className="text-[11px] text-slate-500 font-bold app-num font-mono">كود: {printReturnVoucher.customerCode || '---'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] font-bold">المندوب المسلّم:</span>
+                  <span className="font-bold text-slate-800 block">{printReturnVoucher.repName || 'مندوب المبيعات'}</span>
+                  <span className="text-[11px] text-slate-500">الفرع: {printReturnVoucher.branchName || 'الرئيسي'}</span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] font-bold">الفرع / المخزن المستلم:</span>
+                  <span className="font-bold text-slate-800 block">{printReturnVoucher.branchName || 'مخزن أكتوبر الرئيسي'}</span>
+                  <span className="text-[11px] text-emerald-700 font-bold">
+                    حالة الطلب: {printReturnVoucher.returnStatus === 'مغلق' || (printReturnVoucher.returnStatus as string) === 'closed' ? 'مستلم ومعتمد بالمخزن' : 'قيد الفحص والمراجعة'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px] font-bold">إجمالي القيمة التقديرية:</span>
+                  <span className="text-sm font-black text-slate-900 app-num block">
+                    {formatCurrency(printReturnVoucher.returnValue || 0)}
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-semibold">إجمالي الكراتين: {printReturnVoucher.returnedCartons || 0} كرتونة</span>
+                </div>
+              </div>
+
+              {/* Return Reason Statement */}
+              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3 text-xs">
+                <span className="font-black text-amber-900 ml-1">سبب الارتجاع المعتمد:</span>
+                <span className="text-amber-800 font-medium">
+                  {printReturnVoucher.returnReason || 'مرتجع بضاعة بطلب العميل ومراجعة إدارة المبيعات'}
+                </span>
+                {printReturnVoucher.notes && (
+                  <div className="text-[11px] text-amber-700 mt-1">
+                    <span className="font-bold">ملاحظات إضافية: </span>
+                    <span>{printReturnVoucher.notes}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Items Table */}
+              <div>
+                <h4 className="font-black text-xs text-slate-800 mb-2 flex items-center justify-between">
+                  <span>بيان الأصناف والكميات المحولة إلى المخزن:</span>
+                  <span className="text-[10px] text-slate-500 font-normal">
+                    (تطابق الأصناف الفعلي مع إذن التسليم)
+                  </span>
+                </h4>
+                <div className="border border-slate-300 rounded-xl overflow-hidden">
+                  <table className="w-full text-xs text-right border-collapse">
+                    <thead className="bg-slate-100 text-slate-700 font-black border-b border-slate-300 text-[11px]">
+                      <tr>
+                        <th className="p-2 w-10 text-center">#</th>
+                        <th className="p-2">كود الصنف</th>
+                        <th className="p-2">اسم الصنف والبيان</th>
+                        <th className="p-2 text-center w-20">كرتونة</th>
+                        <th className="p-2 text-center w-20">قطعة</th>
+                        <th className="p-2 text-center">حالة البضاعة</th>
+                        <th className="p-2">ملاحظات أمين المخزن</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 font-bold">
+                      {printReturnVoucher.returnItemsList &&
+                      Array.isArray(printReturnVoucher.returnItemsList) &&
+                      printReturnVoucher.returnItemsList.length > 0 ? (
+                        printReturnVoucher.returnItemsList.map((item: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-slate-50/50">
+                            <td className="p-2 text-center text-slate-500 text-[10px] app-num">{idx + 1}</td>
+                            <td className="p-2 font-mono text-[11px] text-slate-600">{item.productCode || '---'}</td>
+                            <td className="p-2 text-slate-900">{item.productName || 'صنف مرتجع'}</td>
+                            <td className="p-2 text-center font-black text-slate-900 app-num">{item.cartonCount || 0}</td>
+                            <td className="p-2 text-center font-black text-slate-900 app-num">{item.pieceCount || 0}</td>
+                            <td className="p-2 text-center">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${
+                                  item.condition === 'good_condition'
+                                    ? 'bg-emerald-100 text-emerald-800'
+                                    : item.condition === 'damaged'
+                                    ? 'bg-rose-100 text-rose-800'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {item.condition === 'good_condition'
+                                  ? 'سليمة قابلة للبيع'
+                                  : item.condition === 'damaged'
+                                  ? 'تالفة كسر/عيب مصنعي'
+                                  : 'منتهية الصلاحية'}
+                              </span>
+                            </td>
+                            <td className="p-2 text-slate-400 text-[10px]">
+                              {item.reason || 'مطابق للفحص الظاهري'}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td className="p-2 text-center text-slate-500 text-[10px]">1</td>
+                          <td className="p-2 font-mono text-[11px] text-slate-500">---</td>
+                          <td className="p-2 text-slate-900">{printReturnVoucher.returnItems || 'أصناف مرتجعة متنوعة'}</td>
+                          <td className="p-2 text-center font-black text-slate-900 app-num">{printReturnVoucher.returnedCartons || 0}</td>
+                          <td className="p-2 text-center font-black text-slate-900 app-num">0</td>
+                          <td className="p-2 text-center text-[10px] text-slate-600">تحت الفحص بالمخزن</td>
+                          <td className="p-2 text-slate-400 text-[10px]">تم الاستلام من العميل</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Signatures & Approvals Section */}
+              <div className="pt-4 border-t-2 border-slate-300">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div className="border border-slate-300 rounded-xl p-3 bg-slate-50/50">
+                    <div className="text-[11px] font-black text-slate-800 mb-1">المندوب المسلّم</div>
+                    <div className="text-[10px] text-slate-500 mb-6">{printReturnVoucher.repName || 'مندوب الفرع'}</div>
+                    <div className="border-b border-dashed border-slate-400 w-3/4 mx-auto mb-1"></div>
+                    <span className="text-[9px] text-slate-400">التوقيع والتاريخ</span>
+                  </div>
+
+                  <div className="border border-slate-300 rounded-xl p-3 bg-slate-50/50">
+                    <div className="text-[11px] font-black text-slate-800 mb-1">سائق الحركة / الناقل</div>
+                    <div className="text-[10px] text-slate-500 mb-6">مسؤول النقل واللوجستيات</div>
+                    <div className="border-b border-dashed border-slate-400 w-3/4 mx-auto mb-1"></div>
+                    <span className="text-[9px] text-slate-400">التوقيع ورقم السيارة</span>
+                  </div>
+
+                  <div className="border border-slate-300 rounded-xl p-3 bg-slate-50/50">
+                    <div className="text-[11px] font-black text-slate-800 mb-1">أمين المخزن المستلم</div>
+                    <div className="text-[10px] text-slate-500 mb-6">مخزن {printReturnVoucher.branchName || 'الفرع'}</div>
+                    <div className="border-b border-dashed border-slate-400 w-3/4 mx-auto mb-1"></div>
+                    <span className="text-[9px] text-slate-400">التوقيع والختم الرسمي</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Print Modal Footer */}
+            <div className="print:hidden bg-slate-100 p-4 border-t border-slate-200 flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                يمكنك طباعة هذا الإذن مباشرة أو حفظه بصيغة PDF لأرشيف المستودع.
+              </span>
+              <button
+                type="button"
+                onClick={() => setPrintReturnVoucher(null)}
+                className="px-5 py-2 rounded-xl bg-slate-300 hover:bg-slate-400 text-slate-800 font-bold text-xs cursor-pointer"
+              >
+                إغلاق المعاينة
               </button>
             </div>
           </div>

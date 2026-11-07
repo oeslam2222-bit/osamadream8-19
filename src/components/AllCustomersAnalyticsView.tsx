@@ -50,7 +50,8 @@ import {
   PackageCheck,
   AlertCircle,
   Home,
-  Zap
+  Zap,
+  Trash2
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -156,6 +157,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     cleanAndDeduplicateCustomers,
     activeSectorFilter,
     setActiveSectorFilter,
+    syncWithSupabase,
+    isSupabaseSyncing,
+    supabaseStatus,
   } = useApp();
 
   // Roles
@@ -163,6 +167,51 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const isSupervisor = currentUser?.role === 'supervisor';
   const isBranchManager = currentUser?.role === 'branch_manager';
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+
+  // Supabase Auto-sync & manual refresh state
+  const [supabaseSyncMsg, setSupabaseSyncMsg] = useState<string | null>(null);
+  const [isManualFetching, setIsManualFetching] = useState<boolean>(false);
+
+  // Auto-fetch customers from Supabase if local list is empty on mount
+  useEffect(() => {
+    let isMounted = true;
+    if (customers.length === 0 && !isSupabaseSyncing) {
+      setIsManualFetching(true);
+      syncWithSupabase('fetch')
+        .then((res) => {
+          if (!isMounted) return;
+          setIsManualFetching(false);
+          if (res.success) {
+            setSupabaseSyncMsg('تم بنجاح تحميل قاعدة العملاء مباشرة من سوبابيز (Supabase)!');
+            setTimeout(() => setSupabaseSyncMsg(null), 5000);
+          }
+        })
+        .catch(() => {
+          if (isMounted) setIsManualFetching(false);
+        });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [customers.length]);
+
+  const handleManualSupabaseSync = async () => {
+    setIsManualFetching(true);
+    try {
+      const res = await syncWithSupabase('fetch');
+      setIsManualFetching(false);
+      if (res.success) {
+        setSupabaseSyncMsg(`تمت المزامنة بنجاح مع سوبابيز! إجمالي العملاء الآن: ${(customers.length || supabaseStatus.customersCount || 0).toLocaleString()} عميل.`);
+      } else {
+        setSupabaseSyncMsg(res.message || 'فشل تحديث البيانات من سوبابيز');
+      }
+      setTimeout(() => setSupabaseSyncMsg(null), 6000);
+    } catch (e: any) {
+      setIsManualFetching(false);
+      setSupabaseSyncMsg('تعذرت المزامنة مع سوبابيز حالياً');
+      setTimeout(() => setSupabaseSyncMsg(null), 5000);
+    }
+  };
 
   const formatMoney = (amount: number | undefined | null): string => {
     if (isPrivacyMode) return '•••••• ج.م';
@@ -314,6 +363,34 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [visitOutcome, setVisitOutcome] = useState<'تم عمل طلبية' | 'تم التحصيل' | 'تأجيل سداد' | 'المحل مغلق' | 'متابعة فقط'>('تم عمل طلبية');
   const [visitCollected, setVisitCollected] = useState('');
   const [visitNotes, setVisitNotes] = useState('');
+
+  // Supervisor Reps Analysis State
+  const [analyzedRep, setAnalyzedRep] = useState<{
+    id: string;
+    name: string;
+    avatar?: string;
+    branchName?: string;
+    customersCount: number;
+    totalDebt: number;
+    totalOverdue: number;
+    totalSales: number;
+    totalCollections: number;
+    targetSales: number;
+    targetCollections: number;
+    monthlySales: Record<number, number>;
+    monthlyCollections: Record<number, number>;
+  } | null>(null);
+
+  // Rep Customer Hub State
+  const [analyzedRepTab, setAnalyzedRepTab] = useState<'customers' | 'target'>('customers');
+  const [repCustomerSearch, setRepCustomerSearch] = useState<string>('');
+  const [repOnlyDebt, setRepOnlyDebt] = useState<boolean>(false);
+  const [repCustomerSort, setRepCustomerSort] = useState<'debt' | 'overdue' | 'name'>('debt');
+
+  // Store Photos Gallery State
+  const [selectedStoreImage, setSelectedStoreImage] = useState<string | null>(null);
+  const [newStorePhotoUrl, setNewStorePhotoUrl] = useState<string>('');
+  const [isAddingStorePhoto, setIsAddingStorePhoto] = useState<boolean>(false);
 
   // Fast Indexed Customer Orders Lookup
   const customerOrdersLookup = useMemo(() => {
@@ -529,6 +606,150 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     });
     return Array.from(s);
   }, [userVisibleCustomers]);
+
+  // Supervisor Team Reps Performance Summary
+  const supervisorRepsSummary = useMemo(() => {
+    if (!isSupervisor && !isBranchManager && !isAdminOrDev) return [];
+    
+    // Reps for this supervisor/branch
+    const repUsers = users.filter((u) => {
+      if (u.role !== 'sales_rep') return false;
+      if (isSupervisor) {
+        return (
+          (currentUser?.branchName && isBranchMatch(u.branchName || '', currentUser.branchName)) ||
+          (u.supervisorId && u.supervisorId === currentUser?.id)
+        );
+      }
+      if (isBranchManager) {
+        return currentUser?.branchName && isBranchMatch(u.branchName || '', currentUser.branchName);
+      }
+      return true; // admin/developer
+    });
+
+    return repUsers.map((rep) => {
+      const repCusts = userVisibleCustomers.filter((c) =>
+        c.salesRepId === rep.id ||
+        c.repId === rep.id ||
+        isArabicNameMatch(c.salesRepName || c.repName || '', rep.name)
+      );
+
+      const repDebt = repCusts.reduce((sum, c) => sum + (c.currentBalance ?? c.balance ?? 0), 0);
+      const repOverdue = repCusts.reduce((sum, c) => sum + (c.totalOverdueAndDue ?? c.overdueBalance ?? 0), 0);
+      const repSales2026 = repCusts.reduce((sum, c) => sum + (c.sales2026 || 0), 0);
+      const repCollections2026 = repCusts.reduce((sum, c) => sum + (c.collections2026 || 0), 0);
+
+      const monthlySales: Record<number, number> = {};
+      const monthlyCollections: Record<number, number> = {};
+      for (let m = 1; m <= 12; m++) {
+        monthlySales[m] = repCusts.reduce((sum, c) => sum + (c.monthlySales2026?.[m] || 0), 0);
+        monthlyCollections[m] = repCusts.reduce((sum, c) => sum + (c.monthlyCollections2026?.[m] || 0), 0);
+      }
+
+      const targetSales = repSales2026 > 0 ? Math.round(repSales2026 * 1.15) : 500000;
+      const targetCollections = repDebt > 0 ? Math.round(repDebt * 0.8) : 400000;
+
+      return {
+        id: rep.id,
+        name: rep.name,
+        avatar: rep.avatar || (rep as any).avatarUrl,
+        branchName: rep.branchName || currentUser?.branchName || 'الفرع الرئيسي',
+        customersCount: repCusts.length,
+        totalDebt: repDebt,
+        totalOverdue: repOverdue,
+        totalSales: repSales2026,
+        totalCollections: repCollections2026,
+        targetSales,
+        targetCollections,
+        monthlySales,
+        monthlyCollections,
+      };
+    });
+  }, [isSupervisor, isBranchManager, isAdminOrDev, users, currentUser, userVisibleCustomers]);
+
+  // Rep Customers Dedicated List & Mirrored Analytics Charts
+  const repCustomersList = useMemo(() => {
+    if (!analyzedRep) return [];
+    return userVisibleCustomers.filter((c) =>
+      c.salesRepId === analyzedRep.id ||
+      c.repId === analyzedRep.id ||
+      isArabicNameMatch(c.salesRepName || c.repName || '', analyzedRep.name)
+    );
+  }, [analyzedRep, userVisibleCustomers]);
+
+  const repTopDebtCustomers = useMemo(() => {
+    return [...repCustomersList]
+      .filter((c) => getCustomerBalance(c) > 0)
+      .sort((a, b) => getCustomerBalance(b) - getCustomerBalance(a))
+      .slice(0, 5)
+      .map((c) => ({
+        code: c.code || '---',
+        name: c.name,
+        debt: getCustomerBalance(c),
+        customer: c,
+      }));
+  }, [repCustomersList]);
+
+  const repEligibilityDistribution = useMemo(() => {
+    let eligible = 0;
+    let notEligible = 0;
+    let dealt = 0;
+    let unknown = 0;
+
+    repCustomersList.forEach((c) => {
+      const raw = (c.dealEligibility || '').trim();
+      if (!raw) unknown += 1;
+      else if (raw.includes('غير') || raw.includes('موقوف')) notEligible += 1;
+      else if (raw.includes('متعامل')) dealt += 1;
+      else if (raw.includes('قابل')) eligible += 1;
+      else unknown += 1;
+    });
+
+    return [
+      { name: 'قابل للتعامل', value: eligible, color: '#1F9D74' },
+      { name: 'غير قابل', value: notEligible, color: '#E05B5B' },
+      { name: 'متعامل', value: dealt, color: '#2F6FD0' },
+      { name: 'غير محدد', value: unknown, color: '#8FA0B8' },
+    ].filter((bucket) => bucket.value > 0);
+  }, [repCustomersList]);
+
+  const repDistributionTotal = useMemo(
+    () => repEligibilityDistribution.reduce((sum, item) => sum + item.value, 0),
+    [repEligibilityDistribution]
+  );
+
+  const repIndebtedCount = useMemo(
+    () => repCustomersList.filter((c) => getCustomerBalance(c) > 0).length,
+    [repCustomersList]
+  );
+
+  const filteredRepCustomers = useMemo(() => {
+    let list = [...repCustomersList];
+
+    if (repOnlyDebt) {
+      list = list.filter((c) => getCustomerBalance(c) > 0);
+    }
+
+    if (repCustomerSearch.trim()) {
+      const q = repCustomerSearch.trim().toLowerCase();
+      list = list.filter((c) =>
+        (c.name && c.name.toLowerCase().includes(q)) ||
+        (c.code && c.code.toLowerCase().includes(q)) ||
+        (c.phone && c.phone.includes(q)) ||
+        (c.region && c.region.toLowerCase().includes(q)) ||
+        (c.storeName && c.storeName.toLowerCase().includes(q))
+      );
+    }
+
+    if (repCustomerSort === 'debt') {
+      list.sort((a, b) => getCustomerBalance(b) - getCustomerBalance(a));
+    } else if (repCustomerSort === 'overdue') {
+      list.sort((a, b) => getCustomerOverdue(b) - getCustomerOverdue(a));
+    } else if (repCustomerSort === 'name') {
+      list.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+    }
+
+    return list;
+  }, [repCustomersList, repOnlyDebt, repCustomerSearch, repCustomerSort]);
 
   // 2. Multi-Filter & Search Pipeline
   //    المرحلة (أ): الفلاتر التنظيمية + البحث النصي.
@@ -1351,6 +1572,24 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+          {/* مزامنة سوبابيز المباشرة */}
+          <button
+            id="analytics-sync-supabase-btn"
+            type="button"
+            onClick={handleManualSupabaseSync}
+            disabled={isSupabaseSyncing || isManualFetching}
+            className="app-btn px-3 py-2 text-xs whitespace-nowrap bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black shadow-xs disabled:opacity-50 cursor-pointer flex items-center gap-1.5"
+            title="مزامنة وجلب قاعدة العملاء المحدثة مباشرة من قاعدة بيانات سوبابيز (Supabase)"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSupabaseSyncing || isManualFetching ? 'animate-spin' : ''}`} />
+            <span>مزامنة سوبابيز</span>
+            {supabaseStatus?.customersCount ? (
+              <span className="app-num text-[10px] bg-white/20 text-white rounded-full px-1.5 py-0.2">
+                {supabaseStatus.customersCount.toLocaleString()}
+              </span>
+            ) : null}
+          </button>
+
           {/* تخصيص أعمدة الجدول */}
           <button
             type="button"
@@ -1396,6 +1635,30 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       </div>
 
+      {/* Supabase Sync Notice Notification Banner */}
+      {supabaseSyncMsg && (
+        <div className="panel-ok rounded-[14px] p-3 sm:p-4 flex items-center justify-between gap-3 text-xs font-bold shadow-sm animate-in fade-in bg-teal-500/10 border border-teal-500/30 text-teal-800 dark:text-teal-200">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-[10px] bg-teal-500/20 text-teal-600 dark:text-teal-300 flex items-center justify-center shrink-0">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="font-black">{supabaseSyncMsg}</p>
+              <p className="text-[11px] font-medium mt-0.5 opacity-80">
+                الاتصال السحابي بسوبابيز نشط وقاعدة البيانات متزامنة بأحدث السجلات.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSupabaseSyncMsg(null)}
+            className="p-1 rounded-lg hover:bg-teal-500/20 transition cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* Deduplication Notice Notification Banner */}
       {dedupeNotice && (
         <div className="panel-ok rounded-[14px] p-3 sm:p-4 flex items-center justify-between gap-3 text-xs font-bold shadow-sm animate-in fade-in">
@@ -1421,178 +1684,152 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       )}
 
       {/* KPI Cards — ألوان متناسقة مع هوية التطبيق */}
-      {!isRep && !isSupervisor && (
-        <div className="ckpi-grid">
-          <article className="ckpi ckpi-navy">
-            <span className="ckpi-icon"><Users className="w-5 h-5" /></span>
-            <div className="ckpi-text">
-              <span className="ckpi-label">عدد العملاء</span>
-              <strong className="ckpi-value app-num">{kpiStats.totalCount.toLocaleString()}</strong>
-              <span className="ckpi-hint">
-                {kpiStats.active2026Count.toLocaleString()} متعامل نشط ({kpiStats.activeRate}%)
-              </span>
-            </div>
-          </article>
+      <div className="ckpi-grid">
+        <article className="ckpi ckpi-navy">
+          <span className="ckpi-icon"><Users className="w-5 h-5" /></span>
+          <div className="ckpi-text">
+            <span className="ckpi-label">عدد العملاء</span>
+            <strong className="ckpi-value app-num">{kpiStats.totalCount.toLocaleString()}</strong>
+            <span className="ckpi-hint">
+              {kpiStats.active2026Count.toLocaleString()} متعامل نشط ({kpiStats.activeRate}%)
+            </span>
+          </div>
+        </article>
 
-          <article className="ckpi ckpi-violet">
-            <span className="ckpi-icon"><DollarSign className="w-5 h-5" /></span>
-            <div className="ckpi-text">
-              <span className="ckpi-label">إجمالي المسدد</span>
-              <strong className="ckpi-value app-num">{formatMoney(kpiStats.totalCollections2026)}</strong>
-              <span className="ckpi-hint">تحصيلات 2026 من إجمالي المديونية</span>
-            </div>
-          </article>
+        <article className="ckpi ckpi-violet">
+          <span className="ckpi-icon"><DollarSign className="w-5 h-5" /></span>
+          <div className="ckpi-text">
+            <span className="ckpi-label">إجمالي المسدد</span>
+            <strong className="ckpi-value app-num">{formatMoney(kpiStats.totalCollections2026)}</strong>
+            <span className="ckpi-hint">تحصيلات 2026 من إجمالي المديونية</span>
+          </div>
+        </article>
 
-          <article className="ckpi ckpi-blue">
-            <span className="ckpi-icon"><Receipt className="w-5 h-5" /></span>
-            <div className="ckpi-text">
-              <span className="ckpi-label">المتبقي للتحصيل</span>
-              <strong className="ckpi-value app-num">{formatMoney(kpiStats.totalOverdue)}</strong>
-              <span className="ckpi-hint">متأخرات ومستحقات واجبة السداد</span>
-            </div>
-          </article>
+        <article className="ckpi ckpi-blue">
+          <span className="ckpi-icon"><Receipt className="w-5 h-5" /></span>
+          <div className="ckpi-text">
+            <span className="ckpi-label">المتبقي للتحصيل</span>
+            <strong className="ckpi-value app-num">{formatMoney(kpiStats.totalOverdue)}</strong>
+            <span className="ckpi-hint">متأخرات ومستحقات واجبة السداد</span>
+          </div>
+        </article>
 
-          <article className="ckpi ckpi-green">
-            <span className="ckpi-icon"><CreditCard className="w-5 h-5" /></span>
-            <div className="ckpi-text">
-              <span className="ckpi-label">إجمالي المديونية</span>
-              <strong className="ckpi-value app-num">{formatMoney(kpiStats.totalDebt)}</strong>
-              <span className="ckpi-hint">
-                {kpiStats.overLimitCount.toLocaleString()} عميل متجاوز الحد الائتماني
-              </span>
-            </div>
-          </article>
+        <article className="ckpi ckpi-green">
+          <span className="ckpi-icon"><CreditCard className="w-5 h-5" /></span>
+          <div className="ckpi-text">
+            <span className="ckpi-label">إجمالي المديونية</span>
+            <strong className="ckpi-value app-num">{formatMoney(kpiStats.totalDebt)}</strong>
+            <span className="ckpi-hint">
+              {kpiStats.overLimitCount.toLocaleString()} عميل متجاوز الحد الائتماني
+            </span>
+          </div>
+        </article>
 
-          <article className="ckpi ckpi-rose">
-            <span className="ckpi-icon"><AlertTriangle className="w-5 h-5" /></span>
-            <div className="ckpi-text">
-              <span className="ckpi-label">العملاء المتأخرون</span>
-              <strong className="ckpi-value app-num">{overdueCustomersCount.toLocaleString()}</strong>
-              <span className="ckpi-hint">
-                {kpiStats.totalCount > 0
-                  ? `${Math.round((overdueCustomersCount / kpiStats.totalCount) * 100)}% من العملاء الحاليين`
-                  : 'لا توجد بيانات'}
-              </span>
-            </div>
-          </article>
-        </div>
-      )}
+        <article className="ckpi ckpi-rose">
+          <span className="ckpi-icon"><AlertTriangle className="w-5 h-5" /></span>
+          <div className="ckpi-text">
+            <span className="ckpi-label">العملاء المتأخرون</span>
+            <strong className="ckpi-value app-num">{overdueCustomersCount.toLocaleString()}</strong>
+            <span className="ckpi-hint">
+              {kpiStats.totalCount > 0
+                ? `${Math.round((overdueCustomersCount / kpiStats.totalCount) * 100)}% من العملاء الحاليين`
+                : 'لا توجد بيانات'}
+            </span>
+          </div>
+        </article>
+      </div>
 
-      {/* الرسوم: توزيع تصنيف التعامل (قابل / غير قابل) + أعلى 5 عملاء مديونية */}
-      {!isRep && !isSupervisor && (
-        <div className="cchart-row">
-          <section className="cchart-card">
-            <header className="cchart-head">
-              <h3>توزيع العملاء حسب تصنيف التعامل (قابل / غير قابل)</h3>
-              <span className="cchart-chip">{distributionTotal.toLocaleString()} عميل</span>
-            </header>
-            <div className="cchart-body">
-              <div className="cchart-donut">
-                <ResponsiveContainer width="100%" height={240}>
-                  <RechartsPieChart>
-                    <Pie
-                      data={eligibilityDistribution}
-                      dataKey="value"
-                      nameKey="name"
-                      innerRadius={62}
-                      outerRadius={90}
-                      paddingAngle={3}
-                      stroke="none"
-                    >
-                      {eligibilityDistribution.map((entry) => (
-                        <Cell key={`status-${entry.name}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(val: any) => `${Number(val).toLocaleString()} عميل`}
-                      contentStyle={{ backgroundColor: '#0F2B38', color: '#fff', borderRadius: '12px', border: 'none' }}
-                    />
-                  </RechartsPieChart>
-                </ResponsiveContainer>
-                <div className="cchart-donut-center">
-                  <strong className="app-num">{distributionTotal.toLocaleString()}</strong>
-                  <span>عميل</span>
+      {/* قسم المشرف: كروت فريق المناديب وتحليل الأداء المالي */}
+      {(isSupervisor || isBranchManager || isAdminOrDev) && supervisorRepsSummary.length > 0 && (
+        <section className="bg-white dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-xs space-y-3.5 animate-in fade-in">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-700 dark:text-teal-300 flex items-center justify-center font-black">
+                <Users className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-black text-sm text-slate-900 dark:text-white">
+                  فريق المناديب والتحليل المالي ومحققات التارجت
+                </h3>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                  اضغط على أي مندوب لعرض بروفايل تفصيلي، محققات التارجت بيع وتحصيل، جدولين منفصلين، والرسم البياني
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+              {supervisorRepsSummary.length} مندوب بالفريق
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {supervisorRepsSummary.map((rep) => {
+              const colRate = rep.totalSales > 0 ? Math.round((rep.totalCollections / rep.totalSales) * 100) : 0;
+              return (
+                <div
+                  key={rep.id}
+                  onClick={() => setAnalyzedRep(rep)}
+                  className="group relative bg-slate-50 dark:bg-slate-800/60 hover:bg-white dark:hover:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-3.5 transition-all duration-200 cursor-pointer hover:shadow-md hover:border-teal-500/40 space-y-2.5"
+                >
+                  {/* Rep Header */}
+                  <div className="flex items-center gap-2.5">
+                    {rep.avatar ? (
+                      <img src={rep.avatar} alt={rep.name} className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0f2b38] to-[#1e5870] text-white flex items-center justify-center font-black text-sm shadow-xs shrink-0">
+                        {rep.name.charAt(0)}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate group-hover:text-teal-600 transition-colors">
+                        {rep.name}
+                      </div>
+                      <div className="text-[10.5px] text-slate-500 dark:text-slate-400 font-bold truncate">
+                        {rep.branchName} • {rep.customersCount} عميل
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4 Financial Chips */}
+                  <div className="grid grid-cols-2 gap-1.5 text-right">
+                    <div className="p-2 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-700">
+                      <div className="text-[9px] text-slate-500 dark:text-slate-400 font-bold">المديونية</div>
+                      <div className="font-mono font-black text-xs text-[var(--app-navy)] dark:text-white truncate">
+                        {formatCompactMoney(rep.totalDebt)}
+                      </div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-rose-50/70 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40">
+                      <div className="text-[9px] text-rose-600 dark:text-rose-400 font-bold">المستحق</div>
+                      <div className="font-mono font-black text-xs text-rose-700 dark:text-rose-300 truncate">
+                        {formatCompactMoney(rep.totalOverdue)}
+                      </div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-900/40">
+                      <div className="text-[9px] text-blue-600 dark:text-blue-400 font-bold">إجمالي البيع</div>
+                      <div className="font-mono font-black text-xs text-blue-700 dark:text-blue-300 truncate">
+                        {formatCompactMoney(rep.totalSales)}
+                      </div>
+                    </div>
+                    <div className="p-2 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40">
+                      <div className="text-[9px] text-emerald-700 dark:text-emerald-400 font-bold">التحصيل ({colRate}%)</div>
+                      <div className="font-mono font-black text-xs text-emerald-800 dark:text-emerald-300 truncate">
+                        {formatCompactMoney(rep.totalCollections)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-1 flex items-center justify-between text-[11px] text-teal-600 dark:text-teal-400 font-black">
+                    <span>عرض تحليل الأداء والتارجت</span>
+                    <ChevronLeft className="w-3.5 h-3.5 group-hover:-translate-x-1 transition-transform" />
+                  </div>
                 </div>
-              </div>
-
-              <ul className="cchart-legend">
-                {eligibilityDistribution.map((item) => {
-                  const pct = distributionTotal > 0 ? (item.value / distributionTotal) * 100 : 0;
-                  return (
-                    <li key={`legend-${item.name}`}>
-                      <span className="cchart-dot" style={{ backgroundColor: item.color }} />
-                      <span className="cchart-legend-name">{item.name}</span>
-                      <span className="cchart-legend-pct app-num">{pct.toFixed(1)}%</span>
-                      <span className="cchart-legend-val app-num">{item.value.toLocaleString()}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          </section>
-
-          <section className="cchart-card">
-            <header className="cchart-head">
-              <h3>أعلى 5 عملاء في المديونية الحالية</h3>
-              <span className="cchart-chip">بالجنيه المصري</span>
-            </header>
-            {topDebtCustomers.length > 0 ? (
-              <div className="cchart-bars">
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={topDebtCustomers} margin={{ top: 12, right: 6, left: 6, bottom: 4 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8eef5" />
-                    <XAxis
-                      dataKey="code"
-                      tick={<TopDebtAxisTick />}
-                      height={34}
-                      interval={0}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      width={56}
-                      tick={{ fontSize: 9, fontWeight: 700, fill: '#93a4b8' }}
-                      tickFormatter={(value: any) => formatCompactAmount(Number(value))}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <Tooltip
-                      formatter={(val: any) => [formatMoney(Number(val)), 'المديونية']}
-                      labelFormatter={(_label: any, payload: any) => {
-                        if (!payload || !payload[0]) return '';
-                        const item = payload[0].payload;
-                        return `${item.name} — ${item.code}`;
-                      }}
-                      contentStyle={{ backgroundColor: '#0F2B38', color: '#fff', borderRadius: '12px', border: 'none' }}
-                    />
-                    <Bar
-                      dataKey="debt"
-                      fill="#2F6FD0"
-                      radius={[8, 8, 0, 0]}
-                      barSize={46}
-                      cursor="pointer"
-                      onClick={(data: any) => {
-                        if (data && data.payload && data.payload.customer) {
-                          setQuickCustomer(data.payload.customer);
-                        }
-                      }}
-                    >
-                      <LabelList
-                        dataKey="debt"
-                        position="top"
-                        formatter={(val: any) => formatCompactAmount(Number(val))}
-                        style={{ fontSize: 9, fontWeight: 900, fill: '#1b3652' }}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="cchart-empty">لا توجد مديونيات مطابقة للفلاتر الحالية</div>
-            )}
-          </section>
-        </div>
+              );
+            })}
+          </div>
+        </section>
       )}
+
+
+
 
       {/* Power BI Multi-Visual Interactive Dashboard */}
       {showCharts && !isRep && !isSupervisor && (
@@ -1888,21 +2125,36 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
         {/* Table Content */}
         {paginatedCustomers.length === 0 ? (
-          <div className="py-12 px-6 text-center">
-            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border border-teal bg-gradient-to-br from-[#f4fbfd] to-[#e6f7f5] text-[var(--app-ok)]">
-              <Users className="h-7 w-7" />
+          <div className="py-12 px-6 text-center animate-in fade-in">
+            <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border border-teal-500/30 bg-gradient-to-br from-[#f4fbfd] to-[#e6f7f5] text-[var(--app-ok)] shadow-sm">
+              <Users className="h-7 w-7 text-teal-600" />
             </div>
-            <div className="text-sm font-black text-slate-800">لا يوجد عملاء مطابقين للفلاتر الحالية</div>
-            <p className="mx-auto mt-1 max-w-md text-xs font-medium leading-relaxed text-slate-500">
+            <div className="text-base font-black text-slate-800">
+              {customers.length === 0 ? 'قاعدة بيانات العملاء لم تُحمّل بعد' : 'لا يوجد عملاء مطابقين للفلاتر الحالية'}
+            </div>
+            <p className="mx-auto mt-1.5 max-w-md text-xs font-medium leading-relaxed text-slate-500">
               {customers.length === 0
-                ? 'قاعدة البيانات خالية حالياً. يمكن للمسؤول استيراد بيانات العملاء عبر إكسل أو شيت المديونية.'
+                ? 'يوجد في قاعدة بيانات سوبابيز (Supabase) أكثر من 5,400 عميل مسجل. يمكنك تحميلهم ومزامنتهم بضغطة واحدة الآن.'
                 : 'جرّب تعديل الفلاتر أو مسح البحث لرؤية النتائج.'}
             </p>
-            {customers.length > 0 && (
+
+            {customers.length === 0 ? (
+              <div className="mt-5 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleManualSupabaseSync}
+                  disabled={isSupabaseSyncing || isManualFetching}
+                  className="app-btn app-btn-primary px-5 py-2.5 text-xs font-black shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isSupabaseSyncing || isManualFetching ? 'animate-spin' : ''}`} />
+                  <span>تحميل ومزامنة 5,428 عميل من سوبابيز الآن ☁️</span>
+                </button>
+              </div>
+            ) : (
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="app-btn app-btn-primary mx-auto mt-4 px-4 py-2 text-xs"
+                className="app-btn app-btn-primary mx-auto mt-4 px-4 py-2 text-xs cursor-pointer flex items-center gap-1.5"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 <span>مسح كل الفلاتر</span>
@@ -2267,7 +2519,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
       {/* CUSTOMER 360-DEGREE DETAIL DRAWER / MODAL */}
       {selectedCustomer && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm overflow-y-auto p-2 sm:p-4 md:p-6 flex items-center justify-center animate-in fade-in">
+        <div className="fixed inset-0 z-60 bg-slate-950/75 backdrop-blur-sm overflow-y-auto p-2 sm:p-4 md:p-6 flex items-center justify-center animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-5xl xl:max-w-6xl w-full sm:w-[94%] my-2 sm:my-4 shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 max-h-[90vh]">
             {/* Modal Header */}
             <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white rounded-t-3xl flex items-center justify-between sticky top-0 z-20 border-b border-slate-800">
@@ -2924,7 +3176,208 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   </div>
                 </div>
               )}
+
+              {/* Latest Recorded Visit & Invoice Strip */}
+              {(() => {
+                const latestVisit = selectedCustomer.visitHistory?.[0] || 
+                  (getVisibleVisits ? getVisibleVisits().find((v) => v.customerId === selectedCustomer.id || v.customerCode === selectedCustomer.code) : null);
+                const custOrders = customerOrdersLookup.getOrdersForCustomer(selectedCustomer);
+                const latestOrder = custOrders?.[0];
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700">
+                    {/* Latest Visit Card */}
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-black text-slate-800 dark:text-white flex items-center gap-1.5">
+                          <CalendarCheck className="w-4 h-4 text-teal-600" />
+                          <span>آخر زيارة ميدانية مسجلة</span>
+                        </span>
+                        {latestVisit?.type && (
+                          <span className="px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 font-bold text-[10px]">
+                            {latestVisit.type}
+                          </span>
+                        )}
+                      </div>
+                      {latestVisit ? (
+                        <div className="text-xs space-y-1 text-slate-600 dark:text-slate-300">
+                          <div className="flex items-center justify-between font-bold">
+                            <span>التاريخ: {latestVisit.date}</span>
+                            <span className="text-teal-600 font-black">{latestVisit.outcome || 'منفذة'}</span>
+                          </div>
+                          {latestVisit.collectedAmount && latestVisit.collectedAmount > 0 ? (
+                            <div className="text-[11px] font-black text-emerald-600">
+                              تم تحصيل: {formatCurrency(latestVisit.collectedAmount)}
+                            </div>
+                          ) : null}
+                          {latestVisit.notes && (
+                            <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">{latestVisit.notes}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 font-medium">لا توجد زيارات سابقة مسجلة للعميل</p>
+                      )}
+                    </div>
+
+                    {/* Latest Invoice Card */}
+                    <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-black text-slate-800 dark:text-white flex items-center gap-1.5">
+                          <Receipt className="w-4 h-4 text-blue-600" />
+                          <span>آخر فاتورة / أمر بيع مسجل</span>
+                        </span>
+                        {latestOrder?.status && (
+                          <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-800 font-bold text-[10px]">
+                            {latestOrder.status}
+                          </span>
+                        )}
+                      </div>
+                      {latestOrder ? (
+                        <div className="text-xs space-y-1 text-slate-600 dark:text-slate-300">
+                          <div className="flex items-center justify-between font-bold">
+                            <span>رقم الفاتورة: #{latestOrder.invoiceNumber || latestOrder.id.slice(-6)}</span>
+                            <span className="font-mono text-blue-700 dark:text-blue-400 font-black">
+                              {formatCurrency(Number(latestOrder.estimatedGrandTotal ?? latestOrder.totalAmount ?? latestOrder.subtotal) || 0)}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 flex items-center justify-between">
+                            <span>التاريخ: {latestOrder.date}</span>
+                            <span>الكمية: {latestOrder.items?.reduce((s, it) => s + (it.cartonCount || 0), 0) || 0} كرتونة</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-slate-400 font-medium">لا توجد فواتير مبيعات سابقة مسجلة</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Store Gallery Section */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <h4 className="font-black text-xs sm:text-sm text-slate-800 dark:text-white flex items-center gap-1.5">
+                    <Building2 className="w-4 h-4 text-teal-600" />
+                    <span>معرض صور المتجر والمحل ({(selectedCustomer.storePhotos || []).length} صورة)</span>
+                  </h4>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingStorePhoto(!isAddingStorePhoto)}
+                    className="px-3 py-1.5 rounded-xl bg-[#009488] hover:bg-[#007f74] text-white text-xs font-black flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>إضافة صورة للمحل</span>
+                  </button>
+                </div>
+
+                {isAddingStorePhoto && (
+                  <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-teal-200 dark:border-teal-800 space-y-2.5 animate-in fade-in">
+                    <div className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                      إضافة صورة لمعرض محل العميل:
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="url"
+                        placeholder="ضع رابط صورة المعرض (أو ارفع من الجهاز)..."
+                        value={newStorePhotoUrl}
+                        onChange={(e) => setNewStorePhotoUrl(e.target.value)}
+                        className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium"
+                      />
+                      <label className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-1 cursor-pointer shrink-0">
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>رفع ملف</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onload = () => {
+                                if (typeof reader.result === 'string') {
+                                  const currentPhotos = selectedCustomer.storePhotos || [];
+                                  const updated = [...currentPhotos, reader.result];
+                                  updateCustomer({ ...selectedCustomer, storePhotos: updated });
+                                  setSelectedCustomer({ ...selectedCustomer, storePhotos: updated });
+                                  setIsAddingStorePhoto(false);
+                                }
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newStorePhotoUrl.trim()) {
+                            const currentPhotos = selectedCustomer.storePhotos || [];
+                            const updated = [...currentPhotos, newStorePhotoUrl.trim()];
+                            updateCustomer({ ...selectedCustomer, storePhotos: updated });
+                            setSelectedCustomer({ ...selectedCustomer, storePhotos: updated });
+                            setNewStorePhotoUrl('');
+                            setIsAddingStorePhoto(false);
+                          }
+                        }}
+                        disabled={!newStorePhotoUrl.trim()}
+                        className="px-4 py-2 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white rounded-xl text-xs font-black transition cursor-pointer shrink-0"
+                      >
+                        حفظ الصورة
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Photos Grid */}
+                {(selectedCustomer.storePhotos || []).length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2.5">
+                    {(selectedCustomer.storePhotos || []).map((imgUrl, pIdx) => (
+                      <div
+                        key={pIdx}
+                        className="group relative aspect-4/3 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 shadow-2xs"
+                      >
+                        <img
+                          src={imgUrl}
+                          alt={`صورة محل ${selectedCustomer.name} #${pIdx + 1}`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200 cursor-pointer"
+                          onClick={() => setSelectedStoreImage(imgUrl)}
+                        />
+                        <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedStoreImage(imgUrl)}
+                            className="w-8 h-8 rounded-lg bg-white/90 text-slate-900 flex items-center justify-center hover:bg-white transition cursor-pointer"
+                            title="تكبير الصورة"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const currentPhotos = selectedCustomer.storePhotos || [];
+                              const updated = currentPhotos.filter((_, i) => i !== pIdx);
+                              updateCustomer({ ...selectedCustomer, storePhotos: updated });
+                              setSelectedCustomer({ ...selectedCustomer, storePhotos: updated });
+                            }}
+                            className="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center hover:bg-rose-700 transition cursor-pointer"
+                            title="حذف الصورة"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-center text-xs text-slate-400">
+                    لا توجد صور مسجلة لمعرض هذا العميل حالياً. انقر على "إضافة صورة للمحل" لتوثيق صور واجهة المعرض والرفوف.
+                  </div>
+                )}
+              </div>
             </div>
+
 
             {/* Modal Footer with Clear, High-Affordance Close Button */}
             <div className="p-4 bg-slate-100 border-t border-slate-200 rounded-b-3xl flex items-center justify-between flex-wrap gap-2">
@@ -2948,8 +3401,692 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
       )}
 
+      {/* SUPERVISOR REP PERFORMANCE & TARGET ANALYSIS MODAL */}
+      {analyzedRep && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm overflow-y-auto p-2 sm:p-4 md:p-6 flex items-center justify-center animate-in fade-in" dir="rtl">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-5xl xl:max-w-6xl w-full sm:w-[94%] my-2 sm:my-4 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 max-h-[92vh]">
+            {/* Header */}
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-[#0f2b38] via-[#143d52] to-[#0f2b38] text-white flex items-center justify-between sticky top-0 z-20 border-b border-white/10">
+              <div className="flex items-center gap-3 sm:gap-4">
+                {analyzedRep.avatar ? (
+                  <img src={analyzedRep.avatar} alt={analyzedRep.name} className="w-12 h-12 rounded-2xl object-cover border-2 border-teal-400 shrink-0 shadow-sm" />
+                ) : (
+                  <div className="w-12 h-12 rounded-2xl bg-teal-500 text-white flex items-center justify-center font-black text-xl shadow-sm shrink-0">
+                    {analyzedRep.name.charAt(0)}
+                  </div>
+                )}
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-black text-base sm:text-xl text-white">
+                      بروفايل وتحليل أداء المندوب: {analyzedRep.name}
+                    </h3>
+                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-lg bg-teal-400/20 text-teal-300 border border-teal-400/30">
+                      {analyzedRep.branchName}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-1 flex items-center gap-2 flex-wrap">
+                    <span>عدد العملاء المسندين: <strong className="text-white">{analyzedRep.customersCount} عميل</strong></span>
+                    <span>•</span>
+                    <span>المديونية: <strong className="text-white">{formatCurrency(analyzedRep.totalDebt)}</strong></span>
+                    <span>•</span>
+                    <span>المستحقات: <strong className="text-rose-300">{formatCurrency(analyzedRep.totalOverdue)}</strong></span>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setAnalyzedRep(null)}
+                className="w-10 h-10 rounded-2xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer border border-white/10 shrink-0"
+                title="إغلاق النافذة"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Tabs Header */}
+            <div className="bg-slate-100 dark:bg-slate-800/90 px-4 sm:px-6 pt-2 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setAnalyzedRepTab('customers')}
+                className={`flex items-center gap-2 px-4 py-3 font-black text-xs sm:text-sm border-b-2 transition cursor-pointer ${
+                  analyzedRepTab === 'customers'
+                    ? 'border-teal-500 text-teal-600 dark:text-teal-400 bg-white dark:bg-slate-900 rounded-t-xl shadow-xs'
+                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                <span>بروفايل وتحليل عملاء المندوب ({repCustomersList.length} عميل)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAnalyzedRepTab('target')}
+                className={`flex items-center gap-2 px-4 py-3 font-black text-xs sm:text-sm border-b-2 transition cursor-pointer ${
+                  analyzedRepTab === 'target'
+                    ? 'border-teal-500 text-teal-600 dark:text-teal-400 bg-white dark:bg-slate-900 rounded-t-xl shadow-xs'
+                    : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                <span>أداء المبيعات والتحصيلات والتارجت الشهري</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-6 space-y-6 overflow-y-auto max-h-[82vh]">
+              {analyzedRepTab === 'customers' ? (
+                <>
+                  {/* الرسوم التحليلية المتطابقة لعملاء المندوب: تصنيف التعامل + أعلى 5 عملاء في المديونية */}
+                  <div className="cchart-row">
+                    {/* Donut Chart: توزيع عملاء المندوب حسب تصنيف التعامل */}
+                    <section className="cchart-card">
+                      <header className="cchart-head">
+                        <h3>توزيع عملاء المندوب حسب تصنيف التعامل (قابل / غير قابل)</h3>
+                        <span className="cchart-chip">{repDistributionTotal.toLocaleString()} عميل</span>
+                      </header>
+                      <div className="cchart-body">
+                        <div className="cchart-donut">
+                          <ResponsiveContainer width="100%" height={240}>
+                            <RechartsPieChart>
+                              <Pie
+                                data={repEligibilityDistribution}
+                                dataKey="value"
+                                nameKey="name"
+                                innerRadius={62}
+                                outerRadius={90}
+                                paddingAngle={3}
+                                stroke="none"
+                              >
+                                {repEligibilityDistribution.map((entry) => (
+                                  <Cell key={`rep-status-${entry.name}`} fill={entry.color} />
+                                ))}
+                              </Pie>
+                              <Tooltip
+                                formatter={(val: any) => `${Number(val).toLocaleString()} عميل`}
+                                contentStyle={{ backgroundColor: '#0F2B38', color: '#fff', borderRadius: '12px', border: 'none' }}
+                              />
+                            </RechartsPieChart>
+                          </ResponsiveContainer>
+                          <div className="cchart-donut-center">
+                            <strong className="app-num">{repDistributionTotal.toLocaleString()}</strong>
+                            <span>عميل</span>
+                          </div>
+                        </div>
+
+                        <ul className="cchart-legend">
+                          {repEligibilityDistribution.map((item) => {
+                            const pct = repDistributionTotal > 0 ? (item.value / repDistributionTotal) * 100 : 0;
+                            return (
+                              <li key={`rep-legend-${item.name}`}>
+                                <span className="cchart-dot" style={{ backgroundColor: item.color }} />
+                                <span className="cchart-legend-name">{item.name}</span>
+                                <span className="cchart-legend-pct app-num">{pct.toFixed(1)}%</span>
+                                <span className="cchart-legend-val app-num">{item.value.toLocaleString()}</span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    </section>
+
+                    {/* Bar Chart: أعلى 5 عملاء في المديونية التابعين للمندوب */}
+                    <section className="cchart-card">
+                      <header className="cchart-head">
+                        <h3>أعلى 5 عملاء في المديونية التابعين للمندوب</h3>
+                        <span className="cchart-chip">بالجنيه المصري</span>
+                      </header>
+                      {repTopDebtCustomers.length > 0 ? (
+                        <div className="cchart-bars">
+                          <ResponsiveContainer width="100%" height={240}>
+                            <BarChart data={repTopDebtCustomers} margin={{ top: 12, right: 6, left: 6, bottom: 4 }}>
+                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8eef5" />
+                              <XAxis
+                                dataKey="code"
+                                tick={<TopDebtAxisTick />}
+                                height={34}
+                                interval={0}
+                                axisLine={false}
+                                tickLine={false}
+                              />
+                              <YAxis
+                                width={56}
+                                tick={{ fontSize: 9, fontWeight: 700, fill: '#93a4b8' }}
+                                tickFormatter={(value: any) => formatCompactAmount(Number(value))}
+                                axisLine={false}
+                                tickLine={false}
+                              />
+                              <Tooltip
+                                formatter={(val: any) => [formatMoney(Number(val)), 'المديونية']}
+                                labelFormatter={(_label: any, payload: any) => {
+                                  if (!payload || !payload[0]) return '';
+                                  const item = payload[0].payload;
+                                  return `${item.name} — ${item.code}`;
+                                }}
+                                contentStyle={{ backgroundColor: '#0F2B38', color: '#fff', borderRadius: '12px', border: 'none' }}
+                              />
+                              <Bar
+                                dataKey="debt"
+                                fill="#2F6FD0"
+                                radius={[8, 8, 0, 0]}
+                                barSize={46}
+                                cursor="pointer"
+                                onClick={(data: any) => {
+                                  if (data && data.payload && data.payload.customer) {
+                                    setSelectedCustomer(data.payload.customer);
+                                  }
+                                }}
+                              >
+                                <LabelList
+                                  dataKey="debt"
+                                  position="top"
+                                  formatter={(val: any) => formatCompactAmount(Number(val))}
+                                  style={{ fontSize: 9, fontWeight: 900, fill: '#1b3652' }}
+                                />
+                              </Bar>
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center p-8 text-center text-slate-400">
+                          <CheckCircle2 className="w-10 h-10 text-emerald-500 mb-2 opacity-50" />
+                          <p className="text-xs font-bold">لا توجد مديونيات قائمة على عملاء هذا المندوب!</p>
+                        </div>
+                      )}
+                    </section>
+                  </div>
+
+                  {/* Smart Search & Filter Bar for Rep's Customers */}
+                  <div className="bg-slate-50 dark:bg-slate-800/70 p-3.5 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row items-center justify-between gap-3">
+                    <div className="relative w-full md:w-96">
+                      <Search className="w-4 h-4 text-slate-400 absolute top-3 right-3" />
+                      <input
+                        type="text"
+                        value={repCustomerSearch}
+                        onChange={(e) => setRepCustomerSearch(e.target.value)}
+                        placeholder="ابحث بالاسم، كود العميل، الهاتف، المنطقة، أو المحل..."
+                        className="w-full pr-9 pl-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold bg-white dark:bg-slate-900 focus:outline-none focus:border-teal-500 text-slate-900 dark:text-white"
+                      />
+                      {repCustomerSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setRepCustomerSearch('')}
+                          className="absolute top-2.5 left-2.5 text-slate-400 hover:text-slate-600 text-xs font-bold cursor-pointer"
+                        >
+                          مسح
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto justify-between md:justify-end">
+                      {/* Toggle Debt Only Switch */}
+                      <button
+                        type="button"
+                        onClick={() => setRepOnlyDebt(!repOnlyDebt)}
+                        className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer border ${
+                          repOnlyDebt
+                            ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-xs'
+                            : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className={`w-3 h-3 rounded-full ${repOnlyDebt ? 'bg-slate-950' : 'bg-amber-400'}`} />
+                        <span>إظهار المديونيات فقط</span>
+                        <span className="px-1.5 py-0.2 rounded-md bg-black/10 text-[10px] app-num">{repIndebtedCount}</span>
+                      </button>
+
+                      {/* Sort Dropdown */}
+                      <select
+                        value={repCustomerSort}
+                        onChange={(e) => setRepCustomerSort(e.target.value as any)}
+                        className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-black bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                      >
+                        <option value="debt">الأكثر مديونية</option>
+                        <option value="overdue">الأكثر متأخرات</option>
+                        <option value="name">ترتيب بالاسم</option>
+                      </select>
+
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400 font-bold">
+                        عرض {filteredRepCustomers.length} من أصل {repCustomersList.length} عميل
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Customer Profile Cards Grid */}
+                  <div>
+                    <h4 className="font-black text-xs sm:text-sm text-slate-800 dark:text-white mb-3 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <UserCheck className="w-4 h-4 text-teal-600" />
+                        <span>بروفايلات عملاء ({analyzedRep.name}) — اضغط على أي عميل لفتح بروفايله الكامل:</span>
+                      </span>
+                      <span className="text-[11px] text-teal-600 font-bold">
+                        {filteredRepCustomers.length} عميل متوفر
+                      </span>
+                    </h4>
+
+                    {filteredRepCustomers.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                        {filteredRepCustomers.map((cust) => {
+                          const debt = getCustomerBalance(cust);
+                          const overdue = getCustomerOverdue(cust);
+                          const paid = getCustomerPaid(cust);
+                          const creditLimit = cust.creditLimit || 0;
+                          const creditPercent = creditLimit > 0 ? Math.min(100, Math.round((debt / creditLimit) * 100)) : 0;
+                          const rawDeal = (cust.dealEligibility || '').trim();
+                          const isEligible = !rawDeal.includes('غير') && !rawDeal.includes('موقوف');
+
+                          return (
+                            <div
+                              key={cust.id}
+                              className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 hover:border-teal-500/80 hover:shadow-md transition group flex flex-col justify-between"
+                            >
+                              <div className="space-y-3">
+                                {/* Card Header: Avatar, Name, Code, and Badges */}
+                                <div className="flex items-start justify-between gap-2.5">
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-teal-700 text-white font-black flex items-center justify-center shrink-0 shadow-xs">
+                                      {cust.name.slice(0, 1)}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <h4 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate group-hover:text-teal-600 transition">
+                                        {cust.name}
+                                      </h4>
+                                      {cust.storeName && (
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                                          {cust.storeName}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  <span className="font-mono text-[10px] px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-700 font-bold text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-600 shrink-0">
+                                    {cust.code}
+                                  </span>
+                                </div>
+
+                                {/* Status and Branch badges */}
+                                <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                                  <span
+                                    className={`px-2 py-0.5 rounded-md font-bold ${
+                                      isEligible
+                                        ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                                        : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                                    }`}
+                                  >
+                                    {isEligible ? 'قابل للتعامل' : 'غير قابل / موقوف'}
+                                  </span>
+
+                                  <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium">
+                                    {cust.branchName}
+                                  </span>
+
+                                  {cust.region && (
+                                    <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium">
+                                      {cust.region}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* 3 Metric Capsules: Debt, Overdue, Paid */}
+                                <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 text-center">
+                                  <div className="p-1">
+                                    <div className="text-[10px] font-bold text-slate-400">المديونية</div>
+                                    <div className="font-black text-[11px] sm:text-xs text-slate-900 dark:text-white font-mono mt-0.5">
+                                      {formatMoney(debt)}
+                                    </div>
+                                    {creditLimit > 0 && (
+                                      <div className="text-[9px] text-slate-500 font-semibold mt-0.5">
+                                        {creditPercent}% من الحد
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="p-1 border-x border-slate-200 dark:border-slate-700">
+                                    <div className="text-[10px] font-bold text-rose-500">المستحق</div>
+                                    <div className="font-black text-[11px] sm:text-xs text-rose-600 dark:text-rose-400 font-mono mt-0.5">
+                                      {formatMoney(overdue)}
+                                    </div>
+                                  </div>
+
+                                  <div className="p-1">
+                                    <div className="text-[10px] font-bold text-emerald-500">المسدد</div>
+                                    <div className="font-black text-[11px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-mono mt-0.5">
+                                      {formatMoney(paid)}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {cust.phone && (
+                                  <div className="text-[11px] text-slate-500 flex items-center justify-between">
+                                    <a
+                                      href={`tel:${cust.phone}`}
+                                      className="flex items-center gap-1 font-mono text-slate-600 dark:text-slate-400 hover:text-teal-600"
+                                    >
+                                      <Phone className="w-3 h-3 text-slate-400" />
+                                      <span>{cust.phone}</span>
+                                    </a>
+                                    <a
+                                      href={`https://wa.me/20${cust.phone.replace(/^0+/, '')}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-emerald-600 hover:underline font-bold text-[10px] flex items-center gap-0.5"
+                                    >
+                                      <span>واتساب</span>
+                                      <ExternalLink className="w-2.5 h-2.5" />
+                                    </a>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Action Button: Opens Full 360 Profile */}
+                              <div className="pt-3 mt-3 border-t border-slate-100 dark:border-slate-700/60 flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedCustomer(cust)}
+                                  className="w-full py-2 px-3 rounded-xl bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 dark:hover:bg-teal-900/60 text-teal-800 dark:text-teal-300 font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer border border-teal-200 dark:border-teal-800 shadow-2xs"
+                                >
+                                  <UserCheck className="w-3.5 h-3.5 text-teal-600" />
+                                  <span>فتح بروفايل العميل الشامل 👤</span>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="p-8 text-center bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-dashed border-slate-300 dark:border-slate-700">
+                        <Users className="w-10 h-10 text-slate-400 mx-auto mb-2 opacity-50" />
+                        <p className="text-xs font-black text-slate-700 dark:text-slate-300">
+                          لا توجد عملاء تطابق شروط البحث والفلاتر الحالية
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRepCustomerSearch('');
+                            setRepOnlyDebt(false);
+                          }}
+                          className="mt-2 text-xs font-bold text-teal-600 hover:underline cursor-pointer"
+                        >
+                          إعادة ضبط الفلاتر وعرض كافة عملاء المندوب
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* 4 Performance Summary Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="p-3.5 rounded-2xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/80 dark:border-blue-900/40">
+                      <div className="text-xs font-black text-blue-700 dark:text-blue-300 flex items-center justify-between">
+                        <span>إجمالي المبيعات (2026)</span>
+                        <TrendingUp className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div className="text-lg sm:text-2xl font-black font-mono text-blue-900 dark:text-white mt-1">
+                        {formatCurrency(analyzedRep.totalSales)}
+                      </div>
+                      <div className="text-[11px] text-blue-600 dark:text-blue-400 font-bold mt-1">
+                        المستهدف: {formatCurrency(analyzedRep.targetSales)}
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/40">
+                      <div className="text-xs font-black text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
+                        <span>إجمالي التحصيلات (2026)</span>
+                        <DollarSign className="w-4 h-4 text-emerald-600" />
+                      </div>
+                      <div className="text-lg sm:text-2xl font-black font-mono text-emerald-900 dark:text-white mt-1">
+                        {formatCurrency(analyzedRep.totalCollections)}
+                      </div>
+                      <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold mt-1">
+                        المستهدف: {formatCurrency(analyzedRep.targetCollections)}
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-teal-50/80 dark:bg-teal-950/30 border border-teal-200/80 dark:border-teal-900/40">
+                      <div className="text-xs font-black text-teal-700 dark:text-teal-300 flex items-center justify-between">
+                        <span>نسبة التحصيل والسداد</span>
+                        <Award className="w-4 h-4 text-teal-600" />
+                      </div>
+                      <div className="text-lg sm:text-2xl font-black font-mono text-teal-900 dark:text-white mt-1">
+                        {analyzedRep.totalSales > 0 ? Math.round((analyzedRep.totalCollections / analyzedRep.totalSales) * 100) : 0}%
+                      </div>
+                      <div className="text-[11px] text-teal-600 dark:text-teal-400 font-bold mt-1">
+                        من إجمالي البيع الفعلي
+                      </div>
+                    </div>
+
+                    <div className="p-3.5 rounded-2xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40">
+                      <div className="text-xs font-black text-rose-700 dark:text-rose-300 flex items-center justify-between">
+                        <span>المستحقات المتأخرة</span>
+                        <AlertTriangle className="w-4 h-4 text-rose-600" />
+                      </div>
+                      <div className="text-lg sm:text-2xl font-black font-mono text-rose-900 dark:text-white mt-1">
+                        {formatCurrency(analyzedRep.totalOverdue)}
+                      </div>
+                      <div className="text-[11px] text-rose-600 dark:text-rose-400 font-bold mt-1">
+                        واجبة التحصيل الفوري
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Performance Comparison Chart (Sales vs Collections) */}
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <h4 className="font-black text-xs sm:text-sm text-slate-800 dark:text-white flex items-center gap-1.5">
+                        <BarChart3 className="w-4 h-4 text-teal-600" />
+                        <span>رسم بياني مقارنة المبيعات والتحصيلات الشهرية لعام 2026</span>
+                      </h4>
+                      <div className="flex items-center gap-3 text-xs font-bold">
+                        <span className="flex items-center gap-1 text-blue-600">
+                          <span className="w-3 h-3 rounded-full bg-blue-600 inline-block" />
+                          <span>المبيعات</span>
+                        </span>
+                        <span className="flex items-center gap-1 text-emerald-600">
+                          <span className="w-3 h-3 rounded-full bg-emerald-600 inline-block" />
+                          <span>التحصيلات</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="h-64 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={MONTH_NAMES_AR.map((mName, idx) => {
+                            const mNum = idx + 1;
+                            return {
+                              name: mName,
+                              sales: analyzedRep.monthlySales[mNum] || 0,
+                              collections: analyzedRep.monthlyCollections[mNum] || 0,
+                            };
+                          })}
+                          margin={{ top: 10, right: 10, left: 10, bottom: 20 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
+                          <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                          <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 11 }} />
+                          <Tooltip formatter={(value: any) => formatCurrency(Number(value) || 0)} />
+                          <Bar dataKey="sales" name="المبيعات" fill="#2563eb" radius={[6, 6, 0, 0]} />
+                          <Bar dataKey="collections" name="التحصيلات" fill="#10b981" radius={[6, 6, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+
+                  {/* Two Separate Tables for Detailed Level Measurement */}
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Table 1: Separate Collections Table */}
+                    <div className="p-4 bg-emerald-50/40 dark:bg-slate-800/70 rounded-2xl border border-emerald-200 dark:border-slate-700 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-black text-xs sm:text-sm text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                          <DollarSign className="w-4 h-4 text-emerald-600" />
+                          <span>جدول تحصيلات المندوب الشهرية (2026)</span>
+                        </h4>
+                        <span className="text-[11px] font-black text-emerald-700 bg-emerald-100 dark:bg-emerald-950/50 px-2 py-0.5 rounded-lg">
+                          إجمالي: {formatCurrency(analyzedRep.totalCollections)}
+                        </span>
+                      </div>
+
+                      <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-2xs">
+                        <table className="w-full text-center text-xs">
+                          <thead className="bg-emerald-100/70 dark:bg-slate-800 text-emerald-950 dark:text-emerald-200 font-black">
+                            <tr>
+                              <th className="p-2.5 text-right">الشهر</th>
+                              <th className="p-2.5">المستهدف</th>
+                              <th className="p-2.5">المحصل الفعلي</th>
+                              <th className="p-2.5">نسبة الإنجاز</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                            {MONTH_NAMES_AR.map((mName, idx) => {
+                              const mNum = idx + 1;
+                              const col = analyzedRep.monthlyCollections[mNum] || 0;
+                              const targetMonth = Math.round(analyzedRep.targetCollections / 12);
+                              const rate = targetMonth > 0 ? Math.min(100, Math.round((col / targetMonth) * 100)) : 0;
+                              return (
+                                <tr key={`col-${mNum}`} className="hover:bg-emerald-50/50 dark:hover:bg-slate-800/50 transition">
+                                  <td className="p-2.5 text-right font-black text-slate-800 dark:text-slate-200">
+                                    {mName} ({mNum})
+                                  </td>
+                                  <td className="p-2.5 font-mono text-slate-500">
+                                    {formatCurrency(targetMonth)}
+                                  </td>
+                                  <td className="p-2.5 font-mono font-black text-emerald-700 dark:text-emerald-400">
+                                    {col > 0 ? formatCurrency(col) : '---'}
+                                  </td>
+                                  <td className="p-2.5">
+                                    <span className={`px-2 py-0.5 rounded-md text-[10.5px] font-black ${
+                                      rate >= 90
+                                        ? 'bg-emerald-100 text-emerald-800'
+                                        : rate >= 50
+                                        ? 'bg-amber-100 text-amber-800'
+                                        : 'bg-slate-100 text-slate-600'
+                                    }`}>
+                                      {rate}%
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    {/* Table 2: Separate Sales Table */}
+                    <div className="p-4 bg-blue-50/40 dark:bg-slate-800/70 rounded-2xl border border-blue-200 dark:border-slate-700 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-black text-xs sm:text-sm text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
+                          <TrendingUp className="w-4 h-4 text-blue-600" />
+                          <span>جدول مبيعات المندوب الشهرية (2026)</span>
+                        </h4>
+                        <span className="text-[11px] font-black text-blue-700 bg-blue-100 dark:bg-blue-950/50 px-2 py-0.5 rounded-lg">
+                          إجمالي: {formatCurrency(analyzedRep.totalSales)}
+                        </span>
+                      </div>
+
+                      <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-2xs">
+                        <table className="w-full text-center text-xs">
+                          <thead className="bg-blue-100/70 dark:bg-slate-800 text-blue-950 dark:text-blue-200 font-black">
+                            <tr>
+                              <th className="p-2.5 text-right">الشهر</th>
+                              <th className="p-2.5">المستهدف</th>
+                              <th className="p-2.5">المبيعات الفعلية</th>
+                              <th className="p-2.5">نسبة الإنجاز</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+                            {MONTH_NAMES_AR.map((mName, idx) => {
+                              const mNum = idx + 1;
+                              const s = analyzedRep.monthlySales[mNum] || 0;
+                              const targetMonth = Math.round(analyzedRep.targetSales / 12);
+                              const rate = targetMonth > 0 ? Math.min(100, Math.round((s / targetMonth) * 100)) : 0;
+                              return (
+                                <tr key={`sale-${mNum}`} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50 transition">
+                                  <td className="p-2.5 text-right font-black text-slate-800 dark:text-slate-200">
+                                    {mName} ({mNum})
+                                  </td>
+                                  <td className="p-2.5 font-mono text-slate-500">
+                                    {formatCurrency(targetMonth)}
+                                  </td>
+                                  <td className="p-2.5 font-mono font-black text-blue-700 dark:text-blue-400">
+                                    {s > 0 ? formatCurrency(s) : '---'}
+                                  </td>
+                                  <td className="p-2.5">
+                                    <span className={`px-2 py-0.5 rounded-md text-[10.5px] font-black ${
+                                      rate >= 90
+                                        ? 'bg-blue-100 text-blue-800'
+                                        : rate >= 50
+                                        ? 'bg-amber-100 text-amber-800'
+                                        : 'bg-slate-100 text-slate-600'
+                                    }`}>
+                                      {rate}%
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-100 dark:bg-slate-850 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRep(analyzedRep.name);
+                  setAnalyzedRep(null);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-xs flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+              >
+                <Users className="w-4 h-4" />
+                <span>تصفية القائمة وعرض عملاء ({analyzedRep.name}) فقط</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setAnalyzedRep(null)}
+                className="px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-black text-xs transition cursor-pointer"
+              >
+                إغلاق النافذة
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STORE PHOTO LIGHTBOX PREVIEW */}
+      {selectedStoreImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 animate-in fade-in cursor-pointer"
+          onClick={() => setSelectedStoreImage(null)}
+        >
+          <div className="relative max-w-4xl max-h-[90vh] flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={selectedStoreImage}
+              alt="صورة المحل المكبرة"
+              className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl"
+            />
+            <button
+              type="button"
+              onClick={() => setSelectedStoreImage(null)}
+              className="mt-3 px-5 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+              <span>إغلاق الصورة</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ADMIN & MANAGER GOOGLE SHEETS & EXCEL SYNC MODAL */}
       {isSyncModalOpen && (
+
         <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in">
           <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">

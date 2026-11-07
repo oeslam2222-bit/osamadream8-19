@@ -761,220 +761,28 @@
 }
 
 /* ============================================================
-   إصلاح نصوص الأزرار المقطوعة والخطوط الصغيرة على الموبايل
+   تحسين تجربة العرض المرنة والمتجاوبة على الموبايل والشاشات
    ============================================================ */
 
-/* إزالة nowrap من الأزرار على الموبايل لمنع قطع النص */
-@media (max-width: 640px) {
-  /* إزالة whitespace-nowrap من جميع الأزرار */
-  button[class*="whitespace-nowrap"],
-  button[class*="whitespace-nowrap"] * {
-    white-space: normal !important;
-    overflow-wrap: break-word !important;
-    word-wrap: break-word !important;
-    overflow: visible !important;
-  }
-  
-  /* زيادة حجم الخط في الأزرار */
-  button.text-xs,
-  button[class*="text-xs"] {
-    font-size: 0.875rem !important;
-    padding: 0.625rem 1rem !important;
-  }
-  
-  button.text-sm {
-    font-size: 0.95rem !important;
-    padding: 0.75rem 1rem !important;
-  }
-  
-  /* تحسين نصوص الأزرار القصيرة */
-  button span,
-  button div {
-    overflow-wrap: break-word !important;
-    word-break: normal !important;
-  }
-  
-  /* تحسين تصريف النصوص في البطاقات */
-  .text-xs {
-    font-size: 0.875rem !important;
-  }
-  
-  .text-sm {
-    font-size: 0.95rem !important;
-  }
-  
-  .text-\[10px\] {
-    font-size: 0.875rem !important;
-  }
-  
-  .text-\[11px\] {
-    font-size: 0.9rem !important;
-  }
-  
-  /* تحسين مسافات الأزرار */
-  button.px-3 {
-    padding-left: 0.75rem !important;
-    padding-right: 0.75rem !important;
-  }
-  
-  button.px-4 {
-    padding-left: 1rem !important;
-    padding-right: 1rem !important;
-  }
-  
-  button.py-2 {
-    padding-top: 0.75rem !important;
-    padding-bottom: 0.75rem !important;
-  }
-  
-  button.py-2\.5 {
-    padding-top: 0.875rem !important;
-    padding-bottom: 0.875rem !important;
-  }
-  
-  /* تحسين مسافات الجدول على الموبايل */
-  table th, table td {
-    padding: 0.75rem 0.5rem !important;
-    font-size: 0.85rem !important;
-  }
-  
-  /* تحسين العناوين الفرعية */
-  .font-bold.text-xs,
-  .font-bold.text-sm {
-    font-size: 0.875rem !important;
-  }
-  
-  /* تحسين نص التسميات */
-  .text-slate-600.text-xs,
-  .text-slate-500.text-xs,
-  .text-slate-400.text-xs,
-  .text-red-800.text-xs,
-  .text-emerald-800.text-xs,
-  .text-amber-800.text-xs,
-  .text-blue-800.text-xs {
-    font-size: 0.8rem !important;
-  }
-  
-  /* تحسين العناوين في البطاقات */
-  h2.text-xl, h2.text-sm {
-    font-size: 1.25rem !important;
-  }
-  
-  h3.text-sm, h3.text-xs {
-    font-size: 1rem !important;
-  }
-  
-  /* تحسين حقل البحث */
-  input[type="text"], input[type="search"] {
-    min-height: 2.75rem !important;
-    font-size: 0.875rem !important;
-    padding: 0.625rem 1rem !important;
-  }
-  
-  /* تحسين أزرار التصفية */
-  .flex-wrap button,
-  button[class*="rounded-xl"][class*="border"] {
-    min-height: 2.75rem !important;
-    font-size: 0.875rem !important;
-    padding: 0.625rem 1rem !important;
-    white-space: normal !important;
-    text-align: center !important;
-  }
+/* حماية النصوص والأزرار العربية من الكسر العمودي */
+button, a, .btn, .pill, .chip-btn {
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
 }
 
-/* تحسين الجداول على الموبايل - عرض أفقي */
+/* التمرير الأفقي السلس لشريط الأزرار والتصنيفات بدلاً من الكسر العمودي */
+.horizontal-scroll-row,
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
 @media (max-width: 640px) {
-  .overflow-x-auto {
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-  }
-  
-  /* تحسين رؤوس الجدول */
-  table thead th {
+  /* الحفاظ على قراءة الأرقام المالية والعربية بوضوح تام دون تقطيع */
+  .dream-amt, .app-num, .font-mono {
     white-space: nowrap !important;
-    padding: 0.75rem 0.5rem !important;
-    font-size: 0.75rem !important;
-  }
-  
-  /* تحسين خلايا البيانات */
-  table td {
-    white-space: normal !important;
-    overflow-wrap: break-word !important;
-    padding: 0.75rem 0.5rem !important;
-    font-size: 0.85rem !important;
+    word-break: keep-all !important;
+    letter-spacing: normal !important;
   }
 }
 
-/* تحسين الأزرار الطويلة على الموبايل */
-@media (max-width: 640px) {
-  button[class*="px-4"][class*="py-2"] {
-    min-width: 200px !important;
-    max-width: 100% !important;
-    text-align: center !important;
-  }
-  
-  /* تحسين زر "مزمنة جميع الشحنات" والأزرار الطويلة */
-  button[class*="bg-blue-600"],
-  button[class*="bg-amber-600"],
-  button[class*="bg-rose-600"],
-  button[class*="bg-emerald-600"] {
-    min-height: 3rem !important;
-    font-size: 0.95rem !important;
-    padding: 0.75rem 1rem !important;
-    white-space: normal !important;
-    text-align: center !important;
-  }
-}
-
-/* تحسين النصوص الطويلة في العناوين */
-@media (max-width: 640px) {
-  h1, h2, h3, h4, h5, h6 {
-    line-height: 1.3 !important;
-    overflow-wrap: break-word !important;
-  }
-  
-  .font-black {
-    line-height: 1.2 !important;
-  }
-}
-
-/* تحسين البطاقات على الموبايل */
-@media (max-width: 640px) {
-  .bg-white.rounded-2xl,
-  .bg-white.rounded-3xl,
-  .bg-white.rounded-xl {
-    padding: 1rem !important;
-    margin-bottom: 1rem !important;
-  }
-  
-  /* تحسين كروت الإحصائيات */
-  div[class*="rounded-2xl"][class*="shadow-2xl"],
-  div[class*="rounded-3xl"][class*="shadow-2xl"] {
-    padding: 1rem !important;
-    margin-bottom: 0.75rem !important;
-  }
-  
-  /* تحسين الأرقام الكبيرة في كروت الإحصائيات */
-  .text-3xl.font-black,
-  .text-4xl.font-black,
-  .text-5xl.font-black {
-    font-size: 1.5rem !important;
-  }
-  
-  .text-xs.font-bold,
-  .text-\[10px\].font-bold {
-    font-size: 0.75rem !important;
-  }
-}
-
-/* تحسين التذييل على الموبايل */
-@media (max-width: 640px) {
-  .mt-auto.pt-4.pb-2,
-  footer,
-  div[class*="mt-auto"][class*="pt-4"] {
-    padding: 0.75rem 1rem !important;
-    font-size: 0.7rem !important;
-    text-align: center !important;
-    border-top: 1px solid #e2e8f0 !important;
-  }
-}

@@ -1756,7 +1756,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
    */
   const customerFetchScope = useMemo(() => {
     const role = currentUser?.role;
-    if (!currentUser || role === 'admin' || role === 'developer') return undefined;
+    if (!currentUser || role === 'admin' || role === 'developer' || role === 'supervisor') return undefined;
     const raw = (currentUser.branchName || '').trim();
     if (!raw) return undefined;
     const canonical = resolveBranchName(raw);
@@ -6691,9 +6691,21 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const getCustomerVisitSummary = (customerId: string, month?: string) => {
-    const list = getVisibleVisits().filter((v) => v.customerId === customerId && (!month || v.date.startsWith(month)));
+    const list = getVisibleVisits().filter(
+      (v) => !v.isReturn && v.type !== 'مرتجع' && v.outcome !== 'مرتجع لدي العميل' && v.customerId === customerId && (!month || v.date.startsWith(month))
+    );
     const completed = list.filter((v) => v.status === 'منفذة').length;
-    return { total: list.length, completed, scheduled: list.filter((v) => v.status === 'مجدولة').length, lastVisit: list.filter((v) => v.status === 'منفذة').sort((a, b) => b.date.localeCompare(a.date))[0]?.date, nextVisit: list.filter((v) => v.status === 'مجدولة' && v.date >= new Date().toISOString().slice(0, 10)).sort((a, b) => a.date.localeCompare(b.date))[0]?.date };
+    return {
+      total: list.length,
+      completed,
+      scheduled: list.filter((v) => v.status === 'مجدولة').length,
+      lastVisit: list
+        .filter((v) => v.status === 'منفذة')
+        .sort((a, b) => b.date.localeCompare(a.date))[0]?.date,
+      nextVisit: list
+        .filter((v) => v.status === 'مجدولة' && v.date >= new Date().toISOString().slice(0, 10))
+        .sort((a, b) => a.date.localeCompare(b.date))[0]?.date,
+    };
   };
 
   // The account's assigned sector is a hard boundary; only admins can switch globally.
@@ -6937,6 +6949,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         addCustomer,
         updateCustomer,
         deleteCustomer,
+        saveCustomersToSupabase,
         importCustomersList,
         cleanAndDeduplicateCustomers,
         clearCustomersCacheAndReset,

@@ -303,6 +303,8 @@ export interface CustomerVisit {
   returnHandledRole?: string;         // وظيفة/دور من قام بالتحويل
   returnNote?: string;                // ملاحظة المشرف عند الإرسال/التحويل
   returnImages?: string[];            // روابط صور المرتجع (من جوجل درايف أو شيت)
+  returnedCartons?: number;           // إجمالي الكراتين المرتجعة
+  returnItemsList?: any[];            // قائمة الأصناف المرتجعة التفصيلية
   /** الأصناف المتعددة في الزيارة (بيع / تحصيل / مرتجع) */
   visitItems?: VisitItem[];
 
@@ -337,6 +339,7 @@ export interface Customer {
   repName?: string;                  // اسم المندوب المسئول (المندوب الحالي)
   salesRepName?: string;             // المندوب المسئول (alias)
   repId?: string;                    // كود المندوب
+  salesRepId?: string;               // كود المندوب (alias)
   supervisorName?: string;           // المشرف المسؤول
   taxNumber?: string;                // الرقم الضريبي
   balance?: number;                  // رصيد الحساب الحالي
@@ -410,6 +413,8 @@ export interface Customer {
   locationCapturedBy?: string;       // المندوب الذي وثّق الموقع
 
   sector?: 'home' | 'electrical' | 'both' | 'all';  // القطاع (منزلي / كهربائي) - لعزل البيانات بين القطاعات
+  storePhotos?: string[];            // صور معرض/محل العميل (Cloudinary أو روابط مباشرة)
+  avatarUrl?: string;                // صورة شعار أو واجهة العميل
   notes?: string;
   /** رابط صورة البروفايل المخزنة على Cloudinary (مضغوطة ~100-150 كيلو بايت) */
   profileImageUrl?: string;
@@ -650,6 +655,7 @@ export interface Invoice {
   taxPercentage: number;         // مثلاً 14% ضريبة القيمة المضافة
   taxAmount: number;
   estimatedGrandTotal: number;   // إجمالي الفاتورة التقديرية
+  totalAmount?: number;          // إجمالي الفاتورة (alias)
   paymentMethod: PaymentMethod;
   status: OrderStatus;
   notes?: string;

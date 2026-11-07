@@ -669,8 +669,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       </div>
 
         {/* Quick filter tabs (شكل أزرار الموديل الكحلية) + مبدّل الفواتير/التحصيلات */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold scrollbar-none">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 w-full">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold scrollbar-none w-full sm:w-auto min-w-0">
             {[
               { key: 'الكل', label: 'كافة الفواتير', count: tabCounts.all },
               { key: 'فواتير الأصناف المتوفرة', label: 'فواتير المتوفر', count: tabCounts.available },
@@ -694,7 +694,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             ))}
           </div>
 
-          <div className="inline-flex p-1 rounded-xl bg-slate-900/70 border border-white/10 shrink-0">
+          <div className="inline-flex p-1 rounded-xl bg-slate-900/70 border border-white/10 shrink-0 self-start sm:self-auto">
             {[
               { key: 'all' as const, label: 'عرض الكل' },
               { key: 'invoices' as const, label: 'الفواتير' },
@@ -718,7 +718,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5 text-xs font-bold text-slate-500">
             <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 sm:p-3 rounded-xl border border-slate-200/70 dark:border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-1 min-w-0">
               <span className="text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">إجمالي المبيعات:</span>
-              <span className="text-slate-900 dark:text-white font-black text-sm app-num whitespace-nowrap">{formatCurrency(metrics.totalRevenue)}</span>
+              <span className="text-slate-900 dark:text-white font-black text-sm app-num whitespace-nowrap truncate">{formatCurrency(metrics.totalRevenue)}</span>
             </div>
             <div className="bg-slate-50 dark:bg-slate-800/60 p-2.5 sm:p-3 rounded-xl border border-slate-200/70 dark:border-slate-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-1 min-w-0">
               <span className="text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">الكراتين:</span>
