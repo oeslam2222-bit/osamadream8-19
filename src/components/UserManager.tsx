@@ -25,6 +25,7 @@ import {
   Shield,
   ShieldAlert,
   ShieldCheck,
+  Headset,
   Smartphone,
   Sparkles,
   Trash2,
@@ -167,6 +168,16 @@ export const UserManager: React.FC = () => {
       activeRing: 'border-[var(--app-navy)] bg-[var(--app-navy-tint)]',
       icon: Scale,
       desc: 'الإدارة القانونية والتحصيل القضائي: كشوفات العملاء المتعثرين، صياغة ومتابعة الإنذارات الرسمية، تسويات وجدولة الديون، وإدارة محفظة الشيكات وإيصالات الأمانة.'
+    },
+    technical_support: {
+      label: 'الدعم الفني',
+      shortLabel: 'دعم فني',
+      bg: 'tint-accent',
+      border: 'border-[rgba(56,189,248,.22)]',
+      text: 'text-[var(--app-blue)]',
+      activeRing: 'border-[var(--app-blue)] bg-[rgba(56,189,248,.06)]',
+      icon: Headset,
+      desc: 'دعم تقني: مراجعة البيانات، تشغيل المزامنة التراكمية للعملاء والأهداف والأصناف ومبيعات الأصناف، ومتابعة تحميل البيانات من السيرفر.'
     }
   };
 

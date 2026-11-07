@@ -36,6 +36,7 @@ export interface AppContextType {
   invoices: Invoice[];
   cart: CartItem[];
   cloudinaryConfig: CloudinaryConfig;
+  saveCustomersToSupabase: (customers: Customer[]) => Promise<{ success: boolean; error?: string }>;
   accountingLogs: AccountingSyncLog[];
   auditLogs: AuditLog[];
   recordAuditLog: (logData: Omit<AuditLog, 'id' | 'timestamp' | 'formattedTime'>) => void;
@@ -135,6 +136,12 @@ export interface AppContextType {
   updateProduct: (product: Product) => void;
   deleteProduct: (productId: string) => void;
   importProductsList: (newProducts: Product[], mode: 'merge' | 'replace') => void;
+
+  // Incremental cloud sync (يجلب فقط السجلات اللي اتعدلوا منذ آخر مزامنة)
+  syncTargetsIncrementally: () => Promise<{ success: boolean; message?: string; added?: number; updated?: number }>;
+  syncProductsIncrementally: () => Promise<{ success: boolean; message?: string; added?: number; updated?: number }>;
+  syncCustomerItemSalesIncrementally: () => Promise<{ success: boolean; message?: string; added?: number; updated?: number }>;
+  syncCustomersIncrementally: () => Promise<{ success: boolean; message?: string; added?: number; updated?: number }>;
   adjustStock: (productId: string, branchChange: number, mainWarehouseChange: number, reason?: string) => void;
   recordInventoryTransaction: (tx: Omit<InventoryTransaction, 'id' | 'timestamp' | 'date'>) => void;
   checkProductAvailability: (productId: string, requestedPieces: number) => { available: boolean; remainingPieces: number; message?: string };

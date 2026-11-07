@@ -581,29 +581,23 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
 
     const dedupedPayload = Array.from(new Map(payload.map((r) => [r.id, r])).values());
     const failures: string[] = [];
+    const OMITTABLE_COLUMNS = [
+      'total_overdue_and_due', 'overdue_balance', 'due_balance', 'total_overdue',
+      'deal_eligibility', 'dealt_2026', 'dealt_in_2026',
+    ];
+
     for (let i = 0; i < dedupedPayload.length; i += 100) {
       const chunk = dedupedPayload.slice(i, i + 100);
-      const { error: err1 } = await supabase.from('customers').upsert(chunk);
+      // tyto أعمدة قد تكون غير موجودة في جدول العملاء لدى العميل (لا يوجد migration)،
+      // لذلك تُحذف قبل الإرسال لمنع خطأ 400 وتكمل عملية الرفع بالأعمدة المتاحة فقط.
+      const cleanChunk = chunk.map((row: any) => {
+        const rest: any = { ...row };
+        OMITTABLE_COLUMNS.forEach((k) => delete rest[k]);
+        return rest;
+      });
+      const { error: err1 } = await supabase.from('customers').upsert(cleanChunk);
       if (err1) {
-        // The dues columns require add_customer_financial_columns.sql. Retry the
-        // chunk without them so a missing migration degrades the dues figure
-        // instead of blocking the entire customer sync.
-        if (/column .*(total_overdue_and_due|overdue_balance|due_balance|total_overdue|deal_eligibility|dealt_2026|dealt_in_2026)|schema cache/i.test(err1.message)) {
-          const legacyChunk = chunk.map((row: any) => {
-            const {
-              total_overdue_and_due, overdue_balance, due_balance, total_overdue,
-              deal_eligibility, dealt_2026, dealt_in_2026,
-              ...rest
-            } = row;
-            return rest;
-          });
-          const { error: retryErr } = await supabase.from('customers').upsert(legacyChunk);
-          if (retryErr) {
-            failures.push(retryErr.message);
-          }
-        } else {
-          failures.push(err1.message);
-        }
+        failures.push(err1.message);
       }
     }
 
@@ -2819,8 +2813,31 @@ export async function fetchCustomersIncremental(
       query = query.in('branch_name', branchFilter);
     }
 
-    const { data, error } = await query;
-    if (error) return { success: false, error: error.message };
+    const MINIMAL_CUSTOMER_COLUMNS = 'id, code, name, phone, branch_name, updated_at';
+
+    let data: any[] = [];
+    let queryError: any = null;
+
+    try {
+      const { data: fetched, error } = await query;
+      queryError = error;
+      data = fetched || [];
+    } catch (err: any) {
+      queryError = err;
+      // لو جداول العملاء ناقصة أعمدة (total_overdue, deal_eligibility ...)،
+      // إعادة المحاولة بأعمدة أساسية فقط لتحميل البيانات بدلاً من حظر الصفحة نهائياً.
+      const fallbackQuery = supabase
+        .from('customers')
+        .select(MINIMAL_CUSTOMER_COLUMNS)
+        .order('updated_at', { ascending: true, nullsFirst: false });
+      if (!isFullFetch) fallbackQuery.gt('updated_at', lastTs);
+      if (branchFilter.length > 0) fallbackQuery.in('branch_name', branchFilter);
+      const { data: fetched, error } = await fallbackQuery;
+      queryError = error;
+      data = fetched || [];
+    }
+
+    if (queryError) return { success: false, error: queryError.message };
 
     const rows = data || [];
     if (rows.length === 0) {
@@ -2829,9 +2846,12 @@ export async function fetchCustomersIncremental(
 
     let maxUpdatedAt = lastTs ?? null;
     for (const r of rows) {
-      const u = r.updated_at;
+      const u = (r as any).updated_at;
       if (u && (!maxUpdatedAt || u > maxUpdatedAt)) {
         maxUpdatedAt = u;
+      }
+    }
+
     const mapped: Customer[] = rows.map((c: any, idx: number) => {
       return {
         id: c.id || `cust-${idx + 1}`,
@@ -2891,6 +2911,8 @@ export async function fetchCustomersIncremental(
       };
     });
 
+    if (maxUpdatedAt) setLastCustomerSyncTs(maxUpdatedAt);
+
     return {
       success: true,
       customers: mapped,
@@ -2915,6 +2937,191 @@ export function mergeCustomersIncremental(
   return Array.from(byId.values());
 }
 
-      }
+/* ============================================================
+   GENERIC INCREMENTAL SYNC HELPERS (targets / products / sales)
+   يستخدم updated_at كـ cursor: يسجل آخر وقت مزامنة لكل كيان في
+   localStorage، ويسحب فقط الصفوف اللي اتعدلوا أو أُضيفت من ذلك الوقت.
+   ============================================================ */
+
+const SYNC_LS_PREFIX = 'dream_dist_last_sync_v1::';
+
+export function getLastSyncTs(entity: string): string | null {
+  try {
+    return localStorage.getItem(`${SYNC_LS_PREFIX}${entity}`);
+  } catch {
+    return null;
+  }
+}
+
+export function setLastSyncTs(entity: string, ts: string): void {
+  try {
+    localStorage.setItem(`${SYNC_LS_PREFIX}${entity}`, ts);
+  } catch {}
+}
+
+export type SyncResultMeta = {
+  success: boolean;
+  entity: string;
+  count: number;
+  isFullFetch: boolean;
+  maxUpdatedAt: string | null;
+  error?: string;
+};
+
+/* ---------- Targets (التارجت) ---------- */
+const TARGETS_SELECT_COLUMNS = [
+  'id', 'branch', 'rep_name', 'sales_target', 'sales_achieved', 'sales_percentage',
+  'collection_target', 'collection_achieved', 'collection_percentage',
+  'target_date', 'month', 'year', 'quarter', 'remaining_sales', 'remaining_collection',
+  'notes', 'updated_at',
+].join(',');
+
+export async function fetchTargetsIncremental(): Promise<{
+  success: boolean;
+  targets?: any[];
+  error?: string;
+  isFullFetch?: boolean;
+  maxUpdatedAt?: string | null;
+  count?: number;
+  entity?: string;
+}> {
+  try {
+    const lastTs = getLastSyncTs('targets');
+    const isFullFetch = !lastTs;
+    let query = supabase
+      .from('targets')
+      .select(TARGETS_SELECT_COLUMNS)
+      .order('updated_at', { ascending: true, nullsFirst: false });
+    if (!isFullFetch) query = query.gt('updated_at', lastTs);
+    const { data, error } = await query;
+    if (error) return { success: false, error: error.message, entity: 'targets', count: 0, isFullFetch, maxUpdatedAt: lastTs };
+    const rows = data || [];
+    if (rows.length === 0) {
+      return { success: true, targets: [], entity: 'targets', count: 0, isFullFetch, maxUpdatedAt: lastTs };
     }
-    if (maxUpdatedAt) setLastCustomerSyncTs(maxUpdatedAt);
+    let maxUpdatedAt = lastTs ?? null;
+    for (const r of rows) {
+      const u = (r as any).updated_at;
+      if (u && (!maxUpdatedAt || u > maxUpdatedAt)) maxUpdatedAt = u;
+    }
+    if (maxUpdatedAt) setLastSyncTs('targets', maxUpdatedAt);
+    return { success: true, targets: rows, entity: 'targets', count: rows.length, isFullFetch, maxUpdatedAt };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'فشل في المزامنة التراكمية للأهداف', entity: 'targets', count: 0, isFullFetch: false, maxUpdatedAt: null };
+  }
+}
+
+export function mergeTargetsIncremental(existing: any[], incoming: any[]): any[] {
+  const byId = new Map<string, any>();
+  existing.forEach((t) => { if (t && t.id) byId.set(String(t.id), t); });
+  incoming.forEach((t) => { if (t && t.id) byId.set(String(t.id), t); });
+  return Array.from(byId.values());
+}
+
+/* ---------- Products (الأصناف / العروض) ---------- */
+const PRODUCTS_SELECT_COLUMNS = [
+  'id', 'code', 'name', 'sales_priority', 'status', 'carton_quantity', 'size', 'color',
+  'stock', 'branch_stock_actual', 'branch_stock_reserved', 'main_warehouse_actual',
+  'main_warehouse_reserved', 'item_group', 'category', 'department', 'family_name',
+  'classification', 'piece_price', 'carton_price', 'image_url', 'cloudinary_public_id',
+  'barcode', 'unified_code', 'branch_stocks', 'sector', 'branch_name', 'updated_at', 'created_at',
+].join(',');
+
+export async function fetchProductsIncremental(): Promise<{
+  success: boolean;
+  products?: any[];
+  error?: string;
+  isFullFetch?: boolean;
+  maxUpdatedAt?: string | null;
+  count?: number;
+  entity?: string;
+}> {
+  try {
+    const lastTs = getLastSyncTs('products');
+    const isFullFetch = !lastTs;
+    let query = supabase
+      .from('products')
+      .select(PRODUCTS_SELECT_COLUMNS)
+      .order('updated_at', { ascending: true, nullsFirst: false });
+    if (!isFullFetch) query = query.gt('updated_at', lastTs);
+    const { data, error } = await query;
+    if (error) {
+      // لو جدول الأصناف مش فيه updated_at، نرجع fetch كامل كبديل آمن بدلًا من الفشل
+      if (String(error.message).includes('updated_at')) {
+        const { data: all, error: allErr } = await supabase.from('products').select('*').order('id', { ascending: true });
+        if (allErr) return { success: false, error: allErr.message, entity: 'products', count: 0, isFullFetch: true, maxUpdatedAt: null };
+        if (all && all.length) setLastSyncTs('products', new Date().toISOString());
+        return { success: true, products: all, entity: 'products', count: all.length, isFullFetch: true, maxUpdatedAt: null };
+      }
+      return { success: false, error: error.message, entity: 'products', count: 0, isFullFetch, maxUpdatedAt: null };
+    }
+    const rows = data || [];
+    if (rows.length === 0) {
+      return { success: true, products: [], entity: 'products', count: 0, isFullFetch, maxUpdatedAt: lastTs };
+    }
+    let maxUpdatedAt = lastTs ?? null;
+    for (const r of rows) {
+      const u = (r as any).updated_at;
+      if (u && (!maxUpdatedAt || u > maxUpdatedAt)) maxUpdatedAt = u;
+    }
+    if (maxUpdatedAt) setLastSyncTs('products', maxUpdatedAt);
+    return { success: true, products: rows, entity: 'products', count: rows.length, isFullFetch, maxUpdatedAt };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'فشل في المزامنة التراكمية للأصناف', entity: 'products', count: 0, isFullFetch: false, maxUpdatedAt: null };
+  }
+}
+
+export function mergeProductsIncremental(existing: any[], incoming: any[]): any[] {
+  const byId = new Map<string, any>();
+  existing.forEach((p) => { const k = p && (p.id || p.code); if (k) byId.set(String(k), p); });
+  incoming.forEach((p) => { const k = p && (p.id || p.code); if (k) byId.set(String(k), p); });
+  return Array.from(byId.values());
+}
+
+/* ---------- Customer Item Sales (مبيعات الأصناف) ---------- */
+const CUSTOMER_ITEM_SALES_SELECT_COLUMNS = [
+  'id', 'customer_account', 'invoicing_name', 'sales_order', 'sale_date', 'rep_name',
+  'month', 'item_code', 'item_name', 'quantity', 'amount', 'warehouse', 'updated_at',
+].join(',');
+
+export async function fetchCustomerItemSalesIncremental(): Promise<{
+  success: boolean;
+  sales?: any[];
+  error?: string;
+  isFullFetch?: boolean;
+  maxUpdatedAt?: string | null;
+  count?: number;
+  entity?: string;
+}> {
+  try {
+    const lastTs = getLastSyncTs('customer_item_sales');
+    const isFullFetch = !lastTs;
+    let query = supabase
+      .from('customer_item_sales')
+      .select(CUSTOMER_ITEM_SALES_SELECT_COLUMNS)
+      .order('updated_at', { ascending: true, nullsFirst: false });
+    if (!isFullFetch) query = query.gt('updated_at', lastTs);
+    const { data, error } = await query;
+    if (error) return { success: false, error: error.message, entity: 'customer_item_sales', count: 0, isFullFetch, maxUpdatedAt: lastTs };
+    const rows = data || [];
+    if (rows.length === 0) {
+      return { success: true, sales: [], entity: 'customer_item_sales', count: 0, isFullFetch, maxUpdatedAt: lastTs };
+    }
+    let maxUpdatedAt = lastTs ?? null;
+    for (const r of rows) {
+      const u = (r as any).updated_at;
+      if (u && (!maxUpdatedAt || u > maxUpdatedAt)) maxUpdatedAt = u;
+    }
+    if (maxUpdatedAt) setLastSyncTs('customer_item_sales', maxUpdatedAt);
+    return { success: true, sales: rows, entity: 'customer_item_sales', count: rows.length, isFullFetch, maxUpdatedAt };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'فشل في المزامنة التراكمية لمبيعات الأصناف', entity: 'customer_item_sales', count: 0, isFullFetch: false, maxUpdatedAt: null };
+  }
+}
+
+export function mergeCustomerItemSalesIncremental(existing: any[], incoming: any[]): any[] {
+  const byId = new Map<string, any>();
+  existing.forEach((s) => { if (s && s.id) byId.set(String(s.id), s); });
+  incoming.forEach((s) => { if (s && s.id) byId.set(String(s.id), s); });
+  return Array.from(byId.values());
+}

@@ -277,3 +277,75 @@ export async function uploadImageToCloudinary(
 
   return { url: data.secure_url, publicId: data.public_id };
 }
+
+/**
+ * تضغط صورة باستخدام canvas قبل الرفع إلى Cloudinary.
+ * الهدف: تقليل الحجم إلى حوالي 100-150 كيلو بايت للصورة الواحدة
+ * مع الحفاظ على جودة مقبولة للعرض على الموبايل واللاب توب.
+ */
+export function compressImageFile(
+  file: File,
+  maxWidth = 800,
+  maxHeight = 800,
+  quality = 0.7
+): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      // حساب الأبعاد الجديدة مع الحفاظ على النسبة
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
+      }
+      if (height > maxHeight) {
+        width = (width * maxHeight) / height;
+        height = maxHeight;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('تعذر إنشاء سياق الرسم لضغط الصورة'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error('فشل ضغط الصورة'));
+            return;
+          }
+          const compressedFile = new File([blob], file.name, {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
+          resolve(compressedFile);
+        },
+        'image/jpeg',
+        quality
+      );
+    };
+    img.onerror = () => reject(new Error('فشل تحميل الصورة للضغط'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+/**
+ * ترفع صورة عميل إلى Cloudinary بعد ضغطها.
+ * تُخزّن في مجلد customer_photos وتُرجع الرابط العام والمعرّف العام.
+ */
+export async function uploadCustomerPhoto(
+  file: File,
+  config: CloudinaryConfig,
+  customerId: string
+): Promise<{ url: string; publicId?: string }> {
+  const compressed = await compressImageFile(file, 800, 800, 0.7);
+  return uploadImageToCloudinary(compressed, config, `customer_photos/${customerId}`);
+}

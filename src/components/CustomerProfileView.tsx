@@ -19,12 +19,13 @@ import {
   Trash2,
   RefreshCcw,
 } from 'lucide-react';
-import { formatCurrency, formatMoney } from '../services/invoiceService';
+import { formatCurrency } from '../services/invoiceService';
 import { useApp } from '../context/AppContext';
 import { Customer } from '../types';
 import { getCustomerBalance, getCustomerOverdue } from '../services/customerFilterPredicates';
 import { getCustomerPaid } from '../services/customerTableSchema';
 import { resolveBranchName, resolveSectorFromBranch, inferSectorFromText } from '../services/arabicMatchingService';
+import { uploadCustomerPhoto } from '../services/cloudinaryService';
 
 export interface CustomerProfileViewProps {
   onNavigateToTab?: (tab: string) => void;
@@ -52,6 +53,8 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
     visits,
     activeSectorFilter,
     setActiveSectorFilter,
+    saveCustomersToSupabase,
+    cloudinaryConfig,
   } = useApp();
 
   const [activeCustomer, setActiveCustomer] = useState<Customer | null>(initialSelectedCustomer || null);
@@ -156,11 +159,22 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
   };
 
   const handleUploadPhoto = async (file: File) => {
+    if (!activeCustomer) return;
+    if (!cloudinaryConfig?.cloudName) {
+      alert('إعدادات Cloudinary غير مفعّلة. يرجى ضبط cloudName في إعدادات النظام قبل رفع الصور.');
+      return;
+    }
     setUploadingPhoto(true);
     try {
-      // هنا يتم الرفع على كلوديناري عبر الخدمة الموجودة في المشروع
-      const newPhoto = { id: `photo_${Date.now()}`, url: URL.createObjectURL(file), status: 'pending' as const };
-      setPendingPhotos((prev) => [...prev, newPhoto]);
+      const { url, publicId } = await uploadCustomerPhoto(file, cloudinaryConfig, activeCustomer.id);
+      const updated = { ...activeCustomer, profileImageUrl: url, profileImagePublicId: publicId };
+      setActiveCustomer(updated);
+      const res = await saveCustomersToSupabase([updated]);
+      if (!res.success) {
+        alert('تم رفع الصورة على Cloudinary لكن تعذر حفظ الرابط في سجل العميل: ' + (res.error || 'خطأ غير معروف'));
+      }
+    } catch (err: any) {
+      alert('فشل رفع الصورة: ' + (err?.message || 'خطأ غير معروف'));
     } finally {
       setUploadingPhoto(false);
     }
