@@ -52,6 +52,13 @@ export const INITIAL_BRANCHES: Branch[] = [
     email: 'october@dream-dist.com',
     notificationEmails: ['october@dream-dist.com'],
   },
+  { id: 'b-fayoum', name: 'فرع الفيوم', code: 'FYM-01', city: 'الفيوم', address: 'الفيوم', managerName: '', phone: '', isMainWarehouse: false },
+  { id: 'b-dimshelt', name: 'فرع ديمشلت', code: 'DIM-01', city: 'ديمشلت', address: 'ديمشلت', managerName: '', phone: '', isMainWarehouse: false },
+  { id: 'b-minof', name: 'فرع منوف', code: 'MNF-01', city: 'منوف', address: 'منوف', managerName: '', phone: '', isMainWarehouse: false },
+  { id: 'b-minyaqamh', name: 'فرع منيا القمح', code: 'MQM-01', city: 'منيا القمح', address: 'منيا القمح', managerName: '', phone: '', isMainWarehouse: false },
+  { id: 'b-bahira', name: 'فرع البحيرة', code: 'BAH-01', city: 'البحيرة', address: 'البحيرة', managerName: '', phone: '', isMainWarehouse: false },
+  { id: 'b-cairo', name: 'فرع القاهرة', code: 'CAI-01', city: 'القاهرة', address: 'القاهرة', managerName: '', phone: '', isMainWarehouse: false },
+  { id: 'b-minya', name: 'فرع المنيا', code: 'MIN-01', city: 'المنيا', address: 'المنيا', managerName: '', phone: '', isMainWarehouse: false },
 ];
 
 export const INITIAL_USERS: User[] = [
