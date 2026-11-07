@@ -54,3 +54,7 @@ html:not(.dark) .cdebt-foot { color: #475569 !important; }
 html:not(.dark) .cf-badge { color: #475569 !important; }
 /* Muted text contrast fix */
 html:not(.dark) .t-muted { color: #64748b !important; }
+/* Global light-mode text visibility boost */
+html:not(.dark) .text-slate-300 { color: #64748b !important; }
+html:not(.dark) .text-slate-400 { color: #475569 !important; }
+html:not(.dark) .text-slate-500 { color: #334155 !important; }
