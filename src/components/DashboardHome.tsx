@@ -266,7 +266,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#2563EB] transition">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-slate-600 dark:text-slate-300">إجمالي المبيعات</span>
-                <IconBadge icon={DollarSign} variant="primary" size="sm" />
+                <IconBadge icon={DollarSign} variant="primary" size="md" />
               </div>
 
               <div className="space-y-1 my-2">
@@ -295,7 +295,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#F59E0B] transition">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-slate-600 dark:text-slate-300">عدد الطلبات</span>
-                <IconBadge icon={Package} variant="warning" size="sm" />
+                <IconBadge icon={Package} variant="warning" size="md" />
               </div>
 
               <div className="space-y-1 my-2">
@@ -324,7 +324,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#16A34A] transition">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold text-slate-600 dark:text-slate-300">التحصيلات</span>
-                <IconBadge icon={Wallet} variant="success" size="sm" />
+                <IconBadge icon={Wallet} variant="success" size="md" />
               </div>
 
               <div className="space-y-0.5 my-1">
@@ -347,7 +347,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#7C3AED] transition">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold text-slate-600 dark:text-slate-300">الزيارات</span>
-                <IconBadge icon={MapPin} variant="violet" size="sm" />
+                <IconBadge icon={MapPin} variant="violet" size="md" />
               </div>
 
               <div className="space-y-0.5 my-1">
@@ -577,7 +577,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-center text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2 text-center text-xs">
             <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
               <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">1</div>
               <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">فتح الكتالوج</div>
