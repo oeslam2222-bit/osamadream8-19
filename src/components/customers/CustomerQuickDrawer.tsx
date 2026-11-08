@@ -31,7 +31,7 @@ export const CustomerQuickDrawer: React.FC<CustomerQuickDrawerProps> = ({
   const paid = Math.max(Math.abs(Number(customer.collections2026) || 0), Math.abs(Number(customer.totalMonthlyCollections) || 0), Math.abs(Number(customer.totalOverallCollections) || 0), monthlyCollections);
   const remaining = overdue > 0 ? overdue : balance;
   const rep = customer.salesRepName || customer.repName || 'غير محدد';
-  const lastVisit = customer.lastVisitDate || customer.visitHistory?.[0]?.date || customer.visitHistory?.[customer.visitHistory.length ? customer.visitHistory.length - 1 : 0]?.date || '—';
+  const lastVisit = customer.lastVisitDate || customer.visitHistory?.[0]?.date || (customer.visitHistory?.length ? customer.visitHistory[customer.visitHistory.length - 1]?.date : undefined) || '—';
   const shopPhotos = mergeShopPhotos(customer as any);
 
   return (
@@ -95,3 +95,4 @@ export const CustomerQuickDrawer: React.FC<CustomerQuickDrawerProps> = ({
 
 export default CustomerQuickDrawer;
 TS
+git -C /workspace/app add src/components/customers/CustomerQuickDrawer.tsx && git -C /workspace/app commit -m "fix(customers): restore complete quick drawer component" 2>&1 | tail -2

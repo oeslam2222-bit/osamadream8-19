@@ -200,6 +200,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
   // State: Filters
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchDebounced, setSearchDebounced] = useState('');
+  useEffect(() => { const t = setTimeout(() => setSearchDebounced(searchQuery), 250); return () => clearTimeout(t); }, [searchQuery]);
   const [selectedBranch, setSelectedBranch] = useState<string>('ALL');
   const [selectedSupervisor, setSelectedSupervisor] = useState<string>('ALL');
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
@@ -223,7 +225,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const saved = localStorage.getItem(CUSTOMER_FILTERS_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.searchQuery !== undefined) setSearchQuery(parsed.searchQuery);
+        if (parsed.searchQuery !== undefined) setSearchQuery(parsed.searchQuery||''); setSearchDebounced(parsed.searchQuery||'');
         if (parsed.selectedBranch !== undefined) setSelectedBranch(parsed.selectedBranch);
         if (parsed.selectedSupervisor !== undefined) setSelectedSupervisor(parsed.selectedSupervisor);
         if (parsed.selectedRep !== undefined) setSelectedRep(parsed.selectedRep);
@@ -270,7 +272,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         sortOrder,
       }));
     } catch {}
-  }, [searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, selectedSector, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, dealtFilter, orderFilter, visitFilter, collectionRateFilter, sortBy, sortOrder, CUSTOMER_FILTERS_KEY]);
+  }, [searchDebounced, searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, selectedSector, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, dealtFilter, orderFilter, visitFilter, collectionRateFilter, sortBy, sortOrder, CUSTOMER_FILTERS_KEY]);
 
   // Pagination for high-performance (4000+ items)
   const [currentPage, setCurrentPage] = useState(1);
@@ -598,8 +600,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     }
 
     // Search query (normalized Arabic for resilient match)
-    if (searchQuery.trim()) {
-      const qNorm = normalizeArabicText(searchQuery);
+    if (searchDebounced.trim()) {
+      const qNorm = normalizeArabicText(searchDebounced);
       list = list.filter((c) => {
         const nameNorm = normalizeArabicText(c.name || '');
         const codeNorm = normalizeArabicText(c.code || '');
@@ -611,7 +613,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         return (
           nameNorm.includes(qNorm) ||
           codeNorm.includes(qNorm) ||
-          phone.includes(searchQuery.replace(/[^0-9]/g, '')) ||
+          phone.includes(searchDebounced.replace(/[^0-9]/g, '')) ||
           regionNorm.includes(qNorm) ||
           repNorm.includes(qNorm) ||
           guaranteeNorm.includes(qNorm)
@@ -703,7 +705,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
   // اقتراحات البحث الذكي: أول 5 عملاء مطابقين للحرف/الكود المكتوب
   const searchSuggestions = useMemo(() => {
-    if (!searchQuery.trim()) return [];
+    if (!searchDebounced.trim()) return [];
     return [...contextCustomers]
       .sort((a, b) => getCustomerBalance(b) - getCustomerBalance(a))
       .slice(0, 5)
