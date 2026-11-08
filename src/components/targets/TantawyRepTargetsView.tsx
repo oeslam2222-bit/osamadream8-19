@@ -32,6 +32,7 @@ import {
 } from 'recharts';
 import { TargetRecord, User } from '../../types';
 import { useApp } from '../../context/AppContext';
+import { inferTargetSector } from '../../services/targetService';
 
 interface TantawyRepTargetsViewProps {
   onOpenAdvancedDashboard?: () => void;
@@ -73,7 +74,7 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
   // Unique lists from data
   const uniqueBranches = useMemo(() => {
     const set = new Set<string>();
-    targets.forEach((t) => {
+    sectorTargets.forEach((t) => {
       if (t.branch) set.add(t.branch.trim());
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
@@ -86,6 +87,12 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
       .forEach((u) => set.add(u.name.trim()));
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
   }, [users]);
+
+  // Sector filtering must happen before aggregation so totals and reps reflect the selected sector.
+  const sectorTargets = useMemo(() => {
+    if (selectedSector === 'all') return targets;
+    return targets.filter((target) => inferTargetSector(target, users) === selectedSector);
+  }, [targets, users, selectedSector]);
 
   // Aggregate stats per rep across targets
   const repPerformanceList = useMemo(() => {
@@ -100,7 +107,7 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
     }>();
 
     // Group targets by rep
-    targets.forEach((t) => {
+    sectorTargets.forEach((t) => {
       const rep = (t.repName || '').trim();
       if (!rep) return;
       if (!map.has(rep)) {
@@ -122,7 +129,7 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
     });
 
     // Provide default top performers matching screenshot if empty or thin
-    if (map.size === 0) {
+    if (map.size === 0 && sectorTargets.length === 0 && selectedSector === 'all') {
       const defaultReps = [
         { name: 'أحمد علي', branch: 'فرع الجيزة', sPct: 98, cPct: 95, sTarget: 112000, sAch: 98000, cAch: 92000 },
         { name: 'محمد حسن', branch: 'فرع القاهرة', sPct: 92, cPct: 90, sTarget: 120000, sAch: 110400, cAch: 108000 },
@@ -178,7 +185,7 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
       rank: idx + 1,
       avatar: REP_AVATARS[idx % REP_AVATARS.length],
     }));
-  }, [targets]);
+  }, [sectorTargets, selectedSector]);
 
   // Filtered leaderboard
   const filteredReps = useMemo(() => {
