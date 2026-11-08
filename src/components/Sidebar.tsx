@@ -16,11 +16,13 @@ interface SidebarProps {
   onOpenCart: () => void;
   notificationCount: number;
   onOpenNotificationCenter: () => void;
+  position?: "left" | "right";
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab, setActiveTab, isCollapsed, onToggleCollapse,
   onOpenCart, notificationCount, onOpenNotificationCenter,
+  position = "right",
 }) => {
   const { currentUser, logout, getCartSummary } = useApp();
   const { isDark, toggleTheme } = useTheme();
@@ -71,8 +73,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       {!isMobile && (
-        <aside className={`fixed right-0 top-16 bottom-0 z-40 flex flex-col ${isCollapsed ? 'w-16' : 'w-64'} border-l border-slate-200 dark:border-[#26364D] bg-white dark:bg-[#0B1220] shadow-xl transition-all duration-300 flex-shrink-0`} aria-label="القائمة الرئيسية">
-          <div className={`flex items-center gap-2 px-4 py-5 border-b border-slate-200 dark:border-[#26364D] ${isCollapsed ? 'justify-center' : 'justify-start'}`}>
+        <aside className={`fixed ${position === 'left' ? 'left-0' : 'right-0'} top-16 bottom-0 z-40 flex flex-col ${isCollapsed ? 'w-16' : 'w-64'} ${position === 'left' ? 'border-r border-slate-200 dark:border-[#26364D]' : 'border-l border-slate-200 dark:border-[#26364D]'} bg-white dark:bg-[#0B1220] shadow-xl transition-all duration-300 flex-shrink-0`} aria-label="القائمة الرئيسية">
+          <div className={`flex items-center gap-2 px-4 py-5 border-b border-slate-200 dark:border-[#26364D] ${isCollapsed ? 'justify-center' : position === 'left' ? 'justify-end' : 'justify-start'}`}>
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#0D9488] to-[#2563EB] flex items-center justify-center text-white font-black shadow-lg">T</div>
             {!isCollapsed && (
               <div className="flex flex-col min-w-0">
@@ -123,7 +125,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       {isMobile && (
-        <button type="button" onClick={() => setMobileOpen(true)} className="fixed right-4 top-20 z-50 bg-[#0D9488] text-white p-2.5 rounded-xl shadow-lg text-slate-900 hover:bg-[#0B796E] transition-colors md:hidden" aria-label="فتح القائمة"><span className="sr-only">القائمة الرئيسية</span><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg></button>
+        <button type="button" onClick={() => setMobileOpen(true)} className={`fixed ${position === 'left' ? 'left-4' : 'right-4'} top-20 z-50 bg-[#0D9488] text-white p-2.5 rounded-xl shadow-lg text-slate-900 hover:bg-[#0B796E] transition-colors md:hidden`} aria-label="فتح القائمة"><span className="sr-only">القائمة الرئيسية</span><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" /></svg></button>
       )}
     </>
   );

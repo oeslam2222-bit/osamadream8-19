@@ -229,9 +229,10 @@ const MainLayout: React.FC = () => {
             onOpenCart={() => setIsOrderModalOpen(true)}
             notificationCount={unreadNotificationCount}
             onOpenNotificationCenter={() => setNotificationCenterOpen(true)}
+            position="left"
           />
         )}
-        <div className="flex-1 flex flex-col min-w-0 lg:pr-64">
+        <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
           <Navbar
             activeTab={activeTab}
             setActiveTab={setActiveTab}
