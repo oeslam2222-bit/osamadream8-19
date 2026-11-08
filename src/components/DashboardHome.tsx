@@ -505,13 +505,13 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       {/* ========================================================================= */}
       {/* 3. BRANDING & MOBILE APK DOWNLOAD BAR */}
       {/* ========================================================================= */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch" dir="ltr">
         
         {/* Left Card: 3D Emblem Card matching Brand Card */}
-        <div className="md:col-span-5 bg-[var(--app-card)] rounded-2xl p-5 border border-[var(--app-border)] shadow-[var(--app-shadow-card)] flex flex-col justify-between text-[var(--app-text)] relative overflow-hidden">
+        <div dir="rtl" className="md:order-2 md:col-span-5 bg-[var(--app-card)] rounded-[var(--app-radius-card)] p-5 border border-[var(--app-border)] shadow-[var(--app-shadow-card)] flex flex-col justify-between text-[var(--app-text)] relative overflow-hidden">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-xs font-black text-amber-400 tracking-wider">مندوب دريم • TANTAWY</span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-xs">
+            <span className="text-xs font-black text-[var(--app-warning-text)] tracking-wider">مندوب دريم • TANTAWY</span>
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black bg-[var(--app-success-tint)] text-[var(--app-success-text)] border border-[var(--app-success-border)] shadow-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
               <span>الحالة : نشط الآن</span>
             </span>
@@ -552,14 +552,14 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         </div>
 
         {/* Right Card: Quick 5-Step Order Guide (خطوات إنشاء الطلب المنضبطة للمندوب) */}
-        <div className="md:col-span-7 bg-white dark:bg-[#111C2E] rounded-2xl p-5 border border-slate-200 dark:border-[#26364D] shadow-xs flex flex-col justify-between">
+        <div dir="rtl" className="md:order-1 md:col-span-7 bg-[var(--app-card)] rounded-[var(--app-radius-card)] p-5 border border-[var(--app-border)] shadow-[var(--app-shadow-card)] flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#26364D] pb-3 mb-3">
             <div className="flex items-center gap-2.5">
               <div className="w-10 h-10 rounded-2xl flex items-center justify-center font-black">
                 <IconBadge icon={ClipboardList} variant="primary" size="md" className="w-8 h-8 p-0" />
               </div>
               <div>
-                <h4 className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-sm">خطوات إنشاء الطلبية للمندوب</h4>
+                <h4 className="font-black text-[var(--app-text)] text-sm">خطوات إنشاء الطلبية للمندوب</h4>
                 <p className="text-[11px] text-slate-500 dark:text-[#94A3B8]">سير العمل المعتمد لإصدار فواتير دقيقة ومراجعة المخزون</p>
               </div>
             </div>
