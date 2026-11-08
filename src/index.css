@@ -53,6 +53,16 @@
   --app-line: #E2E8F0;
   --app-line-weak: #F1F5F9;
 
+  /* Compatibility aliases (used by shared components) */
+  --bg-surface: var(--app-surface);
+  --bg-surface-alt: var(--app-surface-2);
+  --bg-surface-hover: var(--app-surface-2);
+  --bg-surface-elevated: var(--app-surface-elevated);
+  --text-primary: var(--app-text);
+  --text-secondary: var(--app-text-secondary);
+  --text-muted: var(--app-muted);
+  --border-default: var(--app-line);
+
   /* Brand / module palette */
   --brand-primary: #2563EB;
   --brand-secondary: #0D9488;
@@ -242,6 +252,16 @@
   --app-navy-text: #F1F5F9;
   --app-navy-tint: rgba(241, 245, 249, .08);
   --app-navy-line: rgba(241, 245, 249, .18);
+
+  /* Compatibility aliases */
+  --bg-surface: var(--app-surface);
+  --bg-surface-alt: var(--app-surface-2);
+  --bg-surface-hover: var(--app-surface-2);
+  --bg-surface-elevated: var(--app-surface-elevated);
+  --text-primary: var(--app-text);
+  --text-secondary: var(--app-text-secondary);
+  --text-muted: var(--app-muted);
+  --border-default: var(--app-line);
 
   --r-sm: 8px;
   --r-md: 12px;
