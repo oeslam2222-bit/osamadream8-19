@@ -272,6 +272,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   // Pagination for high-performance (4000+ items)
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(10);
+  const [showMoreCards, setShowMoreCards] = useState(false);
 
   // BI Charts Toggle
   const [showCharts, setShowCharts] = useState(false);
@@ -1887,7 +1888,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         </div>
 
         {/* Table Content */}
-        {paginatedCustomers.length === 0 ? (
+        {filteredCustomers.length === 0 ? (
           <div className="py-12 px-6 text-center">
             <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border border-teal bg-gradient-to-br from-[#f4fbfd] to-[#e6f7f5] text-[var(--app-ok)]">
               <Users className="h-7 w-7" />
@@ -1911,7 +1912,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           </div>
         ) : (
           <>
-          <div className="md:hidden p-3 flex flex-col gap-3">
+          {/* كروت العملاء (افتراضي): أول 10 ثم إظهار المزيد — مع فلاتر الاسم/المندوب/الفرع/القطاع */}
+          <div className="p-3 sm:p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+              {(showMoreCards ? filteredCustomers : filteredCustomers.slice(0, 10)).map((c, index) => {
             {paginatedCustomers.map((c, index) => {
               const bal = c.currentBalance ?? c.balance ?? 0;
               const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
@@ -1924,16 +1928,17 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               const colRate = s26 > 0 ? Math.round((col26 / s26) * 100) : 0;
               const guaranteeInfo = getGuaranteeBadge(c.guaranteeDocs, c.guaranteeAmount, limit);
               
-              // Avatar initial & background color
+              // Avatar (صورة بروفايل / أفاتار مميز) + الحالة
               const firstLetter = (c.name || 'ع').trim().charAt(0);
               const avatarColors = [
+                'bg-[var(--brand-primary)] text-white',
+                'bg-[var(--brand-secondary)] text-white',
+                'bg-[var(--app-violet)] text-white',
+                'bg-[var(--app-warn)] text-slate-950',
                 'bg-[var(--app-ok)] text-white',
-                'bg-[var(--app-navy)] text-white',
-                'bg-[var(--app-warn)] text-white',
-                'bg-[var(--app-navy)] text-white',
-                'bg-slate-700 text-white'
               ];
               const avatarBg = avatarColors[(c.code ? c.code.charCodeAt(c.code.length - 1) : index) % avatarColors.length];
+              const lastVisit = c.lastVisitDate || c.visitHistory?.[0]?.date || '—';
 
               // Customer Status logic
               const isLegal = c.isLegalPending || (c.legalStatus && c.legalStatus !== 'none');
@@ -1947,21 +1952,20 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               );
 
               return (
-                <div
+                <button
+                  type="button"
                   key={c.id || c.code}
-                  className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-3.5 space-y-3 hover:border-[var(--app-ok)] transition"
+                  onClick={() => setQuickCustomer(c)}
+                  className="text-right bg-white dark:bg-[var(--app-surface)] rounded-2xl border border-[var(--app-line)] shadow-sm p-3.5 space-y-3 hover:border-[var(--brand-primary)] hover:shadow-md transition cursor-pointer card-hover-lift"
                 >
                   {/* Card Header: Avatar + Info + Status */}
                   <div className="flex items-start justify-between gap-2.5">
                     <div className="flex items-center gap-2.5 min-w-0">
-                      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-sm shrink-0 shadow-xs ${avatarBg}`}>
-                        {firstLetter}
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-base shrink-0 shadow-sm overflow-hidden ring-2 ring-white/60 ${avatarBg}`}>
+                        {c.profileImageUrl ? <img src={c.profileImageUrl} alt={c.name} className="w-full h-full object-cover" /> : firstLetter}
                       </div>
                       <div className="min-w-0">
-                        <div
-                          onClick={() => setQuickCustomer(c)}
-                          className="font-black text-slate-900 text-sm truncate cursor-pointer hover:text-[var(--app-ok-text)] transition"
-                        >
+                        <div className="font-black text-[var(--app-text)] text-sm truncate">
                           {c.name}
                         </div>
                         <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium mt-0.5 flex-wrap">
@@ -1992,8 +1996,26 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     </div>
                   </div>
 
-                  {/* 3-Column Financial Metrics Bar */}
-                  <div className="grid grid-cols-3 gap-1.5 pt-1">
+                  {/* بيانات مالية + آخر زيارة (خارج الكارت بالتفصيل عند الضغط) */}
+                  <div className="grid grid-cols-2 gap-1.5 pt-1 text-[11px]">
+                    <div className="rounded-xl bg-[var(--app-surface-2)] border border-[var(--app-line)] p-2">
+                      <div className="text-[10px] text-[var(--app-muted)] font-bold">المديونية</div>
+                      <div className="font-black text-[var(--app-text)] tabular-nums">{formatCompactMoney(bal)}</div>
+                    </div>
+                    <div className="rounded-xl bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] p-2">
+                      <div className="text-[10px] text-[var(--app-risk-text)] font-bold">المستحق</div>
+                      <div className="font-black text-[var(--app-risk-text)] tabular-nums">{formatCompactMoney(overdue)}</div>
+                    </div>
+                    <div className="rounded-xl bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] p-2">
+                      <div className="text-[10px] text-[var(--app-ok-text)] font-bold">المسدد</div>
+                      <div className="font-black text-[var(--app-ok-text)] tabular-nums">{formatCompactMoney(paidAmount)}</div>
+                    </div>
+                    <div className="rounded-xl bg-[var(--app-secondary-tint)] border border-[var(--app-secondary-line)] p-2">
+                      <div className="text-[10px] text-[var(--brand-secondary)] font-bold flex items-center gap-1"><CalendarCheck className="w-3 h-3" />آخر زيارة</div>
+                      <div className="font-bold text-[var(--app-text)] truncate">{lastVisit}</div>
+                    </div>
+                  </div>
+                  <div className="hidden">
                     <div className="rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 p-2 text-right min-w-0">
                       <div className="text-[9px] text-slate-500 dark:text-slate-400 font-bold whitespace-nowrap">المديونية</div>
                       <div className="font-black text-[var(--app-navy)] dark:text-white text-xs sm:text-sm mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis font-mono" title={isPrivacyMode ? 'مخفي' : formatMoney(bal)}>

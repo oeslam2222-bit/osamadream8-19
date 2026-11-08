@@ -415,6 +415,8 @@ export interface Customer {
   profileImageUrl?: string;
   /** المعرّف العام للصورة على Cloudinary (للحذف أو التبديل لاحقاً) */
   profileImagePublicId?: string;
+  /** صور المحل (حتى 3 صور، مضغوطة ~100KB). تُحفظ محليًا في حالة العميل دون تعديل مخطط Supabase. */
+  shopPhotos?: Array<{ url: string; publicId?: string; uploadedAt?: string }>;
   createdAt?: string;
 }
 
