@@ -111,6 +111,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
   const [selectedSupervisor, setSelectedSupervisor] = useState<string>('ALL');
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [repShowAll, setRepShowAll] = useState(false);
+  const [repDetailName, setRepDetailName] = useState<string | null>(null);
 
   // Chart view mode: timeline vs monthly comparison vs reps ranking
   const [chartViewMode, setChartViewMode] = useState<'timeline' | 'monthly_comparison' | 'reps_ranking'>('timeline');
@@ -1451,7 +1453,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       </p>
                     </div>
                   ) : (
-                    employeeCardsData.map((emp) => {
+                    (repShowAll ? employeeCardsData : employeeCardsData.slice(0, 10)).map((emp) => {
                       const salesPerc = emp.salesTarget > 0 ? Number(((emp.salesAchieved / emp.salesTarget) * 100).toFixed(1)) : 0;
                       const colPerc = emp.colTarget > 0 ? Number(((emp.colAchieved / emp.colTarget) * 100).toFixed(1)) : 0;
                       const remainingSales = Math.max(0, emp.salesTarget - emp.salesAchieved);
@@ -1459,7 +1461,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       const totalDebt = emp.totalDebt + emp.overdueDebt;
 
                       return (
-                        <div key={emp.repName} className="bg-white dark:bg-slate-800 rounded-3xl p-4 sm:p-5 border border-[var(--app-line)] dark:border-slate-700 shadow-sm overflow-hidden relative group">
+                        <div key={emp.repName} role="button" tabIndex={0} onClick={() => setRepDetailName((v)=> v===emp.repName?null:emp.repName)} onKeyDown={(e)=>{if(e.key==='Enter')setRepDetailName((v)=>v===emp.repName?null:emp.repName);}} className="cursor-pointer bg-white dark:bg-[var(--app-surface,#17243A)] rounded-3xl p-4 sm:p-5 border border-[var(--app-line)] shadow-sm overflow-hidden relative group hover:border-[var(--brand-primary)] hover:shadow-md transition card-hover-lift">
                           {/* Top: Employee Name + Sector + Role */}
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
