@@ -19,7 +19,6 @@ import {
   FileSpreadsheet,
   Download,
   Smartphone,
-  Flame,
   ArrowUpRight,
   ShieldCheck,
   ChevronLeft,
@@ -263,9 +262,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <div className="lg:col-span-4 grid grid-cols-2 gap-3">
             
             {/* Metric 1: إجمالي المبيعات */}
-            <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#2563EB] transition">
+            <div className="bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#2563EB] transition">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">إجمالي المبيعات</span>
+                <span className="text-xs font-bold text-blue-700 dark:text-blue-300">إجمالي المبيعات</span>
                 <IconBadge icon={DollarSign} variant="primary" size="md" />
               </div>
 
@@ -292,9 +291,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
 
             {/* Metric 2: عدد الطلبات */}
-            <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#F59E0B] transition">
+            <div className="bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#F59E0B] transition">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">عدد الطلبات</span>
+                <span className="text-xs font-bold text-amber-700 dark:text-amber-300">عدد الطلبات</span>
                 <IconBadge icon={Package} variant="warning" size="md" />
               </div>
 
@@ -321,9 +320,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
 
             {/* Metric 3: التحصيلات */}
-            <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#16A34A] transition">
+            <div className="bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#16A34A] transition">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">التحصيلات</span>
+                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">التحصيلات</span>
                 <IconBadge icon={Wallet} variant="success" size="md" />
               </div>
 
@@ -344,9 +343,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
 
             {/* Metric 4: زيارات اليوم */}
-            <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#7C3AED] transition">
+            <div className="bg-violet-50/60 dark:bg-violet-950/20 border border-violet-200/60 dark:border-violet-800/40 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#7C3AED] transition">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">الزيارات</span>
+                <span className="text-xs font-bold text-violet-700 dark:text-violet-300">الزيارات</span>
                 <IconBadge icon={MapPin} variant="violet" size="md" />
               </div>
 
@@ -424,17 +423,6 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
               {visibleProductsList.length} صنف متاح للطلب
             </span>
-          </button>
-
-          {/* Tile 3: عروض الأسعار والخصومات */}
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('catalog')}
-            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
-          >
-            <IconBadge icon={Flame} variant="warning" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight">عروض الأسعار</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">تخفيضات وبونص الكراتين</span>
           </button>
 
           {/* Tile 4: العملاء */}
