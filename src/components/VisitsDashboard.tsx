@@ -74,7 +74,11 @@ interface VisitForm {
   notes: string;
 }
 
-export const VisitsDashboard: React.FC = () => {
+interface VisitsDashboardProps {
+  initialTimeFilter?: 'all' | 'today' | 'week' | 'month';
+}
+
+export const VisitsDashboard: React.FC<VisitsDashboardProps> = ({ initialTimeFilter = 'month' }) => {
   const {
     currentUser,
     customers,
@@ -101,7 +105,7 @@ export const VisitsDashboard: React.FC = () => {
   const visits: CustomerVisit[] = getVisibleVisitsSafe();
 
   const [search, setSearch] = useState('');
-  const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'week' | 'month'>('month');
+  const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'week' | 'month'>(initialTimeFilter);
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'منفذة' | 'معلقة' | 'ملغاة'>('all');
   const [repFilter, setRepFilter] = useState<string>('all');

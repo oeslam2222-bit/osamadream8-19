@@ -34,7 +34,7 @@ import { TargetPerformanceDashboard } from './components/TargetPerformanceDashbo
 import { VisitsDashboard } from './components/VisitsDashboard';
 import { CollectionRecoveryDashboard } from './components/CollectionRecoveryDashboard';
 import { UnifiedReturnsView } from './components/UnifiedReturnsView';
-import { UnifiedCustomersHub } from './components/UnifiedCustomersHub';
+import { AllCustomersAnalyticsView } from './components/AllCustomersAnalyticsView';
 import { PermissionManagerModal } from './components/PermissionManagerModal';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { AppProvider, useApp } from './context/AppContext';
@@ -134,7 +134,7 @@ const MainLayout: React.FC = () => {
   // Land on authorized tab and strictly guard unauthorized tabs
   useEffect(() => {
     if (currentUser) {
-      const allowed = allowedTabs.includes(activeTab) || ['all_customers', 'customers'].includes(activeTab);
+      const allowed = allowedTabs.includes(activeTab) || ['all_customers', 'customers', 'catalog'].includes(activeTab);
       if (!allowed) {
         setActiveTab('home');
       }
@@ -223,7 +223,7 @@ const MainLayout: React.FC = () => {
             />
           )}
 
-          {activeTab === 'catalog' && allowedTabs.includes('catalog') && (
+          {activeTab === 'catalog' && (allowedTabs.includes('catalog') || currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
             <ProductCatalog
               onOpenCart={() => setIsOrderModalOpen(true)}
               selectedCustomer={orderInitialCustomer}
@@ -250,12 +250,14 @@ const MainLayout: React.FC = () => {
 
           {activeTab === 'collection' && allowedTabs.includes('collection') && <CollectionRecoveryDashboard />}
 
-          {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
-          {(activeTab === 'customers' || activeTab === 'all_customers') && (
-            <UnifiedCustomersHub
-              initialSubTab={activeTab === 'visits' ? 'visits' : 'customers'}
+          {(activeTab === 'customers' || activeTab === 'all_customers') && (allowedTabs.includes('customers') || allowedTabs.includes('all_customers') || allowedTabs.includes('catalog') || allowedTabs.includes('customer_item_sales') || currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+            <AllCustomersAnalyticsView
               onOpenNewOrderForCustomer={handleOpenOrderForCustomer}
             />
+          )}
+
+          {activeTab === 'visits' && (allowedTabs.includes('visits') || currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
+            <VisitsDashboard initialTimeFilter="today" />
           )}
 
           {(activeTab === 'returns' || activeTab === 'returns_customers') && (allowedTabs.includes('returns') || allowedTabs.includes('returns_customers')) && (
