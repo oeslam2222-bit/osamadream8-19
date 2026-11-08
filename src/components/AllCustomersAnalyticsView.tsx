@@ -2840,6 +2840,40 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                 );
               })()}
 
+              {/* سجل التحصيلات والمرتجعات المستنتج من بيانات الزيارات المتاحة */}
+              {(() => {
+                const vhist = selectedCustomer.visitHistory || [];
+                const collections = vhist.filter((v) => Number(v.collectedAmount || 0) > 0);
+                const returns = vhist.filter((v: any) => v.isReturn || Number(v.returnValue || 0) > 0);
+                if (!collections.length && !returns.length) return null;
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="p-3 rounded-2xl border border-[var(--app-ok-line)] bg-[var(--app-ok-tint)]/30">
+                      <h4 className="font-black text-xs text-[var(--app-ok-text)] mb-2">سجل التحصيلات (من الزيارات) - {collections.length}</h4>
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                        {collections.slice(0, 20).map((v, i) => (
+                          <div key={v.id || i} className="flex justify-between text-[11px] bg-white/70 dark:bg-[var(--app-surface)] rounded-lg px-2 py-1 border border-[var(--app-line)]">
+                            <span className="font-bold">{v.date || '-'}</span>
+                            <span className="font-mono font-black text-[var(--app-ok-text)]">+{formatCurrency(Number(v.collectedAmount || 0))}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="p-3 rounded-2xl border border-[var(--app-risk-line)] bg-[var(--app-risk-tint)]/20">
+                      <h4 className="font-black text-xs text-[var(--app-risk-text)] mb-2">المرتجعات (من الزيارات) - {returns.length}</h4>
+                      <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                        {returns.length ? returns.slice(0, 20).map((v: any, i: number) => (
+                          <div key={v.id || i} className="text-[11px] bg-white/70 dark:bg-[var(--app-surface)] rounded-lg px-2 py-1 border border-[var(--app-line)]">
+                            <div className="flex justify-between font-bold"><span>{v.date || '-'}</span><span className="text-[var(--app-risk-text)]">{v.returnStatus || 'مرتجع'}</span></div>
+                            {(v.returnValue || v.notes) ? <div className="text-slate-500 truncate">{v.returnValue ? `${formatCurrency(Number(v.returnValue))} - ` : ''}{v.notes || ''}</div> : null}
+                          </div>
+                        )) : <div className="text-[11px] text-slate-500">لا يوجد مرتجعات مسجلة.</div>}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Visit History Log if any */}
               {selectedCustomer.visitHistory && selectedCustomer.visitHistory.length > 0 && (
                 <div className="space-y-2">
