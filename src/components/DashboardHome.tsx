@@ -19,7 +19,6 @@ import {
   FileSpreadsheet,
   Download,
   Smartphone,
-  Flame,
   ArrowUpRight,
   ShieldCheck,
   ChevronLeft,
@@ -31,12 +30,14 @@ import {
   Store,
   DollarSign,
   Tag,
-  ClipboardList
+  ClipboardList,
+  Check,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import { isArabicNameMatch, isBranchMatch } from '../services/arabicMatchingService';
 import { Customer, CustomerVisit, Invoice } from '../types';
+import { IconBadge } from './ui/IconBadge';
 
 interface DashboardHomeProps {
   onNavigateToTab: (tab: string) => void;
@@ -168,9 +169,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <div className="flex items-center justify-between">
               {/* App / Rep Badge */}
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/50 text-[#2563EB] flex items-center justify-center font-black shadow-xs">
-                  <Sparkles className="w-6 h-6 stroke-[2.2]" />
-                </div>
+                <IconBadge icon={Sparkles} variant="primary" size="md" className="shrink-0" />
                 <div>
                   <div className="text-[11px] font-bold text-[#2563EB] dark:text-[#93C5FD] tracking-wider">
                     منظومة مبيعات طنطاوي دريم
@@ -246,9 +245,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <div className="hidden lg:flex lg:col-span-3 items-center justify-center p-2">
             <div className="relative group w-full max-w-[220px]">
               <div className="rounded-3xl bg-slate-50 dark:bg-[#17243A] p-5 border border-slate-200 dark:border-[#26364D] flex flex-col items-center justify-center text-center shadow-md">
-                <div className="w-14 h-14 rounded-2xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800/40 text-[#0D9488] flex items-center justify-center mb-2.5 shadow-xs">
-                  <BarChart3 className="w-8 h-8 stroke-[2.2]" />
-                </div>
+                <IconBadge icon={BarChart3} variant="secondary" size="md" className="mb-2.5 shrink-0" />
                 <div className="text-sm font-black text-slate-900 dark:text-white">منصة مبيعات ذكية</div>
                 <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                   ربط مباشر مع المخازن، قاعدة العملاء، واعتمادات الفواتير
@@ -265,12 +262,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <div className="lg:col-span-4 grid grid-cols-2 gap-3">
             
             {/* Metric 1: إجمالي المبيعات */}
-            <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#2563EB] transition">
+            <div className="bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#2563EB] transition">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">إجمالي المبيعات</span>
-                <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] border border-blue-200 dark:border-blue-800/40 flex items-center justify-center shadow-2xs">
-                  <DollarSign className="w-4 h-4 stroke-[2.5]" />
-                </div>
+                <span className="text-xs font-bold text-blue-700 dark:text-blue-300">إجمالي المبيعات</span>
+                <IconBadge icon={DollarSign} variant="primary" size="md" />
               </div>
 
               <div className="space-y-1 my-2">
@@ -296,12 +291,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
 
             {/* Metric 2: عدد الطلبات */}
-            <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#F59E0B] transition">
+            <div className="bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#F59E0B] transition">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">عدد الطلبات</span>
-                <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-[#F59E0B] border border-amber-200 dark:border-amber-800/40 flex items-center justify-center shadow-2xs">
-                  <Package className="w-4 h-4 stroke-[2.5]" />
-                </div>
+                <span className="text-xs font-bold text-amber-700 dark:text-amber-300">عدد الطلبات</span>
+                <IconBadge icon={Package} variant="warning" size="md" />
               </div>
 
               <div className="space-y-1 my-2">
@@ -327,12 +320,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
 
             {/* Metric 3: التحصيلات */}
-            <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#16A34A] transition">
+            <div className="bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#16A34A] transition">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">التحصيلات</span>
-                <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-[#16A34A] border border-emerald-200 dark:border-emerald-800/40 flex items-center justify-center shadow-2xs">
-                  <Wallet className="w-4 h-4 stroke-[2.5]" />
-                </div>
+                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">التحصيلات</span>
+                <IconBadge icon={Wallet} variant="success" size="md" />
               </div>
 
               <div className="space-y-0.5 my-1">
@@ -344,17 +335,18 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
               <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800 text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
                 <span>تحديث لحظي</span>
-                <span className="text-[#16A34A] font-bold">✓ نقدي ومسجل</span>
+                <span className="text-[#16A34A] font-bold flex items-center gap-1">
+                  <Check className="w-3 h-3 stroke-[2.5]" />
+                  <span>نقدي ومسجل</span>
+                </span>
               </div>
             </div>
 
             {/* Metric 4: زيارات اليوم */}
-            <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#7C3AED] transition">
+            <div className="bg-violet-50/60 dark:bg-violet-950/20 border border-violet-200/60 dark:border-violet-800/40 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#7C3AED] transition">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">الزيارات</span>
-                <div className="w-7 h-7 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-[#7C3AED] border border-purple-200 dark:border-purple-800/40 flex items-center justify-center shadow-2xs">
-                  <MapPin className="w-4 h-4 stroke-[2.5]" />
-                </div>
+                <span className="text-xs font-bold text-violet-700 dark:text-violet-300">الزيارات</span>
+                <IconBadge icon={MapPin} variant="violet" size="md" />
               </div>
 
               <div className="space-y-0.5 my-1">
@@ -413,9 +405,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             onClick={() => onNavigateToTab('invoices')}
             className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-primary flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
-              <TrendingUp className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
-            </div>
+            <IconBadge icon={TrendingUp} variant="primary" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
             <span className="font-black text-sm sm:text-base leading-tight">المبيعات</span>
             <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
               الفواتير والاعتمادات ({visibleInvoices.length})
@@ -428,26 +418,11 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             onClick={() => onNavigateToTab('catalog')}
             className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-secondary flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
-              <ShoppingCart className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
-            </div>
+            <IconBadge icon={ShoppingCart} variant="secondary" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
             <span className="font-black text-sm sm:text-base leading-tight">الكتالوج والتسوق</span>
             <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
               {visibleProductsList.length} صنف متاح للطلب
             </span>
-          </button>
-
-          {/* Tile 3: عروض الأسعار والخصومات */}
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('catalog')}
-            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
-          >
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-warning flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
-              <Flame className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
-            </div>
-            <span className="font-black text-sm sm:text-base leading-tight">عروض الأسعار</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">تخفيضات وبونص الكراتين</span>
           </button>
 
           {/* Tile 4: العملاء */}
@@ -456,9 +431,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             onClick={() => onNavigateToTab('all_customers')}
             className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-primary flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
-              <Users className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
-            </div>
+            <IconBadge icon={Users} variant="primary" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
             <span className="font-black text-sm sm:text-base leading-tight">قاعدة العملاء</span>
             <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
               {visibleCustomers.length} عميل بالبيانات والمديونيات
@@ -471,9 +444,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             onClick={() => onNavigateToTab('inventory')}
             className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-secondary flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
-              <Package className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
-            </div>
+            <IconBadge icon={Package} variant="secondary" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
             <span className="font-black text-sm sm:text-base leading-tight">أرصدة المخزون</span>
             <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">الفرع والمخزن المركزي</span>
           </button>
@@ -484,9 +455,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             onClick={() => onNavigateToTab('visits')}
             className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-violet flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
-              <CalendarCheck className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
-            </div>
+            <IconBadge icon={CalendarCheck} variant="violet" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
             <span className="font-black text-sm sm:text-base leading-tight">الزيارات</span>
             <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">خط سير المندوب وإحداثيات الموقع</span>
           </button>
@@ -497,9 +466,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             onClick={() => onNavigateToTab('invoices')}
             className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-success flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
-              <Wallet className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
-            </div>
+            <IconBadge icon={Wallet} variant="success" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
             <span className="font-black text-sm sm:text-base leading-tight">التحصيلات</span>
             <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">متابعة سداد المديونيات والشيكات</span>
           </button>
@@ -510,9 +477,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             onClick={() => onNavigateToTab('returns')}
             className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-danger flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
-              <RotateCcw className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
-            </div>
+            <IconBadge icon={RotateCcw} variant="danger" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
             <span className="font-black text-sm sm:text-base leading-tight">المرتجعات</span>
             <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">تسجيل بضاعة ومتابعتها بصور الأصناف</span>
           </button>
@@ -523,13 +488,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             onClick={() => onNavigateToTab(isAdminOrDev ? 'excel' : 'targets')}
             className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-warning flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
-              {isAdminOrDev ? (
-                <FileSpreadsheet className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2] text-[#16A34A]" />
-              ) : (
-                <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2] text-[#F59E0B]" />
-              )}
-            </div>
+            <IconBadge icon={isAdminOrDev ? FileSpreadsheet : Sparkles} variant="warning" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
             <span className="font-black text-sm sm:text-base leading-tight">
               {isAdminOrDev ? 'الإكسل والمزامنة' : 'التارجت والمستهدف'}
             </span>
@@ -596,8 +555,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         <div className="md:col-span-7 bg-white dark:bg-[#111C2E] rounded-2xl p-5 border border-slate-200 dark:border-[#26364D] shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#26364D] pb-3 mb-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl badge-duotone-primary flex items-center justify-center font-black">
-                <ClipboardList className="w-4 h-4 stroke-[2.2]" />
+              <div className="w-10 h-10 rounded-2xl flex items-center justify-center font-black">
+                <IconBadge icon={ClipboardList} variant="primary" size="md" className="w-8 h-8 p-0" />
               </div>
               <div>
                 <h4 className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-sm">خطوات إنشاء الطلبية للمندوب</h4>
@@ -606,7 +565,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-center text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2 text-center text-xs">
             <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
               <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">1</div>
               <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">فتح الكتالوج</div>
@@ -664,7 +623,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           </button>
         </div>
       </div>
-
     </div>
-  );
+    );
+};
+
 export default DashboardHome;
