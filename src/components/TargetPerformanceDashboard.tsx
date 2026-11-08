@@ -1615,6 +1615,12 @@ export const TargetPerformanceDashboard: React.FC = () => {
                     })
                   )}
                 </div>
+                {!repShowAll && employeeCardsData.length > 10 && (
+                  <div className="mt-4 flex justify-center"><button type="button" onClick={()=>setRepShowAll(true)} className="px-6 py-2.5 rounded-2xl bg-[var(--brand-primary)] text-white font-black text-sm shadow-sm hover:opacity-95">تحميل المزيد ({(employeeCardsData.length-10).toLocaleString()} مندوب)</button></div>
+                )}
+                {repShowAll && employeeCardsData.length > 10 && (
+                  <div className="mt-4 flex justify-center"><button type="button" onClick={()=>setRepShowAll(false)} className="px-5 py-2 rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface)] text-[var(--app-text)] font-black text-sm">عرض أول 10 فقط</button></div>
+                )}
 
                 {/* Summary Encouragement */}
                 <div className="bg-[var(--app-navy)] rounded-2xl p-4 text-white">
@@ -1881,6 +1887,85 @@ export const TargetPerformanceDashboard: React.FC = () => {
           </div>
         )}
       </div>
+    
+        {/* ملف أداء المندوب — تراكمي من يناير للشهر الحالي + تفصيل شهري + رسوم بيانية منفصلة */}
+        {repDetailName && (() => {
+          const now = new Date();
+          const ytdMonth = (selectedYear === 2026 || selectedYear === 'ALL') ? (now.getMonth() + 1) : 12;
+          const repRows = baseRecordsForMonths.filter((r) => isArabicNameMatch(r.repName, repDetailName) || normalizeArabicText(r.repName) === normalizeArabicText(repDetailName));
+          const months = Array.from({length:12}, (_,i)=>i+1).map((m)=>{
+            const mr = repRows.filter((r)=>r.month===m);
+            let salesTarget=0,salesAchieved=0,colTarget=0,colAchieved=0;
+            mr.forEach((r)=>{ salesTarget+=Math.abs(r.salesTarget||0); salesAchieved+=Math.abs(r.salesAchieved||0); colTarget+=Math.abs(r.collectionTarget||0); colAchieved+=Math.abs(r.collectionAchieved||0); });
+            return { month:m, name: ARABIC_MONTHS[m-1], salesTarget, salesAchieved, colTarget, colAchieved, salesPerc: salesTarget>0?Number(((salesAchieved/salesTarget)*100).toFixed(1)):0, colPerc: colTarget>0?Number(((colAchieved/colTarget)*100).toFixed(1)):0 };
+          });
+          const ytd = months.filter(m=>m.month<=ytdMonth).reduce((a,m)=>({salesTarget:a.salesTarget+m.salesTarget,salesAchieved:a.salesAchieved+m.salesAchieved,colTarget:a.colTarget+m.colTarget,colAchieved:a.colAchieved+m.colAchieved}),{salesTarget:0,salesAchieved:0,colTarget:0,colAchieved:0});
+          const ytdSalesPerc = ytd.salesTarget>0?Number(((ytd.salesAchieved/ytd.salesTarget)*100).toFixed(1)):0;
+          const ytdColPerc = ytd.colTarget>0?Number(((ytd.colAchieved/ytd.colTarget)*100).toFixed(1)):0;
+          const cust = customers.filter(c=>isArabicNameMatch(c.salesRepName||c.repName||'', repDetailName));
+          const supervisor = cust.find(c=>c.supervisorName)?.supervisorName || users.find(u=>u.name && (isArabicNameMatch(u.name, repDetailName)) )?.supervisorName || '—';
+          const branch = cust[0]?.branchName || repRows[0]?.branch || '—';
+          const sector = cust[0]?.sector || repRows[0]?.sector;
+          const Ring = ({perc,color}:{perc:number;color:string}) => (
+            <div className="relative w-20 h-20 sm:w-24 sm:h-24">
+              <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90"><path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" strokeOpacity="0.12" strokeWidth="3.2"/><path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke={color} strokeWidth="3.2" strokeDasharray={`${Math.min(100,Math.max(0,perc))}, 100`} strokeLinecap="round"/></svg>
+              <div className="absolute inset-0 flex items-center justify-center font-black text-sm tabular-nums">{perc}%</div>
+            </div>
+          );
+          return (
+            <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm overflow-y-auto p-0 sm:p-4 flex items-stretch sm:items-center justify-center" onClick={()=>setRepDetailName(null)}>
+              <div className="bg-[var(--app-surface,#fff)] dark:bg-[var(--app-surface)] w-full h-full sm:h-auto sm:max-h-[92vh] sm:rounded-3xl max-w-6xl sm:w-[96%] border-0 sm:border border-[var(--app-line)] shadow-2xl flex flex-col overflow-hidden" onClick={(e)=>e.stopPropagation()}>
+                <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white flex items-center justify-between gap-3 sticky top-0 z-10">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-12 h-12 rounded-2xl bg-[var(--brand-primary)] text-white flex items-center justify-center font-black text-xl shrink-0">{repDetailName.charAt(0)}</div>
+                    <div className="min-w-0"><div className="font-black text-base sm:text-lg truncate">{repDetailName}</div><div className="text-[11px] text-slate-300 truncate">{branch} • {sector==='home'?'منزلي':sector==='electrical'?'كهرباء':sector==='both'?'القطاعين':'القطاع'} • المشرف: {supervisor}</div></div>
+                  </div>
+                  <button type="button" onClick={()=>setRepDetailName(null)} className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center"><X className="w-5 h-5" /></button>
+                </div>
+                <div className="p-4 sm:p-5 overflow-y-auto space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface-2,#f8fafc)] dark:bg-[var(--app-surface-2)] p-4 flex items-center justify-between gap-3">
+                      <div><div className="text-xs font-black text-slate-500">البيع التراكمي (يناير → {ARABIC_MONTHS[ytdMonth-1]})</div><div className="text-sm font-bold mt-1">المستهدف: <span className="tabular-nums">{formatEGP(ytd.salesTarget)}</span></div><div className="text-sm font-bold text-[var(--app-ok-text)]">المحقق: <span className="tabular-nums">{formatEGP(ytd.salesAchieved)}</span></div><div className="text-sm font-bold text-amber-700">المتبقي: <span className="tabular-nums">{formatEGP(Math.max(0,ytd.salesTarget-ytd.salesAchieved))}</span></div></div>
+                      <Ring perc={ytdSalesPerc} color={ytdSalesPerc>=100?'#16A34A':ytdSalesPerc>=70?'#2563EB':'#DC2626'} />
+                    </div>
+                    <div className="rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface-2,#f8fafc)] dark:bg-[var(--app-surface-2)] p-4 flex items-center justify-between gap-3">
+                      <div><div className="text-xs font-black text-slate-500">التحصيل التراكمي (يناير → {ARABIC_MONTHS[ytdMonth-1]})</div><div className="text-sm font-bold mt-1">المستهدف: <span className="tabular-nums">{formatEGP(ytd.colTarget)}</span></div><div className="text-sm font-bold text-[var(--app-ok-text)]">المحقق: <span className="tabular-nums">{formatEGP(ytd.colAchieved)}</span></div><div className="text-sm font-bold text-amber-700">المتبقي: <span className="tabular-nums">{formatEGP(Math.max(0,ytd.colTarget-ytd.colAchieved))}</span></div></div>
+                      <Ring perc={ytdColPerc} color={ytdColPerc>=100?'#16A34A':ytdColPerc>=70?'#0D9488':'#DC2626'} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-[var(--app-line)] p-3 bg-white dark:bg-[var(--app-surface)]">
+                      <div className="font-black text-sm mb-2 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-[var(--brand-primary)]" />المبيعات الشهرية (مستهدف/محقق)</div>
+                      <div className="h-56">
+                        <ResponsiveContainer width="100%" height="100%"><BarChart data={months} margin={{top:5,right:5,left:-10,bottom:0}}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{fontSize:10}} interval={0} angle={-25} textAnchor="end" height={45}/><YAxis tick={{fontSize:10}} width={48}/><Tooltip formatter={(v:any)=>formatEGP(Number(v||0))}/><Legend /><Bar dataKey="salesTarget" name="مستهدف البيع" fill="#93C5FD" radius={[4,4,0,0]} /><Bar dataKey="salesAchieved" name="محقق البيع" fill="#2563EB" radius={[4,4,0,0]} /></BarChart></ResponsiveContainer>
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-[var(--app-line)] p-3 bg-white dark:bg-[var(--app-surface)]">
+                      <div className="font-black text-sm mb-2 flex items-center gap-2"><BarChart3 className="w-4 h-4 text-[var(--brand-secondary)]" />التحصيل الشهري (مستهدف/محقق)</div>
+                      <div className="h-56">
+                        <ResponsiveContainer width="100%" height="100%"><BarChart data={months} margin={{top:5,right:5,left:-10,bottom:0}}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={{fontSize:10}} interval={0} angle={-25} textAnchor="end" height={45}/><YAxis tick={{fontSize:10}} width={48}/><Tooltip formatter={(v:any)=>formatEGP(Number(v||0))}/><Legend /><Bar dataKey="colTarget" name="مستهدف التحصيل" fill="#99F6E4" radius={[4,4,0,0]} /><Bar dataKey="colAchieved" name="محقق التحصيل" fill="#0D9488" radius={[4,4,0,0]} /></BarChart></ResponsiveContainer>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-[var(--app-line)] overflow-hidden bg-white dark:bg-[var(--app-surface)]">
+                    <div className="px-3 py-2 font-black text-sm border-b border-[var(--app-line)] bg-[var(--app-surface-2)]">تفصيل شهري (يناير → ديسمبر)</div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs min-w-[760px]">
+                        <thead><tr className="bg-[var(--app-surface-2)]"><th className="p-2 text-right">الشهر</th><th className="p-2">مستهدف بيع</th><th className="p-2">محقق بيع</th><th className="p-2">% بيع</th><th className="p-2">متبقي بيع</th><th className="p-2">مستهدف تحصيل</th><th className="p-2">محقق تحصيل</th><th className="p-2">% تحصيل</th><th className="p-2">متبقي تحصيل</th></tr></thead>
+                        <tbody>{months.map((m)=>(
+                          <tr key={m.month} className={m.month<=ytdMonth?'':'opacity-60'}><td className="p-2 font-bold text-right">{m.name}{m.month===ytdMonth?<span className="mr-1 text-[10px] text-[var(--brand-primary)]">(الحالي)</span>:null}</td><td className="p-2 tabular-nums">{formatEGP(m.salesTarget)}</td><td className="p-2 tabular-nums font-bold">{formatEGP(m.salesAchieved)}</td><td className="p-2 font-black" style={{color:m.salesPerc>=100?'#16A34A':m.salesPerc>=70?'#2563EB':'#DC2626'}}>{m.salesPerc}%</td><td className="p-2 tabular-nums">{formatEGP(Math.max(0,m.salesTarget-m.salesAchieved))}</td><td className="p-2 tabular-nums">{formatEGP(m.colTarget)}</td><td className="p-2 tabular-nums font-bold">{formatEGP(m.colAchieved)}</td><td className="p-2 font-black" style={{color:m.colPerc>=100?'#16A34A':m.colPerc>=70?'#0D9488':'#DC2626'}}>{m.colPerc}%</td><td className="p-2 tabular-nums">{formatEGP(Math.max(0,m.colTarget-m.colAchieved))}</td></tr>
+                        ))}</tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
     </EncouragementProvider>
   );
 };
