@@ -2,12 +2,11 @@ import React, { useState, useMemo } from "react";
 import "./index.css";
 import { RepProfileHeader } from "@/src/components/RepProfileHeader";
 import { ClientsPreview } from "@/src/components/ClientsPreview";
-import { ClientProfileCardProps as ClientCardProps } from "@/src/components/ClientProfileCard";
-import { Customer } from "@/types";
+import { Customer, User } from "../types";
 import { StatusBadge } from "@/src/components/StatusBadge";
 
 export interface RepClientsPageProps {
-  rep: import("@/types").User;
+  rep: User;
   allCustomers: Customer[];
   onRefresh?: () => void;
 }
@@ -26,11 +25,12 @@ export const RepClientsPage: React.FC<RepClientsPageProps> = ({
 
   const filteredCustomers = useMemo(() => {
     return allCustomers.filter((customer) => {
+      const q = searchTerm.trim().toLowerCase();
       const matchesSearch =
-        (!searchTerm ||
-          customer.code.toLowerCase().includes(searchTerm.toLowerCase) ||
-          customer.name.toLowerCase().includes(searchTerm.toLowerCase)) &&
-      (!selectedSector || customer["sector"] === selectedSector) &&
+        (!q ||
+          customer.code.toLowerCase().includes(q) ||
+          customer.name.toLowerCase().includes(q)) &&
+      (!selectedSector || customer.sector === selectedSector) &&
       (!selectedRep || customer.repName === selectedRep) &&
       (!selectedBranch || customer.branchName === selectedBranch) &&
       (!selectedSupervisor || customer.supervisorName === selectedSupervisor);

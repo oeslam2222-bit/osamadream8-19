@@ -42,12 +42,17 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
     toggleDataSaverMode,
     triggerInstallPrompt,
     installPromptEvent,
-    setIsInstallModalOpen
+    setIsInstallModalOpen,
+    cloudinaryConfig,
+    updateCloudinarySettings
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'settings' | 'team' | 'about' | 'install' | 'privacy'>(defaultTab);
   const [autoSyncOrders, setAutoSyncOrders] = useState(true);
   const [soundAlerts, setSoundAlerts] = useState(true);
+  const [cloudNameInput, setCloudNameInput] = useState(cloudinaryConfig?.cloudName || 'drke4xlgb');
+  const [presetInput, setPresetInput] = useState(cloudinaryConfig?.uploadPreset || 'DREAMOSAMA');
+  const [cloudSavedNotice, setCloudSavedNotice] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -411,6 +416,85 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                 >
                   {soundAlerts ? 'مفعّل ✅' : 'صامت'}
                 </button>
+              </div>
+
+              {/* Cloudinary Integration & Image Storage */}
+              <div className="bg-slate-50 border border-cyan-500/30 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-cyan-500/10 text-cyan-600 flex items-center justify-center font-bold">
+                      <Sparkles className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h4 className="font-black text-slate-900 text-sm">تخزين ورفع صور العملاء والمعارض (Cloudinary)</h4>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        رفع وتخزين سحابي مباشر بصيغة مضغوطة (~100KB) للأرشفة الدائمة بدون استهلاك باقات مدفوعة
+                      </p>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                    جاهز ومربوط ✅
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">اسم السحابة (Cloud Name)</label>
+                    <input
+                      type="text"
+                      value={cloudNameInput}
+                      onChange={(e) => setCloudNameInput(e.target.value)}
+                      placeholder="drke4xlgb"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-900 font-mono text-xs focus:ring-2 focus:ring-cyan-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Upload Preset (Unsigned)</label>
+                    <input
+                      type="text"
+                      value={presetInput}
+                      onChange={(e) => setPresetInput(e.target.value)}
+                      placeholder="DREAMOSAMA"
+                      className="w-full px-3 py-2 rounded-xl border border-slate-300 text-slate-900 font-mono text-xs focus:ring-2 focus:ring-cyan-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2">
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    المجلد الافتراضي: customer_photos/&#123;customerCode&#125;
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = {
+                        ...(cloudinaryConfig || {}),
+                        cloudName: cloudNameInput.trim(),
+                        uploadPreset: presetInput.trim(),
+                        folderPrefix: 'customer_photos',
+                        defaultTransformation: 'w_800,c_limit,q_auto:good,f_auto',
+                        matchingPattern: 'auto' as const,
+                        fileExtension: 'auto' as const,
+                        baseUrlPattern: ''
+                      };
+                      if (updateCloudinarySettings) updateCloudinarySettings(updated);
+                      try {
+                        localStorage.setItem('dream_dist_cloudinary_v9', JSON.stringify(updated));
+                      } catch {}
+                      setCloudSavedNotice('تم حفظ وتفعيل إعدادات Cloudinary بنجاح!');
+                      setTimeout(() => setCloudSavedNotice(null), 3000);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs shadow-md transition"
+                  >
+                    حفظ إعدادات Cloudinary
+                  </button>
+                </div>
+
+                {cloudSavedNotice && (
+                  <div className="p-2 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold text-center border border-emerald-200">
+                    {cloudSavedNotice}
+                  </div>
+                )}
               </div>
             </div>
           )}

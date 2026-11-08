@@ -10,9 +10,8 @@
  * - className: optional additional classes
  */
 import React from "react";
-import "./index.css";
-import { StatusBadge } from "@/src/components/StatusBadge";
-import { Customer } from "@/types";
+import { StatusBadge } from "./StatusBadge";
+import { Customer } from "../types";
 
 /** Client profile card props */
 export interface ClientProfileCardProps {
@@ -36,13 +35,15 @@ export const ClientProfileCard: React.FC<ClientProfileCardProps> = ({
   onSelect,
   className,
 }) => {
-  // Determine a status type based on linked balance/overdue for badge colour
+  // Determine a status type based on balance/overdue for badge colour
   let statusType: "collections" | "sales" | "returns" | "pending" = "pending";
-  if (customer.linkedBalance !== undefined && customer.linkedBalance > 0) {
+  const balance = customer.balance ?? customer.currentBalance ?? 0;
+  const overdue = customer.totalOverdueAndDue ?? customer.overdueBalance ?? 0;
+  if (balance > 0) {
     statusType = "collections";
-  } else if (customer.linkedOverdue && customer.linkedOverdue > 0) {
+  } else if (overdue > 0) {
     statusType = "returns";
-  } else if (customer.linkedTier && customer.linkedTier.includes("Gold")) {
+  } else if (customer.tier && customer.tier.includes("مميز")) {
     statusType = "sales";
   } else {
     statusType = "pending";
@@ -59,7 +60,7 @@ export const ClientProfileCard: React.FC<ClientProfileCardProps> = ({
         transition-shadow
         bg-white
         dark:bg-neutral-900
-        aria-labelledby='card-title-{customer.id}'
+        aria-labelledby={`card-title-${customer.id}`}
       "
       onClick={() => onSelect(customer.id)}
       role="button"
@@ -68,13 +69,13 @@ export const ClientProfileCard: React.FC<ClientProfileCardProps> = ({
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <h3 className="font-medium text-text text-sm line-clamp-2">
-            {customer.customerName}
-            {customer.customerAccount && (
-              <span className="ml-2 text-text-muted text-xs">({customer.customerAccount})</span>
+            {customer.name}
+            {customer.code && (
+              <span className="ml-2 text-text-muted text-xs">({customer.code})</span>
             )}
           </h3>
           <p className="text-text-muted text-xs line-clamp-1">
-            {customer.linkedPhone || customer.phone || "لا توجد بيانات"}
+            {customer.phone || "لا توجد بيانات"}
           </p>
         </div>
         <StatusBadge type={statusType} label={statusType} size="sm" />
@@ -83,12 +84,12 @@ export const ClientProfileCard: React.FC<ClientProfileCardProps> = ({
       <div className="mt-3 pt-3 border-t border-border dark:border-neutral-700/30">
         <div className="flex justify-between text-caption text-text-muted">
           <span>الرصيد المستحق</span>
-          <span className="font-medium">{customer.linkedBalance !== undefined ? `${customer.linkedBalance} ج.م` : "غير محدد"}</span>
+          <span className="font-medium">{balance > 0 ? `${balance.toLocaleString()} ج.م` : "غير محدد"}</span>
         </div>
-        {customer.linkedOverdue && (
+        {overdue > 0 && (
           <div className="mt-1 flex justify-between text-caption text-text-muted">
             <span>المستحق التأخير</span>
-            <span className="text-error font-medium">{customer.linkedOverdue} ج.م</span>
+            <span className="text-error font-medium">{overdue.toLocaleString()} ج.م</span>
           </div>
         )}
       </div>

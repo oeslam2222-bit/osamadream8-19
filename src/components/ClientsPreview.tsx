@@ -10,13 +10,13 @@
  * - className: optional additional classes
  */
 import React from "react";
-import "./index.css";
-import { ClientProfileCard } from "@/src/components/ClientProfileCard";
+import { Customer } from "../types";
+import { ClientProfileCard } from "./ClientProfileCard";
 
 /** Props for ClientsPreview */
 export interface ClientsPreviewProps {
   /** Array of customers (will show first 5) */
-  customers: [];
+  customers: Customer[];
   /** Called when a client card is selected */
   onSelect: (customerId: string) => void;
   /** Optional message when no customers */

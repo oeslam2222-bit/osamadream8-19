@@ -47,6 +47,7 @@ export const Button: React.FC<ButtonProps> = ({
   variant = "primary",
   size = "md",
   disabled,
+  onClick,
   className,
   asLink = false,
   href,

@@ -69,6 +69,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     addToCart,
     currentUser,
     cloudinaryConfig,
+    updateCustomer,
   } = useApp();
 
   // 1-step-at-a-time Stepper: Step 1 (Products & Cart) -> Step 2 (Customer & Financials) -> Step 3 (Review & Save)
@@ -334,6 +335,25 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         setFeedbackError(result.message || 'تعذر حفظ الطلبية.');
         setIsSubmitting(false);
         return;
+      }
+
+      // Non-blocking GPS capture on order submission to automatically record/pin customer location
+      if (typeof navigator !== 'undefined' && 'geolocation' in navigator && effectiveCustomer?.id) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            if (pos?.coords?.latitude && pos?.coords?.longitude && updateCustomer) {
+              updateCustomer({
+                ...effectiveCustomer,
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+                locationCapturedAt: new Date().toISOString(),
+                locationCapturedBy: currentUser?.name || 'مندوب المبيعات'
+              });
+            }
+          },
+          () => {},
+          { timeout: 3000, maximumAge: 60000 }
+        );
       }
 
       clearCart();

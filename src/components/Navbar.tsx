@@ -41,7 +41,8 @@ import {
   RotateCcw,
   ChevronLeft,
   ChevronRight,
-  PackageSearch
+  PackageSearch,
+  Search
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -191,168 +192,56 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="tantawy-topbar sticky top-0 z-40 border-b border-[var(--app-line)] bg-gradient-to-r from-[#09111a] via-[#111c2a] to-[#0f1f2d] text-slate-100 shadow-[0_12px_30px_rgba(2,6,23,0.25)] backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-2 py-2 sm:px-6 sm:py-2.5">
-          <div className="hidden rounded-2xl border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-semibold text-slate-200 shadow-inner lg:block">
-            {todayLabel}
-          </div>
-
+      <header className="tantawy-topbar sticky top-0 z-40 border-b border-slate-200 dark:border-[#26364D] bg-white/95 dark:bg-[#111C2E]/95 text-slate-900 dark:text-[#F1F5F9] shadow-sm backdrop-blur-xl transition-colors duration-200">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-2 py-2 sm:px-4 sm:py-2.5">
+          
+          {/* Mobile Header Bar */}
           <div className="flex items-center gap-2 sm:gap-3 lg:hidden">
             <button
               type="button"
               onClick={() => setIsMobileDrawerOpen(true)}
               aria-label="القائمة الرئيسية"
               title="القائمة الرئيسية"
-              className="flex h-10 items-center gap-1.5 rounded-xl border border-[#3dd8b0]/40 bg-[#0f2b38] px-2.5 text-[11px] font-black text-[#5eead4] shadow-lg shadow-[#0f2b38]/30 transition hover:bg-[#163b45]"
+              className="flex h-10 items-center gap-1.5 rounded-xl border border-slate-200 dark:border-teal-500/30 bg-slate-100 dark:bg-[#0f2b38] px-2.5 text-[11px] font-black text-teal-700 dark:text-[#5eead4] shadow-sm transition hover:bg-slate-200 dark:hover:bg-[#163b45]"
             >
               <Menu className="h-4 w-4 shrink-0" />
               <span>القائمة</span>
             </button>
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-[#3dd8b0]/80 bg-[#0f2b38] p-1 shadow-md shadow-[#3dd8b0]/20 sm:h-10 sm:w-10">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-teal-500/60 bg-teal-50 dark:bg-[#0f2b38] p-1 shadow-sm">
               <img src="/icon.svg" alt="طنطاوي جروب - Tantawy Group" className="h-full w-full object-contain" />
             </div>
             <div>
-              <h1 className="flex items-center gap-1 text-sm font-black tracking-tight text-white sm:text-base">
+              <h1 className="flex items-center gap-1 text-sm font-black tracking-tight text-slate-900 dark:text-white sm:text-base">
                 <span>طنطاوي جروب</span>
               </h1>
-              <p className="hidden text-[10px] text-slate-300 sm:block">تطبيق المبيعات</p>
+              <p className="hidden text-[10px] text-slate-500 dark:text-slate-300 sm:block">Dream Tantawy</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2.5">
-            
-            {/* Offline / Online Status Badge */}
-            <div className={`flex h-11 items-center gap-1 rounded-full border px-2.5 text-xs font-bold shadow-inner ${
-              isOffline ? 'border-amber-500/30 bg-amber-500/10 text-amber-200' : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-            }`}>
-              {isOffline ? (
-                <>
-                  <WifiOff className="h-3.5 w-3.5 animate-pulse text-amber-300" />
-                  <span className="text-[11px] font-black">أوفلاين</span>
-                </>
-              ) : (
-                <>
-                  <Wifi className="h-3.5 w-3.5 text-emerald-300" />
-                  <span className="hidden md:inline">متصل</span>
-                </>
-              )}
-            </div>
-
-            <button
-              id="navbar-settings-and-about-btn"
-              type="button"
-              onClick={() => setIsSettingsModalOpen(true)}
-              className="flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-slate-100 transition hover:bg-white/10 active:scale-95"
-              title="الإعدادات، السياسة والخصوصية، معلومات المنظومة، والقائمين على الفكرة"
-            >
-              <Settings className="h-4 w-4 text-slate-200" />
-              <span className="hidden sm:inline">الإعدادات</span>
-            </button>
-
-            {/* Notifications Button */}
-            {onOpenNotificationCenter && (
-              <button
-                type="button"
-                onClick={onOpenNotificationCenter}
-                className="group relative flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-slate-100 transition hover:bg-white/10 active:scale-95"
-                title={`الإشعارات (${notificationCount} غير مقروء)`}
-                aria-label="مركز الإشعارات"
-              >
-                <Bell className={`h-4 w-4 shrink-0 ${notificationCount > 0 ? 'animate-bounce text-rose-400' : 'text-slate-200'}`} />
-                {notificationCount > 0 && (
-                  <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-[#0f172a] bg-rose-500"></span>
-                )}
-                <span className="hidden sm:inline">الإشعارات</span>
-              </button>
-            )}
-
-            {/* Dark mode toggle */}
-            <button
-              id="navbar-dark-mode-toggle"
-              type="button"
-              onClick={toggleTheme}
-              className="flex h-11 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-slate-100 transition hover:bg-white/10 active:scale-95"
-              title={isDark ? 'الوضع النهاري' : 'الوضع الليلي'}
-            >
-              {isDark ? (
-                <>
-                  <Sun className="h-4 w-4 shrink-0 text-[#f4d48c]" />
-                  <span className="hidden sm:inline">النهاري</span>
-                </>
-              ) : (
-                <>
-                  <Moon className="h-4 w-4 shrink-0 text-indigo-300" />
-                  <span className="hidden sm:inline">الليلي</span>
-                </>
-              )}
-            </button>
-
-            {/* Pending Invoices Sync Button for Offline/Queued Orders */}
-            {pendingInvoicesCount > 0 && (
-              <button
-                type="button"
-                onClick={() => flushPendingInvoices()}
-                className="flex items-center justify-center gap-1.5 bg-[var(--app-accent)] hover:brightness-95 text-white px-3 h-11 rounded-xl text-xs font-black transition cursor-pointer shadow-sm animate-pulse border border-[var(--app-accent)]"
-                title="فواتير مسجلة أوفلاين بانتظار المزامنة مع السيرفر"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>مزامنة ({pendingInvoicesCount})</span>
-              </button>
-            )}
-
-            {/* Pending Users Notification for Admin / Developer (Hidden for reps/supervisors) */}
-            {(currentUser.role === 'admin' || currentUser.role === 'developer') && pendingApprovalsCount > 0 && (
-              <button
-                onClick={() => setActiveTab('users')}
-                className="flex items-center justify-center gap-1 bg-[rgba(179,74,74,.08)] hover:bg-[rgba(179,74,74,.14)] border border-[rgba(179,74,74,.3)] text-[var(--app-risk)] px-2.5 h-11 rounded-xl text-xs font-bold transition animate-pulse"
-                title="يوجد طلبات انضمام جديدة بانتظار التفعيل"
-              >
-                <Bell className="w-3.5 h-3.5" />
-                <span>{pendingApprovalsCount}</span>
-              </button>
-            )}
-
-            {/* Branch Filter for Admin & Developer (Desktop only) */}
-            {(currentUser.role === 'admin' || currentUser.role === 'developer') && (
-              <div className="relative hidden lg:block">
-                <select
-                  aria-label="تصفية الفرع"
-                  value={selectedBranchFilter}
-                  onChange={(e) => setSelectedBranchFilter(e.target.value)}
-                  className="bg-white text-slate-700 text-xs rounded-xl px-2.5 h-11 border border-[var(--app-line)] focus:outline-none focus:border-[var(--app-accent)] font-bold"
-                >
-                  <option value="الكل">كل الفروع</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.name}>
-                      {b.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-
-
-            {/* User Profile Menu with Logout */}
-            {/* User Profile Menu with Logout */}
+          {/* Desktop Right Section: User Profile & Dual Sun/Moon Switcher (Matches Mockup) */}
+          <div className="hidden lg:flex items-center gap-3">
+            {/* User Profile Pill */}
             <div className="relative">
               <button
                 onClick={() => setShowProfileMenu(!showProfileMenu)}
-                className="flex items-center gap-2 bg-white hover:bg-slate-50 active:bg-slate-100 px-3 h-11 rounded-2xl border border-[var(--app-line)] transition cursor-pointer shadow-2xs"
+                className="flex items-center gap-2.5 bg-slate-50 dark:bg-[#17243A] hover:bg-slate-100 dark:hover:bg-[#1e2f4a] active:scale-98 px-3 py-1.5 rounded-2xl border border-slate-200 dark:border-[#26364D] transition cursor-pointer shadow-xs"
                 title="الملف الشخصي والحساب"
               >
-                <span
-                  aria-hidden="true"
-                  className="w-7 h-7 shrink-0 rounded-full bg-gradient-to-tr from-slate-900 to-[var(--app-accent)] text-white text-xs font-black flex items-center justify-center shadow-xs"
-                >
-                  {((currentUser.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أ').charAt(0)}
-                </span>
-                <div className="text-right hidden md:block">
-                  <div className="text-xs font-black text-slate-900 flex items-center gap-1">
-                    {(currentUser.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أسامة'}
+                <div className="relative">
+                  <span
+                    aria-hidden="true"
+                    className="w-8 h-8 shrink-0 rounded-full bg-gradient-to-tr from-[#2563EB] to-teal-600 text-white text-xs font-black flex items-center justify-center shadow-xs"
+                  >
+                    {((currentUser.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أ').charAt(0)}
+                  </span>
+                  <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-[#16A34A] rounded-full border-2 border-white dark:border-[#17243A]" />
+                </div>
+                <div className="text-right">
+                  <div className="text-xs font-black text-slate-900 dark:text-white leading-tight">
+                    {(currentUser.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أحمد محمد'}
                   </div>
-                  <div className="text-[10px] text-slate-500 font-bold">
-                    {roleNames[currentUser.role]?.label || currentUser.role}
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                    {roleNames[currentUser.role]?.label || 'مدير الإدارة'}
                   </div>
                 </div>
                 <span className="text-xs text-slate-400 mr-0.5">▼</span>
@@ -360,42 +249,41 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               {/* Profile Card Popup */}
               {showProfileMenu && (
-                <div className="fixed inset-x-2 top-16 sm:absolute sm:inset-x-auto sm:left-0 mt-2 w-auto sm:w-80 bg-slate-950 border border-slate-800 rounded-3xl shadow-2xl p-4 z-[60] animate-in fade-in zoom-in-95 text-xs text-white">
-                  
+                <div className="fixed inset-x-2 top-16 sm:absolute sm:inset-x-auto sm:right-0 mt-2 w-auto sm:w-80 bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-3xl shadow-2xl p-4 z-[60] animate-in fade-in zoom-in-95 text-xs text-slate-900 dark:text-white">
                   {/* Profile Header */}
-                  <div className="flex items-center gap-3 pb-3 border-b border-slate-800/80">
+                  <div className="flex items-center gap-3 pb-3 border-b border-slate-200 dark:border-[#26364D]">
                     <div className="relative">
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[var(--app-accent)] to-teal-700 text-white flex items-center justify-center font-black text-lg shadow-md">
+                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#2563EB] to-[#0D9488] text-white flex items-center justify-center font-black text-lg shadow-md">
                         {((currentUser.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أ').charAt(0)}
                       </div>
-                      <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-[var(--app-ok)] rounded-full border-2 border-slate-950" />
+                      <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-[#16A34A] rounded-full border-2 border-white dark:border-[#111C2E]" />
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <div className="font-black text-sm text-white truncate">
-                        {(currentUser.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أسامة'}
+                      <div className="font-black text-sm text-slate-900 dark:text-white truncate">
+                        {(currentUser.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أحمد محمد'}
                       </div>
-                      <div className="text-[11px] text-slate-400 truncate mt-0.5">
-                        {currentUser.email || 'Osama@dream.com'}
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        {currentUser.email || 'user@tantawy.com'}
                       </div>
-                      <div className="mt-1.5 inline-block text-[10px] px-2.5 py-0.5 rounded-full font-black bg-[var(--app-accent)] text-white border border-[var(--app-accent)]">
-                        {roleNames[currentUser.role]?.label || currentUser.role || 'المطور التقني'}
+                      <div className="mt-1.5 inline-block text-[10px] px-2.5 py-0.5 rounded-full font-black bg-[#2563EB]/15 text-[#2563EB] dark:text-[#93C5FD] border border-[#2563EB]/30">
+                        {roleNames[currentUser.role]?.label || currentUser.role}
                       </div>
                     </div>
                   </div>
 
                   {/* Account Information Rows */}
-                  <div className="py-3 space-y-2 text-[11px] border-b border-slate-800/80 text-slate-300">
+                  <div className="py-3 space-y-2 text-[11px] border-b border-slate-200 dark:border-[#26364D] text-slate-600 dark:text-slate-300">
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400 font-bold">الفرع المخصص:</span>
-                      <span className="font-black text-[#5eead4] truncate max-w-[180px]">
+                      <span className="font-black text-[#0D9488] dark:text-[#5eead4] truncate max-w-[180px]">
                         {currentUser.branchName || 'الفرع الرئيسي - 6 أكتوبر'}
                       </span>
                     </div>
 
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400 font-bold">القطاع المسؤول:</span>
-                      <span className="font-black text-[#0d9488]">
+                      <span className="font-black text-[#2563EB] dark:text-[#93C5FD]">
                         {currentUser.sector === 'electrical' ? 'القطاع الكهربائي' : currentUser.sector === 'both' ? 'منزلي + كهرباء' : 'القطاع المنزلي'}
                       </span>
                     </div>
@@ -403,13 +291,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                     {supervisorName && (
                       <div className="flex justify-between items-center">
                         <span className="text-slate-400 font-bold">المشرف المباشر:</span>
-                        <span className="font-black text-[#60a5fa]">{supervisorName}</span>
+                        <span className="font-black text-slate-900 dark:text-white">{supervisorName}</span>
                       </div>
                     )}
 
                     <div className="flex justify-between items-center">
                       <span className="text-slate-400 font-bold">حالة الحساب:</span>
-                      <span className="text-[#0d9488] font-black flex items-center gap-1">
+                      <span className="text-[#16A34A] dark:text-[#86EFAC] font-black flex items-center gap-1">
                         <ShieldCheck className="w-3.5 h-3.5" />
                         <span>مفعّل ونشط</span>
                       </span>
@@ -424,56 +312,201 @@ export const Navbar: React.FC<NavbarProps> = ({
                         setShowProfileMenu(false);
                         logout();
                       }}
-                      className="w-full bg-[var(--app-risk)] hover:bg-[var(--app-risk)] active:scale-98 text-white font-black py-2.5 rounded-2xl text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                      className="w-full bg-[#DC2626] hover:bg-[#B91C1C] active:scale-98 text-white font-black py-2.5 rounded-2xl text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
                     >
                       <LogOut className="w-4 h-4 text-white" />
                       <span className="font-black">تسجيل الخروج الآمن</span>
                     </button>
                   </div>
-
                 </div>
               )}
             </div>
 
-            {/* Notification Center */}
-            <InternalNotificationCenter onNavigateToTab={setActiveTab} />
-
-            {/* Mobile-only quick logout — visible affordance for phone users */}
-            <button
-              type="button"
-              onClick={() => logout()}
-              title="تسجيل الخروج"
-              aria-label="تسجيل الخروج من التطبيق"
-              className="lg:hidden flex items-center justify-center w-11 h-11 shrink-0 rounded-xl border border-[var(--app-line)] bg-white text-[var(--app-risk)] hover:bg-red-soft2 active:scale-95 transition cursor-pointer"
+            {/* Dual Sun / Moon Switcher Pill (Matching the Top Header of Screenshot) */}
+            <div
+              className="flex items-center p-1 rounded-full border border-slate-200 dark:border-[#26364D] bg-slate-100 dark:bg-[#17243A] shadow-inner"
+              title={isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'}
             >
-              <LogOut className="w-4 h-4" />
+              <button
+                type="button"
+                onClick={() => !isDark && toggleTheme()}
+                className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 cursor-pointer ${
+                  isDark
+                    ? 'bg-[#2563EB] text-white shadow-sm ring-1 ring-[#2563EB]/50 scale-105'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+                aria-label="الوضع الليلي"
+                title="الوضع الليلي"
+              >
+                <Moon className="w-4 h-4 stroke-[2.2]" />
+              </button>
+              <button
+                type="button"
+                onClick={() => isDark && toggleTheme()}
+                className={`flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 cursor-pointer ${
+                  !isDark
+                    ? 'bg-[#F59E0B] text-white shadow-sm ring-1 ring-[#F59E0B]/50 scale-105'
+                    : 'text-slate-400 hover:text-slate-300'
+                }`}
+                aria-label="الوضع النهاري"
+                title="الوضع النهاري"
+              >
+                <Sun className="w-4 h-4 stroke-[2.2]" />
+              </button>
+            </div>
+          </div>
+
+          {/* Desktop Center Section: Quick Search Pill (Matching Screenshot) */}
+          <div className="hidden lg:flex flex-1 max-w-md mx-4">
+            <div className="relative w-full">
+              <input
+                type="text"
+                placeholder="يبحث عن عميل بالاسم أو رقم الهاتف أو المندوب..."
+                onClick={() => {
+                  if (activeTab !== 'customers' && activeTab !== 'all_customers') {
+                    setActiveTab('customers');
+                  }
+                }}
+                className="w-full pl-4 pr-10 py-2 rounded-2xl bg-slate-100 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] text-slate-800 dark:text-slate-200 placeholder-slate-400 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[#2563EB] transition shadow-inner"
+              />
+              <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
+            </div>
+          </div>
+
+          {/* Left Controls & Brand Block */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
+
+            {/* Offline / Online Status Badge */}
+            <div className={`flex h-10 items-center gap-1.5 rounded-full border px-3 text-xs font-bold shadow-xs ${
+              isOffline
+                ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+            }`}>
+              {isOffline ? (
+                <>
+                  <WifiOff className="h-3.5 w-3.5 animate-pulse text-amber-500" />
+                  <span className="text-[11px] font-black">أوفلاين</span>
+                </>
+              ) : (
+                <>
+                  <Wifi className="h-3.5 w-3.5 text-emerald-500" />
+                  <span className="hidden md:inline">متصل</span>
+                </>
+              )}
+            </div>
+
+            {/* Mobile Dual Theme Toggle */}
+            <div className="flex lg:hidden items-center p-0.5 rounded-full border border-slate-200 dark:border-[#26364D] bg-slate-100 dark:bg-[#17243A]">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="flex items-center justify-center w-8 h-8 rounded-full text-slate-700 dark:text-slate-200"
+                title={isDark ? 'الوضع النهاري' : 'الوضع الليلي'}
+              >
+                {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-blue-500" />}
+              </button>
+            </div>
+
+            {/* Settings Button */}
+            <button
+              id="navbar-settings-and-about-btn"
+              type="button"
+              onClick={() => setIsSettingsModalOpen(true)}
+              className="flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 transition hover:bg-slate-100 dark:hover:bg-white/10 active:scale-95"
+              title="الإعدادات، السياسة والخصوصية، السحابة وCloudinary"
+            >
+              <Settings className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+              <span className="hidden xl:inline">الإعدادات</span>
             </button>
 
-            {/* Top Bar Cart Button — desktop only; mobile uses bottom nav */}
+            {/* Notifications Button */}
+            {onOpenNotificationCenter && (
+              <button
+                type="button"
+                onClick={onOpenNotificationCenter}
+                className="group relative flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 transition hover:bg-slate-100 dark:hover:bg-white/10 active:scale-95"
+                title={`الإشعارات (${notificationCount} غير مقروء)`}
+                aria-label="مركز الإشعارات"
+              >
+                <Bell className={`h-4 w-4 shrink-0 ${notificationCount > 0 ? 'animate-bounce text-[#DC2626]' : 'text-slate-600 dark:text-slate-300'}`} />
+                {notificationCount > 0 && (
+                  <span className="absolute right-1 top-1 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-[#0f172a] bg-[#DC2626]" />
+                )}
+                <span className="hidden xl:inline">الإشعارات</span>
+              </button>
+            )}
+
+            {/* Pending Invoices Sync Button */}
+            {pendingInvoicesCount > 0 && (
+              <button
+                type="button"
+                onClick={() => flushPendingInvoices()}
+                className="flex items-center justify-center gap-1.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-3 h-10 rounded-xl text-xs font-black transition cursor-pointer shadow-sm animate-pulse border border-[#2563EB]"
+                title="فواتير مسجلة أوفلاين بانتظار المزامنة"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>مزامنة ({pendingInvoicesCount})</span>
+              </button>
+            )}
+
+            {/* Branch Filter for Admin & Developer */}
+            {(currentUser.role === 'admin' || currentUser.role === 'developer') && (
+              <div className="relative hidden xl:block">
+                <select
+                  aria-label="تصفية الفرع"
+                  value={selectedBranchFilter}
+                  onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                  className="bg-slate-50 dark:bg-[#17243A] text-slate-800 dark:text-slate-200 text-xs rounded-xl px-2.5 h-10 border border-slate-200 dark:border-[#26364D] focus:outline-none focus:border-[#2563EB] font-bold"
+                >
+                  <option value="الكل">كل الفروع</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.name}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Cart Button */}
             <button
               id="open-cart-btn"
               onClick={onOpenCart}
-              className="relative hidden lg:flex items-center justify-center gap-1.5 bg-[var(--app-navy)] hover:bg-blue-deep5 text-white font-black px-3 h-11 rounded-xl shadow-md transition transform active:scale-95 cursor-pointer min-w-[44px]"
+              className="relative hidden sm:flex items-center justify-center gap-1.5 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-black px-3.5 h-10 rounded-xl shadow-md transition transform active:scale-95 cursor-pointer min-w-[44px]"
             >
               <ShoppingCart className="w-4 h-4" />
-              <span className="hidden xs:inline text-xs">الطلبية</span>
+              <span className="text-xs">الطلبية</span>
               {cartSummary.itemCount > 0 && (
-                <span className="bg-[var(--app-accent)] text-deep-navy text-xs px-1.5 py-0.2 rounded-full font-black min-w-[20px] text-center">
+                <span className="bg-amber-400 text-slate-950 text-xs px-1.5 py-0.2 rounded-full font-black min-w-[20px] text-center">
                   {cartSummary.itemCount}
                 </span>
               )}
               {cartSummary.grandTotal > 0 && (
-                <span className="hidden lg:inline text-xs bg-white/15 px-1.5 py-0.5 rounded text-white font-extrabold">
+                <span className="hidden lg:inline text-xs bg-white/20 px-1.5 py-0.5 rounded text-white font-extrabold font-mono">
                   {formatCurrency(cartSummary.grandTotal)}
                 </span>
               )}
             </button>
+
+            {/* Brand Logo & Title on Desktop (Matching Screenshot top right/brand) */}
+            <div className="hidden lg:flex items-center gap-2.5 pr-2 mr-1 border-r border-slate-200 dark:border-[#26364D]">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-teal-500/40 bg-teal-50 dark:bg-[#0f2b38] p-1 shadow-sm">
+                <img src="/icon.svg" alt="طنطاوي جروب" className="h-full w-full object-contain" />
+              </div>
+              <div className="text-right">
+                <div className="text-sm font-black tracking-tight text-slate-900 dark:text-white leading-none">
+                  طنطاوي جروب
+                </div>
+                <div className="text-[10px] text-[#0D9488] font-bold mt-0.5 tracking-wider">
+                  Dream Tantawy
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
 
         {/* Navigation Tabs Bar (Desktop and Tablets) */}
-        <div className="hidden bg-slate-950/60 border-t border-slate-800/80 px-2 sm:px-6 overflow-x-auto no-scrollbar">
-          <div className="max-w-7xl mx-auto flex items-center gap-1 sm:gap-2 py-1.5">
+        <div className="hidden lg:block bg-slate-50 dark:bg-[#0B1220] border-t border-slate-200 dark:border-[#26364D] px-2 sm:px-6 overflow-x-auto no-scrollbar transition-colors">
+          <div className="max-w-7xl mx-auto flex items-center gap-1.5 sm:gap-2 py-2">
             {filteredNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.id;
@@ -481,18 +514,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   key={item.id}
                   onClick={() => setActiveTab(item.id)}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition whitespace-nowrap cursor-pointer ${
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition whitespace-nowrap cursor-pointer ${
                     isActive
-                      ? 'bg-[var(--app-accent)] text-white shadow-sm font-bold'
-                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                      ? 'bg-[#2563EB] text-white shadow-sm ring-1 ring-[#2563EB]/40'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-[#17243A] hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-[#5eead4]'}`} />
+                  <div className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                  }`}>
+                    <Icon className="w-3.5 h-3.5 stroke-[2.2]" />
+                  </div>
                   <span>{item.label}</span>
                   {item.badge && item.badge > 0 ? (
                     <span
                       className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
-                        isActive ? 'bg-slate-950 text-[#5eead4]' : 'bg-[var(--app-risk)] text-white'
+                        isActive ? 'bg-white text-[#2563EB]' : 'bg-[#DC2626] text-white'
                       }`}
                     >
                       {item.badge}
@@ -505,21 +542,21 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       </header>
 
-      <aside className={`tantawy-sidebar print:hidden ${effectiveSidebarCollapsed ? 'is-collapsed' : ''}`} aria-label="التنقل الرئيسي">
+      <aside className={`tantawy-sidebar print:hidden ${effectiveSidebarCollapsed ? 'is-collapsed' : ''} bg-white dark:bg-[#111C2E] border-l border-slate-200 dark:border-[#26364D] text-slate-900 dark:text-[#F1F5F9] transition-colors`} aria-label="التنقل الرئيسي">
         {effectiveSidebarCollapsed ? (
           /* Collapsed Smart Mini Rail (Allows maximum screen space for Catalog) */
           <div className="flex flex-col items-center h-full">
             {/* Expand Toggle Button & Logo */}
-            <div className="pb-4 border-b border-white/10 w-full flex flex-col items-center gap-3">
+            <div className="pb-4 border-b border-slate-200 dark:border-white/10 w-full flex flex-col items-center gap-3">
               <button
                 type="button"
                 onClick={handleToggleSidebar}
                 title="توسيع القائمة الجانبية"
-                className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 text-[#5eead4] flex items-center justify-center transition cursor-pointer active:scale-95 shadow-2xs"
+                className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-[#2563EB] dark:text-[#5eead4] flex items-center justify-center transition cursor-pointer active:scale-95 shadow-2xs"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              <img src="/icon.svg" alt="طنطاوي جروب" className="w-9 h-9 rounded-xl object-contain shadow-xs border border-[var(--app-ok)]" />
+              <img src="/icon.svg" alt="طنطاوي جروب" className="w-9 h-9 rounded-xl object-contain shadow-xs border border-teal-500/40" />
             </div>
 
             {/* Nav Icon Rail */}
@@ -535,13 +572,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                     aria-current={isActive ? 'page' : undefined}
                     className={`relative w-11 h-11 rounded-xl flex items-center justify-center transition cursor-pointer group ${
                       isActive
-                        ? 'bg-[var(--app-accent)] text-white font-black shadow-md'
-                        : 'text-blue-soft3 hover:bg-white/[0.08] hover:text-white'
+                        ? 'bg-[#2563EB] text-white font-black shadow-md'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] hover:text-slate-900 dark:hover:text-white'
                     }`}
                   >
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-blue-soft2 group-hover:text-[#5eead4]'}`} />
+                    <Icon className={`w-5 h-5 ${isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400 group-hover:text-[#2563EB] dark:group-hover:text-[#5eead4]'}`} />
                     {item.badge && item.badge > 0 ? (
-                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-[var(--app-risk)] px-1 text-center text-[9px] font-black text-white flex items-center justify-center shadow-xs">
+                      <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] rounded-full bg-[#DC2626] px-1 text-center text-[9px] font-black text-white flex items-center justify-center shadow-xs">
                         {item.badge}
                       </span>
                     ) : null}
@@ -551,10 +588,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             </nav>
 
             {/* Mini User Avatar at Bottom */}
-            <div className="pt-4 border-t border-white/10 w-full flex flex-col items-center">
+            <div className="pt-4 border-t border-slate-200 dark:border-white/10 w-full flex flex-col items-center">
               <div
                 title={`${currentUser.name} (${roleNames[currentUser.role]?.label || currentUser.role}) - ${currentUser.branchName}`}
-                className="w-9 h-9 rounded-full bg-[var(--app-accent)] text-white font-black text-xs flex items-center justify-center cursor-pointer shadow-xs"
+                className="w-9 h-9 rounded-full bg-[#2563EB] text-white font-black text-xs flex items-center justify-center cursor-pointer shadow-xs"
               >
                 {(currentUser.name || '').trim().charAt(0)}
               </div>
@@ -563,25 +600,25 @@ export const Navbar: React.FC<NavbarProps> = ({
         ) : (
           /* Full Expanded Sidebar */
           <>
-            <div className="flex items-center justify-between pb-4 border-b border-white/10 px-1">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-white/10 px-1">
               <div className="flex items-center gap-2.5">
-                <img src="/icon.svg" alt="طنطاوي جروب" className="w-10 h-10 rounded-xl object-contain shrink-0 border border-[var(--app-ok)] shadow-xs" />
+                <img src="/icon.svg" alt="طنطاوي جروب" className="w-10 h-10 rounded-xl object-contain shrink-0 border border-teal-500/40 shadow-xs" />
                 <div>
-                  <div className="font-black text-sm text-white">طنطاوي جروب</div>
-                  <div className="text-[10px] text-[#0d9488] font-semibold">Tantawy Group</div>
+                  <div className="font-black text-sm text-slate-900 dark:text-white">طنطاوي جروب</div>
+                  <div className="text-[10px] text-[#0D9488] font-bold">Tantawy Group</div>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={handleToggleSidebar}
                 title="تصغير القائمة لتوسيع مساحة عرض المنتجات"
-                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-[#5eead4] flex items-center justify-center transition cursor-pointer shrink-0"
+                className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-[#2563EB] dark:text-[#5eead4] flex items-center justify-center transition cursor-pointer shrink-0"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="px-2 pt-4 pb-2 text-[10px] font-bold text-[#60a5fa]">
+            <div className="px-2 pt-4 pb-2 text-[10px] font-bold text-slate-500 dark:text-[#60a5fa]">
               <span>القائمة الرئيسية</span>
             </div>
 
@@ -594,14 +631,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                     key={item.id}
                     onClick={() => setActiveTab(item.id)}
                     aria-current={isActive ? 'page' : undefined}
-                    className={`relative w-full flex items-center gap-3 px-3 rounded-xl text-right text-sm transition cursor-pointer ${
-                      isActive ? 'bg-white/[0.08] text-white font-semibold' : 'text-blue-soft3 hover:bg-white/[0.08] hover:text-white font-medium'
+                    className={`relative w-full flex items-center gap-3 px-3 py-2 rounded-xl text-right text-sm transition cursor-pointer ${
+                      isActive
+                        ? 'bg-[#2563EB] text-white font-bold shadow-sm'
+                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/[0.08] hover:text-slate-900 dark:hover:text-white font-medium'
                     }`}
                   >
-                    <Icon className={`w-[19px] h-[19px] shrink-0 ${isActive ? 'text-[var(--app-accent)]' : 'text-blue-soft2'}`} />
+                    <Icon className={`w-[19px] h-[19px] shrink-0 ${isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'}`} />
                     <span className="flex-1">{item.label}</span>
                     {item.badge && item.badge > 0 ? (
-                      <span className="min-w-5 rounded-full bg-[var(--app-risk)] px-1.5 text-center text-[10px] font-black text-white">
+                      <span className={`min-w-5 rounded-full px-1.5 text-center text-[10px] font-black ${
+                        isActive ? 'bg-white text-[#2563EB]' : 'bg-[#DC2626] text-white'
+                      }`}>
                         {item.badge}
                       </span>
                     ) : null}
@@ -610,16 +651,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               })}
             </nav>
 
-            <div className="mt-6 border-t border-white/10 pt-4 px-2 text-[11px] leading-6 text-[#60a5fa]">
-              <div className="font-bold text-white">{currentUser.name}</div>
+            <div className="mt-6 border-t border-slate-200 dark:border-white/10 pt-4 px-2 text-[11px] leading-6 text-slate-600 dark:text-[#60a5fa]">
+              <div className="font-bold text-slate-900 dark:text-white">{currentUser.name}</div>
               <div>{roleNames[currentUser.role]?.label || currentUser.role}</div>
-              <div className="mt-0.5 text-[#5eead4]">{currentUser.branchName}</div>
+              <div className="mt-0.5 text-[#0D9488] font-bold">{currentUser.branchName}</div>
             </div>
           </>
         )}
       </aside>
 
-      <nav className="tantawy-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0c1e33] text-white border-t border-[#1a385c] flex items-center justify-around py-2 px-2.5 pb-4 shadow-2xl safe-area-inset-bottom print:hidden" aria-label="التنقل">
+      <nav className="tantawy-mobile-nav lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 dark:bg-[#111C2E]/95 text-slate-900 dark:text-white border-t border-slate-200 dark:border-[#26364D] flex items-center justify-around py-2 px-2.5 pb-4 shadow-2xl backdrop-blur-lg safe-area-inset-bottom print:hidden transition-colors" aria-label="التنقل">
         <div className="flex w-full items-center justify-around gap-1">
             {[
               { id: 'catalog', label: 'الكتالوج', icon: Boxes, badge: cartSummary.itemCount },
@@ -637,14 +678,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   aria-current={isActive ? 'page' : undefined}
                   className={`relative flex flex-col items-center justify-center flex-1 py-1.5 px-1 transition-all cursor-pointer min-h-[48px] rounded-2xl ${
                     isActive
-                      ? 'bg-[#009488] text-white font-black shadow-lg shadow-teal-950/50 scale-[1.02]'
-                      : 'text-slate-400 hover:text-white hover:bg-white/5 font-bold hover:scale-[1.02]'
+                      ? 'bg-[#2563EB] text-white font-black shadow-md shadow-blue-500/20 scale-[1.02]'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 font-bold hover:scale-[1.02]'
                   }`}
                 >
                   <div className="relative">
-                    <Icon className={`w-5 h-5 mb-0.5 transition-transform ${isActive ? 'scale-110 text-white stroke-[2.5]' : 'stroke-[2] text-slate-400'}`} />
+                    <Icon className={`w-5 h-5 mb-0.5 transition-transform ${isActive ? 'scale-110 text-white stroke-[2.5]' : 'stroke-[2] text-slate-500 dark:text-slate-400'}`} />
                     {item.badge && item.badge > 0 ? (
-                      <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-rose-500 text-white font-black text-[9px] flex items-center justify-center px-1 shadow-sm shadow-rose-500/30">
+                      <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-[#DC2626] text-white font-black text-[9px] flex items-center justify-center px-1 shadow-sm">
                         {item.badge}
                       </span>
                     ) : null}
@@ -659,17 +700,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               type="button"
               onClick={() => setIsMobileDrawerOpen(true)}
               aria-label="القائمة الكاملة"
-              className="relative flex flex-col items-center justify-center flex-1 py-1.5 px-1 transition cursor-pointer min-h-[48px] rounded-2xl text-slate-400 hover:text-white hover:bg-white/5 font-bold"
+              className="relative flex flex-col items-center justify-center flex-1 py-1.5 px-1 transition cursor-pointer min-h-[48px] rounded-2xl text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/5 font-bold"
             >
               <div className="relative">
-                <Menu className="w-5 h-5 mb-0.5 stroke-[2.2] text-teal-300" />
+                <Menu className="w-5 h-5 mb-0.5 stroke-[2.2] text-[#2563EB] dark:text-teal-300" />
                 {pendingApprovalsCount > 0 && (
-                  <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-rose-500 text-white font-black text-[9px] flex items-center justify-center px-1 shadow-sm shadow-rose-500/30">
+                  <span className="absolute -top-1 -right-2 min-w-4 h-4 rounded-full bg-[#DC2626] text-white font-black text-[9px] flex items-center justify-center px-1 shadow-sm">
                     {pendingApprovalsCount}
                   </span>
                 )}
               </div>
-              <span className="text-[10px] tracking-tight truncate font-black text-slate-200">القائمة</span>
+              <span className="text-[10px] tracking-tight truncate font-black text-slate-700 dark:text-slate-200">القائمة</span>
             </button>
         </div>
       </nav>
@@ -684,41 +725,59 @@ export const Navbar: React.FC<NavbarProps> = ({
           />
 
           {/* Drawer Content */}
-          <div className="relative w-full max-w-xs sm:max-w-sm bg-[#091524] text-white h-full shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-200 border-l border-white/10">
+          <div className="relative w-full max-w-xs sm:max-w-sm bg-white dark:bg-[#0B1220] text-slate-900 dark:text-white h-full shadow-2xl flex flex-col z-10 animate-in slide-in-from-right duration-200 border-l border-slate-200 dark:border-white/10">
             {/* Drawer Header */}
-            <div className="p-4 bg-[#0d1d31] border-b border-white/10 flex items-center justify-between">
+            <div className="p-4 bg-slate-50 dark:bg-[#0d1d31] border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <img src="/icon.svg" alt="طنطاوي جروب" className="w-10 h-10 rounded-xl object-contain border border-teal-500/40 shadow-sm" />
                 <div>
-                  <div className="font-black text-sm text-white tracking-tight">طنطاوي جروب للتوزيع</div>
-                  <div className="text-[10px] text-teal-400 font-bold">القائمة الرئيسية والتطبيقات</div>
+                  <div className="font-black text-sm text-slate-900 dark:text-white tracking-tight">طنطاوي جروب للتوزيع</div>
+                  <div className="text-[10px] text-[#0D9488] font-bold">Dream Tantawy</div>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsMobileDrawerOpen(false)}
-                className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+                className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-white/10 hover:bg-slate-200 dark:hover:bg-white/20 text-slate-700 dark:text-white flex items-center justify-center transition cursor-pointer"
                 title="إغلاق القائمة"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* User Profile Summary - High Contrast */}
-            <div className="px-4 py-3.5 bg-[#071220] border-b border-white/10 flex items-center justify-between">
+            {/* User Profile Summary & Quick Theme Toggle in Drawer */}
+            <div className="px-4 py-3.5 bg-slate-100/70 dark:bg-[#071220] border-b border-slate-200 dark:border-white/10 flex items-center justify-between">
               <div>
-                <div className="font-black text-sm text-white">{currentUser.name}</div>
-                <div className="text-[11px] text-teal-400 font-extrabold">{roleNames[currentUser.role]?.label || currentUser.role}</div>
-                <div className="text-[11px] text-slate-300 font-medium">{currentUser.branchName}</div>
+                <div className="font-black text-sm text-slate-900 dark:text-white">{currentUser.name}</div>
+                <div className="text-[11px] text-[#2563EB] dark:text-teal-400 font-extrabold">{roleNames[currentUser.role]?.label || currentUser.role}</div>
+                <div className="text-[11px] text-slate-500 dark:text-slate-300 font-medium">{currentUser.branchName}</div>
               </div>
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-teal-500 to-emerald-600 text-white font-black text-base flex items-center justify-center shadow-md shadow-teal-500/20 border border-teal-300/30">
-                {(currentUser.name || '').trim().charAt(0)}
+
+              {/* Theme Toggle Pill in Drawer */}
+              <div className="flex items-center p-1 rounded-full border border-slate-200 dark:border-[#26364D] bg-white dark:bg-[#17243A]">
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold text-slate-800 dark:text-slate-200"
+                >
+                  {isDark ? (
+                    <>
+                      <Sun className="w-4 h-4 text-amber-400" />
+                      <span>نهاري</span>
+                    </>
+                  ) : (
+                    <>
+                      <Moon className="w-4 h-4 text-blue-600" />
+                      <span>ليلي</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
-            {/* Nav Items List - Ordered by Priority (Sales First) */}
+            {/* Nav Items List */}
             <div className="flex-1 overflow-y-auto p-3 space-y-1.5 pb-6">
-              <div className="text-[10.5px] font-black text-teal-400/90 px-2 pb-1 uppercase tracking-wider flex items-center justify-between">
+              <div className="text-[10.5px] font-black text-[#0D9488] px-2 pb-1 uppercase tracking-wider">
                 <span>أقسام النظام المتاحة لحسابك</span>
               </div>
               {filteredNavItems.map((item) => {
@@ -732,15 +791,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                       setActiveTab(item.id);
                       setIsMobileDrawerOpen(false);
                     }}
-                    className={`w-full flex items-center justify-between gap-3 px-3.5 py-3 rounded-2xl text-right text-xs font-bold transition cursor-pointer ${
+                    className={`w-full flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-2xl text-right text-xs font-bold transition cursor-pointer ${
                       isActive
-                        ? 'bg-gradient-to-r from-teal-500 to-emerald-600 text-white font-black shadow-lg shadow-teal-900/50 ring-1 ring-white/30 border border-teal-400'
-                        : 'text-slate-100 hover:text-white bg-white/[0.06] hover:bg-white/[0.12] border border-white/[0.08]'
+                        ? 'bg-[#2563EB] text-white font-black shadow-md border border-[#2563EB]'
+                        : 'text-slate-800 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white bg-slate-50 dark:bg-white/[0.06] hover:bg-slate-100 dark:hover:bg-white/[0.12] border border-slate-200 dark:border-white/[0.08]'
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                        isActive ? 'bg-white/20 text-white' : 'bg-teal-500/15 text-teal-300'
+                        isActive ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-teal-500/15 text-slate-700 dark:text-teal-300'
                       }`}>
                         <Icon className="w-4 h-4" />
                       </div>
@@ -748,7 +807,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                     {item.badge && item.badge > 0 ? (
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                        isActive ? 'bg-slate-950 text-teal-300' : 'bg-rose-500 text-white shadow-xs'
+                        isActive ? 'bg-white text-[#2563EB]' : 'bg-[#DC2626] text-white shadow-xs'
                       }`}>
                         {item.badge}
                       </span>
@@ -758,17 +817,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               })}
             </div>
 
-            {/* Drawer Footer Actions - With Bottom Spacing */}
-            <div className="p-4 border-t border-white/10 space-y-2 bg-[#091b29] pb-8">
+            {/* Drawer Footer Actions */}
+            <div className="p-4 border-t border-slate-200 dark:border-white/10 space-y-2 bg-slate-50 dark:bg-[#091b29] pb-8">
               <button
                 type="button"
                 onClick={() => {
                   setIsSettingsModalOpen(true);
                   setIsMobileDrawerOpen(false);
                 }}
-                className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition cursor-pointer shadow-sm"
+                className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-slate-200 dark:bg-white/10 hover:bg-slate-300 dark:hover:bg-white/20 text-slate-800 dark:text-white text-xs font-bold transition cursor-pointer shadow-sm"
               >
-                <Settings className="w-4 h-4 text-teal-300" />
+                <Settings className="w-4 h-4 text-[#0D9488]" />
                 <span>إعدادات النظام والخصوصية</span>
               </button>
               <button
@@ -777,7 +836,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setIsMobileDrawerOpen(false);
                   logout();
                 }}
-                className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-rose-500/20 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/40 text-xs font-bold transition cursor-pointer shadow-sm"
+                className="w-full flex items-center justify-center gap-2 h-11 rounded-xl bg-rose-50 dark:bg-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-600 text-[#DC2626] dark:text-rose-200 hover:text-white border border-rose-200 dark:border-rose-500/40 text-xs font-bold transition cursor-pointer shadow-sm"
               >
                 <LogOut className="w-4 h-4" />
                 <span>تسجيل الخروج</span>

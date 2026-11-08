@@ -1,0 +1,247 @@
+/* ============================================================
+   DREAM TANTAWY — Unified Visual Identity & Theme Tokens
+   Strictly adheres to:
+   Primary: #2563EB | Secondary: #0D9488 | Success: #16A34A
+   Warning: #F59E0B | Danger: #DC2626 | Violet: #7C3AED
+   Light Mode: BG #F1F5F9, Cards #FFFFFF, Text #0F172A, Border #E2E8F0
+   Dark Mode: BG #0B1220, Cards #111C2E, Secondary Cards #17243A,
+              Text #F1F5F9, Secondary Text #94A3B8, Border #26364D
+   ============================================================ */
+
+:root {
+  --app-bg: #F1F5F9;
+  --app-card: #FFFFFF;
+  --app-card-secondary: #F8FAFC;
+  --app-card-sub: #F8FAFC;
+  --app-card-hover: #F1F5F9;
+  --app-text: #0F172A;
+  --app-text-muted: #64748B;
+  --app-border: #E2E8F0;
+  --app-line: #E2E8F0;
+
+  /* Functional Palette Tokens */
+  --app-primary: #2563EB;
+  --app-primary-hover: #1D4ED8;
+  --app-primary-tint: #EFF6FF;
+  --app-primary-border: #BFDBFE;
+  --app-primary-text: #1D4ED8;
+
+  --app-secondary: #0D9488;
+  --app-secondary-hover: #0F766E;
+  --app-secondary-tint: #F0FDFA;
+  --app-secondary-border: #99F6E4;
+  --app-secondary-text: #0F766E;
+
+  --app-success: #16A34A;
+  --app-success-hover: #15803D;
+  --app-success-tint: #F0FDF4;
+  --app-success-border: #BBF7D0;
+  --app-success-text: #15803D;
+
+  --app-warning: #F59E0B;
+  --app-warning-hover: #D97706;
+  --app-warning-tint: #FFFBEB;
+  --app-warning-border: #FDE68A;
+  --app-warning-text: #B45309;
+
+  --app-danger: #DC2626;
+  --app-danger-hover: #B91C1C;
+  --app-danger-tint: #FEF2F2;
+  --app-danger-border: #FECACA;
+  --app-danger-text: #B91C1C;
+
+  --app-violet: #7C3AED;
+  --app-violet-hover: #6D28D9;
+  --app-violet-tint: #F5F3FF;
+  --app-violet-border: #DDD6FE;
+  --app-violet-text: #6D28D9;
+
+  /* Legacy aliases mapped to standardized tokens */
+  --app-accent: #2563EB;
+  --app-ok: #16A34A;
+  --app-ok-tint: #F0FDF4;
+  --app-ok-line: #BBF7D0;
+  --app-ok-text: #15803D;
+  --app-warn: #F59E0B;
+  --app-warn-tint: #FFFBEB;
+  --app-warn-line: #FDE68A;
+  --app-warn-text: #B45309;
+  --app-risk: #DC2626;
+  --app-risk-tint: #FEF2F2;
+  --app-risk-line: #FECACA;
+  --app-risk-text: #B91C1C;
+  --app-navy: #1E293B;
+  --app-navy-tint: #F1F5F9;
+  --app-navy-line: #CBD5E1;
+  --app-navy-text: #0F172A;
+}
+
+.dark {
+  --app-bg: #0B1220;
+  --app-card: #111C2E;
+  --app-card-secondary: #17243A;
+  --app-card-sub: #17243A;
+  --app-card-hover: #1E2F4A;
+  --app-text: #F1F5F9;
+  --app-text-muted: #94A3B8;
+  --app-border: #26364D;
+  --app-line: #26364D;
+
+  /* Functional Palette Tokens in Dark Mode */
+  --app-primary: #3B82F6;
+  --app-primary-hover: #60A5FA;
+  --app-primary-tint: rgba(37, 99, 235, 0.16);
+  --app-primary-border: rgba(59, 130, 246, 0.32);
+  --app-primary-text: #93C5FD;
+
+  --app-secondary: #14B8A6;
+  --app-secondary-hover: #2DD4BF;
+  --app-secondary-tint: rgba(13, 148, 136, 0.16);
+  --app-secondary-border: rgba(20, 184, 166, 0.32);
+  --app-secondary-text: #5EEAD4;
+
+  --app-success: #22C55E;
+  --app-success-hover: #4ADE80;
+  --app-success-tint: rgba(22, 163, 74, 0.16);
+  --app-success-border: rgba(34, 197, 94, 0.32);
+  --app-success-text: #86EFAC;
+
+  --app-warning: #FBBF24;
+  --app-warning-hover: #FCD34D;
+  --app-warning-tint: rgba(245, 158, 11, 0.16);
+  --app-warning-border: rgba(251, 191, 36, 0.32);
+  --app-warning-text: #FDE047;
+
+  --app-danger: #EF4444;
+  --app-danger-hover: #F87171;
+  --app-danger-tint: rgba(220, 38, 38, 0.16);
+  --app-danger-border: rgba(239, 68, 68, 0.32);
+  --app-danger-text: #FCA5A5;
+
+  --app-violet: #8B5CF6;
+  --app-violet-hover: #A78BFA;
+  --app-violet-tint: rgba(124, 58, 237, 0.16);
+  --app-violet-border: rgba(139, 92, 246, 0.32);
+  --app-violet-text: #C4B5FD;
+
+  /* Legacy aliases mapped to standardized dark tokens */
+  --app-accent: #3B82F6;
+  --app-ok: #22C55E;
+  --app-ok-tint: rgba(34, 197, 94, 0.16);
+  --app-ok-line: rgba(34, 197, 94, 0.32);
+  --app-ok-text: #86EFAC;
+  --app-warn: #FBBF24;
+  --app-warn-tint: rgba(251, 191, 36, 0.16);
+  --app-warn-line: rgba(251, 191, 36, 0.32);
+  --app-warn-text: #FDE047;
+  --app-risk: #EF4444;
+  --app-risk-tint: rgba(239, 68, 68, 0.16);
+  --app-risk-line: rgba(239, 68, 68, 0.32);
+  --app-risk-text: #FCA5A5;
+  --app-navy: #17243A;
+  --app-navy-tint: rgba(23, 36, 58, 0.6);
+  --app-navy-line: #26364D;
+  --app-navy-text: #94A3B8;
+}
+
+/* Global Root Styling */
+html {
+  background-color: var(--app-bg);
+  color: var(--app-text);
+  font-family: 'Cairo', Tajawal, system-ui, -apple-system, sans-serif;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+body {
+  background-color: var(--app-bg);
+  color: var(--app-text);
+  min-height: 100vh;
+  margin: 0;
+}
+
+/* Universal Theme Utility Helpers */
+.theme-bg {
+  background-color: var(--app-bg) !important;
+}
+
+.theme-card {
+  background-color: var(--app-card) !important;
+  border-color: var(--app-border) !important;
+  color: var(--app-text) !important;
+}
+
+.theme-card-secondary {
+  background-color: var(--app-card-secondary) !important;
+  border-color: var(--app-border) !important;
+  color: var(--app-text) !important;
+}
+
+.theme-text {
+  color: var(--app-text) !important;
+}
+
+.theme-text-muted {
+  color: var(--app-text-muted) !important;
+}
+
+.theme-border {
+  border-color: var(--app-border) !important;
+}
+
+/* Duotone / Soft Rounded Icon Badges */
+.badge-duotone-primary {
+  background-color: var(--app-primary-tint);
+  border: 1px solid var(--app-primary-border);
+  color: var(--app-primary-text);
+}
+
+.badge-duotone-secondary {
+  background-color: var(--app-secondary-tint);
+  border: 1px solid var(--app-secondary-border);
+  color: var(--app-secondary-text);
+}
+
+.badge-duotone-success {
+  background-color: var(--app-success-tint);
+  border: 1px solid var(--app-success-border);
+  color: var(--app-success-text);
+}
+
+.badge-duotone-warning {
+  background-color: var(--app-warning-tint);
+  border: 1px solid var(--app-warning-border);
+  color: var(--app-warning-text);
+}
+
+.badge-duotone-danger {
+  background-color: var(--app-danger-tint);
+  border: 1px solid var(--app-danger-border);
+  color: var(--app-danger-text);
+}
+
+.badge-duotone-violet {
+  background-color: var(--app-violet-tint);
+  border: 1px solid var(--app-violet-border);
+  color: var(--app-violet-text);
+}
+
+/* Smooth Transition for Theme Switch */
+*, *::before, *::after {
+  border-color: var(--app-border);
+}
+
+/* Custom Scrollbar for Light & Dark */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--app-bg);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--app-border);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--app-text-muted);
+}

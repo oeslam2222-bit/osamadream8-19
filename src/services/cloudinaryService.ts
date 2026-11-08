@@ -1,9 +1,10 @@
 import { CloudinaryConfig, Product } from '../types';
 
 export const DEFAULT_CLOUDINARY_CONFIG: CloudinaryConfig = {
-  cloudName: '',
-  folderPrefix: '',
-  defaultTransformation: '',
+  cloudName: 'drke4xlgb',
+  uploadPreset: 'DREAMOSAMA',
+  folderPrefix: 'customer_photos',
+  defaultTransformation: 'w_800,c_limit,q_auto:good,f_auto',
   matchingPattern: 'auto',
   fileExtension: 'auto',
   baseUrlPattern: ''
@@ -338,14 +339,18 @@ export function compressImageFile(
 }
 
 /**
- * ترفع صورة عميل إلى Cloudinary بعد ضغطها.
- * تُخزّن في مجلد customer_photos وتُرجع الرابط العام والمعرّف العام.
+ * ترفع صورة عميل إلى Cloudinary بعد ضغطها (~100 كيلوبايت).
+ * تُخزّن في مجلد customer_photos مرتباً بكود العميل ومعرفه لسهولة الأرشفة.
  */
 export async function uploadCustomerPhoto(
   file: File,
-  config: CloudinaryConfig,
-  customerId: string
+  config: CloudinaryConfig = DEFAULT_CLOUDINARY_CONFIG,
+  customerId: string,
+  customerCode?: string,
+  customerName?: string
 ): Promise<{ url: string; publicId?: string }> {
   const compressed = await compressImageFile(file, 800, 800, 0.7);
-  return uploadImageToCloudinary(compressed, config, `customer_photos/${customerId}`);
+  const cleanCode = (customerCode || customerId || 'cust').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const targetFolder = `customer_photos/${cleanCode}`;
+  return uploadImageToCloudinary(compressed, config, targetFolder);
 }

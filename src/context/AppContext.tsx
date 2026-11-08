@@ -1768,17 +1768,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
    * narrow read matches nothing.
    */
   const customerFetchScope = useMemo(() => {
-    const role = currentUser?.role;
-    if (!currentUser || role === 'admin' || role === 'developer' || role === 'supervisor') return undefined;
-    const raw = (currentUser.branchName || '').trim();
-    if (!raw) return undefined;
-    const canonical = resolveBranchName(raw);
-    const names = new Set<string>();
-    if (raw) names.add(raw);
-    if (canonical && canonical !== raw) names.add(canonical);
-    if (canonical && !canonical.startsWith('فرع')) names.add(`فرع ${canonical}`);
-    return { branchNames: Array.from(names) };
-  }, [currentUser?.id, currentUser?.branchName, currentUser?.role]);
+    // Return undefined to load the full customer base (5,428 customers) across all branches,
+    // allowing the user to filter dynamically by branch, rep, supervisor, and sector.
+    return undefined;
+  }, []);
 
   /**
    * scope القراءة من جدول الزيارات، على نفس نمط العملاء.
@@ -2326,7 +2319,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (Date.now() - authoritativeWriteAtRef.current < 120000) return;
 
       const neverFetchedYet = lastFullCustomerFetchAt === 0;
-      let shouldFetchFull = force || neverFetchedYet;
+      let shouldFetchFull = force || neverFetchedYet || customers.length < 5000;
       let stamp: { count: number | null; maxUpdatedAt: string | null } | null = null;
 
       if (!shouldFetchFull) {
@@ -2368,7 +2361,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           lastCustomerStamp = stamp;
           lastStampWasKnown = true;
         }
-        if (fingerprint === getLocalCustomersFingerprint()) return;
+        if (fingerprint === getLocalCustomersFingerprint() && customers.length >= fresh.length) return;
         setCustomers(fresh);
         idbSet(STORAGE_KEYS.CUSTOMERS, fresh).catch(() => {});
         saveLocalCustomersFingerprint(fresh);

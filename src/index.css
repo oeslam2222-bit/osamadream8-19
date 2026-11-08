@@ -7,16 +7,16 @@ html:not(.dark) {
   --app-ok-text: #0b5f57;
 }
 html:not(.dark) .tantawy-topbar {
-  background: linear-gradient(to right, #09111a, #111c2a, #0f1f2d) !important;
-  border-color: #1e293b !important;
-  color: #e2e8f0 !important;
-  box-shadow: 0 12px 30px rgba(2, 6, 23, 0.25) !important;
+  background: #FFFFFF !important;
+  border-color: #E2E8F0 !important;
+  color: #0F172A !important;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
   backdrop-filter: blur(12px) !important;
 }
 html:not(.dark) .tantawy-mobile-nav {
-  background: #0c1e33 !important;
-  border-top-color: #1a385c !important;
-  color: #e2e8f0 !important;
+  background: #FFFFFF !important;
+  border-top-color: #E2E8F0 !important;
+  color: #0F172A !important;
 }
 /* deeper text accents on white surfaces */
 html:not(.dark) [class*="text-[#009488]"] { color: #0f766e !important; }

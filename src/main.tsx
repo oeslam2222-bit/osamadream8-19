@@ -2,6 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import './styles/theme-tokens.css';
 import './components/mobile-styles.css';
 import './styles/beautiful-cards.css';
 

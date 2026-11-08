@@ -24,6 +24,8 @@ import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
 import { ProductCatalog } from './components/ProductCatalog';
 import { AllCustomersAnalyticsView } from './components/AllCustomersAnalyticsView';
+import { TantawyCustomerBaseView } from './components/customers/TantawyCustomerBaseView';
+import { TantawyRepTargetsView } from './components/targets/TantawyRepTargetsView';
 import { CustomerItemSalesView } from './components/CustomerItemSalesView';
 import { SupervisorDashboard } from './components/SupervisorDashboard';
 import { InvoicesManager } from './components/InvoicesManager';
@@ -107,6 +109,8 @@ const MainLayout: React.FC = () => {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [appToastMsg, setAppToastMsg] = useState<string | null>(null);
+  const [customerViewMode, setCustomerViewMode] = useState<'cards' | 'analytics'>('cards');
+  const [targetViewMode, setTargetViewMode] = useState<'cards' | 'dashboard'>('cards');
   // الثيم موحد عبر ThemeContext (المصدر الوحيد للحقيقة): يقرأ التفضيل المحفوظ
   // من localStorage ويضيف/يزيل الكلاس .dark على جذر المستند تلقائياً.
   const { isDark } = useTheme();
@@ -251,13 +255,53 @@ const MainLayout: React.FC = () => {
             />
           )}
 
-          {activeTab === 'targets' && allowedTabs.includes('targets') && <TargetPerformanceDashboard />}
+          {activeTab === 'targets' && allowedTabs.includes('targets') && (
+            targetViewMode === 'cards' ? (
+              <TantawyRepTargetsView
+                onOpenAdvancedDashboard={() => setTargetViewMode('dashboard')}
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
+                  <button
+                    onClick={() => setTargetViewMode('cards')}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs flex items-center gap-2 shadow"
+                  >
+                    <span>← العودة لعرض تارجت المندوبين التنفيذي</span>
+                  </button>
+                  <span className="text-xs text-slate-400 font-bold">لوحة المؤشرات والتحليلات المتقدمة</span>
+                </div>
+                <TargetPerformanceDashboard />
+              </div>
+            )
+          )}
 
           {activeTab === 'collection' && allowedTabs.includes('collection') && <CollectionRecoveryDashboard />}
 
           {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
           {(activeTab === 'all_customers' || activeTab === 'customers') && (
-            <AllCustomersAnalyticsView onOpenNewOrderForCustomer={(cust) => { setOrderInitialCustomer(cust); setActiveTab('catalog'); }} />
+            customerViewMode === 'cards' ? (
+              <TantawyCustomerBaseView
+                onOpenNewOrderForCustomer={(cust) => {
+                  setOrderInitialCustomer(cust);
+                  setActiveTab('catalog');
+                }}
+                onOpenAdvancedAnalytics={() => setCustomerViewMode('analytics')}
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
+                  <button
+                    onClick={() => setCustomerViewMode('cards')}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs flex items-center gap-2 shadow"
+                  >
+                    <span>← العودة لعرض كروت العملاء التنفيذي</span>
+                  </button>
+                  <span className="text-xs text-slate-400 font-bold">الشيت المالي والتحليلات المتقدمة للعملاء</span>
+                </div>
+                <AllCustomersAnalyticsView onOpenNewOrderForCustomer={(cust) => { setOrderInitialCustomer(cust); setActiveTab('catalog'); }} />
+              </div>
+            )
           )}
           {(activeTab === 'returns' || activeTab === 'returns_customers') && (allowedTabs.includes('returns') || allowedTabs.includes('returns_customers')) && (
             <UnifiedReturnsView />

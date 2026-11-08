@@ -30,7 +30,8 @@ import {
   WifiOff,
   Store,
   DollarSign,
-  Tag
+  Tag,
+  ClipboardList
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
@@ -153,26 +154,28 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       {/* ========================================================================= */}
       {/* 1. TOP HERO SECTION (مستوحى بدقة من الصورة المرفقة مع أحدث تكنولوجيا تفاعلية) */}
       {/* ========================================================================= */}
-      <div className="bg-gradient-to-br from-slate-950 via-[#0d1d33] to-[#0a192e] rounded-3xl p-4 sm:p-6 text-white shadow-2xl border border-slate-800 relative overflow-hidden">
+      <div className="bg-white dark:bg-[#111C2E] rounded-3xl p-4 sm:p-6 text-slate-900 dark:text-white shadow-md dark:shadow-2xl border border-slate-200 dark:border-[#26364D] relative overflow-hidden transition-colors">
         
-        {/* Ambient background night mode subtle lighting */}
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-10 left-10 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        {/* Subtle decorative background gradient */}
+        <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#2563EB]/5 dark:bg-[#2563EB]/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-10 left-10 w-80 h-80 bg-[#F59E0B]/5 dark:bg-[#F59E0B]/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
           
-          {/* Right Header: Greeting & Live Clock (كما في يمين الصورة المرفقة) */}
+          {/* Right Header: Greeting & Live Clock */}
           <div className="lg:col-span-5 flex flex-col justify-between space-y-4">
             
             <div className="flex items-center justify-between">
               {/* App / Rep Badge */}
-              <div className="flex items-center gap-2.5">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black shadow-lg shadow-blue-500/20">
-                  <span className="text-xl">🌟</span>
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800/50 text-[#2563EB] flex items-center justify-center font-black shadow-xs">
+                  <Sparkles className="w-6 h-6 stroke-[2.2]" />
                 </div>
                 <div>
-                  <div className="text-[11px] font-bold text-blue-400 tracking-wider">منظومة مبيعات طنطاوي دريم</div>
-                  <h1 className="text-lg sm:text-xl font-black text-white">
+                  <div className="text-[11px] font-bold text-[#2563EB] dark:text-[#93C5FD] tracking-wider">
+                    منظومة مبيعات طنطاوي دريم
+                  </div>
+                  <h1 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
                     أهلاً بك يا {(currentUser?.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أسامة'} ...
                   </h1>
                 </div>
@@ -180,47 +183,58 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
               {/* Status / Sector Pill */}
               <div className="flex items-center gap-1.5">
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black bg-blue-500/10 text-blue-300 border border-blue-500/30">
-                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black border ${
+                  isOffline
+                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/40'
+                    : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${isOffline ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
                   <span>{isOffline ? 'أوفلاين' : 'متصل'}</span>
                 </span>
               </div>
             </div>
 
-            <p className="text-xs sm:text-sm font-bold text-slate-300">
-              هل أنت مستعد لتحقيق تارجت اليوم والنمو بمبيعاتك ؟ 🚀
+            <p className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2">
+              <span>هل أنت مستعد لتحقيق تارجت اليوم والنمو بمبيعاتك؟</span>
+              <TrendingUp className="w-4 h-4 text-[#16A34A] stroke-[2.5]" />
             </p>
 
-            {/* Time & Date Display (Match Image: PM 06:14 • Fr Jan 23 2026) */}
-            <div className="bg-slate-900/80 border border-slate-700/80 rounded-2xl p-3 sm:p-4 flex items-center justify-between shadow-inner">
+            {/* Time & Date Display */}
+            <div className="bg-slate-50 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-3 sm:p-4 flex items-center justify-between shadow-inner">
               <div className="space-y-0.5">
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">التوقيت والتاريخ</div>
-                <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-white flex items-center gap-1.5">
-                  <Clock className="w-5 h-5 text-blue-400" />
+                <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                  التوقيت والتاريخ
+                </div>
+                <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-[#2563EB]" />
                   <span>{timeString}</span>
                 </div>
-                <div className="text-[11px] text-slate-300 font-bold">
+                <div className="text-[11px] text-slate-600 dark:text-slate-300 font-bold">
                   {dateDayNameAr}، {dateDayNum} {dateMonthNameAr}
                 </div>
               </div>
 
-              <div className="text-left font-mono border-r border-slate-800 pr-3">
-                <div className="text-3xl font-black text-[#d97706] leading-none">{dateDayNum}</div>
-                <div className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">{dateDayNameEn} • {dateMonthNameEn}</div>
-                <div className="text-[10px] font-bold text-slate-500">{currentTime.getFullYear()}</div>
+              <div className="text-left font-mono border-r border-slate-200 dark:border-slate-800 pr-3">
+                <div className="text-3xl font-black text-[#F59E0B] leading-none">{dateDayNum}</div>
+                <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mt-0.5">
+                  {dateDayNameEn} • {dateMonthNameEn}
+                </div>
+                <div className="text-[10px] font-bold text-slate-400">{currentTime.getFullYear()}</div>
               </div>
             </div>
 
             {/* Rep Subtitle Info */}
-            <div className="flex items-center gap-3 text-xs text-slate-400">
-              <div className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-blue-400" />
-                <span className="text-slate-300 font-bold">{currentUser?.branchName || 'الفرع الرئيسي'}</span>
+            <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
+              <div className="flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-[#2563EB]" />
+                <span className="text-slate-800 dark:text-slate-300 font-bold">
+                  {currentUser?.branchName || 'الفرع الرئيسي'}
+                </span>
               </div>
               <span>•</span>
-              <div className="flex items-center gap-1">
-                <Tag className="w-3.5 h-3.5 text-[#d97706]" />
-                <span className="text-[#d97706] font-bold">
+              <div className="flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-[#F59E0B]" />
+                <span className="text-[#F59E0B] font-bold">
                   {currentUser?.sector === 'electrical' ? 'القطاع الكهربائي' : currentUser?.sector === 'both' ? 'منزلي + كهرباء' : 'القطاع المنزلي'}
                 </span>
               </div>
@@ -228,124 +242,134 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
           </div>
 
-          {/* Center: 3D Isometric Visual Illustration (كما في وسط الصورة) */}
+          {/* Center: Illustration & Smart Sales Platform Card */}
           <div className="hidden lg:flex lg:col-span-3 items-center justify-center p-2">
-            <div className="relative group">
-              <div className="w-48 h-48 rounded-3xl bg-gradient-to-tr from-[var(--app-ok)] via-slate-800 to-[var(--app-navy)] p-4 border border-[var(--app-ok)] flex flex-col items-center justify-center text-center shadow-xl backdrop-blur-sm">
-                <div className="text-5xl mb-2 animate-bounce">📊</div>
-                <div className="text-sm font-black text-white">منصة مبيعات ذكية</div>
-                <div className="text-[10px] text-slate-300 mt-1 max-w-[150px]">
+            <div className="relative group w-full max-w-[220px]">
+              <div className="rounded-3xl bg-slate-50 dark:bg-[#17243A] p-5 border border-slate-200 dark:border-[#26364D] flex flex-col items-center justify-center text-center shadow-md">
+                <div className="w-14 h-14 rounded-2xl bg-teal-50 dark:bg-teal-950/60 border border-teal-200 dark:border-teal-800/40 text-[#0D9488] flex items-center justify-center mb-2.5 shadow-xs">
+                  <BarChart3 className="w-8 h-8 stroke-[2.2]" />
+                </div>
+                <div className="text-sm font-black text-slate-900 dark:text-white">منصة مبيعات ذكية</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                   ربط مباشر مع المخازن، قاعدة العملاء، واعتمادات الفواتير
                 </div>
-                <div className="mt-3 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/10 text-white border border-white/20">
-                  <Sparkles className="w-3 h-3 text-teal-200" />
+                <div className="mt-3 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#0D9488]/10 text-[#0D9488] border border-[#0D9488]/20">
+                  <Sparkles className="w-3 h-3 text-[#0D9488]" />
                   <span>دريم تكنولوجي</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Left Cards: إجمالي المبيعات وعدد الطلبات (مطابقة كاملة للصورة) */}
+          {/* Left Cards: 4 Real Metrics */}
           <div className="lg:col-span-4 grid grid-cols-2 gap-3">
             
-            {/* Metric 1: إجمالي المبيعات (Sales) */}
-            <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-[var(--app-ok)] transition">
+            {/* Metric 1: إجمالي المبيعات */}
+            <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#2563EB] transition">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-300">إجمالي المبيعات</span>
-                <span className="text-xl">💰</span>
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">إجمالي المبيعات</span>
+                <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/60 text-[#2563EB] border border-blue-200 dark:border-blue-800/40 flex items-center justify-center shadow-2xs">
+                  <DollarSign className="w-4 h-4 stroke-[2.5]" />
+                </div>
               </div>
 
               <div className="space-y-1 my-2">
-                <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-white">
+                <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-slate-900 dark:text-white">
                   {metricPeriod === 'today' ? formatCurrency(todaySalesTotal) : formatCurrency(allSalesTotal)}
                 </div>
-                <div className="text-[10px] text-slate-400 font-bold">جنيه مصري</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">جنيه مصري</div>
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-[10px]">
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800 text-[10px]">
                 <button
                   type="button"
                   onClick={() => setMetricPeriod(metricPeriod === 'today' ? 'all' : 'today')}
-                  className="flex items-center gap-1 text-[#0d9488] hover:text-[#0d9488] font-bold cursor-pointer"
+                  className="flex items-center gap-1 text-[#2563EB] hover:underline font-bold cursor-pointer"
                 >
                   <span>{metricPeriod === 'today' ? 'اليوم' : 'الإجمالي'}</span>
                   <ChevronDown className="w-3 h-3" />
                 </button>
-                <span className="text-[#0d9488] font-bold">
+                <span className="text-[#0D9488] font-bold">
                   {todayInvoices.length} طلبات اليوم
                 </span>
               </div>
             </div>
 
-            {/* Metric 2: عدد الطلبات (Orders Count) */}
-            <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-[var(--app-warn)] transition">
+            {/* Metric 2: عدد الطلبات */}
+            <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#F59E0B] transition">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-slate-300">عدد الطلبات</span>
-                <span className="text-xl">📦</span>
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">عدد الطلبات</span>
+                <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-950/60 text-[#F59E0B] border border-amber-200 dark:border-amber-800/40 flex items-center justify-center shadow-2xs">
+                  <Package className="w-4 h-4 stroke-[2.5]" />
+                </div>
               </div>
 
               <div className="space-y-1 my-2">
-                <div className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-[#d97706]">
+                <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-[#F59E0B]">
                   {metricPeriod === 'today' ? todayInvoices.length : visibleInvoices.length}
                 </div>
-                <div className="text-[10px] text-slate-400 font-bold">فاتورة مسجلة</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">فاتورة مسجلة</div>
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-slate-800 text-[10px]">
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800 text-[10px]">
                 <button
                   type="button"
                   onClick={() => setMetricPeriod(metricPeriod === 'today' ? 'all' : 'today')}
-                  className="flex items-center gap-1 text-[#d97706] hover:text-[#d97706] font-bold cursor-pointer"
+                  className="flex items-center gap-1 text-[#F59E0B] hover:underline font-bold cursor-pointer"
                 >
                   <span>{metricPeriod === 'today' ? 'اليوم' : 'الكل'}</span>
                   <ChevronDown className="w-3 h-3" />
                 </button>
-                <span className="text-slate-400 font-bold">
+                <span className="text-slate-500 dark:text-slate-400 font-bold">
                   {visibleCustomers.length} عميل
                 </span>
               </div>
             </div>
 
             {/* Metric 3: التحصيلات */}
-            <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-[var(--app-ok)] transition">
+            <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#16A34A] transition">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-slate-300">التحصيلات</span>
-                <span className="text-xl">💵</span>
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">التحصيلات</span>
+                <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-[#16A34A] border border-emerald-200 dark:border-emerald-800/40 flex items-center justify-center shadow-2xs">
+                  <Wallet className="w-4 h-4 stroke-[2.5]" />
+                </div>
               </div>
 
               <div className="space-y-0.5 my-1">
-                <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-[#0d9488]">
+                <div className="text-lg sm:text-xl font-black font-mono tracking-tight text-[#16A34A]">
                   {formatCurrency(metricPeriod === 'today' ? todayCollectionsTotal : allCollectionsTotal)}
                 </div>
-                <div className="text-[10px] text-slate-400 font-bold">المحصل فعلياً</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">المحصل فعلياً</div>
               </div>
 
-              <div className="pt-1.5 border-t border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
+              <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800 text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
                 <span>تحديث لحظي</span>
-                <span className="text-[#0d9488] font-bold">✓ نقدي ومسجل</span>
+                <span className="text-[#16A34A] font-bold">✓ نقدي ومسجل</span>
               </div>
             </div>
 
             {/* Metric 4: زيارات اليوم */}
-            <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-[var(--app-navy)] transition">
+            <div className="bg-slate-50/70 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#7C3AED] transition">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-slate-300">الزيارات</span>
-                <span className="text-xl">📍</span>
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">الزيارات</span>
+                <div className="w-7 h-7 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-[#7C3AED] border border-purple-200 dark:border-purple-800/40 flex items-center justify-center shadow-2xs">
+                  <MapPin className="w-4 h-4 stroke-[2.5]" />
+                </div>
               </div>
 
               <div className="space-y-0.5 my-1">
-                <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-[#0d9488]">
+                <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-[#7C3AED]">
                   {todayVisits.length}
                 </div>
-                <div className="text-[10px] text-slate-400 font-bold">زيارة اليوم</div>
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">زيارة اليوم</div>
               </div>
 
-              <div className="pt-1.5 border-t border-slate-800 text-[10px] text-slate-400 flex items-center justify-between">
+              <div className="pt-1.5 border-t border-slate-200 dark:border-slate-800 text-[10px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
                 <span>الخطة الميدانية</span>
                 <button
                   type="button"
                   onClick={() => onNavigateToTab('visits')}
-                  className="text-[#0d9488] font-bold hover:underline"
+                  className="text-[#7C3AED] font-bold hover:underline"
                 >
                   فتح الزيارات
                 </button>
@@ -380,20 +404,20 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           </span>
         </div>
 
-        {/* The 9 Big Action Cards Grid (مطابقة دقيقة لتوزيع الكروت بالصورة) */}
+        {/* The 9 Big Action Cards Grid (نظام الهوية الموحدة ودعم كامل للوضع النهاري والليلي) */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
 
           {/* Tile 1: المبيعات والفواتير */}
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
-            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-warn-line)]">
-              <TrendingUp className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-primary flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
+              <TrendingUp className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
             </div>
             <span className="font-black text-sm sm:text-base leading-tight">المبيعات</span>
-            <span className="text-[10px] text-slate-500 font-bold mt-1">
+            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
               الفواتير والاعتمادات ({visibleInvoices.length})
             </span>
           </button>
@@ -402,13 +426,13 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab('catalog')}
-            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-ok-line)]">
-              <ShoppingCart className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-secondary flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
+              <ShoppingCart className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
             </div>
             <span className="font-black text-sm sm:text-base leading-tight">الكتالوج والتسوق</span>
-            <span className="text-[10px] text-slate-500 font-bold mt-1">
+            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
               {visibleProductsList.length} صنف متاح للطلب
             </span>
           </button>
@@ -417,27 +441,27 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab('catalog')}
-            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-risk-line)]">
-              <Flame className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-warning flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
+              <Flame className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
             </div>
             <span className="font-black text-sm sm:text-base leading-tight">عروض الأسعار</span>
-            <span className="text-[10px] text-slate-500 font-bold mt-1">تخفيضات وبونص الكراتين</span>
+            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">تخفيضات وبونص الكراتين</span>
           </button>
 
           {/* Tile 4: العملاء */}
           <button
             type="button"
             onClick={() => onNavigateToTab('all_customers')}
-            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-navy-line)]">
-              <Users className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-primary flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
+              <Users className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
             </div>
-            <span className="font-black text-sm sm:text-base leading-tight">العملاء</span>
-            <span className="text-[10px] text-slate-500 font-bold mt-1">
-              قاعدة العملاء ({visibleCustomers.length})
+            <span className="font-black text-sm sm:text-base leading-tight">قاعدة العملاء</span>
+            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
+              {visibleCustomers.length} عميل بالبيانات والمديونيات
             </span>
           </button>
 
@@ -445,72 +469,72 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab('inventory')}
-            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-ok-line)]">
-              <Package className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-secondary flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
+              <Package className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
             </div>
             <span className="font-black text-sm sm:text-base leading-tight">أرصدة المخزون</span>
-            <span className="text-[10px] text-slate-500 font-bold mt-1">الفرع والمخزن المركزي</span>
+            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">الفرع والمخزن المركزي</span>
           </button>
 
           {/* Tile 6: خطة الزيارات الميدانية */}
           <button
             type="button"
             onClick={() => onNavigateToTab('visits')}
-            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-navy-line)]">
-              <CalendarCheck className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-violet flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
+              <CalendarCheck className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
             </div>
             <span className="font-black text-sm sm:text-base leading-tight">الزيارات</span>
-            <span className="text-[10px] text-slate-500 font-bold mt-1">خط سير المندوب اليومي</span>
+            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">خط سير المندوب وإحداثيات الموقع</span>
           </button>
 
           {/* Tile 7: التحصيلات والماليات */}
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
-            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-ok-line)]">
-              <Wallet className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-success flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
+              <Wallet className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
             </div>
             <span className="font-black text-sm sm:text-base leading-tight">التحصيلات</span>
-            <span className="text-[10px] text-slate-500 font-bold mt-1">متابعة سداد المديونيات</span>
+            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">متابعة سداد المديونيات والشيكات</span>
           </button>
 
           {/* Tile 8: المرتجعات الموحدة */}
           <button
             type="button"
             onClick={() => onNavigateToTab('returns')}
-            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-navy-line)]">
-              <RotateCcw className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5]" />
+            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-danger flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
+              <RotateCcw className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2]" />
             </div>
             <span className="font-black text-sm sm:text-base leading-tight">المرتجعات</span>
-            <span className="text-[10px] text-slate-500 font-bold mt-1">تسجيل بضاعة ومتابعتها</span>
+            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">تسجيل بضاعة ومتابعتها بصور الأصناف</span>
           </button>
 
           {/* Tile 9: التارجت أو الإكسل */}
           <button
             type="button"
             onClick={() => onNavigateToTab(isAdminOrDev ? 'excel' : 'targets')}
-            className="group bg-[var(--bg-surface)] dark:bg-slate-800 hover:bg-[var(--bg-surface-hover)] dark:hover:bg-slate-800/80 text-[var(--text-primary)] dark:text-white rounded-3xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all cursor-pointer border border-[var(--app-line)] dark:border-slate-700 min-h-[140px] sm:min-h-[160px]"
+            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
           >
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-[var(--bg-surface-alt)] dark:bg-slate-900/40 text-[var(--text-secondary)] dark:text-slate-300 flex items-center justify-center shadow-xs mb-2.5 group-hover:scale-110 transition duration-200 border border-[var(--app-line)] dark:border-slate-700/50">
+            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl badge-duotone-warning flex items-center justify-center mb-2.5 group-hover:scale-110 transition duration-200">
               {isAdminOrDev ? (
-                <FileSpreadsheet className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5] text-[var(--app-ok-text)]" />
+                <FileSpreadsheet className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2] text-[#16A34A]" />
               ) : (
-                <Sparkles className="w-7 h-7 sm:w-8 sm:h-8 stroke-[2.5] text-[var(--app-warn-text)]" />
+                <Sparkles className="w-6 h-6 sm:w-7 sm:h-7 stroke-[2.2] text-[#F59E0B]" />
               )}
             </div>
             <span className="font-black text-sm sm:text-base leading-tight">
               {isAdminOrDev ? 'الإكسل والمزامنة' : 'التارجت والمستهدف'}
             </span>
-            <span className="text-[10px] text-slate-500 font-bold mt-1">
-              {isAdminOrDev ? 'تحديث الشيتات السحابية' : 'متابعة نسبة التحقيق'}
+            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
+              {isAdminOrDev ? 'تحديث الشيتات السحابية' : 'متابعة نسبة التحقيق الشهرية'}
             </span>
           </button>
 
@@ -520,42 +544,40 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
 
       {/* ========================================================================= */}
-      {/* 3. BRANDING & MOBILE APK DOWNLOAD BAR (كارت البراند الفخم كما بالصورة) */}
+      {/* 3. BRANDING & MOBILE APK DOWNLOAD BAR */}
       {/* ========================================================================= */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
         
-        {/* Left Card: 3D Emblem Card matching the GEONEX / Brand Card in Image */}
-        <div className="md:col-span-5 bg-gradient-to-tr from-slate-950 via-[#0e172a] to-[#1e1b4b] rounded-3xl p-5 border border-slate-800 shadow-xl flex flex-col justify-between text-white relative overflow-hidden">
+        {/* Left Card: 3D Emblem Card matching Brand Card */}
+        <div className="md:col-span-5 bg-gradient-to-tr from-[#0F172A] via-[#111C2E] to-[#1E293B] dark:from-[#0B1220] dark:via-[#111C2E] dark:to-[#17243A] rounded-2xl p-5 border border-slate-700/60 dark:border-[#26364D] shadow-md flex flex-col justify-between text-white relative overflow-hidden">
           <div className="flex items-center justify-between mb-4">
             <span className="text-xs font-black text-amber-400 tracking-wider">مندوب دريم • TANTAWY</span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-xs">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
-              <span>الحالة : ACTIVE</span>
+              <span>الحالة : نشط الآن</span>
             </span>
           </div>
 
           <div className="flex items-center gap-4 my-2">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[var(--app-warn)] via-[var(--app-risk)] to-[var(--app-navy)] p-0.5 shadow-2xl shrink-0 flex items-center justify-center">
-              <div className="w-full h-full bg-slate-950 rounded-2xl flex items-center justify-center text-2xl">
-                📱
-              </div>
+            <div className="w-14 h-14 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30 shrink-0 flex items-center justify-center">
+              <Smartphone className="w-7 h-7 stroke-[2.2]" />
             </div>
             <div>
-              <h3 className="font-black text-lg text-white">تطبيق الجوال (APK)</h3>
+              <h3 className="font-black text-base sm:text-lg text-white">تطبيق الجوال (APK)</h3>
               <p className="text-xs text-slate-400 leading-relaxed mt-0.5">
-                يمكنك تحميل ملف الـ APK وتثبيته مباشرة على أي هاتف أندرويد للمناديب بدون متجر
+                يمكنك تحميل ملف الـ APK وتثبيته مباشرة على أي هاتف أندرويد للمناديب للعمل الميداني السريع
               </p>
             </div>
           </div>
 
-          <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2 mt-2">
+          <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2 mt-2">
             <button
               type="button"
               onClick={() => setIsInstallModalOpen(true)}
-              className="flex-1 bg-gradient-to-r from-[var(--app-warn)] to-[var(--app-warn)] hover:from-[var(--app-warn)] hover:to-[var(--app-warn)] text-slate-950 font-black py-2.5 px-4 rounded-xl text-xs transition cursor-pointer shadow-md flex items-center justify-center gap-2 active:scale-95"
+              className="flex-1 bg-[#2563EB] hover:bg-blue-700 text-white font-black py-2.5 px-4 rounded-xl text-xs transition cursor-pointer shadow-sm flex items-center justify-center gap-2 active:scale-95"
             >
               <Download className="w-4 h-4" />
-              <span>تحميل وتثبيت التطبيق 📲</span>
+              <span>تحميل وتثبيت التطبيق</span>
             </button>
             
             <a
@@ -571,50 +593,48 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         </div>
 
         {/* Right Card: Quick 5-Step Order Guide (خطوات إنشاء الطلب المنضبطة للمندوب) */}
-        <div className="md:col-span-7 bg-[var(--bg-surface)] dark:bg-slate-800 rounded-3xl p-5 border border-[var(--app-line)] dark:border-slate-700 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
-            <div className="flex items-center gap-2">
-              <span className="w-8 h-8 rounded-xl bg-[var(--app-warn)] text-[var(--app-warn-text)] flex items-center justify-center font-black">
-                📋
-              </span>
+        <div className="md:col-span-7 bg-white dark:bg-[#111C2E] rounded-2xl p-5 border border-slate-200 dark:border-[#26364D] shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#26364D] pb-3 mb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl badge-duotone-primary flex items-center justify-center font-black">
+                <ClipboardList className="w-4 h-4 stroke-[2.2]" />
+              </div>
               <div>
-                <h4 className="font-black text-[var(--text-primary)] dark:text-white text-sm">خطوات إنشاء الطلبية للمندوب</h4>
-                <p className="text-[11px] text-slate-500">سير العمل المعتمد لإصدار فواتير دقيقة ومراجعة المخزون</p>
+                <h4 className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-sm">خطوات إنشاء الطلبية للمندوب</h4>
+                <p className="text-[11px] text-slate-500 dark:text-[#94A3B8]">سير العمل المعتمد لإصدار فواتير دقيقة ومراجعة المخزون</p>
               </div>
             </div>
-            
-
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 text-center text-xs">
-            <div className="bg-[var(--bg-surface-alt)] dark:bg-slate-900/50 rounded-2xl p-2.5 border border-[var(--app-line)] dark:border-slate-700/60">
-              <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">1</div>
-              <div className="font-black text-[var(--text-primary)] dark:text-white text-[11px]">فتح الكتالوج</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">تصفح الأصناف المتاحة</div>
+            <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
+              <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">1</div>
+              <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">فتح الكتالوج</div>
+              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">تصفح الأصناف</div>
             </div>
 
-            <div className="bg-[var(--bg-surface-alt)] dark:bg-slate-900/50 rounded-2xl p-2.5 border border-[var(--app-line)] dark:border-slate-700/60">
-              <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">2</div>
-              <div className="font-black text-[var(--text-primary)] dark:text-white text-[11px]">إضافة للسلة</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">تحديد كراتين وقطع</div>
+            <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
+              <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">2</div>
+              <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">إضافة للسلة</div>
+              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">تحديد الكمية</div>
             </div>
 
-            <div className="bg-[var(--bg-surface-alt)] dark:bg-slate-900/50 rounded-2xl p-2.5 border border-[var(--app-line)] dark:border-slate-700/60">
-              <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">3</div>
-              <div className="font-black text-[var(--text-primary)] dark:text-white text-[11px]">اختيار العميل</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">من قائمة عملائك</div>
+            <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
+              <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">3</div>
+              <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">اختيار العميل</div>
+              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">من عملائك</div>
             </div>
 
-            <div className="bg-[var(--bg-surface-alt)] dark:bg-slate-900/50 rounded-2xl p-2.5 border border-[var(--app-line)] dark:border-slate-700/60">
-              <div className="w-6 h-6 rounded-full bg-slate-900 text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">4</div>
-              <div className="font-black text-[var(--text-primary)] dark:text-white text-[11px]">مراجعة الائتمان</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">فحص المديونية والحد</div>
+            <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
+              <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">4</div>
+              <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">مراجعة الائتمان</div>
+              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">فحص المديونية</div>
             </div>
 
-            <div className="bg-[var(--app-ok-tint)] rounded-2xl p-2.5 border border-[var(--app-ok-line)]">
-              <div className="w-6 h-6 rounded-full bg-[var(--app-ok)] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">5</div>
-              <div className="font-black text-[var(--app-ok-text)] text-[11px]">إصدار واعتماد</div>
-              <div className="text-[10px] text-[var(--app-ok-text)] mt-0.5">تتحول للمشرف للمراجعة</div>
+            <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-xl p-2.5 border border-emerald-200 dark:border-emerald-700/50">
+              <div className="w-6 h-6 rounded-full bg-[#16A34A] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">5</div>
+              <div className="font-black text-[#16A34A] dark:text-emerald-300 text-[11px]">إصدار واعتماد</div>
+              <div className="text-[10px] text-emerald-700 dark:text-emerald-400 mt-0.5">تتحول للمشرف</div>
             </div>
           </div>
         </div>
@@ -623,21 +643,21 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
 
       {/* ========================================================================= */}
-      {/* 4. FOOTER NOTE (كما في أسفل الصورة: يوم عمل جميل وممتع) */}
+      {/* 4. FOOTER NOTE */}
       {/* ========================================================================= */}
-      <div className="bg-slate-950 text-slate-300 rounded-2xl px-4 py-3 flex items-center justify-between text-xs border border-slate-800 shadow-md">
+      <div className="bg-white dark:bg-[#111C2E] text-slate-700 dark:text-[#94A3B8] rounded-2xl px-4 py-3 flex items-center justify-between text-xs border border-slate-200 dark:border-[#26364D] shadow-xs">
         <div className="flex items-center gap-2">
-          <span className="text-[#d97706] text-sm">✨</span>
-          <span className="font-bold text-white">يوم عمل جميل وممتع وموفق بإذن الله</span>
-          <span className="text-slate-600 hidden sm:inline">|</span>
-          <span className="text-slate-400 hidden sm:inline">منظومة مبيعات ومخازن مجموعة الطنطاوي دريم</span>
+          <Sparkles className="w-4 h-4 text-[#F59E0B]" />
+          <span className="font-bold text-[#0F172A] dark:text-[#F1F5F9]">يوم عمل جميل وممتع وموفق بإذن الله</span>
+          <span className="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
+          <span className="text-slate-500 dark:text-[#94A3B8] hidden sm:inline">منظومة مبيعات ومخازن مجموعة الطنطاوي دريم</span>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => onNavigateToTab('catalog')}
-            className="text-[#0d9488] hover:text-[#0d9488] font-bold flex items-center gap-1 cursor-pointer"
+            className="text-[#0D9488] hover:underline font-bold flex items-center gap-1 cursor-pointer"
           >
             <span>الكتالوج السريع</span>
             <ChevronLeft className="w-3.5 h-3.5" />
@@ -647,6 +667,4 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
     </div>
   );
-};
-
 export default DashboardHome;
