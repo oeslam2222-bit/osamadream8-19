@@ -70,6 +70,7 @@ import {
 } from 'recharts';
 import { useApp } from '../context/AppContext';
 import { compressImageFile, uploadImageToCloudinary } from '../services/cloudinaryService';
+import { getLocalShopPhotos, mergeShopPhotos, setLocalShopPhotos } from '../services/customerShopPhotos';
 import { Customer, CustomerVisit, User, Invoice, OrderStatus } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import {
@@ -1107,6 +1108,34 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
   const [shopPhotoUploading, setShopPhotoUploading] = useState(false);
   const [shopPhotoMsg, setShopPhotoMsg] = useState<{type:'ok'|'err'; text:string}|null>(null);
+  const shopPhotosForSelected = useMemo(() => mergeShopPhotos(selectedCustomer as any), [selectedCustomer, shopPhotoMsg]);
+
+  const handleAddShopPhoto = async (file: File | null) => {
+    if (!file || !selectedCustomer) return;
+    const current = mergeShopPhotos(selectedCustomer as any);
+    if (current.length >= 3) { setShopPhotoMsg({type:'err', text:'الحد الأقصى 3 صور للمحل.'}); return; }
+    if (!cloudinaryConfig?.cloudName) { setShopPhotoMsg({type:'err', text:'إعدادات Cloudinary غير مفعّلة (cloudName). ارفع الصور بعد تفعيل الإعدادات أو استخدم روابط خارجية معتمدة.'}); return; }
+    setShopPhotoUploading(true); setShopPhotoMsg(null);
+    try {
+      const compressed = await compressImageFile(file, 1200, 1200, 0.72, 102_400);
+      const res = await uploadImageToCloudinary(compressed, cloudinaryConfig, `customer_photos/${selectedCustomer.id}`);
+      const next = [...current, { url: res.url, publicId: res.publicId, uploadedAt: new Date().toISOString() }].slice(0,3);
+      setLocalShopPhotos(selectedCustomer.id, next);
+      updateCustomer({ ...selectedCustomer, shopPhotos: next } as any);
+      setSelectedCustomer((prev)=> prev ? ({...prev, shopPhotos: next} as any) : prev);
+      setShopPhotoMsg({type:'ok', text:'تم رفع الصورة بعد الضغط (~100KB) لتقليل الاستهلاك.'});
+    } catch (e:any) {
+      setShopPhotoMsg({type:'err', text: e?.message || 'تعذر رفع الصورة.'});
+    } finally { setShopPhotoUploading(false); }
+  };
+
+  const handleRemoveShopPhoto = (url: string) => {
+    if (!selectedCustomer) return;
+    const next = mergeShopPhotos(selectedCustomer as any).filter(p=>p.url!==url);
+    setLocalShopPhotos(selectedCustomer.id, next);
+    updateCustomer({ ...selectedCustomer, shopPhotos: next } as any);
+    setSelectedCustomer((prev)=> prev ? ({...prev, shopPhotos: next} as any) : prev);
+  };
 
   // Excel File Upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2162,8 +2191,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
 
       {/* CUSTOMER 360-DEGREE DETAIL DRAWER / MODAL */}
       {selectedCustomer && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm overflow-y-auto p-2 sm:p-4 md:p-6 flex items-center justify-center animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-5xl xl:max-w-6xl w-full sm:w-[94%] my-2 sm:my-4 shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 max-h-[90vh]">
+        <div className="fixed inset-0 z-[60] bg-slate-950/75 backdrop-blur-sm overflow-y-auto p-0 sm:p-4 md:p-6 flex items-stretch sm:items-center justify-center animate-in fade-in">
+          <div className="bg-[var(--app-surface,#fff)] dark:bg-[var(--app-surface)] w-full h-full sm:h-auto sm:max-h-[92vh] sm:rounded-3xl max-w-6xl sm:w-[96%] shadow-2xl border-0 sm:border border-[var(--app-line)] flex flex-col overflow-hidden">
             {/* Modal Header */}
             <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white rounded-t-3xl flex items-center justify-between sticky top-0 z-20 border-b border-slate-800">
               <div className="flex items-center gap-3 sm:gap-4">
@@ -2235,6 +2264,26 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   ) : (
                     <span className="text-xs text-slate-400 font-bold">لا يوجد رقم هاتف مسجل</span>
                   )}
+                </div>
+
+                {/* صور المحل (حتى 3) — Cloudinary مضغوط ~100KB، تخزين محلي آمن بدون تغيير Schema */}
+                <div className="w-full sm:w-auto flex flex-col gap-1.5">
+                  <div className="text-[11px] font-black text-slate-600">صور المحل ({shopPhotosForSelected.length}/3)</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {shopPhotosForSelected.map((ph) => (
+                      <div key={ph.url} className="relative w-14 h-14 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 shrink-0 group">
+                        <img src={ph.url} alt="صورة المحل" className="w-full h-full object-cover" loading="lazy" />
+                        <button type="button" onClick={()=>handleRemoveShopPhoto(ph.url)} className="absolute inset-0 bg-black/45 text-white opacity-0 group-hover:opacity-100 transition text-[10px] font-bold">حذف</button>
+                      </div>
+                    ))}
+                    {shopPhotosForSelected.length < 3 && (
+                      <label className={`w-14 h-14 rounded-xl border-2 border-dashed flex items-center justify-center cursor-pointer shrink-0 ${shopPhotoUploading?'opacity-60 pointer-events-none':'border-slate-300 hover:border-[var(--brand-primary)] bg-white'}`} title="إضافة صورة (تُضغط تلقائيًا ~100KB)">
+                        <input type="file" accept="image/*" className="hidden" onChange={(e)=>{ const f=e.target.files?.[0]||null; e.currentTarget.value=''; handleAddShopPhoto(f); }} />
+                        <span className="text-[10px] font-black text-slate-500 text-center leading-tight">{shopPhotoUploading?'...':'إضافة\nصورة'}</span>
+                      </label>
+                    )}
+                  </div>
+                  {shopPhotoMsg && <div className={`text-[10px] font-bold ${shopPhotoMsg.type==='ok'?'text-emerald-700':'text-rose-600'}`}>{shopPhotoMsg.text}</div>}
                 </div>
 
                 <div className="flex items-center gap-2">
