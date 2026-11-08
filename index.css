@@ -43,26 +43,32 @@
 }
 
 :root {
+  /* Spec palette (Dream Tantawy visual identity) */
+  --app-primary: #2563EB;
+  --app-secondary: #0D9488;
+  --app-success: #16A34A;
+  --app-warning: #F59E0B;
+  --app-danger: #DC2626;
+  --app-violet: #7C3AED;
+
   /* Core palette */
   --app-ink: #0f172a;
   --app-navy: #0f2b38;
-  --app-blue: #3882f6;
-  --app-blue-soft: #eff6ff;
-  --app-canvas: #f8fafc;
+  --app-blue: #2563EB;
+  --app-canvas: #f1f5f9;
   --app-line: #e2e8f0;
   --app-muted: #64748b;
-  --app-accent: #009488;
-  /* Tantawy Group Reference Design Tokens */
-  --brand-teal: #009488;
-  --brand-teal-dark: #0f2b38;
+  --app-accent: #0D9488;
+  --brand-teal: #0D9488;
+  --brand-teal-dark: #0b1220;
   --brand-teal-light: #e6f7f5;
-  --brand-blue: #3882f6;
-  --brand-amber: #f59e0b;
-  --brand-purple: #6366f1;
-  --app-ok: #009488;    /* success / teal */
-  --app-warn: #f59e0b;  /* caution / amber */
-  --app-risk: #ef4444;  /* risk / red */
-  /* Semantic accent tints / lines / text (used by stat-card icons & chips) */
+  --brand-blue: #2563EB;
+  --brand-amber: #F59E0B;
+  --brand-purple: #7C3AED;
+  --app-ok: #16A34A;
+  --app-warn: #F59E0B;
+  --app-risk: #DC2626;
+  /* Semantic accent tints / lines / text */
   --app-ok-tint: #ecfdf5;
   --app-ok-line: #99f6e4;
   --app-ok-text: #065f46;
@@ -77,7 +83,6 @@
   --app-navy-text: #1e3a8a;
   --app-radius: 14px;
   --app-btn-radius: 10px;
-  /* Design-system scale (added for visual consistency) */
   --r-sm: 8px;
   --r-md: 12px;
   --r-lg: 16px;
@@ -87,48 +92,47 @@
   --sh-md: 0 4px 12px rgba(15, 23, 42, .08);
   --sh-lg: 0 12px 32px rgba(15, 23, 42, .12);
   --ease: .18s ease;
-  --focus-ring: 0 0 0 3px rgba(0, 148, 136, .35);
+  --focus-ring: 0 0 0 3px rgba(37, 99, 235, .35);
 
-  /* Micro-interaction timing */
   --mi-fast: .12s ease;
   --mi-normal: .18s ease;
   --mi-slow: .25s ease;
   --mi-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   /* ===== Semantic color tokens for consistent theming ===== */
-  /* Backgrounds */
-  --bg-body: #eef3f8;
-  --bg-surface: #f8fafc;
+  /* Backgrounds — Light Mode per spec */
+  --bg-body: #F1F5F9;
+  --bg-surface: #FFFFFF;
   --bg-surface-alt: #f1f5f9;
   --bg-surface-hover: #f8fafc;
   --bg-input: #ffffff;
   --bg-disabled: #f1f5f9;
   --bg-toast: #0f172a;
 
-  /* Text */
-  --text-primary: #0f172a;
+  /* Text — Light Mode per spec */
+  --text-primary: #0F172A;
   --text-secondary: #475569;
   --text-muted: #64748b;
   --text-light: #94a3b8;
   --text-inverse: #ffffff;
-  --text-link: #009488;
+  --text-link: #2563EB;
 
-  /* Borders */
-  --border-primary: #e2e8f0;
-  --border-focus: #009488;
+  /* Borders — Light Mode per spec */
+  --border-primary: #E2E8F0;
+  --border-focus: #2563EB;
   --border-input: #cbd5e1;
 
   /* Interactive states */
-  --btn-primary-bg: #0f2b38;
+  --btn-primary-bg: #2563EB;
   --btn-primary-text: #ffffff;
-  --btn-primary-hover: #0b1f29;
+  --btn-primary-hover: #1d4ed8;
   --btn-secondary-bg: #ffffff;
-  --btn-secondary-text: #0f172a;
+  --btn-secondary-text: #0F172A;
   --btn-secondary-hover: #f8fafc;
-  --btn-danger-bg: #ef4444;
+  --btn-danger-bg: #DC2626;
   --btn-danger-text: #ffffff;
-  --btn-danger-hover: #dc2626;
-  --btn-warn-bg: #f59e0b;
+  --btn-danger-hover: #b91c1c;
+  --btn-warn-bg: #F59E0B;
   --btn-warn-text: #ffffff;
   --btn-warn-hover: #d97706;
 
@@ -150,106 +154,113 @@
   --sector-both-bg: #e9d5ff;
   --sector-both-text: #6b21a8;
 
-  /* Dark mode overrides will be applied via .dark class or media query */
+  /* Dark mode overrides will be applied via .dark class */
 }
 
 /* Dark mode support - both system preference and manual .dark class */
 @media (prefers-color-scheme: dark) {
   :root,
   .dark {
-    --bg-body: #0f172a;
-    --bg-surface: #1e293b;
-    --bg-surface-alt: #334155;
-    --bg-surface-hover: #475569;
-    --bg-input: #1e293b;
-    --bg-disabled: #334155;
-    --bg-toast: #0f172a;
+    /* Backgrounds — Dark Mode per spec */
+    --bg-body: #0B1220;
+    --bg-surface: #111C2E;
+    --bg-surface-alt: #17243A;
+    --bg-surface-hover: #26364D;
+    --bg-input: #111C2E;
+    --bg-disabled: #17243A;
+    --bg-toast: #0B1220;
 
-    --text-primary: #f8fafc;
-    --text-secondary: #cbd5e1;
-    --text-muted: #94a3b8;
-    --text-light: #64748b;
+    /* Text — Dark Mode per spec */
+    --text-primary: #F1F5F9;
+    --text-secondary: #94A3B8;
+    --text-muted: #64748b;
+    --text-light: #cbd5e1;
     --text-inverse: #ffffff;
-    --text-link: #2dd4bf;
+    --text-link: #5eead4;
 
-    --border-primary: #334155;
-    --border-focus: #2dd4bf;
+    /* Borders — Dark Mode per spec */
+    --border-primary: #26364D;
+    --border-focus: #2563EB;
     --border-input: #475569;
 
-    --btn-primary-bg: #3882f6;
+    /* Interactive states — Dark Mode */
+    --btn-primary-bg: #2563EB;
     --btn-primary-text: #ffffff;
-    --btn-primary-hover: #2563eb;
-    --btn-secondary-bg: #334155;
-    --btn-secondary-text: #f8fafc;
-    --btn-secondary-hover: #475569;
-    --btn-danger-bg: #ef4444;
+    --btn-primary-hover: #1d4ed8;
+    --btn-secondary-bg: #17243A;
+    --btn-secondary-text: #F1F5F9;
+    --btn-secondary-hover: #26364D;
+    --btn-danger-bg: #DC2626;
     --btn-danger-text: #ffffff;
-    --btn-danger-hover: #dc2626;
-    --btn-warn-bg: #f59e0b;
+    --btn-danger-hover: #b91c1c;
+    --btn-warn-bg: #F59E0B;
     --btn-warn-text: #ffffff;
     --btn-warn-hover: #d97706;
 
+    /* Status chips — Dark Mode */
     --chip-ok-bg: #064e3b;
     --chip-ok-text: #6ee7b7;
     --chip-warn-bg: #713f12;
     --chip-warn-text: #fde047;
     --chip-risk-bg: #7f1d1d;
     --chip-risk-text: #fca5a5;
-    --chip-muted-bg: #475569;
-    --chip-muted-text: #cbd5e1;
+    --chip-muted-bg: #26364D;
+    --chip-muted-text: #94a3b8;
 
+    /* Sector badges — Dark Mode */
     --sector-home-bg: #1e3a8a;
     --sector-home-text: #bfdbfe;
     --sector-electrical-bg: #713f12;
     --sector-electrical-text: #fcd34d;
     --sector-both-bg: #5b21b6;
     --sector-both-text: #e9d5ff;
-    --app-ok-tint: rgba(16,185,129,0.12);
-    --app-ok-line: rgba(45,212,191,0.25);
+
+    --app-ok-tint: rgba(22, 163, 74, 0.12);
+    --app-ok-line: rgba(34, 197, 94, 0.25);
     --app-ok-text: #6ee7b7;
-    --app-warn-tint: rgba(245,158,11,0.12);
-    --app-warn-line: rgba(251,191,36,0.25);
+    --app-warn-tint: rgba(245, 158, 11, 0.12);
+    --app-warn-line: rgba(251, 191, 36, 0.25);
     --app-warn-text: #fde047;
-    --app-risk-tint: rgba(239,68,68,0.12);
-    --app-risk-line: rgba(251,113,133,0.25);
+    --app-risk-tint: rgba(220, 38, 38, 0.12);
+    --app-risk-line: rgba(251, 113, 133, 0.25);
     --app-risk-text: #fca5a5;
-    --app-navy-tint: rgba(30,58,138,0.12);
-    --app-navy-line: rgba(191,219,254,0.25);
-    --app-navy-text: #bfdbfe;
+    --app-navy-tint: rgba(37, 99, 235, 0.12);
+    --app-navy-line: rgba(91, 135, 254, 0.25);
+    --app-navy-text: #93c5fd;
   }
 }
 
 /* Manual dark mode class override - works regardless of system preference */
 .dark {
-  --bg-body: #0f172a;
-  --bg-surface: #1e293b;
-  --bg-surface-alt: #334155;
-  --bg-surface-hover: #475569;
-  --bg-input: #1e293b;
-  --bg-disabled: #334155;
-  --bg-toast: #0f172a;
+  --bg-body: #0B1220;
+  --bg-surface: #111C2E;
+  --bg-surface-alt: #17243A;
+  --bg-surface-hover: #26364D;
+  --bg-input: #111C2E;
+  --bg-disabled: #17243A;
+  --bg-toast: #0B1220;
 
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --text-light: #64748b;
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748b;
+  --text-light: #cbd5e1;
   --text-inverse: #ffffff;
-  --text-link: #2dd4bf;
+  --text-link: #5eead4;
 
-  --border-primary: #334155;
-  --border-focus: #2dd4bf;
+  --border-primary: #26364D;
+  --border-focus: #2563EB;
   --border-input: #475569;
 
-  --btn-primary-bg: #3882f6;
+  --btn-primary-bg: #2563EB;
   --btn-primary-text: #ffffff;
-  --btn-primary-hover: #2563eb;
-  --btn-secondary-bg: #334155;
-  --btn-secondary-text: #f8fafc;
-  --btn-secondary-hover: #475569;
-  --btn-danger-bg: #ef4444;
+  --btn-primary-hover: #1d4ed8;
+  --btn-secondary-bg: #17243A;
+  --btn-secondary-text: #F1F5F9;
+  --btn-secondary-hover: #26364D;
+  --btn-danger-bg: #DC2626;
   --btn-danger-text: #ffffff;
-  --btn-danger-hover: #dc2626;
-  --btn-warn-bg: #f59e0b;
+  --btn-danger-hover: #b91c1c;
+  --btn-warn-bg: #F59E0B;
   --btn-warn-text: #ffffff;
   --btn-warn-hover: #d97706;
 
@@ -259,8 +270,8 @@
   --chip-warn-text: #fde047;
   --chip-risk-bg: #7f1d1d;
   --chip-risk-text: #fca5a5;
-  --chip-muted-bg: #475569;
-  --chip-muted-text: #cbd5e1;
+  --chip-muted-bg: #26364D;
+  --chip-muted-text: #94a3b8;
 
   --sector-home-bg: #1e3a8a;
   --sector-home-text: #bfdbfe;
@@ -268,18 +279,18 @@
   --sector-electrical-text: #fcd34d;
   --sector-both-bg: #5b21b6;
   --sector-both-text: #e9d5ff;
-    --app-ok-tint: rgba(16,185,129,0.12);
-    --app-ok-line: rgba(45,212,191,0.25);
-    --app-ok-text: #6ee7b7;
-    --app-warn-tint: rgba(245,158,11,0.12);
-    --app-warn-line: rgba(251,191,36,0.25);
-    --app-warn-text: #fde047;
-    --app-risk-tint: rgba(239,68,68,0.12);
-    --app-risk-line: rgba(251,113,133,0.25);
-    --app-risk-text: #fca5a5;
-    --app-navy-tint: rgba(30,58,138,0.12);
-    --app-navy-line: rgba(191,219,254,0.25);
-    --app-navy-text: #bfdbfe;
+  --app-ok-tint: rgba(22,163,74,0.12);
+  --app-ok-line: rgba(34,197,94,0.25);
+  --app-ok-text: #6ee7b7;
+  --app-warn-tint: rgba(245,158,11,0.12);
+  --app-warn-line: rgba(251,191,36,0.25);
+  --app-warn-text: #fde047;
+  --app-risk-tint: rgba(220,38,38,0.12);
+  --app-risk-line: rgba(251,113,133,0.25);
+  --app-risk-text: #fca5a5;
+  --app-navy-tint: rgba(37,99,235,0.12);
+  --app-navy-line: rgba(91,135,254,0.25);
+  --app-navy-text: #93c5fd;
 }
 
 /* Utility classes for dark mode tokens */

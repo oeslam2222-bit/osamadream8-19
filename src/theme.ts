@@ -29,54 +29,51 @@ export interface ColorPalette {
 }
 
 /**
- * Full color palette as defined in the CSS variables.
- * Keep in sync with :root and .dark rules in index.css.
+ * Dream Tantawy color palette per visual identity spec.
+ * Primary: #2563EB | Secondary: #0D9488 | Success: #16A34A
+ * Warning: #F59E0B | Danger: #DC2626 | Violet: #7C3AED
  */
 export const colorPalette: ColorPalette = {
   light: {
-    background: "#F8F9FA",
+    background: "#F1F5F9",
     surface: "#FFFFFF",
-    surfaceSubtle: "#F1F3F5",
+    surfaceSubtle: "#f1f5f9",
     card: "#FFFFFF",
-    border: "#DEE2E6",
-    text: "#212529",
-    textSecondary: "#6C757D",
-    textMuted: "#ADB5BD",
-    primary: "#2E7D32",
-    primaryHover: "#27672B",
-    accent: "#1976D2",
-    accentHover: "#1565C0",
-    success: "#4CAF50",
-    warning: "#FFA000",
-    error: "#E53935",
+    border: "#E2E8F0",
+    text: "#0F172A",
+    textSecondary: "#475569",
+    textMuted: "#64748b",
+    primary: "#2563EB",
+    primaryHover: "#1d4ed8",
+    accent: "#0D9488",
+    accentHover: "#0b796e",
+    success: "#16A34A",
+    warning: "#F59E0B",
+    error: "#DC2626",
   },
   dark: {
-    background: "#121212",
-    surface: "#1E1E1E",
-    surfaceSubtle: "#252525",
-    card: "#252525",
-    border: "#424242",
-    text: "#E0E0E0",
-    textSecondary: "#B0B0B0",
-    textMuted: "#616161",
-    primary: "#BB86FC",
-    primaryHover: "#A473F8",
-    accent: "#03DAC6",
-    accentHover: "#02CBC0",
-    success: "#81C784",
-    warning: "#FFB300",
-    error: "#FF5252",
+    background: "#0B1220",
+    surface: "#111C2E",
+    surfaceSubtle: "#17243A",
+    card: "#111C2E",
+    border: "#26364D",
+    text: "#F1F5F9",
+    textSecondary: "#94A3B8",
+    textMuted: "#64748b",
+    primary: "#2563EB",
+    primaryHover: "#1d4ed8",
+    accent: "#0D9488",
+    accentHover: "#0b796e",
+    success: "#16A34A",
+    warning: "#F59E0B",
+    error: "#DC2626",
   },
 };
 
 /**
  * Helper to get the appropriate color value for the current mode.
- * Usage: const bg = useColorMode("background"); // returns "#F8F9FA" or "#121212"
- * This can be integrated with a React context if needed.
+ * Consumers should prefer using CSS custom properties directly (var(--...)).
  */
 export const useColorMode = (token: ColorToken): string => {
-  // In a real implementation, this would read from a theme context.
-  // For now, we just return the light value; consumers should prefer
-  // using the CSS custom properties directly (var(--color-...)).
   return colorPalette.light[token];
 };

@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { Store, Truck, Receipt, Users, Zap, CheckCircle2 } from 'lucide-react';
+import { useTheme } from '../context/themeContext';
 
 const SPLASH_ITEMS = [
   { icon: Store, label: 'تحديث شعار مجموعة الطنطاوي...' },
@@ -19,6 +20,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
   isOpen,
   onComplete,
 }) => {
+  const { isDark } = useTheme();
   const [currentItem, setCurrentItem] = useState(0);
   const [progress, setProgress] = useState(0);
 
@@ -36,7 +38,6 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
     return () => clearInterval(interval);
   }, [onComplete]);
 
-  // Run animation once when splash opens
   React.useEffect(() => {
     if (isOpen) {
       const cleanup = startAnimation();
@@ -50,39 +51,63 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-navy text-white flex flex-col items-center justify-center p-4 sm:p-8 text-center"
+      className={`fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 sm:p-8 text-center transition-colors duration-300 ${
+        isDark
+          ? 'bg-[#0B1220] text-[#F1F5F9]'
+          : 'bg-[#F1F5F9] text-[#0F172A]'
+      }`}
       role="dialog"
       aria-modal="true"
       aria-label="شاشة ترحيب"
     >
       {/* Logo container */}
-      <div className="w-24 h-24 rounded-3xl bg-white/10 border border-white/20 flex items-center justify-center mx-auto mb-8 shadow-2xl backdrop-blur-sm animate-bounce-slow">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-teal-400 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-teal-500/30">
+      <div className={`w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl transition-colors duration-300 ${
+        isDark
+          ? 'bg-[#111C2E] border border-[#26364D]/30 text-[#F1F5F9] backdrop-blur-sm'
+          : 'bg-[#FFFFFF] border border-[#E2E8F0]/30 text-[#0F172A] backdrop-blur-sm'
+      }`}>
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#2563EB] to-[#0D9488] flex items-center justify-center text-white shadow-lg shadow-[#2563EB]/30">
           <Store className="w-8 h-8" />
         </div>
       </div>
 
       {/* Brand name */}
-      <h2 className="text-2xl sm:text-3xl font-black tracking-tight mb-2 font-tajawal">
+      <h2 className={`text-2xl sm:text-3xl font-black tracking-tight mb-2 font-tajawal transition-colors duration-300 ${
+        isDark ? 'text-[#F1F5F9]' : 'text-[#0F172A]'
+      }`}>
         مجموعة الطنطاوي
       </h2>
-      <p className="text-teal-200 text-sm sm:text-base font-semibold uppercase tracking-wider mb-8">
+      <p className={`text-sm sm:text-base font-semibold uppercase tracking-wider mb-8 transition-colors duration-300 ${
+        isDark ? 'text-[#5eead4]' : 'text-[#0D9488]'
+      }`}>
         Tantawy Group - نظام المبيعات والمخازن
       </p>
 
       {/* Progress card */}
-      <div className="w-full max-w-xs bg-white/5 border border-white/10 rounded-2xl p-4 backdrop-blur-sm shadow-xl">
-        <div className="flex justify-between mb-2 text-xs font-bold text-teal-200">
-          <span>جاري التحضير</span>
-          <span>{Math.round(progress)}%</span>
+      <div className={`w-full max-w-xs rounded-2xl p-4 shadow-xl transition-colors duration-300 ${
+        isDark
+          ? 'bg-[#111C2E] border border-[#26364D]/50'
+          : 'bg-[#FFFFFF] border border-[#E2E8F0]'
+      }`}>
+        <div className="flex justify-between mb-2 text-xs font-bold">
+          <span className={`transition-colors duration-300 ${isDark ? 'text-[#94A3B8]' : 'text-[#64748b]'}`}>
+            جاري التحضير
+          </span>
+          <span className={`transition-colors duration-300 ${isDark ? 'text-[#F1F5F9]' : 'text-[#0F172A]'}`}>
+            {Math.round(progress)}%
+          </span>
         </div>
-        <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden border border-white/10">
+        <div className="w-full bg-slate-200/50 rounded-full h-2 overflow-hidden border border-slate-200/30 transition-colors duration-300">
           <div
-            className="h-full bg-teal-400 rounded-full transition-all duration-500 ease-out animate-pulse-shadow"
+            className={`h-full rounded-full transition-all duration-500 ease-out animate-pulse-shadow ${
+              isDark ? 'bg-[#2563EB]' : 'bg-[#2563EB]'
+            }`}
             style={{ width: `${progress}%` }}
           />
         </div>
-        <p className="text-teal-100 text-[10px] mt-3 font-medium">{item.label}</p>
+        <p className={`text-[10px] mt-3 font-medium transition-colors duration-300 ${
+          isDark ? 'text-[#94A3B8]' : 'text-[#64748b]'
+        }`}>{item.label}</p>
       </div>
 
       {/* Decorative dots */}
@@ -92,8 +117,10 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
             key={i}
             className={`w-2 h-2 rounded-full transition-all duration-300 ${
               i <= Math.floor(currentItem / 2)
-                ? 'bg-teal-400 animate-bounce'
-                : 'bg-white/20'
+                ? 'bg-[#2563EB] animate-bounce'
+                : isDark
+                  ? 'bg-[#26364D]'
+                  : 'bg-[#E2E8F0]'
             }`}
           />
         ))}
