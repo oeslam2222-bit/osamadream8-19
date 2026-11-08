@@ -1916,7 +1916,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           <div className="p-3 sm:p-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
               {(showMoreCards ? filteredCustomers : filteredCustomers.slice(0, 10)).map((c, index) => {
-            {paginatedCustomers.map((c, index) => {
               const bal = c.currentBalance ?? c.balance ?? 0;
               const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
               const limit = c.creditLimit || 0;
