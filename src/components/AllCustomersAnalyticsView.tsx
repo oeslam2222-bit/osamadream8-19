@@ -273,6 +273,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(10);
   const [showMoreCards, setShowMoreCards] = useState(false);
+  useEffect(() => { setShowMoreCards(false); }, [searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedSector, selectedRegion, debtFilter, eligibilityFilter, dealtFilter]);
 
   // BI Charts Toggle
   const [showCharts, setShowCharts] = useState(false);
@@ -1912,203 +1913,71 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           </div>
         ) : (
           <>
-          {/* كروت العملاء (افتراضي): أول 10 ثم إظهار المزيد — مع فلاتر الاسم/المندوب/الفرع/القطاع */}
+          {/* كروت العملاء — أول 10 افتراضيًا + تحميل المزيد (بدون جلب كل القائمة للعرض) */}
           <div className="p-3 sm:p-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
               {(showMoreCards ? filteredCustomers : filteredCustomers.slice(0, 10)).map((c, index) => {
-              const bal = c.currentBalance ?? c.balance ?? 0;
-              const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
-              const limit = c.creditLimit || 0;
-              const isOverLimit = limit > 0 && bal > limit;
-              const monthlySalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-              const s26 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySalesSum);
-              const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-              const col26 = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, c.totalOverallCollections || 0, monthlyColsSum);
-              const colRate = s26 > 0 ? Math.round((col26 / s26) * 100) : 0;
-              const guaranteeInfo = getGuaranteeBadge(c.guaranteeDocs, c.guaranteeAmount, limit);
-              
-              // Avatar (صورة بروفايل / أفاتار مميز) + الحالة
-              const firstLetter = (c.name || 'ع').trim().charAt(0);
-              const avatarColors = [
-                'bg-[var(--brand-primary)] text-white',
-                'bg-[var(--brand-secondary)] text-white',
-                'bg-[var(--app-violet)] text-white',
-                'bg-[var(--app-warn)] text-slate-950',
-                'bg-[var(--app-ok)] text-white',
-              ];
-              const avatarBg = avatarColors[(c.code ? c.code.charCodeAt(c.code.length - 1) : index) % avatarColors.length];
-              const lastVisit = c.lastVisitDate || c.visitHistory?.[0]?.date || '—';
-
-              // Customer Status logic
-              const isLegal = c.isLegalPending || (c.legalStatus && c.legalStatus !== 'none');
-              const statusBadge = getCustomerStatusBadge(c);
-              const dealtBadge = getCustomerDealtBadge(c);
-              const creditUsage = getCreditUsagePercent(c);
-              const paidAmount = Math.max(
-                Math.abs(Number(c.collections2026) || 0),
-                Math.abs(Number(c.totalMonthlyCollections) || 0),
-                Math.abs(Number(c.totalOverallCollections) || 0)
-              );
-
-              return (
-                <button
-                  type="button"
-                  key={c.id || c.code}
-                  onClick={() => setQuickCustomer(c)}
-                  className="text-right bg-white dark:bg-[var(--app-surface)] rounded-2xl border border-[var(--app-line)] shadow-sm p-3.5 space-y-3 hover:border-[var(--brand-primary)] hover:shadow-md transition cursor-pointer card-hover-lift"
-                >
-                  {/* Card Header: Avatar + Info + Status */}
-                  <div className="flex items-start justify-between gap-2.5">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-base shrink-0 shadow-sm overflow-hidden ring-2 ring-white/60 ${avatarBg}`}>
-                        {c.profileImageUrl ? <img src={c.profileImageUrl} alt={c.name} className="w-full h-full object-cover" /> : firstLetter}
-                      </div>
-                      <div className="min-w-0">
-                        <div className="font-black text-[var(--app-text)] text-sm truncate">
-                          {c.name}
+                const bal = c.currentBalance ?? c.balance ?? 0;
+                const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
+                const paidAmount = Math.max(Math.abs(Number(c.collections2026)||0), Math.abs(Number(c.totalMonthlyCollections)||0), Math.abs(Number(c.totalOverallCollections)||0));
+                const firstLetter = (c.name || 'ع').trim().charAt(0);
+                const avatarColors = ['bg-[var(--brand-primary)] text-white','bg-[var(--brand-secondary)] text-white','bg-[var(--app-violet)] text-white','bg-[var(--app-warn)] text-slate-950','bg-[var(--app-ok)] text-white'];
+                const avatarBg = avatarColors[(c.code ? c.code.charCodeAt(c.code.length - 1) : index) % avatarColors.length];
+                const lastVisit = c.lastVisitDate || c.visitHistory?.[0]?.date || c.visitHistory?.[c.visitHistory?.length ? c.visitHistory.length-1 : 0]?.date || '—';
+                const statusBadge = getCustomerStatusBadge(c);
+                const dealtBadge = getCustomerDealtBadge(c);
+                const isLegal = c.isLegalPending || (c.legalStatus && c.legalStatus !== 'none');
+                return (
+                  <button type="button" key={c.id || c.code} onClick={() => setQuickCustomer(c)}
+                    className="text-right bg-white dark:bg-[var(--app-surface)] rounded-2xl border border-[var(--app-line)] shadow-sm p-3.5 sm:p-4 space-y-3 hover:border-[var(--brand-primary)] hover:shadow-md transition card-hover-lift">
+                    <div className="flex items-start justify-between gap-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center font-black text-lg shrink-0 overflow-hidden ring-1 ring-[var(--app-line)] ${avatarBg}`}>
+                          {c.profileImageUrl ? <img src={c.profileImageUrl} alt={c.name} className="w-full h-full object-cover" loading="lazy" /> : firstLetter}
                         </div>
-                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-medium mt-0.5 flex-wrap">
-                          <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.2 rounded font-bold">{c.code || '---'}</span>
-                          <span>·</span>
-                          <span>{c.branchName || c.region || 'بدون فرع'}</span>
-                          {c.sector && c.sector !== 'all' && (
-                            <span className={`px-1.5 py-0.5 rounded-lg text-[10px] font-bold shrink-0 ${
-                              c.sector === 'home' ? 'bg-blue-50 text-blue-800 border border-blue-200' : 'bg-amber-50 text-amber-800 border border-amber-200'
-                            }`}>
-                              {c.sector === 'home' ? '🏠 منزلي' : '⚡ كهرباء'}
-                            </span>
-                          )}
+                        <div className="min-w-0">
+                          <div className="font-black text-[var(--app-text)] text-sm sm:text-base truncate">{c.name}</div>
+                          <div className="flex items-center gap-1.5 text-[11px] text-[var(--app-muted)] mt-0.5 flex-wrap">
+                            <span className="font-mono bg-[var(--app-surface-2)] text-[var(--app-text)] px-1.5 py-0.5 rounded-lg font-bold border border-[var(--app-line)]">{c.code || '---'}</span>
+                            <span>{c.branchName || c.region || 'بدون فرع'}</span>
+                          </div>
+                          <div className="text-[11px] text-[var(--app-muted)] mt-0.5 truncate">المندوب: {c.salesRepName || c.repName || '—'}{c.sector && c.sector !== 'all' ? ` · ${c.sector==='home'?'منزلي':c.sector==='electrical'?'كهرباء':'القطاعين'}` : ''}</div>
                         </div>
                       </div>
-                    </div>
-
-                    <div className="shrink-0 flex flex-col items-end gap-1">
-                      {isLegal ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)]">
-                          <ShieldAlert className="w-3 h-3 text-[var(--app-risk-text)]" />
-                          <span>شؤون قانونية</span>
-                        </span>
-                      ) : null}
-                      <span className={`pill pill-${statusBadge.tone}`}>{statusBadge.label}</span>
-                      <span className={`pill pill-${dealtBadge.tone}`}>{dealtBadge.label}</span>
-                      <span className="text-[10px] font-mono text-slate-400">#{(currentPage - 1) * pageSize + index + 1}</span>
-                    </div>
-                  </div>
-
-                  {/* بيانات مالية + آخر زيارة (خارج الكارت بالتفصيل عند الضغط) */}
-                  <div className="grid grid-cols-2 gap-1.5 pt-1 text-[11px]">
-                    <div className="rounded-xl bg-[var(--app-surface-2)] border border-[var(--app-line)] p-2">
-                      <div className="text-[10px] text-[var(--app-muted)] font-bold">المديونية</div>
-                      <div className="font-black text-[var(--app-text)] tabular-nums">{formatCompactMoney(bal)}</div>
-                    </div>
-                    <div className="rounded-xl bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] p-2">
-                      <div className="text-[10px] text-[var(--app-risk-text)] font-bold">المستحق</div>
-                      <div className="font-black text-[var(--app-risk-text)] tabular-nums">{formatCompactMoney(overdue)}</div>
-                    </div>
-                    <div className="rounded-xl bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] p-2">
-                      <div className="text-[10px] text-[var(--app-ok-text)] font-bold">المسدد</div>
-                      <div className="font-black text-[var(--app-ok-text)] tabular-nums">{formatCompactMoney(paidAmount)}</div>
-                    </div>
-                    <div className="rounded-xl bg-[var(--app-secondary-tint)] border border-[var(--app-secondary-line)] p-2">
-                      <div className="text-[10px] text-[var(--brand-secondary)] font-bold flex items-center gap-1"><CalendarCheck className="w-3 h-3" />آخر زيارة</div>
-                      <div className="font-bold text-[var(--app-text)] truncate">{lastVisit}</div>
-                    </div>
-                  </div>
-                  <div className="hidden">
-                    <div className="rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 p-2 text-right min-w-0">
-                      <div className="text-[9px] text-slate-500 dark:text-slate-400 font-bold whitespace-nowrap">المديونية</div>
-                      <div className="font-black text-[var(--app-navy)] dark:text-white text-xs sm:text-sm mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis font-mono" title={isPrivacyMode ? 'مخفي' : formatMoney(bal)}>
-                        {formatCompactMoney(bal)}
-                      </div>
-                      <div className="cdebt-bar mt-1" aria-hidden="true">
-                        <span
-                          className={creditUsage > 100 ? 'is-over' : creditUsage >= 80 ? 'is-high' : 'is-ok'}
-                          style={{ width: `${Math.min(100, Math.max(limit > 0 ? 3 : 0, creditUsage))}%` }}
-                        />
-                      </div>
-                      <div className={`text-[8.5px] font-bold mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis ${creditUsage > 100 ? 'text-rose-600' : 'text-slate-500'}`} title={limit > 0 ? `حد ${formatMoney(limit)} · ${creditUsage}%` : 'بدون حد'}>
-                        {limit > 0 ? `حد ${formatCompactMoney(limit)} · ${creditUsage}%` : 'بدون حد'}
+                      <div className="shrink-0 flex flex-col items-end gap-1">
+                        {isLegal ? <span className="pill pill-risk text-[10px]"><ShieldAlert className="w-3 h-3" />قانوني</span> : null}
+                        <span className={`pill pill-${statusBadge.tone} text-[10px]`}>{statusBadge.label}</span>
+                        <span className={`pill pill-${dealtBadge.tone} text-[10px]`}>{dealtBadge.label}</span>
                       </div>
                     </div>
-
-                    <div className="rounded-xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200/80 dark:border-rose-900/40 p-2 text-right min-w-0">
-                      <div className="text-[9px] text-rose-600 dark:text-rose-400 font-bold whitespace-nowrap">المستحقات</div>
-                      <div className="font-black text-rose-700 dark:text-rose-300 text-xs sm:text-sm mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis font-mono" title={formatMoney(overdue)}>
-                        {formatCompactMoney(overdue)}
-                      </div>
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+                      <div className="rounded-xl bg-[var(--app-surface-2)] border border-[var(--app-line)] p-2"><div className="text-[10px] text-[var(--app-muted)] font-bold">إجمالي المبيعات</div><div className="font-black text-[var(--app-text)] tabular-nums">{formatCompactMoney(Number(c.sales2026||c.totalOverallSales||c.totalMonthlySales||0))}</div></div>
+                      <div className="rounded-xl bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] p-2"><div className="text-[10px] text-[var(--app-ok-text)] font-bold">التحصيلات</div><div className="font-black text-[var(--app-ok-text)] tabular-nums">{formatCompactMoney(paidAmount)}</div></div>
+                      <div className="rounded-xl bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] p-2"><div className="text-[10px] text-[var(--app-risk-text)] font-bold">المديونية الحالية</div><div className="font-black text-[var(--app-risk-text)] tabular-nums">{formatCompactMoney(bal)}</div></div>
+                      <div className="rounded-xl bg-[var(--app-secondary-tint)] border border-[var(--app-secondary-line)] p-2"><div className="text-[10px] text-[var(--brand-secondary)] font-bold flex items-center gap-1"><CalendarCheck className="w-3 h-3" />آخر زيارة</div><div className="font-bold text-[var(--app-text)] truncate">{lastVisit}</div></div>
                     </div>
-
-                    <div className="rounded-xl bg-emerald-50/80 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/40 p-2 text-right min-w-0">
-                      <div className="text-[9px] text-emerald-700 dark:text-emerald-400 font-bold whitespace-nowrap">إجمالي المسدد</div>
-                      <div className="font-black text-emerald-800 dark:text-emerald-300 text-xs sm:text-sm mt-0.5 whitespace-nowrap overflow-hidden text-ellipsis font-mono" title={formatMoney(paidAmount)}>
-                        {formatCompactMoney(paidAmount)}
+                    <div className="flex items-center justify-between pt-1 border-t border-[var(--app-line)]" onClick={(e)=>e.stopPropagation()}>
+                      <div className="flex items-center gap-1.5">
+                        {c.phone ? <a href={`tel:${c.phone}`} className="h-8 px-2.5 rounded-xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)] font-bold text-[11px] inline-flex items-center gap-1"><Phone className="w-3.5 h-3.5" />اتصال</a> : null}
+                        {onOpenNewOrderForCustomer && <button type="button" onClick={()=>onOpenNewOrderForCustomer(c)} className="h-8 px-2.5 rounded-xl bg-[var(--brand-primary)] text-white font-black text-[11px] inline-flex items-center gap-1"><ShoppingCart className="w-3.5 h-3.5" />طلبية</button>}
                       </div>
-                      {colRate > 0 && <div className="text-[8.5px] text-emerald-700 dark:text-emerald-400 font-bold mt-0.5 whitespace-nowrap">سداد {colRate}%</div>}
+                      <span className="text-[11px] font-black text-[var(--brand-primary)] inline-flex items-center gap-1">عرض التفاصيل<ChevronLeft className="w-3.5 h-3.5" /></span>
                     </div>
-                  </div>
-
-                  {/* Customer GPS & Phone Warning */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {c.latitude && c.longitude ? (
-                      <a
-                        href={`https://www.google.com/maps/dir/?api=1&destination=${c.latitude},${c.longitude}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 text-[9.5px] font-bold flex items-center gap-1 hover:bg-emerald-100 transition"
-                        title="فتح موقع العميل في Google Maps"
-                      >
-                        <MapPin className="w-3 h-3 text-emerald-600" />
-                        <span>موقع GPS مسجل 📍</span>
-                      </a>
-                    ) : null}
-
-                    {!c.phone && bal >= 1000000 && (
-                      <div className="rounded-lg border border-[var(--app-warn-line)] bg-[var(--app-warn-tint)] px-2 py-0.5 text-[9.5px] font-bold text-[var(--app-warn-text)] flex items-center gap-1">
-                        <AlertCircle className="w-3 h-3 text-[var(--app-warn-text)] shrink-0" />
-                        <span>مديونية بدون هاتف</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quick Action Footer Strip */}
-                  <div className="flex items-center justify-between gap-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-1.5">
-                      {c.phone ? (
-                        <a
-                          href={`tel:${c.phone}`}
-                          className="h-8 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 transition"
-                          title="اتصال هاتفي بالعميل"
-                        >
-                          <Phone className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>اتصال</span>
-                        </a>
-                      ) : null}
-
-                      {onOpenNewOrderForCustomer && (
-                        <button
-                          type="button"
-                          onClick={() => onOpenNewOrderForCustomer(c)}
-                          className="h-8 px-3 rounded-xl bg-[#0f2b38] hover:bg-[#009488] text-white font-black text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0"
-                          title="بدء طلبية بيع جديدة"
-                        >
-                          <ShoppingCart className="w-3.5 h-3.5 text-teal-300" />
-                          <span>+ طلبية</span>
-                        </button>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setQuickCustomer(c)}
-                      className="h-8 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs flex items-center gap-1 transition cursor-pointer shrink-0"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5 text-slate-500" />
-                      <span>التفاصيل</span>
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
+                  </button>
+                );
+              })}
+            </div>
+            {!showMoreCards && filteredCustomers.length > 10 && (
+              <div className="mt-4 flex justify-center">
+                <button type="button" onClick={()=>setShowMoreCards(true)} className="app-btn app-btn-primary px-6 py-2.5 text-sm rounded-2xl">تحميل المزيد ({(filteredCustomers.length-10).toLocaleString()} عميل)</button>
+              </div>
+            )}
+            {showMoreCards && filteredCustomers.length > 10 && (
+              <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-2">
+                <div className="text-xs text-[var(--app-muted)] font-bold">معروض {filteredCustomers.length.toLocaleString()} عميل</div>
+                <button type="button" onClick={()=>setShowMoreCards(false)} className="app-btn app-btn-ghost px-4 py-2 text-sm rounded-2xl">عرض أول 10 فقط</button>
+              </div>
+            )}
           </div>
           <div className="hidden md:block overflow-x-auto">
             <table className="cust-table w-full text-right border-collapse text-xs">
