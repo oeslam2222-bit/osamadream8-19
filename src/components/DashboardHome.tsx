@@ -262,7 +262,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <div className="lg:col-span-4 grid grid-cols-2 gap-3">
             
             {/* Metric 1: إجمالي المبيعات */}
-            <div className="bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/40 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#2563EB] transition">
+            <div className="bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800/50 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#2563EB] transition">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-blue-700 dark:text-blue-300">إجمالي المبيعات</span>
                 <IconBadge icon={DollarSign} variant="primary" size="md" />
@@ -291,7 +291,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
 
             {/* Metric 2: عدد الطلبات */}
-            <div className="bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-800/40 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#F59E0B] transition">
+            <div className="bg-amber-100 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800/50 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#F59E0B] transition">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-amber-700 dark:text-amber-300">عدد الطلبات</span>
                 <IconBadge icon={Package} variant="warning" size="md" />
@@ -320,7 +320,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
 
             {/* Metric 3: التحصيلات */}
-            <div className="bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-800/40 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#16A34A] transition">
+            <div className="bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#16A34A] transition">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">التحصيلات</span>
                 <IconBadge icon={Wallet} variant="success" size="md" />
@@ -343,7 +343,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
 
             {/* Metric 4: زيارات اليوم */}
-            <div className="bg-violet-50/60 dark:bg-violet-950/20 border border-violet-200/60 dark:border-violet-800/40 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#7C3AED] transition">
+            <div className="bg-violet-100 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-800/50 rounded-2xl p-4 flex flex-col justify-between shadow-sm hover:border-[#7C3AED] transition">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold text-violet-700 dark:text-violet-300">الزيارات</span>
                 <IconBadge icon={MapPin} variant="violet" size="md" />
@@ -403,11 +403,11 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
-            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
+            className="group bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800/30 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
           >
             <IconBadge icon={TrendingUp} variant="primary" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight">المبيعات</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
+            <span className="font-black text-sm sm:text-base leading-tight text-blue-800 dark:text-blue-200">المبيعات</span>
+            <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold mt-1">
               الفواتير والاعتمادات ({visibleInvoices.length})
             </span>
           </button>
@@ -416,11 +416,11 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab('catalog')}
-            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
+            className="group bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/30 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
           >
             <IconBadge icon={ShoppingCart} variant="secondary" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight">الكتالوج والتسوق</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
+            <span className="font-black text-sm sm:text-base leading-tight text-emerald-800 dark:text-emerald-200">الكتالوج والتسوق</span>
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1">
               {visibleProductsList.length} صنف متاح للطلب
             </span>
           </button>
@@ -429,11 +429,11 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab('all_customers')}
-            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
+            className="group bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/30 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
           >
             <IconBadge icon={Users} variant="primary" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight">قاعدة العملاء</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
+            <span className="font-black text-sm sm:text-base leading-tight text-indigo-800 dark:text-indigo-200">قاعدة العملاء</span>
+            <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold mt-1">
               {visibleCustomers.length} عميل بالبيانات والمديونيات
             </span>
           </button>
@@ -442,57 +442,57 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <button
             type="button"
             onClick={() => onNavigateToTab('inventory')}
-            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
+            className="group bg-slate-50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-800/30 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
           >
             <IconBadge icon={Package} variant="secondary" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight">أرصدة المخزون</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">الفرع والمخزن المركزي</span>
+            <span className="font-black text-sm sm:text-base leading-tight text-slate-800 dark:text-slate-200">أرصدة المخزون</span>
+            <span className="text-[10px] text-slate-600 dark:text-slate-400 font-bold mt-1">الفرع والمخزن المركزي</span>
           </button>
 
           {/* Tile 6: خطة الزيارات الميدانية */}
           <button
             type="button"
             onClick={() => onNavigateToTab('visits')}
-            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
+            className="group bg-violet-50 dark:bg-violet-900/20 border border-violet-100 dark:border-violet-800/30 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
           >
             <IconBadge icon={CalendarCheck} variant="violet" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight">الزيارات</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">خط سير المندوب وإحداثيات الموقع</span>
+            <span className="font-black text-sm sm:text-base leading-tight text-violet-800 dark:text-violet-200">الزيارات</span>
+            <span className="text-[10px] text-violet-600 dark:text-violet-400 font-bold mt-1">خط سير المندوب وإحداثيات الموقع</span>
           </button>
 
           {/* Tile 7: التحصيلات والماليات */}
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
-            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
+            className="group bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/30 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
           >
             <IconBadge icon={Wallet} variant="success" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight">التحصيلات</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">متابعة سداد المديونيات والشيكات</span>
+            <span className="font-black text-sm sm:text-base leading-tight text-emerald-800 dark:text-emerald-200">التحصيلات</span>
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1">متابعة سداد المديونيات والشيكات</span>
           </button>
 
           {/* Tile 8: المرتجعات الموحدة */}
           <button
             type="button"
             onClick={() => onNavigateToTab('returns')}
-            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
+            className="group bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800/30 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
           >
             <IconBadge icon={RotateCcw} variant="danger" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight">المرتجعات</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">تسجيل بضاعة ومتابعتها بصور الأصناف</span>
+            <span className="font-black text-sm sm:text-base leading-tight text-rose-800 dark:text-rose-200">المرتجعات</span>
+            <span className="text-[10px] text-rose-600 dark:text-rose-400 font-bold mt-1">تسجيل بضاعة ومتابعتها بصور الأصناف</span>
           </button>
 
           {/* Tile 9: التارجت أو الإكسل */}
           <button
             type="button"
             onClick={() => onNavigateToTab(isAdminOrDev ? 'excel' : 'targets')}
-            className="group bg-white dark:bg-[#111C2E] hover:bg-slate-50 dark:hover:bg-[#17243A] text-[#0F172A] dark:text-[#F1F5F9] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-[#26364D] min-h-[140px] sm:min-h-[160px]"
+            className="group bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800/30 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
           >
             <IconBadge icon={isAdminOrDev ? FileSpreadsheet : Sparkles} variant="warning" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight">
+            <span className="font-black text-sm sm:text-base leading-tight text-amber-800 dark:text-amber-200">
               {isAdminOrDev ? 'الإكسل والمزامنة' : 'التارجت والمستهدف'}
             </span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
+            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold mt-1">
               {isAdminOrDev ? 'تحديث الشيتات السحابية' : 'متابعة نسبة التحقيق الشهرية'}
             </span>
           </button>

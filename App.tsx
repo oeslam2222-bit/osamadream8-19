@@ -19,6 +19,7 @@ import React, { Component, ErrorInfo, Suspense, useEffect, useState } from 'reac
 import { DashboardHome } from './components/DashboardHome';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
+import { Sidebar } from './components/Sidebar';
 import { ProductCatalog } from './components/ProductCatalog';
 import { AllCustomersAnalyticsView as CustomerDirectoryView } from './components/AllCustomersAnalyticsView';
 import { AllCustomersAnalyticsView } from './components/AllCustomersAnalyticsView';
@@ -63,7 +64,9 @@ const MainLayout: React.FC = () => {
   const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
 
   const [activeTab, setActiveTab] = useState<string>('home');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(typeof window !== 'undefined' && window.innerWidth < 1024);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
   const [onboardingOpen, setOnboardingOpen] = useState(false);
@@ -172,6 +175,12 @@ const MainLayout: React.FC = () => {
     } catch {}
   }, [isDark]);
 
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // If user is not logged in, show dedicated Login / Registration Page
   if (!isAuthenticated || !currentUser) {
     return <LoginPage />;
@@ -209,19 +218,34 @@ const MainLayout: React.FC = () => {
         </div>
       )}
 
-      {/* Main Responsive Navbar */}
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onOpenCart={() => setIsOrderModalOpen(true)}
-        isDark={isDark}
-        setIsDark={setIsDark}
-        notificationCount={unreadNotificationCount}
-        onOpenNotificationCenter={() => setNotificationCenterOpen(true)}
-      />
+      {/* Main Responsive Layout: Sidebar + Content */}
+      <div className="flex flex-1 min-h-0">
+        {!isMobile && (
+          <Sidebar
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
+            onOpenCart={() => setIsOrderModalOpen(true)}
+            notificationCount={unreadNotificationCount}
+            onOpenNotificationCenter={() => setNotificationCenterOpen(true)}
+          />
+        )}
+        <div className="flex-1 flex flex-col min-w-0">
+          <Navbar
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            onOpenCart={() => setIsOrderModalOpen(true)}
+            isSidebarCollapsed={isSidebarCollapsed}
+            onToggleSidebar={() => setIsSidebarCollapsed((prev) => !prev)}
+            isDark={isDark}
+            setIsDark={setIsDark}
+            notificationCount={unreadNotificationCount}
+            onOpenNotificationCenter={() => setNotificationCenterOpen(true)}
+          />
 
-      {/* Content Container with optimal tight padding for mobile and standard padding for desktop */}
-      <main className="flex-1 max-w-none w-full mx-auto px-2 sm:px-4 md:px-6 py-3 sm:py-6 pb-24 md:pb-8">
+          {/* Content Container */}
+          <main className="flex-1 max-w-none w-full mx-auto px-2 sm:px-4 md:px-6 py-3 sm:py-6 pb-24 md:pb-8">
         <Suspense fallback={<TabLoadingSkeleton />}>
           {activeTab === 'home' && (
             <DashboardHome
@@ -280,6 +304,8 @@ const MainLayout: React.FC = () => {
 
         </Suspense>
       </main>
+        </div>
+      </div>
 
       {/* Floating Action / Cart Bar for Mobile Sales Reps */}
       {cart && cart.length > 0 && activeTab === 'catalog' && (
