@@ -122,6 +122,7 @@ export const VisitsDashboard: React.FC<VisitsDashboardProps> = ({ initialTimeFil
   const [repGps, setRepGps] = useState<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
   const [isCapturingGps, setIsCapturingGps] = useState(false);
   const [gpsNotice, setGpsNotice] = useState<string | null>(null);
+  const [locationAlert, setLocationAlert] = useState<string | null>(null);
 
   const initialForm: VisitForm = {
     customerId: '',
@@ -146,35 +147,14 @@ export const VisitsDashboard: React.FC<VisitsDashboardProps> = ({ initialTimeFil
     return myCustomers.find((c) => c.id === form.customerId) || null;
   }, [form.customerId, myCustomers]);
 
-  // Request Rep current GPS position
-  const requestCurrentRepGps = (): Promise<{ latitude: number; longitude: number; accuracy?: number } | null> => {
-    return new Promise((resolve) => {
-      if (!('geolocation' in navigator)) {
-        setGpsNotice('متصفحك لا يدعم نظام تحديد المواقع GPS');
-        resolve(null);
-        return;
-      }
-      setIsCapturingGps(true);
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setIsCapturingGps(false);
-          const coords = {
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-          };
-          setRepGps(coords);
-          resolve(coords);
-        },
-        (err) => {
-          setIsCapturingGps(false);
-          console.warn('Geolocation capture notice:', err.message);
-          setGpsNotice('يرجى السماح بالوصول للموقع لالتقاط إحداثيات المتجر بدقة.');
-          resolve(null);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-      );
-    });
+  // Capture GPS — دقة أعلى + يُحفظ دائمًا مع الزيارة (مع fallback)
+  const requestCurrentRepGps = async () => {
+    setIsCapturingGps(true);
+    const coords = await captureGps(15000);
+    setIsCapturingGps(false);
+    if (!coords) setGpsNotice('تعذر التقاط GPS تلقائيًا. فعّل الموقع وامنح الإذن للمتصفح ثم أعد المحاولة (ستُحفظ الزيارة ويمكن استخدام موقع العميل المثبّت إن وجد).');
+    setRepGps(coords);
+    return coords;
   };
 
   // Pin customer GPS permanently into customer record
@@ -214,25 +194,12 @@ export const VisitsDashboard: React.FC<VisitsDashboardProps> = ({ initialTimeFil
     const r = users.find((u) => u.id === form.repId);
     const c = myCustomers.find((x) => x.id === form.customerId);
 
-    // If rep GPS isn't captured yet, try a quick capture or submit with existing
-    const visitLocation = repGps
-      ? {
-          latitude: repGps.latitude,
-          longitude: repGps.longitude,
-          accuracy: repGps.accuracy,
-          timestamp: new Date().toISOString(),
-          address: c?.address || c?.region || '',
-          mapUrl: `https://www.google.com/maps/search/?api=1&query=${repGps.latitude},${repGps.longitude}`,
-        }
-      : c?.latitude && c?.longitude
-      ? {
-          latitude: c.latitude,
-          longitude: c.longitude,
-          address: c.address || c.region || '',
-          mapUrl: `https://www.google.com/maps/search/?api=1&query=${c.latitude},${c.longitude}`,
-          timestamp: new Date().toISOString(),
-        }
-      : undefined;
+    // احفظ الإحداثيات دائمًا قدر الإمكان: محاولة التقاط GPS عند الحفظ + مقارنة بآخر 3 زيارات لنفس العميل
+    const captured = repGps || await captureGps(12000);
+    if (captured) setRepGps(captured);
+    const visitLocation = buildVisitLocation(captured, c ? { latitude: c.latitude, longitude: c.longitude, address: c.address || c.region || '' } : undefined);
+    const compare = compareWithLast3Visits(visits, form.customerId, captured);
+    if (compare.alert) setLocationAlert(compare.alert); else setLocationAlert(null);
 
     const result = addVisit({
       customerId: form.customerId,
@@ -1308,7 +1275,10 @@ export const VisitsDashboard: React.FC<VisitsDashboardProps> = ({ initialTimeFil
                     </div>
                   )}
 
-                  {gpsNotice && (
+                  {locationAlert && (
+              <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-2xl text-xs font-bold text-amber-900">{locationAlert}</div>
+            )}
+            {gpsNotice && (
                     <div className="text-[11px] font-bold text-teal-800 dark:text-teal-200 bg-teal-100/70 dark:bg-teal-950/50 p-2 rounded-xl">
                       {gpsNotice}
                     </div>
