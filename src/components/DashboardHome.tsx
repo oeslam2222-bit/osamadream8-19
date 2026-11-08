@@ -508,7 +508,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
         
         {/* Left Card: 3D Emblem Card matching Brand Card */}
-        <div className="md:col-span-5 bg-gradient-to-tr from-[#0F172A] via-[#111C2E] to-[#1E293B] dark:from-[#0B1220] dark:via-[#111C2E] dark:to-[#17243A] rounded-2xl p-5 border border-slate-700/60 dark:border-[#26364D] shadow-md flex flex-col justify-between text-white relative overflow-hidden">
+        <div className="md:col-span-5 bg-[var(--app-card)] rounded-2xl p-5 border border-[var(--app-border)] shadow-[var(--app-shadow-card)] flex flex-col justify-between text-[var(--app-text)] relative overflow-hidden">
           <div className="flex items-center justify-between mb-4">
             <span className="text-xs font-black text-amber-400 tracking-wider">مندوب دريم • TANTAWY</span>
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-xs">
@@ -522,14 +522,14 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               <Smartphone className="w-7 h-7 stroke-[2.2]" />
             </div>
             <div>
-              <h3 className="font-black text-base sm:text-lg text-white">تطبيق الجوال (APK)</h3>
-              <p className="text-xs text-slate-400 leading-relaxed mt-0.5">
+              <h3 className="font-black text-base sm:text-lg text-[var(--app-text)]">تطبيق الجوال (APK)</h3>
+              <p className="text-xs text-[var(--app-text-muted)] leading-relaxed mt-0.5">
                 يمكنك تحميل ملف الـ APK وتثبيته مباشرة على أي هاتف أندرويد للمناديب للعمل الميداني السريع
               </p>
             </div>
           </div>
 
-          <div className="pt-3 border-t border-slate-800 flex items-center justify-between gap-2 mt-2">
+          <div className="pt-3 border-t border-[var(--app-border)] flex items-center justify-between gap-2 mt-2">
             <button
               type="button"
               onClick={() => setIsInstallModalOpen(true)}
@@ -542,7 +542,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <a
               href="/tantawy-sales.apk"
               download="tantawy-sales.apk"
-              className="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2.5 px-3 rounded-xl text-xs transition border border-slate-700 flex items-center justify-center gap-1.5 cursor-pointer"
+              className="bg-[var(--app-card-secondary)] hover:bg-[var(--app-card-hover)] text-[var(--app-text)] font-bold py-2.5 px-3 rounded-xl text-xs transition border border-[var(--app-border)] flex items-center justify-center gap-1.5 cursor-pointer"
               title="تحميل ملف APK مباشر إذا قمت بوضعه في مجلد public"
             >
               <Smartphone className="w-3.5 h-3.5" />
