@@ -34,6 +34,7 @@ import { TargetPerformanceDashboard } from './components/TargetPerformanceDashbo
 import { VisitsDashboard } from './components/VisitsDashboard';
 import { CollectionRecoveryDashboard } from './components/CollectionRecoveryDashboard';
 import { UnifiedReturnsView } from './components/UnifiedReturnsView';
+import { UnifiedCustomersHub } from './components/UnifiedCustomersHub';
 import { PermissionManagerModal } from './components/PermissionManagerModal';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
 import { AppProvider, useApp } from './context/AppContext';
@@ -250,6 +251,13 @@ const MainLayout: React.FC = () => {
           {activeTab === 'collection' && allowedTabs.includes('collection') && <CollectionRecoveryDashboard />}
 
           {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
+          {(activeTab === 'customers' || activeTab === 'all_customers') && (
+            <UnifiedCustomersHub
+              initialSubTab={activeTab === 'visits' ? 'visits' : 'customers'}
+              onOpenNewOrderForCustomer={handleOpenOrderForCustomer}
+            />
+          )}
+
           {(activeTab === 'returns' || activeTab === 'returns_customers') && (allowedTabs.includes('returns') || allowedTabs.includes('returns_customers')) && (
             <UnifiedReturnsView />
           )}
