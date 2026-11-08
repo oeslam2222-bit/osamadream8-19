@@ -231,7 +231,7 @@ const MainLayout: React.FC = () => {
             onOpenNotificationCenter={() => setNotificationCenterOpen(true)}
           />
         )}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 lg:pr-64">
           <Navbar
             activeTab={activeTab}
             setActiveTab={setActiveTab}
