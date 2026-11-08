@@ -40,10 +40,31 @@ html.dark {
 .ds-tab[aria-current="page"] { background: var(--app-primary); }
 .ds-iconbtn, .ds-profile, .ds-btn, .ds-drawer__item, .ds-select { font-family: inherit; }
 
-/* ---------- الهيكل: الشريط الجانبي القديم مخفي (التنقل الآن عبر شريط التبويبات + القائمة السفلية) ----------
-   لإرجاعه احذف القاعدتين التاليتين.                                                             */
-.tantawy-sidebar { display: none !important; }
-.tantawy-shell, .tantawy-shell.sidebar-collapsed { padding-right: 0 !important; }
+/* ---------- الشريط الجانبي المكتبي ---------- */
+.ds-sidebar {
+  position: fixed; inset-block: 0; inset-inline-end: 0; z-index: 45;
+  width: 248px; display: none; flex-direction: column;
+  background: var(--app-card); color: var(--app-text);
+  border-inline-start: 1px solid var(--app-border); box-shadow: var(--ds-shadow-1);
+  padding: 18px 14px 14px;
+}
+.ds-sidebar__brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 18px; border-bottom: 1px solid var(--app-border); }
+.ds-sidebar__logo { width: 42px; height: 42px; padding: 4px; border-radius: 13px; background: var(--app-secondary-tint); border: 1px solid var(--app-secondary-border); }
+.ds-sidebar__brand strong, .ds-sidebar__brand span { display: block; }
+.ds-sidebar__brand strong { font-size: 15px; font-weight: 900; }
+.ds-sidebar__brand span { margin-top: 2px; color: var(--app-text-muted); font-size: 11px; font-weight: 700; }
+.ds-sidebar__section { padding: 18px 10px 8px; color: var(--app-text-muted); font-size: 11px; font-weight: 800; }
+.ds-sidebar__nav { display: grid; gap: 5px; overflow-y: auto; }
+.ds-sidebar__item { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border-radius: 12px; color: var(--app-text-muted); background: transparent; cursor: pointer; text-align: start; font-size: 13px; font-weight: 750; transition: .15s ease; }
+.ds-sidebar__item svg { width: 19px; height: 19px; flex: 0 0 auto; }
+.ds-sidebar__item:hover { color: var(--app-text); background: var(--app-card-hover); }
+.ds-sidebar__item[aria-current="page"] { color: var(--app-primary-text); background: var(--app-primary-tint); box-shadow: inset -3px 0 0 var(--app-primary); }
+.ds-sidebar__item .ds-count { margin-inline-start: auto; }
+.ds-sidebar__footer { margin-top: auto; display: grid; gap: 8px; padding: 14px 6px 0; border-top: 1px solid var(--app-border); }
+.ds-sidebar__status { display: flex; align-items: center; gap: 8px; color: var(--app-success-text); font-size: 11px; font-weight: 800; }
+.ds-sidebar__status span { width: 8px; height: 8px; border-radius: 50%; background: var(--app-success); box-shadow: 0 0 0 4px var(--app-success-tint); }
+.ds-sidebar__theme { display: flex; align-items: center; gap: 9px; min-height: 40px; padding: 0 10px; color: var(--app-text-muted); background: var(--app-card-secondary); border: 1px solid var(--app-border); border-radius: 11px; cursor: pointer; font-size: 12px; font-weight: 750; }
+.ds-sidebar__theme svg { width: 17px; height: 17px; color: var(--app-warning-text); }
 
 /* ---------- الشريط العلوي ---------- */
 .ds-topbar {
@@ -197,6 +218,12 @@ html.dark .ds-iconbtn--primary { color: #fff; }
 .ds-tab:hover { background: var(--app-card-hover); color: var(--app-text); }
 .ds-tab[aria-current="page"] { background: var(--app-primary); color: #fff; font-weight: 800; box-shadow: 0 2px 8px rgba(37, 99, 235, .28); }
 .ds-tab[aria-current="page"] .ds-count { background: #fff; color: var(--app-primary); }
+
+@media (min-width: 1200px) {
+  .ds-sidebar { display: flex; }
+  .ds-topbar, .app-main { margin-inline-end: 248px; }
+  .ds-tabs { display: none; }
+}
 
 /* ---------- القائمة السفلية (موبايل) ---------- */
 .ds-bottom {
