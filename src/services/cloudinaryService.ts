@@ -1,12 +1,13 @@
 import { CloudinaryConfig, Product } from '../types';
 
 export const DEFAULT_CLOUDINARY_CONFIG: CloudinaryConfig = {
-  cloudName: '',
+  cloudName: 'drke4xlgb',
   folderPrefix: '',
   defaultTransformation: '',
   matchingPattern: 'auto',
   fileExtension: 'auto',
-  baseUrlPattern: ''
+  baseUrlPattern: '',
+  uploadPreset: 'DREAMOSAMA',
 };
 
 /**

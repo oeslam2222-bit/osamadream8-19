@@ -893,7 +893,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [cloudinaryConfig, setCloudinaryConfig] = useState<CloudinaryConfig>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.CLOUDINARY);
-    return saved ? JSON.parse(saved) : DEFAULT_CLOUDINARY_CONFIG;
+    const parsed = saved ? JSON.parse(saved) : {};
+    // Merge defaults so global config works for all users/devices even if old localStorage had empty values.
+    return { ...DEFAULT_CLOUDINARY_CONFIG, ...(parsed && typeof parsed === 'object' ? parsed : {}), cloudName: (parsed?.cloudName || DEFAULT_CLOUDINARY_CONFIG.cloudName), uploadPreset: (parsed?.uploadPreset || DEFAULT_CLOUDINARY_CONFIG.uploadPreset) };
   });
 
   const [accountingLogs, setAccountingLogs] = useState<AccountingSyncLog[]>(() => {
