@@ -244,7 +244,7 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
   return (
     <div className="w-full space-y-4" dir="rtl">
       {/* Top Breadcrumb & Title Bar matching screenshot */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-gradient-to-r from-slate-900/90 via-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl backdrop-blur-md text-white">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-[var(--app-card)] border border-[var(--app-border)] rounded-[var(--app-radius-card)] p-4 sm:p-5 shadow-[var(--app-shadow-card)] backdrop-blur-md text-[var(--app-text)]">
         <div>
           <div className="flex items-center gap-2 text-xs font-medium text-slate-400 mb-1">
             <span>الرئيسية</span>
@@ -279,7 +279,7 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
       </div>
 
       {/* Filter & Search Toolbar matching executive mockup */}
-      <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-2xl p-3.5 shadow-xs">
+      <div className="bg-[var(--app-card)] border border-[var(--app-border)] rounded-[var(--app-radius-card)] p-3.5 shadow-[var(--app-shadow-card)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           
           {/* Search Input */}
@@ -292,7 +292,7 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
                 setDisplayLimit(10);
               }}
               placeholder="بحث بالاسم أو كود العميل أو الهاتف..."
-              className="w-full pl-4 pr-10 py-2.5 rounded-xl bg-slate-50 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] text-[#0F172A] dark:text-[#F1F5F9] placeholder-slate-400 dark:placeholder-slate-500 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+              className="w-full pl-4 pr-10 py-2.5 rounded-xl bg-[var(--app-card-secondary)] border border-[var(--app-border)] text-[var(--app-text)] placeholder:text-[var(--app-text-muted)] text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[var(--app-focus)] focus:border-[var(--app-primary)] transition"
             />
             <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
             {searchQuery && (
@@ -313,7 +313,7 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
                 setSelectedRep(e.target.value);
                 setDisplayLimit(10);
               }}
-              className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] text-[#0F172A] dark:text-[#F1F5F9] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              className="w-full px-3 py-2.5 rounded-xl bg-[var(--app-card-secondary)] border border-[var(--app-border)] text-[var(--app-text)] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[var(--app-focus)] cursor-pointer"
             >
               <option value="all">المندوب: كل المندوبين</option>
               {uniqueReps.map((r) => (
@@ -330,7 +330,7 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
                 setSelectedBranch(e.target.value);
                 setDisplayLimit(10);
               }}
-              className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] text-[#0F172A] dark:text-[#F1F5F9] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              className="w-full px-3 py-2.5 rounded-xl bg-[var(--app-card-secondary)] border border-[var(--app-border)] text-[var(--app-text)] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[var(--app-focus)] cursor-pointer"
             >
               <option value="all">الفرع: كل الفروع</option>
               {uniqueBranches.map((b) => (
@@ -347,7 +347,7 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
                 setSelectedSector(e.target.value as any);
                 setDisplayLimit(10);
               }}
-              className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] text-[#0F172A] dark:text-[#F1F5F9] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              className="w-full px-3 py-2.5 rounded-xl bg-[var(--app-card-secondary)] border border-[var(--app-border)] text-[var(--app-text)] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[var(--app-focus)] cursor-pointer"
             >
               <option value="all">القطاع: كل القطاعات</option>
               <option value="electrical">قطاع الكهرباء</option>

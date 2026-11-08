@@ -204,6 +204,42 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
+      <aside className="ds-sidebar print:hidden" aria-label="القائمة الرئيسية">
+        <div className="ds-sidebar__brand">
+          <img src="/icon.svg" alt="طنطاوي جروب" className="ds-sidebar__logo" />
+          <div>
+            <strong>طنطاوي جروب</strong>
+            <span>منظومة المبيعات</span>
+          </div>
+        </div>
+        <div className="ds-sidebar__section">القائمة الرئيسية</div>
+        <nav className="ds-sidebar__nav">
+          {filteredNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id || (item.id === 'customers' && activeTab === 'all_customers');
+            return (
+              <button
+                key={`sidebar-${item.id}`}
+                type="button"
+                onClick={() => setActiveTab(item.id)}
+                aria-current={isActive ? 'page' : undefined}
+                className="ds-sidebar__item"
+              >
+                <Icon aria-hidden="true" />
+                <span>{item.label}</span>
+                {item.badge && item.badge > 0 ? <span className="ds-count">{item.badge}</span> : null}
+              </button>
+            );
+          })}
+        </nav>
+        <div className="ds-sidebar__footer">
+          <div className="ds-sidebar__status"><span />{isOffline ? 'غير متصل' : 'متصل'}</div>
+          <button type="button" onClick={toggleTheme} className="ds-sidebar__theme">
+            {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+            <span>{isDark ? 'الوضع النهاري' : 'الوضع الليلي'}</span>
+          </button>
+        </div>
+      </aside>
       <header className="ds-topbar print:hidden">
         <div className="ds-topbar__main">
           {/* العلامة + عنوان الصفحة */}
