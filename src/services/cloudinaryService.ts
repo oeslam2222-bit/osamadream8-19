@@ -285,67 +285,53 @@ export async function uploadImageToCloudinary(
  */
 export function compressImageFile(
   file: File,
-  maxWidth = 800,
-  maxHeight = 800,
-  quality = 0.7
+  maxWidth = 1200,
+  maxHeight = 1200,
+  quality = 0.72,
+  targetMaxBytes = 102_400
 ): Promise<File> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      let width = img.width;
-      let height = img.height;
-
-      // حساب الأبعاد الجديدة مع الحفاظ على النسبة
-      if (width > maxWidth) {
-        height = (height * maxWidth) / width;
-        width = maxWidth;
-      }
-      if (height > maxHeight) {
-        width = (width * maxHeight) / height;
-        height = maxHeight;
-      }
-
-      canvas.width = width;
-      canvas.height = height;
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('تعذر إنشاء سياق الرسم لضغط الصورة'));
-        return;
-      }
-      ctx.drawImage(img, 0, 0, width, height);
-
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            reject(new Error('فشل ضغط الصورة'));
-            return;
-          }
-          const compressedFile = new File([blob], file.name, {
-            type: 'image/jpeg',
-            lastModified: Date.now(),
-          });
-          resolve(compressedFile);
-        },
-        'image/jpeg',
-        quality
-      );
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = async () => {
+      try {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) { height = (height * maxWidth) / width; width = maxWidth; }
+        if (height > maxHeight) { width = (width * maxHeight) / height; height = maxHeight; }
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { URL.revokeObjectURL(objectUrl); reject(new Error('تعذر إنشاء سياق الرسم لضغط الصورة')); return; }
+        let q = Math.min(0.92, Math.max(0.2, quality));
+        let w = Math.max(320, Math.round(width));
+        let h = Math.max(320, Math.round(height));
+        let blob: Blob | null = null;
+        for (let attempt = 0; attempt < 12; attempt++) {
+          canvas.width = w; canvas.height = h;
+          ctx.clearRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, 'image/jpeg', q));
+          if (!blob) break;
+          if (blob.size <= targetMaxBytes || (q <= 0.28 && w <= 360)) break;
+          if (q > 0.35) q -= 0.1; else { w = Math.max(320, Math.round(w * 0.82)); h = Math.max(320, Math.round(h * 0.82)); q = 0.55; }
+        }
+        URL.revokeObjectURL(objectUrl);
+        if (!blob) { reject(new Error('فشل ضغط الصورة')); return; }
+        resolve(new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg', lastModified: Date.now() }));
+      } catch (e) { URL.revokeObjectURL(objectUrl); reject(e instanceof Error ? e : new Error('فشل ضغط الصورة')); }
     };
-    img.onerror = () => reject(new Error('فشل تحميل الصورة للضغط'));
-    img.src = URL.createObjectURL(file);
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('فشل تحميل الصورة للضغط')); };
+    img.src = objectUrl;
   });
 }
 
-/**
- * ترفع صورة عميل إلى Cloudinary بعد ضغطها.
- * تُخزّن في مجلد customer_photos وتُرجع الرابط العام والمعرّف العام.
- */
 export async function uploadCustomerPhoto(
   file: File,
   config: CloudinaryConfig,
-  customerId: string
+  customerId: string,
+  targetMaxBytes = 102_400
 ): Promise<{ url: string; publicId?: string }> {
-  const compressed = await compressImageFile(file, 800, 800, 0.7);
+  const compressed = await compressImageFile(file, 1200, 1200, 0.72, targetMaxBytes);
   return uploadImageToCloudinary(compressed, config, `customer_photos/${customerId}`);
 }
+

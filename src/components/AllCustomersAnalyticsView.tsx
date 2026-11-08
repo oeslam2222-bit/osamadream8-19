@@ -69,6 +69,7 @@ import {
   LabelList
 } from 'recharts';
 import { useApp } from '../context/AppContext';
+import { compressImageFile, uploadImageToCloudinary } from '../services/cloudinaryService';
 import { Customer, CustomerVisit, User, Invoice, OrderStatus } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import {
@@ -156,6 +157,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     cleanAndDeduplicateCustomers,
     activeSectorFilter,
     setActiveSectorFilter,
+    cloudinaryConfig,
   } = useApp();
 
   // Roles
@@ -1102,6 +1104,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       setIsSyncing(false);
     }
   };
+
+  const [shopPhotoUploading, setShopPhotoUploading] = useState(false);
+  const [shopPhotoMsg, setShopPhotoMsg] = useState<{type:'ok'|'err'; text:string}|null>(null);
 
   // Excel File Upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
