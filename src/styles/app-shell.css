@@ -14,7 +14,8 @@
   --ds-bottom-h: 64px;
   --ds-radius: 14px;
   --ds-gutter: 12px;
-  --ds-shadow-1: 0 1px 2px rgba(15, 23, 42, .06), 0 1px 3px rgba(15, 23, 42, .05);
+  --ds-shadow-1: var(--app-shadow-card);
+  --ds-shadow-2: var(--app-shadow-float);
   --ds-shadow-2: 0 8px 24px rgba(15, 23, 42, .12);
   color-scheme: light;
 }
@@ -75,7 +76,7 @@ html.dark {
 /* البحث (لابتوب وأكبر) */
 .ds-search { position: relative; flex: 1 1 320px; max-width: 460px; margin-inline: 8px; }
 .ds-search input {
-  width: 100%; height: 44px; padding-inline: 14px 44px; border-radius: 14px;
+  width: 100%; height: 44px; padding-inline: 14px 44px; border-radius: var(--app-radius-control);
   background: var(--app-card-secondary); color: var(--app-text);
   border: 1px solid var(--app-border); font-size: 13.5px; font-weight: 500; outline: none;
 }
@@ -285,8 +286,9 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--app-primary); 
 }
 
 /* تركيز واضح لمستخدمي لوحة المفاتيح */
-button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
+button:focus-visible, a:focus-visible, [role="button"]:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
   outline: 2px solid var(--app-primary); outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--app-focus);
 }
 
 /* الجداول: تباعد أريح، رأس ثابت أثناء التمرير داخل الحاوية التي تحمل .ds-table-scroll */

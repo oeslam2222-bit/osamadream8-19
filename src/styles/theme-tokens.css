@@ -18,6 +18,11 @@
   --app-text-muted: #64748B;
   --app-border: #E2E8F0;
   --app-line: #E2E8F0;
+  --app-focus: rgba(37, 99, 235, 0.24);
+  --app-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --app-shadow-float: 0 18px 45px rgba(15, 23, 42, 0.12);
+  --app-radius-card: 18px;
+  --app-radius-control: 12px;
 
   /* Functional Palette Tokens */
   --app-primary: #2563EB;
@@ -86,6 +91,9 @@
   --app-text-muted: #94A3B8;
   --app-border: #26364D;
   --app-line: #26364D;
+  --app-focus: rgba(96, 165, 250, 0.3);
+  --app-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.24), 0 10px 30px rgba(0, 0, 0, 0.2);
+  --app-shadow-float: 0 18px 45px rgba(0, 0, 0, 0.38);
 
   /* Functional Palette Tokens in Dark Mode */
   --app-primary: #3B82F6;
@@ -157,6 +165,17 @@ body {
   color: var(--app-text);
   min-height: 100vh;
   margin: 0;
+  font-feature-settings: "kern" 1, "liga" 1;
+  text-rendering: optimizeLegibility;
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+::selection {
+  background: var(--app-primary-tint);
+  color: var(--app-primary-text);
 }
 
 /* Universal Theme Utility Helpers */

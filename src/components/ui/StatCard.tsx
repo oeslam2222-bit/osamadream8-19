@@ -21,11 +21,11 @@ const iconMap: Record<string, React.ReactNode> = {
 };
 
 const colorMap: Record<string, { bg: string; text: string; border: string }> = {
-  blue: { bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-600 dark:text-blue-400', border: 'border-blue-100 dark:border-blue-800' },
-  green: { bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-600 dark:text-green-400', border: 'border-green-100 dark:border-green-800' },
-  amber: { bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-600 dark:text-amber-400', border: 'border-amber-100 dark:border-amber-800' },
-  purple: { bg: 'bg-purple-50 dark:bg-purple-900/20', text: 'text-purple-600 dark:text-purple-400', border: 'border-purple-100 dark:border-purple-800' },
-  red: { bg: 'bg-red-50 dark:bg-red-900/20', text: 'text-red-600 dark:text-red-400', border: 'border-red-100 dark:border-red-800' },
+  blue: { bg: 'bg-[var(--app-primary-tint)]', text: 'text-[var(--app-primary-text)]', border: 'border-[var(--app-primary-border)]' },
+  green: { bg: 'bg-[var(--app-success-tint)]', text: 'text-[var(--app-success-text)]', border: 'border-[var(--app-success-border)]' },
+  amber: { bg: 'bg-[var(--app-warning-tint)]', text: 'text-[var(--app-warning-text)]', border: 'border-[var(--app-warning-border)]' },
+  purple: { bg: 'bg-[var(--app-violet-tint)]', text: 'text-[var(--app-violet-text)]', border: 'border-[var(--app-violet-border)]' },
+  red: { bg: 'bg-[var(--app-danger-tint)]', text: 'text-[var(--app-danger-text)]', border: 'border-[var(--app-danger-border)]' },
 };
 
 export const StatCard: React.FC<StatCardProps> = ({
@@ -46,9 +46,9 @@ export const StatCard: React.FC<StatCardProps> = ({
       <div className="p-5">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
-            <p className="text-sm text-slate-600 dark:text-slate-400 font-medium mb-1">{title}</p>
-            <h3 className="text-2xl font-bold text-slate-900 dark:text-white font-arabic-display">{value}</h3>
-            {subtitle && <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">{subtitle}</p>}
+            <p className="text-sm text-[var(--app-text-muted)] font-semibold mb-1">{title}</p>
+            <h3 className="text-2xl font-bold text-[var(--app-text)] font-arabic-display">{value}</h3>
+            {subtitle && <p className="text-xs text-[var(--app-text-muted)] mt-1">{subtitle}</p>}
           </div>
           <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${colors.bg.replace('bg-', 'bg-')}`}>
             {icon || iconMap.calendar}
