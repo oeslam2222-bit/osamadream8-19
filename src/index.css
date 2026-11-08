@@ -1,6 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
+/* Tailwind v4: class-based dark mode (.dark on <html>) */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer utilities {
   /* Typographic scale helpers (use instead of ad-hoc font-black). */
   .t-h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.2; }
@@ -36,45 +39,61 @@
   --font-xl: clamp(1.4rem, 1.2rem + 1vw, 2rem);
   --space: clamp(0.5rem, 0.4rem + 0.5vw, 1rem);
 
-  /* ============ LIGHT MODE (نهاري) ============ */
-  --app-bg: #ffffff;
-  --app-surface: #f7f9fb;
-  --app-surface-2: #eef2f5;
-  --app-ink: #0f172a;
-  --app-text: #0f172a;
-  --app-soft: #64748b;
-  --app-muted: #94a3b8;
-  --app-line: #e2e8f0;
-  --app-line-weak: #f1f5f9;
+  /* ============ LIGHT MODE (نهاري) — Dream Tantawy unified identity ============ */
+  --app-bg: #F1F5F9;
+  --app-canvas: #F1F5F9;
+  --app-surface: #FFFFFF;
+  --app-surface-2: #F8FAFC;
+  --app-surface-elevated: #FFFFFF;
+  --app-ink: #0F172A;
+  --app-text: #0F172A;
+  --app-text-secondary: #334155;
+  --app-soft: #475569;
+  --app-muted: #64748B;
+  --app-line: #E2E8F0;
+  --app-line-weak: #F1F5F9;
 
-  /* Brand - Tantawy Teal */
-  --brand-teal: #009488;
-  --brand-teal-dark: #007a71;
-  --brand-teal-light: #e6f7f5;
-  --brand-navy: #0f2b38;
-  --team-primary: #009488;
---team-secondary: #0f2b38;
---team-accent: #f59e0b;
+  /* Brand / module palette */
+  --brand-primary: #2563EB;
+  --brand-secondary: #0D9488;
+  --brand-teal: #0D9488;
+  --brand-teal-dark: #0F766E;
+  --brand-teal-light: #CCFBF1;
+  --brand-navy: #0F172A;
+  --brand-violet: #7C3AED;
+  --team-primary: #2563EB;
+  --team-secondary: #0D9488;
+  --team-accent: #F59E0B;
 
-  /* Semantic colors */
-  --app-ok: #009488;
-  --app-warn: #f59e0b;
-  --app-risk: #ef4444;
+  /* Semantic colors (requested) */
+  --app-ok: #16A34A;
+  --app-warn: #F59E0B;
+  --app-risk: #DC2626;
+  --app-success: #16A34A;
+  --app-danger: #DC2626;
+  --app-violet: #7C3AED;
 
-  --app-ok-text: #0f7a68;
-  --app-ok-tint: rgba(0, 148, 136, .10);
-  --app-ok-line: rgba(0, 148, 136, .38);
-  --app-warn-text: #8a6420;
+  --app-ok-text: #15803D;
+  --app-ok-tint: rgba(22, 163, 74, .12);
+  --app-ok-line: rgba(22, 163, 74, .35);
+  --app-warn-text: #B45309;
   --app-warn-tint: rgba(245, 158, 11, .14);
-  --app-warn-line: rgba(180, 130, 30, .40);
-  --app-risk-text: #dc2626;
-  --app-risk-tint: rgba(239, 68, 68, .10);
-  --app-risk-line: rgba(239, 68, 68, .35);
+  --app-warn-line: rgba(245, 158, 11, .38);
+  --app-risk-text: #B91C1C;
+  --app-risk-tint: rgba(220, 38, 38, .10);
+  --app-risk-line: rgba(220, 38, 38, .34);
+  --app-primary-tint: rgba(37, 99, 235, .12);
+  --app-primary-line: rgba(37, 99, 235, .34);
+  --app-secondary-tint: rgba(13, 148, 136, .12);
+  --app-secondary-line: rgba(13, 148, 136, .34);
+  --app-violet-tint: rgba(124, 58, 237, .12);
+  --app-violet-line: rgba(124, 58, 237, .34);
 
   /* Navy */
-  --app-navy-text: #0f2b38;
-  --app-navy-tint: rgba(15, 43, 56, .08);
-  --app-navy-line: rgba(15, 43, 56, .25);
+  --app-navy: #0F172A;
+  --app-navy-text: #0F172A;
+  --app-navy-tint: rgba(15, 23, 42, .08);
+  --app-navy-line: rgba(15, 23, 42, .22);
 
   /* Radii & Shadows */
   --r-sm: 8px;
@@ -170,52 +189,70 @@
   --color-bg-slate-soft7: #e8f0f8;
 }
 
-/* ============ DARK MODE (ليلي) ============ */
+/* ============ DARK MODE (ليلي) — requested palette ============ */
 .dark {
-  --app-bg: #0a0f17;
-  --app-surface: #111927;
-  --app-surface-2: #162130;
-  --app-ink: #f5f7fa;
-  --app-text: #f5f7fa;
-  --app-soft: #94a3b8;
-  --app-muted: #64748b;
-  --app-line: #1e293b;
-  --app-line-weak: #1e293b;
+  --app-bg: #0B1220;
+  --app-canvas: #0B1220;
+  --app-surface: #111C2E;
+  --app-surface-2: #17243A;
+  --app-surface-elevated: #17243A;
+  --app-ink: #F1F5F9;
+  --app-text: #F1F5F9;
+  --app-text-secondary: #94A3B8;
+  --app-soft: #94A3B8;
+  --app-muted: #94A3B8;
+  --app-line: #26364D;
+  --app-line-weak: #1B2940;
 
-  --brand-teal: #2dd4bf;
-  --brand-teal-dark: #14b8a6;
-  --brand-teal-light: #064e3b;
-  --brand-navy: #0f2b38;
-  --brand-amber: #fbbf24;
+  --brand-primary: #60A5FA;
+  --brand-secondary: #2DD4BF;
+  --brand-teal: #2DD4BF;
+  --brand-teal-dark: #14B8A6;
+  --brand-teal-light: rgba(45, 212, 191, .16);
+  --brand-navy: #0F172A;
+  --brand-violet: #A78BFA;
+  --team-primary: #60A5FA;
+  --team-secondary: #2DD4BF;
+  --team-accent: #FBBF24;
 
-  --app-ok: #2dd4bf;
-  --app-warn: #fbbf24;
-  --app-risk: #f87171;
+  --app-ok: #22C55E;
+  --app-warn: #FBBF24;
+  --app-risk: #F87171;
+  --app-success: #22C55E;
+  --app-danger: #F87171;
+  --app-violet: #A78BFA;
 
-  --app-ok-text: #6ee7b7;
-  --app-ok-tint: rgba(45, 212, 191, .15);
-  --app-ok-line: rgba(34, 197, 94, .35);
-  --app-warn-text: #fcd34d;
-  --app-warn-tint: rgba(251, 191, 36, .15);
-  --app-warn-line: rgba(245, 158, 11, .35);
-  --app-risk-text: #fca5a5;
-  --app-risk-tint: rgba(239, 68, 68, .10);
-  --app-risk-line: rgba(239, 68, 68, .30);
+  --app-ok-text: #86EFAC;
+  --app-ok-tint: rgba(34, 197, 94, .16);
+  --app-ok-line: rgba(34, 197, 94, .34);
+  --app-warn-text: #FDE68A;
+  --app-warn-tint: rgba(251, 191, 36, .16);
+  --app-warn-line: rgba(251, 191, 36, .34);
+  --app-risk-text: #FCA5A5;
+  --app-risk-tint: rgba(248, 113, 113, .14);
+  --app-risk-line: rgba(248, 113, 113, .34);
+  --app-primary-tint: rgba(96, 165, 250, .16);
+  --app-primary-line: rgba(96, 165, 250, .34);
+  --app-secondary-tint: rgba(45, 212, 191, .16);
+  --app-secondary-line: rgba(45, 212, 191, .34);
+  --app-violet-tint: rgba(167, 139, 250, .16);
+  --app-violet-line: rgba(167, 139, 250, .34);
 
-  --app-navy-text: #e2e8f0;
-  --app-navy-tint: rgba(15, 43, 56, .20);
-  --app-navy-line: rgba(15, 43, 56, .35);
+  --app-navy: #F1F5F9;
+  --app-navy-text: #F1F5F9;
+  --app-navy-tint: rgba(241, 245, 249, .08);
+  --app-navy-line: rgba(241, 245, 249, .18);
 
   --r-sm: 8px;
   --r-md: 12px;
   --r-lg: 16px;
   --r-xl: 24px;
   --r-pill: 999px;
-  --sh-sm: 0 1px 3px rgba(0, 0, 0, .30);
-  --sh-md: 0 4px 12px rgba(0, 0, 0, .40);
-  --sh-lg: 0 12px 32px rgba(0, 0, 0, .50);
+  --sh-sm: 0 1px 3px rgba(0, 0, 0, .35);
+  --sh-md: 0 8px 22px rgba(0, 0, 0, .40);
+  --sh-lg: 0 18px 44px rgba(0, 0, 0, .50);
   --ease: .18s ease;
-  --focus-ring: 0 0 0 3px rgba(45, 212, 191, .35);
+  --focus-ring: 0 0 0 3px rgba(96, 165, 250, .35);
 
   --color-warn-soft: #fdf4e1;
   --color-warn-soft-hover: #f0e5cb;
@@ -410,20 +447,7 @@ button, input, select, textarea {
 }
 
 /* Dark mode overrides for the soft backgrounds */
-.dark {
-  --app-bg: #0d1117;
-  --app-surface: #121b27;
-  --app-surface-2: #1a2433;
-  --app-text: #f5f7fa;
-  --app-ink: #f5f7fa;
-  --app-soft: #c5d0dd;
-  --app-muted: #a7b5c7;
-  --app-line: rgba(148, 163, 184, 0.22);
-  --app-accent: #3dd8b0;
-  --app-blue: #4aa3ff;
-  --app-navy: #0f2b38;
-  --app-canvas: #0d1117;
-}
+/* dark palette consolidated in primary .dark block above */
 
 /* ============ Tantawy shell — light (day) & dark (night) structure ============ */
 /* Day (default / :root): light surfaces, dark ink */
@@ -2858,3 +2882,91 @@ html:not(.dark) .catalog-modern .text-slate-400 { color: #64748b; }
   border-color: #22344d !important;
 }
 .dark .catalog-hero::before { opacity: .45; }
+
+
+/* ============ Dream Tantawy — unified theme application (additive, safe) ============ */
+html, body, #root { background: var(--app-bg) !important; color: var(--app-text) !important; }
+body { font-family: 'Cairo','Tajawal','IBM Plex Sans Arabic',system-ui,sans-serif; direction: rtl; }
+
+.tantawy-shell { background: var(--app-bg) !important; color: var(--app-text) !important; }
+.app-main { background: var(--app-bg) !important; }
+.tantawy-topbar {
+  background: var(--app-surface) !important;
+  border-bottom: 1px solid var(--app-line) !important;
+  color: var(--app-text) !important;
+  box-shadow: var(--sh-sm) !important;
+}
+.dark .tantawy-topbar { background: rgba(17,28,46,.94) !important; }
+.tantawy-topbar .text-slate-100, .tantawy-topbar .text-slate-200, .tantawy-topbar .text-slate-300,
+.tantawy-topbar .text-white { color: var(--app-text) !important; }
+.tantawy-topbar [class*="bg-white/"] { background: var(--app-surface-2) !important; }
+.tantawy-topbar [class*="border-white/"] { border-color: var(--app-line) !important; }
+
+.tantawy-sidebar {
+  background: linear-gradient(180deg, #0F172A 0%, #111827 100%) !important;
+  border-left: 1px solid rgba(255,255,255,.06) !important;
+  color: #E2E8F0 !important;
+}
+.dark .tantawy-sidebar { background: linear-gradient(180deg, #0B1220 0%, #111C2E 100%) !important; border-left-color: var(--app-line) !important; }
+.tantawy-sidebar button[aria-current="page"] {
+  background: rgba(37,99,235,.18) !important;
+  color: #fff !important;
+  box-shadow: inset 0 0 0 1px rgba(96,165,250,.22);
+}
+.tantawy-sidebar button[aria-current="page"] svg { color: #93C5FD !important; }
+.tantawy-mobile-nav { background: var(--app-surface) !important; border-top: 1px solid var(--app-line) !important; color: var(--app-text) !important; }
+.dark .tantawy-mobile-nav { background: #111C2E !important; border-top-color: var(--app-line) !important; color: #E2E8F0 !important; }
+.tantawy-mobile-nav button[aria-current="page"] { color: #fff !important; }
+
+/* Surfaces */
+.dark .bg-white:not(input):not(select):not(textarea):not(button):not([role="switch"]) { background-color: var(--app-surface) !important; }
+.dark .bg-slate-50, .dark .bg-gray-50 { background-color: var(--app-surface-2) !important; }
+.dark .bg-slate-100, .dark .bg-gray-100 { background-color: var(--app-surface-elevated) !important; }
+.dark .border-slate-100, .dark .border-slate-200, .dark .border-gray-100, .dark .border-gray-200 { border-color: var(--app-line) !important; }
+.dark .text-slate-900, .dark .text-gray-900, .dark .text-slate-800, .dark .text-gray-800 { color: var(--app-text) !important; }
+.dark .text-slate-700, .dark .text-gray-700, .dark .text-slate-600, .dark .text-gray-600 { color: var(--app-text-secondary) !important; }
+.dark .text-slate-500, .dark .text-gray-500, .dark .text-slate-400 { color: var(--app-muted) !important; }
+
+/* Cards hover */
+.card-hover-lift, [data-card-hover] { transition: transform .18s var(--ease, ease), box-shadow .18s var(--ease, ease), border-color .18s var(--ease, ease); }
+.card-hover-lift:hover, [data-card-hover]:hover { transform: translateY(-2px); box-shadow: var(--sh-md); border-color: var(--app-primary-line, var(--app-line)); }
+
+/* Tables */
+table { color: var(--app-text); }
+thead th { background: var(--app-surface-2) !important; color: var(--app-text-secondary) !important; border-color: var(--app-line) !important; }
+.dark thead th { background: #17243A !important; color: #CBD5E1 !important; }
+tbody td { border-color: var(--app-line) !important; }
+.dark tbody tr { background: var(--app-surface) !important; }
+.dark tbody tr:nth-child(even) { background: rgba(23,36,58,.55) !important; }
+tbody tr:hover { background: var(--app-surface-2) !important; }
+
+/* Inputs, selects, filters */
+input, select, textarea { background: var(--app-surface); color: var(--app-text); border-color: var(--app-line); }
+input::placeholder, textarea::placeholder { color: var(--app-muted) !important; opacity: .9; }
+.dark input, .dark select, .dark textarea { background: #0F172A !important; color: #F1F5F9 !important; border-color: #26364D !important; }
+.dark select option { background: #111C2E; color: #F1F5F9; }
+
+/* Dropdowns / popovers / menus / modals */
+[role="menu"], [role="listbox"], .dropdown-menu, [data-radix-popper-content-wrapper] > * {
+  background: var(--app-surface) !important; color: var(--app-text) !important; border: 1px solid var(--app-line) !important; box-shadow: var(--sh-md) !important;
+}
+[role="dialog"], .modal, .dialog-content { background: var(--app-surface) !important; color: var(--app-text) !important; border: 1px solid var(--app-line) !important; }
+.dark [role="dialog"], .dark .modal { background: #111C2E !important; }
+
+/* Charts */
+.recharts-text, .recharts-cartesian-axis-tick-value { fill: var(--app-muted) !important; }
+.recharts-cartesian-grid line { stroke: var(--app-line) !important; }
+.recharts-tooltip-wrapper .recharts-default-tooltip { background: var(--app-surface) !important; border: 1px solid var(--app-line) !important; color: var(--app-text) !important; border-radius: 12px; }
+
+/* Module icon badge */
+.module-icon-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.75rem; height: 2.75rem; border-radius: 14px;
+  background: var(--badge-bg, var(--app-primary-tint));
+  color: var(--badge-fg, var(--brand-primary));
+  box-shadow: inset 0 0 0 1px var(--badge-line, var(--app-primary-line));
+  flex: 0 0 auto;
+}
+
+/* RTL/Cairo */
+[dir="rtl"], html[dir="rtl"] body { font-family: 'Cairo','Tajawal',system-ui,sans-serif; }

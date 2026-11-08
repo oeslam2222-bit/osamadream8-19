@@ -434,16 +434,15 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            {/* Dark mode toggle */}
+            {/* Dark mode toggle (icon-only, uses global ThemeContext) */}
             <button
               type="button"
               onClick={toggleTheme}
-              title={isDark ? 'الوضع الفاتح (نهار)' : 'الوضع الليلي (ظلام)'}
-              aria-label={isDark ? 'التبديل للوضع الفاتح' : 'التبديل للوضع الليلي'}
-              className="flex items-center justify-center w-12 h-12 shrink-0 rounded-xl border-2 border-[var(--app-line)] bg-white text-[var(--app-navy)] hover:bg-slate-50 active:scale-95 transition-all cursor-pointer shadow-sm"
+              title={isDark ? 'تفعيل الوضع النهاري' : 'تفعيل الوضع الليلي'}
+              aria-label={isDark ? 'تفعيل الوضع النهاري' : 'تفعيل الوضع الليلي'}
+              className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl border border-[var(--app-line)] bg-[var(--app-surface)] text-[var(--app-text)] transition hover:bg-[var(--app-surface-2)] active:scale-95 shadow-sm"
             >
-              <span className="text-xl font-bold">{isDark ? '☀️' : '🌙'}</span>
-              <span className="hidden sm:inline text-[10px] font-black ml-1">{isDark ? 'نهار' : 'ليل'}</span>
+              {isDark ? <Sun className="h-4 w-4 text-amber-300" /> : <Moon className="h-4 w-4 text-[var(--brand-primary)]" />}
             </button>
 
             {/* Notification Center */}

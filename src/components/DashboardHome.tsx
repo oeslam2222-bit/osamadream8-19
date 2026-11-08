@@ -168,7 +168,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               {/* App / Rep Badge */}
               <div className="flex items-center gap-2.5">
                 <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black shadow-lg shadow-blue-500/20">
-                  <span className="text-xl">🌟</span>
+                  <Sparkles className="w-5 h-5 text-white" />
                 </div>
                 <div>
                   <div className="text-[11px] font-bold text-blue-400 tracking-wider">منظومة مبيعات طنطاوي دريم</div>
@@ -188,7 +188,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
 
             <p className="text-xs sm:text-sm font-bold text-slate-300">
-              هل أنت مستعد لتحقيق تارجت اليوم والنمو بمبيعاتك ؟ 🚀
+              هل أنت مستعد لتحقيق تارجت اليوم والنمو بمبيعاتك؟
             </p>
 
             {/* Time & Date Display (Match Image: PM 06:14 • Fr Jan 23 2026) */}
@@ -232,7 +232,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <div className="hidden lg:flex lg:col-span-3 items-center justify-center p-2">
             <div className="relative group">
               <div className="w-48 h-48 rounded-3xl bg-gradient-to-tr from-[var(--app-ok)] via-slate-800 to-[var(--app-navy)] p-4 border border-[var(--app-ok)] flex flex-col items-center justify-center text-center shadow-xl backdrop-blur-sm">
-                <div className="text-5xl mb-2 animate-bounce">📊</div>
+                <div className="mb-2 flex items-center justify-center"><BarChart3 className="w-12 h-12 text-teal-200" /></div>
                 <div className="text-sm font-black text-white">منصة مبيعات ذكية</div>
                 <div className="text-[10px] text-slate-300 mt-1 max-w-[150px]">
                   ربط مباشر مع المخازن، قاعدة العملاء، واعتمادات الفواتير
@@ -252,7 +252,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-[var(--app-ok)] transition">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-slate-300">إجمالي المبيعات</span>
-                <span className="text-xl">💰</span>
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[rgba(22,163,74,.18)] text-[var(--app-ok-text)] border border-[rgba(22,163,74,.28)]"><DollarSign className="w-4 h-4" /></span>
               </div>
 
               <div className="space-y-1 my-2">
@@ -281,7 +281,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-[var(--app-warn)] transition">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-slate-300">عدد الطلبات</span>
-                <span className="text-xl">📦</span>
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[rgba(245,158,11,.18)] text-[var(--app-warn-text)] border border-[rgba(245,158,11,.28)]"><Receipt className="w-4 h-4" /></span>
               </div>
 
               <div className="space-y-1 my-2">
@@ -310,7 +310,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-[var(--app-ok)] transition">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold text-slate-300">التحصيلات</span>
-                <span className="text-xl">💵</span>
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[rgba(13,148,136,.18)] text-[#5EEAD4] border border-[rgba(13,148,136,.28)]"><Wallet className="w-4 h-4" /></span>
               </div>
 
               <div className="space-y-0.5 my-1">
@@ -330,7 +330,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <div className="bg-slate-900/90 border border-slate-700/80 rounded-2xl p-4 flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-[var(--app-navy)] transition">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold text-slate-300">الزيارات</span>
-                <span className="text-xl">📍</span>
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-[rgba(37,99,235,.18)] text-[#93C5FD] border border-[rgba(37,99,235,.28)]"><MapPin className="w-4 h-4" /></span>
               </div>
 
               <div className="space-y-0.5 my-1">
@@ -627,7 +627,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       {/* ========================================================================= */}
       <div className="bg-slate-950 text-slate-300 rounded-2xl px-4 py-3 flex items-center justify-between text-xs border border-slate-800 shadow-md">
         <div className="flex items-center gap-2">
-          <span className="text-[#d97706] text-sm">✨</span>
+          <Sparkles className="w-4 h-4 text-[var(--app-warn)]" />
           <span className="font-bold text-white">يوم عمل جميل وممتع وموفق بإذن الله</span>
           <span className="text-slate-600 hidden sm:inline">|</span>
           <span className="text-slate-400 hidden sm:inline">منظومة مبيعات ومخازن مجموعة الطنطاوي دريم</span>
