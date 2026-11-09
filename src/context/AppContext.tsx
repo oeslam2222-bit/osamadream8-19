@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { COMPANY_INFO, INITIAL_AUDIT_LOGS, INITIAL_BRANCHES, INITIAL_USERS } from '../data/mockData';
+import { inferCustomerSector, BRANCHES } from '../data/branchDefinitions';
 import { DEFAULT_CLOUDINARY_CONFIG } from '../services/cloudinaryService';
 import { clearCachedImages } from '../services/imageCacheService';
 import { idbClear, idbDelete, idbGet, idbSet, debouncedIdbSet, safeLocalStorageSet } from '../services/storageService';
@@ -37,6 +38,9 @@ import {
   fetchTargetsIncremental,
   mergeTargetsIncremental,
   fetchVisitsFromSupabase,
+  fetchVisitContentStamp,
+  CustomerFetchScope,
+  VisitFetchScope,
   saveTargetsToSupabase,
   saveVisitsToSupabase,
   fetchForecastsByMonthFromSupabase,
@@ -160,6 +164,62 @@ import {
 } from '../services/offlineQueueService';
 
 type ActiveSector = 'all' | 'home' | 'electrical';
+
+/**
+ * بصمة محتوى جدول العملاء آخر مرة نزّلناها بالكامل.
+ * بتُحفظ على الجهاز عشان إعادة فتح التطبيق تعمل استعلام صف واحد فقط
+ * (count + أحدث updated_at) بدل ما تنزّل الجدول كله من جديد — ده أكبر بند
+ * في استهلاك الـ egress على الخطة المجانية.
+ */
+const CUSTOMER_CONTENT_STAMP_KEY = 'tantawy_customer_content_stamp_v1';
+
+function readCustomerContentStamp(): { count: number | null; maxUpdatedAt: string | null } | null {
+  try {
+    const raw = localStorage.getItem(CUSTOMER_CONTENT_STAMP_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && (parsed.count !== undefined || parsed.maxUpdatedAt !== undefined)) {
+      return {
+        count: typeof parsed.count === 'number' ? parsed.count : null,
+        maxUpdatedAt: parsed.maxUpdatedAt ?? null,
+      };
+    }
+  } catch {}
+  return null;
+}
+
+function saveCustomerContentStamp(stamp: { count: number | null; maxUpdatedAt: string | null }): void {
+  try {
+    safeLocalStorageSet(CUSTOMER_CONTENT_STAMP_KEY, JSON.stringify(stamp));
+  } catch {}
+}
+
+/**
+ * بصمة محتوى جدول الزيارات — نفس فكرة العملاء.
+ * من غيرها كان كل فتح للتطبيق بينزّل 3,700+ زيارة لكل جهاز.
+ */
+const VISIT_CONTENT_STAMP_KEY = 'tantawy_visit_content_stamp_v1';
+
+function readVisitContentStamp(): { count: number | null; maxUpdatedAt: string | null } | null {
+  try {
+    const raw = localStorage.getItem(VISIT_CONTENT_STAMP_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && (parsed.count !== undefined || parsed.maxUpdatedAt !== undefined)) {
+      return {
+        count: typeof parsed.count === 'number' ? parsed.count : null,
+        maxUpdatedAt: parsed.maxUpdatedAt ?? null,
+      };
+    }
+  } catch {}
+  return null;
+}
+
+function saveVisitContentStamp(stamp: { count: number | null; maxUpdatedAt: string | null }): void {
+  try {
+    safeLocalStorageSet(VISIT_CONTENT_STAMP_KEY, JSON.stringify(stamp));
+  } catch {}
+}
 
 function resolveEffectiveSector(user: User | null, activeSector: ActiveSector, fallbackSector?: string): ActiveSector {
   if (user?.role === 'admin' || user?.role === 'developer') return activeSector;
@@ -1757,21 +1817,61 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   /**
    * Which customers this device is allowed to download.
    *
-   * The customer table is the heaviest payload in the app (3,400+ rows, every
-   * column used by the financial reports), and a rep only ever works one branch.
-   * Pulling the full base onto 70 phones costs megabytes of everyone's data for
-   * rows the UI would hide anyway, so the read is narrowed server-side for
-   * everyone except admins and developers.
+   * The customer table is the heaviest payload in the app (5,400+ rows, every
+   * column used by the financial reports). Until now every phone downloaded the
+   * whole base and then hid 90% of it in `getVisibleCustomers`. This narrows the
+   * read on the server to exactly the rows the role can see:
    *
-   * Both spellings are sent because branch names are free-text Arabic in the
-   * database, and fetchCustomersFromSupabase falls back to the full base if a
-   * narrow read matches nothing.
+   *  - admin / developer / technical support → full base.
+   *  - branch manager → their branch (+ customers with no branch, which the UI
+   *    resolves from the address).
+   *  - supervisor → their branch (client-side then keeps only their reps).
+   *  - sales rep → their branch + anything carrying their rep name/id, because
+   *    some imported rows use a numeric sector branch («فرع 16») that does not
+   *    match the rep's branch label. The OR keeps those rows from disappearing.
+   *
+   * The server falls back to the full base when a narrow read matches nothing,
+   * so a wrong scope can only download more — never show an empty list.
    */
-  const customerFetchScope = useMemo(() => {
-    // Return undefined to load the full customer base (5,428 customers) across all branches,
-    // allowing the user to filter dynamically by branch, rep, supervisor, and sector.
-    return undefined;
-  }, []);
+  const customerFetchScope = useMemo<CustomerFetchScope | undefined>(() => {
+    if (!currentUser) return undefined;
+    const role = currentUser.role;
+    if (role === 'admin' || role === 'developer' || role === 'technical_support' || role === 'legal_advisor' || role === 'warehouse_keeper') {
+      return undefined;
+    }
+
+    const cleanName = (value?: string) =>
+      (value || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+    const fullName = cleanName(currentUser.name);
+    const nameTokens = fullName.split(' ').filter((token) => token.length > 1);
+    // أول كلمتين بتغطي الأسماء المختصرة في الشيتات («شهاب الدين» بدل الاسم الكامل).
+    const shortName = nameTokens.slice(0, 2).join(' ');
+
+    const branchNames = Array.from(
+      new Set([currentUser.branchName].filter((branch): branch is string => Boolean(branch && branch.trim())))
+    );
+
+    if (role === 'sales_rep') {
+      return {
+        branchNames,
+        repNames: Array.from(new Set([fullName, shortName].filter((name) => name.length >= 3))),
+        repIds: Array.from(new Set([currentUser.id, currentUser.username].filter(Boolean) as string[])),
+        includeUnassignedBranch: true,
+      };
+    }
+
+    // مدير الفرع والمشرف: نطاق الفرع، وبعده الفلترة الدقيقة في الواجهة.
+    return {
+      branchNames,
+      includeUnassignedBranch: true,
+    };
+  }, [
+    currentUser?.id,
+    currentUser?.name,
+    currentUser?.username,
+    currentUser?.branchName,
+    currentUser?.role,
+  ]);
 
   /**
    * scope القراءة من جدول الزيارات، على نفس نمط العملاء.
@@ -1780,24 +1880,28 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
    * الاستضافة على الخطة المجانية: كل مندوب بينزّل سجل الشركة كله عشان
    * يشوف زيارات فرعه، والواجهة كانت بتخفي الباقي بعد ما يتحمّل.
    *
-   * مين بيتضيّق؟ المندوب ومدير الفرع بس — وهما أصعب الأدوار صرامة في
-   * `visibleVisits` أصلاً (مندوب: زياراته هو بس). المشرف سيب من غير
-   * scope عمداً: صلاحيته مش مرتبطة بفرع واحد (بيشوف زيارات مندوبين
-   * `supervisorId`)، فأي تضييق هيعمله ممكن يخفي عنه زيارة
-   * سجّلها بنفسه. يعني ~7 مشرفين بيفضلوا السجل كامل بدل 300 مندوب.
+   * المندوب ومدير الفرع بس هما اللي بيتضيّقوا — وهما أصعب الأدوار صرامة في
+   * `getVisibleVisits` أصلاً. المشرف سايب من غير scope عمداً لأن صلاحيته
+   * مربوطة بمندوبين معيّنين مش بفرع واحد.
    *
    * `sinceDate` بيقفل القراءة على 18 شهر: التقارير الشهرية بتغطي السنة
    * اللي فاتت، وأقدم من كده مش بيتنزل على موبايل. الأدمن والمطور من غير
    * حد، عشان تقرير المرتجعات على مستوى الشركة محتاج السجل كامل.
    */
-  const visitFetchScope = useMemo(() => {
+  const visitFetchScope = useMemo<VisitFetchScope | undefined>(() => {
     const role = currentUser?.role;
-    if (!currentUser || role !== 'sales_rep' && role !== 'branch_manager') return undefined;
+    if (!currentUser || (role !== 'sales_rep' && role !== 'branch_manager')) return undefined;
     const scope = customerFetchScope;
-    if (!scope?.branchNames?.length) return undefined;
+    if (!scope) return undefined;
     const since = new Date();
     since.setMonth(since.getMonth() - 18);
-    return { branchNames: scope.branchNames, sinceDate: since.toISOString().slice(0, 10) };
+    return {
+      branchNames: scope.branchNames,
+      repNames: scope.repNames,
+      repIds: scope.repIds,
+      includeUnassignedBranch: scope.includeUnassignedBranch,
+      sinceDate: since.toISOString().slice(0, 10),
+    };
   }, [currentUser?.id, currentUser?.branchName, currentUser?.role, customerFetchScope]);
 
   const checkDatabaseConnection = useCallback(async (): Promise<SupabaseSyncStatus> => {
@@ -1926,6 +2030,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
    * غير** ختم إصدار منشور على السيرفر.
    */
   const noStampPulledAtRef = useRef(0);
+  /** امتى آخر مرة نزّلنا جدول العملاء بالكامل (على مستوى الجلسة). */
+  const customerFullFetchAtRef = useRef(0);
+  /** يمنع تنزيلين متوازيين لنفس جدول العملاء (نبضة الإصدار + نبضة المحتوى). */
+  const customerDownloadInFlightRef = useRef(false);
   /**
    * من غير ختم إصدار منشور، المسار ده كان بيسحب جدول العملاء كامل **كل مرة**
    * check() بينادي — يعني كل 30 ثانية على كل جهاز، وكمان عند كل focus.
@@ -1935,7 +2043,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
    * انحراف المحتوى لسه متكفّل بيه `checkCustomersContent` عبر بصمة صف واحد
    * (عدد الصفوف + أحدث updated_at)، فمفيش فقد في حداثة البيانات.
    */
-  const NO_STAMP_PULL_INTERVAL_MS = 15 * 60 * 1000;
+  const NO_STAMP_PULL_INTERVAL_MS = 60 * 60 * 1000;
 
   const checkAndSyncDataVersion = async (force: boolean = false): Promise<{ updated: boolean; version?: number; message: string }> => {
     try {
@@ -1953,9 +2061,32 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         if (!dueForPull) {
           return { updated: false, message: 'مفيش ختم إصدار منشور — الاعتماد على بصمة المحتوى' };
         }
+        // في نفس اللحظة ممكن نبضة المحتوى تكون بتنزّل الجدول — منزّلش مرتين.
+        if (customerDownloadInFlightRef.current) {
+          return { updated: false, message: 'جارٍ تحميل أحدث بيانات العملاء' };
+        }
+        // لو البصمة المحفوظة مطابقة للي على السيرفر، مفيش داعي للتنزيل الكامل.
+        const stampNow = await fetchCustomerContentStamp(customerFetchScope);
+        const storedStampNow = readCustomerContentStamp();
+        if (
+          stampNow &&
+          storedStampNow &&
+          stampNow.count === storedStampNow.count &&
+          stampNow.maxUpdatedAt === storedStampNow.maxUpdatedAt
+        ) {
+          noStampPulledAtRef.current = Date.now();
+          return { updated: false, message: 'بيانات العملاء محدثة بالفعل' };
+        }
         noStampPulledAtRef.current = Date.now();
-        const custRes = await fetchCustomersFromSupabase(customerFetchScope);
+        customerDownloadInFlightRef.current = true;
+        let custRes: Awaited<ReturnType<typeof fetchCustomersFromSupabase>>;
+        try {
+          custRes = await fetchCustomersFromSupabase(customerFetchScope);
+        } finally {
+          customerDownloadInFlightRef.current = false;
+        }
         if (custRes.success && custRes.customers && custRes.customers.length > 0) {
+          if (stampNow) saveCustomerContentStamp(stampNow);
           const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers), users);
           const valid = deduplicateCustomersArray(linked);
           setCustomers((current) => {
@@ -2001,12 +2132,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       // متوازية عشان الإقلاع يستنى أطول جلب بس
       // بدل مجموع الأوقات (الكتالوج والعملاء والفواتير
       // والزيارات كانت بتنزل ورا بعض متسلسلة).
-      const [prodRes, custRes, trgRes, invRes, visRes] = await Promise.all([
+      const [prodRes, custRes, trgRes, invRes, visRes, visStamp, custStamp] = await Promise.all([
         inScope('products') ? fetchProductsFromSupabase() : Promise.resolve(null),
         inScope('customers') ? fetchCustomersFromSupabase(customerFetchScope) : Promise.resolve(null),
         inScope('targets') ? fetchTargetsFromSupabase() : Promise.resolve(null),
         inScope('invoices') ? fetchInvoicesFromSupabase(buildInvoiceFetchScope(currentUser, users)) : Promise.resolve(null),
         inScope('visits') ? fetchVisitsFromSupabase(visitFetchScope) : Promise.resolve(null),
+        inScope('visits') ? fetchVisitContentStamp(visitFetchScope) : Promise.resolve(null),
+        inScope('customers') ? fetchCustomerContentStamp(customerFetchScope) : Promise.resolve(null),
       ]);
 
       if (prodRes?.success) {
@@ -2016,6 +2149,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (custRes?.success) {
         const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers || []), users);
         freshCustomers = deduplicateCustomersArray(linked);
+        // نحفظ بصمة الجدول بعد التنزيل الكامل، وإلا نبضة المحتوى (checkCustomersContent)
+        // هتلاقي مفيش بصمة محفوظة وتنزّل نفس الجدول تاني بعد شوية.
+        if (custStamp && (custStamp.count !== null || custStamp.maxUpdatedAt !== null)) {
+          saveCustomerContentStamp(custStamp);
+        }
       }
 
       if (trgRes?.success) {
@@ -2046,6 +2184,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       if (visRes?.success && visRes.visits) {
         freshVisits = visRes.visits;
+        // بصمة الزيارات بنحفظها بعد أي تحميل ناجح، عشان فتح التطبيق الجاي
+        // ما يعملش نفس التنزيل تاني لو مفيش جديد.
+        if (visStamp && (visStamp.count !== null || visStamp.maxUpdatedAt !== null)) {
+          saveVisitContentStamp(visStamp);
+        }
       }
 
       /**
@@ -2284,13 +2427,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     let checkInFlight = false;
     let lastHeartbeatCheck = 0;
     const HEARTBEAT_INTERVAL_MS = 120 * 1000;
-    // شبكة أمان: لو البصمة مرجعتش نتيجة (عمود updated_at مش موجود، أو
-    // حد عدّل بـ SQL مباشر من غير ما يمسّه) بنعمل تحميل كامل كل ربع ساعة
-    // عشان الجهاز يفضل صحيح. ده 4 مرات في الساعة بدل 60 مرة.
-    const FULL_REFRESH_FALLBACK_MS = 15 * 60 * 1000;
-    let lastFullCustomerFetchAt = 0;
-    let lastCustomerStamp: { count: number | null; maxUpdatedAt: string | null } | null = null;
-    let lastStampWasKnown = false;
+    // شبكة أمان: لو استعلام البصمة نفسه فشل (عمود updated_at مش موجود أو
+    // الشبكة وقعت) بنعمل تحميل كامل مرة كل ساعة. البصمة المحفوظة على الجهاز
+    // بتغطي الحالة الطبيعية، فمش محتاجين نعيد تنزيل الجدول عند كل فتح.
+    const FULL_REFRESH_FALLBACK_MS = 60 * 60 * 1000;
 
     const check = () => {
       if (checkInFlight || document.visibilityState === 'hidden') return;
@@ -2316,50 +2456,44 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (checkInFlight || document.visibilityState === 'hidden') return;
       // Skip while our own write is still propagating, otherwise a lagging
       // server response overwrites the fresh data we just published.
-      if (Date.now() - authoritativeWriteAtRef.current < 120000) return;
+      if (!force && Date.now() - authoritativeWriteAtRef.current < 120000) return;
 
-      const neverFetchedYet = lastFullCustomerFetchAt === 0;
-      let shouldFetchFull = force || neverFetchedYet || customers.length < 5000;
-      let stamp: { count: number | null; maxUpdatedAt: string | null } | null = null;
+      // 1) استعلام بصمة صف واحد. لو نفس البصمة المحفوظة من آخر تنزيل كامل
+      // → مفيش تغيير على السيرفر، ومفيش أي بايتات جدول بتتنقل.
+      const stamp = await fetchCustomerContentStamp(customerFetchScope);
+      const stampComparable =
+        stamp !== null && (stamp.count !== null || stamp.maxUpdatedAt !== null);
+      const storedStamp = readCustomerContentStamp();
 
-      if (!shouldFetchFull) {
-        stamp = await fetchCustomerContentStamp(customerFetchScope);
-        const stampComparable =
-          stamp !== null && (stamp.count !== null || stamp.maxUpdatedAt !== null);
-
-        if (stampComparable) {
-          const unchanged =
-            lastStampWasKnown &&
-            stamp.count === lastCustomerStamp?.count &&
-            stamp.maxUpdatedAt === lastCustomerStamp?.maxUpdatedAt;
-          // Server says nothing moved since our last full pull, so there is
-          // nothing to download.
-          if (unchanged) return;
-          shouldFetchFull = true;
-        } else {
-          // The probe told us nothing (no updated_at column, or the read
-          // failed). Fall back to a full refresh on a slow timer instead of
-          // never.
-          shouldFetchFull = Date.now() - lastFullCustomerFetchAt >= FULL_REFRESH_FALLBACK_MS;
-        }
+      if (!force && stampComparable && storedStamp) {
+        const unchanged =
+          stamp!.count === storedStamp.count && stamp!.maxUpdatedAt === storedStamp.maxUpdatedAt;
+        // لو مفيش بيانات محلية أصلًا (كاش ممسوح) لازم ننزّل حتى لو البصمة مطابقة.
+        if (unchanged && customers.length > 0) return;
       }
 
-      if (!shouldFetchFull) return;
+      // 2) البصمة غير متاحة (عمود updated_at مش موجود مثلًا) → نستخدم
+      // مؤقّت بطيء بدل ما نضرب الجدول كله في كل نبضة/فتح للتطبيق.
+      if (!force && !stampComparable) {
+        if (Date.now() - customerFullFetchAtRef.current < FULL_REFRESH_FALLBACK_MS) return;
+      }
+
+      if (customerDownloadInFlightRef.current) return;
 
       checkInFlight = true;
+      customerDownloadInFlightRef.current = true;
       try {
         const res = await fetchCustomersFromSupabase(customerFetchScope);
         if (!res.success || !res.customers || res.customers.length === 0) return;
         const linked = linkCustomersToUsers(sanitizeCustomers(res.customers), usersRef.current);
         const fresh = deduplicateCustomersArray(linked);
         const fingerprint = buildCustomersFingerprint(fresh);
-        lastFullCustomerFetchAt = Date.now();
+        customerFullFetchAtRef.current = Date.now();
         // The stamp we probed describes the exact table we just downloaded, so
         // it becomes the new baseline for the next probe. Only on a successful
         // read — a failed fetch must never claim we are in sync.
-        if (stamp && (stamp.count !== null || stamp.maxUpdatedAt !== null)) {
-          lastCustomerStamp = stamp;
-          lastStampWasKnown = true;
+        if (stampComparable) {
+          saveCustomerContentStamp({ count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt });
         }
         if (fingerprint === getLocalCustomersFingerprint() && customers.length >= fresh.length) return;
         setCustomers(fresh);
@@ -2369,12 +2503,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         // Network hiccup: the next heartbeat retries.
       } finally {
         checkInFlight = false;
+        customerDownloadInFlightRef.current = false;
       }
     };
 
     const handleFocus = () => {
-      check();
+      // checkCustomersContent الأول: check() بيحجز checkInFlight فوراً، فلو
+      // اتنادى قبله كان بيخلي نبضة العملاء ترجع من غير ما تعمل حاجة.
       checkCustomersContent();
+      check();
     };
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
@@ -2387,8 +2524,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const now = Date.now();
       if (now - lastHeartbeatCheck < HEARTBEAT_INTERVAL_MS) return;
       lastHeartbeatCheck = now;
-      check();
       checkCustomersContent();
+      check();
     };
 
     window.addEventListener('focus', handleFocus);
@@ -2404,14 +2541,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${GLOBAL_VERSION_RECORD_ID}` },
         () => {
-          check();
           checkCustomersContent();
+          check();
         }
       )
       .subscribe();
 
-    check();
     checkCustomersContent();
+    check();
     return () => {
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibility);
@@ -2549,33 +2686,58 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           }
         });
 
-        // 5. Fetch Visits from Supabase (المفروض يكون narrowed بالـscope بتاع الدور)
+        // 5. Fetch Visits from Supabase (narrowed by the role scope)
         const deletedVisitIds = getDeletedVisitIds();
-        fetchVisitsFromSupabase(visitFetchScope).then(async (res) => {
-          if (res.success && res.visits) {
-            const remoteVisits = res.visits.filter(
-              (v) => !deletedVisitIds.has(v.id)
-            );
-            const queued = await getQueuedMutations();
-            const pendingVisitIds = new Set(
-              queued.filter((m) => m.entity === 'visits' && m.op === 'upsert').map((m) => m.entityId)
-            );
-            setVisits((previous) => {
-              const merged = new Map<string, CustomerVisit>();
-              // Start with remote visits as source of truth
-              remoteVisits.forEach((visit) => merged.set(visit.id, { ...visit, syncStatus: 'synced' }));
-              // Add only local visits that are genuinely pending offline in outbox
-              previous.forEach((visit) => {
-                if (pendingVisitIds.has(visit.id) && !merged.has(visit.id) && !deletedVisitIds.has(visit.id)) {
-                  merged.set(visit.id, visit);
-                }
-              });
-              const next = Array.from(merged.values());
-              persistVisits(next);
-              return next;
-            });
+        const loadInitialVisits = async () => {
+          // نفس فكرة بصمة العملاء: استعلام صف واحد الأول، ومفيش تنزيل
+          // للجدول كله غير لو المحتوى اتغير فعلًا على السيرفر.
+          const stamp = await fetchVisitContentStamp(visitFetchScope);
+          const comparable =
+            stamp !== null && (stamp.count !== null || stamp.maxUpdatedAt !== null);
+          const stored = readVisitContentStamp();
+          const unchanged =
+            comparable &&
+            stored !== null &&
+            stamp!.count === stored.count &&
+            stamp!.maxUpdatedAt === stored.maxUpdatedAt;
+          if (unchanged) {
+            // الحالة (`visits`) ممكن تكون لسه فاضية في الريندر اللي شغّل
+            // الإيفكت ده، فبنقرأ نسخة IndexedDB قبل ما نقرر ننزّل الجدول.
+            const localVisits =
+              visits.length > 0 ? visits : (await idbGet<CustomerVisit[]>(STORAGE_KEYS.VISITS)) || [];
+            if (localVisits.length > 0) {
+              if (visits.length === 0) setVisits(localVisits);
+              return;
+            }
           }
-        });
+
+          const res = await fetchVisitsFromSupabase(visitFetchScope);
+          if (!res.success || !res.visits) return;
+          if (comparable) {
+            saveVisitContentStamp({ count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt });
+          }
+
+          const remoteVisits = res.visits.filter((v) => !deletedVisitIds.has(v.id));
+          const queued = await getQueuedMutations();
+          const pendingVisitIds = new Set(
+            queued.filter((m) => m.entity === 'visits' && m.op === 'upsert').map((m) => m.entityId)
+          );
+          setVisits((previous) => {
+            const merged = new Map<string, CustomerVisit>();
+            // Start with remote visits as source of truth
+            remoteVisits.forEach((visit) => merged.set(visit.id, { ...visit, syncStatus: 'synced' }));
+            // Add only local visits that are genuinely pending offline in outbox
+            previous.forEach((visit) => {
+              if (pendingVisitIds.has(visit.id) && !merged.has(visit.id) && !deletedVisitIds.has(visit.id)) {
+                merged.set(visit.id, visit);
+              }
+            });
+            const next = Array.from(merged.values());
+            persistVisits(next);
+            return next;
+          });
+        };
+        loadInitialVisits().catch(() => {});
 
     // Setup Supabase Realtime subscriptions for data tables.
     try {
@@ -6728,7 +6890,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const getVisibleCustomers = (): Customer[] => {
     if (!currentUser) return [];
     // القطاع: admin/developer يشاهدون كل القطاعات، 나머ج يُفلتر حسب قطاع المستخدم
-    const sectorFiltered = filterBySector(customers, currentUser.sector);
+    // نمرّر resolver لأن معظم العملاء المستوردين حقل sector عندهم فاضي.
+    const sectorFiltered = filterBySector(customers, currentUser.sector, (c) => inferCustomerSector(c, users));
     if (currentUser.role === 'admin' || currentUser.role === 'developer') {
       return selectedBranchFilter === 'الكل'
         ? sectorFiltered
