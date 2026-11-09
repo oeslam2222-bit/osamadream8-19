@@ -226,7 +226,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <aside className="ds-sidebar print:hidden" aria-label="القائمة الرئيسية" dir="rtl">
+      <aside className="fixed right-0 top-0 bottom-0 z-40 w-64 flex flex-col bg-[#0f2b38] text-white shadow-xl transition-all duration-300 print:hidden" aria-label="القائمة الرئيسية" dir="rtl">
         {/* Brand Block */}
         <div className="ds-sidebar__brand">
           <img src="/icon.svg" alt="طنطاوي جروب" className="ds-sidebar__logo" />
