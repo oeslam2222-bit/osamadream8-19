@@ -447,11 +447,12 @@ html.dark .ds-iconbtn--primary { color: #fff; }
   .ds-sidebar {
     display: flex !important;
   }
+  /* RTL-safe: inline-start = جهة بداية السطر (يمين في RTL) حيث يوجد السايدبار */
   .ds-topbar,
   .app-main,
   footer {
-    margin-right: 260px !important;
-    margin-left: 0 !important;
+    margin-inline-start: 260px !important;
+    margin-inline-end: 0 !important;
   }
   .ds-tabs {
     display: none !important;
@@ -465,8 +466,8 @@ html.dark .ds-iconbtn--primary { color: #fff; }
   .ds-topbar,
   .app-main,
   footer {
-    margin-right: 0 !important;
-    margin-left: 0 !important;
+    margin-inline-start: 0 !important;
+    margin-inline-end: 0 !important;
   }
 }
 
@@ -572,6 +573,14 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, input:focu
 .ds-table-scroll { max-height: calc(100dvh - 190px); overflow: auto; overscroll-behavior: contain; }
 .ds-table-scroll thead th { position: sticky; top: 0; z-index: 3; }
 @media (max-width: 767px) { .ds-table-scroll { max-height: none; } }
+
+/* جدول العملاء (AllCustomersAnalyticsView): إجبار تمرير أفقي بدل ضغط الأعمدة
+   حتى لا تتداخل الأسماء وتنكسر أسطرها على المقاسات الصغيرة */
+.cust-table { min-width: 1180px; }
+.cust-table th,
+.cust-table td { white-space: nowrap; }
+.cust-table td:nth-child(2),
+.cust-table th:nth-child(2) { white-space: normal; min-width: 160px; }
 
 /* النوافذ المنبثقة: لا تتخطى الشاشة وتحترم النوتش */
 .fixed.inset-0 { overscroll-behavior: contain; }

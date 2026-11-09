@@ -280,6 +280,14 @@ export async function probeWriteAccess(): Promise<TableWriteProbe[]> {
  */
 export interface CustomerFetchScope {
   branchNames?: string[];
+  /** أسماء فروع تُطابق جزئيًا (للقطاعات اللي بتتعرّف من كلمة زي «كهرب»). */
+  branchNameContains?: string[];
+  /** أسماء مندوبين: بنطابقها داخل عمود rep_name (العميل ممكن يكون متسجل باسم المندوب). */
+  repNames?: string[];
+  /** أكواد/معرّفات المندوبين في عمود rep_id. */
+  repIds?: string[];
+  /** عملاء بدون فرع مسجّل — بيظهرون للمشرف/المدير بعد الاستنتاج من العنوان. */
+  includeUnassignedBranch?: boolean;
 }
 
 /**
@@ -294,8 +302,65 @@ export interface CustomerFetchScope {
  */
 export interface VisitFetchScope {
   branchNames?: string[];
+  branchNameContains?: string[];
+  repNames?: string[];
+  repIds?: string[];
+  includeUnassignedBranch?: boolean;
   /** حد أدنى للتاريخ (YYYY-MM-DD): الزيارات الأقدم مش محمولة على الموبايل. */
   sinceDate?: string;
+}
+
+/**
+ * يقتبس قيمة جوه تعبير or= بتاع PostgREST.
+ * الأقواس والفواصل جوه القيمة بتكسر الصيغة، فبنشيلها.
+ */
+function quoteOrValue(value: string): string {
+  const clean = String(value).replace(/["(),]/g, ' ').trim();
+  return `"${clean}"`;
+}
+
+/**
+ * يبني شروط القراءة المحدودة كتعبير or واحد.
+ *
+ * PostgREST مش بيعرف يعمل OR بين أعمدة مختلفة غير بتعبير واحد، ولو عملنا
+ * فلترين منفصلين (branch و rep_name) بيتحوّلوا لـ AND — يعني مندوب في فرع
+ * والعميل متسجل باسمه في فرع تاني كان هيختفي. التعبير الواحد ده بيضمن إن
+ * أي عميل بيخص المندوب (بالفرع أو بالاسم أو بالكود) بيتنزّل.
+ */
+function buildScopeOrClauses(scope?: {
+  branchNames?: string[];
+  branchNameContains?: string[];
+  repNames?: string[];
+  repIds?: string[];
+  includeUnassignedBranch?: boolean;
+}): string[] {
+  const clauses: string[] = [];
+  const branches = (scope?.branchNames || []).filter((b) => b && b.trim().length > 0);
+  if (branches.length > 0) {
+    clauses.push(`branch_name.in.(${branches.map(quoteOrValue).join(',')})`);
+  }
+  (scope?.branchNameContains || []).filter(Boolean).forEach((needle) => {
+    clauses.push(`branch_name.ilike.${quoteOrValue(`*${needle}*`)}`);
+  });
+  (scope?.repIds || []).filter(Boolean).forEach((id) => {
+    clauses.push(`rep_id.eq.${quoteOrValue(id)}`);
+  });
+  (scope?.repNames || []).filter(Boolean).forEach((name) => {
+    clauses.push(`rep_name.ilike.${quoteOrValue(`*${name}*`)}`);
+  });
+  if (scope?.includeUnassignedBranch) clauses.push('branch_name.is.null');
+  return clauses;
+}
+
+/** هل فيه أي فلتر فعلي؟ (تستخدمه مسارات القراءة عشان تعرف تعمل fallback ولا لأ) */
+function hasScopeFilters(scope?: CustomerFetchScope | VisitFetchScope): boolean {
+  return buildScopeOrClauses(scope).length > 0;
+}
+
+/** يطبّق نطاق القراءة على أي query من Supabase. */
+function applyScopeToQuery(query: any, scope?: CustomerFetchScope | VisitFetchScope): any {
+  const clauses = buildScopeOrClauses(scope);
+  return clauses.length > 0 ? query.or(clauses.join(',')) : query;
 }
 
 /** أربعين ألف صف: حدّ أمان ضد جدول مش متوقع، مش رقم تشغيل. */
@@ -311,13 +376,10 @@ async function fetchAllRows(
 ): Promise<{ data: any[]; error: any }> {
   const pageSize = 1000;
   const rows: any[] = [];
-  const branchFilter = scope?.branchNames?.filter((b) => b && b.trim().length > 0) || [];
 
   for (let from = 0; ; from += pageSize) {
     let query = supabase.from(table).select('*');
-    if (branchFilter.length > 0) {
-      query = query.in('branch_name', branchFilter);
-    }
+    query = applyScopeToQuery(query, scope);
     const { data, error } = await query.range(from, from + pageSize - 1);
 
     if (error) return { data: rows, error };
@@ -336,7 +398,7 @@ export async function fetchCustomersFromSupabase(
 ): Promise<{ success: boolean; customers?: Customer[]; error?: string; scoped?: boolean }> {
   try {
     let rawCustomers: any[] | null = null;
-    let scopedUsed = Boolean(scope?.branchNames?.length);
+    let scopedUsed = hasScopeFilters(scope);
     let { data: custData, error: cErr } = await fetchAllRows('customers', scope);
     if (!cErr && scopedUsed && custData.length === 0) {
       // Branch names are free-text Arabic, so a narrow read that matches nothing
@@ -353,7 +415,7 @@ export async function fetchCustomersFromSupabase(
     if (!cErr && custData.length > 0) {
       rawCustomers = custData;
     } else {
-      const { data: clientData, error: clErr } = await fetchAllRows('clients');
+      const { data: clientData, error: clErr } = await fetchAllRows('clients', scope);
       if (!clErr && clientData.length > 0) {
         rawCustomers = clientData;
       }
@@ -471,16 +533,12 @@ export async function fetchCustomerContentStamp(
   scope?: CustomerFetchScope
 ): Promise<CustomerContentStamp | null> {
   try {
-    const branchFilter = scope?.branchNames?.filter((b) => b && b.trim().length > 0) || [];
-
     let query = supabase
       .from('customers')
       .select('updated_at', { count: 'exact' })
       .order('updated_at', { ascending: false, nullsFirst: false })
       .limit(1);
-    if (branchFilter.length > 0) {
-      query = query.in('branch_name', branchFilter);
-    }
+    query = applyScopeToQuery(query, scope);
 
     const { data, error, count } = await query;
     if (error) return null;
@@ -489,6 +547,55 @@ export async function fetchCustomerContentStamp(
     return {
       count: typeof count === 'number' ? count : null,
       maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export interface VisitContentStamp {
+  count: number | null;
+  maxUpdatedAt: string | null;
+}
+
+/**
+ * بصمة محتوى جدول الزيارات (عدد الصفوف + أحدث تعديل) — صف واحد فقط.
+ *
+ * كل فتح للتطبيق كان بينزّل جدول الزيارات كامل (3,700+ صف) لكل الأجهزة،
+ * وده كان أكبر بند استهلاك بعد العملاء. البصمة دي بتخلّي الجهاز يسأل
+ * «في جديد؟» بس، وما ينزّلش الجدول غير لما يكون فيه تغيير فعلي.
+ */
+export async function fetchVisitContentStamp(
+  scope?: VisitFetchScope
+): Promise<VisitContentStamp | null> {
+  try {
+    const buildQuery = (column: 'updated_at' | 'created_at') => {
+      let query = supabase
+        .from('visits')
+        .select(column, { count: 'exact' })
+        .order(column, { ascending: false, nullsFirst: false })
+        .limit(1);
+      query = applyScopeToQuery(query, scope);
+      if (scope?.sinceDate?.trim()) {
+        query = query.gte('date', scope.sinceDate.trim());
+      }
+      return query;
+    };
+
+    let result = await buildQuery('updated_at');
+    let column: 'updated_at' | 'created_at' = 'updated_at';
+    if (result.error) {
+      // الجدول القديم ممكن يكون من غير updated_at — بنستخدم created_at.
+      result = await buildQuery('created_at');
+      column = 'created_at';
+    }
+    if (result.error) return null;
+
+    const row = result.data && result.data.length > 0 ? (result.data[0] as any) : null;
+    const latest = row ? row[column] ?? null : null;
+    return {
+      count: typeof result.count === 'number' ? result.count : null,
+      maxUpdatedAt: latest ? String(latest) : null,
     };
   } catch {
     return null;
@@ -2230,7 +2337,6 @@ export async function fetchVisitsFromSupabase(
 ): Promise<{ success: boolean; visits?: CustomerVisit[]; error?: string; scoped?: boolean }> {
   try {
     const pageSize = 1000;
-    const branchFilter = scope?.branchNames?.filter((b) => b && b.trim().length > 0) || [];
     const sinceDate = scope?.sinceDate?.trim() || '';
 
     /**
@@ -2245,8 +2351,8 @@ export async function fetchVisitsFromSupabase(
       for (let page = 0; page < MAX_VISIT_PAGES; page++) {
         const from = page * pageSize;
         let query = supabase.from('visits').select('*').order('created_at', { ascending: false });
-        if (useScope && branchFilter.length > 0) {
-          query = query.in('branch_name', branchFilter);
+        if (useScope) {
+          query = applyScopeToQuery(query, scope);
         }
         if (useScope && sinceDate) {
           query = query.gte('date', sinceDate);
@@ -2266,7 +2372,7 @@ export async function fetchVisitsFromSupabase(
       return { data: rows, error: null as any };
     };
 
-    let scopedUsed = branchFilter.length > 0 || Boolean(sinceDate);
+    let scopedUsed = hasScopeFilters(scope) || Boolean(sinceDate);
     let { data: rows, error } = await readPages(scopedUsed);
     if (!error && scopedUsed && rows.length === 0) {
       console.warn('Scoped visits fetch matched no rows; falling back to the full table.');
@@ -2797,7 +2903,6 @@ export async function fetchCustomersIncremental(
   maxUpdatedAt?: string | null;
 }> {
   try {
-    const branchFilter = scope?.branchNames?.filter((b) => b && b.trim().length > 0) || [];
     const lastTs = getLastCustomerSyncTs();
     const isFullFetch = !lastTs;
 
@@ -2809,9 +2914,7 @@ export async function fetchCustomersIncremental(
     if (!isFullFetch) {
       query = query.gt('updated_at', lastTs);
     }
-    if (branchFilter.length > 0) {
-      query = query.in('branch_name', branchFilter);
-    }
+    query = applyScopeToQuery(query, scope);
 
     const MINIMAL_CUSTOMER_COLUMNS = 'id, code, name, phone, branch_name, updated_at';
 
@@ -2831,8 +2934,8 @@ export async function fetchCustomersIncremental(
         .select(MINIMAL_CUSTOMER_COLUMNS)
         .order('updated_at', { ascending: true, nullsFirst: false });
       if (!isFullFetch) fallbackQuery.gt('updated_at', lastTs);
-      if (branchFilter.length > 0) fallbackQuery.in('branch_name', branchFilter);
-      const { data: fetched, error } = await fallbackQuery;
+      const scopedFallback = applyScopeToQuery(fallbackQuery, scope);
+      const { data: fetched, error } = await scopedFallback;
       queryError = error;
       data = fetched || [];
     }

@@ -224,7 +224,7 @@ const MainLayout: React.FC = () => {
 
       {/* Content Container - Fluid responsive container with min-w-0 to prevent overflow */}
       <main className="app-main flex-1 min-w-0 pb-24 md:pb-10">
-        <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8 py-3 sm:py-5">
+        <div className="mx-auto w-full max-w-[1440px] px-3 sm:px-6 lg:px-8 py-3 sm:py-5">
           <Suspense fallback={<TabLoadingSkeleton />}>
           {activeTab === 'home' && allowedTabs.includes('home') && (
             <DashboardHome
@@ -360,7 +360,7 @@ const MainLayout: React.FC = () => {
 
       {/* Bottom Footer */}
       <footer className="border-t border-white/10 bg-[linear-gradient(180deg,_rgba(9,15,24,0.94),_rgba(15,23,42,0.98))] py-4 px-4 text-center text-xs text-[var(--app-muted)] print:hidden mb-16 md:mb-0 shadow-[0_-10px_30px_rgba(2,6,23,0.2)]">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+        <div className="max-w-[1440px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <span className="font-black text-white">مجموعة الطنطاوي للتجارة والتوزيع (TANTAWY GROUP)</span>
             <span className="text-slate-400">|</span>
