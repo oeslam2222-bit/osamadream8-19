@@ -244,23 +244,23 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
   return (
     <div className="w-full space-y-4" dir="rtl">
       {/* Top Breadcrumb & Title Bar matching screenshot */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-[var(--app-card)] border border-[var(--app-border)] rounded-[var(--app-radius-card)] p-4 sm:p-5 shadow-[var(--app-shadow-card)] backdrop-blur-md text-[var(--app-text)]">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-[var(--app-card)] border border-[var(--app-border)] rounded-[var(--app-radius-card)] p-4 sm:p-5 shadow-[var(--app-shadow-card)] text-[var(--app-text)]">
         <div>
-          <div className="flex items-center gap-2 text-xs font-medium text-slate-400 mb-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[var(--app-text-muted)] mb-1">
             <span>الرئيسية</span>
             <span>&gt;</span>
-            <span className="text-cyan-400 font-bold">العملاء</span>
+            <span className="text-[var(--app-primary)] font-bold">العملاء</span>
           </div>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-inner">
-              <Users className="w-6 h-6" />
+            <div className="p-2.5 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 border border-blue-200 dark:border-blue-800/40 shadow-xs">
+              <Users className="w-6 h-6 stroke-[2.2]" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--app-text)] tracking-tight flex items-center gap-2">
                 قاعدة العملاء
               </h1>
-              <p className="text-xs text-slate-400 mt-0.5">
-                إجمالي مسجل في السيرفر: <span className="text-cyan-400 font-bold font-mono">{customers.length.toLocaleString()}</span> عميل
+              <p className="text-xs text-[var(--app-text-muted)] mt-0.5">
+                إجمالي مسجل في السيرفر: <span className="text-[var(--app-primary)] font-bold font-mono">{customers.length.toLocaleString()}</span> عميل
               </p>
             </div>
           </div>
@@ -270,9 +270,9 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
         {onOpenAdvancedAnalytics && (
           <button
             onClick={onOpenAdvancedAnalytics}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs font-bold text-slate-200 transition-all shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--app-card-secondary)] hover:bg-[var(--app-card-hover)] border border-[var(--app-border)] text-xs font-bold text-[var(--app-text)] transition-all shadow-xs cursor-pointer"
           >
-            <SlidersHorizontal className="w-4 h-4 text-cyan-400" />
+            <SlidersHorizontal className="w-4 h-4 text-[var(--app-primary)]" />
             <span>التحليلات المتقدمة والشيتات</span>
           </button>
         )}
@@ -380,9 +380,9 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
         {/* Customer Cards Grid (occupies 8 or 12 cols depending on detail drawer) */}
         <div className={`${selectedCustomer ? 'xl:col-span-8' : 'xl:col-span-12'} space-y-4`}>
           {displayedCustomers.length === 0 ? (
-            <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-12 text-center text-slate-400">
-              <Users className="w-12 h-12 mx-auto mb-3 text-slate-600" />
-              <p className="text-base font-bold text-white mb-1">لا توجد نتائج مطابقة لبحثك</p>
+            <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center text-slate-500 dark:text-slate-400">
+              <Users className="w-12 h-12 mx-auto mb-3 text-slate-400 dark:text-slate-600" />
+              <p className="text-base font-bold text-slate-900 dark:text-white mb-1">لا توجد نتائج مطابقة لبحثك</p>
               <p className="text-xs">جرب تغيير فلاتر الفرع أو المندوب أو كتابة جزء من الاسم أو الكود</p>
             </div>
           ) : (
@@ -503,7 +503,7 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
             <div className="flex justify-center pt-2">
               <button
                 onClick={handleLoadMore}
-                className="px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-cyan-400 font-bold text-xs flex items-center gap-2 shadow-md transition"
+                className="px-6 py-2.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-[#2563EB] dark:text-cyan-400 font-bold text-xs flex items-center gap-2 shadow-xs transition cursor-pointer"
               >
                 <RefreshCw className="w-4 h-4" />
                 <span>عرض 10 عملاء إضافيين (المتبقي: {(filteredCustomers.length - displayedCustomers.length).toLocaleString()})</span>

@@ -63,6 +63,8 @@ interface NavbarProps {
   onOpenNotificationCenter?: () => void;
 }
 
+const DEFAULT_EXECUTIVE_AVATAR = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80';
+
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
   setActiveTab,
@@ -197,26 +199,71 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const bottomItems = [
     { id: 'home', navId: 'home', label: 'الرئيسية', icon: Home, badge: 0 },
-    { id: 'catalog', navId: 'catalog', label: 'الكتالوج', icon: Boxes, badge: cartSummary.itemCount },
-    { id: 'invoices', navId: 'invoices', label: 'أوامر البيع', icon: Receipt, badge: pendingOrdersCount },
+    { id: 'invoices', navId: 'invoices', label: 'الطلبات', icon: Receipt, badge: pendingOrdersCount },
     { id: 'customers', navId: 'all_customers', label: 'العملاء', icon: Users, badge: 0 },
-  ].filter((b) => filteredNavItems.some((n) => n.id === b.id));
+    { id: 'targets', navId: 'targets', label: 'التقارير', icon: BarChart3, badge: 0 },
+  ].filter((b) => filteredNavItems.some((n) => n.id === b.id || (b.id === 'targets' && filteredNavItems.some(f => f.id === 'targets' || f.id === 'dashboard'))));
+
+  const sectionBadgeTheme: Record<string, { bg: string; text: string; darkBg: string; darkText: string }> = {
+    home: { bg: 'bg-blue-100', text: 'text-[#2563EB]', darkBg: 'dark:bg-blue-950/60', darkText: 'dark:text-blue-300' },
+    catalog: { bg: 'bg-teal-100', text: 'text-[#0D9488]', darkBg: 'dark:bg-teal-950/60', darkText: 'dark:text-teal-300' },
+    invoices: { bg: 'bg-blue-100', text: 'text-[#2563EB]', darkBg: 'dark:bg-blue-950/60', darkText: 'dark:text-blue-300' },
+    collection: { bg: 'bg-emerald-100', text: 'text-[#16A34A]', darkBg: 'dark:bg-emerald-950/60', darkText: 'dark:text-emerald-300' },
+    customers: { bg: 'bg-indigo-100', text: 'text-[#4F46E5]', darkBg: 'dark:bg-indigo-950/60', darkText: 'dark:text-indigo-300' },
+    all_customers: { bg: 'bg-indigo-100', text: 'text-[#4F46E5]', darkBg: 'dark:bg-indigo-950/60', darkText: 'dark:text-indigo-300' },
+    visits: { bg: 'bg-purple-100', text: 'text-[#7C3AED]', darkBg: 'dark:bg-purple-950/60', darkText: 'dark:text-purple-300' },
+    returns: { bg: 'bg-rose-100', text: 'text-[#DC2626]', darkBg: 'dark:bg-rose-950/60', darkText: 'dark:text-rose-300' },
+    returns_customers: { bg: 'bg-rose-100', text: 'text-[#DC2626]', darkBg: 'dark:bg-rose-950/60', darkText: 'dark:text-rose-300' },
+    inventory: { bg: 'bg-amber-100', text: 'text-[#D97706]', darkBg: 'dark:bg-amber-950/60', darkText: 'dark:text-amber-300' },
+    targets: { bg: 'bg-amber-100', text: 'text-[#F59E0B]', darkBg: 'dark:bg-amber-950/60', darkText: 'dark:text-amber-300' },
+    dashboard: { bg: 'bg-purple-100', text: 'text-[#7C3AED]', darkBg: 'dark:bg-purple-950/60', darkText: 'dark:text-purple-300' },
+    excel: { bg: 'bg-emerald-100', text: 'text-[#16A34A]', darkBg: 'dark:bg-emerald-950/60', darkText: 'dark:text-emerald-300' },
+    users: { bg: 'bg-slate-200', text: 'text-slate-700', darkBg: 'dark:bg-slate-800', darkText: 'dark:text-slate-300' },
+    permissions: { bg: 'bg-blue-100', text: 'text-[#2563EB]', darkBg: 'dark:bg-blue-950/60', darkText: 'dark:text-blue-300' },
+    guide: { bg: 'bg-teal-100', text: 'text-[#0D9488]', darkBg: 'dark:bg-teal-950/60', darkText: 'dark:text-teal-300' },
+    cadre_lunch: { bg: 'bg-orange-100', text: 'text-[#EA580C]', darkBg: 'dark:bg-orange-950/60', darkText: 'dark:text-orange-300' },
+  };
 
   return (
     <>
-      <aside className="ds-sidebar print:hidden" aria-label="القائمة الرئيسية">
+      <aside className="ds-sidebar print:hidden" aria-label="القائمة الرئيسية" dir="rtl">
+        {/* Brand Block */}
         <div className="ds-sidebar__brand">
           <img src="/icon.svg" alt="طنطاوي جروب" className="ds-sidebar__logo" />
-          <div>
+          <div className="min-w-0 flex-1">
             <strong>طنطاوي جروب</strong>
-            <span>منظومة المبيعات</span>
+            <span>Dream Tantawy</span>
           </div>
         </div>
-        <div className="ds-sidebar__section">القائمة الرئيسية</div>
+
+        {/* User Card in Sidebar */}
+        <div className="ds-sidebar__user">
+          <div className="ds-sidebar__user-avatar" aria-hidden="true">
+            <img
+              src={currentUser.avatar || DEFAULT_EXECUTIVE_AVATAR}
+              alt={displayName}
+              className="w-full h-full object-cover rounded-[10px]"
+              onError={(e) => {
+                (e.target as HTMLElement).style.display = 'none';
+              }}
+            />
+            <span className="ds-sidebar__user-avatar-initial">{initial}</span>
+          </div>
+          <div className="ds-sidebar__user-meta">
+            <div className="ds-sidebar__user-name">{displayName}</div>
+            <div className="ds-sidebar__user-role">{roleLabel}</div>
+            <div className="ds-sidebar__user-branch">{currentUser.branchName || 'الفرع الرئيسي'}</div>
+          </div>
+        </div>
+
+        <div className="ds-sidebar__section">أقسام المنظومة</div>
+
+        {/* Nav List with colored icon badges */}
         <nav className="ds-sidebar__nav">
           {filteredNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id || (item.id === 'customers' && activeTab === 'all_customers');
+            const theme = sectionBadgeTheme[item.id] || sectionBadgeTheme.home;
             return (
               <button
                 key={`sidebar-${item.id}`}
@@ -225,19 +272,46 @@ export const Navbar: React.FC<NavbarProps> = ({
                 aria-current={isActive ? 'page' : undefined}
                 className="ds-sidebar__item"
               >
-                <Icon aria-hidden="true" />
-                <span>{item.label}</span>
-                {item.badge && item.badge > 0 ? <span className="ds-count">{item.badge}</span> : null}
+                <div className={`ds-sidebar__icon-badge ${theme.bg} ${theme.text} ${theme.darkBg} ${theme.darkText}`}>
+                  <Icon className="w-4 h-4 stroke-[2.2]" aria-hidden="true" />
+                </div>
+                <span className="ds-sidebar__label">{item.label}</span>
+                {item.badge && item.badge > 0 ? (
+                  <span className="ds-count">{item.badge}</span>
+                ) : null}
               </button>
             );
           })}
         </nav>
+
+        {/* Footer with connection status and dual theme toggle */}
         <div className="ds-sidebar__footer">
-          <div className="ds-sidebar__status"><span />{isOffline ? 'غير متصل' : 'متصل'}</div>
-          <button type="button" onClick={toggleTheme} className="ds-sidebar__theme">
-            {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-            <span>{isDark ? 'الوضع النهاري' : 'الوضع الليلي'}</span>
-          </button>
+          <div className="ds-sidebar__status">
+            <span className="flex items-center gap-2">
+              <span className="ds-status-dot" />
+              <span>{isOffline ? 'وضع عدم الاتصال' : 'متصل بالخادم'}</span>
+            </span>
+            <span className="text-[10px] font-mono text-slate-400">V9.0</span>
+          </div>
+
+          <div className="ds-sidebar__theme-toggle" role="group" aria-label="تبديل المظهر">
+            <button
+              type="button"
+              onClick={() => isDark && toggleTheme()}
+              className={`ds-sidebar__theme-btn ${!isDark ? 'is-active text-amber-700 dark:text-amber-300' : ''}`}
+            >
+              <Sun className="w-4 h-4 text-amber-500" />
+              <span>نهاري</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => !isDark && toggleTheme()}
+              className={`ds-sidebar__theme-btn ${isDark ? 'is-active text-blue-700 dark:text-blue-300' : ''}`}
+            >
+              <Moon className="w-4 h-4 text-blue-500" />
+              <span>ليلي</span>
+            </button>
+          </div>
         </div>
       </aside>
       <header className="ds-topbar print:hidden">
@@ -394,7 +468,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 aria-haspopup="true"
                 aria-expanded={showProfileMenu}
               >
-                <span className="ds-avatar" aria-hidden="true">{initial}</span>
+                <span className="ds-avatar" aria-hidden="true">
+                  <img
+                    src={currentUser.avatar || DEFAULT_EXECUTIVE_AVATAR}
+                    alt={displayName}
+                    className="w-full h-full object-cover rounded-full"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                  <span className="ds-avatar-initial">{initial}</span>
+                </span>
                 <span className="ds-profile__meta ds-vis-ge-lg">
                   <div className="ds-profile__name">{displayName}</div>
                   <div className="ds-profile__role">{roleLabel}</div>
@@ -406,7 +490,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="ds-backdrop-clear" onClick={() => setShowProfileMenu(false)} aria-hidden="true" />
                   <div className="ds-popover" role="dialog" aria-label="الحساب">
                     <div className="ds-popover__head">
-                      <span className="ds-avatar ds-popover__avatar" aria-hidden="true">{initial}</span>
+                      <span className="ds-avatar ds-popover__avatar" aria-hidden="true">
+                        <img
+                          src={currentUser.avatar || DEFAULT_EXECUTIVE_AVATAR}
+                          alt={displayName}
+                          className="w-full h-full object-cover rounded-2xl"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = 'none';
+                          }}
+                        />
+                        <span className="ds-avatar-initial">{initial}</span>
+                      </span>
                       <div style={{ minWidth: 0, flex: 1 }}>
                         <div className="ds-profile__name" style={{ maxWidth: 'none', fontSize: 15 }}>{displayName}</div>
                         <div className="ds-profile__role" style={{ maxWidth: 'none' }}>{currentUser.email || ''}</div>
@@ -436,11 +530,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            {/* زر القائمة (موبايل) */}
+            {/* زر القائمة (موبايل وتابلت) */}
             <button
               type="button"
               onClick={() => setIsMobileDrawerOpen(true)}
-              className="ds-iconbtn ds-vis-lt-md"
+              className="ds-iconbtn ds-vis-lt-lg"
               aria-label="القائمة الرئيسية"
               title="القائمة الرئيسية"
             >
@@ -448,29 +542,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </div>
         </div>
-
-        {/* شريط التبويبات (تابلت وما فوق) */}
-        <nav className="ds-tabs ds-vis-ge-md" aria-label="الأقسام">
-          <div className="ds-tabs__inner">
-            {filteredNavItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeTab === item.id || (item.id === 'customers' && activeTab === 'all_customers');
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setActiveTab(item.id)}
-                  aria-current={isActive ? 'page' : undefined}
-                  className="ds-tab"
-                >
-                  <Icon aria-hidden="true" />
-                  <span>{item.label}</span>
-                  {item.badge && item.badge > 0 ? <span className="ds-count">{item.badge}</span> : null}
-                </button>
-              );
-            })}
-          </div>
-        </nav>
       </header>
 
       {/* القائمة السفلية (موبايل) */}
@@ -508,9 +579,9 @@ export const Navbar: React.FC<NavbarProps> = ({
         </button>
       </nav>
 
-      {/* القائمة المنزلقة الكاملة (موبايل) */}
+      {/* القائمة المنزلقة الكاملة (موبايل وتابلت) */}
       {isMobileDrawerOpen && (
-        <div className="ds-drawer-root ds-vis-lt-md" dir="rtl">
+        <div className="ds-drawer-root ds-vis-lt-lg" dir="rtl">
           <div className="ds-drawer-backdrop" onClick={() => setIsMobileDrawerOpen(false)} aria-hidden="true" />
           <div className="ds-drawer" role="dialog" aria-label="القائمة الكاملة">
             <div className="ds-drawer__head">
@@ -543,6 +614,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               {filteredNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = activeTab === item.id || (item.id === 'customers' && activeTab === 'all_customers');
+                const theme = sectionBadgeTheme[item.id] || sectionBadgeTheme.home;
                 return (
                   <button
                     key={item.id}
@@ -551,7 +623,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     aria-current={isActive ? 'page' : undefined}
                     onClick={() => { setActiveTab(item.id); setIsMobileDrawerOpen(false); }}
                   >
-                    <span className="ds-ico"><Icon aria-hidden="true" /></span>
+                    <span className={`ds-ico ${theme.bg} ${theme.text} ${theme.darkBg} ${theme.darkText}`}><Icon aria-hidden="true" /></span>
                     <span className="ds-grow">{item.label}</span>
                     {item.badge && item.badge > 0 ? <span className="ds-count">{item.badge}</span> : null}
                   </button>

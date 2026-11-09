@@ -271,22 +271,22 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
   return (
     <div className="w-full space-y-4" dir="rtl">
       {/* Top Breadcrumb & Title matching screenshot */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-gradient-to-r from-slate-900/95 via-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl backdrop-blur-md text-white">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-[var(--app-card)] border border-[var(--app-border)] rounded-[var(--app-radius-card)] p-4 sm:p-5 shadow-[var(--app-shadow-card)] text-[var(--app-text)]">
         <div>
-          <div className="flex items-center gap-2 text-xs font-medium text-slate-400 mb-1">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[var(--app-text-muted)] mb-1">
             <span>الرئيسية</span>
             <span>&gt;</span>
-            <span className="text-cyan-400 font-bold">التارجت</span>
+            <span className="text-[var(--app-warning)] font-bold">التارجت</span>
           </div>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-inner">
-              <Target className="w-6 h-6" />
+            <div className="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-[#F59E0B] dark:text-amber-400 border border-amber-200 dark:border-amber-800/40 shadow-xs">
+              <Target className="w-6 h-6 stroke-[2.2]" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--app-text)] tracking-tight flex items-center gap-2">
                 تارجت المندوبين
               </h1>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-[var(--app-text-muted)] mt-0.5">
                 متابعة دقيقة للأداء، المحققات، ونسب التحصيل الشهرية والسنوية
               </p>
             </div>
@@ -296,9 +296,9 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
         {onOpenAdvancedDashboard && (
           <button
             onClick={onOpenAdvancedDashboard}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-xs font-bold text-slate-200 transition-all shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--app-card-secondary)] hover:bg-[var(--app-card-hover)] border border-[var(--app-border)] text-xs font-bold text-[var(--app-text)] transition-all shadow-xs cursor-pointer"
           >
-            <SlidersHorizontal className="w-4 h-4 text-cyan-400" />
+            <SlidersHorizontal className="w-4 h-4 text-[var(--app-warning)]" />
             <span>لوحة المؤشرات المتقدمة</span>
           </button>
         )}
@@ -401,7 +401,8 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
                       cy="50"
                       r="40"
                       fill="transparent"
-                      stroke="#1e293b"
+                      stroke="currentColor"
+                      className="text-slate-200 dark:text-slate-800"
                       strokeWidth="10"
                     />
                     <circle
@@ -417,15 +418,15 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-[10px] text-slate-400 font-medium">مبيعات</span>
-                    <span className="text-lg font-black text-white font-mono">{overallTotals.salesPct}%</span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">مبيعات</span>
+                    <span className="text-lg font-black text-[#0F172A] dark:text-white font-mono">{overallTotals.salesPct}%</span>
                   </div>
                 </div>
                 <div className="mt-2 text-center">
-                  <span className="block text-xs font-black text-white font-mono">
+                  <span className="block text-xs font-black text-[#0F172A] dark:text-white font-mono">
                     {overallTotals.salesAch.toLocaleString()}
                   </span>
-                  <span className="block text-[10px] text-slate-400 font-mono">
+                  <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                     من {overallTotals.totalTarget.toLocaleString()}
                   </span>
                 </div>
@@ -440,7 +441,8 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
                       cy="50"
                       r="40"
                       fill="transparent"
-                      stroke="#1e293b"
+                      stroke="currentColor"
+                      className="text-slate-200 dark:text-slate-800"
                       strokeWidth="10"
                     />
                     <circle
@@ -456,15 +458,15 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-[10px] text-slate-400 font-medium">تحصيلات</span>
-                    <span className="text-lg font-black text-white font-mono">{overallTotals.collPct}%</span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">تحصيلات</span>
+                    <span className="text-lg font-black text-[#0F172A] dark:text-white font-mono">{overallTotals.collPct}%</span>
                   </div>
                 </div>
                 <div className="mt-2 text-center">
-                  <span className="block text-xs font-black text-white font-mono">
+                  <span className="block text-xs font-black text-[#0F172A] dark:text-white font-mono">
                     {overallTotals.collAch.toLocaleString()}
                   </span>
-                  <span className="block text-[10px] text-slate-400 font-mono">
+                  <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                     من {overallTotals.totalTarget.toLocaleString()}
                   </span>
                 </div>

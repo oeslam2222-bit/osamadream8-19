@@ -223,7 +223,7 @@ const MainLayout: React.FC = () => {
       />
 
       {/* Content Container - Fluid responsive container with min-w-0 to prevent overflow */}
-      <main className="app-main flex-1 w-full max-w-[1440px] mx-auto px-2.5 sm:px-4 lg:px-6 py-3 sm:py-5 pb-24 md:pb-10 min-w-0">
+      <main className="app-main flex-1 w-full max-w-none px-3 sm:px-6 lg:px-8 py-3 sm:py-5 pb-24 md:pb-10 min-w-0">
         <Suspense fallback={<TabLoadingSkeleton />}>
           {activeTab === 'home' && allowedTabs.includes('home') && (
             <DashboardHome
@@ -262,14 +262,14 @@ const MainLayout: React.FC = () => {
               />
             ) : (
               <div className="space-y-4">
-                <div className="flex justify-between items-center bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
+                <div className="flex justify-between items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl shadow-xs">
                   <button
                     onClick={() => setTargetViewMode('cards')}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs flex items-center gap-2 shadow"
+                    className="px-4 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition cursor-pointer"
                   >
                     <span>← العودة لعرض تارجت المندوبين التنفيذي</span>
                   </button>
-                  <span className="text-xs text-slate-400 font-bold">لوحة المؤشرات والتحليلات المتقدمة</span>
+                  <span className="text-xs text-slate-700 dark:text-slate-300 font-bold">لوحة المؤشرات والتحليلات المتقدمة</span>
                 </div>
                 <TargetPerformanceDashboard />
               </div>
@@ -290,14 +290,14 @@ const MainLayout: React.FC = () => {
               />
             ) : (
               <div className="space-y-4">
-                <div className="flex justify-between items-center bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
+                <div className="flex justify-between items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl shadow-xs">
                   <button
                     onClick={() => setCustomerViewMode('cards')}
-                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white font-bold text-xs flex items-center gap-2 shadow"
+                    className="px-4 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition cursor-pointer"
                   >
                     <span>← العودة لعرض كروت العملاء التنفيذي</span>
                   </button>
-                  <span className="text-xs text-slate-400 font-bold">الشيت المالي والتحليلات المتقدمة للعملاء</span>
+                  <span className="text-xs text-slate-700 dark:text-slate-300 font-bold">الشيت المالي والتحليلات المتقدمة للعملاء</span>
                 </div>
                 <AllCustomersAnalyticsView onOpenNewOrderForCustomer={(cust) => { setOrderInitialCustomer(cust); setActiveTab('catalog'); }} />
               </div>

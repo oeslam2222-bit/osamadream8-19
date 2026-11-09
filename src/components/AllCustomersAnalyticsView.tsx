@@ -124,12 +124,13 @@ const truncateLabel = (value: string, max = 16): string =>
 /** تيك الرسم العمودي: اسم العميل فوق الكود — بشكل مقروء ومظبوط في RTL */
 const TopDebtAxisTick: React.FC<any> = ({ x, y, payload }) => {
   const item = payload?.payload || {};
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
   return (
     <g transform={`translate(${x},${y})`}>
-      <text x={0} y={13} textAnchor="middle" fontSize={9} fontWeight={800} fill="#33475e">
+      <text x={0} y={13} textAnchor="middle" fontSize={9} fontWeight={800} fill={isDark ? '#F8FAFC' : '#0F2B38'}>
         {truncateLabel(item.name || '')}
       </text>
-      <text x={0} y={25} textAnchor="middle" fontSize={8.5} fontWeight={700} fill="#93a4b8">
+      <text x={0} y={25} textAnchor="middle" fontSize={8.5} fontWeight={700} fill={isDark ? '#94A3B8' : '#475569'}>
         {item.code || ''}
       </text>
     </g>
@@ -1553,7 +1554,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   };
 
   return (
-    <div className="tantawy-screen space-y-4 animate-in fade-in pb-12 bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.09),_transparent_30%),_linear-gradient(180deg,_rgba(10,14,20,0.8),_rgba(10,14,20,0.96))]">
+    <div className="tantawy-screen space-y-4 animate-in fade-in pb-12 bg-transparent dark:bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.09),_transparent_30%),_linear-gradient(180deg,_rgba(10,14,20,0.8),_rgba(10,14,20,0.96))]">
       {/* Top Header Card */}
       <div className="cust-hero rounded-[14px] p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
@@ -3529,7 +3530,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                               />
                               <YAxis
                                 width={56}
-                                tick={{ fontSize: 9, fontWeight: 700, fill: '#93a4b8' }}
+                                tick={{ fontSize: 9, fontWeight: 700, fill: typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? '#94A3B8' : '#334155' }}
                                 tickFormatter={(value: any) => formatCompactAmount(Number(value))}
                                 axisLine={false}
                                 tickLine={false}
@@ -3559,7 +3560,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                                   dataKey="debt"
                                   position="top"
                                   formatter={(val: any) => formatCompactAmount(Number(val))}
-                                  style={{ fontSize: 9, fontWeight: 900, fill: '#1b3652' }}
+                                  style={{ fontSize: 9, fontWeight: 900, fill: typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? '#60A5FA' : '#1E3A8A' }}
                                 />
                               </Bar>
                             </BarChart>
