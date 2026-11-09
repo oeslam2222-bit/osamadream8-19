@@ -228,7 +228,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
   ];
 
   return (
-    <div className="tantawy-screen space-y-6 sm:space-y-8 animate-in fade-in duration-300 pb-16">
+    <div className="tantawy-screen space-y-6 sm:space-y-8 animate-in fade-in duration-300">
       
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-7 rounded-2xl sm:rounded-3xl shadow-xl border border-slate-700">

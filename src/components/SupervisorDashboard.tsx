@@ -476,7 +476,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   };
 
   return (
-    <div className="tantawy-screen space-y-5 pb-20">
+    <div className="tantawy-screen space-y-5">
       
       {/* Success Notification Toast */}
       {successToast && (

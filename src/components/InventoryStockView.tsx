@@ -319,7 +319,7 @@ export const InventoryStockView: React.FC = () => {
   };
 
   return (
-    <div className="tantawy-screen space-y-4 pb-16">
+    <div className="tantawy-screen space-y-4">
       
       {/* Toast Notification */}
       {actionSuccessMsg && (

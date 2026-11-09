@@ -414,7 +414,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   };
 
   return (
-    <div className="tantawy-screen space-y-4 pb-16">
+    <div className="tantawy-screen space-y-4">
       
       {/* Success Notification Toast */}
       {successToast && (

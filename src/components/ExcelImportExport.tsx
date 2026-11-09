@@ -979,7 +979,7 @@ function onEdit(e) {
   }
 
   return (
-    <div className="tantawy-screen space-y-6 pb-20" dir="rtl">
+    <div className="tantawy-screen space-y-6" dir="rtl">
       
       {/* Hidden File Inputs */}
       <input
