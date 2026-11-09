@@ -623,12 +623,17 @@ main .border-slate-200 { border-color: var(--app-line) !important; }
   border-radius: 3px 0 0 3px;
   background: var(--app-accent);
 }
+/* المساحة الجانبية للشريط الجانبي ثابت الموضع تُحجَز مرة واحدة فقط:
+   عبر margin-inline-start على .ds-topbar / .app-main / footer في app-shell.css.
+   (الحشو القديم هنا كان يصطدم بذلك ويُنتج فراغاً كبيراً بين المحتوى والسايدبار) */
 .tantawy-shell {
-  padding-right: 258px;
-  transition: padding-right 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  padding-right: 0;
+  padding-inline-start: 0;
+  transition: none;
 }
 .tantawy-shell.sidebar-collapsed {
-  padding-right: 76px;
+  padding-right: 0;
+  padding-inline-start: 0;
 }
 @media (max-width: 1023px) {
   .tantawy-sidebar { display: none !important; }
