@@ -647,7 +647,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   };
 
   return (
-    <div className="user-manager-page tantawy-screen space-y-6 pb-20 max-w-none mx-auto px-2 sm:px-4">
+    <div className="user-manager-page tantawy-screen space-y-6 pb-20 max-w-7xl mx-auto px-2 sm:px-4">
       
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-[var(--app-navy)] to-teal-800 rounded-3xl p-5 sm:p-7 text-white shadow-lg shadow-navy/30">

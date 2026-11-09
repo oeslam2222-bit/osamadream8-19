@@ -223,8 +223,9 @@ const MainLayout: React.FC = () => {
       />
 
       {/* Content Container - Fluid responsive container with min-w-0 to prevent overflow */}
-      <main className="app-main flex-1 w-full max-w-none px-3 sm:px-6 lg:px-8 py-3 sm:py-5 pb-24 md:pb-10 min-w-0">
-        <Suspense fallback={<TabLoadingSkeleton />}>
+      <main className="app-main flex-1 min-w-0 pb-24 md:pb-10">
+        <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8 py-3 sm:py-5">
+          <Suspense fallback={<TabLoadingSkeleton />}>
           {activeTab === 'home' && allowedTabs.includes('home') && (
             <DashboardHome
               onNavigateToTab={(tab) => setActiveTab(tab)}
@@ -332,7 +333,8 @@ const MainLayout: React.FC = () => {
           )}
 
         </Suspense>
-      </main>
+      </div>
+    </main>
 
       {/* Lazy Modals with Suspense */}
       <Suspense fallback={null}>

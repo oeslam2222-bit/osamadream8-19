@@ -55,7 +55,7 @@ export default defineConfig(() => {
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
     },
     optimizeDeps: {
-      include: ['react', 'react-dom', 'lucide-react', '@supabase/supabase-js'],
+      include: ['react', 'react-dom', '@supabase/supabase-js'],
     },
     build: {
       rollupOptions: {
@@ -63,7 +63,6 @@ export default defineConfig(() => {
           manualChunks: {
             'vendor-react': ['react', 'react-dom'],
             'vendor-supabase': ['@supabase/supabase-js'],
-            'vendor-lucide': ['lucide-react'],
           },
         },
       },

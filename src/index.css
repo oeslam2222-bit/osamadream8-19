@@ -58,3 +58,7 @@ html:not(.dark) .t-muted { color: #64748b !important; }
 html:not(.dark) .text-slate-300 { color: #64748b !important; }
 html:not(.dark) .text-slate-400 { color: #475569 !important; }
 html:not(.dark) .text-slate-500 { color: #334155 !important; }
+/* ===== Prevent horizontal page scroll (screen lock fix) ===== */
+html, body { overflow-x: hidden; }
+
+#root { min-height: 100dvh; }

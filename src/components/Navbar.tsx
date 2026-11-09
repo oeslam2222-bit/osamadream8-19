@@ -187,7 +187,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'guide', label: 'الدليل', icon: BookOpen, roles: isFieldRole ? [] : ['admin', 'branch_manager', 'developer', 'warehouse_keeper'] },
     { id: 'users', label: 'الفريق', icon: UserCheck, roles: ['admin', 'developer', 'branch_manager', 'supervisor'], badge: pendingApprovalsCount },
     { id: 'permissions', label: 'الصلاحيات', icon: ShieldCheck, roles: ['admin', 'developer'] },
-    { id: 'cadre_lunch', label: 'غداء الكوادر', icon: LayoutDashboard, roles: ['admin', 'developer', 'branch_manager', 'supervisor', 'sales_rep', 'warehouse_keeper'] },
+
   ];
 
   const filteredNavItems = navItems.filter((item) => item.roles.includes(currentUser.role));
@@ -221,7 +221,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     users: { bg: 'bg-slate-200', text: 'text-slate-700', darkBg: 'dark:bg-slate-800', darkText: 'dark:text-slate-300' },
     permissions: { bg: 'bg-blue-100', text: 'text-[#2563EB]', darkBg: 'dark:bg-blue-950/60', darkText: 'dark:text-blue-300' },
     guide: { bg: 'bg-teal-100', text: 'text-[#0D9488]', darkBg: 'dark:bg-teal-950/60', darkText: 'dark:text-teal-300' },
-    cadre_lunch: { bg: 'bg-orange-100', text: 'text-[#EA580C]', darkBg: 'dark:bg-orange-950/60', darkText: 'dark:text-orange-300' },
   };
 
   return (
