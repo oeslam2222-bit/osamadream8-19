@@ -263,12 +263,10 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
     return filteredCustomers.slice(0, displayLimit);
   }, [filteredCustomers, displayLimit]);
 
-  // Default to first customer if none selected and on desktop
-  useEffect(() => {
-    if (!selectedCustomer && displayedCustomers.length > 0 && window.innerWidth >= 1280) {
-      setSelectedCustomer(displayedCustomers[0]);
-    }
-  }, [displayedCustomers, selectedCustomer]);
+  // ملاحظة: كان فيه إيفكت هنا بيفتح أول عميل تلقائيًا على الشاشات الكبيرة.
+  // ده كان بيخلي درج التفاصيل يتفتح لوحده، وأول ما تضغط X أو Esc يقفل،
+  // الإيفكت يفتحه تاني فورًا — فالصفحة تبان «معلقة». الدرج بقى يفتح
+  // بالضغط على العميل فقط.
 
   // Handle Load More
   const handleLoadMore = async () => {
