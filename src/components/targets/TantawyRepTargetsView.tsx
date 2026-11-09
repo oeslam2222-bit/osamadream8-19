@@ -71,6 +71,14 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
   // Selected Rep for Right Panel (defaults to first ranked rep)
   const [selectedRepName, setSelectedRepName] = useState<string>('أحمد علي');
 
+  // Sector filtering must happen BEFORE any memo that depends on it
+  // (uniqueBranches / repPerformanceList used it before this declaration existed
+  // → TDZ "Cannot access X before initialization" in production builds).
+  const sectorTargets = useMemo(() => {
+    if (selectedSector === 'all') return targets;
+    return targets.filter((target) => inferTargetSector(target, users) === selectedSector);
+  }, [targets, users, selectedSector]);
+
   // Unique lists from data
   const uniqueBranches = useMemo(() => {
     const set = new Set<string>();
@@ -78,7 +86,7 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
       if (t.branch) set.add(t.branch.trim());
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
-  }, [targets]);
+  }, [sectorTargets]);
 
   const uniqueSupervisors = useMemo(() => {
     const set = new Set<string>();
@@ -88,11 +96,7 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
   }, [users]);
 
-  // Sector filtering must happen before aggregation so totals and reps reflect the selected sector.
-  const sectorTargets = useMemo(() => {
-    if (selectedSector === 'all') return targets;
-    return targets.filter((target) => inferTargetSector(target, users) === selectedSector);
-  }, [targets, users, selectedSector]);
+  // (sectorTargets is declared above uniqueBranches — see note there)
 
   // Aggregate stats per rep across targets
   const repPerformanceList = useMemo(() => {

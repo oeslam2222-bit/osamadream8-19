@@ -17,6 +17,7 @@ import {
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
+import { inferCustomerSector } from '../data/branchDefinitions';
 import type { Customer, CustomerVisit } from '../types';
 
 const todayKey = (): string => {
@@ -24,16 +25,31 @@ const todayKey = (): string => {
   return now.toISOString().slice(0, 10);
 };
 
+/**
+ * المتأخرات المستخدمة في شاشة التحصيل.
+ *
+ * السلسلة القديمة كانت `overdueBalance ?? totalOverdue ?? ...` — و`??` بيتوقف
+ * عند أول قيمة موجودة حتى لو كانت **صفر**. بيانات الشيتات فيها عمود
+ * `overdueBalance = 0` بجانب `overdue2026` الحقيقي، فكان العميل المتأخر
+ * بيتحسب "صفر متأخرات" ويختفي من التحصيلات. دلوقتي بناخد أول عمود **قيمته
+ * موجبة**، وبعدها فقط نرجع للمديونية كآخر حل.
+ */
 const getCustomerDebt = (customer: Customer): number => {
-  const due = Number(
-    customer.overdueBalance ??
-    customer.totalOverdue ??
-    customer.dueBalance ??
-    customer.currentBalance ??
-    customer.balance ??
-    0
-  );
-  return Number.isFinite(due) ? Math.max(0, due) : 0;
+  const candidates = [
+    customer.totalOverdue,
+    customer.overdue2026,
+    customer.overdue2025,
+    customer.overdueBalance,
+    customer.totalOverdueAndDue,
+    customer.dueBalance,
+    customer.currentBalance,
+    customer.balance,
+  ];
+  for (const value of candidates) {
+    const due = Number(value);
+    if (Number.isFinite(due) && due > 0) return due;
+  }
+  return 0;
 };
 
 const buildInitials = (name: string): string => {
@@ -63,6 +79,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
   const {
     currentUser,
     customers,
+    users,
     invoices,
     getVisibleCustomers,
     addVisit,
@@ -80,21 +97,25 @@ export const CollectionRecoveryDashboard: React.FC = () => {
   const [toast, setToast] = useState<string | null>(null);
   const [confirmCustomer, setConfirmCustomer] = useState<Customer | null>(null);
   const repoCustomers = useMemo(() => {
+    // `getVisibleCustomers` بيتكفّل أصلًا بصلاحيات الفرع/المندوب/المشرف،
+    // فكان فيه فلتر فرع إضافي هنا بيقارن اسم الفرع بالنص الحرفي وبيخفّي
+    // كل عملاء الفروع التانية حتى عن الأدمن — وده سبب إن التحصيلات كانت فاضية.
     const list = getVisibleCustomers ? getVisibleCustomers() : customers;
-    const currentBranch = currentUser?.branchName;
     return list.filter((customer) => {
-      const inBranch = !currentBranch || !customer.branchName || customer.branchName === currentBranch;
       const assignedToRep = !currentUser || currentUser.role === 'admin' || currentUser.role === 'developer' || currentUser.role === 'branch_manager' || currentUser.role === 'supervisor'
         ? true
         : customer.repId === currentUser.id || customer.salesRepName === currentUser.name || customer.repName === currentUser.name;
+      const resolvedSector = inferCustomerSector(customer, users);
       const matchesSector =
         sectorFilter === 'all' ||
-        !customer.sector ||
-        customer.sector === sectorFilter ||
-        (sectorFilter === 'both' && (customer.sector === 'home' || customer.sector === 'electrical'));
-      return inBranch && assignedToRep && matchesSector && getCustomerDebt(customer) > 0;
+        customer.sector === 'both' ||
+        customer.sector === 'all' ||
+        (sectorFilter === 'both'
+          ? resolvedSector === 'home' || resolvedSector === 'electrical'
+          : resolvedSector === sectorFilter);
+      return assignedToRep && matchesSector && getCustomerDebt(customer) > 0;
     });
-  }, [getVisibleCustomers, customers, currentUser, sectorFilter]);
+  }, [getVisibleCustomers, customers, users, currentUser, sectorFilter]);
 
   const branchOptions = useMemo(
     () => ['الكل', ...Array.from(new Set(repoCustomers.map((customer) => customer.branchName).filter(Boolean)))],

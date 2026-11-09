@@ -69,7 +69,7 @@ export const InventoryStockView: React.FC = () => {
 
   // Pagination state for responsive performance
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number>(20);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   
   // Stock Transfer Modal
   const [stockTransferModal, setStockTransferModal] = useState<Product | null>(null);

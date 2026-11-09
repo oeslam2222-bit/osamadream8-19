@@ -30,7 +30,15 @@ import {
 import { Customer, CustomerVisit, User } from '../../types';
 import { useApp } from '../../context/AppContext';
 import { formatCurrency } from '../../services/invoiceService';
-import { uploadCustomerPhoto } from '../../services/cloudinaryService';
+import { uploadCustomerPhoto, optimizeImageUrl } from '../../services/cloudinaryService';
+import { inferCustomerSector } from '../../data/branchDefinitions';
+import {
+  doesCustomerBelongToRep,
+  doesCustomerBelongToBranch,
+  findOwningSalesRep,
+  isBranchMatch,
+  normalizeArabicText,
+} from '../../services/arabicMatchingService';
 
 interface TantawyCustomerBaseViewProps {
   onOpenNewOrderForCustomer?: (customer: Customer) => void;
@@ -47,14 +55,17 @@ const DISTINCTIVE_MALE_AVATARS = [
   'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&auto=format&fit=crop&q=80',
 ];
 
-// Preset store facade photos for realistic presentation matching the reference screenshot
+// Preset store facade photos for realistic presentation matching the reference screenshot.
+// الصور دي بتظهر لأي عميل من غير صورة (أغلب الـ5,400 عميل)، فبدل ما كل كارت
+// ينزّل نسخة 400px بجودة 80، بننزّل 160px جودة 60 — نفس الشكل على شاشة
+// موبايل في كارت 80px، بجزء بسيط من البيانات.
 const STORE_PRESET_IMAGES = [
-  'https://images.unsplash.com/photo-1604719312566-8912e9227c6a?w=400&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1555421689-491a97ff2040?w=400&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=400&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1528698827591-e19ccd7bc23d?w=400&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=400&auto=format&fit=crop&q=80',
-  'https://images.unsplash.com/photo-1567401893414-76b7b1e5a7a5?w=400&auto=format&fit=crop&q=80',
+  'https://images.unsplash.com/photo-1604719312566-8912e9227c6a?w=160&auto=format&fit=crop&q=60',
+  'https://images.unsplash.com/photo-1555421689-491a97ff2040?w=160&auto=format&fit=crop&q=60',
+  'https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=160&auto=format&fit=crop&q=60',
+  'https://images.unsplash.com/photo-1528698827591-e19ccd7bc23d?w=160&auto=format&fit=crop&q=60',
+  'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=160&auto=format&fit=crop&q=60',
+  'https://images.unsplash.com/photo-1567401893414-76b7b1e5a7a5?w=160&auto=format&fit=crop&q=60',
 ];
 
 export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = ({
@@ -100,6 +111,21 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [detailTab, setDetailTab] = useState<'financial' | 'visits' | 'photos'>('financial');
 
+  // Escape يغلق الـ drawer + منع تمرير الصفحة الخلفية أثناء فتحه
+  useEffect(() => {
+    if (!selectedCustomer) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setSelectedCustomer(null);
+    };
+    window.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [selectedCustomer]);
+
   // Toggle favorite
   const toggleFavorite = (customerId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -117,28 +143,82 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
     });
   };
 
+  /**
+   * حدود الدور: الشاشة دي كانت بتعرض `customers` خام، وقبل ما نضيّق القراءة
+   * من السيرفر كان المندوب بيشوف قاعدة الشركة كلها (5,400 عميل) ويلاقي
+   * فلتر المندوبين فيه 55 اسم. بعد تضييق القراءة بقى بيوصله فرعه بس،
+   * وده لسه مش «عملاءه هو». الفلترة هنا بتطبّق نفس منطق getVisibleCustomers
+   * (بدون فلتر القطاع، لأن الشاشة دي ليها فلتر قطاع خاص بيها).
+   */
+  const scopedCustomers = useMemo(() => {
+    if (!currentUser) return [];
+    const role = currentUser.role;
+    if (
+      role === 'admin' ||
+      role === 'developer' ||
+      role === 'technical_support' ||
+      role === 'legal_advisor' ||
+      role === 'warehouse_keeper'
+    ) {
+      return customers;
+    }
+
+    if (role === 'branch_manager') {
+      if (!currentUser.branchName) return [];
+      return customers.filter((c) => doesCustomerBelongToBranch(c, currentUser.branchName, users));
+    }
+
+    if (role === 'supervisor') {
+      const supervisedRepIds = new Set(
+        users.filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id).map((u) => u.id)
+      );
+      return customers.filter((c) => {
+        const isSameBranch =
+          Boolean(c.branchName) && isBranchMatch(c.branchName, currentUser.branchName, { allowUnassigned: false });
+        if (!isSameBranch) return false;
+        if (c.repId && supervisedRepIds.has(c.repId)) return true;
+        const owner = findOwningSalesRep(c, users);
+        if (owner) return supervisedRepIds.has(owner.id);
+        return Boolean(
+          c.supervisorName && normalizeArabicText(c.supervisorName) === normalizeArabicText(currentUser.name)
+        );
+      });
+    }
+
+    return customers.filter((c) => doesCustomerBelongToRep(c, currentUser));
+  }, [customers, currentUser, users]);
+
   // Unique list of reps and branches from actual data
   const uniqueBranches = useMemo(() => {
     const set = new Set<string>();
-    customers.forEach((c) => {
+    scopedCustomers.forEach((c) => {
       if (c.branchName) set.add(c.branchName.trim());
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
-  }, [customers]);
+  }, [scopedCustomers]);
 
   const uniqueReps = useMemo(() => {
     const set = new Set<string>();
-    customers.forEach((c) => {
+    scopedCustomers.forEach((c) => {
       const rep = c.repName || c.salesRepName;
       if (rep) set.add(rep.trim());
     });
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
-  }, [customers]);
+  }, [scopedCustomers]);
+
+  /**
+   * فلتر القطاع كان بيعدّي أي عميل حقل `sector` بتاعه فاضي (وده أغلب العملاء
+   * المستوردين)، فاختيار «كهرباء» كان بيطلّع نفس القائمة. دلوقتي بنستنتج القطاع
+   * من اسم الفرع ثم من قطاع المندوب المسؤول.
+   */
+  const resolveSector = useMemo(() => {
+    return (cust: Customer) => inferCustomerSector(cust, users);
+  }, [users]);
 
   // Filtered customers
   const filteredCustomers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    return customers.filter((cust) => {
+    return scopedCustomers.filter((cust) => {
       // Search matches name, code, phone, or address
       if (q) {
         const nameMatch = cust.name?.toLowerCase().includes(q);
@@ -161,8 +241,11 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
 
       // Sector filter
       if (selectedSector !== 'all') {
-        if (cust.sector && cust.sector !== selectedSector && cust.sector !== 'both' && cust.sector !== 'all') {
-          return false;
+        const rawSector = cust.sector;
+        // both/all = قطاعين → يظهر في الفلترين
+        if (rawSector !== 'both' && rawSector !== 'all') {
+          const resolved = resolveSector(cust);
+          if (resolved !== selectedSector) return false;
         }
       }
 
@@ -173,7 +256,7 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
 
       return true;
     });
-  }, [customers, searchQuery, selectedRep, selectedBranch, selectedSector, onlyFavorites, favoriteIds]);
+  }, [scopedCustomers, searchQuery, selectedRep, selectedBranch, selectedSector, onlyFavorites, favoriteIds, resolveSector]);
 
   // Displayed slice
   const displayedCustomers = useMemo(() => {
@@ -192,8 +275,11 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
     setIsRefreshing(true);
     // Increase visible cards
     setDisplayLimit((prev) => Math.min(prev + 10, filteredCustomers.length));
-    // If total customers is small, trigger background sync
-    if (customers.length < 5000 && syncCustomersIncrementally) {
+    // مزامنة الخلفية مقصورة على الأدمن/المطور: المندوب نطاقه محدود من السيرفر
+    // فطوله دايمًا أقل من 5000، وكان كل «تحميل المزيد» بيسحب من الشبكة بلا داعي.
+    const isFullAccessRole =
+      currentUser?.role === 'admin' || currentUser?.role === 'developer';
+    if (isFullAccessRole && customers.length < 5000 && syncCustomersIncrementally) {
       try {
         await syncCustomersIncrementally();
       } catch (e) {
@@ -204,10 +290,14 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
   };
 
   // Helper to get image for a customer
+  //
+  // صور العملاء المرفوعة بتتخزن على Cloudinary/Drive بالحجم الأصلي (ممكن
+  // تبقى ميجابايت)، والكارت هنا 80px بس. بنمرّرها على optimizeImageUrl عشان
+  // Cloudinary يرجّع w_200,q_auto,f_auto وDrive يرجّع نسخة مصغّرة — نفس
+  // الصورة على الشاشة بجزء بسيط من الـegress.
   const getCustomerImage = (cust: Customer, index: number) => {
-    if (cust.profileImageUrl) return cust.profileImageUrl;
-    if (cust.avatarUrl) return cust.avatarUrl;
-    if (cust.storePhotos && cust.storePhotos.length > 0) return cust.storePhotos[0];
+    const uploaded = cust.profileImageUrl || cust.avatarUrl || cust.storePhotos?.[0] || '';
+    if (uploaded) return optimizeImageUrl(uploaded, 200, true);
     return STORE_PRESET_IMAGES[index % STORE_PRESET_IMAGES.length];
   };
 
@@ -260,7 +350,10 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
                 قاعدة العملاء
               </h1>
               <p className="text-xs text-[var(--app-text-muted)] mt-0.5">
-                إجمالي مسجل في السيرفر: <span className="text-[var(--app-primary)] font-bold font-mono">{customers.length.toLocaleString()}</span> عميل
+                {currentUser?.role === 'admin' || currentUser?.role === 'developer'
+                  ? 'إجمالي مسجل في السيرفر: '
+                  : 'إجمالي عملاء نطاقك: '}
+                <span className="text-[var(--app-primary)] font-bold font-mono">{scopedCustomers.length.toLocaleString()}</span> عميل
               </p>
             </div>
           </div>
@@ -374,11 +467,11 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
         </div>
       </div>
 
-      {/* Main Content Area: Responsive Grid + Detail Drawer Side-by-Side */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
-        
-        {/* Customer Cards Grid (occupies 8 or 12 cols depending on detail drawer) */}
-        <div className={`${selectedCustomer ? 'xl:col-span-8' : 'xl:col-span-12'} space-y-4`}>
+      {/* Main Content Area: Cards Grid (Detail panel now lives in an overlay drawer) */}
+      <div>
+
+        {/* Customer Cards Grid */}
+        <div className="space-y-4">
           {displayedCustomers.length === 0 ? (
             <div className="bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-12 text-center text-slate-500 dark:text-slate-400">
               <Users className="w-12 h-12 mx-auto mb-3 text-slate-400 dark:text-slate-600" />
@@ -386,13 +479,13 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
               <p className="text-xs">جرب تغيير فلاتر الفرع أو المندوب أو كتابة جزء من الاسم أو الكود</p>
             </div>
           ) : (
-            <div className={`grid grid-cols-1 sm:grid-cols-2 ${selectedCustomer ? 'lg:grid-cols-3' : 'lg:grid-cols-4'} gap-4`}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {displayedCustomers.map((cust, idx) => {
                 const isSelected = selectedCustomer?.id === cust.id;
                 const isFav = favoriteIds.has(cust.id);
                 const debt = getCustomerDebt(cust);
                 const days = getDaysSinceLastPurchase(cust, idx);
-                const isElectrical = cust.sector === 'electrical' || idx % 2 === 0; // realistic presentation fallback
+                const isElectrical = resolveSector(cust) === 'electrical';
                 const imageUrl = getCustomerImage(cust, idx);
 
                 return (
@@ -512,10 +605,22 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
           )}
         </div>
 
-        {/* Right Detail Drawer / Modal ("تفاصيل العميل") matching reference design */}
+        {/* Right Detail Drawer ("تفاصيل العميل") — Overlay Drawer فوق المحتوى (جوال وتابلت ولابتوب) */}
         {selectedCustomer && (
-          <div className="xl:col-span-4 sticky top-4">
-            <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-3xl p-5 shadow-lg backdrop-blur-md">
+          <>
+            {/* Backdrop */}
+            <div
+              className="fixed inset-0 z-[55] bg-black/50 backdrop-blur-[2px]"
+              onClick={() => setSelectedCustomer(null)}
+              aria-hidden="true"
+            />
+            {/* Drawer Panel */}
+            <aside
+              role="dialog"
+              aria-modal="true"
+              aria-label="تفاصيل العميل"
+              className="fixed inset-y-0 start-0 z-[60] w-full sm:max-w-md bg-white dark:bg-[#111C2E] border-e border-slate-200 dark:border-[#26364D] shadow-2xl overflow-y-auto overscroll-contain p-5 pt-[calc(1.25rem+env(safe-area-inset-top))]"
+            >
               
               {/* Header with Close ✕ */}
               <div className="flex items-start justify-between mb-4">
@@ -536,6 +641,8 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
                     src={getCustomerImage(selectedCustomer, 0)}
                     alt={selectedCustomer.name}
                     className="w-full h-full object-cover"
+                    loading="lazy"
+                    decoding="async"
                   />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -552,7 +659,7 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
                     <span>{selectedCustomer.branchName || 'فرع الهرم'}</span>
                     <span>•</span>
                     <MapPin className="w-3 h-3 text-purple-500 flex-shrink-0" />
-                    <span>{selectedCustomer.sector === 'electrical' ? 'قطاع الكهرباء' : 'قطاع المنزلي'}</span>
+                    <span>{resolveSector(selectedCustomer) === 'electrical' ? 'قطاع الكهرباء' : 'قطاع المنزلي'}</span>
                   </p>
                 </div>
               </div>
@@ -758,7 +865,13 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
                   <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto">
                     {(selectedCustomer.storePhotos && selectedCustomer.storePhotos.length > 0 ? selectedCustomer.storePhotos : STORE_PRESET_IMAGES).map((img, i) => (
                       <div key={i} className="h-24 rounded-xl overflow-hidden border border-slate-200 dark:border-[#26364D] group relative">
-                        <img src={img} alt="Store" className="w-full h-full object-cover" />
+                        <img
+                          src={optimizeImageUrl(img, 300, true)}
+                          alt="Store"
+                          className="w-full h-full object-cover"
+                          loading="lazy"
+                          decoding="async"
+                        />
                         <a
                           href={img}
                           target="_blank"
@@ -855,8 +968,8 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
                 )}
               </div>
 
-            </div>
-          </div>
+            </aside>
+          </>
         )}
 
       </div>

@@ -84,7 +84,9 @@ export const UserManager: React.FC = () => {
   const [repCustomerSearchTerm, setRepCustomerSearchTerm] = useState<string>('');
   const [autoCreateFeedback, setAutoCreateFeedback] = useState<string | null>(null);
   const [usersPage, setUsersPage] = useState(1);
-  const USERS_PER_PAGE = 25;
+  // أول 5 أفراد بس في المرة — الصفحة كانت بترسم 25 كارت مرة واحدة،
+  // وده تقيل على الموبايل من غير أي فايدة لأن معظم الوقت بتدور على شخص واحد.
+  const USERS_PER_PAGE = 5;
 
   const isSuperAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 

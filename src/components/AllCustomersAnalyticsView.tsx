@@ -80,6 +80,7 @@ import {
   downloadCustomerAnalyticsTemplate
 } from '../services/customerAnalyticsService';
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
+import { inferCustomerSector } from '../data/branchDefinitions';
 import {
   ActivityFilter,
   CollectionRateFilter,
@@ -791,12 +792,21 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     }
 
     if (selectedSector !== 'all') {
-      list = list.filter((c) => c.sector === selectedSector);
+      list = list.filter((c) => {
+        if (c.sector === 'both' || c.sector === 'all') return true;
+        return inferCustomerSector(c, users) === selectedSector;
+      });
     }
 
-    // Sector filter (منزلي / كهربائي)
-    if (activeSectorFilter && activeSectorFilter !== 'all') {
-      list = list.filter((c) => !c.sector || c.sector === activeSectorFilter || c.sector === 'both' || c.sector === 'all');
+    // Sector filter (منزلي / كهربائي) — كان `!c.sector` بيعدّي العملاء غير المحددين
+    // فكان الفلتر بيعرض نفس القائمة. دلوقتي بنستنتج القطاع بدل ما نعدّيهم.
+    // بنطبّق فلتر الشاشة أولًا؛ الفلتر العام (الهيدر) بيشتغل بس لو الشاشة على «الكل»
+    // عشان الفلترين ما يتضاربوش ويطلعوا صفر نتائج.
+    if (selectedSector === 'all' && activeSectorFilter && activeSectorFilter !== 'all') {
+      list = list.filter((c) => {
+        if (c.sector === 'both' || c.sector === 'all') return true;
+        return inferCustomerSector(c, users) === activeSectorFilter;
+      });
     }
 
     // Deal eligibility filter (قابل / غير قابل)
