@@ -125,6 +125,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [selectedDept, setSelectedDept] = useState<string>('الكل');
   const [selectedBrand, setSelectedBrand] = useState<string>('الكل');
   const [selectedStatus, setSelectedStatus] = useState<string>('الكل');
+  // فلتر السعر (من/إلى) — مثال: من 0 إلى 100000
+  const [minPrice, setMinPrice] = useState<string>('');
+  const [maxPrice, setMaxPrice] = useState<string>('');
   // إخفاء الأصناف ذات الرصيد الصفري (المخزن الرئيسي ومخزن الفرع = 0) افتراضياً
   const [onlyInStock, setOnlyInStock] = useState<boolean>(true);
   // عرض أرصدة كافة المخازن الـ 8 تفصيلياً (7 فروع + مخزن أكتوبر)
@@ -193,6 +196,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         if (parsed.onlyInStock !== undefined) setOnlyInStock(parsed.onlyInStock);
         if (parsed.sortBy !== undefined) setSortBy(parsed.sortBy);
         if (parsed.activeSectorFilter !== undefined) setActiveSectorFilter(parsed.activeSectorFilter);
+        if (parsed.minPrice !== undefined) setMinPrice(parsed.minPrice);
+        if (parsed.maxPrice !== undefined) setMaxPrice(parsed.maxPrice);
       }
     } catch {}
   }, [CATALOG_FILTERS_KEY, currentUser?.id]);
@@ -207,9 +212,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         onlyInStock,
         sortBy,
         activeSectorFilter,
+        minPrice,
+        maxPrice,
       }));
     } catch {}
-  }, [searchTerm, selectedDept, selectedBrand, selectedStatus, onlyInStock, sortBy, activeSectorFilter, CATALOG_FILTERS_KEY]);
+  }, [searchTerm, selectedDept, selectedBrand, selectedStatus, onlyInStock, sortBy, activeSectorFilter, minPrice, maxPrice, CATALOG_FILTERS_KEY]);
 
   // Card quantities
   const [cardQuantities, setCardQuantities] = useState<Record<string, number>>({});
@@ -374,6 +381,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         if (selectedStatus === 'نفد جزئياً' && branchStock > 0 && octoberStock > 0) return false;
       }
 
+      // 7. Price filter (من/إلى)
+      if (minPrice !== '' || maxPrice !== '') {
+        const price = Number(p.cartonPrice || 0);
+        const min = minPrice !== '' ? Number(minPrice) : 0;
+        const max = maxPrice !== '' ? Number(maxPrice) : Infinity;
+        if (price < min || price > max) return false;
+      }
+
       return true;
     });
 
@@ -400,6 +415,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     selectedDept,
     selectedBrand,
     selectedStatus,
+    minPrice,
+    maxPrice,
     sortBy,
     getProductBranchStock,
     isProductElectrical,
@@ -1007,6 +1024,28 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               ))}
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-light absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          {/* فلتر السعر: من / إلى */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black">
+            <span className="text-muted">السعر:</span>
+            <input
+              type="number"
+              placeholder="من"
+              value={minPrice}
+              onChange={(e) => setMinPrice(e.target.value)}
+              aria-label="السعر من"
+              className="w-20 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <span className="text-muted mx-1">إلى</span>
+            <input
+              type="number"
+              placeholder="إلى"
+              value={maxPrice}
+              onChange={(e) => setMaxPrice(e.target.value)}
+              aria-label="السعر إلى"
+              className="w-20 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
           </div>
 
           <div className="hidden md:block flex-1" />
