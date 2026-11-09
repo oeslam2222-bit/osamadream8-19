@@ -1554,7 +1554,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   };
 
   return (
-    <div className="tantawy-screen space-y-4 animate-in fade-in pb-12 bg-transparent dark:bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.09),_transparent_30%),_linear-gradient(180deg,_rgba(10,14,20,0.8),_rgba(10,14,20,0.96))]">
+    <div className="tantawy-screen space-y-4 animate-in fade-in bg-transparent dark:bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.09),_transparent_30%),_linear-gradient(180deg,_rgba(10,14,20,0.8),_rgba(10,14,20,0.96))]">
       {/* Top Header Card */}
       <div className="cust-hero rounded-[14px] p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>

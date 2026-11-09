@@ -640,7 +640,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   };
 
   return (
-    <div className="catalog-page tantawy-screen min-w-0 w-full max-w-full space-y-5 pb-16" dir="rtl">
+    <div className="catalog-page tantawy-screen min-w-0 w-full max-w-full space-y-5" dir="rtl">
       <div className="catalog-hero overflow-hidden rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(61,216,176,0.28),transparent_30%),linear-gradient(135deg,#10293d_0%,#0d1b2a_45%,#08131d_100%)] shadow-[0_18px_40px_rgba(2,6,23,0.32)]">
         <div className="relative z-10 flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3.5">

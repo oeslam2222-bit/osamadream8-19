@@ -947,7 +947,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
   return (
     <EncouragementProvider>
-      <div className="tantawy-screen space-y-4 sm:space-y-6 pb-12">
+      <div className="tantawy-screen space-y-4 sm:space-y-6">
         {/* Encouragement Toast (يظهر في أسفل الشاشة تلقائياً) */}
         {activeEncouragement && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center justify-center pointer-events-none">
