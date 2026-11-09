@@ -58,3 +58,82 @@ html:not(.dark) .t-muted { color: #64748b !important; }
 html:not(.dark) .text-slate-300 { color: #64748b !important; }
 html:not(.dark) .text-slate-400 { color: #475569 !important; }
 html:not(.dark) .text-slate-500 { color: #334155 !important; }
+
+/* Responsive shell: keep the RTL workspace inside the viewport on every device. */
+html, body, #root {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.catalog-page,
+.catalog-page > *,
+.catalog-filters,
+.catalog-kpis {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.catalog-filters > div {
+  min-width: 0;
+}
+
+@media (max-width: 1023px) {
+  .catalog-hero {
+    border-radius: 1.25rem;
+  }
+
+  .catalog-hero > div {
+    padding: 1rem;
+  }
+
+  .catalog-filters {
+    padding: 0.75rem;
+  }
+
+  .catalog-filters select,
+  .catalog-filters button {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 639px) {
+  .catalog-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-filters > div {
+    width: 100%;
+  }
+
+  .catalog-filters > div:first-child {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .catalog-filters > div:first-child > * {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .catalog-filters > div:first-child > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .catalog-filters select,
+  .catalog-filters button {
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
+  }
+
+  .catalog-filters > div:first-child > :first-child {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .catalog-filters > div:first-child > :first-child button {
+    padding-inline: 0.35rem;
+    font-size: 0.68rem;
+  }
+}

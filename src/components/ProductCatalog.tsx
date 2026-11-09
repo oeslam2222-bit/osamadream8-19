@@ -786,7 +786,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       )}
 
       {/* 2. Focused Inventory Stock KPI Cards (3 Cards) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-3.5">
+      <div className="catalog-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-3.5">
         {/* مخزون فرع المندوب */}
         <div className="bg-white rounded-2xl border border-[var(--app-navy-line)] shadow-sm p-3.5 sm:p-4 flex items-center justify-between gap-2 min-w-0">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
@@ -855,7 +855,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       </div>
 
       {/* 3. Filter Bar */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 select-none space-y-3">
+      <div className="catalog-filters bg-white rounded-2xl border border-slate-100 shadow-sm p-3 select-none space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           {/* القطاعات (منزلي / كهرباء / كل القطاعات) - واضحة ومباشرة بنقرة واحدة */}
           <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200">
