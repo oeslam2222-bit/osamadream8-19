@@ -120,33 +120,53 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const initialExpandDone = useRef(false);
   const loadSalesInProgress = useRef(false);
 
-  const loadSalesData = async () => {
+  const loadSalesData = async (options?: { forceRemote?: boolean }) => {
     // منع تكرار التحميل بسبب حدث الحفظ (save event) الذي يُطلق عند المزامنة/الجلب من Supabase
     if (loadSalesInProgress.current) return;
     loadSalesInProgress.current = true;
 
+    const forceRemote = options?.forceRemote === true;
     setIsLoading(true);
     setSyncErrorMsg(null);
+    if (!forceRemote) setSyncSuccessMsg(null);
     try {
-      // 1. قراءة الكاش المحلي كبيانات احتياطية
+      // 1. تحميل فوري من الكاش المحلي/IndexedDB لتقليل egress وعدم تنزيل بيانات ضخمة تلقائياً
       const saved = await getSavedCustomerItemSales();
       let localBackup = saved.filter((record) => !String(record.id || '').startsWith('cis-demo-'));
       if (localBackup.length !== saved.length) {
         await saveCustomerItemSales(localBackup);
       }
 
-      // 2. جلب أحدث السجلات من Supabase عند نجاح الاتصال
+      // 2. قراءة عدد السجلات في Supabase فقط (استعلام خفيف) للمقارنة والتنبيه
+      let remoteCount = -1;
+      try {
+        remoteCount = await getSupabaseCustomerItemSalesCount();
+        if (remoteCount >= 0) setSupabaseCount(remoteCount);
+      } catch {
+        remoteCount = -1;
+      }
+
+      if (!forceRemote) {
+        // عرض الكاش المحلي فوراً بدون تنزيل كامل لجدول مبيعات الأصناف (قد يكون ضخم جداً)
+        setSalesRecords(localBackup);
+        if (remoteCount > 0 && localBackup.length === 0) {
+          setSyncErrorMsg(
+            `يوجد ${remoteCount.toLocaleString('ar-EG')} سجل على Supabase. اضغط "جلب من Supabase" لتحميلها عند الحاجة (قد تستهلك بيانات).`
+          );
+        } else if (remoteCount > 0 && localBackup.length > 0 && remoteCount !== localBackup.length) {
+          setSyncSuccessMsg(
+            `تم عرض ${localBackup.length.toLocaleString('ar-EG')} حركة من الكاش المحلي. (${remoteCount.toLocaleString('ar-EG')} على Supabase — استخدم "جلب من Supabase" للتحديث الكامل عند الحاجة)`
+          );
+        } else if (localBackup.length > 0) {
+          setSyncSuccessMsg(`تم عرض ${localBackup.length.toLocaleString('ar-EG')} حركة من الكاش المحلي.`);
+        }
+        return;
+      }
+
+      // 3. جلب كامل فقط عند طلب المستخدم صراحةً (forceRemote)
       let supabaseSales: CustomerItemSaleRecord[] = [];
       let supabaseError: string | null = null;
-      let remoteCount = 0;
-
       try {
-        const countRes = await getSupabaseCustomerItemSalesCount();
-        remoteCount = countRes >= 0 ? countRes : 0;
-        if (remoteCount >= 0) {
-          setSupabaseCount(remoteCount);
-        }
-
         const fetchRes = await fetchCustomerItemSalesFromSupabase();
         if (fetchRes.error) {
           supabaseError = fetchRes.error;
@@ -157,29 +177,27 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         supabaseError = err?.message || 'فشل الاتصال بـ Supabase';
       }
 
-      // 3. الاعتماد على بيانات Supabase حتى لو الكاش المحلي مش فاضي (عند نجاح الاتصال)
-      // 4. لو الاتصال فشل، استخدم الكاش المحلي واعرض تنبيه واضح
-      let finalSales: CustomerItemSaleRecord[] = [];
       if (supabaseSales.length > 0 && !supabaseError) {
-        finalSales = supabaseSales;
+        setSalesRecords(supabaseSales);
+        setSupabaseCount(supabaseSales.length);
+        // حفظ في الكاش المحلي لتقليل الجلب مستقبلاً
+        await saveCustomerItemSales(supabaseSales);
         setSyncSuccessMsg(
-          `تم جلب ${supabaseSales.length.toLocaleString('ar-EG')} حركة من Supabase واعتمادها كبيانات أساسية.`
+          `تم جلب ${supabaseSales.length.toLocaleString('ar-EG')} حركة من Supabase وحفظها محلياً.`
         );
       } else if (supabaseError) {
-        finalSales = localBackup;
+        setSalesRecords(localBackup);
         setSyncErrorMsg(
-          `فشل الاتصال بـ Supabase: ${supabaseError}. يتم عرض البيانات المخزنة محلياً (${localBackup.length.toLocaleString('ar-EG')} حركة) كنسخة احتياطية.`
+          `فشل الاتصال بـ Supabase: ${supabaseError}. يتم عرض البيانات المخزنة محلياً (${localBackup.length.toLocaleString('ar-EG')} حركة).`
         );
       } else if (remoteCount > 0 && supabaseSales.length === 0) {
-        finalSales = localBackup;
+        setSalesRecords(localBackup);
         setSyncErrorMsg(
-          `قاعدة Supabase تحتوي على ${remoteCount.toLocaleString('ar-EG')} سجل لكنها لم تُجلب بنجاح. يتم عرض البيانات المخزنة محلياً.`
+          `قاعدة Supabase تحتوي على ${remoteCount.toLocaleString('ar-EG')} سجل لكنها لم تُجلب. يتم عرض البيانات المخزنة محلياً.`
         );
       } else {
-        finalSales = localBackup;
+        setSalesRecords(localBackup);
       }
-
-      setSalesRecords(finalSales);
     } finally {
       setIsLoading(false);
       loadSalesInProgress.current = false;
@@ -238,7 +256,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       } else {
         setSalesRecords(res.sales);
         setSupabaseCount(res.sales.length);
-        setSyncSuccessMsg(`تم بنجاح جلب ${res.sales.length.toLocaleString('ar-EG')} حركة من جدول customer_item_sales في Supabase!`);
+        await saveCustomerItemSales(res.sales);
+        setSyncSuccessMsg(`تم بنجاح جلب ${res.sales.length.toLocaleString('ar-EG')} حركة من Supabase وحفظها محلياً.`);
       }
     } finally {
       setIsSupabaseFetching(false);
@@ -658,7 +677,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           <div className="flex items-center gap-2 flex-wrap shrink-0">
             <button
               type="button"
-              onClick={loadSalesData}
+              onClick={() => loadSalesData()}
               title="تحديث البيانات من الذاكرة وقاعدة البيانات"
               className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition cursor-pointer"
             >
