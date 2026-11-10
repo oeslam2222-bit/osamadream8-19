@@ -140,6 +140,7 @@ export interface AppContextType {
 
   // Incremental cloud sync (يجلب فقط السجلات اللي اتعدلوا منذ آخر مزامنة)
   syncTargetsIncrementally: () => Promise<{ success: boolean; message?: string; added?: number; updated?: number }>;
+  loadAllTargets: () => Promise<{ success: boolean; message?: string; count?: number }>;
   syncProductsIncrementally: () => Promise<{ success: boolean; message?: string; added?: number; updated?: number }>;
   syncCustomerItemSalesIncrementally: () => Promise<{ success: boolean; message?: string; added?: number; updated?: number }>;
   syncCustomersIncrementally: () => Promise<{ success: boolean; message?: string; added?: number; updated?: number }>;

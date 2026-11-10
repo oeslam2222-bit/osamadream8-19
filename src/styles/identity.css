@@ -1,0 +1,1637 @@
+/* ==========================================================================
+   TANTAWY — الهوية البصرية الموحدة (Identity v1)
+   --------------------------------------------------------------------------
+   * هوية واحدة ثابتة: كحلي غامق للشريط العلوي والسايدبار + محتوى فاتح.
+   * لا يوجد وضع نهاري/ليلي: الملف ده بيحمّل آخر ملف في main.tsx ويثبّت
+     القيم فوق أي تخصيص قديم.
+   * كل المقاسات والألوان هنا متغيرات، فالتنسيق بيتظبط مرة واحدة على
+     الموبايل/التابلت/اللاب/الويب.
+   ========================================================================== */
+
+:root {
+  /* لوحة الهوية */
+  --tg-navy-950: #071726;
+  --tg-navy-900: #0a1c2c;
+  --tg-navy-800: #0b2337;
+  --tg-navy-700: #0f2b3d;
+  --tg-navy-600: #123a52;
+  --tg-blue: #2563eb;
+  --tg-blue-2: #3b82f6;
+  --tg-ink: #0f172a;
+  --tg-muted: #64748b;
+  --tg-page: #eaf2fb;
+  --tg-card: #ffffff;
+  --tg-card-2: #f6f9fe;
+  --tg-line: #dbe7f5;
+  --tg-line-strong: #c8dcf3;
+  --tg-radius: 22px;
+  --tg-radius-sm: 14px;
+  --tg-shadow: 0 10px 30px rgba(9, 30, 66, 0.08);
+  --tg-shadow-lg: 0 22px 50px rgba(9, 30, 66, 0.14);
+  --tg-grad-navy: linear-gradient(165deg, #0a1c2c 0%, #0b2337 52%, #071726 100%);
+  --tg-grad-blue: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+
+  /* توحيد توكنات التطبيق مع الهوية */
+  --app-bg: var(--tg-page);
+  --app-card: var(--tg-card);
+  --app-card-secondary: var(--tg-card-2);
+  --app-card-sub: var(--tg-card-2);
+  --app-card-hover: #eef5fd;
+  --app-text: var(--tg-ink);
+  --app-text-muted: var(--tg-muted);
+  --app-border: var(--tg-line);
+  --app-line: var(--tg-line);
+  --app-radius-card: var(--tg-radius);
+  --app-shadow-card: var(--tg-shadow);
+  --app-shadow-float: var(--tg-shadow-lg);
+
+  --ds-topbar-h: 66px;
+  --ds-radius: var(--tg-radius-sm);
+  color-scheme: light;
+}
+
+/* تثبيت الوضع الفاتح نهائيًا — مفيش تبديل نهاري/ليلي */
+html,
+html.dark {
+  color-scheme: light !important;
+  background-color: var(--tg-page);
+}
+
+html,
+body {
+  background-color: var(--tg-page);
+}
+
+body {
+  color: var(--tg-ink);
+}
+
+/* ---------- السايدبار: كحلي غامق ثابت ---------- */
+.ds-sidebar {
+  width: 264px;
+  background: var(--tg-grad-navy);
+  color: #e8f1fb;
+  border-left: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: -10px 0 36px rgba(4, 18, 32, 0.28);
+  padding: 18px 14px 14px;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.ds-sidebar__brand {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0 6px 16px;
+}
+
+.ds-sidebar__logo {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.ds-sidebar__brand strong {
+  color: #ffffff;
+  font-size: 16px;
+}
+
+.ds-sidebar__brand span {
+  color: #9fc0de;
+}
+
+.ds-sidebar__user {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+}
+
+.ds-sidebar__user-name {
+  color: #ffffff;
+}
+
+.ds-sidebar__user-role {
+  color: #7fb3ff;
+}
+
+.ds-sidebar__user-branch {
+  color: #9db8d2;
+}
+
+.ds-sidebar__user-avatar::after {
+  border-color: #0b2337;
+}
+
+.ds-sidebar__section {
+  color: #7d9ab6;
+  letter-spacing: 0.6px;
+}
+
+.ds-sidebar__nav {
+  gap: 5px;
+}
+
+.ds-sidebar__item {
+  color: #c9dcee;
+  min-height: 46px;
+  border-radius: 14px;
+  padding: 5px 10px;
+}
+
+.ds-sidebar__item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.ds-sidebar__item[aria-current="page"],
+html.dark .ds-sidebar__item[aria-current="page"] {
+  background: var(--tg-grad-blue) !important;
+  border-color: transparent !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.38);
+}
+
+.ds-sidebar__icon-badge,
+html.dark .ds-sidebar__icon-badge {
+  background: rgba(255, 255, 255, 0.09) !important;
+  color: #cfe4fb !important;
+  border-radius: 11px;
+}
+
+.ds-sidebar__item:hover .ds-sidebar__icon-badge {
+  background: rgba(255, 255, 255, 0.14) !important;
+}
+
+.ds-sidebar__item[aria-current="page"] .ds-sidebar__icon-badge,
+html.dark .ds-sidebar__item[aria-current="page"] .ds-sidebar__icon-badge {
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+}
+
+.ds-sidebar__label {
+  color: inherit;
+}
+
+.ds-sidebar__footer {
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.ds-sidebar__status {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #7ee2b8;
+}
+
+.ds-sidebar__status span.ds-status-dot {
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18);
+}
+
+/* ---------- الشريط العلوي: كحلي غامق ثابت ---------- */
+.ds-topbar {
+  background: linear-gradient(180deg, #0c2338 0%, #0a1c2c 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 28px rgba(4, 18, 32, 0.22);
+  color: #ffffff;
+}
+
+.ds-brand__logo {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.ds-brand__title {
+  color: #ffffff;
+}
+
+.ds-brand__sub {
+  color: #9db8d2;
+}
+
+.ds-search input {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.ds-search input::placeholder {
+  color: #b9cfe4;
+}
+
+.ds-search input:focus {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: #6aa6ff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+
+.ds-search svg {
+  color: #cfe4fb;
+}
+
+.ds-iconbtn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #eaf3ff;
+}
+
+.ds-iconbtn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.ds-iconbtn--primary {
+  background: var(--tg-grad-blue);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.ds-iconbtn--primary:hover {
+  filter: brightness(1.06);
+}
+
+.ds-iconbtn .ds-count--float {
+  box-shadow: 0 0 0 2px #0b1f31;
+}
+
+.ds-select {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.ds-select option {
+  color: var(--tg-ink);
+}
+
+.ds-profile {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
+.ds-profile:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.ds-profile__name {
+  color: #ffffff;
+}
+
+.ds-profile__role {
+  color: #a9c4dd;
+}
+
+.ds-profile .ds-avatar::after {
+  border-color: #0b1f31;
+}
+
+.ds-status {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(16, 185, 129, 0.35);
+  color: #6ee7b7;
+}
+
+.ds-status--off {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.38);
+  color: #fcd34d;
+}
+
+.ds-dot {
+  border-color: #0b1f31;
+}
+
+/* ---------- إزاحة المحتوى على اللاب/الويب ---------- */
+@media (min-width: 1024px) {
+  .ds-sidebar {
+    display: flex !important;
+    width: 264px;
+  }
+
+  .ds-topbar,
+  .app-main,
+  footer {
+    margin-inline-start: 264px !important;
+    margin-inline-end: 0 !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .ds-sidebar {
+    display: none !important;
+  }
+
+  .ds-topbar,
+  .app-main,
+  footer {
+    margin-inline-start: 0 !important;
+  }
+}
+
+/* ---------- القائمة المنزلقة (موبايل): نفس هوية السايدبار الكحلي ---------- */
+.ds-drawer {
+  background: var(--tg-grad-navy);
+  color: #e8f1fb;
+  border-left: 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: -16px 0 40px rgba(4, 18, 32, 0.45);
+}
+
+.ds-drawer__head {
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.ds-drawer__head strong,
+.ds-drawer__head .ds-drawer__title {
+  color: #ffffff;
+}
+
+.ds-drawer__user {
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+}
+
+.ds-drawer__name {
+  color: #ffffff;
+}
+
+.ds-drawer__role {
+  color: #7fb3ff;
+}
+
+.ds-drawer__branch {
+  color: #9db8d2;
+}
+
+.ds-drawer__label {
+  color: #7d9ab6;
+}
+
+.ds-drawer__item {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #d7e6f4;
+}
+
+.ds-drawer__item:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.ds-drawer__item .ds-ico {
+  background: rgba(255, 255, 255, 0.08);
+  color: #bcd7ef;
+}
+
+.ds-drawer__item[aria-current="page"] {
+  background: var(--tg-grad-blue);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.35);
+}
+
+.ds-drawer__item[aria-current="page"] .ds-ico {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.ds-drawer__foot {
+  background: rgba(4, 18, 32, 0.35);
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.ds-drawer__foot .ds-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.ds-sidebar__promo,
+.ds-drawer__promo {
+  margin-inline-start: auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 900;
+  color: #fff;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  box-shadow: 0 4px 10px rgba(217, 119, 6, 0.35);
+  flex-shrink: 0;
+}
+
+.ds-sidebar__item[aria-current="page"] .ds-sidebar__promo {
+  background: rgba(255, 255, 255, 0.22);
+  box-shadow: none;
+}
+
+.ds-search {
+  cursor: pointer;
+  font-family: inherit;
+  text-align: start;
+  border: 0;
+}
+
+.ds-search__placeholder {
+  color: #b9cfe4;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- تابلت: سايدبار أيقونات مضغوط (768–1023) ---------- */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .ds-sidebar {
+    display: flex !important;
+    width: 84px;
+    padding: 14px 8px 10px;
+    align-items: center;
+  }
+
+  .ds-sidebar__brand {
+    justify-content: center;
+    padding: 0 0 12px;
+    width: 100%;
+  }
+
+  .ds-sidebar__brand > div,
+  .ds-sidebar__user-meta,
+  .ds-sidebar__section,
+  .ds-sidebar__label,
+  .ds-sidebar__footer {
+    display: none !important;
+  }
+
+  .ds-sidebar__logo {
+    width: 40px;
+    height: 40px;
+  }
+
+  .ds-sidebar__user {
+    justify-content: center;
+    padding: 8px;
+    width: 100%;
+  }
+
+  .ds-sidebar__nav {
+    width: 100%;
+    align-items: center;
+  }
+
+  .ds-sidebar__item {
+    justify-content: center;
+    padding: 6px;
+    gap: 0;
+    width: 100%;
+  }
+
+  .ds-sidebar__icon-badge {
+    margin: 0;
+  }
+
+  .ds-topbar,
+  .app-main,
+  footer {
+    margin-inline-start: 84px !important;
+    margin-inline-end: 0 !important;
+  }
+
+  .ds-bottom {
+    display: none !important;
+  }
+
+  .app-main {
+    padding-bottom: 28px !important;
+  }
+}
+
+/* ---------- القائمة السفلية (موبايل/تابلت) ---------- */
+.ds-bottom {
+  background: #ffffff;
+  border-top: 1px solid var(--tg-line);
+  box-shadow: 0 -10px 26px rgba(9, 30, 66, 0.1);
+}
+
+.ds-bottom__item {
+  color: #6b7f95;
+}
+
+.ds-bottom__item[aria-current="page"],
+html:not(.dark) .ds-bottom__item[aria-current="page"] {
+  color: var(--tg-blue);
+}
+
+.ds-bottom__item[aria-current="page"] .ds-bottom__icon {
+  background: #e8f1ff;
+}
+
+/* ---------- ترويسة الصفحة الكحلية (تستخدمها الصفحات التنفيذية) ---------- */
+.ds-pagehead {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  padding: 18px 20px;
+  background: linear-gradient(130deg, #0d2b41 0%, #123f5c 55%, #14506f 100%);
+  color: #ffffff;
+  box-shadow: 0 18px 40px rgba(8, 30, 52, 0.18);
+}
+
+.ds-pagehead::after {
+  content: "";
+  position: absolute;
+  inset-inline-start: -70px;
+  top: -90px;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.5), transparent 68%);
+  pointer-events: none;
+}
+
+.ds-pagehead > * {
+  position: relative;
+  z-index: 1;
+}
+
+.ds-pagehead h1,
+.ds-pagehead h2 {
+  color: #ffffff;
+}
+
+.ds-pagehead .ds-crumb {
+  color: #a9c8e4;
+}
+
+.ds-pagehead .ds-crumb strong {
+  color: #7fc0ff;
+}
+
+.ds-pagehead__hint {
+  color: #c3d9ec;
+}
+
+.tg-accent {
+  color: #7fc0ff;
+}
+
+/* ---------- كروت مؤشرات باستيل (زي تصميم الهوية) ---------- */
+.tg-kpi {
+  position: relative;
+  overflow: hidden;
+  border-radius: 22px;
+  padding: 16px;
+  border: 1px solid transparent;
+  box-shadow: 0 10px 26px rgba(9, 30, 66, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 120px;
+}
+
+.tg-kpi__icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.65);
+  box-shadow: 0 6px 14px rgba(9, 30, 66, 0.06);
+}
+
+.tg-kpi__value {
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tg-kpi__label {
+  font-size: 12.5px;
+  font-weight: 800;
+  opacity: 0.92;
+}
+
+.tg-kpi__hint {
+  font-size: 10.5px;
+  font-weight: 700;
+  opacity: 0.72;
+}
+
+.tg-kpi--red { background: linear-gradient(160deg, #fff2f2, #ffe1e1); border-color: #ffd2d2; color: #b42323; }
+.tg-kpi--violet { background: linear-gradient(160deg, #f6f1ff, #ece2ff); border-color: #e0d3ff; color: #6d28d9; }
+.tg-kpi--amber { background: linear-gradient(160deg, #fff7ec, #ffecd2); border-color: #ffe0b8; color: #b45309; }
+.tg-kpi--emerald { background: linear-gradient(160deg, #effaf4, #dcf6e8); border-color: #c5efdc; color: #047857; }
+.tg-kpi--blue { background: linear-gradient(160deg, #eef5ff, #dceaff); border-color: #c9deff; color: #1d4ed8; }
+
+/* ---------- سطح/كارت موحد ---------- */
+.tg-card {
+  background: var(--tg-card);
+  border: 1px solid var(--tg-line);
+  border-radius: var(--tg-radius);
+  box-shadow: var(--tg-shadow);
+}
+
+.tg-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--tg-line);
+}
+
+.tg-card__title {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--tg-ink);
+}
+
+/* ---------- تحسينات اللمس والتمرير للموبايل ---------- */
+@media (max-width: 767px) {
+  .ds-pagehead {
+    border-radius: 20px;
+    padding: 14px 16px;
+  }
+
+  .tg-kpi {
+    min-height: 104px;
+    padding: 13px;
+    border-radius: 18px;
+  }
+
+  .tg-kpi__value {
+    font-size: 21px;
+  }
+}
+
+/* ---------- بحث ذكي عام (Global Search) ---------- */
+.tg-search-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(7, 23, 40, 0.55);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8vh 14px 14px;
+}
+
+.tg-search-panel {
+  width: 100%;
+  max-width: 640px;
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: 22px;
+  box-shadow: 0 30px 70px rgba(4, 18, 32, 0.35);
+  overflow: hidden;
+}
+
+.tg-search-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #e6edf6;
+  background: linear-gradient(180deg, #f6f9fe, #ffffff);
+}
+
+.tg-search-head__icon {
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.tg-search-input {
+  flex: 1 1 auto;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  padding: 4px 0;
+}
+
+.tg-search-input::placeholder {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.tg-search-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  border: 0;
+  background: #f1f5f9;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.tg-search-close:hover {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+.tg-search-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.tg-search-empty {
+  padding: 36px 16px;
+  text-align: center;
+}
+
+.tg-search-empty__icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 12px;
+  border-radius: 18px;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tg-search-empty__title {
+  font-size: 14px;
+  font-weight: 900;
+  color: #1e293b;
+}
+
+.tg-search-empty__sub {
+  margin-top: 4px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.tg-search-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.tg-search-quick__btn {
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid #dbeafe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.tg-search-quick__btn:hover {
+  background: #dbeafe;
+}
+
+.tg-search-group {
+  margin-bottom: 6px;
+}
+
+.tg-search-group__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 4px;
+  font-size: 11px;
+  font-weight: 900;
+  color: #64748b;
+  text-transform: none;
+}
+
+.tg-search-group__count {
+  margin-inline-start: auto;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.tg-search-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 0;
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background-color 0.12s ease;
+}
+
+.tg-search-item:hover,
+.tg-search-item--active {
+  background: #eff6ff;
+}
+
+.tg-search-item__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tg-search-item__title {
+  font-size: 13px;
+  font-weight: 900;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tg-search-item__sub {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tg-search-item__arrow {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.tg-search-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 14px;
+  border-top: 1px solid #e6edf6;
+  background: #f8fafc;
+  font-size: 10px;
+  font-weight: 800;
+  color: #94a3b8;
+}
+
+.tg-search-foot__count {
+  margin-inline-start: auto;
+  color: #2563eb;
+}
+
+@media (max-width: 639px) {
+  .tg-search-overlay {
+    padding: 4vh 8px 8px;
+  }
+
+  .tg-search-panel {
+    max-height: 88vh;
+    border-radius: 18px;
+  }
+}
+
+/* ---------- إلغاء أي زر تبديل للوضع ---------- */
+.ds-theme-switch,
+.ds-sidebar__theme-toggle {
+  display: none !important;
+}
+
+/* ==========================================================================
+   الصفحة الرئيسية — لوحة الهوية (كل الأسماء tg-dash/tg-hero/tg-kpi ...)
+   ملاحظة: لا نعتمد على كلاسات Tailwind الجديدة هنا لأن index.css ملف
+   مضغوط قديم ولا يولّد كلاسات جديدة وقت البناء.
+   ========================================================================== */
+
+.tg-dash {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+/* ---------- Hero ---------- */
+.tg-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  padding: 24px 22px;
+  color: #ffffff;
+  background: linear-gradient(120deg, #0b2337 0%, #123f5c 52%, #155a80 100%);
+  box-shadow: 0 22px 50px rgba(7, 26, 44, 0.28);
+}
+
+.tg-hero__blob {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.tg-hero__blob--blue {
+  top: -110px;
+  inset-inline-start: -60px;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.55), transparent 68%);
+}
+
+.tg-hero__blob--green {
+  bottom: -120px;
+  inset-inline-end: 30px;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.32), transparent 70%);
+}
+
+.tg-hero__inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.tg-hero__main {
+  min-width: 0;
+}
+
+.tg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 11px;
+  font-weight: 800;
+  color: #cfe4fb;
+}
+
+.tg-hero__title {
+  margin: 10px 0 0;
+  font-size: 26px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+}
+
+.tg-hero__sub {
+  margin: 6px 0 0;
+  max-width: 560px;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.75;
+  color: rgba(219, 234, 254, 0.9);
+}
+
+.tg-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.tg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: #ffffff;
+  color: #0b2337;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(3, 15, 28, 0.18);
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+
+.tg-btn:hover {
+  background: #eff6ff;
+}
+
+.tg-btn:active {
+  transform: scale(0.98);
+}
+
+.tg-btn--ghost {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.tg-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.tg-hero__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.tg-mini {
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
+  padding: 12px;
+}
+
+.tg-mini__label {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: rgba(219, 234, 254, 0.8);
+}
+
+.tg-mini__value {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.tg-mini__trend {
+  color: #6ee7b7;
+  margin-bottom: 2px;
+}
+
+.tg-mini__trend--blue {
+  color: #7dd3fc;
+}
+
+.tg-mini__bar {
+  margin-top: 8px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  overflow: hidden;
+}
+
+.tg-mini__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #34d399, #6ee7b7);
+  transition: width 0.4s ease;
+}
+
+.tg-mini__fill--blue {
+  background: linear-gradient(90deg, #60a5fa, #67e8f9);
+}
+
+.tg-mini--wide {
+  grid-column: span 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tg-mini__rem-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: rgba(219, 234, 254, 0.8);
+}
+
+.tg-mini__rem-value {
+  font-size: 12px;
+  font-weight: 900;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- شبكة المؤشرات ---------- */
+.tg-kpis {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.tg-kpi {
+  text-align: start;
+  cursor: pointer;
+  font-family: inherit;
+  width: 100%;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tg-kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px rgba(9, 30, 66, 0.12);
+}
+
+.tg-kpi__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.tg-kpi__arrow {
+  opacity: 0.55;
+}
+
+/* ---------- التحليلات ---------- */
+.tg-analytics {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.tg-card__hint {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #94a3b8;
+}
+
+.tg-card__head-icon {
+  color: #94a3b8;
+}
+
+.tg-legend-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  font-size: 10px;
+  font-weight: 900;
+  color: #1d4ed8;
+  white-space: nowrap;
+}
+
+.tg-legend-inline__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.tg-legend-inline__dot--sales {
+  background: #2563eb;
+}
+
+.tg-legend-inline__dot--collection {
+  background: #10b981;
+  margin-inline-start: 4px;
+}
+
+.tg-chart {
+  padding: 22px 16px 16px;
+}
+
+.tg-chart__bars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 8px;
+  height: 224px;
+}
+
+.tg-chart__col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.tg-chart__pair {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  height: 186px;
+}
+
+.tg-chart__bar {
+  width: 50%;
+  max-width: 22px;
+  min-height: 4px;
+  border-radius: 8px 8px 0 0;
+  transition: height 0.4s ease;
+}
+
+.tg-chart__bar--sales {
+  background: linear-gradient(180deg, #60a5fa, #2563eb);
+}
+
+.tg-chart__bar--collection {
+  background: linear-gradient(180deg, #6ee7b7, #10b981);
+}
+
+.tg-chart__label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+/* ---------- دونات تصنيف العملاء ---------- */
+.tg-donut-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+}
+
+.tg-donut {
+  position: relative;
+  width: 144px;
+  height: 144px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tg-donut__hole {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 1px 6px rgba(9, 30, 66, 0.08);
+}
+
+.tg-donut__total {
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1;
+  color: #0b2337;
+  font-variant-numeric: tabular-nums;
+}
+
+.tg-donut__cap {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #64748b;
+}
+
+.tg-legend {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+}
+
+.tg-legend__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 800;
+  color: #475569;
+}
+
+.tg-legend__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tg-legend__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tg-legend__val {
+  font-weight: 900;
+  color: #1e293b;
+  font-variant-numeric: tabular-nums;
+}
+
+.tg-legend__pct {
+  font-size: 10px;
+  font-weight: 800;
+  color: #94a3b8;
+}
+
+/* ---------- معلومات سريعة ---------- */
+.tg-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+
+.tg-stat {
+  border-radius: 16px;
+  border: 1px solid transparent;
+  padding: 12px;
+}
+
+.tg-stat__value {
+  font-size: 19px;
+  font-weight: 900;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.tg-stat__label {
+  margin-top: 4px;
+  font-size: 10.5px;
+  font-weight: 800;
+  opacity: 0.8;
+}
+
+.tg-stat svg {
+  margin-bottom: 8px;
+}
+
+.tg-stat--blue {
+  border-color: #dbeafe;
+  background: rgba(239, 246, 255, 0.7);
+  color: #1d4ed8;
+}
+
+.tg-stat--emerald {
+  border-color: #d1fae5;
+  background: rgba(236, 253, 245, 0.7);
+  color: #047857;
+}
+
+.tg-stat--violet {
+  border-color: #ede9fe;
+  background: rgba(245, 243, 255, 0.7);
+  color: #6d28d9;
+}
+
+.tg-stat--amber {
+  border-color: #fef3c7;
+  background: rgba(255, 251, 235, 0.7);
+  color: #b45309;
+}
+
+/* ---------- الأنشطة والاختصارات ---------- */
+.tg-dash-bottom {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.tg-act-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.tg-act {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid #eef2f7;
+}
+
+.tg-act:first-child {
+  border-top: 0;
+}
+
+.tg-act__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.tg-act__icon--emerald {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.tg-act__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tg-act__title {
+  font-size: 12px;
+  font-weight: 900;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tg-act__detail {
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tg-act__date {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 800;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.tg-empty {
+  padding: 36px 16px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #94a3b8;
+}
+
+.tg-linkbtn {
+  background: transparent;
+  border: 0;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  color: #2563eb;
+  cursor: pointer;
+  padding: 0;
+}
+
+.tg-linkbtn:hover {
+  color: #1d4ed8;
+}
+
+.tg-quick {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+
+.tg-quick__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 88px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.15s ease;
+}
+
+.tg-quick__btn:hover {
+  transform: translateY(-2px);
+  background: #ffffff;
+}
+
+.tg-quick__btn--primary {
+  border-color: transparent;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.28);
+}
+
+.tg-quick__btn--primary:hover {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+
+/* ---------- استجابة لوحة التحكم ---------- */
+@media (min-width: 640px) {
+  .tg-hero {
+    padding: 28px 30px;
+  }
+
+  .tg-hero__title {
+    font-size: 30px;
+  }
+
+  .tg-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 768px) {
+  .tg-hero__inner {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 28px;
+  }
+
+  .tg-hero__main {
+    flex: 1 1 auto;
+  }
+
+  .tg-hero__stats {
+    width: 300px;
+    flex: 0 0 auto;
+  }
+}
+
+@media (min-width: 1024px) {
+  .tg-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .tg-analytics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tg-analytics__wide {
+    grid-column: span 2;
+  }
+
+  .tg-dash-bottom {
+    grid-template-columns: 1.9fr 1fr;
+  }
+}
+
+@media (min-width: 1320px) {
+  .tg-kpis {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1440px) {
+  .tg-analytics {
+    grid-template-columns: 1.65fr 1fr 1fr;
+  }
+
+  .tg-analytics__wide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 639px) {
+  .tg-hero {
+    padding: 20px 16px;
+    border-radius: 20px;
+  }
+
+  .tg-hero__title {
+    font-size: 22px;
+  }
+
+  .tg-hero__sub {
+    font-size: 12.5px;
+  }
+
+  .tg-chart__bars {
+    height: 180px;
+  }
+
+  .tg-chart__pair {
+    height: 146px;
+  }
+
+  .tg-chart {
+    padding: 16px 10px 12px;
+  }
+
+  .tg-legend-inline {
+    display: none;
+  }
+
+  .tg-act {
+    padding: 11px 12px;
+    gap: 9px;
+  }
+
+  .tg-act__date {
+    display: none;
+  }
+}
+

@@ -1209,6 +1209,38 @@ export async function pushCustomerItemSalesToSupabase(
 }
 
 /**
+ * تحويل صف جدول `customer_item_sales` (snake_case) إلى شكل التطبيق.
+ * مستخدمة في القراءة الكاملة وفي المزامنة التدريجية — عشان الاتنين
+ * يطلّعوا نفس الحقول بالظبط (الوحدة، المعامل، السعر، الخصم، الكود الموحد).
+ */
+export function mapSupabaseRowToCustomerItemSale(row: any): CustomerItemSaleRecord {
+  return {
+    id: row.id,
+    customerAccount: row.customer_account,
+    invoicingName: row.invoicing_name,
+    salesOrder: row.sales_order || undefined,
+    date: row.sale_date || undefined,
+    repName: row.rep_name || 'غير محدد',
+    month: Number(row.month) || 1,
+    monthName: MONTH_NAMES_MAP[Number(row.month)] || `شهر ${row.month}`,
+    warehouse: row.warehouse || 'الفرع الرئيسي',
+    itemCode: row.item_code,
+    itemName: row.item_name,
+    unifiedCode: row.unified_code || undefined,
+    unit: row.unit || 'كرتونة',
+    factor: parseNumericValue(row.factor) || 1,
+    unitPrice: parseNumericValue(row.unit_price),
+    discount: parseNumericValue(row.discount),
+    quantity: parseNumericValue(row.quantity),
+    amount: parseNumericValue(row.amount),
+    itemGroup: row.item_group || 'عام',
+    definitions: row.definitions || undefined,
+    familyDimension: row.family_dimension || row.item_group || 'عام',
+    createdAt: row.created_at || new Date().toISOString()
+  };
+}
+
+/**
  * Fetch Customer Item Sales from Supabase table `customer_item_sales` with complete pagination (fetching all 10,000+ rows)
  */
 export async function fetchCustomerItemSalesFromSupabase(
@@ -1255,30 +1287,7 @@ export async function fetchCustomerItemSalesFromSupabase(
       return { sales: [] };
     }
 
-    const mapped: CustomerItemSaleRecord[] = allData.map((row: any) => ({
-      id: row.id,
-      customerAccount: row.customer_account,
-      invoicingName: row.invoicing_name,
-      salesOrder: row.sales_order || undefined,
-      date: row.sale_date || undefined,
-      repName: row.rep_name || 'غير محدد',
-      month: Number(row.month) || 1,
-      monthName: MONTH_NAMES_MAP[Number(row.month)] || `شهر ${row.month}`,
-      warehouse: row.warehouse || 'الفرع الرئيسي',
-      itemCode: row.item_code,
-      itemName: row.item_name,
-      unifiedCode: row.unified_code || undefined,
-      unit: row.unit || 'كرتونة',
-      factor: parseNumericValue(row.factor) || 1,
-      unitPrice: parseNumericValue(row.unit_price),
-      discount: parseNumericValue(row.discount),
-      quantity: parseNumericValue(row.quantity),
-      amount: parseNumericValue(row.amount),
-      itemGroup: row.item_group || 'عام',
-      definitions: row.definitions || undefined,
-      familyDimension: row.family_dimension || row.item_group || 'عام',
-      createdAt: row.created_at || new Date().toISOString()
-    }));
+    const mapped: CustomerItemSaleRecord[] = allData.map(mapSupabaseRowToCustomerItemSale);
 
     // Cache into memory & IndexedDB
     await saveCustomerItemSales(mapped);

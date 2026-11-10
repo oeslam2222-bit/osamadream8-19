@@ -4,7 +4,7 @@ import { inferCustomerSector, BRANCHES } from '../data/branchDefinitions';
 import { DEFAULT_CLOUDINARY_CONFIG } from '../services/cloudinaryService';
 import { clearCachedImages } from '../services/imageCacheService';
 import { idbClear, idbDelete, idbGet, idbSet, debouncedIdbSet, safeLocalStorageSet } from '../services/storageService';
-import { saveCustomerItemSales } from '../services/customerItemSalesService';
+import { saveCustomerItemSales, mapSupabaseRowToCustomerItemSale } from '../services/customerItemSalesService';
 import {
   doesCustomerBelongToBranch,
   doesCustomerBelongToRep,
@@ -31,11 +31,14 @@ import {
   mergeCustomersIncremental,
   fetchCustomerContentStamp,
   fetchInvoicesFromSupabase,
+  fetchInvoiceContentStamp,
   fetchProductsFromSupabase,
   fetchProductsIncremental,
   mergeProductsIncremental,
   fetchTargetsFromSupabase,
+  fetchTargetContentStamp,
   fetchTargetsIncremental,
+  fetchTargetsRecentMonths,
   mergeTargetsIncremental,
   fetchVisitsFromSupabase,
   fetchVisitContentStamp,
@@ -221,6 +224,74 @@ function saveVisitContentStamp(stamp: { count: number | null; maxUpdatedAt: stri
   } catch {}
 }
 
+/**
+ * بصمة جدول الأهداف — نفس فكرة العملاء/الزيارات.
+ * التارجت بيتغيّر نادرًا، فبدل تنزيل 572 صف مع كل فتح بنسأل صف واحد بس.
+ */
+const TARGET_CONTENT_STAMP_KEY = 'tantawy_target_content_stamp_v1';
+
+function readTargetContentStamp(): { count: number | null; maxUpdatedAt: string | null } | null {
+  try {
+    const raw = localStorage.getItem(TARGET_CONTENT_STAMP_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && (parsed.count !== undefined || parsed.maxUpdatedAt !== undefined)) {
+      return {
+        count: typeof parsed.count === 'number' ? parsed.count : null,
+        maxUpdatedAt: parsed.maxUpdatedAt ?? null,
+      };
+    }
+  } catch {}
+  return null;
+}
+
+function saveTargetContentStamp(stamp: { count: number | null; maxUpdatedAt: string | null }): void {
+  try {
+    safeLocalStorageSet(TARGET_CONTENT_STAMP_KEY, JSON.stringify(stamp));
+  } catch {}
+}
+
+/** وقت آخر مزامنة ناجحة للمستخدمين — عشان ما نطلبش الجدول مع كل فتح. */
+const USERS_LAST_SYNC_KEY = 'tantawy_users_last_sync_v1';
+// المستخدمون بيتغيروا نادرًا؛ 6 ساعات توازن بين الحداثة وتوفير الـ egress.
+const USERS_SYNC_TTL_MS = 6 * 60 * 60 * 1000;
+
+/**
+ * بصمة الفواتير محفوظة لكل نطاق قراءة على حدة (مندوب/مشرف/مدير فرع/أدمن)
+ * عشان تبديل الحساب على نفس الجهاز ما يخلطش البصمات.
+ */
+const INVOICE_CONTENT_STAMP_PREFIX = 'tantawy_invoice_content_stamp_v1::';
+
+function invoiceScopeKey(scope: InvoiceFetchScope): string {
+  const repIds = (scope.repIds || []).map((r) => String(r).trim()).filter(Boolean).sort();
+  return repIds.length > 0 ? repIds.join(',') : 'all';
+}
+
+function readInvoiceContentStamp(scopeKey: string): { count: number | null; maxCreatedAt: string | null; table: string } | null {
+  try {
+    const raw = localStorage.getItem(`${INVOICE_CONTENT_STAMP_PREFIX}${scopeKey}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && (parsed.count !== undefined || parsed.maxCreatedAt !== undefined)) {
+      return {
+        count: typeof parsed.count === 'number' ? parsed.count : null,
+        maxCreatedAt: parsed.maxCreatedAt ?? null,
+        table: parsed.table || 'orders',
+      };
+    }
+  } catch {}
+  return null;
+}
+
+function saveInvoiceContentStamp(
+  scopeKey: string,
+  stamp: { count: number | null; maxCreatedAt: string | null; table: string }
+): void {
+  try {
+    safeLocalStorageSet(`${INVOICE_CONTENT_STAMP_PREFIX}${scopeKey}`, JSON.stringify(stamp));
+  } catch {}
+}
+
 function resolveEffectiveSector(user: User | null, activeSector: ActiveSector, fallbackSector?: string): ActiveSector {
   if (user?.role === 'admin' || user?.role === 'developer') return activeSector;
   const accountSector = user?.sector || fallbackSector;
@@ -312,17 +383,45 @@ function buildInvoiceFetchScope(currentUser: User | null, users: User[]): Invoic
   return { limit: 500 };
 }
 
+/**
+ * تحويل صف جدول `targets` إلى شكل التطبيق.
+ * كل مسارات القراءة (الإقلاع، مزامنة الإصدار، المزامنة التدريجية) لازم
+ * تستخدم نفس التحويل، وإلا الصفحة تستقبل حقول snake_case ومتعرضش أرقام.
+ */
+function mapTargetRowToRecord(row: any): TargetRecord {
+  return {
+    id: String(row.id),
+    branch: resolveBranchName(row.branch) || row.branch || '',
+    repName: row.rep_name || '',
+    salesTarget: Number(row.sales_target || 0),
+    salesAchieved: Number(row.sales_achieved || 0),
+    salesPercentage: Number(row.sales_percentage || 0),
+    collectionTarget: Number(row.collection_target || 0),
+    collectionAchieved: Number(row.collection_achieved || 0),
+    collectionPercentage: Number(row.collection_percentage || 0),
+    date: row.target_date || '',
+    month: Number(row.month),
+    year: Number(row.year),
+    quarter: row.quarter,
+    remainingSales: Number(row.remaining_sales || 0),
+    remainingCollection: Number(row.remaining_collection || 0),
+    updatedAt: row.updated_at,
+    notes: row.notes || undefined,
+  };
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Auth and Session Notice
   const [authTerminationNotice, setAuthTerminationNotice] = useState<string | null>(null);
 
   // Keep-Alive: ping Supabase every 10 minutes (only when visible) to prevent free-tier auto-pause
-  // while keeping egress usage near zero.
+  // while keeping egress usage near zero. بيستخدم جدول `targets` الموجود فعلاً —
+  // `branches` مش موجود على السيرفر وكان بيرجّع 404 في الكونسول كل 10 دقائق.
   useEffect(() => {
     const ping = () => {
       if (typeof document !== 'undefined' && document.hidden) return;
       supabase
-        .from('branches')
+        .from('targets')
         .select('id')
         .limit(1)
         .then(() => {}, () => {});
@@ -675,20 +774,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 
   // Load targets from the shared database so every device and role sees the same sheet update.
+  // بيسأل بصمة صف واحد الأول: لو الأهداف ما اتغيرتش بيوفّر ~30KB مع كل فتح.
   useEffect(() => {
     let cancelled = false;
-    fetchTargetsFromSupabase().then(async (result) => {
-      if (!cancelled && result.success && result.targets && result.targets.length > 0) {
-        const mapped: TargetRecord[] = result.targets.map((row: any) => ({
-          id: String(row.id), branch: resolveBranchName(row.branch) || row.branch || '', repName: row.rep_name || '',
-          salesTarget: Number(row.sales_target || 0), salesAchieved: Number(row.sales_achieved || 0),
-          salesPercentage: Number(row.sales_percentage || 0), collectionTarget: Number(row.collection_target || 0),
-          collectionAchieved: Number(row.collection_achieved || 0), collectionPercentage: Number(row.collection_percentage || 0),
-          date: row.target_date || '', month: Number(row.month), year: Number(row.year), quarter: row.quarter,
-          remainingSales: Number(row.remaining_sales || 0), remainingCollection: Number(row.remaining_collection || 0),
-          updatedAt: row.updated_at, notes: row.notes || undefined,
-        }));
+    (async () => {
+      const stamp = await fetchTargetContentStamp();
+      const stored = readTargetContentStamp();
+      const localCount = targets.length;
+      const unchanged =
+        stamp !== null &&
+        stored !== null &&
+        stamp.count === stored.count &&
+        stamp.maxUpdatedAt === stored.maxUpdatedAt &&
+        localCount >= (stamp.count ?? 0);
+      if (unchanged) return;
+
+      const result = await fetchTargetsRecentMonths(24);
+      if (cancelled) return;
+      if (result.success && result.targets && result.targets.length > 0) {
+        const mapped: TargetRecord[] = result.targets.map(mapTargetRowToRecord);
         setTargets(mapped);
+        // نحفظ البصمة بعد التنزيل الناجح بس — فشل الجلب ما يعتبرش مزامنة.
+        if (stamp && (stamp.count !== null || stamp.maxUpdatedAt !== null)) {
+          saveTargetContentStamp(stamp);
+        }
       } else {
         // If Supabase has no target records yet, check if there's a saved published Google Sheet URL
         const savedSources = getPublishedDataSources();
@@ -705,7 +814,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
       }
-    });
+    })().catch(() => {});
     return () => { cancelled = true; };
   }, []);
 
@@ -2166,25 +2275,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
 
       if (trgRes?.success) {
-        freshTargets = (trgRes.targets || []).map((row: any) => ({
-          id: String(row.id),
-          branch: resolveBranchName(row.branch) || row.branch || '',
-          repName: row.rep_name || '',
-          salesTarget: Number(row.sales_target || 0),
-          salesAchieved: Number(row.sales_achieved || 0),
-          salesPercentage: Number(row.sales_percentage || 0),
-          collectionTarget: Number(row.collection_target || 0),
-          collectionAchieved: Number(row.collection_achieved || 0),
-          collectionPercentage: Number(row.collection_percentage || 0),
-          date: row.target_date || '',
-          month: Number(row.month),
-          year: Number(row.year),
-          quarter: row.quarter,
-          remainingSales: Number(row.remaining_sales || 0),
-          remainingCollection: Number(row.remaining_collection || 0),
-          updatedAt: row.updated_at,
-          notes: row.notes || undefined,
-        }));
+        freshTargets = (trgRes.targets || []).map(mapTargetRowToRecord);
       }
 
       if (invRes?.success && invRes.invoices) {
@@ -2497,6 +2588,64 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       if (customerDownloadInFlightRef.current) return;
 
+      /**
+       * 2.5) مزامنة تدريجية قبل التنزيل الكامل:
+       * لو البصمة اتغيّرت لكن عدد الصفوف ما نقصش (تعديل/إضافة بس)، بنجيب
+       * الصفوف اللي `updated_at` بتاعها أحدث من آخر بصمة محفوظة وندمجها مع
+       * الموجود. ده بيحوّل تكلفة التعديل اليومي من ~95KB–875KB لكل جهاز إلى
+       * كام كيلوبايت بس. أي نقص في العدد (حذف) بيرجع للتنزيل الكامل.
+       */
+      const canIncremental =
+        !force &&
+        stampComparable &&
+        !!storedStamp?.maxUpdatedAt &&
+        typeof stamp?.count === 'number' &&
+        typeof storedStamp?.count === 'number' &&
+        stamp!.count! >= storedStamp!.count! &&
+        (customersRef.current?.length || 0) > 0;
+
+      if (canIncremental) {
+        checkInFlight = true;
+        customerDownloadInFlightRef.current = true;
+        try {
+          const inc = await fetchCustomersFromSupabase(customerFetchScope, {
+            updatedSince: storedStamp!.maxUpdatedAt!,
+          });
+          if (inc.success) {
+            if (stampComparable) {
+              saveCustomerContentStamp({ count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt });
+            }
+            const incoming = sanitizeCustomers(inc.customers || []);
+            if (incoming.length > 0) {
+              const linkedInc = linkCustomersToUsers(incoming, usersRef.current);
+              const next = deduplicateCustomersArray(
+                mergeCustomersIncremental(customersRef.current || [], linkedInc)
+              );
+              /**
+               * شبكة أمان: لو العدد المحلي لسه أقل من عدد السيرفر بعد الدمج،
+               * يبقى فيه صفوف ما وصلتش (مثلاً صف جديد بـ updated_at أقدم من
+               * البصمة) → منصدّقش المزامنة الجزئية ونكمل بالتنزيل الكامل.
+               */
+              const serverCount = typeof stamp?.count === 'number' ? stamp.count : null;
+              const countStillShort = serverCount !== null && next.length < serverCount;
+              if (!countStillShort) {
+                setCustomers(next);
+                customersRef.current = next;
+                idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
+                saveLocalCustomersFingerprint(next);
+                return;
+              }
+            } else {
+              return;
+            }
+          }
+          // فشل التنزيل التدريجي → نكمل بالتنزيل الكامل تحت كشبكة أمان.
+        } finally {
+          checkInFlight = false;
+          customerDownloadInFlightRef.current = false;
+        }
+      }
+
       checkInFlight = true;
       customerDownloadInFlightRef.current = true;
       try {
@@ -2512,8 +2661,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         if (stampComparable) {
           saveCustomerContentStamp({ count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt });
         }
-        if (fingerprint === getLocalCustomersFingerprint() && customers.length >= fresh.length) return;
+        if (fingerprint === getLocalCustomersFingerprint() && (customersRef.current?.length || 0) >= fresh.length) return;
         setCustomers(fresh);
+        customersRef.current = fresh;
         idbSet(STORAGE_KEYS.CUSTOMERS, fresh).catch(() => {});
         saveLocalCustomersFingerprint(fresh);
       } catch {
@@ -2579,8 +2729,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     testSupabaseConnection().then(setSupabaseStatus).catch(() => {});
 
-    // 1. Fetch Users in parallel immediately
+    // 1) المستخدمون بيتغيروا نادرًا — بنسأل السيرفر مرة كل 6 ساعات بدل كل فتح.
+    // (7KB مع كل فتح كانت بتتكرر 400 مرة على نفس القاعدة).
+    const lastUsersSync = Number(localStorage.getItem(USERS_LAST_SYNC_KEY) || 0);
+    const usersAreFresh = users.length > 0 && Date.now() - lastUsersSync < USERS_SYNC_TTL_MS;
+    if (!usersAreFresh) {
     fetchUsersFromSupabase(true).then((res) => {
+          if (res.success) {
+            try { localStorage.setItem(USERS_LAST_SYNC_KEY, String(Date.now())); } catch {}
+          }
           if (res.success && res.users && res.users.length > 0) {
             setUsers((prev) => {
               const dedup = sanitizeAndDeduplicateUsers(res.users!);
@@ -2618,6 +2775,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             });
           }
         });
+    }
 
         // 2 & 4. Automatic Data Version Sync & Clean Fetch:
         // Checks if server has a newer version or if client data is unversioned.
@@ -2729,6 +2887,60 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             if (localVisits.length > 0) {
               if (visits.length === 0) setVisits(localVisits);
               return;
+            }
+          }
+
+          /**
+           * مزامنة تدريجية: لو الزيادات بس (العدد ما نقصش) بنجيب الصفوف
+           * اللي `updated_at` بتاعها أحدث من آخر بصمة. الحذف (نقص العدد)
+           * بيرجع للتنزيل الكامل.
+           */
+          const canIncremental =
+            comparable &&
+            !!stored?.maxUpdatedAt &&
+            typeof stamp?.count === 'number' &&
+            typeof stored?.count === 'number' &&
+            stamp!.count! >= stored!.count! &&
+            visits.length > 0;
+
+          if (canIncremental) {
+            try {
+              const inc = await fetchVisitsFromSupabase(visitFetchScope, {
+                updatedSince: stored!.maxUpdatedAt!,
+              });
+              if (inc.success) {
+                saveVisitContentStamp({ count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt });
+                const changedVisits = (inc.visits || []).filter((v) => !deletedVisitIds.has(v.id));
+                // شبكة أمان: لو إجمالي الزيارات بعد الدمج لسه أقل من عدد السيرفر
+                // يبقى فيه صفوف ما وصلتش → نكمل بالتنزيل الكامل.
+                const projectedIds = new Set(visits.map((v) => v.id));
+                changedVisits.forEach((v) => projectedIds.add(v.id));
+                const countStillShort =
+                  typeof stamp?.count === 'number' && projectedIds.size < stamp.count;
+                if (!countStillShort) {
+                  if (changedVisits.length > 0) {
+                    const queued = await getQueuedMutations();
+                    const pendingVisitIds = new Set(
+                      queued.filter((m) => m.entity === 'visits' && m.op === 'upsert').map((m) => m.entityId)
+                    );
+                    setVisits((previous) => {
+                      const merged = new Map<string, CustomerVisit>();
+                      previous.forEach((v) => merged.set(v.id, v));
+                      changedVisits.forEach((v) => merged.set(v.id, { ...v, syncStatus: 'synced' }));
+                      // أي زيارة محلية لسه في الـoutbox تفضل موجودة
+                      previous.forEach((v) => {
+                        if (pendingVisitIds.has(v.id) && !merged.has(v.id)) merged.set(v.id, v);
+                      });
+                      const next = Array.from(merged.values());
+                      persistVisits(next);
+                      return next;
+                    });
+                  }
+                  return;
+                }
+              }
+            } catch {
+              // فشل التنزيل التدريجي → التنزيل الكامل تحت.
             }
           }
 
@@ -2955,10 +3167,28 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       lastSyncTimestamp = now;
 
       try {
-        const result = await fetchInvoicesFromSupabase(
-          buildInvoiceFetchScope(currentUser, users)
-        );
-        if (cancelled || !result.success || !result.invoices) return;        setInvoices((prev) => {
+        const scope = buildInvoiceFetchScope(currentUser, users);
+        const scopeKey = invoiceScopeKey(scope);
+
+        // 1) بصمة صف واحد بدل تنزيل الفواتير: لو العدد وأحدث created_at
+        // ما اتغيّروش، مفيش حاجة ننزّلها. تعديلات الحالة الفورية بتيجي
+        // من Realtime، وزر التحديث اليدوي بيعمل قراءة كاملة لو احتاج.
+        const stamp = await fetchInvoiceContentStamp(scope);
+        const stored = readInvoiceContentStamp(scopeKey);
+        if (
+          stamp &&
+          stored &&
+          stamp.count === stored.count &&
+          stamp.maxCreatedAt === stored.maxCreatedAt &&
+          stamp.table === stored.table
+        ) {
+          return;
+        }
+
+        const result = await fetchInvoicesFromSupabase(scope);
+        if (cancelled || !result.success || !result.invoices) return;
+        if (stamp) saveInvoiceContentStamp(scopeKey, stamp);
+        setInvoices((prev) => {
           const remoteById = new Map<string, Invoice>();
           result.invoices!.forEach((inv) => {
             remoteById.set(inv.id, inv);
@@ -6982,6 +7212,20 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
   };
 
+  const loadAllTargets = async (): Promise<{ success: boolean; message?: string; count?: number }> => {
+    try {
+      const res = await fetchTargetsFromSupabase();
+      if (!res.success) return { success: false, message: res.error || 'فشل تحميل كل الأهداف' };
+      const incoming = res.targets || [];
+      const merged = mergeTargetsIncremental(targets, incoming.map(mapTargetRowToRecord));
+      setTargets(merged);
+      try { localStorage.setItem(STORAGE_KEYS.TARGETS, JSON.stringify(merged)); } catch {}
+      return { success: true, message: `تم تحميل ${merged.length} هدف`, count: merged.length };
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'حدث خطأ أثناء تحميل الأهداف' };
+    }
+  };
+
   const syncTargetsIncrementally = async (): Promise<{ success: boolean; message?: string; added?: number; updated?: number }> => {
     try {
       const res = await fetchTargetsIncremental();
@@ -6992,7 +7236,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (incoming.length === 0) {
         return { success: true, message: 'لا توجد أهداف جديدة للتحديث', added: 0, updated: 0 };
       }
-      const merged = mergeTargetsIncremental(targets, incoming);
+      const merged = mergeTargetsIncremental(targets, incoming.map(mapTargetRowToRecord));
       setTargets(merged);
       try { localStorage.setItem(STORAGE_KEYS.TARGETS, JSON.stringify(merged)); } catch {}
       return {
@@ -7040,7 +7284,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (!res.success) {
         return { success: false, message: res.error || 'فشل جلب مبيعات الأصناف من السيرفر' };
       }
-      const incoming = res.sales || [];
+      const incoming = (res.sales || []).map(mapSupabaseRowToCustomerItemSale);
       if (incoming.length === 0) {
         return { success: true, message: 'لا توجد مبيعات أصناف جديدة للتحديث', added: 0, updated: 0 };
       }
@@ -7119,6 +7363,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         createOrder,
         syncCustomersIncrementally,
         syncTargetsIncrementally,
+        loadAllTargets,
         syncProductsIncrementally,
         syncCustomerItemSalesIncrementally,
         approveOrder,

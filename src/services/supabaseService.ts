@@ -365,7 +365,8 @@ const MAX_VISIT_PAGES = 40;
  */
 async function fetchAllRows(
   table: 'customers' | 'clients',
-  scope?: CustomerFetchScope
+  scope?: CustomerFetchScope,
+  updatedSince?: string
 ): Promise<{ data: any[]; error: any }> {
   const pageSize = 1000;
   const rows: any[] = [];
@@ -373,6 +374,15 @@ async function fetchAllRows(
   for (let from = 0; ; from += pageSize) {
     let query = supabase.from(table).select('*');
     query = applyScopeToQuery(query, scope);
+    // ترتيب ثابت ضروري لصفحات `.range()` — من غيره الصفحات ممكن تكرر
+    // أو تتخطى صفوف لو السيرفر رجّعهم بترتيب مختلف بين الطلبات.
+    query = query.order('id', { ascending: true });
+    // مزامنة تدريجية: بنجيب بس الصفوف اللي اتغيرت بعد آخر مزامنة ناجحة
+    // بدل تنزيل نطاق العملاء كامل عند أي تعديل. `gte` مش `gt` عشان صفوف
+    // اللحظة الحدودية ترجع تاني بدل ما تتخطى (الدمج بالـ id idempotent).
+    if (updatedSince) {
+      query = query.gte('updated_at', updatedSince);
+    }
     const { data, error } = await query.range(from, from + pageSize - 1);
 
     if (error) return { data: rows, error };
@@ -387,13 +397,15 @@ async function fetchAllRows(
  * Fetch all customers from Supabase (checking 'customers' or 'clients')
  */
 export async function fetchCustomersFromSupabase(
-  scope?: CustomerFetchScope
+  scope?: CustomerFetchScope,
+  options?: { updatedSince?: string }
 ): Promise<{ success: boolean; customers?: Customer[]; error?: string; scoped?: boolean }> {
   try {
+    const updatedSince = options?.updatedSince?.trim() || undefined;
     let rawCustomers: any[] | null = null;
     let scopedUsed = hasScopeFilters(scope);
-    let { data: custData, error: cErr } = await fetchAllRows('customers', scope);
-    if (!cErr && scopedUsed && custData.length === 0) {
+    let { data: custData, error: cErr } = await fetchAllRows('customers', scope, updatedSince);
+    if (!cErr && !updatedSince && scopedUsed && custData.length === 0) {
       // Branch names are free-text Arabic, so a narrow read that matches nothing
       // must degrade to the full base - never to an empty customer list on a
       // rep's phone. Worst case here is "downloads more than needed".
@@ -407,7 +419,7 @@ export async function fetchCustomersFromSupabase(
     }
     if (!cErr && custData.length > 0) {
       rawCustomers = custData;
-    } else {
+    } else if (!updatedSince) {
       const { data: clientData, error: clErr } = await fetchAllRows('clients', scope);
       if (!clErr && clientData.length > 0) {
         rawCustomers = clientData;
@@ -549,6 +561,35 @@ export async function fetchCustomerContentStamp(
 export interface VisitContentStamp {
   count: number | null;
   maxUpdatedAt: string | null;
+}
+
+/**
+ * بصمة جدول الأهداف (عدد الصفوف + أحدث updated_at) — صف واحد فقط.
+ *
+ * التارجت بيتغيّر مرة أو مرتين في الشهر، لكن التطبيق كان بينزّل الـ572 صف
+ * (~30KB مضغوطة) مع **كل فتح**. البصمة دي بتخلّي الفتح العادي يكلّف ~0.5KB.
+ */
+export interface TargetContentStamp {
+  count: number | null;
+  maxUpdatedAt: string | null;
+}
+
+export async function fetchTargetContentStamp(): Promise<TargetContentStamp | null> {
+  try {
+    const { data, error, count } = await supabase
+      .from('targets')
+      .select('updated_at', { count: 'exact' })
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(1);
+    if (error) return null;
+    const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
+    return {
+      count: typeof count === 'number' ? count : null,
+      maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -858,6 +899,55 @@ export const USER_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000002';
 
 /** خمسين ألف صف تارجت ≈ 125 شهر لكل مندوب (10 سنين). */
 const MAX_TARGET_PAGES = 50;
+
+/**
+ * جلب التارجت لآخر N شهر بس — يقلل الـ egress على الفتح الأول.
+ * الصف الواحد صغير، لكن عشرات الاف الصفوف تتراكم بسرعة على كل جهاز.
+ */
+export async function fetchTargetsRecentMonths(monthCount = 24): Promise<{ success: boolean; targets?: any[]; error?: string; count?: number }> {
+  try {
+    const now = new Date();
+    const latestYear = now.getFullYear();
+    const latestMonth = now.getMonth() + 1;
+    // حساب أقدم شهر ضمن النافذة المطلوبة
+    let minYear = latestYear;
+    let minMonth = latestMonth - (monthCount - 1);
+    while (minMonth <= 0) { minMonth += 12; minYear -= 1; }
+
+    const pageSize = 1000;
+    const rows: any[] = [];
+    for (let page = 0; page < MAX_TARGET_PAGES; page++) {
+      const from = page * pageSize;
+      const { data, error } = await supabase
+        .from('targets')
+        .select('*')
+        .gte('year', minYear)
+        .order('year', { ascending: false })
+        .order('month', { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (error) return { success: false, error: error.message };
+      const list = (data || []).filter((r: any) => {
+        const y = Number(r.year);
+        const m = Number(r.month);
+        if (!y || !m) return false;
+        return y > minYear || (y === minYear && m >= minMonth);
+      });
+      rows.push(...list);
+      if (!data || data.length < pageSize) break;
+      // لو عدّينا النافذة بالكامل نوقف بدل ما نجيب صفوف قديمة
+      const oldest = data[data.length - 1];
+      const oy = Number(oldest?.year);
+      if (oy && oy < minYear) break;
+      if (page === MAX_TARGET_PAGES - 1) {
+        console.warn(`Stopgap: targets recent-months read hit the ${MAX_TARGET_PAGES}-page cap.`);
+      }
+    }
+    return { success: true, targets: rows, count: rows.length };
+  } catch (error: any) {
+    const { message } = handleSupabaseError(error, 'fetchTargetsRecentMonths');
+    return { success: false, error: message };
+  }
+}
 
 export async function fetchTargetsFromSupabase(): Promise<{ success: boolean; targets?: any[]; error?: string }> {
   try {
@@ -1923,6 +2013,53 @@ export async function fetchInvoicesFromSupabase(limitOrScope: number | InvoiceFe
 }
 
 /**
+ * بصمة جدول الفواتير — استعلام صف واحد + count، بدل تنزيل آخر 150–500 فاتورة
+ * مع كل عودة للتطبيق كل 5 دقائق.
+ *
+ * الجدول مالوش `updated_at` موثوق، فالبصمة بتعتمد على (عدد الصفوف في النطاق +
+ * أحدث created_at). لو الاتنين ماتغيّروش مفيش داعي نعيد تنزيل الفواتير —
+ * و Realtime بيفضل مسؤول عن تعديلات الحالة/الموافقات الفورية.
+ */
+export interface InvoiceContentStamp {
+  count: number | null;
+  maxCreatedAt: string | null;
+  table: 'orders' | 'invoices';
+}
+
+export async function fetchInvoiceContentStamp(
+  scope?: InvoiceFetchScope
+): Promise<InvoiceContentStamp | null> {
+  const repIds = (scope?.repIds || []).map((r) => String(r).trim()).filter(Boolean);
+  const probe = async (table: 'orders' | 'invoices') => {
+    let query = supabase
+      .from(table)
+      .select('created_at', { count: 'exact' })
+      .order('created_at', { ascending: false, nullsFirst: false })
+      .limit(1) as any;
+    if (repIds.length > 0) query = query.in('rep_id', repIds);
+    return query;
+  };
+
+  try {
+    let table: 'orders' | 'invoices' = 'orders';
+    let { data, error, count } = await probe('orders');
+    if (error || !data || data.length === 0) {
+      table = 'invoices';
+      ({ data, error, count } = await probe('invoices'));
+    }
+    if (error) return null;
+    const maxCreatedAt = data && data.length > 0 ? (data[0] as any)?.created_at ?? null : null;
+    return {
+      count: typeof count === 'number' ? count : null,
+      maxCreatedAt: maxCreatedAt != null ? String(maxCreatedAt) : null,
+      table,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Delete invoice / order from Supabase permanently
  */
 export async function deleteInvoiceFromSupabase(
@@ -2319,11 +2456,13 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
  * نفس باترن `fetchAllRows` بتاع العملاء: `.range()` بالدفعات لحد ما الجدول يخلص.
  */
 export async function fetchVisitsFromSupabase(
-  scope?: VisitFetchScope
+  scope?: VisitFetchScope,
+  options?: { updatedSince?: string }
 ): Promise<{ success: boolean; visits?: CustomerVisit[]; error?: string; scoped?: boolean }> {
   try {
     const pageSize = 1000;
     const sinceDate = scope?.sinceDate?.trim() || '';
+    const updatedSince = options?.updatedSince?.trim() || '';
 
     /**
      * بتقرأ جدول الزيارات بالدفعات وتطبّق الـscope على السيرفر.
@@ -2336,12 +2475,22 @@ export async function fetchVisitsFromSupabase(
       const rows: any[] = [];
       for (let page = 0; page < MAX_VISIT_PAGES; page++) {
         const from = page * pageSize;
-        let query = supabase.from('visits').select('*').order('created_at', { ascending: false });
+        let query = supabase
+          .from('visits')
+          .select('*')
+          // ترتيب ثانوي ثابت عشان صفحات `.range()` ما تكررش/تتخطى صفوف.
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: true });
         if (useScope) {
           query = applyScopeToQuery(query, scope);
         }
         if (useScope && sinceDate) {
           query = query.gte('date', sinceDate);
+        }
+        // مزامنة تدريجية: الصفوف المتغيرة بس بعد آخر بصمة محفوظة.
+        // `gte` عشان صفوف اللحظة الحدودية ترجع تاني بدل ما تتخطى (الدمج idempotent).
+        if (updatedSince) {
+          query = query.gte('updated_at', updatedSince);
         }
         const { data, error } = await query.range(from, from + pageSize - 1);
 
@@ -2360,7 +2509,7 @@ export async function fetchVisitsFromSupabase(
 
     let scopedUsed = hasScopeFilters(scope) || Boolean(sinceDate);
     let { data: rows, error } = await readPages(scopedUsed);
-    if (!error && scopedUsed && rows.length === 0) {
+    if (!error && !updatedSince && scopedUsed && rows.length === 0) {
       console.warn('Scoped visits fetch matched no rows; falling back to the full table.');
       scopedUsed = false;
       const fallback = await readPages(false);
@@ -2889,59 +3038,35 @@ export async function fetchCustomersIncremental(
   maxUpdatedAt?: string | null;
 }> {
   try {
-    const lastTs = getLastCustomerSyncTs();
-    const isFullFetch = !lastTs;
-
-    let query = supabase
-      .from('customers')
-      .select(CUSTOMER_SELECT_COLUMNS)
-      .order('updated_at', { ascending: true, nullsFirst: false });
-
-    if (!isFullFetch) {
-      query = query.gt('updated_at', lastTs);
-    }
-    query = applyScopeToQuery(query, scope);
+    const cursor = getSyncCursor('customers');
+    const isFullFetch = !cursor;
 
     const MINIMAL_CUSTOMER_COLUMNS = 'id, code, name, phone, branch_name, updated_at';
+    const scopeDecorator = (query: any) => applyScopeToQuery(query, scope);
 
-    let data: any[] = [];
-    let queryError: any = null;
+    let read = await readRowsPaged('customers', CUSTOMER_SELECT_COLUMNS, cursor?.ts, scopeDecorator);
 
-    try {
-      const { data: fetched, error } = await query;
-      queryError = error;
-      data = fetched || [];
-    } catch (err: any) {
-      queryError = err;
+    if (read.error) {
       // لو جداول العملاء ناقصة أعمدة (total_overdue, deal_eligibility ...)،
       // إعادة المحاولة بأعمدة أساسية فقط لتحميل البيانات بدلاً من حظر الصفحة نهائياً.
-      const fallbackQuery = supabase
-        .from('customers')
-        .select(MINIMAL_CUSTOMER_COLUMNS)
-        .order('updated_at', { ascending: true, nullsFirst: false });
-      if (!isFullFetch) fallbackQuery.gt('updated_at', lastTs);
-      const scopedFallback = applyScopeToQuery(fallbackQuery, scope);
-      const { data: fetched, error } = await scopedFallback;
-      queryError = error;
-      data = fetched || [];
+      read = await readRowsPaged('customers', MINIMAL_CUSTOMER_COLUMNS, cursor?.ts, scopeDecorator);
     }
 
-    if (queryError) return { success: false, error: queryError.message };
+    if (read.error) return { success: false, error: read.error.message };
 
-    const rows = data || [];
-    if (rows.length === 0) {
-      return { success: true, customers: [], isFullFetch, maxUpdatedAt: lastTs };
+    const rows = read.rows || [];
+    // صفوف اللحظة الحدودية بترجع تاني مع `gte`، فبنشيل اللي اتزامن قبل كده.
+    const changedRows = cursor ? rows.filter((r: any) => isRowAfterCursor(r, cursor)) : rows;
+    if (changedRows.length === 0) {
+      return { success: true, customers: [], isFullFetch, maxUpdatedAt: cursor?.ts ?? null };
     }
 
-    let maxUpdatedAt = lastTs ?? null;
-    for (const r of rows) {
-      const u = (r as any).updated_at;
-      if (u && (!maxUpdatedAt || u > maxUpdatedAt)) {
-        maxUpdatedAt = u;
-      }
-    }
+    // المؤشر بيتقدّم على آخر صف **اتقرأ** — حتى لو اتفلتر — بأمان.
+    let nextCursor: SyncCursor | null = cursor;
+    for (const r of rows) nextCursor = advanceSyncCursor(nextCursor, r);
+    const maxUpdatedAt = nextCursor?.ts ?? null;
 
-    const mapped: Customer[] = rows.map((c: any, idx: number) => {
+    const mapped: Customer[] = changedRows.map((c: any, idx: number) => {
       return {
         id: c.id || `cust-${idx + 1}`,
         code: c.code || `CUST-${1000 + idx + 1}`,
@@ -3000,7 +3125,10 @@ export async function fetchCustomersIncremental(
       };
     });
 
-    if (maxUpdatedAt) setLastCustomerSyncTs(maxUpdatedAt);
+    if (nextCursor) {
+      setSyncCursor('customers', nextCursor.ts, nextCursor.id);
+      setLastCustomerSyncTs(nextCursor.ts);
+    }
 
     return {
       success: true,
@@ -3057,6 +3185,120 @@ export type SyncResultMeta = {
   error?: string;
 };
 
+/* ============================================================
+   مؤشر مزامنة آمن (updated_at + id) + Pagination
+   ------------------------------------------------------------
+   المشكلة القديمة: الاستعلام كان `.gt(updated_at, lastTs)` من غير `.range()`،
+   وPostgREST بيرجّع 1,000 صف بالحد الأقصى. يعني أي جدول أكبر من كده كان
+   بيتزامن جزئيًا من غير أي خطأ. وكمان لو أكتر من صف ليهم نفس `updated_at`
+   على حدود الصفحة، الـ`.gt` في المزامنة اللي بعدها كان بيتخطاهم.
+
+   الحل هنا:
+   • المزامنة التدريجية بتقرأ `.gte(updated_at, cursor.ts)` مرتّبة بـ
+     `updated_at, id` — يعني صفوف اللحظة الحدودية بترجع تاني بدل ما تتخطى.
+   • بعد القراءة بنفلتر بمقارنة `(updated_at, id)` مع المؤشر المحفوظ، فمفيش
+     تكرار ولا فقدان.
+   • Pagination حقيقي بـ`.range()` لحد ما الجدول يخلص.
+   • المؤشر بيتقدّم لآخر صف **اتقرأ فعلًا**، فمفيش قفزة فوق صفوف لسه ما وصلتش.
+   ============================================================ */
+
+const SYNC_CURSOR_PREFIX = 'dream_dist_sync_cursor_v2::';
+const INCREMENTAL_PAGE_SIZE = 1000;
+/** سقف أمان: 200 ألف صف في المزامنة الواحدة (حماية من حلقة لا نهائية). */
+const INCREMENTAL_MAX_PAGES = 200;
+
+export interface SyncCursor {
+  ts: string;
+  id: string | null;
+}
+
+export function getSyncCursor(entity: string): SyncCursor | null {
+  try {
+    const raw = localStorage.getItem(`${SYNC_CURSOR_PREFIX}${entity}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.ts === 'string' && parsed.ts) {
+        return { ts: parsed.ts, id: parsed.id != null ? String(parsed.id) : null };
+      }
+    }
+  } catch {}
+  // توافق مع المؤشر القديم (ts فقط) — نكمّل منه بأمان.
+  const legacy = getLastSyncTs(entity);
+  return legacy ? { ts: legacy, id: null } : null;
+}
+
+export function setSyncCursor(entity: string, ts: string, id: string | null): void {
+  try {
+    localStorage.setItem(`${SYNC_CURSOR_PREFIX}${entity}`, JSON.stringify({ ts, id: id ?? null }));
+  } catch {}
+  setLastSyncTs(entity, ts);
+}
+
+/** مقارنة ids: رقمي لو الاتنين أرقام (جداول bigint)، وإلا نصي (uuid/text). */
+function compareRowIds(a: string, b: string): number {
+  const na = Number(a);
+  const nb = Number(b);
+  if (a.trim() !== '' && b.trim() !== '' && Number.isFinite(na) && Number.isFinite(nb)) {
+    return na === nb ? 0 : na > nb ? 1 : -1;
+  }
+  return a === b ? 0 : a > b ? 1 : -1;
+}
+
+/** هل الصف أحدث من المؤشر؟ الصفوف اللي عند نفس اللحظة الحدودية بترجع بالـ id. */
+function isRowAfterCursor(row: any, cursor: SyncCursor): boolean {
+  const ts = row?.updated_at ? String(row.updated_at) : '';
+  if (!ts) return false;
+  if (ts > cursor.ts) return true;
+  if (ts < cursor.ts) return false;
+  // مؤشر قديم بدون id: بنرجّع صفوف اللحظة الحدودية (الدمج idempotent).
+  if (!cursor.id) return true;
+  const id = row?.id != null ? String(row.id) : '';
+  return compareRowIds(id, cursor.id) > 0;
+}
+
+/** يقدّم المؤشر لآخر صف فعلي في الصفحة (ترتيب تصاعدي updated_at ثم id). */
+function advanceSyncCursor(cursor: SyncCursor | null, row: any): SyncCursor | null {
+  const ts = row?.updated_at ? String(row.updated_at) : '';
+  if (!ts) return cursor;
+  const id = row?.id != null ? String(row.id) : null;
+  if (!cursor) return { ts, id };
+  if (ts > cursor.ts) return { ts, id };
+  if (ts < cursor.ts) return cursor;
+  if (!cursor.id) return { ts, id: id ?? null };
+  if (!id) return cursor;
+  return compareRowIds(id, cursor.id) > 0 ? { ts, id } : cursor;
+}
+
+/**
+ * يقرأ كل الصفوف المتغيرة بعد المؤشر على دفعات 1000.
+ * `gte` مش `gt` مطلوبة: الصفوف اللي عند نفس لحظة المؤشر لازم ترجع تاني
+ * وبعدين تتفلتر client-side بالـ id، وإلا تبقى عرضة للتخطي.
+ */
+async function readRowsPaged(
+  table: string,
+  columns: string,
+  cursorTs?: string,
+  decorate?: (query: any) => any
+): Promise<{ rows: any[]; error: any }> {
+  const rows: any[] = [];
+  for (let page = 0; page < INCREMENTAL_MAX_PAGES; page++) {
+    let query = supabase
+      .from(table)
+      .select(columns)
+      .order('updated_at', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true });
+    if (cursorTs) query = query.gte('updated_at', cursorTs);
+    if (decorate) query = decorate(query);
+    const from = page * INCREMENTAL_PAGE_SIZE;
+    const { data, error } = await query.range(from, from + INCREMENTAL_PAGE_SIZE - 1);
+    if (error) return { rows, error };
+    const batch = data || [];
+    rows.push(...batch);
+    if (batch.length < INCREMENTAL_PAGE_SIZE) return { rows, error: null };
+  }
+  return { rows, error: null };
+}
+
 /* ---------- Targets (التارجت) ---------- */
 const TARGETS_SELECT_COLUMNS = [
   'id', 'branch', 'rep_name', 'sales_target', 'sales_achieved', 'sales_percentage',
@@ -3075,26 +3317,28 @@ export async function fetchTargetsIncremental(): Promise<{
   entity?: string;
 }> {
   try {
-    const lastTs = getLastSyncTs('targets');
-    const isFullFetch = !lastTs;
-    let query = supabase
-      .from('targets')
-      .select(TARGETS_SELECT_COLUMNS)
-      .order('updated_at', { ascending: true, nullsFirst: false });
-    if (!isFullFetch) query = query.gt('updated_at', lastTs);
-    const { data, error } = await query;
-    if (error) return { success: false, error: error.message, entity: 'targets', count: 0, isFullFetch, maxUpdatedAt: lastTs };
-    const rows = data || [];
-    if (rows.length === 0) {
-      return { success: true, targets: [], entity: 'targets', count: 0, isFullFetch, maxUpdatedAt: lastTs };
+    const cursor = getSyncCursor('targets');
+    const isFullFetch = !cursor;
+    const read = await readRowsPaged('targets', TARGETS_SELECT_COLUMNS, cursor?.ts);
+    if (read.error) {
+      return { success: false, error: read.error.message, entity: 'targets', count: 0, isFullFetch, maxUpdatedAt: cursor?.ts ?? null };
     }
-    let maxUpdatedAt = lastTs ?? null;
-    for (const r of rows) {
-      const u = (r as any).updated_at;
-      if (u && (!maxUpdatedAt || u > maxUpdatedAt)) maxUpdatedAt = u;
+    const rows = read.rows || [];
+    const changedRows = cursor ? rows.filter((r: any) => isRowAfterCursor(r, cursor)) : rows;
+    if (changedRows.length === 0) {
+      return { success: true, targets: [], entity: 'targets', count: 0, isFullFetch, maxUpdatedAt: cursor?.ts ?? null };
     }
-    if (maxUpdatedAt) setLastSyncTs('targets', maxUpdatedAt);
-    return { success: true, targets: rows, entity: 'targets', count: rows.length, isFullFetch, maxUpdatedAt };
+    let nextCursor: SyncCursor | null = cursor;
+    for (const r of rows) nextCursor = advanceSyncCursor(nextCursor, r);
+    if (nextCursor) setSyncCursor('targets', nextCursor.ts, nextCursor.id);
+    return {
+      success: true,
+      targets: changedRows,
+      entity: 'targets',
+      count: changedRows.length,
+      isFullFetch,
+      maxUpdatedAt: nextCursor?.ts ?? null,
+    };
   } catch (err: any) {
     return { success: false, error: err?.message || 'فشل في المزامنة التراكمية للأهداف', entity: 'targets', count: 0, isFullFetch: false, maxUpdatedAt: null };
   }
@@ -3126,35 +3370,51 @@ export async function fetchProductsIncremental(): Promise<{
   entity?: string;
 }> {
   try {
-    const lastTs = getLastSyncTs('products');
-    const isFullFetch = !lastTs;
-    let query = supabase
-      .from('products')
-      .select(PRODUCTS_SELECT_COLUMNS)
-      .order('updated_at', { ascending: true, nullsFirst: false });
-    if (!isFullFetch) query = query.gt('updated_at', lastTs);
-    const { data, error } = await query;
-    if (error) {
-      // لو جدول الأصناف مش فيه updated_at، نرجع fetch كامل كبديل آمن بدلًا من الفشل
-      if (String(error.message).includes('updated_at')) {
-        const { data: all, error: allErr } = await supabase.from('products').select('*').order('id', { ascending: true });
-        if (allErr) return { success: false, error: allErr.message, entity: 'products', count: 0, isFullFetch: true, maxUpdatedAt: null };
-        if (all && all.length) setLastSyncTs('products', new Date().toISOString());
+    const cursor = getSyncCursor('products');
+    const isFullFetch = !cursor;
+    const read = await readRowsPaged('products', PRODUCTS_SELECT_COLUMNS, cursor?.ts);
+    if (read.error) {
+      // لو جدول الأصناف مش فيه updated_at، نرجع قراءة كاملة (مع Pagination) كبديل آمن.
+      if (String(read.error.message || '').includes('updated_at')) {
+        const all: any[] = [];
+        for (let page = 0; page < INCREMENTAL_MAX_PAGES; page++) {
+          const from = page * INCREMENTAL_PAGE_SIZE;
+          const { data, error: allErr } = await supabase
+            .from('products')
+            .select('*')
+            .order('id', { ascending: true })
+            .range(from, from + INCREMENTAL_PAGE_SIZE - 1);
+          if (allErr) {
+            if (all.length === 0) {
+              return { success: false, error: allErr.message, entity: 'products', count: 0, isFullFetch: true, maxUpdatedAt: null };
+            }
+            break;
+          }
+          const batch = data || [];
+          all.push(...batch);
+          if (batch.length < INCREMENTAL_PAGE_SIZE) break;
+        }
+        // مفيش updated_at يعني مفيش مزامنة تدريجية ممكنة — منسجّلش مؤشر.
         return { success: true, products: all, entity: 'products', count: all.length, isFullFetch: true, maxUpdatedAt: null };
       }
-      return { success: false, error: error.message, entity: 'products', count: 0, isFullFetch, maxUpdatedAt: null };
+      return { success: false, error: read.error.message, entity: 'products', count: 0, isFullFetch, maxUpdatedAt: null };
     }
-    const rows = data || [];
-    if (rows.length === 0) {
-      return { success: true, products: [], entity: 'products', count: 0, isFullFetch, maxUpdatedAt: lastTs };
+    const rows = read.rows || [];
+    const changedRows = cursor ? rows.filter((r: any) => isRowAfterCursor(r, cursor)) : rows;
+    if (changedRows.length === 0) {
+      return { success: true, products: [], entity: 'products', count: 0, isFullFetch, maxUpdatedAt: cursor?.ts ?? null };
     }
-    let maxUpdatedAt = lastTs ?? null;
-    for (const r of rows) {
-      const u = (r as any).updated_at;
-      if (u && (!maxUpdatedAt || u > maxUpdatedAt)) maxUpdatedAt = u;
-    }
-    if (maxUpdatedAt) setLastSyncTs('products', maxUpdatedAt);
-    return { success: true, products: rows, entity: 'products', count: rows.length, isFullFetch, maxUpdatedAt };
+    let nextCursor: SyncCursor | null = cursor;
+    for (const r of rows) nextCursor = advanceSyncCursor(nextCursor, r);
+    if (nextCursor) setSyncCursor('products', nextCursor.ts, nextCursor.id);
+    return {
+      success: true,
+      products: changedRows,
+      entity: 'products',
+      count: changedRows.length,
+      isFullFetch,
+      maxUpdatedAt: nextCursor?.ts ?? null,
+    };
   } catch (err: any) {
     return { success: false, error: err?.message || 'فشل في المزامنة التراكمية للأصناف', entity: 'products', count: 0, isFullFetch: false, maxUpdatedAt: null };
   }
@@ -3171,6 +3431,9 @@ export function mergeProductsIncremental(existing: any[], incoming: any[]): any[
 const CUSTOMER_ITEM_SALES_SELECT_COLUMNS = [
   'id', 'customer_account', 'invoicing_name', 'sales_order', 'sale_date', 'rep_name',
   'month', 'item_code', 'item_name', 'quantity', 'amount', 'warehouse', 'updated_at',
+  // أعمدة التحليل — لازم تفضل موجودة في المزامنة التدريجية وإلا السجلات
+  // المحدّثة تفقد الوحدة/المعامل/السعر/الخصم/الكود الموحد.
+  'unit', 'factor', 'unit_price', 'discount', 'unified_code',
 ].join(',');
 
 export async function fetchCustomerItemSalesIncremental(): Promise<{
@@ -3183,26 +3446,28 @@ export async function fetchCustomerItemSalesIncremental(): Promise<{
   entity?: string;
 }> {
   try {
-    const lastTs = getLastSyncTs('customer_item_sales');
-    const isFullFetch = !lastTs;
-    let query = supabase
-      .from('customer_item_sales')
-      .select(CUSTOMER_ITEM_SALES_SELECT_COLUMNS)
-      .order('updated_at', { ascending: true, nullsFirst: false });
-    if (!isFullFetch) query = query.gt('updated_at', lastTs);
-    const { data, error } = await query;
-    if (error) return { success: false, error: error.message, entity: 'customer_item_sales', count: 0, isFullFetch, maxUpdatedAt: lastTs };
-    const rows = data || [];
-    if (rows.length === 0) {
-      return { success: true, sales: [], entity: 'customer_item_sales', count: 0, isFullFetch, maxUpdatedAt: lastTs };
+    const cursor = getSyncCursor('customer_item_sales');
+    const isFullFetch = !cursor;
+    const read = await readRowsPaged('customer_item_sales', CUSTOMER_ITEM_SALES_SELECT_COLUMNS, cursor?.ts);
+    if (read.error) {
+      return { success: false, error: read.error.message, entity: 'customer_item_sales', count: 0, isFullFetch, maxUpdatedAt: cursor?.ts ?? null };
     }
-    let maxUpdatedAt = lastTs ?? null;
-    for (const r of rows) {
-      const u = (r as any).updated_at;
-      if (u && (!maxUpdatedAt || u > maxUpdatedAt)) maxUpdatedAt = u;
+    const rows = read.rows || [];
+    const changedRows = cursor ? rows.filter((r: any) => isRowAfterCursor(r, cursor)) : rows;
+    if (changedRows.length === 0) {
+      return { success: true, sales: [], entity: 'customer_item_sales', count: 0, isFullFetch, maxUpdatedAt: cursor?.ts ?? null };
     }
-    if (maxUpdatedAt) setLastSyncTs('customer_item_sales', maxUpdatedAt);
-    return { success: true, sales: rows, entity: 'customer_item_sales', count: rows.length, isFullFetch, maxUpdatedAt };
+    let nextCursor: SyncCursor | null = cursor;
+    for (const r of rows) nextCursor = advanceSyncCursor(nextCursor, r);
+    if (nextCursor) setSyncCursor('customer_item_sales', nextCursor.ts, nextCursor.id);
+    return {
+      success: true,
+      sales: changedRows,
+      entity: 'customer_item_sales',
+      count: changedRows.length,
+      isFullFetch,
+      maxUpdatedAt: nextCursor?.ts ?? null,
+    };
   } catch (err: any) {
     return { success: false, error: err?.message || 'فشل في المزامنة التراكمية لمبيعات الأصناف', entity: 'customer_item_sales', count: 0, isFullFetch: false, maxUpdatedAt: null };
   }

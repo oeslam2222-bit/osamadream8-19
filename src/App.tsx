@@ -19,29 +19,11 @@ import { Onboarding } from "./components/Onboarding";
 import { SplashScreen } from "./components/SplashScreen";
 import { ToastProvider } from "./components/ui/Toast";
 import React, { Component, ErrorInfo, Suspense, useEffect, useMemo, useState } from 'react';
-import { DashboardHome } from './components/DashboardHome';
+import { DreamDeliveryDashboard } from './components/DreamDeliveryDashboard';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
-import { ProductCatalog } from './components/ProductCatalog';
-import { AllCustomersAnalyticsView } from './components/AllCustomersAnalyticsView';
-import { TantawyCustomerBaseView } from './components/customers/TantawyCustomerBaseView';
-import { TantawyRepTargetsView } from './components/targets/TantawyRepTargetsView';
-import { CustomerItemSalesView } from './components/CustomerItemSalesView';
-import { SupervisorDashboard } from './components/SupervisorDashboard';
-import { InvoicesManager } from './components/InvoicesManager';
-import { InventoryStockView } from './components/InventoryStockView';
-import { ExcelImportExport } from './components/ExcelImportExport';
-import { UserManager } from './components/UserManager';
-import { SystemWorkflowGuide } from './components/SystemWorkflowGuide';
-import { TargetPerformanceDashboard } from './components/TargetPerformanceDashboard';
-import { VisitsDashboard } from './components/VisitsDashboard';
-import { CollectionRecoveryDashboard } from './components/CollectionRecoveryDashboard';
-import { UnifiedReturnsView } from './components/UnifiedReturnsView';
-import { PermissionManagerModal } from './components/PermissionManagerModal';
-import { OrderBuilderModal } from './components/OrderBuilderModal';
-import { PromotionsOffersView } from './components/PromotionsOffersView';
 import { AppProvider, useApp } from './context/AppContext';
-import { ThemeProvider, useTheme } from './context/themeContext';
+import { ThemeProvider } from './context/themeContext';
 import { getUserAllowedTabs, getCustomPermissions, UserPermissionOverride } from './services/permissionService';
 import { AuthProvider } from './context/authContext';
 import { InvoiceProvider } from './context/invoiceContext';
@@ -96,6 +78,43 @@ const TabLoadingSkeleton = () => (
   </div>
 );
 
+/**
+ * أداة تحويل الاستيراد المسمّى (named export) إلى React.lazy.
+ *
+ * كل الصفحات الثقيلة (تحليلات/رسومات/Excel/PDF) كانت بتتحمّل في الحزمة
+ * الرئيسية مع أول فتح، حتى لو الموظف داخل على الصفحة الرئيسية بس. التحميل
+ * الكسول هنا بيقسّمها لحزم صغيرة بتتنزّل وقت فتح الصفحة فقط — أسرع دخول
+ * و egress أولي أقل.
+ */
+function lazyNamed<
+  K extends string,
+  M extends Record<K, React.ComponentType<any>>
+>(factory: () => Promise<M>, name: K): React.LazyExoticComponent<M[K]> {
+  return React.lazy(async () => {
+    const mod = await factory();
+    return { default: mod[name] };
+  });
+}
+
+const ProductCatalog = lazyNamed(() => import('./components/ProductCatalog'), 'ProductCatalog');
+const AllCustomersAnalyticsView = lazyNamed(() => import('./components/AllCustomersAnalyticsView'), 'AllCustomersAnalyticsView');
+const TantawyCustomerBaseView = lazyNamed(() => import('./components/customers/TantawyCustomerBaseView'), 'TantawyCustomerBaseView');
+const TantawyRepTargetsView = lazyNamed(() => import('./components/targets/TantawyRepTargetsView'), 'TantawyRepTargetsView');
+const CustomerItemSalesView = lazyNamed(() => import('./components/CustomerItemSalesView'), 'CustomerItemSalesView');
+const SupervisorDashboard = lazyNamed(() => import('./components/SupervisorDashboard'), 'SupervisorDashboard');
+const InvoicesManager = lazyNamed(() => import('./components/InvoicesManager'), 'InvoicesManager');
+const InventoryStockView = lazyNamed(() => import('./components/InventoryStockView'), 'InventoryStockView');
+const ExcelImportExport = lazyNamed(() => import('./components/ExcelImportExport'), 'ExcelImportExport');
+const UserManager = lazyNamed(() => import('./components/UserManager'), 'UserManager');
+const SystemWorkflowGuide = lazyNamed(() => import('./components/SystemWorkflowGuide'), 'SystemWorkflowGuide');
+const TargetPerformanceDashboard = lazyNamed(() => import('./components/TargetPerformanceDashboard'), 'TargetPerformanceDashboard');
+const VisitsDashboard = lazyNamed(() => import('./components/VisitsDashboard'), 'VisitsDashboard');
+const CollectionRecoveryDashboard = lazyNamed(() => import('./components/CollectionRecoveryDashboard'), 'CollectionRecoveryDashboard');
+const UnifiedReturnsView = lazyNamed(() => import('./components/UnifiedReturnsView'), 'UnifiedReturnsView');
+const PermissionManagerModal = lazyNamed(() => import('./components/PermissionManagerModal'), 'PermissionManagerModal');
+const OrderBuilderModal = lazyNamed(() => import('./components/OrderBuilderModal'), 'OrderBuilderModal');
+const PromotionsOffersView = lazyNamed(() => import('./components/PromotionsOffersView'), 'PromotionsOffersView');
+
 const MainLayout: React.FC = () => {
   const [splashOpen, setSplashOpen] = useState(() => {
     try {
@@ -112,9 +131,9 @@ const MainLayout: React.FC = () => {
   const [appToastMsg, setAppToastMsg] = useState<string | null>(null);
   const [customerViewMode, setCustomerViewMode] = useState<'cards' | 'analytics'>('cards');
   const [targetViewMode, setTargetViewMode] = useState<'cards' | 'dashboard'>('cards');
-  // الثيم موحد عبر ThemeContext (المصدر الوحيد للحقيقة): يقرأ التفضيل المحفوظ
-  // من localStorage ويضيف/يزيل الكلاس .dark على جذر المستند تلقائياً.
-  const { isDark } = useTheme();
+
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [globalSearchSeq, setGlobalSearchSeq] = useState(0);
 
   const [customPermissionOverrides, setCustomPermissionOverrides] = useState<UserPermissionOverride[]>([]);
 
@@ -193,6 +212,47 @@ const MainLayout: React.FC = () => {
     }
   };
 
+  /**
+   * أزرار الشاشة الرئيسية بتستخدم أسماء مختصرة، وكل اسم لازم يتحوّل
+   * لتبويب حقيقي موجود في التطبيق. ولو التبويب مش مسموح لدور الموظف
+   * نرجّعه للرئيسية بدل ما يفتح شاشة فاضية.
+   */
+  const handleDashboardNavigate = (tab: string) => {
+    const tabAliases: Record<string, string> = {
+      customers: 'all_customers',
+      orders: 'invoices',
+      collections: 'collection',
+      reports: 'dashboard',
+      settings: 'guide',
+      sync: 'excel',
+    };
+    const target = tabAliases[tab] || tab;
+    const permitted =
+      target === 'all_customers' ||
+      target === 'customers' ||
+      allowedTabs.includes(target);
+    setActiveTab(permitted ? target : 'home');
+  };
+
+  const handleGlobalNavigate = (tab: string, query?: string) => {
+    const tabAliases: Record<string, string> = {
+      customers: 'all_customers',
+      orders: 'invoices',
+      collections: 'collection',
+      reports: 'dashboard',
+      settings: 'guide',
+      sync: 'excel',
+    };
+    const target = tabAliases[tab] || tab;
+    const permitted =
+      target === 'all_customers' ||
+      target === 'customers' ||
+      allowedTabs.includes(target);
+    setGlobalSearchQuery(query || '');
+    setGlobalSearchSeq((s) => s + 1);
+    setActiveTab(permitted ? target : 'home');
+  };
+
   return (
     <div className={`tantawy-shell ${isSidebarCollapsed ? 'sidebar-collapsed' : ''} min-h-[100dvh] bg-[var(--app-bg)] flex flex-col text-[var(--app-text)] font-sans antialiased selection:bg-[var(--app-warn)] selection:text-slate-950`} dir="rtl">
       {/* Splash Screen - shown on first app load */}
@@ -214,26 +274,27 @@ const MainLayout: React.FC = () => {
         </div>
       )}
 
-      {/* Main Responsive Navbar */}
+      {/* Main Responsive Navbar — هوية واحدة ثابتة لكل الصفحات */}
       <Navbar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onOpenCart={() => setIsOrderModalOpen(true)}
         isSidebarCollapsed={isSidebarCollapsed}
         onToggleSidebar={handleToggleSidebar}
+        onGlobalNavigate={handleGlobalNavigate}
       />
 
       {/* Content Container - Fluid responsive container with min-w-0 to prevent overflow */}
-      <main className="app-main flex-1 min-w-0 pb-24 md:pb-10">
-        <div className="mx-auto w-full max-w-[1440px] px-3 sm:px-6 lg:px-8 py-3 sm:py-5">
+      <main className="app-main flex-1 min-w-0">
+        <div className="mx-auto w-full max-w-[1440px] px-3 sm:px-5 md:px-6 py-3 sm:py-5">
           <Suspense fallback={<TabLoadingSkeleton />}>
+
           {activeTab === 'home' && allowedTabs.includes('home') && (
-            <DashboardHome
-              onNavigateToTab={(tab) => setActiveTab(tab)}
+            <DreamDeliveryDashboard
+              onNavigate={handleDashboardNavigate}
               onNewOrder={() => setIsOrderModalOpen(true)}
             />
           )}
-
           {activeTab === 'catalog' && allowedTabs.includes('catalog') && (
             <ProductCatalog
               onOpenCart={() => setIsOrderModalOpen(true)}
@@ -293,6 +354,8 @@ const MainLayout: React.FC = () => {
                   setActiveTab('catalog');
                 }}
                 onOpenAdvancedAnalytics={() => setCustomerViewMode('analytics')}
+                initialSearchQuery={globalSearchQuery}
+                searchSeq={globalSearchSeq}
               />
             ) : (
               <div className="space-y-4">
@@ -318,6 +381,8 @@ const MainLayout: React.FC = () => {
               onOpenNewOrder={() => setIsOrderModalOpen(true)}
               onViewInvoice={() => {}}
               onEditInvoice={handleEditInvoice}
+              initialSearchQuery={globalSearchQuery}
+              searchSeq={globalSearchSeq}
             />
           )}
 
@@ -338,8 +403,8 @@ const MainLayout: React.FC = () => {
           )}
 
         </Suspense>
-      </div>
-    </main>
+        </div>
+      </main>
 
       {/* Lazy Modals with Suspense */}
       <Suspense fallback={null}>

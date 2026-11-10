@@ -6,13 +6,11 @@ import './styles/theme-tokens.css';
 import './components/mobile-styles.css';
 import './styles/beautiful-cards.css';
 import './styles/app-shell.css';
+import './styles/identity.css';
 
-// Apply dark mode before render to prevent flash; default to dark for the new brand identity
+// Force light mode (no dark mode toggle)
 try {
-  const saved = localStorage.getItem('tantawy_dark_mode');
-  if (saved === null || saved === 'true') {
-    document.documentElement.classList.add('dark');
-  }
+  document.documentElement.classList.remove('dark');
 } catch {}
 
 const CHUNK_RECOVERY_KEY = 'tantawy:chunk-recovery';
