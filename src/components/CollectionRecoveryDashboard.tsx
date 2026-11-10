@@ -14,7 +14,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import { inferCustomerSector } from '../data/branchDefinitions';
@@ -24,6 +24,9 @@ const todayKey = (): string => {
   const now = new Date();
   return now.toISOString().slice(0, 10);
 };
+
+/** عدد كروت العملاء المحمّلة في كل دفعة — يمنع بناء آلاف الكروت مرة واحدة. */
+const CUSTOMERS_PAGE_SIZE = 20;
 
 /**
  * المتأخرات المستخدمة في شاشة التحصيل.
@@ -96,6 +99,13 @@ export const CollectionRecoveryDashboard: React.FC = () => {
   const [notesByCustomer, setNotesByCustomer] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<string | null>(null);
   const [confirmCustomer, setConfirmCustomer] = useState<Customer | null>(null);
+  const [visibleCustomersCount, setVisibleCustomersCount] = useState(CUSTOMERS_PAGE_SIZE);
+
+  // أي تغيير في البحث/الفلاتر يرجّع التحميل لأول دفعة
+  useEffect(() => {
+    setVisibleCustomersCount(CUSTOMERS_PAGE_SIZE);
+  }, [search, branchFilter, repFilter, sectorFilter]);
+
   const repoCustomers = useMemo(() => {
     // `getVisibleCustomers` بيتكفّل أصلًا بصلاحيات الفرع/المندوب/المشرف،
     // فكان فيه فلتر فرع إضافي هنا بيقارن اسم الفرع بالنص الحرفي وبيخفّي
@@ -138,6 +148,11 @@ export const CollectionRecoveryDashboard: React.FC = () => {
 
     return filtered.sort((a, b) => getCustomerDebt(b) - getCustomerDebt(a));
   }, [repoCustomers, search, branchFilter, repFilter]);
+
+  const pagedOverdueCustomers = useMemo(
+    () => overdueCustomers.slice(0, visibleCustomersCount),
+    [overdueCustomers, visibleCustomersCount]
+  );
 
   const totalDebt = useMemo(
     () => overdueCustomers.reduce((sum, customer) => sum + getCustomerDebt(customer), 0),
@@ -472,7 +487,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                 <p className="mt-1 text-xs text-slate-500">جميع العملاء في حالة جيدة، استمر في التقدم اليومي.</p>
               </div>
             ) : (
-              overdueCustomers.map((customer) => {
+              pagedOverdueCustomers.map((customer) => {
                 const debt = getCustomerDebt(customer);
                 const amountValue = amountByCustomer[customer.id] ?? Math.max(debt, 0);
                 const noteValue = notesByCustomer[customer.id] || `متابعة تحصيل ${customer.name}`;
@@ -568,6 +583,17 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                   </div>
                 );
               })
+            )}
+            {visibleCustomersCount < overdueCustomers.length && (
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setVisibleCustomersCount((c) => c + CUSTOMERS_PAGE_SIZE)}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black cursor-pointer shadow-sm"
+                >
+                  عرض المزيد من العملاء ({overdueCustomers.length - visibleCustomersCount} متبقي)
+                </button>
+              </div>
             )}
           </div>
         </div>

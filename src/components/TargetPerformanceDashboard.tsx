@@ -34,7 +34,7 @@
   ClipboardList,
   RefreshCw as RefreshIcon
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Area,
   AreaChart,
@@ -127,6 +127,9 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
   // Admin tabs: overview | quarters | table
   const [adminTab, setAdminTab] = useState<'overview' | 'quarters' | 'table'>('overview');
+
+  const [visibleEmployeeCount, setVisibleEmployeeCount] = useState(12);
+  const [visibleRawRowsCount, setVisibleRawRowsCount] = useState(25);
 
   // Excel Upload Modal State (Admin / Dev only)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -929,6 +932,50 @@ export const TargetPerformanceDashboard: React.FC = () => {
     return Array.from(map.values()).sort((a, b) => b.salesPerc - a.salesPerc);
   }, [filteredRecords, customers]);
 
+  // تحميل تدريجي لكروت الموظفين — تجنّب رندر كل المناديب مرة واحدة
+  const displayedEmployeeCards = useMemo(
+    () => employeeCardsData.slice(0, visibleEmployeeCount),
+    [employeeCardsData, visibleEmployeeCount]
+  );
+
+  // إعادة ضبط كروت الموظفين عند أي تغيير مهم في الفلاتر
+  useEffect(() => {
+    setVisibleEmployeeCount(12);
+  }, [
+    adminTab,
+    selectedBranch,
+    selectedSupervisor,
+    selectedRep,
+    searchQuery,
+    selectedYear,
+    selectedMonth,
+    selectedQuarter,
+    effectiveSector,
+    periodMode,
+    filteredRecords.length,
+  ]);
+
+  useEffect(() => {
+    setVisibleRawRowsCount(25);
+  }, [
+    adminTab,
+    selectedBranch,
+    selectedSupervisor,
+    selectedRep,
+    searchQuery,
+    selectedYear,
+    selectedMonth,
+    selectedQuarter,
+    effectiveSector,
+    periodMode,
+    filteredRecords.length,
+  ]);
+
+  const displayedRawRows = useMemo(
+    () => filteredRecords.slice(0, visibleRawRowsCount),
+    [filteredRecords, visibleRawRowsCount]
+  );
+
   // Helper to get sector label
   const getSectorLabel = (s?: string) => {
     if (!s || s === 'all') return 'الكل';
@@ -1451,7 +1498,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       </p>
                     </div>
                   ) : (
-                    employeeCardsData.map((emp) => {
+                    displayedEmployeeCards.map((emp) => {
                       const salesPerc = emp.salesTarget > 0 ? Number(((emp.salesAchieved / emp.salesTarget) * 100).toFixed(1)) : 0;
                       const colPerc = emp.colTarget > 0 ? Number(((emp.colAchieved / emp.colTarget) * 100).toFixed(1)) : 0;
                       const remainingSales = Math.max(0, emp.salesTarget - emp.salesAchieved);
@@ -1614,6 +1661,21 @@ export const TargetPerformanceDashboard: React.FC = () => {
                   )}
                 </div>
 
+                {visibleEmployeeCount < employeeCardsData.length && (
+                  <div className="flex flex-col items-center gap-2 mt-4">
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">
+                      عرض {displayedEmployeeCards.length} من {employeeCardsData.length} موظف
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setVisibleEmployeeCount((c) => c + 12)}
+                      className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black cursor-pointer shadow-sm"
+                    >
+                      عرض المزيد ({employeeCardsData.length - displayedEmployeeCards.length} متبقي)
+                    </button>
+                  </div>
+                )}
+
                 {/* Summary Encouragement */}
                 <div className="bg-[var(--app-navy)] rounded-2xl p-4 text-white">
                   <div className="flex items-center justify-between">
@@ -1739,7 +1801,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-                      {filteredRecords.map((r, idx) => (
+                      {displayedRawRows.map((r, idx) => (
                         <tr key={r.id || idx} className="hover:bg-[var(--app-warn-tint)] transition">
                           <td className="p-3 font-bold text-slate-900">{r.branch}</td>
                           <td className="p-3 font-black text-[var(--app-ink)]">{r.repName}</td>
@@ -1766,6 +1828,20 @@ export const TargetPerformanceDashboard: React.FC = () => {
                       ))}
                     </tbody>
                   </table>
+                  {visibleRawRowsCount < filteredRecords.length && (
+                    <div className="flex flex-col items-center gap-2 p-4 border-t border-slate-200 bg-slate-50">
+                      <span className="text-xs font-bold text-slate-500">
+                        عرض {displayedRawRows.length} من {filteredRecords.length} صف
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setVisibleRawRowsCount((c) => c + 25)}
+                        className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black cursor-pointer shadow-sm"
+                      >
+                        عرض المزيد ({filteredRecords.length - displayedRawRows.length} متبقي)
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

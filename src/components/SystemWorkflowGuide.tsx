@@ -231,7 +231,7 @@ export const SystemWorkflowGuide: React.FC<SystemWorkflowGuideProps> = ({ onNavi
     <div className="tantawy-screen space-y-6 sm:space-y-8 animate-in fade-in duration-300 pb-16">
       
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-5 sm:p-7 rounded-2xl sm:rounded-3xl shadow-xl border border-slate-700">
+      <div className="ds-pagehead">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black shadow-lg shrink-0">

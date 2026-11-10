@@ -53,12 +53,16 @@ interface InvoicesManagerProps {
   onOpenNewOrder: () => void;
   onViewInvoice?: (invoice: Invoice) => void;
   onEditInvoice?: (invoice: Invoice) => void;
+  initialSearchQuery?: string;
+  searchSeq?: number;
 }
 
 export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   onOpenNewOrder,
   onViewInvoice,
   onEditInvoice,
+  initialSearchQuery,
+  searchSeq,
 }) => {
   const {
     invoices,
@@ -79,6 +83,16 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   } = useApp();
 
   const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    if (typeof initialSearchQuery === 'string' && initialSearchQuery.length) {
+      setSearchTerm(initialSearchQuery);
+      setSelectedStatus('الكل');
+      setSelectedRepFilter('الكل');
+      setDateFrom('');
+      setDateTo('');
+    }
+  }, [initialSearchQuery, searchSeq]);
   const [viewSegment, setViewSegment] = useState<'all' | 'invoices'>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('الكل');
   const [selectedRepFilter, setSelectedRepFilter] = useState<string>('الكل');
@@ -125,7 +139,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
   // Pagination state for responsive multi-page browsing
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(15);
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
 
   useEffect(() => {
     setCurrentPage(1);

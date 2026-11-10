@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -47,6 +47,7 @@ interface ReturnedItemDraft {
 }
 
 export const UnifiedReturnsView: React.FC = () => {
+  const RETURNS_PAGE_SIZE = 8;
   const {
     currentUser,
     customers,
@@ -66,6 +67,11 @@ export const UnifiedReturnsView: React.FC = () => {
   // Filters & State
   const [activeTabFilter, setActiveTabFilter] = useState<'all' | 'at_customer' | 'at_warehouse' | 'closed' | 'rejected'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [visibleReturnsCount, setVisibleReturnsCount] = useState(RETURNS_PAGE_SIZE);
+
+  useEffect(() => {
+    setVisibleReturnsCount(RETURNS_PAGE_SIZE);
+  }, [activeTabFilter, searchTerm]);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('الكل');
   const [flashMsg, setFlashMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
 
@@ -619,7 +625,7 @@ export const UnifiedReturnsView: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-3.5">
-          {filteredReturns.map((visit) => {
+          {filteredReturns.slice(0, visibleReturnsCount).map((visit) => {
             const customer = customers.find((c) => c.id === visit.customerId || c.code === visit.customerCode);
             const status = visit.returnStatus || 'عند العميل';
             const photos = visit.returnImages || [];
@@ -862,6 +868,14 @@ export const UnifiedReturnsView: React.FC = () => {
               </div>
             );
           })}
+
+          {visibleReturnsCount < filteredReturns.length && (
+            <div className="flex justify-center pt-2">
+              <button type="button" onClick={() => setVisibleReturnsCount((c) => c + RETURNS_PAGE_SIZE)} className="px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-black cursor-pointer shadow-sm">
+                عرض المزيد من المرتجعات ({filteredReturns.length - visibleReturnsCount} متبقي)
+              </button>
+            </div>
+          )}
         </div>
       )}
 

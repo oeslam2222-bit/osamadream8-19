@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Target,
   Users,
@@ -266,7 +266,8 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
     customers,
     currentUser,
     getVisibleTargets,
-    syncTargetsIncrementally
+    syncTargetsIncrementally,
+    loadAllTargets
   } = useApp();
 
   /**
@@ -286,6 +287,20 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
   const [selectedMonth, setSelectedMonth] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedRepKey, setSelectedRepKey] = useState<string | null>(null);
+  const [selectedSector, setSelectedSector] = useState<'all' | 'home' | 'electrical'>('all');
+  const [visibleGroupCount, setVisibleGroupCount] = useState(8);
+  const [isLoadingAllTargets, setIsLoadingAllTargets] = useState(false);
+  const [visibleSupervisorCount, setVisibleSupervisorCount] = useState(10);
+  const [visibleMonthCount, setVisibleMonthCount] = useState(12);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  /* ---------- إعادة ضبط التحميل (chunked) ---------- */
+  useEffect(() => {
+    setVisibleGroupCount(8);
+    setVisibleSupervisorCount(10);
+    setVisibleMonthCount(12);
+    setExpandedGroups(new Set());
+  }, [searchQuery, selectedBranch, selectedSupervisor, selectedMonth, selectedSector]);
 
   /* ---------- users lookup ---------- */
 
@@ -364,9 +379,16 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
   }, [targets]);
 
   const branchScopeTargets = useMemo(() => {
-    if (selectedBranch === 'all') return targets;
-    return targets.filter((t) => (t.branch || '').trim() === selectedBranch);
-  }, [targets, selectedBranch]);
+    let list = selectedBranch === 'all' ? targets : targets.filter((t) => (t.branch || '').trim() === selectedBranch);
+    if (selectedSector !== 'all') {
+      list = list.filter((t) => {
+        const s = String(t.sector || '').toLowerCase();
+        if (!s || s === 'all' || s === 'both') return true;
+        return s === selectedSector;
+      });
+    }
+    return list;
+  }, [targets, selectedBranch, selectedSector]);
 
   const supervisorOptions = useMemo(() => {
     const map = new Map<string, { name: string; repKeys: Set<string> }>();
@@ -601,7 +623,8 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
     searchQuery.trim() !== '' ||
     selectedBranch !== 'all' ||
     selectedSupervisor !== 'all' ||
-    selectedMonth !== '';
+    selectedMonth !== '' ||
+    selectedSector !== 'all';
 
   const roleHint =
     currentUser?.role === 'sales_rep'
@@ -622,20 +645,20 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
   if (!targets.length) {
     return (
       <div className="w-full space-y-4" dir="rtl">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-[var(--app-card)] border border-[var(--app-border)] rounded-[var(--app-radius-card)] p-4 sm:p-5 shadow-[var(--app-shadow-card)] text-[var(--app-text)]">
+        <div className="ds-pagehead flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-[var(--app-text-muted)] mb-1">
+            <div className="ds-crumb flex items-center gap-2 text-xs font-semibold mb-1">
               <span>الرئيسية</span>
               <span>&gt;</span>
-              <span className="text-[var(--app-warning)] font-bold">التارجت</span>
+              <strong className="font-bold">التارجت</strong>
             </div>
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-[#F59E0B] dark:text-amber-400 border border-amber-200 dark:border-amber-800/40 shadow-xs">
+              <div className="p-2.5 rounded-xl bg-white/10 text-white border border-white/20 shadow-xs">
                 <Target className="w-6 h-6 stroke-[2.2]" />
               </div>
               <div>
                 <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">تارجت المندوبين</h1>
-                <p className="text-xs text-[var(--app-text-muted)] mt-0.5">
+                <p className="ds-pagehead__hint text-xs mt-0.5">
                   متابعة المبيعات والتحصيل والنسب والمتبقي شهريًا
                 </p>
               </div>
@@ -644,7 +667,7 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
           <button
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-[#0b2337] hover:bg-blue-50 font-bold text-xs shadow-xs transition-all disabled:opacity-50 cursor-pointer"
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
             <span>تحديث البيانات</span>
@@ -669,40 +692,54 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
   return (
     <div className="w-full space-y-4" dir="rtl">
       {/* Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-[var(--app-card)] border border-[var(--app-border)] rounded-[var(--app-radius-card)] p-4 sm:p-5 shadow-[var(--app-shadow-card)] text-[var(--app-text)]">
+      <div className="ds-pagehead flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-[var(--app-text-muted)] mb-1">
+          <div className="ds-crumb flex items-center gap-2 text-xs font-semibold mb-1">
             <span>الرئيسية</span>
             <span>&gt;</span>
-            <span className="text-[var(--app-warning)] font-bold">التارجت</span>
+            <strong className="font-bold">التارجت</strong>
           </div>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-[#F59E0B] dark:text-amber-400 border border-amber-200 dark:border-amber-800/40 shadow-xs">
+            <div className="p-2.5 rounded-xl bg-white/10 text-white border border-white/20 shadow-xs">
               <Target className="w-6 h-6 stroke-[2.2]" />
             </div>
             <div>
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">تارجت المندوبين</h1>
-              <p className="text-xs text-[var(--app-text-muted)] mt-0.5">
-                المبيعات والتحصيل والنسب والمتبقي لكل شهر — {roleHint}
+              <p className="ds-pagehead__hint text-xs mt-0.5">
+                المبيعات والتحصيل والنسب والمتبقي لكل شهر — {roleHint} • آخر 24 شهر (اضغط «تحميل كل الأشهر» لجلب التاريخ الكامل)
               </p>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-[#26364D] bg-white dark:bg-[#111C2E] px-3 py-2 text-[11px] font-bold text-slate-600 dark:text-slate-300">
-            <Calendar className="w-3.5 h-3.5 text-amber-500" />
+          <span className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-[11px] font-bold text-white">
+            <Calendar className="w-3.5 h-3.5 text-amber-300" />
             {monthLabel}
           </span>
           {onOpenAdvancedDashboard && (
             <button
               onClick={onOpenAdvancedDashboard}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--app-card-secondary)] hover:bg-[var(--app-card-hover)] border border-[var(--app-border)] text-xs font-bold text-[var(--app-text)] transition-all shadow-xs cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white transition-all shadow-xs cursor-pointer"
             >
-              <SlidersHorizontal className="w-4 h-4 text-[var(--app-warning)]" />
+              <SlidersHorizontal className="w-4 h-4 text-blue-200" />
               <span>لوحة المؤشرات المتقدمة</span>
             </button>
           )}
+          <button
+            type="button"
+            disabled={isLoadingAllTargets}
+            onClick={async () => {
+              setIsLoadingAllTargets(true);
+              await loadAllTargets?.();
+              setIsLoadingAllTargets(false);
+            }}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white text-[#0b2337] hover:bg-blue-50 font-bold text-xs shadow-xs transition-all disabled:opacity-50 cursor-pointer"
+            title="تحميل كل الأشهر من شيت التارجت"
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoadingAllTargets ? 'animate-spin' : ''}`} />
+            <span>{isLoadingAllTargets ? 'جاري التحميل...' : 'تحميل كل الأشهر'}</span>
+          </button>
         </div>
       </div>
 
@@ -756,6 +793,18 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
                   {supervisor.name} — {supervisor.repKeys.size} مندوب
                 </option>
               ))}
+            </select>
+          </div>
+
+          <div className="min-w-[150px]">
+            <select
+              value={selectedSector}
+              onChange={(e) => setSelectedSector(e.target.value as 'all' | 'home' | 'electrical')}
+              className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] text-slate-900 dark:text-slate-100 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+            >
+              <option value="all">القطاع: الكل</option>
+              <option value="home">القطاع المنزلي</option>
+              <option value="electrical">القطاع الكهربائي</option>
             </select>
           </div>
 
@@ -1024,8 +1073,8 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
             </div>
           </button>
 
-          <div className="space-y-1.5 overflow-y-auto max-h-[268px] pl-0.5">
-            {supervisorStandings.map((supervisor) => {
+          <div className="space-y-1.5 overflow-y-auto max-h-[320px] pl-0.5">
+            {supervisorStandings.slice(0, visibleSupervisorCount).map((supervisor) => {
               const salesPct = pctOf(supervisor.agg.salesAchieved, supervisor.agg.salesTarget);
               const collPct = pctOf(supervisor.agg.collectionAchieved, supervisor.agg.collectionTarget);
               const isActive = selectedSupervisor === supervisor.name;
@@ -1076,6 +1125,15 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
                 </button>
               );
             })}
+            {visibleSupervisorCount < supervisorStandings.length && (
+              <button
+                type="button"
+                onClick={() => setVisibleSupervisorCount((c) => c + 10)}
+                className="w-full mt-1.5 py-2 rounded-xl border border-dashed border-slate-300 dark:border-slate-600 text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-[#17243A] cursor-pointer"
+              >
+                عرض المزيد ({supervisorStandings.length - visibleSupervisorCount} متبقي)
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -1115,7 +1173,7 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
               </tr>
             </thead>
             <tbody>
-              {monthlySummary.map((m) => {
+              {monthlySummary.slice(0, visibleMonthCount).map((m) => {
                 const isActive = effectiveMonth === m.key;
                 const salesPct = pctOf(m.agg.salesAchieved, m.agg.salesTarget);
                 const collPct = pctOf(m.agg.collectionAchieved, m.agg.collectionTarget);
@@ -1157,6 +1215,20 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
                   </tr>
                 );
               })}
+
+              {visibleMonthCount < monthlySummary.length && (
+                <tr>
+                  <td colSpan={9} className="px-4 py-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setVisibleMonthCount((c) => c + 12)}
+                      className="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-[#17243A] dark:hover:bg-[#22354F] text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer"
+                    >
+                      عرض المزيد من الشهور ({monthlySummary.length - visibleMonthCount} متبقي)
+                    </button>
+                  </td>
+                </tr>
+              )}
 
               {!monthlySummary.length && (
                 <tr>
@@ -1246,9 +1318,13 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
               </tr>
             </thead>
             <tbody>
-              {supervisorGroups.map((group) => {
+              {supervisorGroups.slice(0, visibleGroupCount).map((group) => {
                 const groupSalesPct = pctOf(group.agg.salesAchieved, group.agg.salesTarget);
                 const groupCollPct = pctOf(group.agg.collectionAchieved, group.agg.collectionTarget);
+                const isExpanded = expandedGroups.has(group.supervisor);
+                const REPS_PER_GROUP = 12;
+                const repsToShow = isExpanded ? group.reps : group.reps.slice(0, REPS_PER_GROUP);
+                const hiddenReps = group.reps.length - repsToShow.length;
                 return (
                   <React.Fragment key={group.supervisor}>
                     <tr className="bg-slate-100/90 dark:bg-[#17243A]">
@@ -1287,7 +1363,7 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
                       </td>
                     </tr>
 
-                    {group.reps.map((rep) => {
+                    {repsToShow.map((rep) => {
                       const salesPct = pctOf(rep.agg.salesAchieved, rep.agg.salesTarget);
                       const collPct = pctOf(rep.agg.collectionAchieved, rep.agg.collectionTarget);
                       return (
@@ -1339,9 +1415,42 @@ export const TantawyRepTargetsView: React.FC<TantawyRepTargetsViewProps> = ({
                         </tr>
                       );
                     })}
+
+                    {(hiddenReps > 0 || isExpanded) && group.reps.length > REPS_PER_GROUP && (
+                      <tr>
+                        <td colSpan={10} className="px-4 py-2 text-center bg-slate-50/70 dark:bg-[#121f33]">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedGroups((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(group.supervisor)) next.delete(group.supervisor);
+                              else next.add(group.supervisor);
+                              return next;
+                            })}
+                            className="px-4 py-1.5 rounded-lg border border-slate-300 dark:border-slate-600 text-[11px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-[#17243A] cursor-pointer"
+                          >
+                            {isExpanded ? 'عرض أقل' : `عرض ${hiddenReps} مندوب إضافي في هذه المجموعة`}
+                          </button>
+                        </td>
+                      </tr>
+                    )}
                   </React.Fragment>
                 );
               })}
+
+              {visibleGroupCount < supervisorGroups.length && (
+                <tr>
+                  <td colSpan={10} className="px-4 py-4 text-center">
+                    <button
+                      type="button"
+                      onClick={() => setVisibleGroupCount((c) => c + 8)}
+                      className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black cursor-pointer shadow-sm"
+                    >
+                      عرض المزيد من المشرفين ({supervisorGroups.length - visibleGroupCount} متبقي)
+                    </button>
+                  </td>
+                </tr>
+              )}
 
               {!repRows.length && (
                 <tr>

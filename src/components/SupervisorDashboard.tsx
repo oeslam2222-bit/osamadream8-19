@@ -78,7 +78,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
   // Pagination state for responsive performance
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(15);
+  const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
 
   // Credit & Financial Audit Modal State
   const [auditInvoice, setAuditInvoice] = useState<Invoice | null>(null);

@@ -6,7 +6,6 @@ import {
   Bell, Percent,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { useTheme } from '../context/themeContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -25,7 +24,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   position = "right",
 }) => {
   const { currentUser, logout, getCartSummary } = useApp();
-  const { isDark, toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrollPosition, setScrollPosition] = useState(0);
   const cartSummary = getCartSummary();
@@ -108,7 +106,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <div className="text-xs text-slate-500 dark:text-[#94A3B8] truncate">{currentUser.role}</div>
                   <div className="text-[10px] text-[#0D9488] dark:text-[#2DD4BF] font-bold mt-0.5">{currentUser.branchName || 'الفرع الرئيسي'}</div>
                 </div>
-                <button type="button" onClick={toggleTheme} className="p-2 text-slate-400 hover:text-[#0F172A] dark:hover:text-[#F1F5F9] transition-colors" aria-label="تغيير السمة">{isDark ? <span className="w-4 h-4" /> : <span className="w-4 h-4" />}</button>
               </div>
             </div>
           )}

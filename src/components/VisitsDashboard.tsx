@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   MapPin,
   Clock,
@@ -106,8 +106,8 @@ export const VisitsDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'منفذة' | 'معلقة' | 'ملغاة'>('all');
   const [repFilter, setRepFilter] = useState<string>('all');
   const [sectorFilter, setSectorFilter] = useState<'all' | 'home' | 'electrical'>('all');
-  const [pageSize, setPageSize] = useState<number>(10);
-  const [visitsPage, setVisitsPage] = useState(1);
+  const VISITS_CHUNK = 10;
+  const [visibleVisitsCount, setVisibleVisitsCount] = useState(VISITS_CHUNK);
 
   const [showForm, setShowForm] = useState(false);
   const [selectedVisit, setSelectedVisit] = useState<CustomerVisit | null>(null);
@@ -380,8 +380,11 @@ export const VisitsDashboard: React.FC = () => {
     };
   }, [filtered]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
-  const paginated = filtered.slice((visitsPage - 1) * pageSize, visitsPage * pageSize);
+  const paginated = filtered.slice(0, visibleVisitsCount);
+
+  useEffect(() => {
+    setVisibleVisitsCount(VISITS_CHUNK);
+  }, [search, timeFilter, typeFilter, statusFilter, repFilter, sectorFilter, visits.length]);
 
   const repOptions = useMemo(() => {
     const reps = [...new Set(visits.map((v) => v.repName).filter(Boolean))];
@@ -403,7 +406,6 @@ export const VisitsDashboard: React.FC = () => {
     setStatusFilter('all');
     setRepFilter('all');
     setSectorFilter('all');
-    setVisitsPage(1);
   };
 
   return (
@@ -561,7 +563,6 @@ export const VisitsDashboard: React.FC = () => {
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
-                setVisitsPage(1);
               }}
               placeholder="ابحث بالاسم، كود العميل، المندوب، الفرع، أو الملاحظات..."
               className="w-full pr-10 pl-9 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#009488]"
@@ -583,7 +584,6 @@ export const VisitsDashboard: React.FC = () => {
               type="button"
               onClick={() => {
                 setTimeFilter('today');
-                setVisitsPage(1);
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
                 timeFilter === 'today'
@@ -597,7 +597,6 @@ export const VisitsDashboard: React.FC = () => {
               type="button"
               onClick={() => {
                 setTimeFilter('week');
-                setVisitsPage(1);
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
                 timeFilter === 'week'
@@ -611,7 +610,6 @@ export const VisitsDashboard: React.FC = () => {
               type="button"
               onClick={() => {
                 setTimeFilter('month');
-                setVisitsPage(1);
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
                 timeFilter === 'month'
@@ -625,7 +623,6 @@ export const VisitsDashboard: React.FC = () => {
               type="button"
               onClick={() => {
                 setTimeFilter('all');
-                setVisitsPage(1);
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
                 timeFilter === 'all'
@@ -647,7 +644,6 @@ export const VisitsDashboard: React.FC = () => {
               value={typeFilter}
               onChange={(e) => {
                 setTypeFilter(e.target.value);
-                setVisitsPage(1);
               }}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
             >
@@ -666,7 +662,6 @@ export const VisitsDashboard: React.FC = () => {
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value as any);
-                setVisitsPage(1);
               }}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
             >
@@ -684,7 +679,6 @@ export const VisitsDashboard: React.FC = () => {
               value={sectorFilter}
               onChange={(e) => {
                 setSectorFilter(e.target.value as any);
-                setVisitsPage(1);
               }}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
             >
@@ -701,7 +695,6 @@ export const VisitsDashboard: React.FC = () => {
               value={repFilter}
               onChange={(e) => {
                 setRepFilter(e.target.value);
-                setVisitsPage(1);
               }}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
             >
@@ -741,7 +734,6 @@ export const VisitsDashboard: React.FC = () => {
           <span>
             عرض {paginated.length} من أصل {filtered.length} زيارة مطابقة
           </span>
-          <span>صفحة {visitsPage} من {totalPages}</span>
         </div>
 
         {/* 1. Desktop & Laptop View: High Elegance ERP Table (hidden on mobile/tablet) */}
@@ -763,7 +755,7 @@ export const VisitsDashboard: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold">
               {paginated.map((v, idx) => {
-                const globalIdx = (visitsPage - 1) * pageSize + idx + 1;
+                const globalIdx = idx + 1;
                 const isCollection = v.type?.includes('تحصيل') || Number(v.collectedAmount || 0) > 0;
                 const isReturn = v.type?.includes('مرتجع') || v.outcome?.includes('مرتجع');
 
@@ -1045,56 +1037,16 @@ export const VisitsDashboard: React.FC = () => {
         {/* Pagination Strip */}
         <div className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
           <div className="flex items-center gap-2.5 text-xs font-bold text-slate-600 dark:text-slate-400">
-            <span>عدد الزيارات بالصفحة:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setVisitsPage(1);
-              }}
-              className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-xs font-black text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500 cursor-pointer"
-            >
-              <option value={5}>5 زيارات</option>
-              <option value={10}>10 زيارات</option>
-              <option value={25}>25 زيارة</option>
-              <option value={50}>50 زيارة</option>
-            </select>
+            <span>عرض {paginated.length} من {filtered.length} زيارة</span>
           </div>
-
-          {totalPages > 1 && (
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                disabled={visitsPage === 1}
-                onClick={() => setVisitsPage((p) => Math.max(1, p - 1))}
-                className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1 ${
-                  visitsPage === 1
-                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
-                    : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer active:scale-95'
-                }`}
-              >
-                <ChevronRight className="w-4 h-4" />
-                <span className="hidden sm:inline">السابق</span>
-              </button>
-
-              <span className="px-3 text-xs font-black text-slate-700 dark:text-slate-300">
-                صفحة {visitsPage} من {totalPages}
-              </span>
-
-              <button
-                type="button"
-                disabled={visitsPage === totalPages}
-                onClick={() => setVisitsPage((p) => Math.min(totalPages, p + 1))}
-                className={`min-h-[40px] px-3.5 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1 ${
-                  visitsPage === totalPages
-                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
-                    : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer active:scale-95'
-                }`}
-              >
-                <span className="hidden sm:inline">التالي</span>
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-            </div>
+          {visibleVisitsCount < filtered.length && (
+            <button
+              type="button"
+              onClick={() => setVisibleVisitsCount((c) => c + VISITS_CHUNK)}
+              className="min-h-[40px] px-4 py-2 rounded-xl text-xs font-black bg-teal-600 hover:bg-teal-700 text-white shadow-sm transition cursor-pointer"
+            >
+              عرض المزيد ({filtered.length - paginated.length} متبقي)
+            </button>
           )}
         </div>
       </div>

@@ -43,6 +43,8 @@ import {
 interface TantawyCustomerBaseViewProps {
   onOpenNewOrderForCustomer?: (customer: Customer) => void;
   onOpenAdvancedAnalytics?: () => void;
+  initialSearchQuery?: string;
+  searchSeq?: number;
 }
 
 // Distinctive male executive avatars for sales reps and merchants
@@ -71,6 +73,8 @@ const STORE_PRESET_IMAGES = [
 export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = ({
   onOpenNewOrderForCustomer,
   onOpenAdvancedAnalytics,
+  initialSearchQuery,
+  searchSeq,
 }) => {
   const {
     customers,
@@ -88,6 +92,17 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
 
   // Filters state matching top header
   const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (typeof initialSearchQuery === 'string' && initialSearchQuery.length) {
+      setSearchQuery(initialSearchQuery);
+      setSelectedRep('all');
+      setSelectedBranch('all');
+      setSelectedSector('all');
+      setOnlyFavorites(false);
+      setDisplayLimit(10);
+    }
+  }, [initialSearchQuery, searchSeq]);
   const [selectedRep, setSelectedRep] = useState('all');
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [selectedSector, setSelectedSector] = useState<'all' | 'home' | 'electrical'>('all');
@@ -331,27 +346,27 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
 
   return (
     <div className="w-full space-y-4" dir="rtl">
-      {/* Top Breadcrumb & Title Bar matching screenshot */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 bg-[var(--app-card)] border border-[var(--app-border)] rounded-[var(--app-radius-card)] p-4 sm:p-5 shadow-[var(--app-shadow-card)] text-[var(--app-text)]">
+      {/* Page Header — كحلي الهوية */}
+      <div className="ds-pagehead flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-[var(--app-text-muted)] mb-1">
+          <div className="ds-crumb flex items-center gap-2 text-xs font-semibold mb-1">
             <span>الرئيسية</span>
             <span>&gt;</span>
-            <span className="text-[var(--app-primary)] font-bold">العملاء</span>
+            <strong className="font-bold">العملاء</strong>
           </div>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-blue-100 dark:bg-blue-950/60 text-[#2563EB] dark:text-blue-400 border border-blue-200 dark:border-blue-800/40 shadow-xs">
+            <div className="p-2.5 rounded-xl bg-white/10 text-white border border-white/20 shadow-xs">
               <Users className="w-6 h-6 stroke-[2.2]" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--app-text)] tracking-tight flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight flex items-center gap-2">
                 قاعدة العملاء
               </h1>
-              <p className="text-xs text-[var(--app-text-muted)] mt-0.5">
+              <p className="ds-pagehead__hint text-xs mt-0.5">
                 {currentUser?.role === 'admin' || currentUser?.role === 'developer'
                   ? 'إجمالي مسجل في السيرفر: '
                   : 'إجمالي عملاء نطاقك: '}
-                <span className="text-[var(--app-primary)] font-bold font-mono">{scopedCustomers.length.toLocaleString()}</span> عميل
+                <span className="tg-accent font-bold font-mono">{scopedCustomers.length.toLocaleString()}</span> عميل
               </p>
             </div>
           </div>
@@ -361,9 +376,9 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
         {onOpenAdvancedAnalytics && (
           <button
             onClick={onOpenAdvancedAnalytics}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[var(--app-card-secondary)] hover:bg-[var(--app-card-hover)] border border-[var(--app-border)] text-xs font-bold text-[var(--app-text)] transition-all shadow-xs cursor-pointer"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-xs font-bold text-white transition-all shadow-xs cursor-pointer"
           >
-            <SlidersHorizontal className="w-4 h-4 text-[var(--app-primary)]" />
+            <SlidersHorizontal className="w-4 h-4 text-blue-200" />
             <span>التحليلات المتقدمة والشيتات</span>
           </button>
         )}

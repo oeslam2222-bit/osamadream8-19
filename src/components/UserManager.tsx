@@ -83,10 +83,9 @@ export const UserManager: React.FC = () => {
   const [viewingRepUser, setViewingRepUser] = useState<User | null>(null);
   const [repCustomerSearchTerm, setRepCustomerSearchTerm] = useState<string>('');
   const [autoCreateFeedback, setAutoCreateFeedback] = useState<string | null>(null);
-  const [usersPage, setUsersPage] = useState(1);
-  // أول 5 أفراد بس في المرة — الصفحة كانت بترسم 25 كارت مرة واحدة،
-  // وده تقيل على الموبايل من غير أي فايدة لأن معظم الوقت بتدور على شخص واحد.
-  const USERS_PER_PAGE = 5;
+  const [visibleUsersCount, setVisibleUsersCount] = useState(10);
+  // تحميل تدريجي — تجنّب رندر كل الفريق مرة واحدة.
+  const USERS_PER_PAGE = 10;
 
   const isSuperAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
@@ -359,12 +358,15 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       if (!matchName && !matchUser && !matchPhone && !matchEmail) return false;
     }
     return true;
-  }), [users, isSuperAdminOrDev, currentUser?.branchName, selectedBranchFilter, selectedRoleFilter, searchQuery]);
+  }), [users, isSuperAdminOrDev, currentUser?.branchName, currentUser?.role, selectedBranchFilter, selectedRoleFilter, searchQuery]);
 
-  const totalUsersPages = Math.max(1, Math.ceil(activeUsers.length / USERS_PER_PAGE));
+  useEffect(() => {
+    setVisibleUsersCount(USERS_PER_PAGE);
+  }, [selectedBranchFilter, selectedRoleFilter, searchQuery, users.length]);
+
   const visibleUsers = useMemo(() => {
-    return activeUsers.slice((usersPage - 1) * USERS_PER_PAGE, usersPage * USERS_PER_PAGE);
-  }, [activeUsers, usersPage]);
+    return activeUsers.slice(0, visibleUsersCount);
+  }, [activeUsers, visibleUsersCount]);
 
   // High-performance single-pass customer count map for all sales reps
   const repCustomerCountMap = useMemo(() => {
@@ -516,13 +518,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     return { repCustomers, totalDebts, totalLimits, filtered };
   }, [viewingRepUser, customers, repCustomerSearchTerm]);
 
-  useEffect(() => {
-    setUsersPage(1);
-  }, [selectedBranchFilter, selectedRoleFilter, searchQuery]);
-
-  useEffect(() => {
-    if (usersPage > totalUsersPages) setUsersPage(totalUsersPages);
-  }, [usersPage, totalUsersPages]);
+  // (إعادة ضبط التحميل التدريجي تتم تلقائيًا مع تغيّر الفلاتر/البحث)
 
   const handleOpenApproveModal = (user: User) => {
     setApprovingUser(user);
@@ -652,7 +648,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     <div className="user-manager-page tantawy-screen space-y-6 pb-20 max-w-7xl mx-auto px-2 sm:px-4">
       
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-[var(--app-navy)] to-teal-800 rounded-3xl p-5 sm:p-7 text-white shadow-lg shadow-navy/30">
+      <div className="ds-pagehead">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-start sm:items-center gap-3.5">
             <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center font-black shrink-0 shadow-lg shadow-black/20 border border-white/20">
@@ -936,13 +932,25 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
         </div>
 
         <div className="flex items-center justify-between gap-3 border-t border-slate-border-soft px-4 py-3 text-xs">
-    <span className="font-bold text-slate-500 app-num">عرض {visibleUsers.length} من {activeUsers.length} مستخدم</span>
-    <div className="flex items-center gap-2">
-      <button type="button" onClick={() => setUsersPage((page) => Math.max(1, page - 1))} disabled={usersPage === 1} className="app-pill px-3 py-1.5 text-xs">السابق</button>
-      <span className="font-black text-slate-700 app-num">{usersPage} / {totalUsersPages}</span>
-      <button type="button" onClick={() => setUsersPage((page) => Math.min(totalUsersPages, page + 1))} disabled={usersPage === totalUsersPages} className="app-pill px-3 py-1.5 text-xs">التالي</button>
-    </div>
-  </div>
+          <span className="font-bold text-slate-500 app-num">عرض {visibleUsers.length} من {activeUsers.length} مستخدم</span>
+          {visibleUsersCount < activeUsers.length ? (
+            <button
+              type="button"
+              onClick={() => setVisibleUsersCount((c) => c + USERS_PER_PAGE)}
+              className="app-pill px-4 py-1.5 text-xs font-black bg-blue-600 text-white border-blue-600 hover:bg-blue-700"
+            >
+              عرض المزيد ({activeUsers.length - visibleUsers.length} متبقي)
+            </button>
+          ) : activeUsers.length > USERS_PER_PAGE ? (
+            <button
+              type="button"
+              onClick={() => setVisibleUsersCount(USERS_PER_PAGE)}
+              className="app-pill px-3 py-1.5 text-xs"
+            >
+              عرض أقل
+            </button>
+          ) : null}
+        </div>
 
   {/* 1. Mobile Cards View (Hidden on Tablet / Desktop) */}
         <div className="block sm:hidden divide-y divide-slate-100">

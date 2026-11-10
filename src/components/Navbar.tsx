@@ -13,14 +13,12 @@ import {
   Layers,
   LayoutDashboard,
   LogOut,
-  Moon,
   Receipt,
   RefreshCw,
   Server,
   ShieldCheck,
   Smartphone,
   ShoppingCart,
-  Sun,
   Target,
   CalendarCheck,
   Wallet,
@@ -48,7 +46,7 @@ import {
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { useTheme } from '../context/themeContext';
+import { GlobalSearch } from './GlobalSearch';
 import { formatCurrency } from '../services/invoiceService';
 import { UserRole } from '../types';
 import { InstallAppModal } from './InstallAppModal';
@@ -64,6 +62,7 @@ interface NavbarProps {
   onToggleSidebar?: () => void;
   notificationCount?: number;
   onOpenNotificationCenter?: () => void;
+  onGlobalNavigate?: (tab: string, query?: string) => void;
 }
 
 const DEFAULT_EXECUTIVE_AVATAR = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80';
@@ -75,9 +74,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   isSidebarCollapsed = false,
   onToggleSidebar,
   notificationCount = 0,
-  onOpenNotificationCenter
+  onOpenNotificationCenter,
+  onGlobalNavigate
 }) => {
-  const { isDark, toggleTheme } = useTheme();
   const {
     currentUser,
     logout,
@@ -107,6 +106,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
 
   const [internalSidebarCollapsed, setInternalSidebarCollapsed] = useState<boolean>(() => {
     try {
@@ -185,7 +185,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'collection', label: 'تحصيل', icon: Wallet, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'returns', label: 'المرتجعات', icon: RotateCcw, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'inventory', label: 'المخزون', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
-    { id: 'offers', label: 'العروض والخصومات', icon: Percent, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
+    { id: 'offers', label: 'العروض', icon: Percent, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'], promo: true },
     { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'visits', label: 'الزيارات', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'excel', label: 'الإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
@@ -281,6 +281,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <Icon className="w-4 h-4 stroke-[2.2]" aria-hidden="true" />
                 </div>
                 <span className="ds-sidebar__label">{item.label}</span>
+                {item.promo && <span className="ds-sidebar__promo">مميز</span>}
                 {item.badge && item.badge > 0 ? (
                   <span className="ds-count">{item.badge}</span>
                 ) : null}
@@ -289,7 +290,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           })}
         </nav>
 
-        {/* Footer with connection status and dual theme toggle */}
+        {/* Footer with connection status */}
         <div className="ds-sidebar__footer">
           <div className="ds-sidebar__status">
             <span className="flex items-center gap-2">
@@ -297,25 +298,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span>{isOffline ? 'وضع عدم الاتصال' : 'متصل بالخادم'}</span>
             </span>
             <span className="text-[10px] font-mono text-slate-400">V9.0</span>
-          </div>
-
-          <div className="ds-sidebar__theme-toggle" role="group" aria-label="تبديل المظهر">
-            <button
-              type="button"
-              onClick={() => isDark && toggleTheme()}
-              className={`ds-sidebar__theme-btn ${!isDark ? 'is-active text-amber-700 dark:text-amber-300' : ''}`}
-            >
-              <Sun className="w-4 h-4 text-amber-500" />
-              <span>نهاري</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => !isDark && toggleTheme()}
-              className={`ds-sidebar__theme-btn ${isDark ? 'is-active text-blue-700 dark:text-blue-300' : ''}`}
-            >
-              <Moon className="w-4 h-4 text-blue-500" />
-              <span>ليلي</span>
-            </button>
           </div>
         </div>
       </aside>
@@ -325,25 +307,21 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="ds-brand">
             <img src="/icon.svg" alt="طنطاوي جروب - Tantawy Group" className="ds-brand__logo" />
             <div className="ds-brand__text">
-              <div className="ds-brand__title" role="heading" aria-level={1}>{activeItem?.label && activeTab !== 'home' ? activeItem.label : 'طنطاوي جروب'}</div>
+              <div className="ds-brand__title" role="heading" aria-level={1}>طنطاوي جروب</div>
               <div className="ds-brand__sub">Dream Tantawy</div>
             </div>
           </div>
 
-          {/* بحث سريع (لابتوب) */}
-          <div className="ds-search ds-vis-ge-lg">
-            <input
-              type="text"
-              aria-label="بحث عن عميل"
-              placeholder="ابحث عن عميل بالاسم أو رقم الهاتف أو المندوب..."
-              onClick={() => {
-                if (activeTab !== 'customers' && activeTab !== 'all_customers') {
-                  setActiveTab('customers');
-                }
-              }}
-            />
+          {/* بحث ذكي (لابتوب) */}
+          <button
+            type="button"
+            onClick={() => setIsGlobalSearchOpen(true)}
+            className="ds-search ds-vis-ge-lg"
+            aria-label="بحث ذكي"
+          >
+            <span className="ds-search__placeholder">ابحث عن عميل، فاتورة، صنف، مرتجع...</span>
             <Search aria-hidden="true" />
-          </div>
+          </button>
 
           <div className="ds-topbar__spacer" />
 
@@ -353,6 +331,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               {isOffline ? <WifiOff aria-hidden="true" /> : <Wifi aria-hidden="true" />}
               <span className={isOffline ? '' : 'ds-vis-ge-md'}>{isOffline ? 'أوفلاين' : 'متصل'}</span>
             </div>
+
+            {/* بحث ذكي (موبايل) */}
+            <button
+              type="button"
+              onClick={() => setIsGlobalSearchOpen(true)}
+              className="ds-iconbtn ds-vis-lt-lg"
+              title="بحث ذكي"
+              aria-label="بحث ذكي"
+            >
+              <Search aria-hidden="true" />
+            </button>
 
             {/* مزامنة الفواتير المعلقة */}
             {pendingInvoicesCount > 0 && (
@@ -368,6 +357,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
+            {/* بحث ذكي (موبايل) */}
+            <button
+              type="button"
+              onClick={() => setIsGlobalSearchOpen(true)}
+              className="ds-iconbtn ds-vis-lt-lg"
+              title="بحث ذكي"
+              aria-label="بحث ذكي"
+            >
+              <Search aria-hidden="true" />
+            </button>
+
             {/* فلتر الفرع (أدمن / مطور) */}
             {(currentUser.role === 'admin' || currentUser.role === 'developer') && (
               <select
@@ -382,41 +382,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 ))}
               </select>
             )}
-
-            {/* مبدّل الوضع: لابتوب */}
-            <div className="ds-theme-switch ds-vis-ge-lg" role="group" aria-label="وضع العرض">
-              <button
-                type="button"
-                data-mode="dark"
-                aria-pressed={isDark}
-                onClick={() => !isDark && toggleTheme()}
-                title="الوضع الليلي"
-                aria-label="الوضع الليلي"
-              >
-                <Moon aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                data-mode="light"
-                aria-pressed={!isDark}
-                onClick={() => isDark && toggleTheme()}
-                title="الوضع النهاري"
-                aria-label="الوضع النهاري"
-              >
-                <Sun aria-hidden="true" />
-              </button>
-            </div>
-
-            {/* مبدّل الوضع: موبايل / تابلت */}
-            <button
-              type="button"
-              onClick={toggleTheme}
-              className="ds-iconbtn ds-vis-lt-lg"
-              title={isDark ? 'الوضع النهاري' : 'الوضع الليلي'}
-              aria-label={isDark ? 'التبديل إلى الوضع النهاري' : 'التبديل إلى الوضع الليلي'}
-            >
-              {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-            </button>
 
             {/* الإعدادات */}
             <button
@@ -619,10 +584,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <div className="ds-drawer__role">{roleLabel}</div>
                 <div className="ds-drawer__branch">{currentUser.branchName}</div>
               </div>
-              <button type="button" className="ds-iconbtn" onClick={toggleTheme}>
-                {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
-                <span>{isDark ? 'نهاري' : 'ليلي'}</span>
-              </button>
             </div>
 
             <div className="ds-drawer__list">
@@ -641,6 +602,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     <span className={`ds-ico ${theme.bg} ${theme.text} ${theme.darkBg} ${theme.darkText}`}><Icon aria-hidden="true" /></span>
                     <span className="ds-grow">{item.label}</span>
+                    {item.promo && <span className="ds-drawer__promo">مميز</span>}
                     {item.badge && item.badge > 0 ? <span className="ds-count">{item.badge}</span> : null}
                   </button>
                 );
@@ -695,6 +657,18 @@ export const Navbar: React.FC<NavbarProps> = ({
       <UserProfileAvatarModal
         isOpen={isAvatarModalOpen}
         onClose={() => setIsAvatarModalOpen(false)}
+      />
+
+      {/* بحث ذكي عام */}
+      <GlobalSearch
+        isOpen={isGlobalSearchOpen}
+        onClose={() => setIsGlobalSearchOpen(false)}
+        allowedTabs={filteredNavItems.map((i) => (i.id === 'customers' ? 'all_customers' : i.id))}
+        onNavigate={(tab, q) => {
+          if (onGlobalNavigate) onGlobalNavigate(tab, q);
+          else setActiveTab(tab);
+          setIsGlobalSearchOpen(false);
+        }}
       />
     </>
   );

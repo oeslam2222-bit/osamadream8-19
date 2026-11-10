@@ -1136,12 +1136,6 @@ export const InventoryStockView: React.FC = () => {
                 >
                   <option value={20}>20 صنف</option>
                   <option value={50}>50 صنف</option>
-                  <option value={100}>100 صنف</option>
-                  <option value={250}>250 صنف</option>
-                  <option value={500}>500 صنف</option>
-                  <option value={1000}>1000 صنف</option>
-                  <option value={2500}>2500 صنف</option>
-                  <option value={50000}>عرض الكل ({filteredProducts.length} صنف)</option>
                 </select>
                 <span>من إجمالي <strong className="text-slate-900 app-num">{filteredProducts.length}</strong> صنف</span>
               </div>
