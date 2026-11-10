@@ -937,3 +937,860 @@ html.dark .cf-switch-text small {
   color: #94A3B8 !important;
 }
 
+/* ==========================================================================
+   Dream Delivery Dashboard (الصفحة الرئيسية لمندوب دريم)
+   ========================================================================== */
+.tg-dash {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 12px 24px;
+  background: #F8FAFC;
+  min-height: 100dvh;
+}
+
+/* ---------- Hero ---------- */
+.tg-hero {
+  position: relative;
+  border-radius: 28px;
+  padding: 24px;
+  background: linear-gradient(135deg, #FFFFFF 0%, #F1F5F9 100%);
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06), 0 8px 32px rgba(37, 99, 235, 0.08);
+  overflow: hidden;
+}
+html.dark .tg-hero {
+  background: linear-gradient(135deg, #0F2B38 0%, #16324F 100%);
+  border-color: #26364D;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+}
+.tg-hero__blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.15;
+  z-index: 0;
+}
+.tg-hero__blob--blue {
+  width: 320px;
+  height: 320px;
+  background: #2563EB;
+  top: -80px;
+  right: -80px;
+}
+.tg-hero__blob--green {
+  width: 280px;
+  height: 280px;
+  background: #10B981;
+  bottom: -60px;
+  left: -60px;
+}
+.tg-hero__inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+@media (min-width: 768px) {
+  .tg-hero__inner { flex-direction: row; align-items: center; justify-content: space-between; }
+}
+.tg-hero__main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+.tg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #EFF6FF;
+  color: #1E3A8A;
+  font-size: 11px;
+  font-weight: 800;
+  border: 1px solid #BFDBFE;
+  width: fit-content;
+}
+html.dark .tg-chip {
+  background: rgba(30, 58, 138, 0.2);
+  color: #93C5FD;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+.tg-hero__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.tg-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 16px;
+  color: #FFFFFF;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+.tg-welcome {
+  min-width: 0;
+  flex: 1;
+}
+.tg-hero__title {
+  font-size: 20px;
+  font-weight: 900;
+  color: #0F2B38;
+  line-height: 1.2;
+  margin: 0;
+}
+html.dark .tg-hero__title { color: #F8FAFC !important; }
+.tg-hero__sub {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #64748B;
+  margin: 2px 0 0 0;
+  line-height: 1.4;
+}
+html.dark .tg-hero__sub { color: #94A3B8 !important; }
+.tg-hero__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+.tg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 14px;
+  border: 1px solid #2563EB;
+  background: #2563EB;
+  color: #FFFFFF;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.tg-btn:hover { background: #1D4ED8; transform: translateY(-1px); }
+.tg-btn--ghost {
+  background: transparent;
+  border-color: #CBD5E1;
+  color: #64748B;
+}
+.tg-btn--ghost:hover { background: #F1F5F9; color: #0F2B38; }
+html.dark .tg-btn--ghost {
+  border-color: #334155;
+  color: #94A3B8;
+}
+html.dark .tg-btn--ghost:hover { background: #1E293B; color: #F8FAFC; }
+
+.tg-hero__stats {
+  display: flex;
+  gap: 14px;
+  margin-top: 8px;
+}
+@media (min-width: 768px) {
+  .tg-hero__stats { margin-top: 0; flex-shrink: 0; }
+}
+.tg-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  min-width: 150px;
+}
+html.dark .tg-mini {
+  background: #0A1E27;
+  border-color: #26364D;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.tg-mini--wide { flex: 1; flex-direction: row; align-items: center; justify-content: space-between; }
+.tg-mini__label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748B;
+}
+html.dark .tg-mini__label { color: #94A3B8 !important; }
+.tg-mini__value {
+  font-size: 18px;
+  font-weight: 900;
+  color: #0F2B38;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+html.dark .tg-mini__value { color: #F8FAFC !important; }
+.tg-mini__trend { width: 15px; height: 15px; color: #10B981; }
+.tg-mini__trend--blue { color: #2563EB; }
+.tg-mini__bar {
+  width: 100%;
+  height: 6px;
+  background: #E2E8F0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+html.dark .tg-mini__bar { background: #1E293B; }
+.tg-mini__fill {
+  height: 100%;
+  background: #2563EB;
+  border-radius: 999px;
+  transition: width 0.5s ease;
+}
+.tg-mini__fill--blue { background: #2563EB; }
+.tg-mini__rem-label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748B;
+}
+html.dark .tg-mini__rem-label { color: #94A3B8 !important; }
+.tg-mini__rem-value {
+  font-size: 16px;
+  font-weight: 900;
+  color: #0F2B38;
+}
+html.dark .tg-mini__rem-value { color: #F8FAFC !important; }
+
+/* ---------- كروت الأهداف الأربعة ---------- */
+.tg-target-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 640px) { .tg-target-row { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .tg-target-row { grid-template-columns: repeat(4, 1fr); } }
+.tg-target-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+}
+html.dark .tg-target-card {
+  background: #0A1E27;
+  border-color: #26364D;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* تلوين كل كرت بلونه المميز */
+.tg-target-card--debt {
+  background: linear-gradient(135deg, #FEE2E2 0%, #FFF1F2 100%);
+  border-left: 4px solid #DC2626;
+}
+html.dark .tg-target-card--debt {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(220, 38, 38, 0.05) 100%);
+}
+.tg-target-card--receivable {
+  background: linear-gradient(135deg, #D1FAE5 0%, #ECFDF5 100%);
+  border-left: 4px solid #10B981;
+}
+html.dark .tg-target-card--receivable {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.05) 100%);
+}
+.tg-target-card--sales {
+  background: linear-gradient(135deg, #DBEAFE 0%, #EFF6FF 100%);
+  border-left: 4px solid #2563EB;
+}
+html.dark .tg-target-card--sales {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(37, 99, 235, 0.05) 100%);
+}
+.tg-target-card--collection {
+  background: linear-gradient(135deg, #E9D5FF 0%, #FAF5FF 100%);
+  border-left: 4px solid #7C3AED;
+}
+html.dark .tg-target-card--collection {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2) 0%, rgba(124, 58, 237, 0.05) 100%);
+}
+
+.tg-target__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F1F5F9;
+  color: #64748B;
+}
+html.dark .tg-target__icon { background: #1E293B; color: #94A3B8; }
+.tg-target-card--debt .tg-target__icon { background: #FEE2E2; color: #DC2626; }
+html.dark .tg-target-card--debt .tg-target__icon { background: rgba(220, 38, 38, 0.15); color: #F87171; }
+.tg-target-card--receivable .tg-target__icon { background: #D1FAE5; color: #059669; }
+html.dark .tg-target-card--receivable .tg-target__icon { background: rgba(16, 185, 129, 0.15); color: #34D399; }
+.tg-target-card--sales .tg-target__icon { background: #DBEAFE; color: #2563EB; }
+html.dark .tg-target-card--sales .tg-target__icon { background: rgba(37, 99, 235, 0.15); color: #60A5FA; }
+.tg-target-card--collection .tg-target__icon { background: #E9D5FF; color: #7C3AED; }
+html.dark .tg-target-card--collection .tg-target__icon { background: rgba(124, 58, 237, 0.15); color: #A78BFA; }
+
+.tg-target__value {
+  font-size: 26px;
+  font-weight: 900;
+  color: #0F2B38;
+  line-height: 1.2;
+}
+html.dark .tg-target__value { color: #F8FAFC !important; }
+.tg-target__label {
+  font-size: 13px;
+  font-weight: 900;
+  color: #475569;
+}
+html.dark .tg-target__label { color: #94A3B8 !important; }
+.tg-target__sub {
+  font-size: 11px;
+  font-weight: 800;
+  color: #94A3B8;
+  line-height: 1.4;
+}
+html.dark .tg-target__sub { color: #64748B !important; }
+.tg-target__pct {
+  font-weight: 900;
+  font-size: 11px;
+}
+
+/* ---------- كروت الأداء السريع (أداء اليوم) ---------- */
+.tg-quick-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 4px;
+}
+@media (min-width: 640px) { .tg-quick-row { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .tg-quick-row { grid-template-columns: repeat(4, 1fr); } }
+.tg-quick-card {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+}
+html.dark .tg-quick-card {
+  background: #0A1E27;
+  border-color: #26364D;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+
+/* تلوين كل كرت أداء سريع بلونه المميز */
+.tg-quick-card:nth-child(1) {
+  background: linear-gradient(135deg, #DBEAFE 0%, #EFF6FF 100%);
+  border-left: 4px solid #2563EB;
+}
+html.dark .tg-quick-card:nth-child(1) {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(37, 99, 235, 0.05) 100%);
+}
+.tg-quick-card:nth-child(2) {
+  background: linear-gradient(135deg, #D1FAE5 0%, #ECFDF5 100%);
+  border-left: 4px solid #10B981;
+}
+html.dark .tg-quick-card:nth-child(2) {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.05) 100%);
+}
+.tg-quick-card:nth-child(3) {
+  background: linear-gradient(135deg, #E9D5FF 0%, #FAF5FF 100%);
+  border-left: 4px solid #7C3AED;
+}
+html.dark .tg-quick-card:nth-child(3) {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2) 0%, rgba(124, 58, 237, 0.05) 100%);
+}
+.tg-quick-card:nth-child(4) {
+  background: linear-gradient(135deg, #FEE2E2 0%, #FFF1F2 100%);
+  border-left: 4px solid #DC2626;
+}
+html.dark .tg-quick-card:nth-child(4) {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(220, 38, 38, 0.05) 100%);
+}
+
+.tg-q__icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F1F5F9;
+  color: #64748B;
+  flex-shrink: 0;
+}
+html.dark .tg-q__icon { background: #1E293B; color: #94A3B8; }
+.tg-q__body { min-width: 0; flex: 1; }
+.tg-q__label {
+  font-size: 11px;
+  font-weight: 900;
+  color: #64748B;
+}
+html.dark .tg-q__label { color: #94A3B8 !important; }
+.tg-q__value {
+  font-size: 22px;
+  font-weight: 900;
+  color: #0F2B38;
+}
+html.dark .tg-q__value { color: #F8FAFC !important; }
+.tg-q__sub {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: #94A3B8;
+  margin-top: 2px;
+}
+html.dark .tg-q__sub { color: #64748B !important; }
+
+/* ---------- تحليلات ---------- */
+.tg-analytics {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 768px) {
+  .tg-analytics { grid-template-columns: 2fr 1fr; }
+}
+.tg-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 24px;
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+}
+html.dark .tg-card {
+  background: #0A1E27;
+  border-color: #26364D;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+.tg-analytics__wide {
+  grid-column: 1 / -1;
+}
+.tg-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.tg-card__title {
+  font-size: 15px;
+  font-weight: 900;
+  color: #0F2B38;
+}
+html.dark .tg-card__title { color: #F8FAFC !important; }
+.tg-card__hint {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94A3B8;
+}
+html.dark .tg-card__hint { color: #64748B !important; }
+.tg-card__head-icon {
+  width: 16px;
+  height: 16px;
+  color: #2563EB;
+  flex-shrink: 0;
+}
+
+/* رسم بياني عمودي */
+.tg-legend-inline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 800;
+}
+.tg-legend-inline__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.tg-legend-inline__dot--sales { background: #2563EB; }
+.tg-legend-inline__dot--collection { background: #10B981; }
+.tg-legend-inline span { color: #475569; }
+html.dark .tg-legend-inline span { color: #94A3B8 !important; }
+.tg-chart {
+  margin-top: 10px;
+}
+.tg-chart__bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 160px;
+  padding-bottom: 14px;
+}
+@media (min-width: 768px) {
+  .tg-chart__bars { height: 180px; gap: 10px; padding-bottom: 16px; }
+}
+.tg-chart__col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 40px;
+}
+.tg-chart__pair {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+}
+.tg-chart__bar {
+  flex: 1;
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+  background: #E2E8F0;
+  transition: height 0.5s ease;
+}
+html.dark .tg-chart__bar { background: #1E293B; }
+.tg-chart__bar--sales { background: #2563EB; }
+.tg-chart__bar--collection { background: #10B981; }
+.tg-chart__label {
+  font-size: 10px;
+  font-weight: 900;
+  color: #64748B;
+  white-space: nowrap;
+}
+html.dark .tg-chart__label { color: #94A3B8 !important; }
+.tg-chart__val {
+  font-size: 10px;
+  font-weight: 900;
+  color: #0F2B38;
+  white-space: nowrap;
+  text-align: center;
+  margin-top: 2px;
+  text-shadow: 0 0 4px rgba(255,255,255,0.7);
+}
+html.dark .tg-chart__val { color: #F8FAFC !important; text-shadow: 0 0 4px rgba(0,0,0,0.7); }
+
+/* تصنيف العملاء */
+.tg-class-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+@media (min-width: 640px) { .tg-class-grid { grid-template-columns: repeat(3, 1fr); } }
+.tg-class-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid #E2E8F0;
+  background: #F8FAFC;
+}
+html.dark .tg-class-item {
+  background: #0A1E27;
+  border-color: #26364D;
+}
+.tg-class-item--dealing { border-left: 4px solid #10B981; background: #ECFDF5; }
+html.dark .tg-class-item--dealing { background: rgba(16, 185, 129, 0.08); }
+.tg-class-item--eligible { border-left: 4px solid #F59E0B; background: #FFFBEB; }
+html.dark .tg-class-item--eligible { background: rgba(245, 158, 11, 0.08); }
+.tg-class-item--noteligible { border-left: 4px solid #94A3B8; background: #F1F5F9; }
+html.dark .tg-class-item--noteligible { background: rgba(148, 163, 184, 0.08); }
+.tg-class__info { min-width: 0; flex: 1; }
+.tg-class__label {
+  font-size: 12px;
+  font-weight: 800;
+  color: #475569;
+}
+html.dark .tg-class__label { color: #94A3B8 !important; }
+.tg-class__value {
+  font-size: 18px;
+  font-weight: 900;
+  color: #0F2B38;
+}
+html.dark .tg-class__value { color: #F8FAFC !important; }
+
+/* معلومات سريعة */
+.tg-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tg-stat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+}
+html.dark .tg-stat {
+  background: #0A1E27;
+  border-color: #26364D;
+}
+.tg-stat svg { width: 18px; height: 18px; flex-shrink: 0; }
+.tg-stat--blue svg { color: #2563EB; }
+.tg-stat--emerald svg { color: #10B981; }
+.tg-stat--violet svg { color: #7C3AED; }
+.tg-stat--red svg { color: #DC2626; }
+
+/* تلوين كروت المعلومات السريعة بخلفيات ملونة */
+.tg-stat--colored {
+  padding: 14px 16px;
+  position: relative;
+  overflow: hidden;
+}
+.tg-stat--colored.tg-stat--blue {
+  background: linear-gradient(135deg, #DBEAFE 0%, #EFF6FF 100%);
+  border-left: 4px solid #2563EB;
+}
+html.dark .tg-stat--colored.tg-stat--blue {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(37, 99, 235, 0.05) 100%);
+}
+.tg-stat--colored.tg-stat--emerald {
+  background: linear-gradient(135deg, #D1FAE5 0%, #ECFDF5 100%);
+  border-left: 4px solid #10B981;
+}
+html.dark .tg-stat--colored.tg-stat--emerald {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.05) 100%);
+}
+.tg-stat--colored.tg-stat--violet {
+  background: linear-gradient(135deg, #E9D5FF 0%, #FAF5FF 100%);
+  border-left: 4px solid #7C3AED;
+}
+html.dark .tg-stat--colored.tg-stat--violet {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2) 0%, rgba(124, 58, 237, 0.05) 100%);
+}
+.tg-stat--colored.tg-stat--red {
+  background: linear-gradient(135deg, #FEE2E2 0%, #FFF1F2 100%);
+  border-left: 4px solid #DC2626;
+}
+html.dark .tg-stat--colored.tg-stat--red {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(220, 38, 38, 0.05) 100%);
+}
+
+.tg-stat__body { min-width: 0; flex: 1; }
+.tg-stat__value {
+  font-size: 18px;
+  font-weight: 900;
+  color: #0F2B38;
+}
+html.dark .tg-stat__value { color: #F8FAFC !important; }
+.tg-stat__label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748B;
+}
+html.dark .tg-stat__label { color: #94A3B8 !important; }
+.tg-stat__sub {
+  font-size: 10px;
+  font-weight: 700;
+  color: #94A3B8;
+  margin-top: 2px;
+}
+html.dark .tg-stat__sub { color: #64748B !important; }
+
+/* ---------- الأنشطة + اختصارات ---------- */
+.tg-dash-bottom {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  margin-top: 8px;
+}
+@media (min-width: 768px) {
+  .tg-dash-bottom { grid-template-columns: 1fr 300px; }
+}
+.tg-linkbtn {
+  background: none;
+  border: none;
+  color: #2563EB;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+.tg-linkbtn:hover { background: #EFF6FF; color: #1D4ED8; }
+html.dark .tg-linkbtn { color: #60A5FA; }
+html.dark .tg-linkbtn:hover { background: rgba(96, 165, 250, 0.15); color: #93C5FD; }
+
+.tg-act-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tg-act {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  align-items: flex-start;
+}
+html.dark .tg-act {
+  background: #0A1E27;
+  border-color: #26364D;
+}
+.tg-act__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #F1F5F9;
+  color: #64748B;
+  flex-shrink: 0;
+}
+html.dark .tg-act__icon { background: #1E293B; color: #94A3B8; }
+.tg-act__icon--emerald { background: #D1FAE5; color: #059669; }
+html.dark .tg-act__icon--emerald { background: rgba(16, 185, 129, 0.15); color: #34D399; }
+.tg-act__body { min-width: 0; flex: 1; }
+.tg-act__title {
+  font-size: 13px;
+  font-weight: 800;
+  color: #0F2B38;
+  margin: 0 0 2px 0;
+}
+html.dark .tg-act__title { color: #F8FAFC !important; }
+.tg-act__detail {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94A3B8;
+  margin: 0;
+  line-height: 1.4;
+}
+html.dark .tg-act__detail { color: #64748B !important; }
+.tg-act__date {
+  font-size: 10px;
+  font-weight: 700;
+  color: #CBD5E1;
+  flex-shrink: 0;
+  text-align: end;
+}
+html.dark .tg-act__date { color: #475569 !important; }
+.tg-empty {
+  padding: 24px;
+  text-align: center;
+  color: #94A3B8;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 16px;
+  background: #F8FAFC;
+  border: 1px dashed #E2E8F0;
+}
+html.dark .tg-empty {
+  background: #0A1E27;
+  border-color: #26364D;
+  color: #64748B;
+}
+
+/* اختصارات سريعة */
+.tg-quick {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tg-quick__btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  color: #0F2B38;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: start;
+  transition: all 0.15s ease;
+}
+html.dark .tg-quick__btn {
+  background: #0A1E27;
+  border-color: #26364D;
+  color: #F8FAFC;
+}
+.tg-quick__btn:hover {
+  background: #F1F5F9;
+  border-color: #2563EB;
+  color: #2563EB;
+}
+html.dark .tg-quick__btn:hover {
+  background: #0F2B38;
+  border-color: #3B82F6;
+  color: #60A5FA;
+}
+.tg-quick__btn--primary {
+  background: #2563EB;
+  border-color: #2563EB;
+  color: #FFFFFF;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+}
+.tg-quick__btn--primary:hover {
+  background: #1D4ED8;
+  transform: translateY(-1px);
+}
+.tg-quick__btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+/* ---------- كروت الكتالوج (3 كروت في الأعلى) ---------- */
+.tg-katalog-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 20px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
+  transition: all 0.2s ease;
+}
+html.dark .tg-katalog-card { background: #0A1E27; border-color: #26364D; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3); }
+
+.tg-katalog-card--branch {
+  border-left: 4px solid #10B981;
+  background: linear-gradient(135deg, #ECFDF5 0%, #F1F5F9 100%);
+}
+html.dark .tg-katalog-card--branch { background: linear-gradient(135deg, rgba(16,185,129,0.1) 0%, rgba(16,185,129,0.02) 100%); }
+
+.tg-katalog-card--october {
+  border-left: 4px solid #10B981;
+  background: linear-gradient(135deg, #ECFDF5 0%, #F1F5F9 100%);
+}
+html.dark .tg-katalog-card--october { background: linear-gradient(135deg, rgba(16,185,129,0.1) 0%, rgba(16,185,129,0.02) 100%); }
+
+.tg-katalog-card--available {
+  border-left: 4px solid #DC2626;
+  background: linear-gradient(135deg, #FEE2E2 0%, #FFF1F2 100%);
+}
+html.dark .tg-katalog-card--available { background: linear-gradient(135deg, rgba(220,38,38,0.1) 0%, rgba(220,38,38,0.02) 100%); }
+
+.tg-katalog-card__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+.tg-katalog-card--branch .tg-katalog-card__icon { background: #ECFDF5; color: #10B981; }
+html.dark .tg-katalog-card--branch .tg-katalog-card__icon { background: rgba(16,185,129,0.15); color: #34D399; }
+.tg-katalog-card--october .tg-katalog-card__icon { background: #ECFDF5; color: #10B981; }
+html.dark .tg-katalog-card--october .tg-katalog-card__icon { background: rgba(16,185,129,0.15); color: #34D399; }
+.tg-katalog-card--available .tg-katalog-card__icon { background: #FEE2E2; color: #DC2626; }
+html.dark .tg-katalog-card--available .tg-katalog-card__icon { background: rgba(220,38,38,0.15); color: #F87171; }
+
+.tg-katalog-card__label {
+  font-size: 11px;
+  font-weight: 800;
+  color: #64748B;
+}
+html.dark .tg-katalog-card__label { color: #94A3B8 !important; }
+.tg-katalog-card__value {
+  font-size: 18px;
+  font-weight: 900;
+  color: #0F2B38;
+}
+html.dark .tg-katalog-card__value { color: #F8FAFC !important; }
+
+/* ---------- كروت الأهداف الأربعة ---------- */

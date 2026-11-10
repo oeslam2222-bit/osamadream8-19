@@ -2,6 +2,8 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import './styles/tailwind-utilities.css';
+import './styles/missing-utilities.css';
 import './styles/theme-tokens.css';
 import './components/mobile-styles.css';
 import './styles/beautiful-cards.css';

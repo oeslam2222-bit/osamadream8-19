@@ -98,8 +98,8 @@ function lazyNamed<
 
 const ProductCatalog = lazyNamed(() => import('./components/ProductCatalog'), 'ProductCatalog');
 const AllCustomersAnalyticsView = lazyNamed(() => import('./components/AllCustomersAnalyticsView'), 'AllCustomersAnalyticsView');
-const TantawyCustomerBaseView = lazyNamed(() => import('./components/customers/TantawyCustomerBaseView'), 'TantawyCustomerBaseView');
-const TantawyRepTargetsView = lazyNamed(() => import('./components/targets/TantawyRepTargetsView'), 'TantawyRepTargetsView');
+const SmartProfilePage = lazyNamed(() => import('./components/SmartProfilePage'), 'SmartProfilePage');
+const UnifiedRepPerformanceView = lazyNamed(() => import('./components/UnifiedRepPerformanceView'), 'UnifiedRepPerformanceView');
 const CustomerItemSalesView = lazyNamed(() => import('./components/CustomerItemSalesView'), 'CustomerItemSalesView');
 const SupervisorDashboard = lazyNamed(() => import('./components/SupervisorDashboard'), 'SupervisorDashboard');
 const InvoicesManager = lazyNamed(() => import('./components/InvoicesManager'), 'InvoicesManager');
@@ -107,7 +107,6 @@ const InventoryStockView = lazyNamed(() => import('./components/InventoryStockVi
 const ExcelImportExport = lazyNamed(() => import('./components/ExcelImportExport'), 'ExcelImportExport');
 const UserManager = lazyNamed(() => import('./components/UserManager'), 'UserManager');
 const SystemWorkflowGuide = lazyNamed(() => import('./components/SystemWorkflowGuide'), 'SystemWorkflowGuide');
-const TargetPerformanceDashboard = lazyNamed(() => import('./components/TargetPerformanceDashboard'), 'TargetPerformanceDashboard');
 const VisitsDashboard = lazyNamed(() => import('./components/VisitsDashboard'), 'VisitsDashboard');
 const CollectionRecoveryDashboard = lazyNamed(() => import('./components/CollectionRecoveryDashboard'), 'CollectionRecoveryDashboard');
 const UnifiedReturnsView = lazyNamed(() => import('./components/UnifiedReturnsView'), 'UnifiedReturnsView');
@@ -130,6 +129,8 @@ const MainLayout: React.FC = () => {
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [appToastMsg, setAppToastMsg] = useState<string | null>(null);
   const [customerViewMode, setCustomerViewMode] = useState<'cards' | 'analytics'>('cards');
+
+  // تم إهمال customerViewMode بعد دمج العملاء والتارجت في صفحة البروفايل الموحدة (SmartProfilePage)
   const [targetViewMode, setTargetViewMode] = useState<'cards' | 'dashboard'>('cards');
 
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
@@ -323,54 +324,24 @@ const MainLayout: React.FC = () => {
           )}
 
           {activeTab === 'targets' && allowedTabs.includes('targets') && (
-            targetViewMode === 'cards' ? (
-              <TantawyRepTargetsView
-                onOpenAdvancedDashboard={() => setTargetViewMode('dashboard')}
-              />
-            ) : (
-              <div className="space-y-4">
-                <div className="flex justify-between items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl shadow-xs">
-                  <button
-                    onClick={() => setTargetViewMode('cards')}
-                    className="px-4 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition cursor-pointer"
-                  >
-                    <span>← العودة لعرض تارجت المندوبين التنفيذي</span>
-                  </button>
-                  <span className="text-xs text-slate-700 dark:text-slate-300 font-bold">لوحة المؤشرات والتحليلات المتقدمة</span>
-                </div>
-                <TargetPerformanceDashboard />
-              </div>
-            )
+            <UnifiedRepPerformanceView
+              onOpenNewOrderForCustomer={(cust) => {
+                setOrderInitialCustomer(cust);
+                setActiveTab('catalog');
+              }}
+            />
           )}
 
           {activeTab === 'collection' && allowedTabs.includes('collection') && <CollectionRecoveryDashboard />}
 
           {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
           {(activeTab === 'all_customers' || activeTab === 'customers') && (
-            customerViewMode === 'cards' ? (
-              <TantawyCustomerBaseView
-                onOpenNewOrderForCustomer={(cust) => {
-                  setOrderInitialCustomer(cust);
-                  setActiveTab('catalog');
-                }}
-                onOpenAdvancedAnalytics={() => setCustomerViewMode('analytics')}
-                initialSearchQuery={globalSearchQuery}
-                searchSeq={globalSearchSeq}
-              />
-            ) : (
-              <div className="space-y-4">
-                <div className="flex justify-between items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl shadow-xs">
-                  <button
-                    onClick={() => setCustomerViewMode('cards')}
-                    className="px-4 py-2 rounded-xl bg-[#2563EB] hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-2 shadow-xs transition cursor-pointer"
-                  >
-                    <span>← العودة لعرض كروت العملاء التنفيذي</span>
-                  </button>
-                  <span className="text-xs text-slate-700 dark:text-slate-300 font-bold">الشيت المالي والتحليلات المتقدمة للعملاء</span>
-                </div>
-                <AllCustomersAnalyticsView onOpenNewOrderForCustomer={(cust) => { setOrderInitialCustomer(cust); setActiveTab('catalog'); }} />
-              </div>
-            )
+            <SmartProfilePage
+              onOpenNewOrderForCustomer={(cust) => {
+                setOrderInitialCustomer(cust);
+                setActiveTab('catalog');
+              }}
+            />
           )}
           {(activeTab === 'returns' || activeTab === 'returns_customers') && (allowedTabs.includes('returns') || allowedTabs.includes('returns_customers')) && (
             <UnifiedReturnsView />

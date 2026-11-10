@@ -1,0 +1,139 @@
+/* sp fix — كلاسات Tailwind اللي مش بتتولّد في التطبيق (مضمونة) */
+.text-blue-500{color:#3b82f6}.text-purple-500{color:#8b5cf6}.text-violet-500{color:#8b5cf6}
+.bg-black\/50{background-color:rgba(0,0,0,.5)}
+.gap-x-6{column-gap:1.5rem}
+.py-0\.2{padding-top:.05rem;padding-bottom:.05rem}
+.top-1\.5{top:.375rem}.right-1\.5{right:.375rem}
+.decoration-amber-400{text-decoration-color:#fbbf24}
+.shadow-blue-500\/25{box-shadow:0 10px 15px -3px rgba(59,130,246,.25),0 4px 6px -4px rgba(59,130,246,.25)}
+.shadow-emerald-500\/25{box-shadow:0 10px 15px -3px rgba(16,185,129,.25),0 4px 6px -4px rgba(16,185,129,.25)}
+.shadow-navy\/25{box-shadow:0 10px 15px -3px rgba(16,43,78,.25),0 4px 6px -4px rgba(16,43,78,.25)}
+.focus\:bg-white:focus{background-color:#fff}
+.focus\:ring-1:focus{box-shadow:0 0 0 1px var(--tw-ring-color,#3b82f6)}
+.focus\:ring-2:focus{box-shadow:0 0 0 2px var(--tw-ring-color,#3b82f6)}
+.focus\:ring-blue-500\/25:focus{box-shadow:0 0 0 2px rgba(59,130,246,.25)}
+.focus\:ring-emerald-500:focus{--tw-ring-color:#10b981;box-shadow:0 0 0 2px var(--tw-ring-color)}
+.focus\:ring-teal-500:focus{--tw-ring-color:#14b8a6;box-shadow:0 0 0 2px var(--tw-ring-color)}
+.focus\:ring-\[\#009488\]:focus{box-shadow:0 0 0 2px #009488}
+.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}
+.fade-in{animation:tstFadeIn .3s ease-out}.slide-in-from-top-2{animation:tstSlideIn .3s ease-out}
+@keyframes tstFadeIn{from{opacity:0}to{opacity:1}}
+@keyframes tstSlideIn{from{opacity:0;transform:translateY(-.5rem)}to{opacity:1;transform:translateY(0)}}
+.max-h-\[400px\]{max-height:400px}.max-h-\[90vh\]{max-height:90vh}
+.hover\:bg-amber-50\/40:hover{background-color:rgba(255,251,235,.4)}
+.hover\:bg-blue-50\/40:hover{background-color:rgba(239,246,255,.4)}
+.hover\:border-blue-300\/60:hover{border-color:rgba(147,197,253,.6)}
+.hover\:from-emerald-400:hover{--tw-gradient-from:#34d399}
+.hover\:text-rose-500:hover{color:#f43f5e}
+.hover\:to-blue-600:hover{--tw-gradient-to:#2563eb}
+.hover\:to-teal-500:hover{--tw-gradient-to:#14b8a6}
+.hover\:bg-\[\#eef5fd\]:hover{background-color:#eef5fd}
+.hover\:bg-\[\#f6f9fe\]:hover{background-color:#f6f9fe}
+.hover\:bg-\[\#007a70\]:hover{background-color:#007a70}
+.hover\:border-blue-300:hover{border-color:#93c5fd}
+.hover\:text-slate-600:hover{color:#475569}
+.hover\:text-slate-800:hover{color:#1e293b}
+.hover\:text-\[\#0b2337\]:hover{color:#0b2337}
+.hover\:from-blue-500:hover{--tw-gradient-from:#3b82f6}
+.hover\:text-white\/70:hover{color:rgba(255,255,255,.7)}
+.active\:scale-95:active{transform:scale(.95)}
+.active\:scale-\[0\.98\]:active{transform:scale(.98)}
+.active\:scale-\[0\.99\]:active{transform:scale(.99)}
+.group-hover\:opacity-100{transition:opacity .15s}.group:hover .group-hover\:opacity-100{opacity:1}
+.group-hover\:scale-110{transition:transform .15s}.group:hover .group-hover\:scale-110{transform:scale(1.1)}
+.group-hover\:text-teal-600{transition:color .15s}.group:hover .group-hover\:text-teal-600{color:#0d9488}
+.last\:border-0:last-child{border-width:0}
+.placeholder\:text-slate-400::placeholder{color:#94a3b8}
+.disabled\:opacity-40:disabled{opacity:.4}.disabled\:opacity-50:disabled{opacity:.5}.disabled\:opacity-60:disabled{opacity:.6}.disabled\:opacity-70:disabled{opacity:.7}
+.disabled\:cursor-not-allowed:disabled{cursor:not-allowed}
+.hover\:underline:hover{text-decoration:underline}
+.hover\:bg-black\/5:hover{background-color:rgba(0,0,0,.05)}
+.hover\:bg-blue-50:hover{background-color:#eff6ff}
+.hover\:bg-blue-700:hover{background-color:#1d4ed8}
+.hover\:bg-emerald-700:hover{background-color:#047857}
+.hover\:bg-rose-100:hover{background-color:#ffe4e6}
+.hover\:bg-slate-100:hover{background-color:#f1f5f9}
+.hover\:bg-slate-50:hover{background-color:#f8fafc}
+.hover\:bg-amber-100:hover{background-color:#fef3c7}
+.hover\:bg-amber-700:hover{background-color:#b45309}
+.hover\:bg-teal-100:hover{background-color:#ccfbf1}
+.hover\:bg-teal-50:hover{background-color:#f0fdfa}
+.hover\:bg-teal-700:hover{background-color:#0f766e}
+.hover\:bg-white\/20:hover{background-color:rgba(255,255,255,.2)}
+.hover\:border-emerald-300:hover{border-color:#6ee7b7}
+.hover\:border-teal-300:hover{border-color:#5eead4}
+.hover\:text-teal-700:hover{color:#0f766e}
+.hover\:text-white:hover{color:#fff}
+.dark\:bg-slate-800{background-color:#1e293b}
+.dark\:bg-slate-800\/50{background-color:rgba(30,41,59,.5)}
+.dark\:bg-slate-800\/60{background-color:rgba(30,41,59,.6)}
+.dark\:bg-slate-800\/70{background-color:rgba(30,41,59,.7)}
+.dark\:bg-slate-800\/80{background-color:rgba(30,41,59,.8)}
+.dark\:bg-\[\#0b1329\]{background-color:#0b1329}
+.dark\:bg-\[\#0f172a\]{background-color:#0f172a}
+.dark\:border-slate-700{border-color:#334155}
+.dark\:border-slate-800{border-color:#1e293b}
+.dark\:divide-slate-800\/60>:not([hidden])~:not([hidden]){border-color:rgba(30,41,59,.6)}
+.dark\:text-slate-100{color:#f1f5f9}.dark\:text-slate-200{color:#e2e8f0}.dark\:text-slate-300{color:#cbd5e1}
+.dark\:text-slate-400{color:#94a3b8}.dark\:text-amber-300{color:#fcd34d}.dark\:text-blue-300{color:#93c5fd}
+.dark\:text-blue-400{color:#60a5fa}.dark\:text-emerald-300{color:#6ee7b7}.dark\:text-emerald-400{color:#34d399}
+.dark\:text-rose-300{color:#fda4af}.dark\:text-teal-200{color:#99f6e4}.dark\:text-teal-300{color:#5eead4}
+.dark\:text-teal-400{color:#2dd4bf}.dark\:text-white{color:#fff}
+.dark\:hover\:bg-slate-700:hover{background-color:#334155}
+.dark\:hover\:bg-slate-800\/40:hover{background-color:rgba(30,41,59,.4)}
+.dark\:hover\:bg-white\/10:hover{background-color:rgba(255,255,255,.1)}
+.dark\:hover\:border-blue-700:hover{border-color:#1d4ed8}
+.dark\:hover\:border-emerald-700:hover{border-color:#047857}
+.dark\:hover\:border-teal-700:hover{border-color:#0f766e}
+.dark\:hover\:text-teal-300:hover{color:#5eead4}
+.dark\:bg-teal-950\/40{background-color:rgba(19,78,74,.4)}
+.dark\:bg-teal-950\/50{background-color:rgba(19,78,74,.5)}
+.dark\:bg-teal-950\/60{background-color:rgba(19,78,74,.6)}
+.dark\:bg-amber-950\/40{background-color:rgba(69,26,3,.4)}
+.dark\:bg-amber-950\/60{background-color:rgba(69,26,3,.6)}
+.dark\:bg-blue-950\/40{background-color:rgba(23,37,84,.4)}
+.dark\:bg-blue-950\/60{background-color:rgba(23,37,84,.6)}
+.dark\:bg-emerald-950\/40{background-color:rgba(2,44,34,.4)}
+.dark\:bg-emerald-950\/60{background-color:rgba(2,44,34,.6)}
+.dark\:bg-rose-950\/30{background-color:rgba(76,5,25,.3)}
+.dark\:bg-rose-950\/40{background-color:rgba(76,5,25,.4)}
+.dark\:border-amber-700{border-color:#b45309}
+.dark\:border-amber-800{border-color:#92400e}
+.dark\:border-blue-800{border-color:#1e40af}
+.dark\:border-emerald-700{border-color:#047857}
+.dark\:border-emerald-800{border-color:#065f46}
+.dark\:border-rose-800{border-color:#9f1239}
+.dark\:border-rose-900\/50{border-color:rgba(131,24,67,.5)}
+.dark\:border-teal-700{border-color:#0f766e}
+.dark\:border-teal-800{border-color:#115e59}
+.dark\:border-teal-800\/80{border-color:rgba(17,94,89,.8)}
+.dark\:border-teal-900{border-color:#134e4a}
+.dark\:from-teal-950\/30{--tw-gradient-from:rgba(19,78,74,.3)}
+.dark\:to-cyan-950\/20{--tw-gradient-to:rgba(8,47,73,.2)}
+@media (min-width:640px){
+  .sm\:max-w-\[480px\]{max-width:480px}.sm\:max-w-\[560px\]{max-width:560px}.sm\:max-h-\[90vh\]{max-height:90vh}
+  .sm\:p-4{padding:1rem}.sm\:p-5{padding:1.25rem}.sm\:p-6{padding:1.5rem}.sm\:p-7{padding:1.75rem}.sm\:p-8{padding:2rem}
+  .sm\:px-4{padding-left:1rem;padding-right:1rem}.sm\:rounded-3xl{border-radius:1.5rem}
+  .sm\:text-2xl{font-size:1.5rem;line-height:2rem}.sm\:text-3xl{font-size:1.875rem;line-height:2.25rem}
+  .sm\:text-base{font-size:1rem;line-height:1.5rem}.sm\:text-lg{font-size:1.125rem;line-height:1.75rem}
+  .sm\:text-sm{font-size:.875rem;line-height:1.25rem}.sm\:text-xl{font-size:1.25rem;line-height:1.75rem}
+  .sm\:text-xs{font-size:.75rem;line-height:1rem}.sm\:w-auto{width:auto}
+  .sm\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .sm\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .sm\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .sm\:grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .sm\:flex-none{flex:none}.sm\:flex-row{flex-direction:row}.sm\:items-center{align-items:center}
+  .sm\:items-end{align-items:flex-end}.sm\:justify-between{justify-content:space-between}
+  .sm\:self-auto{align-self:auto}.sm\:block{display:block}.sm\:inline{display:inline}
+  .sm\:gap-4{gap:1rem}
+}
+@media (min-width:768px){
+  .md\:p-8{padding:2rem}.md\:block{display:block}.md\:flex-row{flex-direction:row}
+  .md\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .md\:inline{display:inline}.md\:items-center{align-items:center}.md\:hidden{display:none}
+}
+@media (min-width:1024px){
+  .lg\:block{display:block}.lg\:hidden{display:none}.lg\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .lg\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}.lg\:grid-cols-5{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .lg\:p-7{padding:1.75rem}
+}
