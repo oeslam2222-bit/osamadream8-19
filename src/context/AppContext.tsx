@@ -2435,7 +2435,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     if (!isLocalDataHydrated) return;
     let checkInFlight = false;
     let lastHeartbeatCheck = 0;
-    const HEARTBEAT_INTERVAL_MS = 120 * 1000;
+    const HEARTBEAT_INTERVAL_MS = 10 * 60 * 1000;
     // شبكة أمان: لو استعلام البصمة نفسه فشل (عمود updated_at مش موجود أو
     // الشبكة وقعت) بنعمل تحميل كامل مرة كل ساعة. البصمة المحفوظة على الجهاز
     // بتغطي الحالة الطبيعية، فمش محتاجين نعيد تنزيل الجدول عند كل فتح.
@@ -2525,7 +2525,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     };
 
     let lastFocusOrVisibilityCheck = 0;
-    const FOCUS_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
+    const FOCUS_SYNC_COOLDOWN_MS = 10 * 60 * 1000;
 
     const handleFocusOrVisibility = () => {
       if (document.visibilityState === 'hidden') return;
@@ -2547,8 +2547,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     window.addEventListener('focus', handleFocusOrVisibility);
     document.addEventListener('visibilitychange', handleFocusOrVisibility);
-    // Heartbeat every 5 minutes (was 2m/30s). Realtime channel handles immediate Postgres changes.
-    const interval = window.setInterval(heartbeat, 5 * 60 * 1000);
+    // Heartbeat كل 10 دقائق لتقليل egress؛ Realtime + بصمة المحتوى تغطي التحديثات.
+    const interval = window.setInterval(heartbeat, 10 * 60 * 1000);
     const versionChannel = supabase
       .channel('global-data-version-sync')
       .on(
@@ -2764,11 +2764,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     try {
       const channel = supabase
         .channel('schema-db-changes')
-        // Realtime بيبث كل فاتورة جديدة/معدّلة لكل جهاز
-        // موصول — ده من أكبر أسباب نقل البيانات. المندوب
-        // (الأغلبية) بيستقبل فواتيره بس عبر فلتر على
-        // السيرفر، وباقي الأدوار محتاجة كل الفواتير
-        // للموافقات والمتابعة فبيستقبلوا الكل.
+        // Realtime بيبث كل فاتورة جديدة/معدّلة لكل جهاز موصول — أكبر سبب نقل بيانات.
+        // المندوب بيستقبل فواتيره بس عبر فلتر سيرفر؛ باقي الأدوار تحتاج الكل للموافقات.
         .on(
           'postgres_changes',
           {
@@ -2780,185 +2777,115 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
               : {}),
           },
           (payload) => {
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const raw = payload.new as any;
-            if (raw && raw.id) {
-              const mappedInv: Invoice = {
-                id: raw.id,
-                invoiceNumber: raw.invoice_number || raw.invoiceNumber || 'DRM-INV',
-  customerName: raw.customer_name || raw.customerName || 'عميل',
-  customerCode: raw.customer_code || raw.customerCode || undefined,
-  customerPhone: raw.customer_phone || raw.customerPhone || '',
-                customerAddress: raw.customer_address || raw.customerAddress || '',
-                customerTaxNumber: raw.customer_tax_number || raw.customerTaxNumber || '',
-                date: raw.date || (raw.created_at ? raw.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10)),
-                time: raw.time || (raw.created_at ? raw.created_at.slice(11, 19) : ''),
-                repId: raw.rep_id || raw.repId || 'u-rep',
-                repName: raw.rep_name || raw.repName || 'مندوب المبيعات',
-                supervisorName: raw.supervisor_name || raw.supervisorName || 'مشرف الفرع',
-                branchName: raw.branch_name || raw.branchName || 'الفرع الرئيسي',
-                items: Array.isArray(raw.items) ? raw.items : typeof raw.items === 'string' ? JSON.parse(raw.items) : [],
-                totalCartons: raw.total_cartons || raw.totalCartons || 0,
-                totalPieces: raw.total_pieces || raw.totalPieces || 0,
-                subtotal: raw.subtotal || raw.estimated_grand_total || 0,
-                discountPercentage: raw.discount_percentage || 0,
-                discountAmount: raw.discount_amount || raw.discountAmount || 0,
-                taxPercentage: 0,
-                taxAmount: 0,
-                estimatedGrandTotal: raw.estimated_grand_total || raw.estimatedGrandTotal || 0,
-                paymentMethod: raw.payment_method || raw.paymentMethod || 'نقدي (كاش)',
-                status: raw.status || 'قيد مراجعة المشرف',
-                notes: raw.notes || '',
-                syncedToAccounting: raw.synced_to_accounting || false,
-                hasShortageSplit: raw.has_shortage_split || false,
-                shortageInvoiceNumber: raw.shortage_invoice_number,
-                isShortageInvoice: raw.is_shortage_invoice || false,
-                parentInvoiceId: raw.parent_invoice_id,
-                parentInvoiceNumber: raw.parent_invoice_number,
-                qrPayload: raw.qr_payload,
-              };
-              setInvoices((prev) => {
-                const map = new Map<string, Invoice>();
-                prev.forEach((i) => map.set(i.id, i));
-                map.set(mappedInv.id, mappedInv);
-                const next = Array.from(map.values());
-                idbSet(STORAGE_KEYS.INVOICES, next);
-                return next;
-              });
-            }
-          } else if (payload.eventType === 'DELETE') {
-            const deleted = payload.old as any;
-            if (deleted?.id) {
-              markInvoiceAsDeletedInStorage(deleted.id);
-              setInvoices((prev) => {
-                const next = prev.filter((invoice) => invoice.id !== deleted.id);
-                idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
-                safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(next));
-                return next;
-              });
-            }
-          }
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'customers' }, (payload) => {
-          if (payload.eventType === 'DELETE') {
-            const deleted = payload.old as any;
-            if (deleted?.id) {
-              setCustomers((prev) => {
-                const next = prev.filter((c) => c.id !== deleted.id);
-                idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
-                saveLocalCustomersFingerprint(next);
-                return next;
-              });
-            }
-          }
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'customer_comments' }, (payload) => {
-          if (payload.eventType === 'DELETE') {
-            const deleted = payload.old as any;
-            if (deleted?.id) {
-              setCustomerComments((prev) => {
-                const next = prev.filter((c) => c.id !== deleted.id);
-                idbSet(STORAGE_KEYS.CUSTOMER_COMMENTS, next).catch(() => {});
-                return next;
-              });
-            }
-          }
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'collection_forecasts' }, (payload) => {
-          if (payload.eventType === 'DELETE') {
-            const deleted = payload.old as any;
-            if (deleted?.id) {
-              setForecasts((prev) => {
-                const next = prev.filter((f) => f.id !== deleted.id);
-                idbSet(STORAGE_KEYS.FORECASTS, next).catch(() => {});
-                safeLocalStorageSet(STORAGE_KEYS.FORECASTS, JSON.stringify(next));
-                return next;
-              });
-            }
-          }
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'targets' }, (payload) => {
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const raw = payload.new as any;
-            if (raw && raw.id) {
-              const mappedTarget: TargetRecord = {
-                id: String(raw.id),
-                branch: resolveBranchName(raw.branch) || raw.branch || '',
-                repName: raw.rep_name || '',
-                salesTarget: Number(raw.sales_target || 0),
-                salesAchieved: Number(raw.sales_achieved || 0),
-                salesPercentage: Number(raw.sales_percentage || 0),
-                collectionTarget: Number(raw.collection_target || 0),
-                collectionAchieved: Number(raw.collection_achieved || 0),
-                collectionPercentage: Number(raw.collection_percentage || 0),
-                date: raw.target_date || '',
-                month: Number(raw.month),
-                year: Number(raw.year),
-                quarter: raw.quarter,
-                remainingSales: Number(raw.remaining_sales || 0),
-                remainingCollection: Number(raw.remaining_collection || 0),
-                updatedAt: raw.updated_at,
-                notes: raw.notes || undefined,
-              };
-              setTargets((prev) => {
-                const idx = prev.findIndex((t) => t.id === mappedTarget.id);
-                if (idx >= 0) {
-                  const next = [...prev];
-                  next[idx] = mappedTarget;
+            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+              const raw = payload.new as any;
+              if (raw && raw.id) {
+                const mappedInv: Invoice = {
+                  id: raw.id,
+                  invoiceNumber: raw.invoice_number || raw.invoiceNumber || 'DRM-INV',
+                  customerName: raw.customer_name || raw.customerName || 'عميل',
+                  customerCode: raw.customer_code || raw.customerCode || undefined,
+                  customerPhone: raw.customer_phone || raw.customerPhone || '',
+                  customerAddress: raw.customer_address || raw.customerAddress || '',
+                  customerTaxNumber: raw.customer_tax_number || raw.customerTaxNumber || '',
+                  date: raw.date || (raw.created_at ? raw.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10)),
+                  time: raw.time || (raw.created_at ? raw.created_at.slice(11, 19) : ''),
+                  repId: raw.rep_id || raw.repId || 'u-rep',
+                  repName: raw.rep_name || raw.repName || 'مندوب المبيعات',
+                  supervisorName: raw.supervisor_name || raw.supervisorName || 'مشرف الفرع',
+                  branchName: raw.branch_name || raw.branchName || 'الفرع الرئيسي',
+                  items: Array.isArray(raw.items) ? raw.items : typeof raw.items === 'string' ? JSON.parse(raw.items) : [],
+                  totalCartons: raw.total_cartons || raw.totalCartons || 0,
+                  totalPieces: raw.total_pieces || raw.totalPieces || 0,
+                  subtotal: raw.subtotal || raw.estimated_grand_total || 0,
+                  discountPercentage: raw.discount_percentage || 0,
+                  discountAmount: raw.discount_amount || raw.discountAmount || 0,
+                  taxPercentage: 0,
+                  taxAmount: 0,
+                  estimatedGrandTotal: raw.estimated_grand_total || raw.estimatedGrandTotal || 0,
+                  paymentMethod: raw.payment_method || raw.paymentMethod || 'نقدي (كاش)',
+                  status: raw.status || 'قيد مراجعة المشرف',
+                  notes: raw.notes || '',
+                  syncedToAccounting: raw.synced_to_accounting || false,
+                  hasShortageSplit: raw.has_shortage_split || false,
+                  shortageInvoiceNumber: raw.shortage_invoice_number,
+                  isShortageInvoice: raw.is_shortage_invoice || false,
+                  parentInvoiceId: raw.parent_invoice_id,
+                  parentInvoiceNumber: raw.parent_invoice_number,
+                  qrPayload: raw.qr_payload,
+                };
+                setInvoices((prev) => {
+                  const map = new Map<string, Invoice>();
+                  prev.forEach((i) => map.set(i.id, i));
+                  map.set(mappedInv.id, mappedInv);
+                  const next = Array.from(map.values());
+                  idbSet(STORAGE_KEYS.INVOICES, next);
                   return next;
-                }
-                return [...prev, mappedTarget];
-              });
-            }
-          } else if (payload.eventType === 'DELETE') {
-            const deleted = payload.old as any;
-            if (deleted?.id) {
-              setTargets((prev) => prev.filter((t) => t.id !== String(deleted.id)));
+                });
+              }
+            } else if (payload.eventType === 'DELETE') {
+              const deleted = payload.old as any;
+              if (deleted?.id) {
+                markInvoiceAsDeletedInStorage(deleted.id);
+                setInvoices((prev) => {
+                  const next = prev.filter((invoice) => invoice.id !== deleted.id);
+                  idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
+                  safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(next));
+                  return next;
+                });
+              }
             }
           }
+        )
+        // DELETE-only لتقليل egress: إدراج/تعديل العملاء والأهداف والزيارات والتوقعات
+        // تُجلب عبر بصمة/فحص دوري أو عند الطلب بدل بث الحمولة الكاملة لكل الأجهزة.
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'customers' }, (payload) => {
+          const deleted = payload.old as any;
+          if (deleted?.id) {
+            setCustomers((prev) => {
+              const next = prev.filter((c) => c.id !== deleted.id);
+              idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
+              saveLocalCustomersFingerprint(next);
+              return next;
+            });
+          }
         })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'visits' }, (payload) => {
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-            const raw = payload.new as any;
-            if (raw && raw.id) {
-              const mappedVisit: CustomerVisit = {
-                id: raw.id,
-                customerId: raw.customer_id || raw.customerId || '',
-                customerName: raw.customer_name || raw.customerName || '',
-                customerCode: raw.customer_code || raw.customerCode || '',
-                date: raw.date || '',
-                time: raw.time || '',
-                repId: raw.rep_id || raw.repId || '',
-                repName: raw.rep_name || raw.repName || 'المندوب',
-                branchName: raw.branch_name || raw.branchName || '',
-                supervisorId: raw.supervisor_id || raw.supervisorId || '',
-                supervisorName: raw.supervisor_name || raw.supervisorName || '',
-                status: raw.status || 'مجدولة',
-                type: raw.type || 'زيارة دورية',
-                outcome: raw.outcome || '',
-                collectedAmount: Number(raw.collected_amount ?? raw.collectedAmount ?? 0),
-                notes: raw.notes || '',
-                createdBy: raw.created_by || raw.createdBy || '',
-                createdAt: raw.created_at || raw.createdAt || new Date().toISOString(),
-                updatedAt: raw.updated_at || raw.updatedAt,
-              };
-              setVisits((prev) => {
-                const map = new Map<string, CustomerVisit>();
-                prev.forEach((v) => map.set(v.id, v));
-                map.set(mappedVisit.id, mappedVisit);
-                return Array.from(map.values());
-              });
-            }
-          } else if (payload.eventType === 'DELETE') {
-            const deleted = payload.old as any;
-            if (deleted?.id) {
-              markVisitAsDeletedInStorage(deleted.id);
-              setVisits((prev) => {
-                const next = prev.filter((v) => v.id !== deleted.id);
-                persistVisits(next);
-                return next;
-              });
-            }
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'customer_comments' }, (payload) => {
+          const deleted = payload.old as any;
+          if (deleted?.id) {
+            setCustomerComments((prev) => {
+              const next = prev.filter((c) => c.id !== deleted.id);
+              idbSet(STORAGE_KEYS.CUSTOMER_COMMENTS, next).catch(() => {});
+              return next;
+            });
+          }
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'collection_forecasts' }, (payload) => {
+          const deleted = payload.old as any;
+          if (deleted?.id) {
+            setForecasts((prev) => {
+              const next = prev.filter((f) => f.id !== deleted.id);
+              idbSet(STORAGE_KEYS.FORECASTS, next).catch(() => {});
+              safeLocalStorageSet(STORAGE_KEYS.FORECASTS, JSON.stringify(next));
+              return next;
+            });
+          }
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'targets' }, (payload) => {
+          const deleted = payload.old as any;
+          if (deleted?.id) {
+            setTargets((prev) => prev.filter((t) => t.id !== String(deleted.id)));
+          }
+        })
+        .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'visits' }, (payload) => {
+          const deleted = payload.old as any;
+          if (deleted?.id) {
+            markVisitAsDeletedInStorage(deleted.id);
+            setVisits((prev) => {
+              const next = prev.filter((v) => v.id !== deleted.id);
+              persistVisits(next);
+              return next;
+            });
           }
         })
         .subscribe();
