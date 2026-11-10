@@ -3,10 +3,10 @@ import {
   ShoppingCart, Wallet, PackageSearch, MapPin, RotateCcw, TrendingUp,
   Users, ArrowUpRight, Target, CalendarCheck, ReceiptText,
   CircleDollarSign, Activity, Boxes, ClipboardList, BarChart3, Flame,
-  Sparkles,
+  Sparkles, CreditCard, AlertTriangle, Coins, FileText, Building2,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import type { Invoice } from '../types';
+import type { Invoice, Customer } from '../types';
 
 interface DreamDeliveryDashboardProps {
   onNavigate?: (tab: string) => void;
@@ -33,7 +33,42 @@ function invoiceValue(invoice: Invoice): number {
   return Number(invoice.totalAmount ?? invoice.estimatedGrandTotal ?? 0) || 0;
 }
 
-const AVATAR_COLORS = ['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-violet-500', 'bg-rose-500'];
+function isDealingCustomer(c: Customer): boolean {
+  const raw = String((c as any).dealStatus ?? (c as any).isDealing ?? (c as any).customerType ?? (c as any).status ?? '').trim();
+  const lower = raw.toLowerCase();
+  if (lower === 'متعامل' || lower === 'dealing' || lower === 'active' || lower === 'نشط' || lower === 'true') return true;
+  if (lower === 'غير متعامل' || lower === 'non-dealing' || lower === 'inactive' || lower === 'غير نشط' || lower === 'false') return false;
+  const dealCol = String((c as any).قابل ?? (c as any).isEligible ?? (c as any).eligible ?? '').trim();
+  const dealLower = dealCol.toLowerCase();
+  if (dealLower === 'قابل' || dealLower === 'yes' || dealLower === 'true' || dealLower === '1') return true;
+  if (dealLower === 'غير قابل' || dealLower === 'no' || dealLower === 'false' || dealLower === '0') return false;
+  return Number(c.currentBalance ?? c.balance ?? 0) > 0 || Number(c.totalSpent ?? c.totalOverallSales ?? 0) > 0;
+}
+
+function classifyCustomer(c: Customer): 'dealing' | 'eligible' | 'notEligible' {
+  const dealCol = String((c as any).قابل ?? (c as any).dealStatus ?? (c as any).isDealing ?? (c as any).customerType ?? (c as any).status ?? '').trim();
+  const lower = dealCol.toLowerCase();
+
+  // غير قابل للتعامل
+  if (lower === 'غير قابل' || lower === 'no' || lower === 'false' || lower === '0' || lower === 'غير نشط' || lower === 'inactive') {
+    return 'notEligible';
+  }
+
+  // قابل للتعامل (مؤهل للتعامل)
+  if (lower === 'قابل' || lower === 'yes' || lower === 'true' || lower === '1') {
+    return 'eligible';
+  }
+
+  // متعامل - لديه نشاط حقيقي (مبيعات أو طلبات أو رصيد)
+  const hasActivity = Number(c.totalSpent ?? c.totalOverallSales ?? 0) > 0 ||
+    Number(c.totalOrdersCount ?? 0) > 0 ||
+    Number(c.currentBalance ?? c.balance ?? 0) > 0;
+
+  if (hasActivity) return 'dealing';
+
+  // افتراضياً قابل للتعامل إذا لم يُحدد بوضوح وغير نشط
+  return 'eligible';
+}
 
 export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ onNavigate }) => {
   const {
@@ -47,20 +82,9 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
     getVisibleTargets,
   } = useApp();
 
-  const visibleInvoices = useMemo(
-    () => getVisibleInvoices(),
-    [invoices, currentUser?.id, currentUser?.role, currentUser?.branchName]
-  );
-
-  const visibleCustomers = useMemo(
-    () => getVisibleCustomers(),
-    [customers, currentUser?.id, currentUser?.role, currentUser?.branchName]
-  );
-
-  const visibleTargetRows = useMemo(
-    () => getVisibleTargets(),
-    [targets, currentUser?.id, currentUser?.role, currentUser?.branchName]
-  );
+  const visibleInvoices = useMemo(() => getVisibleInvoices(), [invoices, currentUser?.id, currentUser?.role, currentUser?.branchName]);
+  const visibleCustomers = useMemo(() => getVisibleCustomers(), [customers, currentUser?.id, currentUser?.role, currentUser?.branchName]);
+  const visibleTargetRows = useMemo(() => getVisibleTargets(), [targets, currentUser?.id, currentUser?.role, currentUser?.branchName]);
 
   const today = new Date();
   const todayKey = today.toISOString().slice(0, 10);
@@ -88,6 +112,11 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
   const monthSalesTarget = monthRows.reduce((sum, r) => sum + (Number(r.salesTarget) || 0), 0);
   const monthCollection = monthRows.reduce((sum, r) => sum + (Number(r.collectionAchieved) || 0), 0);
   const monthCollectionTarget = monthRows.reduce((sum, r) => sum + (Number(r.collectionTarget) || 0), 0);
+
+  const salesPercent = monthSalesTarget > 0 ? Math.round((monthSales / monthSalesTarget) * 100) : 0;
+  const collectionPercent = monthCollectionTarget > 0 ? Math.round((monthCollection / monthCollectionTarget) * 100) : 0;
+  const salesRemaining = Math.max(0, monthSalesTarget - monthSales);
+  const collectionRemaining = Math.max(0, monthCollectionTarget - monthCollection);
 
   const periodInvoices = useMemo(
     () => visibleInvoices.filter((inv) => invoiceMonth(inv) === latestPeriod.key),
@@ -138,34 +167,25 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
 
   const maxSeries = Math.max(1, ...monthlySeries.map((m) => Math.max(m.sales, m.collection)));
 
-  const tierBuckets = useMemo(() => {
-    const buckets = { premium: 0, high: 0, medium: 0, regular: 0 };
+  const customerCounts = useMemo(() => {
+    let dealing = 0;
+    let notEligible = 0;
+    let eligible = 0;
     for (const c of visibleCustomers) {
-      if (c.tier === 'مميز') buckets.premium++;
-      else if (c.tier === 'راقي') buckets.high++;
-      else if (c.tier === 'متوسط') buckets.medium++;
-      else buckets.regular++;
+      const cls = classifyCustomer(c);
+      if (cls === 'dealing') dealing++;
+      else if (cls === 'notEligible') notEligible++;
+      else eligible++;
     }
-    return buckets;
+    return { dealing, notEligible, eligible, total: visibleCustomers.length };
   }, [visibleCustomers]);
 
-  const tierTotal = Math.max(1, tierBuckets.premium + tierBuckets.high + tierBuckets.medium + tierBuckets.regular);
-  const hasCustomers = visibleCustomers.length > 0;
-  const tierSegments = [
-    { label: 'مميز A', value: tierBuckets.premium, color: '#2563eb' },
-    { label: 'راقي B', value: tierBuckets.high, color: '#10b981' },
-    { label: 'متوسط C', value: tierBuckets.medium, color: '#f59e0b' },
-    { label: 'عادي', value: tierBuckets.regular, color: '#8b5cf6' },
-  ];
-
-  let cursor = 0;
-  const donutGradient = tierSegments
-    .map((seg) => {
-      const start = cursor;
-      cursor += (seg.value / tierTotal) * 100;
-      return `${seg.color} ${start.toFixed(2)}% ${cursor.toFixed(2)}%`;
-    })
-    .join(', ');
+  const totalDebt = visibleCustomers.reduce((sum, c) => sum + (Number(c.currentBalance ?? c.balance ?? 0) || 0), 0);
+  const totalReceivable = visibleCustomers.reduce((sum, c) => sum + (Number(c.creditLimit ?? 0) || 0), 0);
+  const totalCollectedToday = periodVisits
+    .filter((v) => String(v.date || '').slice(0, 10) === todayKey && v.collectedAmount)
+    .reduce((sum, v) => sum + (v.collectedAmount || 0), 0);
+  const totalSalesToday = ordersToday.reduce((sum, inv) => sum + invoiceValue(inv), 0);
 
   const activities = useMemo(() => {
     const invoiceEvents = [...visibleInvoices]
@@ -197,25 +217,8 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
       .slice(0, 5);
   }, [visibleInvoices, visibleVisits]);
 
-  const salesPercent = monthSalesTarget > 0 ? Math.round((monthSales / monthSalesTarget) * 100) : 0;
-  const collectionPercent = monthCollectionTarget > 0 ? Math.round((monthCollection / monthCollectionTarget) * 100) : 0;
   const displayName = (currentUser?.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'بك';
   const initials = displayName.charAt(0).toUpperCase();
-
-  const kpis = [
-    { key: 'sales', label: 'إجمالي المبيعات', value: `${fmt(monthSales)} ج.م`, hint: `${salesPercent}% من مستهدف ${MONTHS_AR[latestPeriod.month - 1]}`, icon: ShoppingCart, tone: 'blue', tab: 'targets' },
-    { key: 'collection', label: 'التحصيلات', value: `${fmt(monthCollection)} ج.م`, hint: `${collectionPercent}% من مستهدف التحصيل`, icon: Wallet, tone: 'emerald', tab: 'collection' },
-    { key: 'orders', label: 'عدد الطلبات', value: fmt(periodInvoices.length), hint: `${fmt(ordersToday.length)} طلب مسجل اليوم`, icon: PackageSearch, tone: 'amber', tab: 'invoices' },
-    { key: 'visits', label: 'الزيارات', value: fmt(periodVisits.length), hint: `${fmt(visitsToday.length)} زيارة اليوم`, icon: MapPin, tone: 'violet', tab: 'visits' },
-    { key: 'returns', label: 'المرتجعات', value: fmt(returnsCount), hint: 'طلبيات عليها مرتجع', icon: RotateCcw, tone: 'red', tab: 'returns' },
-  ];
-
-  const quickStats = [
-    { label: 'إجمالي العملاء', value: fmt(visibleCustomers.length), icon: Users, tone: 'blue' },
-    { label: 'طلبات اليوم', value: fmt(ordersToday.length), icon: PackageSearch, tone: 'emerald' },
-    { label: 'زيارات اليوم', value: fmt(visitsToday.length), icon: MapPin, tone: 'violet' },
-    { label: 'تحصيلات نقدية', value: fmt(periodInvoices.filter((i) => i.paymentMethod === 'نقدي (كاش)').length), icon: CircleDollarSign, tone: 'amber' },
-  ];
 
   const quickActions = [
     { label: 'الكتالوج', icon: Boxes, onClick: () => onNavigate?.('catalog'), primary: true },
@@ -224,6 +227,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
     { label: 'التحصيلات', icon: Wallet, onClick: () => onNavigate?.('collections') },
   ];
 
+  const AVATAR_COLORS = ['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-violet-500', 'bg-rose-500'];
   const avatarBg = AVATAR_COLORS[displayName.length % AVATAR_COLORS.length];
 
   return (
@@ -284,33 +288,89 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
             </div>
             <div className="tg-mini tg-mini--wide">
               <span className="tg-mini__rem-label">متبقي مبيعات الشهر</span>
-              <span className="tg-mini__rem-value">{fmt(Math.max(0, monthSalesTarget - monthSales))} ج.م</span>
+              <span className="tg-mini__rem-value">{fmt(salesRemaining)} ج.م</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ---------- مؤشرات ---------- */}
-      <section className="tg-kpis">
-        {kpis.map((kpi) => {
-          const Icon = kpi.icon;
-          return (
-            <button key={kpi.key} type="button" onClick={() => onNavigate?.(kpi.tab)} className={`tg-kpi tg-kpi--${kpi.tone}`}>
-              <div className="tg-kpi__top">
-                <span className="tg-kpi__icon"><Icon size={20} /></span>
-                <ArrowUpRight size={16} className="tg-kpi__arrow" />
-              </div>
-              <span className="tg-kpi__value">{kpi.value}</span>
-              <span className="tg-kpi__label">{kpi.label}</span>
-              <span className="tg-kpi__hint">{kpi.hint}</span>
-            </button>
-          );
-        })}
+      {/* ---------- كروت الأهداف الأربعة (مديونيات، مستحقات، تارجت بيع، تارجت تحصيل) ---------- */}
+      <section className="tg-target-row">
+        <div className="tg-target-card tg-target-card--debt">
+          <div className="tg-target__icon"><CreditCard size={20} className="text-red-500" /></div>
+          <div className="tg-target__value">{fmt(totalDebt)} ج.م</div>
+          <div className="tg-target__label">مديونيات العملاء</div>
+          <div className="tg-target__sub">إجمالي الرصيد القائم على العملاء</div>
+        </div>
+        <div className="tg-target-card tg-target-card--receivable">
+          <div className="tg-target__icon"><Coins size={20} className="text-emerald-500" /></div>
+          <div className="tg-target__value">{fmt(totalReceivable)} ج.م</div>
+          <div className="tg-target__label">مستحقات العملاء</div>
+          <div className="tg-target__sub">إجمالي سقف الائتمان الممنوح</div>
+        </div>
+        <div className="tg-target-card tg-target-card--sales">
+          <div className="tg-target__icon"><ShoppingCart size={20} className="text-blue-500" /></div>
+          <div className="tg-target__value">{fmt(monthSales)} ج.م</div>
+          <div className="tg-target__label">تارجت البيع — المحقق</div>
+          <div className="tg-target__sub">
+            من {fmt(monthSalesTarget)} ج.م — {salesPercent}%
+            <span className={`tg-target__pct ${salesPercent >= 80 ? 'text-emerald-600' : salesPercent >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+              {salesPercent >= 80 ? 'ممتاز' : salesPercent >= 50 ? 'جيد' : 'يحتاج تحسين'}
+            </span>
+          </div>
+        </div>
+        <div className="tg-target-card tg-target-card--collection">
+          <div className="tg-target__icon"><Wallet size={20} className="text-purple-500" /></div>
+          <div className="tg-target__value">{fmt(monthCollection)} ج.م</div>
+          <div className="tg-target__label">تارجت التحصيل — المحقق</div>
+          <div className="tg-target__sub">
+            من {fmt(monthCollectionTarget)} ج.م — {collectionPercent}%
+            <span className={`tg-target__pct ${collectionPercent >= 80 ? 'text-emerald-600' : collectionPercent >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+              {collectionPercent >= 80 ? 'ممتاز' : collectionPercent >= 50 ? 'جيد' : 'يحتاج تحسين'}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      {/* ---------- كروت الأداء السريع (أداء اليوم) ---------- */}
+      <section className="tg-quick-row">
+        <div className="tg-quick-card">
+          <div className="tg-q__icon"><CalendarCheck size={18} className="text-blue-500" /></div>
+          <div className="tg-q__body">
+            <div className="tg-q__label">أداء اليوم</div>
+            <div className="tg-q__value">{today.toLocaleDateString('ar-EG', { day: 'numeric', month: 'numeric' })}</div>
+            <div className="tg-q__sub">مبيعات اليوم: {fmt(totalSalesToday)} ج.م • تحصيل اليوم: {fmt(totalCollectedToday)} ج.م</div>
+          </div>
+        </div>
+        <div className="tg-quick-card">
+          <div className="tg-q__icon"><ShoppingCart size={18} className="text-emerald-500" /></div>
+          <div className="tg-q__body">
+            <div className="tg-q__label">طلبات اليوم</div>
+            <div className="tg-q__value">{fmt(ordersToday.length)}</div>
+            <div className="tg-q__sub">طلبية مسجلة في {todayKey}</div>
+          </div>
+        </div>
+        <div className="tg-quick-card">
+          <div className="tg-q__icon"><MapPin size={18} className="text-violet-500" /></div>
+          <div className="tg-q__body">
+            <div className="tg-q__label">زيارات اليوم</div>
+            <div className="tg-q__value">{fmt(visitsToday.length)}</div>
+            <div className="tg-q__sub">زيارات منفذة اليوم</div>
+          </div>
+        </div>
+        <div className="tg-quick-card">
+          <div className="tg-q__icon"><AlertTriangle size={18} className="text-amber-500" /></div>
+          <div className="tg-q__body">
+            <div className="tg-q__label">المرتجعات</div>
+            <div className="tg-q__value">{fmt(returnsCount)}</div>
+            <div className="tg-q__sub">طلبيات عليها مرتجع هذا الشهر</div>
+          </div>
+        </div>
       </section>
 
       {/* ---------- تحليلات ---------- */}
       <section className="tg-analytics">
-        {/* أداء المبيعات */}
+        {/* أداء المبيعات والتحصيلات — آخر 6 شهور */}
         <div className="tg-card tg-analytics__wide">
           <div className="tg-card__head">
             <span className="tg-card__title">أداء المبيعات والتحصيلات — آخر 6 شهور</span>
@@ -346,53 +406,59 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
           </div>
         </div>
 
-        {/* توزيع العملاء */}
+        {/* تصنيف العملاء (3 تصنيفات) */}
         <div className="tg-card">
           <div className="tg-card__head">
             <span className="tg-card__title">تصنيف العملاء</span>
-            <span className="tg-card__hint">{fmt(visibleCustomers.length)} عميل</span>
+            <span className="tg-card__hint">{fmt(customerCounts.total)} عميل</span>
           </div>
-          <div className="tg-donut-wrap">
-            <div
-              className="tg-donut"
-              style={{ background: hasCustomers ? `conic-gradient(${donutGradient})` : '#e6edf6' }}
-            >
-              <div className="tg-donut__hole">
-                <span className="tg-donut__total">{fmt(visibleCustomers.length)}</span>
-                <span className="tg-donut__cap">إجمالي</span>
+          <div className="tg-class-grid">
+            <div className="tg-class-item tg-class-item--dealing">
+              <Users size={20} className="text-emerald-600" />
+              <div className="tg-class__info">
+                <div className="tg-class__label">العملاء المتعاملين</div>
+                <div className="tg-class__value">{fmt(customerCounts.dealing)}</div>
               </div>
             </div>
-            <div className="tg-legend">
-              {tierSegments.map((seg) => (
-                <div key={seg.label} className="tg-legend__row">
-                  <span className="tg-legend__left">
-                    <span className="tg-legend__dot" style={{ background: seg.color }} />
-                    {seg.label}
-                  </span>
-                  <span className="tg-legend__val">
-                    {hasCustomers ? Math.round((seg.value / tierTotal) * 100) : 0}%
-                    <span className="tg-legend__pct"> ({fmt(seg.value)})</span>
-                  </span>
-                </div>
-              ))}
+            <div className="tg-class-item tg-class-item--eligible">
+              <Flame size={20} className="text-amber-500" />
+              <div className="tg-class__info">
+                <div className="tg-class__label">قابل للتعامل</div>
+                <div className="tg-class__value">{fmt(customerCounts.eligible)}</div>
+              </div>
+            </div>
+            <div className="tg-class-item tg-class-item--noteligible">
+              <UserOfflineIcon size={20} />
+              <div className="tg-class__info">
+                <div className="tg-class__label">غير قابل للتعامل</div>
+                <div className="tg-class__value">{fmt(customerCounts.notEligible)}</div>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* معلومات سريعة */}
+        {/* معلومات سريعة إضافية */}
         <div className="tg-card">
           <div className="tg-card__head">
             <span className="tg-card__title">معلومات سريعة</span>
             <CalendarCheck size={16} className="tg-card__head-icon" />
           </div>
           <div className="tg-stats">
-            {quickStats.map((stat) => {
+            {[
+              { label: 'مبيعات الشهر', value: `${fmt(monthSales)} ج.م`, icon: ShoppingCart, tone: 'blue', sub: `من ${fmt(monthSalesTarget)}` },
+              { label: 'تحصيلات الشهر', value: `${fmt(monthCollection)} ج.م`, icon: Wallet, tone: 'emerald', sub: `من ${fmt(monthCollectionTarget)}` },
+              { label: 'مرتجعات العملاء', value: fmt(returnsCount), icon: RotateCcw, tone: 'red', sub: 'هذا الشهر' },
+              { label: 'أوامر البيع', value: fmt(periodInvoices.length), icon: PackageSearch, tone: 'violet', sub: 'هذا الشهر' },
+            ].map((stat, i) => {
               const Icon = stat.icon;
               return (
-                <div key={stat.label} className={`tg-stat tg-stat--${stat.tone}`}>
+                <div key={stat.label} className={`tg-stat tg-stat--${stat.tone} tg-stat--colored`}>
                   <Icon size={16} />
-                  <div className="tg-stat__value">{stat.value}</div>
-                  <div className="tg-stat__label">{stat.label}</div>
+                  <div className="tg-stat__body">
+                    <div className="tg-stat__value">{stat.value}</div>
+                    <div className="tg-stat__label">{stat.label}</div>
+                    {stat.sub && <div className="tg-stat__sub">{stat.sub}</div>}
+                  </div>
                 </div>
               );
             })}
@@ -455,5 +521,15 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
     </div>
   );
 };
+
+function UserOfflineIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="8.5" cy="7" r="4" />
+      <line x1="18" x2="18" y1="1" y2="9" />
+    </svg>
+  );
+}
 
 export default DreamDeliveryDashboard;

@@ -173,7 +173,8 @@ export const InventoryStockView: React.FC = () => {
           p.code.toLowerCase().includes(q) ||
           p.name.toLowerCase().includes(q) ||
           p.category.toLowerCase().includes(q) ||
-          p.department?.toLowerCase().includes(q);
+          p.department?.toLowerCase().includes(q) ||
+          Number(p.piecePrice ?? 0).toString().includes(q);
         if (!match) return false;
       }
 
@@ -342,7 +343,7 @@ export const InventoryStockView: React.FC = () => {
           className={`p-3.5 sm:p-4 rounded-3xl border transition cursor-pointer flex flex-col justify-between ${
             stockLevelFilter === 'in_branch'
               ? 'bg-[rgba(46,125,91,.08)] border-[rgba(46,125,91,.4)] ring-2 ring-[rgba(46,125,91,.28)]'
-              : 'bg-white border-slate-200 hover:border-[rgba(46,125,91,.45)]'
+              : 'bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 hover:border-emerald-300'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -354,9 +355,9 @@ export const InventoryStockView: React.FC = () => {
             </span>
           </div>
           <div className="mt-2">
-            <div className="text-[11px] text-slate-500 font-bold">متوفر بمخزن الفرع</div>
+            <div className="text-[11px] text-emerald-700 font-black">متوفر بمخزن الفرع</div>
             <div className="text-xl sm:text-2xl font-black t-ok app-num">
-              {stockMetrics.inBranchCount} <span className="text-xs font-bold text-slate-500">صنف</span>
+              {stockMetrics.inBranchCount} <span className="text-xs font-bold text-emerald-600">صنف</span>
             </div>
             <div className="text-[10px] t-ok font-semibold mt-0.5">جاهز للتسليم الفوري بدون تحويل</div>
           </div>
@@ -368,7 +369,7 @@ export const InventoryStockView: React.FC = () => {
           className={`p-3.5 sm:p-4 rounded-3xl border transition cursor-pointer flex flex-col justify-between ${
             stockLevelFilter === 'needs_transfer'
               ? 'bg-[rgba(16,43,78,.06)] border-[rgba(16,43,78,.38)] ring-2 ring-[rgba(16,43,78,.25)]'
-              : 'bg-white border-slate-200 hover:border-[rgba(16,43,78,.45)]'
+              : 'bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 hover:border-blue-300'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -382,7 +383,7 @@ export const InventoryStockView: React.FC = () => {
           <div className="mt-2">
             <div className="text-sm sm:text-base t-navy font-black">طلب تحويل — يحتاج تحويل من أكتوبر</div>
             <div className="text-xl sm:text-2xl font-black t-navy app-num">
-              {stockMetrics.needsTransferCount} <span className="text-xs font-bold text-slate-500">صنف</span>
+              {stockMetrics.needsTransferCount} <span className="text-xs font-bold text-blue-600">صنف</span>
             </div>
             <div className="text-[10px] t-navy font-semibold mt-0.5">عجز بالفرع ومتوفر بالمخزن الرئيسي</div>
           </div>
@@ -394,7 +395,7 @@ export const InventoryStockView: React.FC = () => {
           className={`p-3.5 sm:p-4 rounded-3xl border transition cursor-pointer flex flex-col justify-between ${
             stockLevelFilter === 'low_stock'
               ? 'bg-[rgba(155,112,39,.08)] border-[rgba(155,112,39,.4)] ring-2 ring-[rgba(155,112,39,.28)]'
-              : 'bg-white border-slate-200 hover:border-[rgba(155,112,39,.5)]'
+              : 'bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 hover:border-orange-300'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -408,9 +409,9 @@ export const InventoryStockView: React.FC = () => {
             )}
           </div>
           <div className="mt-2">
-            <div className="text-[11px] text-slate-500 font-bold">أصناف قاربت على النفاذ</div>
+            <div className="text-[11px] text-orange-700 font-black">أصناف قاربت على النفاذ</div>
             <div className="text-xl sm:text-2xl font-black t-warn app-num">
-              {stockMetrics.lowStockCount} <span className="text-xs font-bold text-slate-500">صنف</span>
+              {stockMetrics.lowStockCount} <span className="text-xs font-bold text-orange-600">صنف</span>
             </div>
             <div className="text-[10px] t-warn font-semibold mt-0.5">رصيد الفرع 10 كراتين أو أقل</div>
           </div>
@@ -422,7 +423,7 @@ export const InventoryStockView: React.FC = () => {
           className={`p-3.5 sm:p-4 rounded-3xl border transition cursor-pointer flex flex-col justify-between ${
             stockLevelFilter === 'out_of_stock'
               ? 'bg-[rgba(179,74,74,.07)] border-[rgba(179,74,74,.42)] ring-2 ring-[rgba(179,74,74,.28)]'
-              : 'bg-white border-slate-200 hover:border-[rgba(179,74,74,.5)]'
+              : 'bg-gradient-to-br from-rose-50 to-rose-100 border-rose-200 hover:border-rose-300'
           }`}
         >
           <div className="flex items-center justify-between">
@@ -434,9 +435,9 @@ export const InventoryStockView: React.FC = () => {
             </span>
           </div>
           <div className="mt-2">
-            <div className="text-[11px] text-slate-500 font-bold">أصناف نفذت بالكامل</div>
+            <div className="text-[11px] text-rose-700 font-black">أصناف نفذت بالكامل</div>
             <div className="text-xl sm:text-2xl font-black t-risk app-num">
-              {stockMetrics.outOfStockCount} <span className="text-xs font-bold text-slate-500">صنف</span>
+              {stockMetrics.outOfStockCount} <span className="text-xs font-bold text-rose-600">صنف</span>
             </div>
             <div className="text-[10px] t-risk font-semibold mt-0.5">غير متاح بالفرع أو بأكتوبر</div>
           </div>
@@ -647,7 +648,7 @@ export const InventoryStockView: React.FC = () => {
                   type="text"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="ابحث بالكود، اسم الصنف، القسم، التصنيف..."
+                  placeholder="ابحث بالكود، اسم الصنف، القسم، التصنيف، أو سعر القطعة..."
                   className="w-full pl-3 pr-9 py-2 bg-white border border-slate-200 rounded-xl focus:outline-none text-xs"
                 />
               </div>

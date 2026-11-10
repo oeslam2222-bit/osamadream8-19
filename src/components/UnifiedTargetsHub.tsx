@@ -3,7 +3,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import React, { useState } from 'react';
-import { TargetPerformanceDashboard } from './TargetPerformanceDashboard';
+import { UnifiedRepPerformanceView } from './UnifiedRepPerformanceView';
 import CollectionForecastView from './CollectionForecastView';
 
 interface UnifiedTargetsHubProps {
@@ -64,7 +64,7 @@ export const UnifiedTargetsHub: React.FC<UnifiedTargetsHubProps> = ({
       {/* Tab Panels */}
       {subTab === 'targets' && (
         <div className="animate-in fade-in duration-200">
-          <TargetPerformanceDashboard />
+          <UnifiedRepPerformanceView />
         </div>
       )}
 

@@ -14,7 +14,7 @@ import { InventoryStockView } from '../InventoryStockView';
 import { ExcelImportExport } from '../ExcelImportExport';
 import { UserManager } from '../UserManager';
 import { SystemWorkflowGuide } from '../SystemWorkflowGuide';
-import { TargetPerformanceDashboard } from '../TargetPerformanceDashboard';
+import { UnifiedRepPerformanceView } from '../UnifiedRepPerformanceView';
 import { VisitsDashboard } from '../VisitsDashboard';
 import { LegalAdvisorDashboard } from '../LegalAdvisorDashboard';
 import { OrderBuilderModal } from '../OrderBuilderModal';
@@ -123,7 +123,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
               <SupervisorDashboard onOpenNewOrder={() => setIsOrderModalOpen(true)} onViewInvoice={(inv: Invoice) => setViewingInvoice(inv)} />
             )}
             {activeTab === 'legal_advisor' && <LegalAdvisorDashboard />}
-            {activeTab === 'targets' && <TargetPerformanceDashboard />}
+            {activeTab === 'targets' && (
+              <UnifiedRepPerformanceView
+                onOpenNewOrderForCustomer={(cust) => {
+                  setOrderInitialCustomer(cust);
+                  setActiveTab('catalog');
+                }}
+              />
+            )}
             {activeTab === 'visits' && <VisitsDashboard />}
             {activeTab === 'invoices' && (
               <InvoicesManager onOpenNewOrder={() => setIsOrderModalOpen(true)} onViewInvoice={(inv: Invoice) => setViewingInvoice(inv)} onEditInvoice={handleEditInvoice} />
