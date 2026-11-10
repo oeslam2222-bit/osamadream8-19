@@ -13,6 +13,10 @@ export default defineConfig(() => {
         registerType: 'autoUpdate',
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+          // صور aistudio القديمة (16MB+) مش مستخدمة في التطبيق، وكانت بتتحمّل
+          // كلها في الخلفية أول ما الـservice worker يتثبّت وبتزاحم باقي الملفات
+          // على نفس الشبكة. بنستثنيها من الـprecache من غير ما نمسح ملفات المستخدم.
+          globIgnores: ['assets/aistudio/**', '**/*.apk'],
           maximumFileSizeToCacheInBytes: 20 * 1024 * 1024,
         },
         manifest: {
