@@ -316,17 +316,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Auth and Session Notice
   const [authTerminationNotice, setAuthTerminationNotice] = useState<string | null>(null);
 
-  // Keep-Alive: ping Supabase every 5 minutes to prevent free-tier auto-pause
-  // and reduce cold-start latency. Uses a tiny select (1 row) to minimize egress.
+  // Keep-Alive: ping Supabase every 10 minutes (only when visible) to prevent free-tier auto-pause
+  // while keeping egress usage near zero.
   useEffect(() => {
     const ping = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       supabase
         .from('branches')
         .select('id')
         .limit(1)
-        .then(() => {}, () => {});    };
+        .then(() => {}, () => {});
+    };
     ping();
-    const id = window.setInterval(ping, 5 * 60 * 1000);
+    const id = window.setInterval(ping, 10 * 60 * 1000);
     return () => window.clearInterval(id);
   }, []);  // فحص اتصال Supabase Auth: بيقول للإدارة هل الـ migration اتنفّذ ولا لأ.
   // بيتحدّث مرة واحدة عند الإقلاع وخلاص — مفيش أي طلبات متكررة.
@@ -925,26 +927,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return [];
   });
 
+  // Ref mirrors so long-lived sync heartbeats and async event listeners always see
+  // the hydrated local data without capturing empty closure states (preventing egress leaks).
+  const customersRef = useRef<Customer[]>(customers);
+  useEffect(() => {
+    customersRef.current = customers;
+  }, [customers]);
+
+
+  const [visits, setVisits] = useState<CustomerVisit[]>(() => []);
+  const visitsRef = useRef<CustomerVisit[]>(visits);
+  useEffect(() => {
+    visitsRef.current = visits;
+  }, [visits]);
+
+  const [invoices, setInvoices] = useState<Invoice[]>(() => {
+    return [];
+  });
+  const invoicesRef = useRef<Invoice[]>(invoices);
+  useEffect(() => {
+    invoicesRef.current = invoices;
+  }, [invoices]);
+
   // Data Version Sync State (آلية إصدار التحديثات ومسح الكاش التلقائي لضمان عدم التدبيل)
   const [globalDataVersion, setGlobalDataVersion] = useState<GlobalDataVersionMeta | null>(() => getLocalDataVersion());
   const [isVersionSyncing, setIsVersionSyncing] = useState<boolean>(false);
   const [lastVersionSyncNotice, setLastVersionSyncNotice] = useState<string | null>(null);
   const clearVersionSyncNotice = () => setLastVersionSyncNotice(null);
-
-  /**
-   * الزيارات بتبدأ فاضية وبتتملّى من IndexedDB.
-   *
-   * كانت بتتقرأ من localStorage كـseed أول فتح، لكن المفتاح ده كان نسخة
-   * كاملة من السجل (نحو 1MB عند 4,000 زيارة). الـseed كان مش ضروري خالص لأن
-   * IndexedDB بيتكتب **فورًا** مع كل تعديل، فأي زيارة اتسجّلت على الجهاز
-   * موجودة هناك قبل إعادة التحميل. والقراءة دي كانت برضه block على الـmain
-   * thread قبل أول رسم.
-   */
-  const [visits, setVisits] = useState<CustomerVisit[]>(() => []);
-
-  const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    return [];
-  });
 
   const [isLocalDataHydrated, setIsLocalDataHydrated] = useState(false);
 
@@ -2468,8 +2477,16 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (!force && stampComparable && storedStamp) {
         const unchanged =
           stamp!.count === storedStamp.count && stamp!.maxUpdatedAt === storedStamp.maxUpdatedAt;
-        // لو مفيش بيانات محلية أصلًا (كاش ممسوح) لازم ننزّل حتى لو البصمة مطابقة.
-        if (unchanged && customers.length > 0) return;
+        if (unchanged) {
+          const currentCount = customersRef.current?.length || customers.length;
+          if (currentCount > 0) return;
+          // لو الـstate لسه مااتملتش من IndexedDB، نقراها محلياً ونقفل التنزيل
+          const cachedCusts = await idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS);
+          if (cachedCusts && cachedCusts.length > 0) {
+            setCustomers(cachedCusts);
+            return;
+          }
+        }
       }
 
       // 2) البصمة غير متاحة (عمود updated_at مش موجود مثلًا) → نستخدم
@@ -2507,20 +2524,20 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
     };
 
-    const handleFocus = () => {
-      // checkCustomersContent الأول: check() بيحجز checkInFlight فوراً، فلو
-      // اتنادى قبله كان بيخلي نبضة العملاء ترجع من غير ما تعمل حاجة.
+    let lastFocusOrVisibilityCheck = 0;
+    const FOCUS_SYNC_COOLDOWN_MS = 5 * 60 * 1000;
+
+    const handleFocusOrVisibility = () => {
+      if (document.visibilityState === 'hidden') return;
+      const now = Date.now();
+      if (now - lastFocusOrVisibilityCheck < FOCUS_SYNC_COOLDOWN_MS) return;
+      lastFocusOrVisibilityCheck = now;
       checkCustomersContent();
       check();
     };
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        check();
-        checkCustomersContent();
-      }
-    };
 
     const heartbeat = () => {
+      if (document.visibilityState === 'hidden') return;
       const now = Date.now();
       if (now - lastHeartbeatCheck < HEARTBEAT_INTERVAL_MS) return;
       lastHeartbeatCheck = now;
@@ -2528,13 +2545,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       check();
     };
 
-    window.addEventListener('focus', handleFocus);
-    document.addEventListener('visibilitychange', handleVisibility);
-    // Heartbeat every 2 minutes (was 30s). At 5000 customers × 300 employees,
-    // the old 30s interval generated ~27GB/hour of egress on Supabase Free
-    // (5GB/month). The stamp probe means we only pull the full table when
-    // something actually moved, so the interval is now safe to relax.
-    const interval = window.setInterval(heartbeat, 120 * 1000);
+    window.addEventListener('focus', handleFocusOrVisibility);
+    document.addEventListener('visibilitychange', handleFocusOrVisibility);
+    // Heartbeat every 5 minutes (was 2m/30s). Realtime channel handles immediate Postgres changes.
+    const interval = window.setInterval(heartbeat, 5 * 60 * 1000);
     const versionChannel = supabase
       .channel('global-data-version-sync')
       .on(
@@ -2550,8 +2564,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     checkCustomersContent();
     check();
     return () => {
-      window.removeEventListener('focus', handleFocus);
-      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', handleFocusOrVisibility);
+      document.removeEventListener('visibilitychange', handleFocusOrVisibility);
       window.clearInterval(interval);
       supabase.removeChannel(versionChannel);
     };
@@ -2625,30 +2639,37 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                 }
               });
             }
-            if (customers.length === 0) {
-              fetchCustomersFromSupabase(customerFetchScope).then(async (cRes) => {
-                if (cRes.success && cRes.customers && cRes.customers.length > 0) {
-                  const linked = linkCustomersToUsers(sanitizeCustomers(cRes.customers!), users);
-                  const valid = deduplicateCustomersArray(linked);
-                  const queued = await getQueuedMutations();
-                  const pendingCustIds = new Set(
-                    queued.filter((m) => m.entity === 'customers' && m.op === 'upsert').map((m) => m.entityId)
-                  );
-                  setCustomers((curr) => {
-                    const map = new Map<string, Customer>();
-                    valid.forEach((c) => map.set(c.id, c));
-                    // Keep only genuinely pending offline creations
-                    curr.forEach((c) => {
-                      if (pendingCustIds.has(c.id) && !map.has(c.id)) {
-                        map.set(c.id, c);
-                      }
-                    });
-                    const next = Array.from(map.values());
-                    idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
-                    saveLocalCustomersFingerprint(next);
-                    return next;
-                  });
+            const hasLocalCusts = (customersRef.current?.length || 0) > 0 || customers.length > 0;
+            if (!hasLocalCusts) {
+              idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS).then((cached) => {
+                if (cached && cached.length > 0) {
+                  setCustomers(cached);
+                  return;
                 }
+                fetchCustomersFromSupabase(customerFetchScope).then(async (cRes) => {
+                  if (cRes.success && cRes.customers && cRes.customers.length > 0) {
+                    const linked = linkCustomersToUsers(sanitizeCustomers(cRes.customers!), users);
+                    const valid = deduplicateCustomersArray(linked);
+                    const queued = await getQueuedMutations();
+                    const pendingCustIds = new Set(
+                      queued.filter((m) => m.entity === 'customers' && m.op === 'upsert').map((m) => m.entityId)
+                    );
+                    setCustomers((curr) => {
+                      const map = new Map<string, Customer>();
+                      valid.forEach((c) => map.set(c.id, c));
+                      // Keep only genuinely pending offline creations
+                      curr.forEach((c) => {
+                        if (pendingCustIds.has(c.id) && !map.has(c.id)) {
+                          map.set(c.id, c);
+                        }
+                      });
+                      const next = Array.from(map.values());
+                      idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
+                      saveLocalCustomersFingerprint(next);
+                      return next;
+                    });
+                  }
+                });
               });
             }
           }
@@ -3904,6 +3925,33 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     // (وضع legacy) أو فيه مشكلة شبكة، سيبتها بهدوء — حالة العميل المحلية
     // اتقفلت فوق في كل الأحوال.
     signOutServer().catch(() => {});
+  };
+
+  const updateCurrentUserAvatar = async (avatarUrl: string): Promise<boolean> => {
+    if (!currentUser) return false;
+    const cleanUrl = avatarUrl.trim();
+    if (!cleanUrl) return false;
+
+    const updatedUser: User = {
+      ...currentUser,
+      avatar: cleanUrl,
+    };
+
+    setCurrentUser(updatedUser);
+    setUsers((prev) => prev.map((u) => (u.id === currentUser.id ? { ...u, avatar: cleanUrl } : u)));
+
+    safeLocalStorageSet(STORAGE_KEYS.CURRENT_USER_DATA, JSON.stringify(updatedUser));
+    safeLocalStorageSet(
+      STORAGE_KEYS.USERS,
+      JSON.stringify(users.map((u) => (u.id === currentUser.id ? { ...u, avatar: cleanUrl } : u)))
+    );
+    idbSet(STORAGE_KEYS.CURRENT_USER_DATA, updatedUser).catch(() => {});
+
+    try {
+      saveUserToSupabase(updatedUser, users).catch(() => {});
+    } catch {}
+
+    return true;
   };
 
   const approveUser = (userId: string, supervisorId?: string, branchName?: string, role?: UserRole) => {
@@ -7128,6 +7176,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         login,
         register,
         logout,
+        updateCurrentUserAvatar,
         addToCart,
         updateCartItem,
         removeFromCart,

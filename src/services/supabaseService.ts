@@ -26,13 +26,6 @@ export function normalizeUserRole(rawRole: any, isAdminFlag?: boolean): UserRole
 
 // Initialize Supabase Client
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  global: {
-    // Version checks must never be served from a browser/CDN cache.
-    headers: {
-      'Cache-Control': 'no-cache, no-store, max-age=0, must-revalidate',
-      Pragma: 'no-cache',
-    },
-  },
   auth: {
     persistSession: true,
     autoRefreshToken: true,
@@ -1862,25 +1855,18 @@ export async function fetchInvoicesFromSupabase(limitOrScope: number | InvoiceFe
       return query;
     };
 
-    const [invoicesRead, ordersRead] = await Promise.allSettled([
-      buildQuery('invoices'),
-      buildQuery('orders'),
-    ]);
-
-    const invResult = invoicesRead.status === 'fulfilled' ? invoicesRead.value : null;
-    const ordResult = ordersRead.status === 'fulfilled' ? ordersRead.value : null;
-
+    // Query 'orders' directly as it is the primary production table for invoices.
+    // Falls back to legacy 'invoices' only if orders query fails or is empty,
+    // cutting egress and API calls in half.
     let rawInvoices: any[] | null = null;
-    if (!invResult?.error && invResult?.data && invResult.data.length > 0) {
-      rawInvoices = invResult.data;
-    } else if (!ordResult?.error && ordResult?.data && ordResult.data.length > 0) {
+    const ordResult = await buildQuery('orders');
+    if (!ordResult?.error && ordResult?.data && ordResult.data.length > 0) {
       rawInvoices = ordResult.data;
-    }
-    if (invoicesRead.status === 'rejected' || ordersRead.status === 'rejected') {
-      console.warn(
-        'Supabase invoice read warning:',
-        invoicesRead.status === 'rejected' ? invoicesRead.reason : ordersRead.status === 'rejected' ? ordersRead.reason : null
-      );
+    } else {
+      const invResult = await buildQuery('invoices');
+      if (!invResult?.error && invResult?.data && invResult.data.length > 0) {
+        rawInvoices = invResult.data;
+      }
     }
 
     const invoiceRows = (rawInvoices || []).filter((row: any) => {

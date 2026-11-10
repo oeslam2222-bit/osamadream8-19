@@ -33,13 +33,19 @@ import {
   ClipboardList,
   Check,
   ArrowLeft,
-  ArrowRight
+  ArrowRight,
+  Camera,
+  Trophy,
+  Flame,
+  Percent,
+  Target
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
-import { isArabicNameMatch, isBranchMatch } from '../services/arabicMatchingService';
-import { Customer, CustomerVisit, Invoice } from '../types';
+import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
+import { Customer, CustomerVisit, Invoice, TargetRecord } from '../types';
 import { IconBadge } from './ui/IconBadge';
+import { UserProfileAvatarModal } from './UserProfileAvatarModal';
 
 interface DashboardHomeProps {
   onNavigateToTab: (tab: string) => void;
@@ -59,6 +65,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
     customers,
     invoices = [],
     products = [],
+    targets = [],
     getVisibleInvoices,
     getVisibleVisits,
     getVisibleTargets,
@@ -73,6 +80,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   const isRep = currentUser?.role === 'sales_rep';
   const isSupervisor = currentUser?.role === 'supervisor';
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  const [selectedTargetMonth, setSelectedTargetMonth] = useState<number>(11); // 11: نوفمبر, 10: أكتوبر
 
   // Live Real-Time Clock
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
@@ -158,6 +168,314 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
   const displayName = (currentUser?.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أحمد محمد';
 
+  const MONTH_NAMES = [
+    'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
+    'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'
+  ];
+
+  // Rep's monthly target from targets sheet (TargetPerformanceDashboard data)
+  const repTargetData = useMemo(() => {
+    if (!currentUser) return null;
+    const cleanUser = (currentUser.name || '').trim();
+    const allTargets = targets || [];
+
+    const repTargets = allTargets.filter((t) => {
+      if (!t.repName) return false;
+      return (
+        isArabicNameMatch(t.repName, cleanUser) ||
+        normalizeArabicText(t.repName).includes(normalizeArabicText(cleanUser)) ||
+        normalizeArabicText(cleanUser).includes(normalizeArabicText(t.repName))
+      );
+    });
+
+    let recordsToUse = repTargets;
+    let isPersonal = true;
+
+    if (recordsToUse.length === 0) {
+      isPersonal = false;
+      if (currentUser.branchName) {
+        recordsToUse = allTargets.filter((t) => isBranchMatch(t.branch, currentUser.branchName));
+      }
+      if (recordsToUse.length === 0) {
+        recordsToUse = allTargets;
+      }
+    }
+
+    if (recordsToUse.length === 0) return null;
+
+    // Discover target rows for the selected month (11 = نوفمبر, 10 = أكتوبر)
+    let matchingRows = recordsToUse.filter((r) => (r.month || 11) === selectedTargetMonth);
+    let targetMonth = selectedTargetMonth;
+    let targetYear = 2026;
+
+    if (matchingRows.length === 0) {
+      const sorted = [...recordsToUse].sort((a, b) => {
+        const yearDiff = (b.year || 2026) - (a.year || 2026);
+        if (yearDiff !== 0) return yearDiff;
+        return (b.month || 0) - (a.month || 0);
+      });
+      targetMonth = sorted[0].month || 11;
+      targetYear = sorted[0].year || 2026;
+      matchingRows = recordsToUse.filter((r) => (r.month || 11) === targetMonth);
+    } else {
+      targetYear = matchingRows[0].year || 2026;
+    }
+
+    const monthName = MONTH_NAMES[targetMonth - 1] || (targetMonth === 10 ? 'أكتوبر' : 'نوفمبر');
+
+    let sTarget = 0;
+    let sAchieved = 0;
+    let sPct = 0;
+    let cTarget = 0;
+    let cAchieved = 0;
+    let cPct = 0;
+    let resolvedRepName = cleanUser;
+    let resolvedBranch = currentUser.branchName || 'الفرع الرئيسي';
+
+    if (isPersonal && matchingRows.length === 1) {
+      const row = matchingRows[0];
+      sTarget = Number(row.salesTarget) || 0;
+      sAchieved = Number(row.salesAchieved) || 0;
+      sPct = sTarget > 0 ? Math.round((sAchieved / sTarget) * 100) : (row.salesPercentage || 0);
+      cTarget = Number(row.collectionTarget) || 0;
+      cAchieved = Number(row.collectionAchieved) || 0;
+      cPct = cTarget > 0 ? Math.round((cAchieved / cTarget) * 100) : (row.collectionPercentage || 0);
+      resolvedRepName = row.repName || cleanUser;
+      resolvedBranch = row.branch || currentUser.branchName || 'الفرع الرئيسي';
+    } else {
+      sTarget = matchingRows.reduce((sum, r) => sum + (Number(r.salesTarget) || 0), 0);
+      sAchieved = matchingRows.reduce((sum, r) => sum + (Number(r.salesAchieved) || 0), 0);
+      sPct = sTarget > 0 ? Math.round((sAchieved / sTarget) * 100) : 0;
+      cTarget = matchingRows.reduce((sum, r) => sum + (Number(r.collectionTarget) || 0), 0);
+      cAchieved = matchingRows.reduce((sum, r) => sum + (Number(r.collectionAchieved) || 0), 0);
+      cPct = cTarget > 0 ? Math.round((cAchieved / cTarget) * 100) : 0;
+      if (matchingRows[0]?.branch) resolvedBranch = matchingRows[0].branch;
+    }
+
+    const performanceTier =
+      sPct >= 95
+        ? { label: 'أداء استثنائي 👑', desc: 'تجاوزت المستهدف المحدد بجدارة', badgeColor: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700' }
+        : sPct >= 80
+          ? { label: 'أداء متميز 🚀', desc: 'قريب جداً من إتمام كامل التارجت', badgeColor: 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300 dark:border-blue-700' }
+          : sPct >= 50
+            ? { label: 'نشاط متقدم 💪', desc: 'معدل جيد ومستمر في التصاعد', badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 dark:border-amber-700' }
+            : { label: 'متابعة ميدانية ⚡', desc: 'كثف الزيارات وسجل أوامر جديدة', badgeColor: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700' };
+
+    return {
+      isPersonal,
+      repName: resolvedRepName,
+      branch: resolvedBranch,
+      month: targetMonth,
+      monthName,
+      year: targetYear,
+      salesTarget: sTarget,
+      salesAchieved: sAchieved,
+      salesPct: sPct,
+      remainingSales: Math.max(0, sTarget - sAchieved),
+      collectionTarget: cTarget,
+      collectionAchieved: cAchieved,
+      collectionPct: cPct,
+      remainingCollection: Math.max(0, cTarget - cAchieved),
+      performanceTier,
+    };
+  }, [targets, currentUser, selectedTargetMonth]);
+
+  // Reusable Dedicated Sales Rep Target KPI Panel with Primary #2563EB & Success #16A34A
+  const renderRepTargetDashboard = (isMobileView: boolean) => {
+    if (!repTargetData) return null;
+
+    return (
+      <div className={`bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-3xl p-4 sm:p-5 shadow-xs space-y-4 ${isMobileView ? '' : 'my-4'}`}>
+        
+        {/* Panel Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-500/20 text-[#D97706] dark:text-amber-300 border border-amber-200 dark:border-amber-500/30 flex items-center justify-center shrink-0 shadow-xs">
+              <Trophy className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-sm sm:text-base text-[#0F172A] dark:text-white">
+                  لوحة مؤشرات التارجت الشهرية
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-[#2563EB] dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                  {repTargetData.isPersonal ? 'شخصي للمندوب' : 'تارجت الفرع'}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
+                {repTargetData.isPersonal ? `المندوب: ${repTargetData.repName} (${repTargetData.branch})` : `فرع: ${repTargetData.branch}`} • مسترجعة من شيت التارجت (TargetPerformanceDashboard)
+              </p>
+            </div>
+          </div>
+
+          {/* Month Selector Tabs (نوفمبر / أكتوبر) + Link */}
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            <div className="inline-flex items-center p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setSelectedTargetMonth(11)}
+                className={`px-3 py-1.5 rounded-xl transition-all font-bold cursor-pointer ${
+                  repTargetData.month === 11
+                    ? 'bg-[#2563EB] text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                نوفمبر 2026
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedTargetMonth(10)}
+                className={`px-3 py-1.5 rounded-xl transition-all font-bold cursor-pointer ${
+                  repTargetData.month === 10
+                    ? 'bg-[#2563EB] text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                أكتوبر 2026
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onNavigateToTab('targets')}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold text-[#2563EB] dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 border border-blue-200 dark:border-blue-900/60 flex items-center gap-1 cursor-pointer transition-all shrink-0"
+              title="فتح لوحة التارجت والشيت التفصيلي"
+            >
+              <span>شيت التارجت</span>
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* 2 Main KPI Cards: Sales (#2563EB Primary) and Collections (#16A34A Success) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          
+          {/* Card 1: إجمالي المبيعات المحققة (Primary #2563EB) */}
+          <div className="bg-gradient-to-br from-blue-50/70 via-white to-blue-50/30 dark:from-[#0F1E36] dark:via-[#112340] dark:to-[#0B1728] border-2 border-[#2563EB]/40 dark:border-[#2563EB]/60 rounded-2xl p-4 space-y-3 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-[#2563EB] text-white flex items-center justify-center shadow-xs">
+                  <Target className="w-5 h-5 stroke-[2.2]" />
+                </div>
+                <div>
+                  <h4 className="font-black text-sm text-[#0F172A] dark:text-white">
+                    إجمالي المبيعات المحققة
+                  </h4>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                    شهر {repTargetData.monthName} {repTargetData.year}
+                  </span>
+                </div>
+              </div>
+              <div className="px-2.5 py-1 rounded-full text-xs font-black bg-[#2563EB] text-white shadow-xs">
+                {repTargetData.salesPct}%
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-[#2563EB] dark:text-blue-400">
+                {formatCurrency(repTargetData.salesAchieved)}
+              </div>
+              <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 font-bold">
+                <span>المستهدف: {formatCurrency(repTargetData.salesTarget)}</span>
+                <span className="text-slate-500 dark:text-slate-400 font-medium">
+                  {repTargetData.remainingSales > 0
+                    ? `متبقي: ${formatCurrency(repTargetData.remainingSales)}`
+                    : 'تم تجاوز المستهدف! 🎯'}
+                </span>
+              </div>
+            </div>
+
+            {/* Progress Bar with Primary #2563EB */}
+            <div className="w-full bg-blue-100 dark:bg-blue-950/60 h-2.5 rounded-full overflow-hidden border border-blue-200 dark:border-blue-900/60">
+              <div
+                className="h-full bg-[#2563EB] rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(4, repTargetData.salesPct))}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] pt-1 border-t border-blue-100 dark:border-blue-900/40 text-slate-600 dark:text-slate-400 font-bold">
+              <span>نسبة تحقيق المبيعات: {repTargetData.salesPct}%</span>
+              <span className="text-[#2563EB] dark:text-blue-300 font-mono">
+                {repTargetData.salesAchieved >= repTargetData.salesTarget ? 'مكتمل بنجاح ✅' : 'قيد المتابعة ⏳'}
+              </span>
+            </div>
+          </div>
+
+          {/* Card 2: إجمالي التحصيلات المحققة (Success #16A34A) */}
+          <div className="bg-gradient-to-br from-emerald-50/70 via-white to-emerald-50/30 dark:from-[#062419] dark:via-[#092D20] dark:to-[#041B13] border-2 border-[#16A34A]/40 dark:border-[#16A34A]/60 rounded-2xl p-4 space-y-3 shadow-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-[#16A34A] text-white flex items-center justify-center shadow-xs">
+                  <Wallet className="w-5 h-5 stroke-[2.2]" />
+                </div>
+                <div>
+                  <h4 className="font-black text-sm text-[#0F172A] dark:text-white">
+                    إجمالي التحصيلات المحققة
+                  </h4>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
+                    شهر {repTargetData.monthName} {repTargetData.year}
+                  </span>
+                </div>
+              </div>
+              <div className="px-2.5 py-1 rounded-full text-xs font-black bg-[#16A34A] text-white shadow-xs">
+                {repTargetData.collectionPct}%
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-[#16A34A] dark:text-emerald-400">
+                {formatCurrency(repTargetData.collectionAchieved)}
+              </div>
+              <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 font-bold">
+                <span>المستهدف: {formatCurrency(repTargetData.collectionTarget)}</span>
+                <span className="text-slate-500 dark:text-slate-400 font-medium">
+                  {repTargetData.remainingCollection > 0
+                    ? `متبقي: ${formatCurrency(repTargetData.remainingCollection)}`
+                    : 'تم تحصيل كامل المستهدف! ✅'}
+                </span>
+              </div>
+            </div>
+
+            {/* Progress Bar with Success #16A34A */}
+            <div className="w-full bg-emerald-100 dark:bg-emerald-950/60 h-2.5 rounded-full overflow-hidden border border-emerald-200 dark:border-emerald-900/60">
+              <div
+                className="h-full bg-[#16A34A] rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, Math.max(4, repTargetData.collectionPct))}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-between text-[11px] pt-1 border-t border-emerald-100 dark:border-emerald-900/40 text-slate-600 dark:text-slate-400 font-bold">
+              <span>نسبة إنجاز التحصيل: {repTargetData.collectionPct}%</span>
+              <span className="text-[#16A34A] dark:text-emerald-300 font-mono">
+                {repTargetData.collectionAchieved >= repTargetData.collectionTarget ? 'مكتمل ومحصل ✅' : 'جاري التحصيل ⏳'}
+              </span>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Panel Footer: Performance Tier & Live Source */}
+        <div className="flex items-center justify-between flex-wrap gap-2 pt-2 text-xs">
+          <div className="flex items-center gap-2">
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black border ${repTargetData.performanceTier.badgeColor}`}>
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>{repTargetData.performanceTier.label}</span>
+            </span>
+            <span className="text-slate-500 dark:text-slate-400 text-[11px] font-bold hidden sm:inline">
+              {repTargetData.performanceTier.desc}
+            </span>
+          </div>
+
+          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>مزامنة مباشرة مع Google Sheets & Excel التارجت</span>
+          </div>
+        </div>
+
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-4 sm:space-y-6" dir="rtl">
       
@@ -166,107 +484,133 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       {/* ========================================================================= */}
       <div className="block lg:hidden space-y-3.5">
         
-        {/* 1. Mobile Gradient Hero Banner */}
-        <div className="relative overflow-hidden rounded-3xl p-5 bg-white dark:bg-gradient-to-br dark:from-[#0F2B38] dark:via-[#153847] dark:to-[#0A1E27] text-[#0F2B38] dark:text-white shadow-sm border border-slate-200 dark:border-[#1E4D63]">
-          <div className="absolute top-0 left-0 w-32 h-32 bg-blue-500/5 dark:bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute bottom-0 right-0 w-32 h-32 bg-teal-500/5 dark:bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
+        {/* 1. Mobile Gradient Hero Banner with Rep Profile Avatar */}
+        <div className="relative overflow-hidden rounded-3xl p-5 bg-gradient-to-br from-white via-slate-50 to-blue-50/40 dark:from-[#0F2B38] dark:via-[#153847] dark:to-[#0A1E27] text-[#0F2B38] dark:text-white shadow-sm border border-slate-200 dark:border-[#1E4D63]">
+          <div className="absolute top-0 left-0 w-32 h-32 bg-blue-500/10 dark:bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute bottom-0 right-0 w-32 h-32 bg-teal-500/10 dark:bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
           
-          <div className="relative z-10 flex flex-col items-center text-center space-y-2">
-            <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 dark:bg-white/10 border border-blue-200 dark:border-white/15 text-[11px] font-bold text-[#1E3A8A] dark:text-teal-300">
-              <Sparkles className="w-3.5 h-3.5 text-[#1E3A8A] dark:text-teal-300" />
-              <span>مجموعة الطنطاوي TANTAWY GROUP</span>
+          <div className="relative z-10 flex items-center justify-between gap-4">
+            <div className="space-y-1.5 flex-1 min-w-0">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100/70 dark:bg-white/10 border border-blue-200 dark:border-white/15 text-[11px] font-bold text-[#1E3A8A] dark:text-teal-300">
+                <Sparkles className="w-3.5 h-3.5 text-[#1E3A8A] dark:text-teal-300" />
+                <span>مجموعة الطنطاوي TANTAWY GROUP</span>
+              </div>
+
+              <div>
+                <span className="block text-xs text-slate-500 dark:text-slate-300 font-bold">مرحباً بك</span>
+                <h2 className="text-xl font-black text-[#0F2B38] dark:text-white tracking-tight truncate">
+                  {displayName}
+                </h2>
+                <p className="text-[11px] text-[#1E3A8A] dark:text-teal-200 font-bold mt-0.5">
+                  مندوب دريم .. معك دائماً للنجاح
+                </p>
+              </div>
             </div>
 
-            <div className="pt-1">
-              <span className="block text-xs text-slate-500 dark:text-slate-300 font-bold">مرحباً بك</span>
-              <h2 className="text-xl font-black text-[#0F2B38] dark:text-white tracking-tight">
-                {displayName}
-              </h2>
-              <p className="text-[11px] text-[#1E3A8A] dark:text-teal-200 font-bold mt-0.5">
-                مندوب دريم .. معك دائماً للنجاح
-              </p>
-            </div>
+            {/* Rep Avatar with Upload Trigger - حجم صغير وأنيق جداً */}
+            <button
+              type="button"
+              className="flex items-center gap-2 cursor-pointer shrink-0 group focus:outline-hidden"
+              onClick={() => setIsAvatarModalOpen(true)}
+              title="تعديل أو رفع صورتك الشخصية"
+            >
+              <div className="relative">
+                <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-white dark:border-[#1E4D63] shadow-md ring-2 ring-blue-500/30 dark:ring-teal-400/40 bg-slate-100 dark:bg-[#153847]">
+                  <img
+                    src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80'}
+                    alt={displayName}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80';
+                    }}
+                  />
+                </div>
+                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#2563EB] text-white flex items-center justify-center shadow-xs border border-white dark:border-[#0F2B38]">
+                  <Camera className="w-2.5 h-2.5 stroke-[2.2]" />
+                </div>
+              </div>
+            </button>
           </div>
         </div>
 
-        {/* 2. 4 Squircle Action Cards (2x2 Grid) */}
+        {/* 2. 4 Squircle Action Cards (2x2 Grid) - ألوان مبهجة ومتناسقة للوضع النهاري والليلي */}
         <div className="grid grid-cols-2 gap-3">
           
-          {/* Card 1: الطلبات */}
+          {/* Card 1: الطلبات (سماوي مبهج) */}
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
-            className="group relative overflow-hidden rounded-2xl p-4 text-start bg-white dark:bg-[#153847] text-[#0F2B38] dark:text-white border border-slate-200 dark:border-[#1E4D63] shadow-xs hover:shadow-md active:scale-95 transition-all flex flex-col justify-between min-h-[110px] cursor-pointer"
+            className="group relative overflow-hidden rounded-2xl p-4 text-start bg-gradient-to-br from-cyan-50 via-sky-50 to-blue-50/80 dark:from-[#082836] dark:via-[#093548] dark:to-[#041d27] border border-cyan-200/90 dark:border-cyan-500/30 hover:border-cyan-400 dark:hover:border-cyan-400/60 shadow-[0_4px_16px_rgba(6,182,212,0.10)] dark:shadow-[0_4px_20px_rgba(6,182,212,0.15)] active:scale-95 transition-all flex flex-col justify-between min-h-[115px] cursor-pointer"
           >
-            <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-500/20 text-[#059669] dark:text-teal-300 border border-teal-200 dark:border-teal-500/30 flex items-center justify-center mb-3">
+            <div className="w-11 h-11 rounded-2xl bg-cyan-100/90 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-300/60 dark:border-cyan-400/30 flex items-center justify-center mb-3 shadow-xs">
               <Package className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div className="flex items-end justify-between w-full">
               <div>
-                <h3 className="font-black text-sm text-[#0F2B38] dark:text-white">الطلبات</h3>
-                <p className="text-[10px] text-slate-500 dark:text-slate-300 font-medium">متابعة الطلبات</p>
+                <h3 className="font-black text-sm text-cyan-950 dark:text-white">الطلبات</h3>
+                <p className="text-[10px] text-cyan-700/80 dark:text-cyan-300/80 font-bold">متابعة الطلبات</p>
               </div>
-              <div className="w-7 h-7 rounded-full bg-teal-50 dark:bg-teal-400/20 border border-teal-200 dark:border-teal-400/40 text-[#059669] dark:text-teal-300 flex items-center justify-center shrink-0">
+              <div className="w-7 h-7 rounded-full bg-white/90 dark:bg-cyan-500/20 border border-cyan-200 dark:border-cyan-400/40 text-cyan-700 dark:text-cyan-300 flex items-center justify-center shrink-0 shadow-xs">
                 <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
               </div>
             </div>
           </button>
 
-          {/* Card 2: العملاء */}
+          {/* Card 2: العملاء (تركواز / نعناعي ناعم) */}
           <button
             type="button"
             onClick={() => onNavigateToTab('all_customers')}
-            className="group relative overflow-hidden rounded-2xl p-4 text-start bg-white dark:bg-[#153847] text-[#0F2B38] dark:text-white border border-slate-200 dark:border-[#1E4D63] shadow-xs hover:shadow-md active:scale-95 transition-all flex flex-col justify-between min-h-[110px] cursor-pointer"
+            className="group relative overflow-hidden rounded-2xl p-4 text-start bg-gradient-to-br from-teal-50 via-emerald-50 to-cyan-50/80 dark:from-[#06282e] dark:via-[#07363e] dark:to-[#031d22] border border-teal-200/90 dark:border-teal-500/30 hover:border-teal-400 dark:hover:border-teal-400/60 shadow-[0_4px_16px_rgba(13,148,136,0.10)] dark:shadow-[0_4px_20px_rgba(20,184,166,0.15)] active:scale-95 transition-all flex flex-col justify-between min-h-[115px] cursor-pointer"
           >
-            <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-500/20 text-[#2563EB] dark:text-blue-300 border border-blue-200 dark:border-blue-500/30 flex items-center justify-center mb-3">
+            <div className="w-11 h-11 rounded-2xl bg-teal-100/90 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-300/60 dark:border-teal-400/30 flex items-center justify-center mb-3 shadow-xs">
               <Users className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div className="flex items-end justify-between w-full">
               <div>
-                <h3 className="font-black text-sm text-[#0F2B38] dark:text-white">العملاء</h3>
-                <p className="text-[10px] text-slate-500 dark:text-slate-300 font-medium">قاعدة العملاء</p>
+                <h3 className="font-black text-sm text-teal-950 dark:text-white">العملاء</h3>
+                <p className="text-[10px] text-teal-700/80 dark:text-teal-300/80 font-bold">قاعدة العملاء</p>
               </div>
-              <div className="w-7 h-7 rounded-full bg-blue-50 dark:bg-blue-400/20 border border-blue-200 dark:border-blue-400/40 text-[#2563EB] dark:text-blue-300 flex items-center justify-center shrink-0">
+              <div className="w-7 h-7 rounded-full bg-white/90 dark:bg-teal-500/20 border border-teal-200 dark:border-teal-400/40 text-teal-700 dark:text-teal-300 flex items-center justify-center shrink-0 shadow-xs">
                 <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
               </div>
             </div>
           </button>
 
-          {/* Card 3: التحصيلات */}
+          {/* Card 3: التحصيلات (زمردي هادئ) */}
           <button
             type="button"
             onClick={() => onNavigateToTab('invoices')}
-            className="group relative overflow-hidden rounded-2xl p-4 text-start bg-white dark:bg-[#153847] text-[#0F2B38] dark:text-white border border-slate-200 dark:border-[#1E4D63] shadow-xs hover:shadow-md active:scale-95 transition-all flex flex-col justify-between min-h-[110px] cursor-pointer"
+            className="group relative overflow-hidden rounded-2xl p-4 text-start bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50/80 dark:from-[#052b20] dark:via-[#07382a] dark:to-[#031f17] border border-emerald-200/90 dark:border-emerald-500/30 hover:border-emerald-400 dark:hover:border-emerald-400/60 shadow-[0_4px_16px_rgba(16,185,129,0.10)] dark:shadow-[0_4px_20px_rgba(16,185,129,0.15)] active:scale-95 transition-all flex flex-col justify-between min-h-[115px] cursor-pointer"
           >
-            <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/20 text-[#059669] dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/30 flex items-center justify-center mb-3">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-100/90 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-400/30 flex items-center justify-center mb-3 shadow-xs">
               <Wallet className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div className="flex items-end justify-between w-full">
               <div>
-                <h3 className="font-black text-sm text-[#0F2B38] dark:text-white">التحصيلات</h3>
-                <p className="text-[10px] text-slate-500 dark:text-slate-300 font-medium">متابعة التحصيلات</p>
+                <h3 className="font-black text-sm text-emerald-950 dark:text-white">التحصيلات</h3>
+                <p className="text-[10px] text-emerald-700/80 dark:text-emerald-300/80 font-bold">متابعة التحصيلات</p>
               </div>
-              <div className="w-7 h-7 rounded-full bg-emerald-50 dark:bg-emerald-400/20 border border-emerald-200 dark:border-emerald-400/40 text-[#059669] dark:text-emerald-300 flex items-center justify-center shrink-0">
+              <div className="w-7 h-7 rounded-full bg-white/90 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-400/40 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0 shadow-xs">
                 <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
               </div>
             </div>
           </button>
 
-          {/* Card 4: التقارير */}
+          {/* Card 4: التقارير (بنفسجي ملكي هادئ) */}
           <button
             type="button"
             onClick={() => onNavigateToTab('targets')}
-            className="group relative overflow-hidden rounded-2xl p-4 text-start bg-white dark:bg-[#153847] text-[#0F2B38] dark:text-white border border-slate-200 dark:border-[#1E4D63] shadow-xs hover:shadow-md active:scale-95 transition-all flex flex-col justify-between min-h-[110px] cursor-pointer"
+            className="group relative overflow-hidden rounded-2xl p-4 text-start bg-gradient-to-br from-violet-50 via-purple-50 to-indigo-50/80 dark:from-[#1b173e] dark:via-[#221c4c] dark:to-[#120f2b] border border-violet-200/90 dark:border-violet-500/30 hover:border-violet-400 dark:hover:border-violet-400/60 shadow-[0_4px_16px_rgba(124,58,237,0.10)] dark:shadow-[0_4px_20px_rgba(139,92,246,0.15)] active:scale-95 transition-all flex flex-col justify-between min-h-[115px] cursor-pointer"
           >
-            <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-500/20 text-[#D97706] dark:text-amber-300 border border-amber-200 dark:border-amber-500/30 flex items-center justify-center mb-3">
+            <div className="w-11 h-11 rounded-2xl bg-violet-100/90 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-300/60 dark:border-violet-400/30 flex items-center justify-center mb-3 shadow-xs">
               <BarChart3 className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div className="flex items-end justify-between w-full">
               <div>
-                <h3 className="font-black text-sm text-[#0F2B38] dark:text-white">التقارير</h3>
-                <p className="text-[10px] text-slate-500 dark:text-slate-300 font-medium">تحليلات متقدمة</p>
+                <h3 className="font-black text-sm text-violet-950 dark:text-white">التقارير</h3>
+                <p className="text-[10px] text-violet-700/80 dark:text-violet-300/80 font-bold">تحليلات متقدمة</p>
               </div>
-              <div className="w-7 h-7 rounded-full bg-amber-50 dark:bg-amber-400/20 border border-amber-200 dark:border-amber-400/40 text-[#D97706] dark:text-amber-300 flex items-center justify-center shrink-0">
+              <div className="w-7 h-7 rounded-full bg-white/90 dark:bg-violet-500/20 border border-violet-200 dark:border-violet-400/40 text-violet-700 dark:text-violet-300 flex items-center justify-center shrink-0 shadow-xs">
                 <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
               </div>
             </div>
@@ -274,7 +618,37 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
         </div>
 
-        {/* 3. Card: أهم مؤشرات اليوم */}
+        {/* 3. Special Wide Card: العروض والخصومات */}
+        <button
+          type="button"
+          onClick={() => onNavigateToTab('offers')}
+          className="w-full relative overflow-hidden rounded-2xl p-4 text-start bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 dark:from-[#2e1908] dark:via-[#3b200b] dark:to-[#1a0f05] border border-amber-300/80 dark:border-amber-500/40 hover:border-amber-400 shadow-[0_4px_16px_rgba(245,158,11,0.12)] active:scale-[0.98] transition-all flex items-center justify-between cursor-pointer"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/30 shrink-0">
+              <Flame className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-sm text-amber-950 dark:text-amber-100">العروض والخصومات الحصرية</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-200/80 dark:bg-amber-500/30 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40">
+                  عروض وبوانص 🔥
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-800/80 dark:text-amber-200/80 font-bold mt-0.5">
+                تصفح أحدث عروض الأصناف والأسعار الترويجية
+              </p>
+            </div>
+          </div>
+          <div className="w-8 h-8 rounded-full bg-white dark:bg-amber-500/20 border border-amber-200 dark:border-amber-400/40 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 shadow-xs mr-2">
+            <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
+          </div>
+        </button>
+
+        {/* 4. لوحة مؤشرات التارجت الشهرية للمندوب (TargetPerformanceDashboard) مع ألوان Primary #2563EB و Success #16A34A */}
+        {renderRepTargetDashboard(true)}
+
+        {/* 5. Card: أهم مؤشرات اليوم */}
         <div className="bg-white dark:bg-[#153847] border border-slate-200 dark:border-[#1E4D63] rounded-3xl p-4 shadow-xs space-y-3">
           <div className="flex items-center gap-2 text-sm font-black text-[#0F2B38] dark:text-white">
             <BarChart3 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
@@ -317,11 +691,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           </div>
         </div>
 
-        {/* 4. Motivational Pill Banner */}
+        {/* 6. Motivational Pill Banner */}
         <div className="rounded-2xl p-3 bg-gradient-to-r from-blue-50 via-teal-50 to-slate-50 dark:from-teal-900/90 dark:to-[#0F2B38] text-[#1E3A8A] dark:text-teal-200 border border-blue-200 dark:border-teal-500/30 text-center text-xs font-bold shadow-2xs">
           <span>✨ مندوب دريم .. شريك نجاحك في المبيعات</span>
         </div>
-
       </div>
 
       {/* ========================================================================= */}
@@ -339,9 +712,28 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           <div className="lg:col-span-5 flex flex-col justify-between space-y-4">
             
             <div className="flex items-center justify-between">
-              {/* App / Rep Badge */}
+              {/* App / Rep Badge with compact avatar */}
               <div className="flex items-center gap-3">
-                <IconBadge icon={Sparkles} variant="primary" size="md" className="shrink-0" />
+                <button
+                  type="button"
+                  className="relative group cursor-pointer shrink-0 focus:outline-hidden"
+                  onClick={() => setIsAvatarModalOpen(true)}
+                  title="تعديل أو رفع صورتك الشخصية"
+                >
+                  <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-white dark:border-[#26364D] shadow-sm ring-2 ring-blue-500/20 bg-slate-100 dark:bg-[#17243A]">
+                    <img
+                      src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80'}
+                      alt={displayName}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80';
+                      }}
+                    />
+                  </div>
+                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#2563EB] text-white flex items-center justify-center shadow-xs border border-white dark:border-[#111C2E]">
+                    <Camera className="w-2.5 h-2.5 stroke-[2.2]" />
+                  </div>
+                </button>
                 <div>
                   <div className="text-[11px] font-bold text-[#2563EB] dark:text-[#93C5FD] tracking-wider">
                     منظومة مبيعات طنطاوي دريم
@@ -546,6 +938,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
       </div>
 
+      {/* لوحة مؤشرات التارجت الشهرية للمندوب (للشاشات الكبيرة واللابتوب) */}
+      <div className="hidden lg:block">
+        {renderRepTargetDashboard(false)}
+      </div>
 
       {/* ========================================================================= */}
       {/* 2. MAIN APPLICATION TILES (الكروت الكبيرة للاختصارات الرئيسية - تصميم كارتونة وجوميا) */}
@@ -666,6 +1062,21 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </span>
             <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
               {isAdminOrDev ? 'تحديث الشيتات السحابية' : 'متابعة نسبة التحقيق الشهرية'}
+            </span>
+          </button>
+
+          {/* Tile 10: العروض والخصومات */}
+          <button
+            type="button"
+            onClick={() => onNavigateToTab('offers')}
+            className="group bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-amber-950/30 dark:to-[#111C2E] border border-amber-200 dark:border-amber-500/30 hover:border-amber-400 dark:hover:border-amber-400 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
+          >
+            <IconBadge icon={Flame} variant="warning" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
+            <span className="font-black text-sm sm:text-base leading-tight text-amber-950 dark:text-amber-100">
+              العروض والخصومات
+            </span>
+            <span className="text-[10px] text-amber-800/80 dark:text-amber-300/80 font-bold mt-1">
+              أحدث البوانص والأسعار الترويجية 🔥
             </span>
           </button>
 
@@ -795,8 +1206,14 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           </button>
         </div>
       </div>
+
+      {/* مودال تعديل ورفع صورة المندوب عبر Cloudinary بدون استهلاك Egress */}
+      <UserProfileAvatarModal
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+      />
     </div>
-    );
+  );
 };
 
 export default DashboardHome;

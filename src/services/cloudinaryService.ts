@@ -354,3 +354,19 @@ export async function uploadCustomerPhoto(
   const targetFolder = `customer_photos/${cleanCode}`;
   return uploadImageToCloudinary(compressed, config, targetFolder);
 }
+
+/**
+ * ترفع وتضغط صورة الملف الشخصي للمندوب أو المستخدم إلى Cloudinary (أقل من 40 كيلوبايت).
+ * ترفع مرة واحدة وتُحفظ برابط دائم يخدم من CDN كلوديناري بدون استهلاك أي بايت من رصيد Supabase Egress.
+ */
+export async function uploadUserAvatar(
+  file: File,
+  userId: string,
+  config: CloudinaryConfig = DEFAULT_CLOUDINARY_CONFIG
+): Promise<{ url: string; publicId?: string }> {
+  const compressed = await compressImageFile(file, 320, 320, 0.75);
+  const cleanId = (userId || 'user').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const targetFolder = `user_avatars/${cleanId}`;
+  return uploadImageToCloudinary(compressed, config, targetFolder);
+}
+

@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Package, ShoppingCart, Receipt, Wallet, Users,
   UserCheck, FileSpreadsheet, BarChart3, CalendarCheck, RotateCcw,
   Settings, LogOut, ShieldCheck, Target, MapPin, ChevronRight, ChevronLeft,
-  Bell,
+  Bell, Percent,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/themeContext';
@@ -33,6 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navItems = [
     { id: 'home', label: 'الرئيسية', icon: LayoutDashboard },
     { id: 'catalog', label: 'الكتالوج', icon: Package },
+    { id: 'offers', label: 'العروض والخصومات', icon: Percent },
     { id: 'all_customers', label: 'العملاء', icon: Users },
     { id: 'dashboard', label: 'التقارير الإشرافية', icon: BarChart3 },
     { id: 'invoices', label: 'الفواتير', icon: Receipt },
@@ -61,7 +62,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   }, [handleScroll]);
 
   const sectionColor: Record<string, string> = {
-    home: '#0D9488', catalog: '#2563EB', all_customers: '#16A34A', dashboard: '#7C3AED',
+    home: '#0D9488', catalog: '#2563EB', offers: '#F59E0B', all_customers: '#16A34A', dashboard: '#7C3AED',
     invoices: '#0D9488', visits: '#2563EB', returns: '#DC2626', targets: '#F59E0B',
     users: '#0F2B38', legal_advisor: '#1E3A8A', excel: '#F59E0B',
   };
@@ -88,7 +89,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {!isCollapsed && currentUser && (
             <div className="px-4 py-4 border-b border-slate-200 dark:border-[#26364D]">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#17243A] flex items-center justify-center text-slate-600 dark:text-[#94A3B8] font-black text-sm">{currentUser.name?.charAt(0) || 'U'}</div>
+                {currentUser.avatar ? (
+                  <img
+                    src={currentUser.avatar}
+                    alt={currentUser.name}
+                    className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shadow-xs"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-[#17243A] flex items-center justify-center text-slate-600 dark:text-[#94A3B8] font-black text-sm">
+                    {currentUser.name?.charAt(0) || 'U'}
+                  </div>
+                )}
                 <div className="min-w-0 flex-1">
                   <div className="font-bold text-sm text-[#0F172A] dark:text-[#F1F5F9] truncate">{currentUser.name}</div>
                   <div className="text-xs text-slate-500 dark:text-[#94A3B8] truncate">{currentUser.role}</div>

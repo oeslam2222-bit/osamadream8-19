@@ -39,6 +39,7 @@ import { CollectionRecoveryDashboard } from './components/CollectionRecoveryDash
 import { UnifiedReturnsView } from './components/UnifiedReturnsView';
 import { PermissionManagerModal } from './components/PermissionManagerModal';
 import { OrderBuilderModal } from './components/OrderBuilderModal';
+import { PromotionsOffersView } from './components/PromotionsOffersView';
 import { AppProvider, useApp } from './context/AppContext';
 import { ThemeProvider, useTheme } from './context/themeContext';
 import { getUserAllowedTabs, getCustomPermissions, UserPermissionOverride } from './services/permissionService';
@@ -51,35 +52,35 @@ import { Customer, Invoice, UserRole } from './types';
 
 export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
-    'home', 'catalog', 'customer_item_sales',
+    'home', 'catalog', 'offers', 'customer_item_sales',
     'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   admin: [
-    'home', 'catalog', 'customer_item_sales',
+    'home', 'catalog', 'offers', 'customer_item_sales',
     'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   branch_manager: [
-    'home', 'catalog', 'customer_item_sales',
+    'home', 'catalog', 'offers', 'customer_item_sales',
     'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'users', 'guide'
   ],
   supervisor: [
-    'home', 'catalog', 'customer_item_sales',
+    'home', 'catalog', 'offers', 'customer_item_sales',
     'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'users'
   ],
   sales_rep: [
-    'home', 'catalog', 'customer_item_sales', 'collection'
+    'home', 'catalog', 'offers', 'customer_item_sales', 'collection'
   ],
   technical_support: [
-    'home', 'catalog', 'customer_item_sales',
+    'home', 'catalog', 'offers', 'customer_item_sales',
     'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'excel', 'users', 'guide', 'permissions'
   ],
   legal_advisor: ["home"],
-  warehouse_keeper: ["home", "catalog", "returns", "inventory", "guide"],
+  warehouse_keeper: ["home", "catalog", "offers", "returns", "inventory", "guide"],
 };
 
 // Lightweight Skeleton for tab transitions
@@ -243,6 +244,10 @@ const MainLayout: React.FC = () => {
                 setActiveTab('invoices');
               }}
             />
+          )}
+
+          {(activeTab === 'offers' || activeTab === 'promotions') && (
+            <PromotionsOffersView />
           )}
 
           {activeTab === 'customer_item_sales' && (allowedTabs.includes('customer_item_sales') || allowedTabs.includes('catalog')) && (

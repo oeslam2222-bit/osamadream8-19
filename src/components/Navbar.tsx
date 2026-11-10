@@ -42,7 +42,9 @@ import {
   ChevronLeft,
   ChevronRight,
   PackageSearch,
-  Search
+  Search,
+  Camera,
+  Percent
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -52,6 +54,7 @@ import { UserRole } from '../types';
 import { InstallAppModal } from './InstallAppModal';
 import { SystemSettingsAndAboutModal } from './SystemSettingsAndAboutModal';
 import { InternalNotificationCenter } from './InternalNotificationCenter';
+import { UserProfileAvatarModal } from './UserProfileAvatarModal';
 
 interface NavbarProps {
   activeTab: string;
@@ -103,6 +106,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
 
   const [internalSidebarCollapsed, setInternalSidebarCollapsed] = useState<boolean>(() => {
     try {
@@ -181,6 +185,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'collection', label: 'تحصيل', icon: Wallet, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'returns', label: 'المرتجعات', icon: RotateCcw, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'inventory', label: 'المخزون', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
+    { id: 'offers', label: 'العروض والخصومات', icon: Percent, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'visits', label: 'الزيارات', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'excel', label: 'الإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
@@ -207,6 +212,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const sectionBadgeTheme: Record<string, { bg: string; text: string; darkBg: string; darkText: string }> = {
     home: { bg: 'bg-blue-100', text: 'text-[#2563EB]', darkBg: 'dark:bg-blue-950/60', darkText: 'dark:text-blue-300' },
     catalog: { bg: 'bg-teal-100', text: 'text-[#0D9488]', darkBg: 'dark:bg-teal-950/60', darkText: 'dark:text-teal-300' },
+    offers: { bg: 'bg-amber-100', text: 'text-[#D97706]', darkBg: 'dark:bg-amber-950/60', darkText: 'dark:text-amber-300' },
     invoices: { bg: 'bg-blue-100', text: 'text-[#2563EB]', darkBg: 'dark:bg-blue-950/60', darkText: 'dark:text-blue-300' },
     collection: { bg: 'bg-emerald-100', text: 'text-[#16A34A]', darkBg: 'dark:bg-emerald-950/60', darkText: 'dark:text-emerald-300' },
     customers: { bg: 'bg-indigo-100', text: 'text-[#4F46E5]', darkBg: 'dark:bg-indigo-950/60', darkText: 'dark:text-indigo-300' },
@@ -518,6 +524,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                     </div>
                     <button
                       type="button"
+                      className="ds-btn ds-btn--outline mb-2 w-full flex items-center justify-center gap-2 text-xs font-bold py-2 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl cursor-pointer"
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        setIsAvatarModalOpen(true);
+                      }}
+                    >
+                      <Camera className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                      <span>تغيير الصورة الشخصية (Cloudinary)</span>
+                    </button>
+                    <button
+                      type="button"
                       className="ds-btn ds-btn--danger"
                       onClick={() => { setShowProfileMenu(false); logout(); }}
                     >
@@ -639,6 +656,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Settings aria-hidden="true" />
                 <span>إعدادات النظام والخصوصية</span>
               </button>
+              <button
+                type="button"
+                className="ds-btn ds-btn--soft-primary"
+                onClick={() => {
+                  setIsMobileDrawerOpen(false);
+                  setIsAvatarModalOpen(true);
+                }}
+              >
+                <Camera aria-hidden="true" />
+                <span>تغيير صورتي الشخصية (Cloudinary)</span>
+              </button>
               <button type="button" className="ds-btn ds-btn--soft-danger" onClick={() => { setIsMobileDrawerOpen(false); logout(); }}>
                 <LogOut aria-hidden="true" />
                 <span>تسجيل الخروج</span>
@@ -662,6 +690,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           onClose={() => setIsSettingsModalOpen(false)}
         />
       )}
+
+      {/* مودال تغيير صورة الملف الشخصي وتخزينها في Cloudinary */}
+      <UserProfileAvatarModal
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+      />
     </>
   );
 };

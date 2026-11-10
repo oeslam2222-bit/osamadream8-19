@@ -106,6 +106,7 @@ export interface AppContextType {
     supervisorId?: string;
   }) => Promise<{ success: boolean; message: string }>;
   logout: () => void;
+  updateCurrentUserAvatar: (avatarUrl: string) => Promise<boolean>;
 
   // وضع المصادقة — legacy (الوضع القديم) / hybrid (السيرفر الأول مع رجوع
   // تلقائي للقديم) / server (Supabase Auth بس). بيتقرأ من VITE_AUTH_MODE
