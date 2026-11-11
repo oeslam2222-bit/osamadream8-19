@@ -3,8 +3,12 @@ import {
   Image as ImageIcon, Plus, X, Camera, RefreshCw, MapPin,
   AlertTriangle, CheckCircle2, Building2, ShoppingCart, Phone,
   TrendingUp, Wallet, CalendarCheck, Users, Maximize2, Trash2,
+  FileText, ExternalLink, Navigation, Check, Clock, AlertCircle,
+  CreditCard, ChevronRight, Eye, ShieldCheck, Printer,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { normalizeArabicText } from '../services/arabicMatchingService';
+import type { Invoice } from '../types';
 
 const MAX_PHOTOS = 3;
 const MAX_IMAGE_WIDTH = 1000;
@@ -16,6 +20,7 @@ interface CustomerProfileDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onNewOrder?: (cust: any) => void;
+  onViewInvoice?: (invoice: Invoice) => void;
 }
 
 function fmt(value: number): string {
@@ -45,15 +50,24 @@ function compressImage(file: File): Promise<string> {
   });
 }
 
-type TabKey = 'overview' | 'months' | 'photos' | 'visits';
+type TabKey = 'overview' | 'invoices' | 'months' | 'visits' | 'gps' | 'photos';
 
 export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
   customer,
   isOpen,
   onClose,
   onNewOrder,
+  onViewInvoice,
 }) => {
-  const { currentUser, updateCustomer, cloudinaryConfig, addVisit, getVisibleVisits } = useApp();
+  const {
+    currentUser,
+    updateCustomer,
+    cloudinaryConfig,
+    addVisit,
+    getVisibleVisits,
+    getVisibleInvoices,
+    invoices: allCtxInvoices,
+  } = useApp();
 
   const [photos, setPhotos] = useState<string[]>([]);
   const [newFiles, setNewFiles] = useState<File[]>([]);
@@ -76,45 +90,144 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
     setLightbox(null);
   }, [isOpen, customer]);
 
-  /* ---------- المبيعات والتحصيلات الشهرية ---------- */
+  /* ---------- استخراج فواتير العميل الفعلية من الـ Context ---------- */
+  const customerInvoices = useMemo<Invoice[]>(() => {
+    if (!customer) return [];
+    const source: Invoice[] = (getVisibleInvoices ? getVisibleInvoices() : allCtxInvoices) || [];
+    const cId = customer.id;
+    const cCode = (customer.code || '').trim().toLowerCase();
+    const cName = normalizeArabicText(customer.name || '');
+
+    return source.filter((inv) => {
+      if (cId && inv.customerId === cId) return true;
+      if (cCode && (inv.customerCode || '').trim().toLowerCase() === cCode) return true;
+      if (cName && normalizeArabicText(inv.customerName || '') === cName) return true;
+      return false;
+    }).sort((a, b) => new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime());
+  }, [customer, getVisibleInvoices, allCtxInvoices]);
+
+  /* ---------- سجل الزيارات الميدانية ---------- */
+  const visits = useMemo(() => {
+    if (!customer) return [];
+    const history = Array.isArray(customer.visitHistory) ? customer.visitHistory : [];
+    const cId = customer.id;
+    const cCode = (customer.code || '').trim().toLowerCase();
+    const cName = normalizeArabicText(customer.name || '');
+
+    try {
+      const all = getVisibleVisits ? getVisibleVisits() : [];
+      const matched = all.filter((v: any) => {
+        if (cId && v.customerId === cId) return true;
+        if (cCode && (v.customerCode || '').trim().toLowerCase() === cCode) return true;
+        if (cName && normalizeArabicText(v.customerName || '') === cName) return true;
+        return false;
+      });
+
+      // دمج سجل الزيارات وتجنب التكرار
+      const combined = [...matched];
+      for (const h of history) {
+        if (!combined.some((m) => m.id === h.id || (m.date === h.date && m.time === h.time))) {
+          combined.push(h);
+        }
+      }
+      return combined.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime()).slice(0, 20);
+    } catch {
+      return history.slice(0, 20);
+    }
+  }, [customer, getVisibleVisits]);
+
+  /* ---------- المبيعات والتحصيلات الشهرية الديناميكية ---------- */
   const monthly = useMemo(() => {
-    const sales = customer?.monthlySales2026 || {};
-    const coll = customer?.monthlyCollections2026 || {};
+    const rawSales = customer?.monthlySales2026 || {};
+    const rawColl = customer?.monthlyCollections2026 || {};
+    
+    // تجميع المبيعات الفعلية من الفواتير حسب الشهر
+    const dynamicSales: Record<number, number> = {};
+    const dynamicColl: Record<number, number> = {};
+
+    for (const inv of customerInvoices) {
+      const d = new Date(inv.date || inv.createdAt || '');
+      const m = isNaN(d.getTime()) ? 0 : d.getMonth() + 1;
+      if (m >= 1 && m <= 12) {
+        dynamicSales[m] = (dynamicSales[m] || 0) + Number(inv.estimatedGrandTotal || inv.totalAmount || 0);
+        if (inv.paymentMethod === 'نقدي (كاش)' || (inv as any).paymentStatus === 'مدفوع') {
+          dynamicColl[m] = (dynamicColl[m] || 0) + Number(inv.estimatedGrandTotal || inv.totalAmount || 0);
+        }
+      }
+    }
+
+    // تجميع مبالغ التحصيل من الزيارات الميدانية
+    for (const v of visits) {
+      const d = new Date(v.date || '');
+      const m = isNaN(d.getTime()) ? 0 : d.getMonth() + 1;
+      const amt = Number(v.collectedAmount || 0);
+      if (m >= 1 && m <= 12 && amt > 0) {
+        dynamicColl[m] = (dynamicColl[m] || 0) + amt;
+      }
+    }
+
     const rows: { m: number; label: string; sales: number; coll: number }[] = [];
     for (let m = 1; m <= 12; m++) {
-      const s = Number(sales[m] ?? sales[String(m)] ?? 0) || 0;
-      const c = Number(coll[m] ?? coll[String(m)] ?? 0) || 0;
+      const s = Math.max(
+        Number(rawSales[m] ?? rawSales[String(m)] ?? 0) || 0,
+        dynamicSales[m] || 0
+      );
+      const c = Math.max(
+        Number(rawColl[m] ?? rawColl[String(m)] ?? 0) || 0,
+        dynamicColl[m] || 0
+      );
       if (s === 0 && c === 0) continue;
       rows.push({ m, label: MONTHS_AR[m - 1], sales: s, coll: c });
     }
     return rows;
-  }, [customer]);
+  }, [customer, customerInvoices, visits]);
 
   const monthlyMax = useMemo(
     () => Math.max(1, ...monthly.map((r) => Math.max(r.sales, r.coll))),
     [monthly]
   );
 
-  /* ---------- سجل الزيارات ---------- */
-  const visits = useMemo(() => {
-    if (!customer) return [];
-    const history = Array.isArray(customer.visitHistory) ? customer.visitHistory : [];
-    if (history.length > 0) return history.slice(0, 12);
-    try {
-      const all = getVisibleVisits ? getVisibleVisits() : [];
-      return all
-        .filter((v: any) => v.customerId === customer.id || v.customerCode === customer.code)
-        .slice(0, 12);
-    } catch {
-      return [];
-    }
-  }, [customer, getVisibleVisits]);
+  /* ---------- الحسابات المالية الإجمالية ---------- */
+  const invoiceSalesSum = useMemo(
+    () => customerInvoices.reduce((sum, inv) => sum + Number(inv.estimatedGrandTotal || inv.totalAmount || 0), 0),
+    [customerInvoices]
+  );
 
-  /* ---------- GPS ---------- */
+  const visitsCollSum = useMemo(
+    () => visits.reduce((sum, v) => sum + Number(v.collectedAmount || 0), 0),
+    [visits]
+  );
+
+  const balance = Number(customer?.balance ?? customer?.currentBalance ?? 0);
+  const overdue = Number(customer?.overdue ?? customer?.overdueBalance ?? customer?.totalOverdueAndDue ?? 0);
+  const limit = Number(customer?.creditLimit ?? 0);
+  const exceeded = limit > 0 && (balance + overdue) > limit;
+  const sector = customer?.sector;
+  const avatarTone = sector === 'home' ? 'home' : sector === 'electrical' ? 'electrical' : 'default';
+  
+  // تصنيف العميل المعتمد من عمود قابل /غير
+  const rawEligibility = (customer?.dealEligibility || customer?.dealClassification || customer?.eligibilityStatusLabel || '').trim();
+  const isEligible = rawEligibility
+    ? (!rawEligibility.includes('غير') && !rawEligibility.includes('موقوف') && !rawEligibility.includes('ممتنع'))
+    : true;
+  const eligibilityLabel = rawEligibility || (isEligible ? 'قابل للتعامل' : 'غير قابل للتعامل');
+
+  const totalSales = Math.max(
+    Number(customer?.totalSales ?? customer?.sales2026 ?? 0),
+    invoiceSalesSum
+  );
+  const totalColl = Math.max(
+    Number(customer?.totalCollections ?? customer?.collections2026 ?? 0),
+    visitsCollSum
+  );
+  const usagePct = limit > 0 ? Math.min(100, Math.round(((balance + overdue) / limit) * 100)) : 0;
+  const photosCount = photos.length + newFiles.length;
+
+  /* ---------- GPS وتثبيت الموقع الجغرافي ---------- */
   const requestGps = useCallback((): Promise<{ lat: number; lng: number; acc?: number } | null> => {
     return new Promise((resolve) => {
       if (!('geolocation' in navigator)) {
-        setToast({ ok: false, text: 'المتصفح لا يدعم تحديد الموقع' });
+        setToast({ ok: false, text: 'المتصفح أو الجهاز لا يدعم خدمة تحديد الموقع GPS' });
         resolve(null);
         return;
       }
@@ -124,70 +237,84 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
           setGps(coords);
           resolve(coords);
         },
-        () => {
-          setToast({ ok: false, text: 'تعذر تحديد الموقع — تأكد من السماح بالوصول لـ GPS' });
+        (err) => {
+          let msg = 'تعذر الوصول لـ GPS — يرجى تفعيل الموقع في المتصفح أو الهاتف';
+          if (err.code === 1) msg = 'تم رفض الإذن لتحديد الموقع الجغرافي';
+          else if (err.code === 2) msg = 'إشارة الـ GPS غير متوفرة حالياً';
+          else if (err.code === 3) msg = 'انتهت مهلة تحديد الموقع';
+          setToast({ ok: false, text: msg });
           resolve(null);
         },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
     });
   }, []);
 
   const handleVisitWithGps = async () => {
-    if (!currentUser || !customer) return;
+    if (!customer) return;
     setGpsLoading(true);
+    setToast(null);
+
     const coords = await requestGps();
     if (!coords) {
       setGpsLoading(false);
       return;
     }
 
-    const res = addVisit({
-      customerId: customer.id,
-      customerName: customer.name,
-      customerCode: customer.code,
-      date: new Date().toISOString().slice(0, 10),
-      time: new Date().toLocaleTimeString('en-GB', { hour12: false }),
-      repId: currentUser.id,
-      repName: currentUser.name,
-      branchName: customer.branchName || currentUser.branchName,
-      sector: customer.sector || 'all',
-      supervisorId: currentUser.supervisorId,
-      supervisorName: currentUser.supervisorName || 'المشرف',
-      type: 'تحصيل',
-      outcome: 'تم التحصيل',
-      status: 'منفذة',
-      collectedAmount: 0,
-      notes: `زيارة ميدانية للعميل ${customer.name} — تثبيت الإحداثيات تلقائياً`,
-      syncStatus: 'local_only',
-    } as any);
+    try {
+      const updatedCustomerData = {
+        ...customer,
+        latitude: coords.lat,
+        longitude: coords.lng,
+        locationAddress: customer.address || customer.region || customer.branchName || '',
+        locationCapturedAt: new Date().toISOString(),
+        locationCapturedBy: currentUser?.name || 'المندوب',
+      };
 
-    await updateCustomer({
-      ...customer,
-      latitude: coords.lat,
-      longitude: coords.lng,
-      locationAddress: customer.address || customer.region || customer.branchName || '',
-      locationCapturedAt: new Date().toISOString(),
-      locationCapturedBy: currentUser.name,
-    });
+      await updateCustomer(updatedCustomerData);
 
-    setGpsLoading(false);
-    setToast({
-      ok: Boolean(res?.success),
-      text: res?.success
-        ? `تم تسجيل زيارة ${customer.name} وتثبيت إحداثياته بنجاح`
-        : res?.message || 'تم تثبيت الإحداثيات',
-    });
-    setTimeout(() => setToast(null), 4500);
+      // تسجيل زيارة توثيقية تلقائية
+      if (addVisit && currentUser) {
+        addVisit({
+          customerId: customer.id,
+          customerName: customer.name,
+          customerCode: customer.code,
+          date: new Date().toISOString().slice(0, 10),
+          time: new Date().toLocaleTimeString('en-GB', { hour12: false }),
+          repId: currentUser.id,
+          repName: currentUser.name,
+          branchName: customer.branchName || currentUser.branchName || 'الرئيسي',
+          sector: customer.sector || 'all',
+          supervisorId: currentUser.supervisorId,
+          supervisorName: currentUser.supervisorName || 'المشرف',
+          type: 'تثبيت موقع',
+          outcome: 'تم تثبيت GPS',
+          status: 'منفذة',
+          collectedAmount: 0,
+          notes: `تثبيت إحداثيات موقع العميل GPS بدقة ±${Math.round(coords.acc || 0)}م`,
+          syncStatus: 'local_only',
+        } as any);
+      }
+
+      setToast({
+        ok: true,
+        text: `تم تثبيت إحداثيات ${customer.name} بنجاح (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`,
+      });
+      setTimeout(() => setToast(null), 5000);
+    } catch (err: any) {
+      setToast({ ok: false, text: err?.message || 'حدث خطأ أثناء حفظ الإحداثيات' });
+    } finally {
+      setGpsLoading(false);
+    }
   };
 
-  /* ---------- الصور ---------- */
+  /* ---------- إدارة ورفع الصور (Cloudinary) ---------- */
   const handleFiles = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []).filter((f) => f.type.startsWith('image/'));
     e.target.value = '';
     if (files.length === 0) return;
     if (photos.length + newFiles.length + files.length > MAX_PHOTOS) {
-      setToast({ ok: false, text: `الحد الأقصى ${MAX_PHOTOS} صور فقط للعميل الواحد` });
+      setToast({ ok: false, text: `الحد الأقصى ${MAX_PHOTOS} صور فقط لكل عميل` });
       return;
     }
     setNewFiles((prev) => [...prev, ...files]);
@@ -203,7 +330,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
     const next = photos.filter((p) => p !== url);
     setPhotos(next);
     await updateCustomer({ ...customer, storePhotos: next });
-    setToast({ ok: true, text: 'تم حذف الصورة' });
+    setToast({ ok: true, text: 'تم حذف الصورة بنجاح' });
     setTimeout(() => setToast(null), 2500);
   };
 
@@ -215,7 +342,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
       const preset = cloudinaryConfig?.uploadPreset;
       if (!cloudName || !preset) {
         setUploading(false);
-        setToast({ ok: false, text: 'إعدادات الرفع (Cloudinary) غير مفعّلة' });
+        setToast({ ok: false, text: 'إعدادات Cloudinary غير مفعّلة في النظام' });
         return;
       }
       const uploaded: string[] = [];
@@ -244,31 +371,31 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
 
   if (!isOpen || !customer) return null;
 
-  const balance = Number(customer.balance ?? customer.currentBalance ?? 0);
-  const overdue = Number(customer.overdue ?? customer.overdueBalance ?? customer.totalOverdueAndDue ?? 0);
-  const limit = Number(customer.creditLimit ?? 0);
-  const exceeded = limit > 0 && (balance + overdue) > limit;
-  const sector = customer.sector;
-  const avatarTone = sector === 'home' ? 'home' : sector === 'electrical' ? 'electrical' : 'default';
-  const totalSales = Number(customer.totalSales ?? customer.sales2026 ?? 0);
-  const totalColl = Number(customer.totalCollections ?? customer.collections2026 ?? 0);
-  const usagePct = limit > 0 ? Math.min(100, Math.round(((balance + overdue) / limit) * 100)) : 0;
-  const photosCount = photos.length + newFiles.length;
+  const currentLat = gps?.lat ?? customer.latitude;
+  const currentLng = gps?.lng ?? customer.longitude;
+  const googleMapsUrl = currentLat && currentLng ? `https://www.google.com/maps?q=${currentLat},${currentLng}` : null;
 
-  const tabs: { key: TabKey; label: string; icon: any }[] = [
-    { key: 'overview', label: 'نظرة عامة', icon: Building2 },
+  const tabs: { key: TabKey; label: string; icon: any; count?: number }[] = [
+    { key: 'overview', label: 'البيانات المالية', icon: Building2 },
+    { key: 'invoices', label: 'الفواتير والطلبات', icon: FileText, count: customerInvoices.length },
     { key: 'months', label: 'المبيعات الشهرية', icon: TrendingUp },
-    { key: 'photos', label: 'صور المحل', icon: ImageIcon },
-    { key: 'visits', label: 'الزيارات', icon: CalendarCheck },
+    { key: 'visits', label: 'الزيارات', icon: CalendarCheck, count: visits.length },
+    { key: 'gps', label: 'تثبيت GPS', icon: MapPin },
+    { key: 'photos', label: 'صور المحل', icon: ImageIcon, count: photosCount },
   ];
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-6" onClick={onClose}>
-      <div className="absolute inset-0 bg-[#071726]/70 backdrop-blur-sm" onClick={(e) => e.stopPropagation()} />
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 overflow-hidden" dir="rtl">
+      {/* خلفية معتمة منفصلة قابلة للنقر للإغلاق - غير محجوبة وغير متداخلة */}
+      <div
+        className="fixed inset-0 bg-[#071726]/80 backdrop-blur-sm transition-opacity cursor-pointer"
+        onClick={onClose}
+        aria-label="إغلاق الخلفية"
+      />
 
-      <div className="tg-cp" onClick={(e) => e.stopPropagation()}>
-        {/* ====== هيدر مضغوط ====== */}
-        <div className="tg-cp__head">
+      <div className="tg-cp relative z-10 w-full max-w-2xl max-h-[92vh] flex flex-col bg-white dark:bg-[#0f172a] rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-[0_25px_70px_rgba(0,0,0,0.55)] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+        {/* ====== هيدر بطاقة العميل ====== */}
+        <div className="tg-cp__head relative z-10">
           <button
             type="button"
             onClick={onClose}
@@ -282,7 +409,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
             <div className="relative shrink-0">
               <div className={`tg-cp__avatar tg-cp__avatar--${avatarTone}`}>
                 {photos[0] ? (
-                  <img src={photos[0]} alt={customer.name} className="w-full h-full object-cover" />
+                  <img src={photos[0]} alt={customer.name} className="w-full h-full object-cover rounded-2xl" />
                 ) : (
                   <span>{String(customer.name || '؟').charAt(0)}</span>
                 )}
@@ -292,91 +419,152 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                {/* شارة تصنيف الشيت المعتمدة (قابل / غير قابل) */}
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black border shadow-xs ${
+                  isEligible
+                    ? 'bg-emerald-500/25 text-emerald-200 border-emerald-400/50'
+                    : 'bg-rose-500/25 text-rose-200 border-rose-400/50'
+                }`}>
+                  {isEligible ? <CheckCircle2 size={12} className="text-emerald-300" /> : <AlertTriangle size={12} className="text-rose-300" />}
+                  <span>{eligibilityLabel}</span>
+                </span>
+
                 <span className={`tg-cp__badge ${
                   sector === 'home' ? 'tg-cp__badge--blue' : sector === 'electrical' ? 'tg-cp__badge--violet' : ''
                 }`}>
                   {sector === 'home' ? 'منزلي' : sector === 'electrical' ? 'كهربائي' : 'عام'}
                 </span>
+
                 <span className={`tg-cp__badge ${exceeded ? 'tg-cp__badge--risk' : balance > 0 ? 'tg-cp__badge--warn' : 'tg-cp__badge--ok'}`}>
-                  {exceeded ? 'تجاوز الحد' : balance > 0 ? 'عليه مستحق' : 'خالص'}
+                  {exceeded ? 'تجاوز حد الائتمان' : balance > 0 ? 'عليه مستحق' : 'خالص'}
                 </span>
+
+                {customer.latitude && (
+                  <span className="tg-cp__badge tg-cp__badge--ok inline-flex items-center gap-1">
+                    <Check size={10} />
+                    GPS مثبت
+                  </span>
+                )}
               </div>
-              <h2 className="tg-cp__name truncate">{customer.name}</h2>
-              <div className="tg-cp__meta">
-                <span className="font-mono">{customer.code || '—'}</span>
+              <h2 className="tg-cp__name truncate text-lg sm:text-xl text-white font-black">{customer.name}</h2>
+              <div className="tg-cp__meta text-blue-100/90 text-xs font-bold">
+                <span className="font-mono bg-white/10 px-1.5 py-0.5 rounded text-[10px]">{customer.code || '—'}</span>
                 <span>•</span>
                 <span>{customer.branchName || customer.branch || '—'}</span>
                 {customer.phone && customer.phone !== '—' && (
                   <>
                     <span>•</span>
-                    <span className="inline-flex items-center gap-1">
-                      <Phone size={10} />
+                    <a
+                      href={`tel:${customer.phone}`}
+                      className="inline-flex items-center gap-1 text-blue-200 hover:text-white underline-offset-2 hover:underline"
+                    >
+                      <Phone size={11} />
                       {customer.phone}
-                    </span>
+                    </a>
                   </>
                 )}
               </div>
             </div>
           </div>
 
-          {/* شريط الإحصائيات */}
-          <div className="tg-cp__stats">
-            <div className="tg-cp__stat">
-              <div className="tg-cp__stat-label">المديونية</div>
-              <div className="tg-cp__stat-value">{fmt(balance)}</div>
+          {/* شريط الإحصائيات المالية المباشرة */}
+          <div className="tg-cp__stats grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3.5">
+            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-xl p-2.5">
+              <div className="tg-cp__stat-label text-blue-200 text-[10px]">المديونية الحالية</div>
+              <div className="tg-cp__stat-value text-white font-black text-sm">{fmt(balance)} ج.م</div>
             </div>
-            <div className="tg-cp__stat">
-              <div className="tg-cp__stat-label">المتأخرات</div>
-              <div className="tg-cp__stat-value" style={{ color: overdue > 0 ? '#fecdd3' : '#a7f3d0' }}>
-                {fmt(overdue)}
+            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-xl p-2.5">
+              <div className="tg-cp__stat-label text-blue-200 text-[10px]">المتأخرات</div>
+              <div className="tg-cp__stat-value font-black text-sm" style={{ color: overdue > 0 ? '#fecdd3' : '#a7f3d0' }}>
+                {fmt(overdue)} ج.م
               </div>
             </div>
-            <div className="tg-cp__stat">
-              <div className="tg-cp__stat-label">المبيعات</div>
-              <div className="tg-cp__stat-value" style={{ color: '#bfdbfe' }}>{fmt(totalSales)}</div>
+            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-xl p-2.5">
+              <div className="tg-cp__stat-label text-blue-200 text-[10px]">إجمالي المبيعات</div>
+              <div className="tg-cp__stat-value font-black text-sm" style={{ color: '#bfdbfe' }}>{fmt(totalSales)} ج.م</div>
             </div>
-            <div className="tg-cp__stat">
-              <div className="tg-cp__stat-label">التحصيل</div>
-              <div className="tg-cp__stat-value" style={{ color: '#a7f3d0' }}>{fmt(totalColl)}</div>
+            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-xl p-2.5">
+              <div className="tg-cp__stat-label text-blue-200 text-[10px]">إجمالي التحصيل</div>
+              <div className="tg-cp__stat-value font-black text-sm" style={{ color: '#a7f3d0' }}>{fmt(totalColl)} ج.م</div>
             </div>
           </div>
         </div>
 
         {/* ====== التبويبات ====== */}
-        <div className="tg-cp__tabs">
+        <div className="tg-cp__tabs flex items-center gap-1.5 p-2 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 overflow-x-auto shrink-0">
           {tabs.map((t) => {
             const Icon = t.icon;
+            const isActive = tab === t.key;
             return (
               <button
                 key={t.key}
                 type="button"
                 onClick={() => setTab(t.key)}
-                className={`tg-cp__tab ${tab === t.key ? 'tg-cp__tab--active' : ''}`}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer shrink-0 border ${
+                  isActive
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/30'
+                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+                }`}
               >
-                <Icon size={13} />
-                {t.label}
-                {t.key === 'photos' && photosCount > 0 && (
-                  <span className="text-[10px] opacity-75">({photosCount})</span>
+                <Icon size={14} className={isActive ? 'text-white' : 'text-slate-500 dark:text-slate-400'} />
+                <span>{t.label}</span>
+                {t.count !== undefined && t.count > 0 && (
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                  }`}>
+                    {t.count}
+                  </span>
                 )}
               </button>
             );
           })}
         </div>
 
-        {/* ====== المحتوى ====== */}
-        <div className="tg-cp__body">
+        {/* ====== المحتوى الداخلي ====== */}
+        <div className="tg-cp__body flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0b1329] p-4 sm:p-5 space-y-4">
+          {/* التبويب 1: البيانات المالية والنظرة العامة */}
           {tab === 'overview' && (
             <div className="space-y-4">
-              {/* حد الائتمان */}
+              {/* تصنيف العميل المعتمد من عمود قابل /غير في الشيت */}
+              <div className={`p-4 rounded-2xl border transition-all ${
+                isEligible
+                  ? 'bg-emerald-50/90 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-800/60'
+                  : 'bg-rose-50/90 dark:bg-rose-950/25 border-rose-200 dark:border-rose-800/60'
+              }`}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
+                      isEligible ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
+                    }`}>
+                      {isEligible ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">تصنيف الشيت المعتمد (قابل / غير)</div>
+                      <div className={`text-base font-black ${isEligible ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>
+                        {eligibilityLabel}
+                      </div>
+                    </div>
+                  </div>
+                  <span className={`text-[11px] font-black px-3 py-1 rounded-xl shrink-0 ${
+                    isEligible
+                      ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 border border-emerald-200/60'
+                      : 'bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200 border border-rose-200/60'
+                  }`}>
+                    {isEligible ? '✓ مؤهل للتعامل والطلبات' : '✕ غير مؤهل للتعامل'}
+                  </span>
+                </div>
+              </div>
+
+              {/* حد الائتمان ومؤشر الاستخدام */}
               {limit > 0 && (
-                <div className="tg-card p-4">
+                <div className="tg-card p-4 bg-white dark:bg-[#131e36] border border-slate-200 dark:border-slate-800">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-black text-[#0b2337] flex items-center gap-1.5">
+                    <span className="text-[11px] font-black text-[#0b2337] dark:text-white flex items-center gap-1.5">
                       <Wallet size={14} className="text-blue-600" />
-                      حد الائتمان
+                      حد الائتمان المسموح
                     </span>
                     <span className={`text-[11px] font-black ${exceeded ? 'text-rose-600' : 'text-emerald-600'}`}>
-                      {usagePct}% مستخدم
+                      {usagePct}% مستخدم {exceeded && '(تجاوز الحد!)'}
                     </span>
                   </div>
                   <div className="tg-cp__meter">
@@ -390,61 +578,95 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                       }}
                     />
                   </div>
-                  <div className="flex items-center justify-between mt-2 text-[10px] font-bold text-slate-500">
-                    <span>المستخدم: {fmt(balance + overdue)}</span>
-                    <span>الحد: {fmt(limit)}</span>
+                  <div className="flex items-center justify-between mt-2 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                    <span>المستخدم: {fmt(balance + overdue)} ج.م</span>
+                    <span>الحد: {fmt(limit)} ج.م</span>
                   </div>
                 </div>
               )}
 
-              {/* بيانات العميل */}
-              <div className="tg-card p-4">
-                <div className="tg-cp__section-title">
+              {/* بطاقة الموقع الجغرافي وتثبيت GPS */}
+              <div className="tg-card p-4 bg-gradient-to-br from-emerald-50/60 to-blue-50/60 dark:from-slate-800 dark:to-slate-800/90 border border-emerald-200 dark:border-slate-700">
+                <div className="flex items-center justify-between mb-2.5">
+                  <div className="tg-cp__section-title mb-0 text-[#0b2337] dark:text-white font-black">
+                    <MapPin size={15} className="text-emerald-600 dark:text-emerald-400" />
+                    تثبيت موقع العميل بالـ GPS (Google Maps)
+                  </div>
+                  {googleMapsUrl && (
+                    <a
+                      href={googleMapsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] font-black text-blue-600 dark:text-blue-400 hover:text-blue-800 bg-white dark:bg-slate-700 border border-blue-200 dark:border-slate-600 px-2.5 py-1 rounded-lg shadow-2xs"
+                    >
+                      <Navigation size={12} />
+                      فتح في خرائط Google
+                      <ExternalLink size={10} />
+                    </a>
+                  )}
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="text-[11px] text-slate-600 dark:text-slate-300 font-bold leading-relaxed">
+                    {currentLat && currentLng ? (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 text-[11px] font-mono font-bold" dir="ltr">
+                            {Number(currentLat).toFixed(5)}, {Number(currentLng).toFixed(5)}
+                          </span>
+                          <span className="text-emerald-700 dark:text-emerald-400 font-black">موقع مثبت</span>
+                        </div>
+                        {customer.locationCapturedBy && (
+                          <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                            تم التثبيت بواسطة: {customer.locationCapturedBy}
+                            {customer.locationCapturedAt && ` • ${new Date(customer.locationCapturedAt).toLocaleDateString('ar-EG')}`}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-amber-800 dark:text-amber-300 font-bold">
+                        لم يتم تثبيت إحداثيات موقع هذا العميل حتى الآن.
+                      </p>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleVisitWithGps}
+                    disabled={gpsLoading}
+                    className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black shadow-md shadow-emerald-600/20 transition cursor-pointer active:scale-95 disabled:opacity-60 shrink-0"
+                  >
+                    {gpsLoading ? <RefreshCw size={14} className="animate-spin" /> : <MapPin size={14} />}
+                    <span>{gpsLoading ? 'جاري تحديد GPS...' : '📍 أخذ لوكيشن وتثبيت GPS الآن'}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* بيانات المركز والمسؤولين */}
+              <div className="tg-card p-4 bg-white dark:bg-[#131e36] border border-slate-200 dark:border-slate-800">
+                <div className="tg-cp__section-title text-[#0b2337] dark:text-white font-black">
                   <Building2 size={15} className="text-blue-600" />
-                  بيانات العميل
+                  بيانات العميل والمسؤولين
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-                  <div className="tg-cp__row"><span className="tg-cp__row-label">المركز (المندوب)</span><span className="tg-cp__row-value truncate">{customer.salesRepName || customer.repName || 'غير محدد'}</span></div>
+                  <div className="tg-cp__row">
+                    <span className="tg-cp__row-label">تصنيف الشيت (قابل / غير)</span>
+                    <span className={`tg-cp__row-value font-black ${isEligible ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      {eligibilityLabel}
+                    </span>
+                  </div>
+                  <div className="tg-cp__row"><span className="tg-cp__row-label">المندوب المسؤول</span><span className="tg-cp__row-value truncate">{customer.salesRepName || customer.repName || 'غير محدد'}</span></div>
                   <div className="tg-cp__row"><span className="tg-cp__row-label">المشرف</span><span className="tg-cp__row-value truncate">{customer.supervisorName || customer.supervisor || 'غير محدد'}</span></div>
+                  <div className="tg-cp__row"><span className="tg-cp__row-label">الفرع</span><span className="tg-cp__row-value">{customer.branchName || customer.branch || '—'}</span></div>
                   <div className="tg-cp__row"><span className="tg-cp__row-label">الفئة</span><span className="tg-cp__row-value">{customer.tier || 'عادي'}</span></div>
-                  <div className="tg-cp__row"><span className="tg-cp__row-label">آخر زيارة</span><span className="tg-cp__row-value">{customer.lastVisitDate || customer.lastVisit || 'لا يوجد'}</span></div>
-                  <div className="tg-cp__row"><span className="tg-cp__row-label">آخر تحصيل</span><span className="tg-cp__row-value">{customer.lastCollectionDate || 'لا يوجد'}</span></div>
-                  <div className="tg-cp__row"><span className="tg-cp__row-label">عدد الزيارات</span><span className="tg-cp__row-value">{customer.visitCount2026 ?? visits.length}</span></div>
+                  <div className="tg-cp__row"><span className="tg-cp__row-label">عدد الفواتير</span><span className="tg-cp__row-value">{customerInvoices.length} أمر بيع</span></div>
+                  <div className="tg-cp__row"><span className="tg-cp__row-label">عدد الزيارات</span><span className="tg-cp__row-value">{visits.length} زيارة</span></div>
                   <div className="tg-cp__row"><span className="tg-cp__row-label">العنوان</span><span className="tg-cp__row-value truncate">{customer.address || customer.region || 'غير محدد'}</span></div>
                   <div className="tg-cp__row"><span className="tg-cp__row-label">المحافظة</span><span className="tg-cp__row-value truncate">{customer.governorate || 'غير محدد'}</span></div>
                 </div>
               </div>
 
-              {/* الموقع */}
-              <div className="tg-card p-4">
-                <div className="tg-cp__section-title">
-                  <MapPin size={15} className="text-emerald-600" />
-                  الموقع الجغرافي
-                </div>
-                {gps ? (
-                  <div className="flex items-center justify-between gap-3 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">
-                    <span className="text-[11px] font-black text-emerald-800 font-mono" dir="ltr">
-                      {gps.lat.toFixed(5)}, {gps.lng.toFixed(5)}
-                    </span>
-                    {gps.acc != null && (
-                      <span className="text-[10px] font-bold text-emerald-600">±{Math.round(gps.acc)}م</span>
-                    )}
-                  </div>
-                ) : customer.latitude ? (
-                  <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2">
-                    <span className="text-[11px] font-black text-slate-700 font-mono" dir="ltr">
-                      {Number(customer.latitude).toFixed(5)}, {Number(customer.longitude).toFixed(5)}
-                    </span>
-                    <span className="text-[10px] font-bold text-slate-500">مثبّت سابقاً</span>
-                  </div>
-                ) : (
-                  <p className="text-[11px] font-bold text-slate-500">
-                    اضغط زر الموقع لتثبيت إحداثيات العميل تلقائياً.
-                  </p>
-                )}
-              </div>
-
-              {/* الرسالة */}
+              {/* التنبيهات والرسائل */}
               {toast && (
                 <div className={`tg-cp__toast ${toast.ok ? 'tg-cp__toast--ok' : 'tg-cp__toast--err'}`}>
                   {toast.ok ? <CheckCircle2 size={15} /> : <AlertTriangle size={15} />}
@@ -454,11 +676,117 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
             </div>
           )}
 
+          {/* التبويب 2: أوامر البيع والفواتير */}
+          {tab === 'invoices' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="tg-cp__section-title mb-0">
+                  <FileText size={15} className="text-blue-600" />
+                  أوامر البيع والفواتير السابقة ({customerInvoices.length})
+                </div>
+                {onNewOrder && (
+                  <button
+                    type="button"
+                    onClick={() => { onClose(); onNewOrder(customer); }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black transition cursor-pointer shadow-sm"
+                  >
+                    <Plus size={13} />
+                    فاتورة جديدة
+                  </button>
+                )}
+              </div>
+
+              {customerInvoices.length === 0 ? (
+                <div className="tg-card p-8 text-center">
+                  <div className="mx-auto mb-3 w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center">
+                    <FileText size={22} />
+                  </div>
+                  <p className="text-xs font-black text-slate-500 mb-2">لا توجد فواتير أو أوامر بيع مسجلة لهذا العميل</p>
+                  {onNewOrder && (
+                    <button
+                      type="button"
+                      onClick={() => { onClose(); onNewOrder(customer); }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold"
+                    >
+                      <Plus size={14} />
+                      إنشاء أول فاتورة للعميل
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {customerInvoices.map((inv) => {
+                    const isApproved = inv.status === 'معتمدة ومصروفة من المخزن' || (inv.status as string) === 'معتمد';
+                    const isPending = inv.status.includes('قيد') || inv.status.includes('معلقة') || inv.status.includes('انتظار');
+                    const isPaid = inv.paymentMethod === 'نقدي (كاش)' || (inv as any).paymentStatus === 'مدفوع';
+
+                    return (
+                      <div
+                        key={inv.id}
+                        className="tg-card p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-blue-300 transition"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="font-mono text-xs font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                              {inv.invoiceNumber}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400">
+                              {inv.date || new Date(inv.createdAt || '').toLocaleDateString('ar-EG')}
+                            </span>
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full ${
+                              isApproved ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                              isPending ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                              'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}>
+                              {isApproved ? <CheckCircle2 size={10} /> : isPending ? <Clock size={10} /> : <AlertTriangle size={10} />}
+                              {inv.status}
+                            </span>
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full ${
+                              isPaid ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                              'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}>
+                              <CreditCard size={10} />
+                              {isPaid ? 'مدفوع' : 'غير مدفوع / آجل'}
+                            </span>
+                          </div>
+                          <div className="text-[11px] font-bold text-slate-500">
+                            {inv.items?.length || 0} صنف • {inv.totalCartons || 0} كرتونة • مندوب: {inv.repName || '—'}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                          <div className="text-right sm:text-left">
+                            <div className="text-sm font-black text-[#0b2337] tabular-nums">
+                              {fmt(inv.estimatedGrandTotal || inv.totalAmount || 0)} ج.م
+                            </div>
+                            <div className="text-[9px] font-bold text-slate-400">القيمة الإجمالية</div>
+                          </div>
+
+                          {onViewInvoice && (
+                            <button
+                              type="button"
+                              onClick={() => { onClose(); onViewInvoice(inv); }}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-700 text-xs font-bold transition cursor-pointer"
+                            >
+                              <Eye size={13} />
+                              عرض
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* التبويب 3: المبيعات الشهرية */}
           {tab === 'months' && (
             <div className="space-y-4">
               <div className="tg-cp__section-title">
                 <TrendingUp size={15} className="text-blue-600" />
-                المبيعات والتحصيلات شهرياً
+                المبيعات والتحصيلات شهرياً لعام 2026
               </div>
 
               {monthly.length === 0 ? (
@@ -474,8 +802,8 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                     {monthly.map((r) => (
                       <div key={r.m} className="tg-cp__month">
                         <div className="tg-cp__month-label">{r.label}</div>
-                        <div className="tg-cp__month-sales">{fmt(r.sales)}</div>
-                        <div className="tg-cp__month-coll">{fmt(r.coll)}</div>
+                        <div className="tg-cp__month-sales">{fmt(r.sales)} ج.م</div>
+                        <div className="tg-cp__month-coll">{fmt(r.coll)} ج.م</div>
                         <div className="tg-cp__bar">
                           <div
                             className="tg-cp__bar-fill"
@@ -490,11 +818,11 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                     <div className="grid grid-cols-2 gap-3">
                       <div className="rounded-xl bg-blue-50 border border-blue-100 p-3">
                         <div className="text-[10px] font-black text-blue-700">إجمالي مبيعات السنة</div>
-                        <div className="text-base font-black text-blue-800 tabular-nums">{fmt(totalSales)}</div>
+                        <div className="text-base font-black text-blue-800 tabular-nums">{fmt(totalSales)} ج.م</div>
                       </div>
                       <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3">
                         <div className="text-[10px] font-black text-emerald-700">إجمالي تحصيلات السنة</div>
-                        <div className="text-base font-black text-emerald-800 tabular-nums">{fmt(totalColl)}</div>
+                        <div className="text-base font-black text-emerald-800 tabular-nums">{fmt(totalColl)} ج.م</div>
                       </div>
                     </div>
                   </div>
@@ -503,6 +831,119 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
             </div>
           )}
 
+          {/* التبويب 4: الزيارات الميدانية */}
+          {tab === 'visits' && (
+            <div className="space-y-3">
+              <div className="tg-cp__section-title">
+                <CalendarCheck size={15} className="text-emerald-600" />
+                سجل الزيارات الميدانية ({visits.length})
+              </div>
+
+              {visits.length === 0 ? (
+                <div className="tg-card p-8 text-center">
+                  <div className="mx-auto mb-3 w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center">
+                    <CalendarCheck size={22} />
+                  </div>
+                  <p className="text-xs font-black text-slate-500">لا توجد زيارات مسجلة لهذا العميل</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {visits.map((v: any, idx: number) => (
+                    <div key={v.id || idx} className="tg-card p-3 flex items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                          <span className="text-[11px] font-black text-[#0b2337]">{v.date || '—'}</span>
+                          <span className="text-[10px] font-bold text-slate-400">{v.time || ''}</span>
+                          <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
+                            {v.type || 'زيارة'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] font-bold text-slate-500 truncate">
+                          {v.repName || '—'} • {v.outcome || v.status || 'منفذة'}
+                        </div>
+                        {v.notes && (
+                          <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                            {v.notes}
+                          </div>
+                        )}
+                      </div>
+                      {Number(v.collectedAmount || 0) > 0 && (
+                        <div className="text-left shrink-0">
+                          <div className="text-[11px] font-black text-emerald-700 tabular-nums">{fmt(v.collectedAmount)} ج.م</div>
+                          <div className="text-[9px] font-bold text-slate-400">تحصيل</div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* التبويب 5: تثبيت الموقع GPS */}
+          {tab === 'gps' && (
+            <div className="space-y-4">
+              <div className="tg-cp__section-title">
+                <MapPin size={15} className="text-emerald-600" />
+                تثبيت الموقع الجغرافي وخرائط Google
+              </div>
+
+              <div className="tg-card p-5 space-y-4 text-center">
+                <div className="w-16 h-16 mx-auto rounded-3xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shadow-inner">
+                  <MapPin size={32} />
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-black text-[#0b2337]">
+                    {currentLat && currentLng ? 'الموقع الجغرافي مثبت للعميل' : 'لم يتم تثبيت الموقع الجغرافي'}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    اضغط على الزر أدناه أثناء تواجدك في مقر العميل لتسجيل الإحداثيات بدقة عبر نظام الملاحة وتسهيل وصول المناديب لاحقاً.
+                  </p>
+                </div>
+
+                {currentLat && currentLng && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-start">
+                    <div>
+                      <div className="text-[10px] font-black text-slate-500">الإحداثيات الحالية</div>
+                      <div className="font-mono text-xs font-black text-slate-800" dir="ltr">
+                        {Number(currentLat).toFixed(6)}, {Number(currentLng).toFixed(6)}
+                      </div>
+                      {customer.locationCapturedBy && (
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          سجلها: {customer.locationCapturedBy}
+                        </div>
+                      )}
+                    </div>
+                    {googleMapsUrl && (
+                      <a
+                        href={googleMapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black transition cursor-pointer shadow-sm"
+                      >
+                        <Navigation size={14} />
+                        فتح في خرائط Google
+                        <ExternalLink size={12} />
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleVisitWithGps}
+                  disabled={gpsLoading}
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white text-sm font-black shadow-lg shadow-emerald-600/25 transition active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {gpsLoading ? <RefreshCw size={18} className="animate-spin" /> : <MapPin size={18} />}
+                  <span>{gpsLoading ? 'جاري الاتصال بالأقمار الصناعية وتحديد الإحداثيات...' : '📍 تثبيت موقع العميل بالـ GPS الآن'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* التبويب 6: صور المحل والتوثيق */}
           {tab === 'photos' && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -579,79 +1020,39 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
               )}
 
               <p className="text-[10px] font-bold text-slate-400 text-center leading-5">
-                الصور تُضغط تلقائياً قبل الرفع (عرض {MAX_IMAGE_WIDTH}px، جودة {IMAGE_QUALITY * 100}%) لتقليل استهلاك البيانات والمساحة على Cloudinary.
-                <br />
-                اضغط على أي صورة لعرضها بالحجم الكامل.
+                الصور تُضغط تلقائياً قبل الرفع لتقليل استهلاك البيانات على Cloudinary.
               </p>
-            </div>
-          )}
-
-          {tab === 'visits' && (
-            <div className="space-y-3">
-              <div className="tg-cp__section-title">
-                <CalendarCheck size={15} className="text-emerald-600" />
-                سجل الزيارات ({visits.length})
-              </div>
-
-              {visits.length === 0 ? (
-                <div className="tg-card p-8 text-center">
-                  <div className="mx-auto mb-3 w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center">
-                    <CalendarCheck size={22} />
-                  </div>
-                  <p className="text-xs font-black text-slate-500">لا توجد زيارات مسجلة لهذا العميل</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {visits.map((v: any, idx: number) => (
-                    <div key={v.id || idx} className="tg-card p-3 flex items-center justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-[11px] font-black text-[#0b2337]">{v.date || '—'}</span>
-                          <span className="text-[10px] font-bold text-slate-400">{v.time || ''}</span>
-                        </div>
-                        <div className="text-[10px] font-bold text-slate-500 truncate">
-                          {v.repName || '—'} • {v.outcome || v.status || '—'}
-                        </div>
-                      </div>
-                      {Number(v.collectedAmount || 0) > 0 && (
-                        <div className="text-left shrink-0">
-                          <div className="text-[11px] font-black text-emerald-700 tabular-nums">{fmt(v.collectedAmount)}</div>
-                          <div className="text-[9px] font-bold text-slate-400">تحصيل</div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
         </div>
 
-        {/* ====== الأزرار السفلية ====== */}
+        {/* ====== الأزرار السفلية الثابتة ====== */}
         <div className="tg-cp__foot">
           <button
             type="button"
             onClick={handleVisitWithGps}
             disabled={gpsLoading}
-            className="tg-gps-btn"
-            title={gpsLoading ? 'جاري تحديد الموقع...' : 'تسجيل زيارة + تثبيت الموقع'}
-            aria-label="تسجيل زيارة وتثبيت الموقع"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black transition cursor-pointer shadow-sm active:scale-95 disabled:opacity-60"
+            title="تسجيل زيارة وتثبيت GPS"
           >
-            {gpsLoading ? <RefreshCw size={17} className="animate-spin" /> : <MapPin size={17} />}
+            {gpsLoading ? <RefreshCw size={15} className="animate-spin" /> : <MapPin size={15} />}
+            <span className="hidden sm:inline">تثبيت GPS</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => { onClose(); onNewOrder?.(customer); }}
-            className="tg-cp__action tg-cp__action--primary"
-          >
-            <ShoppingCart size={15} />
-            فاتورة جديدة
-          </button>
+          {onNewOrder && (
+            <button
+              type="button"
+              onClick={() => { onClose(); onNewOrder(customer); }}
+              className="tg-cp__action tg-cp__action--primary flex-1"
+            >
+              <ShoppingCart size={15} />
+              فاتورة جديدة للعميل
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ====== Lightbox ====== */}
+      {/* ====== عارض الصور Lightbox ====== */}
       {lightbox && (
         <div className="tg-cp__lightbox" onClick={() => setLightbox(null)}>
           <button type="button" className="tg-cp__lightbox-close" onClick={() => setLightbox(null)} aria-label="إغلاق">

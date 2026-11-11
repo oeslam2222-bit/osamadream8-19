@@ -899,23 +899,66 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
   }
 }
 
-/* ---------- بروفايل العميل الذكي (Customer Profile Drawer) ---------- */
 .tg-cp {
+  position: relative !important;
+  z-index: 20 !important;
   width: 100%;
-  max-width: 640px;
-  max-height: 92vh;
+  max-width: 660px;
+  max-height: 90vh;
   display: flex;
   flex-direction: column;
   background: #ffffff;
-  border-radius: 30px;
+  border-radius: 28px;
   border: 1px solid var(--tg-line);
-  box-shadow: 0 30px 80px rgba(4, 18, 32, 0.4);
+  box-shadow: 0 30px 80px rgba(4, 18, 32, 0.45);
   overflow: hidden;
+}
+
+.dark .tg-cp {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+  color: #f1f5f9;
+}
+.dark .tg-cp__tabs {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
+}
+.dark .tg-cp__tab {
+  background: #1e293b !important;
+  color: #94a3b8 !important;
+  border-color: #334155 !important;
+}
+.dark .tg-cp__tab:hover {
+  background: #334155 !important;
+  color: #f8fafc !important;
+}
+.dark .tg-cp__tab--active {
+  background: linear-gradient(135deg, #3b82f6, #2563eb) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+.dark .tg-cp__body {
+  background: #090d16 !important;
+  color: #f1f5f9;
+}
+.dark .tg-cp__row {
+  border-color: #1e293b !important;
+}
+.dark .tg-cp__row-label {
+  color: #94a3b8 !important;
+}
+.dark .tg-cp__row-value {
+  color: #f8fafc !important;
+}
+.dark .tg-cp__foot {
+  background: #0f172a !important;
+  border-color: #1e293b !important;
 }
 
 /* هيدر مضغوط */
 .tg-cp__head {
   position: relative;
+  z-index: 10;
   flex-shrink: 0;
   background: linear-gradient(125deg, #0b2337 0%, #123f5c 58%, #155a80 100%);
   color: #fff;

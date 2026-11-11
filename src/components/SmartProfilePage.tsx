@@ -4,10 +4,11 @@ import {
   ChevronRight, ChevronLeft, X, Clock, MapPin, CreditCard,
   AlertTriangle, CheckCircle2, FileText, BarChart3, RefreshCw,
   Plus, Activity, Filter, UserCheck,
-  ArrowUpRight, Image as ImageIcon,
+  ArrowUpRight, Image as ImageIcon, CalendarCheck, Check, ExternalLink,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { inferTargetSector } from '../services/targetService';
+import { normalizeArabicText } from '../services/arabicMatchingService';
 import type { Customer, TargetRecord, User } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { CustomerProfileDrawer } from './CustomerProfileDrawer';
@@ -48,9 +49,11 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     users,
     customers,
     targets,
+    visits: ctxVisits,
     getVisibleTargets,
     getVisibleCustomers,
     getVisibleInvoices,
+    getVisibleVisits,
     selectedBranchFilter,
     setSelectedBranchFilter,
   } = useApp();
@@ -61,11 +64,12 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
   const [selectedSector, setSelectedSector] = useState<'all' | 'home' | 'electrical'>('all');
   const [selectedBranch, setSelectedBranch] = useState('الكل');
   const [selectedSupervisor, setSelectedSupervisor] = useState('الكل');
+  const [selectedEligibility, setSelectedEligibility] = useState<'all' | 'eligible' | 'ineligible'>('all');
   const [visibleCustomersCount, setVisibleCustomersCount] = useState(12);
   const [visibleRepsCount, setVisibleRepsCount] = useState(5);
   const [openCustomerId, setOpenCustomerId] = useState<string | null>(null);
   const [openRepId, setOpenRepId] = useState<string | null>(null);
-  const [repAnalysisTab, setRepAnalysisTab] = useState<'overview' | 'monthly'>('overview');
+  const [repAnalysisTab, setRepAnalysisTab] = useState<'overview' | 'monthly' | 'customers' | 'visits'>('overview');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
@@ -73,7 +77,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     setVisibleRepsCount(5);
     setOpenCustomerId(null);
     setOpenRepId(null);
-  }, [searchQuery, selectedSector, selectedBranch, selectedSupervisor, activeTab]);
+  }, [searchQuery, selectedSector, selectedBranch, selectedSupervisor, selectedEligibility, activeTab]);
 
   /* ---------- البيانات ---------- */
   const allTargets = useMemo(() => getVisibleTargets(), [targets, currentUser, users, customers, getVisibleTargets]);
@@ -221,6 +225,16 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     address?: string;
     branchName: string;
     storePhotos: string[];
+    dealEligibility?: string;
+    isEligible?: boolean;
+    latitude?: number;
+    longitude?: number;
+    locationAddress?: string;
+    locationCapturedAt?: string;
+    locationCapturedBy?: string;
+    visitHistory?: any[];
+    monthlySales2026?: Record<string | number, number>;
+    monthlyCollections2026?: Record<string | number, number>;
   };
 
   const customersMap = useMemo(() => {
@@ -250,6 +264,11 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
         if (sup) supervisor = sup.name;
       }
 
+      // تصنيف العميل المعتمد من عمود قابل /غير
+      const rawDeal = (c.dealEligibility || (c as any).deal_eligibility || (c as any).dealClassification || (c as any).eligibilityStatusLabel || '').trim();
+      const isEligible = rawDeal ? (!rawDeal.includes('غير') && !rawDeal.includes('موقوف') && !rawDeal.includes('ممتنع')) : true;
+      const eligibilityLabel = rawDeal || (isEligible ? 'قابل للتعامل' : 'غير قابل للتعامل');
+
       map.set(c.id, {
         id: c.id,
         name: c.name || 'غير محدد',
@@ -266,6 +285,16 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
         totalSales: inv.sales,
         totalCollections: inv.collection,
         tier: c.tier || 'عادي',
+        dealEligibility: eligibilityLabel,
+        isEligible,
+        latitude: c.latitude,
+        longitude: c.longitude,
+        locationAddress: c.locationAddress,
+        locationCapturedAt: c.locationCapturedAt,
+        locationCapturedBy: c.locationCapturedBy,
+        visitHistory: c.visitHistory,
+        monthlySales2026: c.monthlySales2026,
+        monthlyCollections2026: c.monthlyCollections2026,
         lastVisit: c.lastCollectionDate || undefined,
         address: c.address || c.region || '',
         storePhotos: Array.isArray(c.storePhotos) ? c.storePhotos : [],
@@ -282,9 +311,13 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
       const matchesBranch = selectedBranch === 'الكل' || c.branch === selectedBranch;
       const matchesSupervisor = selectedSupervisor === 'الكل' || c.supervisor === selectedSupervisor;
       const matchesSector = selectedSector === 'all' || !c.sector || c.sector === 'all' || c.sector === 'both' || c.sector === selectedSector;
-      return matchesSearch && matchesBranch && matchesSupervisor && matchesSector;
+      const matchesEligibility =
+        selectedEligibility === 'all' ||
+        (selectedEligibility === 'eligible' && (c as any).isEligible) ||
+        (selectedEligibility === 'ineligible' && !(c as any).isEligible);
+      return matchesSearch && matchesBranch && matchesSupervisor && matchesSector && matchesEligibility;
     });
-  }, [customersMap, searchQuery, selectedBranch, selectedSupervisor, selectedSector]);
+  }, [customersMap, searchQuery, selectedBranch, selectedSupervisor, selectedSector, selectedEligibility]);
 
   const displayedCustomers = useMemo(() => filteredCustomers.slice(0, visibleCustomersCount), [filteredCustomers, visibleCustomersCount]);
 
@@ -307,32 +340,96 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
   const handleOpenCustomer = (id: string) => setOpenCustomerId((prev) => (prev === id ? null : id));
   const handleOpenRep = (id: string) => setOpenRepId((prev) => (prev === id ? null : id));
 
-  const selectedCustomer = useMemo(() => customersMap.find((c) => c.id === openCustomerId), [customersMap, openCustomerId]);
-  const selectedRep = useMemo(() => displayedReps.find((r) => r.repId === openRepId), [displayedReps, openRepId]);
+  const selectedCustomer = useMemo(() => {
+    if (!openCustomerId) return null;
+    const raw = allCustomers.find((c) => c.id === openCustomerId);
+    const mapped = customersMap.find((c) => c.id === openCustomerId);
+    if (!raw && !mapped) return null;
+    return { ...(raw || {}), ...(mapped || {}) };
+  }, [allCustomers, customersMap, openCustomerId]);
+
+  const selectedRep = useMemo(() => repsMap.find((r) => r.repId === openRepId), [repsMap, openRepId]);
+
+  const repCustomers = useMemo(() => {
+    if (!selectedRep) return [];
+    return filteredCustomers.filter(
+      (c) => c.repName === selectedRep.repName || c.repName === selectedRep.repId
+    );
+  }, [selectedRep, filteredCustomers]);
 
   const repCustomersWithDebt = useMemo(() => {
+    return repCustomers.filter((c) => c.balance > 0 || c.overdue > 0);
+  }, [repCustomers]);
+
+  const repVisits = useMemo(() => {
     if (!selectedRep) return [];
-    return filteredCustomers.filter((c) => c.repName === selectedRep.repName && (c.balance > 0 || c.overdue > 0));
-  }, [selectedRep, filteredCustomers]);
+    const all = getVisibleVisits ? getVisibleVisits() : (ctxVisits || []);
+    const rName = normalizeArabicText(selectedRep.repName);
+    return all.filter((v: any) => {
+      if (v.repId && (v.repId === selectedRep.repId || v.repId === selectedRep.repName)) return true;
+      if (v.repName && normalizeArabicText(v.repName) === rName) return true;
+      return false;
+    }).sort((a: any, b: any) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+  }, [selectedRep, getVisibleVisits, ctxVisits]);
+
+  const repMonthlyVisitsCount = useMemo(() => {
+    if (!repVisits.length) return 0;
+    const now = new Date();
+    const curMonth = now.getMonth() + 1;
+    const curYear = now.getFullYear();
+    return repVisits.filter((v: any) => {
+      if (!v.date) return false;
+      const d = new Date(v.date);
+      return d.getMonth() + 1 === curMonth && d.getFullYear() === curYear;
+    }).length;
+  }, [repVisits]);
 
   const monthlyAnalysis = useMemo(() => {
     if (!selectedRep) return [];
-    const months: { key: string; label: string; sales: number; collection: number }[] = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
-      const y = d.getFullYear();
-      const m = d.getMonth() + 1;
-      const key = `${y}-${String(m).padStart(2, '0')}`;
-      months.push({
-        key,
-        label: MONTHS_AR[m - 1],
-        sales: selectedRep.monthlySales[key] || 0,
-        collection: selectedRep.monthlyCollection[key] || 0,
-      });
+    const repTargets = allTargets.filter(
+      (t) => t.repName === selectedRep.repName || t.id === selectedRep.repId
+    );
+    const map = new Map<number, { targetSales: number; achSales: number; targetColl: number; achColl: number }>();
+    for (let m = 1; m <= 12; m++) {
+      map.set(m, { targetSales: 0, achSales: 0, targetColl: 0, achColl: 0 });
     }
-    return months;
-  }, [selectedRep]);
+    for (const t of repTargets) {
+      const m = Number(t.month);
+      if (m >= 1 && m <= 12) {
+        const cur = map.get(m)!;
+        cur.targetSales += Number(t.salesTarget || 0);
+        cur.achSales += Number(t.salesAchieved || 0);
+        cur.targetColl += Number(t.collectionTarget || 0);
+        cur.achColl += Number(t.collectionAchieved || 0);
+      }
+    }
+    // دمج أيضاً أي مبيعات شهرية تم حسابها
+    Object.entries(selectedRep.monthlySales || {}).forEach(([k, val]) => {
+      const parts = k.split('-');
+      const m = Number(parts[1] || parts[0]);
+      if (m >= 1 && m <= 12) {
+        const cur = map.get(m);
+        if (cur && cur.achSales === 0) cur.achSales = Number(val || 0);
+      }
+    });
+    Object.entries(selectedRep.monthlyCollection || {}).forEach(([k, val]) => {
+      const parts = k.split('-');
+      const m = Number(parts[1] || parts[0]);
+      if (m >= 1 && m <= 12) {
+        const cur = map.get(m);
+        if (cur && cur.achColl === 0) cur.achColl = Number(val || 0);
+      }
+    });
+
+    const rows: { month: number; label: string; targetSales: number; achSales: number; targetColl: number; achColl: number }[] = [];
+    for (let m = 1; m <= 12; m++) {
+      const row = map.get(m)!;
+      if (row.targetSales > 0 || row.achSales > 0 || row.targetColl > 0 || row.achColl > 0) {
+        rows.push({ month: m, label: MONTHS_AR[m - 1], ...row });
+      }
+    }
+    return rows;
+  }, [selectedRep, allTargets]);
 
   /* ---------- Render ---------- */
   return (
@@ -479,16 +576,29 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                 </select>
               </div>
 
-              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
-                <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">المشرف / المندوب</span>
+              <div className="flex flex-col justify-center bg-[#eef5fd] dark:bg-slate-800 border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
+                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 leading-none mb-1">المشرف / المندوب</span>
                 <select
                   value={selectedSupervisor}
                   onChange={(e) => setSelectedSupervisor(e.target.value)}
-                  className="bg-transparent font-black text-[#0b2337] text-sm focus:outline-none cursor-pointer w-full"
+                  className="bg-transparent font-black text-[#0b2337] dark:text-white text-sm focus:outline-none cursor-pointer w-full"
                 >
                   {supervisorOptions.map((s) => (
                     <option key={s} value={s}>{s}</option>
                   ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col justify-center bg-[#eef5fd] dark:bg-slate-800 border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
+                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 leading-none mb-1">تصنيف الشيت (قابل / غير)</span>
+                <select
+                  value={selectedEligibility}
+                  onChange={(e) => setSelectedEligibility(e.target.value as any)}
+                  className="bg-transparent font-black text-[#0b2337] dark:text-white text-sm focus:outline-none cursor-pointer w-full"
+                >
+                  <option value="all">كل التصنيفات</option>
+                  <option value="eligible">قابل للتعامل</option>
+                  <option value="ineligible">غير قابل للتعامل</option>
                 </select>
               </div>
             </div>
@@ -553,15 +663,25 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                           )}
                         </div>
                       </div>
-                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${
-                        exceeded
-                          ? 'bg-rose-50 text-rose-800 border border-rose-200'
-                          : cust.balance > 0
-                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                            : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                      }`}>
-                        {exceeded ? 'تجاوز الحد' : cust.balance > 0 ? 'عليه مستحق' : 'خالص'}
-                      </span>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {/* تصنيف الشيت (قابل / غير) */}
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border shadow-2xs ${
+                          (cust as any).isEligible
+                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
+                            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-700'
+                        }`}>
+                          {(cust as any).dealEligibility || 'قابل للتعامل'}
+                        </span>
+                        <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-full ${
+                          exceeded
+                            ? 'bg-rose-50 text-rose-800 border border-rose-200'
+                            : cust.balance > 0
+                              ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                              : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        }`}>
+                          {exceeded ? 'تجاوز الحد' : cust.balance > 0 ? 'عليه مستحق' : 'خالص'}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 mb-3">
@@ -827,13 +947,13 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <button
                   type="button"
                   onClick={() => setRepAnalysisTab('overview')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition ${
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
                     repAnalysisTab === 'overview'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-blue-600 text-white shadow-sm'
                       : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
                   }`}
                 >
@@ -842,18 +962,41 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                 <button
                   type="button"
                   onClick={() => setRepAnalysisTab('monthly')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition ${
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
                     repAnalysisTab === 'monthly'
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-blue-600 text-white shadow-sm'
                       : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
                   }`}
                 >
-                  التحليل الشهري
+                  أداء الشهور
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRepAnalysisTab('customers')}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                    repAnalysisTab === 'customers'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
+                  }`}
+                >
+                  العملاء ({repCustomers.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRepAnalysisTab('visits')}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                    repAnalysisTab === 'visits'
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
+                  }`}
+                >
+                  زيارات الشهر ({repMonthlyVisitsCount})
                 </button>
                 <button
                   type="button"
                   onClick={() => setOpenRepId(null)}
                   className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+                  aria-label="إغلاق"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -861,77 +1004,111 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
             </div>
 
             <div className="p-4 sm:p-5 overflow-y-auto flex-1">
+              {/* تبويب 1: نظرة عامة */}
               {repAnalysisTab === 'overview' && (
-                <div>
-                  <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div className="tg-stat tg-stat--amber p-3">
+                <div className="space-y-4">
+                  {/* كروت المؤشرات الستة */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    <div className="tg-stat tg-stat--amber p-3 rounded-2xl">
                       <span className="text-[10px] font-bold text-amber-800 block">مديونية عملاءه</span>
-                      <span className="font-black text-sm text-amber-700 tabular-nums">{fmt(selectedRep.debt)}</span>
+                      <span className="font-black text-sm text-amber-700 tabular-nums">{fmt(selectedRep.debt)} ج.م</span>
                     </div>
-                    <div className="tg-stat tg-stat--red p-3">
-                      <span className="text-[10px] font-bold text-rose-800 block">متأخرات</span>
-                      <span className={`font-black text-sm ${selectedRep.overdue > 0 ? 'text-rose-700' : 'text-emerald-700'} tabular-nums`}>{fmt(selectedRep.overdue)}</span>
+                    <div className="tg-stat tg-stat--red p-3 rounded-2xl">
+                      <span className="text-[10px] font-bold text-rose-800 block">المتأخرات</span>
+                      <span className={`font-black text-sm ${selectedRep.overdue > 0 ? 'text-rose-700' : 'text-emerald-700'} tabular-nums`}>
+                        {fmt(selectedRep.overdue)} ج.م
+                      </span>
                     </div>
-                    <div className="tg-stat tg-stat--emerald p-3">
-                      <span className="text-[10px] font-bold text-emerald-800 block">تحصيل</span>
-                      <span className="font-black text-sm text-emerald-700 tabular-nums">{fmt(selectedRep.collectionAchieved)}</span>
+                    <div className="tg-stat tg-stat--emerald p-3 rounded-2xl">
+                      <span className="text-[10px] font-bold text-emerald-800 block">إجمالي التحصيل</span>
+                      <span className="font-black text-sm text-emerald-700 tabular-nums">{fmt(selectedRep.collectionAchieved)} ج.م</span>
                     </div>
-                    <div className="tg-stat tg-stat--blue p-3">
-                      <span className="text-[10px] font-bold text-blue-800 block">مبيعات</span>
-                      <span className="font-black text-sm text-blue-700 tabular-nums">{fmt(selectedRep.salesAchieved)}</span>
+                    <div className="tg-stat tg-stat--blue p-3 rounded-2xl">
+                      <span className="text-[10px] font-bold text-blue-800 block">إجمالي المبيعات</span>
+                      <span className="font-black text-sm text-blue-700 tabular-nums">{fmt(selectedRep.salesAchieved)} ج.م</span>
+                    </div>
+                    <div className="bg-teal-50 border border-teal-200 rounded-2xl p-3">
+                      <span className="text-[10px] font-bold text-teal-800 block">زيارات الشهر الحالي</span>
+                      <span className="font-black text-sm text-teal-700 tabular-nums">{repMonthlyVisitsCount} زيارة</span>
+                    </div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3">
+                      <span className="text-[10px] font-bold text-slate-700 block">عدد العملاء التابعين</span>
+                      <span className="font-black text-sm text-slate-800 tabular-nums">{selectedRep.customerCount} عميل</span>
                     </div>
                   </div>
 
-                  <div className="space-y-3 mb-4">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-bold text-slate-500">هدف المبيعات</span>
-                      <span className="text-sm font-black text-[#0b2337]">{fmt(selectedRep.salesTarget)}</span>
+                  {/* مقارنة الأهداف الإجمالية */}
+                  <div className="tg-card p-4 space-y-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-600">هدف المبيعات الإجمالي</span>
+                      <span className="font-black text-blue-900">{fmt(selectedRep.salesTarget)} ج.م</span>
                     </div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-bold text-slate-500">نسبة تحقيق البيع</span>
-                      <span className={`text-sm font-bold ${pctOf(selectedRep.salesAchieved, selectedRep.salesTarget) >= 100 ? 'text-emerald-700' : pctOf(selectedRep.salesAchieved, selectedRep.salesTarget) >= 70 ? 'text-amber-700' : 'text-rose-700'}`}>
-                        {pctOf(selectedRep.salesAchieved, selectedRep.salesTarget)}%
-                      </span>
+                    <div>
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="text-slate-500">نسبة تحقيق المبيعات</span>
+                        <span className={`font-black ${pctOf(selectedRep.salesAchieved, selectedRep.salesTarget) >= 100 ? 'text-emerald-700' : 'text-blue-700'}`}>
+                          {pctOf(selectedRep.salesAchieved, selectedRep.salesTarget)}% ({fmt(selectedRep.salesAchieved)} ج.م)
+                        </span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-blue-600 rounded-full transition-all"
+                          style={{ width: `${Math.min(100, pctOf(selectedRep.salesAchieved, selectedRep.salesTarget))}%` }}
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] font-bold text-slate-500">هدف التحصيل</span>
-                      <span className="text-sm font-black text-[#0b2337]">{fmt(selectedRep.collectionTarget)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-slate-500">نسبة تحقيق التحصيل</span>
-                      <span className={`text-sm font-bold ${pctOf(selectedRep.collectionAchieved, selectedRep.collectionTarget) >= 100 ? 'text-emerald-700' : pctOf(selectedRep.collectionAchieved, selectedRep.collectionTarget) >= 70 ? 'text-amber-700' : 'text-rose-700'}`}>
-                        {pctOf(selectedRep.collectionAchieved, selectedRep.collectionTarget)}%
-                      </span>
+
+                    <div className="pt-2 border-t border-slate-100">
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="font-bold text-slate-600">هدف التحصيل الإجمالي</span>
+                        <span className="font-black text-emerald-900">{fmt(selectedRep.collectionTarget)} ج.م</span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span className="text-slate-500">نسبة تحقيق التحصيل</span>
+                        <span className={`font-black ${pctOf(selectedRep.collectionAchieved, selectedRep.collectionTarget) >= 100 ? 'text-emerald-700' : 'text-emerald-600'}`}>
+                          {pctOf(selectedRep.collectionAchieved, selectedRep.collectionTarget)}% ({fmt(selectedRep.collectionAchieved)} ج.م)
+                        </span>
+                      </div>
+                      <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-emerald-500 rounded-full transition-all"
+                          style={{ width: `${Math.min(100, pctOf(selectedRep.collectionAchieved, selectedRep.collectionTarget))}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="mb-4">
+                  {/* عملاء عليهم مديونية سريعة */}
+                  <div>
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] font-bold text-slate-500">عملاءه عليهم مديونية</span>
-                      <span className="text-[11px] font-bold text-slate-500">{repCustomersWithDebt.length} عميل</span>
+                      <span className="text-xs font-black text-[#0b2337]">عملاء عليهم مديونية ({repCustomersWithDebt.length})</span>
+                      <button
+                        type="button"
+                        onClick={() => setRepAnalysisTab('customers')}
+                        className="text-[11px] font-bold text-blue-600 hover:underline"
+                      >
+                        عرض كل العملاء ↗
+                      </button>
                     </div>
-                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    <div className="space-y-2 max-h-[220px] overflow-y-auto">
                       {repCustomersWithDebt.length === 0 ? (
-                        <div className="tg-card p-6 text-center">
-                          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-[20px] bg-slate-100 text-slate-400 shadow-inner">
-                            <CheckCircle2 className="w-6 h-6" />
-                          </div>
-                          <p className="text-sm font-bold text-slate-500">لا يوجد عملاء عليهم مديونية</p>
+                        <div className="tg-card p-4 text-center text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200">
+                          جميع عملاء هذا المندوب خالصون ولا توجد مديونيات متأخرة!
                         </div>
                       ) : (
-                        repCustomersWithDebt.map((c) => (
-                          <div key={c.id} className="tg-card p-3 cursor-pointer hover:bg-amber-50/40 transition border-[var(--tg-line)]">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0 flex-1">
-                                <div className="font-black text-sm text-[#0b2337] truncate">{c.name}</div>
-                                <div className="text-[10px] text-slate-500 font-medium mt-0.5">{c.code}</div>
-                              </div>
-                              <div className="text-right">
-                                <div className={`text-xs font-black tabular-nums ${c.balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
-                                  {fmt(c.balance)}
-                                </div>
-                                <div className="text-[10px] font-bold text-slate-500">مديونية</div>
-                              </div>
+                        repCustomersWithDebt.slice(0, 5).map((c) => (
+                          <div
+                            key={c.id}
+                            onClick={() => { setOpenRepId(null); setOpenCustomerId(c.id); }}
+                            className="tg-card p-2.5 flex items-center justify-between gap-2 cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="font-black text-xs text-[#0b2337] truncate">{c.name}</div>
+                              <div className="text-[10px] text-slate-400 font-mono">{c.code}</div>
+                            </div>
+                            <div className="text-left shrink-0">
+                              <div className="text-xs font-black text-rose-700 tabular-nums">{fmt(c.balance)} ج.م</div>
+                              <div className="text-[9px] text-slate-400">اضغط لفتح الملف</div>
                             </div>
                           </div>
                         ))
@@ -941,51 +1118,163 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                 </div>
               )}
 
+              {/* تبويب 2: أداء الشهور وتحليل التارجت والمحقق */}
               {repAnalysisTab === 'monthly' && (
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-bold text-slate-500">المحقق خلال آخر 6 شهور</span>
-                    <span className="text-[11px] font-bold text-slate-500">{selectedRep.repName}</span>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs text-slate-600 font-bold mb-1">
+                    <span>تحليل الأداء الشهري لعام 2026</span>
+                    <span>المندوب: {selectedRep.repName}</span>
                   </div>
-                  <div className="space-y-2">
-                    {monthlyAnalysis.map((m) => {
-                      const salesPct = pctOf(m.sales, selectedRep.salesTarget / 6);
-                      const collPct = pctOf(m.collection, selectedRep.collectionTarget / 6);
+
+                  {monthlyAnalysis.length === 0 ? (
+                    <div className="tg-card p-6 text-center text-xs font-bold text-slate-500">
+                      لا توجد أهداف أو مبيعات مسجلة في شيت التارجت لهذا المندوب
+                    </div>
+                  ) : (
+                    monthlyAnalysis.map((m) => {
+                      const salesRate = pctOf(m.achSales, m.targetSales);
+                      const collRate = pctOf(m.achColl, m.targetColl);
+
                       return (
-                        <div key={m.key} className="tg-card p-3">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[11px] font-bold text-slate-600">{m.label}</span>
-                            <span className="text-[11px] font-bold text-slate-400">{m.key}</span>
+                        <div key={m.month} className="tg-card p-3.5 space-y-2.5">
+                          <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                            <span className="font-black text-sm text-[#0b2337] flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-blue-600" />
+                              شهر {m.label} ({m.month})
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400">2026</span>
                           </div>
-                          <div className="grid grid-cols-2 gap-2 mb-2">
-                            <div className="bg-blue-50 rounded-xl p-2 border border-blue-100">
-                              <div className="text-[10px] font-bold text-blue-800">بيع</div>
-                              <div className="text-xs font-black text-blue-700 tabular-nums">{fmt(m.sales)}</div>
+
+                          {/* البيع */}
+                          <div>
+                            <div className="flex items-center justify-between text-[11px] mb-1">
+                              <span className="text-slate-600 font-bold">
+                                مبيعات: <strong className="text-blue-700">{fmt(m.achSales)}</strong> / تارجت: {fmt(m.targetSales)} ج.م
+                              </span>
+                              <span className={`font-black ${salesRate >= 100 ? 'text-emerald-700' : 'text-blue-700'}`}>
+                                {salesRate}%
+                              </span>
                             </div>
-                            <div className="bg-emerald-50 rounded-xl p-2 border border-emerald-100">
-                              <div className="text-[10px] font-bold text-emerald-800">تحصيل</div>
-                              <div className="text-xs font-black text-emerald-700 tabular-nums">{fmt(m.collection)}</div>
+                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-blue-600 rounded-full"
+                                style={{ width: `${Math.min(100, salesRate)}%` }}
+                              />
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full bg-blue-600" style={{ width: `${Math.min(100, salesPct)}%` }} />
+
+                          {/* التحصيل */}
+                          <div>
+                            <div className="flex items-center justify-between text-[11px] mb-1">
+                              <span className="text-slate-600 font-bold">
+                                تحصيل: <strong className="text-emerald-700">{fmt(m.achColl)}</strong> / تارجت: {fmt(m.targetColl)} ج.م
+                              </span>
+                              <span className={`font-black ${collRate >= 100 ? 'text-emerald-700' : 'text-emerald-600'}`}>
+                                {collRate}%
+                              </span>
                             </div>
-                            <span className="text-[10px] font-bold text-blue-700 w-12">{salesPct}%</span>
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, collPct)}%` }} />
+                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-emerald-500 rounded-full"
+                                style={{ width: `${Math.min(100, collRate)}%` }}
+                              />
                             </div>
-                            <span className="text-[10px] font-bold text-emerald-700 w-12">{collPct}%</span>
                           </div>
                         </div>
                       );
-                    })}
+                    })
+                  )}
+                </div>
+              )}
+
+              {/* تبويب 3: قائمة عملاء المندوب */}
+              {repAnalysisTab === 'customers' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-600 mb-1">
+                    <span>جميع العملاء التابعين للمندوب ({repCustomers.length})</span>
+                    <span className="text-amber-700">{repCustomersWithDebt.length} عليهم مديونية</span>
+                  </div>
+
+                  <div className="space-y-2 max-h-[440px] overflow-y-auto">
+                    {repCustomers.length === 0 ? (
+                      <div className="tg-card p-6 text-center text-xs font-bold text-slate-500">
+                        لا يوجد عملاء مسجلين تحت هذا المندوب
+                      </div>
+                    ) : (
+                      repCustomers.map((c) => (
+                        <div
+                          key={c.id}
+                          onClick={() => { setOpenRepId(null); setOpenCustomerId(c.id); }}
+                          className="tg-card p-3 flex items-center justify-between gap-3 cursor-pointer hover:border-blue-400 hover:bg-blue-50/40 transition group"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 mb-0.5">
+                              <span className="font-black text-xs text-[#0b2337] group-hover:text-blue-700 truncate">{c.name}</span>
+                              <span className="text-[10px] text-slate-400 font-mono">{c.code}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500">
+                              {c.branch} {c.phone ? `• ${c.phone}` : ''}
+                            </div>
+                          </div>
+                          <div className="text-left shrink-0">
+                            <div className={`text-xs font-black tabular-nums ${c.balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                              {fmt(c.balance)} ج.م
+                            </div>
+                            <div className="text-[9px] text-slate-400">
+                              {c.balance > 0 ? 'مديونية' : 'خالص'}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               )}
 
+              {/* تبويب 4: زيارات المندوب */}
+              {repAnalysisTab === 'visits' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-600 mb-1">
+                    <span>سجل الزيارات الميدانية للمندوب ({repVisits.length})</span>
+                    <span className="text-teal-700">هذا الشهر: {repMonthlyVisitsCount}</span>
+                  </div>
+
+                  <div className="space-y-2 max-h-[440px] overflow-y-auto">
+                    {repVisits.length === 0 ? (
+                      <div className="tg-card p-6 text-center text-xs font-bold text-slate-500">
+                        لا توجد زيارات ميدانية مسجلة لهذا المندوب
+                      </div>
+                    ) : (
+                      repVisits.map((v: any, idx: number) => (
+                        <div key={v.id || idx} className="tg-card p-3 flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                              <span className="font-black text-xs text-[#0b2337]">{v.customerName || 'عميل'}</span>
+                              <span className="text-[10px] font-bold text-slate-400">{v.date}</span>
+                              <span className="text-[9px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
+                                {v.outcome || v.type || 'زيارة'}
+                              </span>
+                            </div>
+                            {v.notes && (
+                              <div className="text-[10px] text-slate-400 truncate">
+                                {v.notes}
+                              </div>
+                            )}
+                          </div>
+                          {Number(v.collectedAmount || 0) > 0 && (
+                            <div className="text-left shrink-0">
+                              <div className="text-xs font-black text-emerald-700 tabular-nums">{fmt(v.collectedAmount)} ج.م</div>
+                              <div className="text-[9px] text-slate-400">تحصيل</div>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* زر إنشاء فاتورة سريعة لأحد عملاء المندوب */}
               <div className="mt-4 pt-4 border-t border-[var(--tg-line)]">
                 <button
                   type="button"
@@ -994,12 +1283,15 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                     if (cust && onOpenNewOrderForCustomer) {
                       onOpenNewOrderForCustomer(cust);
                       setOpenRepId(null);
+                    } else if (repCustomers[0] && onOpenNewOrderForCustomer) {
+                      onOpenNewOrderForCustomer(repCustomers[0] as any);
+                      setOpenRepId(null);
                     }
                   }}
-                  className="w-full py-3 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white font-black text-sm shadow-lg shadow-emerald-500/25 hover:from-emerald-400 hover:to-teal-500 transition shadow-sm cursor-pointer"
+                  className="w-full py-3 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white font-black text-sm shadow-lg shadow-emerald-500/25 hover:from-emerald-400 hover:to-teal-500 transition shadow-sm cursor-pointer flex items-center justify-center gap-2"
                 >
                   <Plus size={16} />
-                  فاتورة جديدة لأحد عملائه
+                  فاتورة جديدة لأحد عملاء {selectedRep.repName}
                 </button>
               </div>
             </div>

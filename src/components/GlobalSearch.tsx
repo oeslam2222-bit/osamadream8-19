@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, Users, Receipt, Boxes, RotateCcw, X, ArrowLeft } from 'lucide-react';
+import { Search, Users, Receipt, Boxes, RotateCcw, X, ArrowLeft, UserCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { normalizeArabicText } from '../services/arabicMatchingService';
 
 export interface GlobalSearchResult {
   id: string;
-  group: 'customers' | 'invoices' | 'products' | 'returns';
+  group: 'customers' | 'reps' | 'invoices' | 'products' | 'returns';
   title: string;
   subtitle: string;
   tab: string;
@@ -21,6 +21,7 @@ interface GlobalSearchProps {
 
 const GROUP_META: Record<string, { label: string; icon: any; tab: string }> = {
   customers: { label: 'العملاء', icon: Users, tab: 'all_customers' },
+  reps: { label: 'المناديب والمشرفين', icon: UserCheck, tab: 'all_customers' },
   invoices: { label: 'أوامر البيع', icon: Receipt, tab: 'invoices' },
   products: { label: 'الأصناف', icon: Boxes, tab: 'catalog' },
   returns: { label: 'المرتجعات', icon: RotateCcw, tab: 'returns' },
@@ -28,6 +29,7 @@ const GROUP_META: Record<string, { label: string; icon: any; tab: string }> = {
 
 export const GlobalSearch: React.FC<GlobalSearchProps> = ({ isOpen, onClose, allowedTabs, onNavigate }) => {
   const {
+    users,
     getVisibleCustomers,
     getVisibleProducts,
     getVisibleInvoices,
@@ -81,6 +83,30 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ isOpen, onClose, all
         subtitle: `${c.code || ''} • ${c.branchName || 'فرع غير محدد'}${c.phone ? ' • ' + c.phone : ''}`,
         tab: 'all_customers',
         query: c.name,
+      }));
+    }
+
+    // Reps & Supervisors
+    if (allowedTabs.includes('all_customers') || allowedTabs.includes('dashboard')) {
+      const reps = (users || []).filter((u) => {
+        const isRepOrSup = u.role === 'sales_rep' || u.role === 'supervisor';
+        if (!isRepOrSup) return false;
+        const name = normalizeArabicText(u.name || '');
+        const username = (u.username || '').toLowerCase();
+        const branch = normalizeArabicText(u.branchName || '');
+        const phone = (u.phone || '').replace(/\D/g, '');
+        return (
+          (normQ && (name.includes(normQ) || branch.includes(normQ))) ||
+          (rawQ && (username.includes(rawQ) || phone.includes(rawQ.replace(/\D/g, ''))))
+        );
+      }).slice(0, 5);
+      reps.forEach((u) => out.push({
+        id: `rep-${u.id}`,
+        group: 'reps',
+        title: u.name,
+        subtitle: `${u.role === 'supervisor' ? 'مشرف مبيعات' : 'مندوب مبيعات'} • ${u.branchName || 'فرع غير محدد'}${u.phone ? ' • ' + u.phone : ''}`,
+        tab: 'all_customers',
+        query: u.name,
       }));
     }
 
@@ -146,7 +172,7 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ isOpen, onClose, all
     }
 
     return out;
-  }, [query, allowedTabs, getVisibleCustomers, getVisibleProducts, getVisibleInvoices, getVisibleVisits]);
+  }, [query, allowedTabs, users, getVisibleCustomers, getVisibleProducts, getVisibleInvoices, getVisibleVisits]);
 
   // Group counts for display
   const grouped = useMemo(() => {
