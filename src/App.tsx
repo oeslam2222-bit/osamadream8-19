@@ -99,6 +99,7 @@ function lazyNamed<
 const ProductCatalog = lazyNamed(() => import('./components/ProductCatalog'), 'ProductCatalog');
 const AllCustomersAnalyticsView = lazyNamed(() => import('./components/AllCustomersAnalyticsView'), 'AllCustomersAnalyticsView');
 const SmartProfilePage = lazyNamed(() => import('./components/SmartProfilePage'), 'SmartProfilePage');
+const TargetsDashboard = lazyNamed(() => import('./components/TargetsDashboard'), 'TargetsDashboard');
 const UnifiedRepPerformanceView = lazyNamed(() => import('./components/UnifiedRepPerformanceView'), 'UnifiedRepPerformanceView');
 const CustomerItemSalesView = lazyNamed(() => import('./components/CustomerItemSalesView'), 'CustomerItemSalesView');
 const SupervisorDashboard = lazyNamed(() => import('./components/SupervisorDashboard'), 'SupervisorDashboard');
@@ -324,12 +325,7 @@ const MainLayout: React.FC = () => {
           )}
 
           {activeTab === 'targets' && allowedTabs.includes('targets') && (
-            <UnifiedRepPerformanceView
-              onOpenNewOrderForCustomer={(cust) => {
-                setOrderInitialCustomer(cust);
-                setActiveTab('catalog');
-              }}
-            />
+            <TargetsDashboard />
           )}
 
           {activeTab === 'collection' && allowedTabs.includes('collection') && <CollectionRecoveryDashboard />}

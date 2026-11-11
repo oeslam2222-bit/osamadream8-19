@@ -1358,20 +1358,22 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
     (existingRows || []).forEach((row: any) => {
       const id = String(row.id || '');
       if (!id) return;
-      const uname = String(row.username || '').trim().toLowerCase();
-      const email = String(row.email || '').trim().toLowerCase();
+      const uname = normalizeUsernameKey(row.username);
+      const email = normalizeEmailKey(row.email);
       if (uname) idByUsername.set(uname, id);
       if (email) idByEmail.set(email, id);
     });
 
     // صفوف بنفس اسم المستخدم/الإيميل جوه نفس الدفعة بتضرب 409 برضه،
     // فبنحتفظ بأول واحد بس (الأخير كان هيغطي على الأول بنفس القيد).
-    const seenIdentities = new Set<string>();
+    const seenUsernames = new Set<string>();
+    const seenEmails = new Set<string>();
     const uniquePayloads = dedupedPayloads.filter((payload) => {
-      const identity = String(payload.username || payload.email || '').trim().toLowerCase();
-      if (!identity) return true;
-      if (seenIdentities.has(identity)) return false;
-      seenIdentities.add(identity);
+      const uname = normalizeUsernameKey(payload.username);
+      const email = normalizeEmailKey(payload.email);
+      if ((uname && seenUsernames.has(uname)) || (email && seenEmails.has(email))) return false;
+      if (uname) seenUsernames.add(uname);
+      if (email) seenEmails.add(email);
       return true;
     });
 
@@ -1388,8 +1390,8 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
         return;
       }
 
-      const uname = String(payload.username || '').trim().toLowerCase();
-      const email = String(payload.email || '').trim().toLowerCase();
+      const uname = normalizeUsernameKey(payload.username);
+      const email = normalizeEmailKey(payload.email);
       const existingIdByIdentity = (uname && idByUsername.get(uname)) || (email && idByEmail.get(email)) || '';
 
       if (existingIdByIdentity) {
@@ -1496,7 +1498,8 @@ function collectKnownUserIds(usersList?: User[]): Set<string> {
 /**
  * كتابة صف مستخدم بدون أي طلب متوقع فشله:
  * بنسأل الأول هل الصف موجود، وبناءً عليه update أو insert.
- * ده بيمنع 409 نهائيًا لأن مفيش ON CONFLICT في المسار العادي.
+ * ولو مفيش صف بنفس الـid، بندور على نفس الهوية (إيميل/اسم مستخدم) بمعرّف
+ * تاني ونحدّثها — فالطلب ده بيمنع 409 تمامًا بدل ما يتعالج بعد ما يحصل.
  */
 async function writeUserRowSafely(
   table: UserMirrorTable,
@@ -1520,14 +1523,27 @@ async function writeUserRowSafely(
   const { id, ...changes } = row;
   if (Object.keys(changes).length === 0) return { error: null, skipped: true };
 
-  const write = exists
-    ? await supabase.from(table).update(changes).eq('id', id)
+  // قبل أي INSERT: لو نفس الهوية (إيميل/اسم مستخدم) موجودة بمعرّف تاني،
+  // نحدّث الصف الموجود بدل ما نرسل INSERT مضمون يضرب 409 (قيد فريد على
+  // username/email) — المتصفح بيسجل الـ409 في الـconsole حتى لو الكود بيعالجه بعدين.
+  let targetId = id;
+  let rowExists = exists;
+  if (!exists && mode === 'upsert') {
+    const identityId = await findRowIdByIdentity(table, row);
+    if (identityId) {
+      targetId = identityId;
+      rowExists = true;
+    }
+  }
+
+  const write = rowExists
+    ? await supabase.from(table).update(changes).eq('id', targetId)
     : await supabase.from(table).insert(row);
 
   if (!write.error) return { error: null };
 
   // صف اتعمل بين القراءة والكتابة (سباق نادر) → نعيدها كتحديث.
-  if (!exists && (write.error.code === '23505' || write.error.code === '409')) {
+  if (!rowExists && (write.error.code === '23505' || write.error.code === '409')) {
     const retry = await supabase.from(table).update(changes).eq('id', id);
     if (!retry.error) return { error: null };
 
@@ -1544,16 +1560,45 @@ async function writeUserRowSafely(
   return { error: write.error.message };
 }
 
-/** البحث عن صف بنفس الإيميل أو اسم المستخدم (بدون حساسية لحالة الأحرف). */
+/**
+ * تطبيع هوية المستخدم بنفس منطق الفهارس الفريدة في قاعدة البيانات:
+ *   username → lower(regexp_replace(trim(username), '\s+', '', 'g'))
+ *   email    → lower(trim(email))
+ * لو المطابقة مختلفة، الإدخال بيرجع 409 (23505) حتى لو الاسم شكله مختلف بمسافة واحدة.
+ */
+function normalizeUsernameKey(value?: string | null): string {
+  return String(value ?? '').trim().toLowerCase().replace(/\s+/g, '');
+}
+
+function normalizeEmailKey(value?: string | null): string {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+/** البحث عن صف بنفس الإيميل أو اسم المستخدم (بنفس تطبيع فهارس قاعدة البيانات). */
 async function findRowIdByIdentity(
   table: UserMirrorTable,
   row: Record<string, any>
 ): Promise<string | null> {
+  const usernameKey = normalizeUsernameKey(row.username);
+  const emailKey = normalizeEmailKey(row.email);
+
+  if (table === 'users' && (usernameKey || emailKey)) {
+    // الفهرس الفريد على users.username بيشيل كل المسافات، والـilike مش بيعمل كده
+    // فكان بيفوّت التطابق ويبعت INSERT مضمون يضرب 409. بنقارن القيم في الكود.
+    const { data } = await supabase.from('users').select('id, username, email');
+    const match = (data || []).find((candidate: any) => {
+      if (usernameKey && normalizeUsernameKey(candidate.username) === usernameKey) return true;
+      if (emailKey && normalizeEmailKey(candidate.email) === emailKey) return true;
+      return false;
+    });
+    if (match?.id) return String(match.id);
+  }
+
   const candidates: Array<[string, string]> = [];
-  if (row.email) candidates.push(['email', String(row.email)]);
-  if (row.username) candidates.push(['username', String(row.username)]);
+  if (row.email) candidates.push(['email', String(row.email).trim()]);
+  if (row.username) candidates.push(['username', String(row.username).trim()]);
   if (table === 'profiles' && row.full_name) {
-    candidates.push(['full_name', String(row.full_name)]);
+    candidates.push(['full_name', String(row.full_name).trim()]);
   }
 
   for (const [column, value] of candidates) {

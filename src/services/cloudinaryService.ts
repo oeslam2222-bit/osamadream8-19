@@ -11,6 +11,53 @@ export const DEFAULT_CLOUDINARY_CONFIG: CloudinaryConfig = {
 };
 
 /**
+ * تطبيع إعدادات Cloudinary المخزنة (localStorage / حالة التطبيق):
+ * أي حقل مفقود أو فاضي بيرجع للقيمة الافتراضية بدل ما يفضل فاضي،
+ * لأن القيم القديمة المحفوظة من نسخ سابقة كانت بتوقف الرفع بخطأ
+ * "cloudName ناقص" حتى مع وجود إعداد افتراضي صالح في الكود.
+ */
+export function normalizeCloudinaryConfig(
+  input?: Partial<CloudinaryConfig> | null
+): CloudinaryConfig {
+  const src: Partial<CloudinaryConfig> =
+    input && typeof input === 'object' ? input : {};
+
+  const pickString = (value: unknown, fallback: string): string =>
+    typeof value === 'string' && value.trim().length > 0 ? value.trim() : fallback;
+
+  const matchingPattern = src.matchingPattern;
+  const fileExtension = src.fileExtension;
+
+  return {
+    cloudName: pickString(src.cloudName, DEFAULT_CLOUDINARY_CONFIG.cloudName),
+    uploadPreset: pickString(src.uploadPreset, DEFAULT_CLOUDINARY_CONFIG.uploadPreset as string),
+    folderPrefix: pickString(src.folderPrefix, DEFAULT_CLOUDINARY_CONFIG.folderPrefix),
+    defaultTransformation: pickString(
+      src.defaultTransformation,
+      DEFAULT_CLOUDINARY_CONFIG.defaultTransformation
+    ),
+    matchingPattern:
+      matchingPattern === 'auto' ||
+      matchingPattern === 'code' ||
+      matchingPattern === 'name' ||
+      matchingPattern === 'slug' ||
+      matchingPattern === 'custom_url'
+        ? matchingPattern
+        : DEFAULT_CLOUDINARY_CONFIG.matchingPattern,
+    fileExtension:
+      fileExtension === 'jpg' ||
+      fileExtension === 'png' ||
+      fileExtension === 'webp' ||
+      fileExtension === 'auto'
+        ? fileExtension
+        : DEFAULT_CLOUDINARY_CONFIG.fileExtension,
+    baseUrlPattern: typeof src.baseUrlPattern === 'string'
+      ? src.baseUrlPattern
+      : DEFAULT_CLOUDINARY_CONFIG.baseUrlPattern,
+  };
+}
+
+/**
  * Extract clean Google Drive File ID from any Google Drive URL format or raw ID
  */
 export function extractGoogleDriveFileId(urlOrId: string): string | null {
@@ -237,20 +284,19 @@ export async function uploadImageToCloudinary(
   config: CloudinaryConfig = DEFAULT_CLOUDINARY_CONFIG,
   folder = 'tantawy_visits'
 ): Promise<{ url: string; publicId?: string }> {
-  if (!config.cloudName) {
-    throw new Error('إعدادات Cloudinary غير مفعّلة (cloudName ناقص).');
-  }
-
-  const uploadPreset = config.uploadPreset || 'unsigned_preset';
-  const uploadUrl = `https://api.cloudinary.com/v1_1/${config.cloudName}/image/upload`;
+  // تطبيع الإعدادات: حتى لو المُتصل مرر كائن ناقص (مثل قيمة قديمة من localStorage)
+  // بنرجع للإعداد الافتراضي الصالح بدل ما نضرب خطأ "cloudName ناقص".
+  const effectiveConfig = normalizeCloudinaryConfig(config);
+  const uploadPreset = effectiveConfig.uploadPreset || 'unsigned_preset';
+  const uploadUrl = `https://api.cloudinary.com/v1_1/${effectiveConfig.cloudName}/image/upload`;
 
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', uploadPreset);
   formData.append('folder', folder);
-  if (config.defaultTransformation) {
-    formData.append('transformation', config.defaultTransformation);
-  }
+  // ممنوع إرسال transformation مع الرفع غير الموقّع (unsigned):
+  // Cloudinary بيرفضه بـ400 "Transformation parameter is not allowed when using unsigned upload".
+  // التحويل بيتم وقت العرض عبر optimizeCloudinaryUrl أو من إعدادات الـupload preset نفسه.
 
   const res = await fetch(uploadUrl, {
     method: 'POST',

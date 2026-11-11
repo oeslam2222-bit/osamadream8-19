@@ -586,9 +586,8 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible, input:focu
 .fixed.inset-0 { overscroll-behavior: contain; }
 @media (max-width: 767px) { [role="dialog"] { padding-bottom: env(safe-area-inset-bottom); } }
 
-/* قواعد mobile-styles.css القديمة كانت تثبّت خلفية فاتحة للجداول حتى في الليلي */
-html.dark table thead { background: var(--app-card-secondary) !important; }
-html.dark table tr:hover { background-color: var(--app-card-hover) !important; }
+/* القواعد القديمة التي كانت تجبر الجداول على خلفية فاتحة حتى في الوضع الداكن
+   تمت إزالتها — الجداول الآن تتبع الهوية الموحدة (هيدر navy + نص أبيض). */
 
 /* عناوين الموبايل: كانت 28/24/20px بـ!important وتبدو ضخمة داخل الكروت */
 @media (max-width: 640px) {
@@ -618,16 +617,12 @@ html:not(.dark) {
   --app-border: #E2E8F0;
 }
 
+/* تم إزالة القاعدة التي كانت تفرض لون كحلي غامق على كل العناوين h1..h4 داخل
+   الشاشة — كانت تخفي عناوين الهيدر الكحلي (ds-pagehead) لأنها كحلي على كحلي.
+   العناوين الآن تأخذ ألوانها من الهوية الموحدة (نص أبيض على الهيدر الداكن). */
 html:not(.dark) .tantawy-screen {
   background-color: var(--app-bg) !important;
   color: var(--app-text) !important;
-}
-
-html:not(.dark) .tantawy-screen h1,
-html:not(.dark) .tantawy-screen h2,
-html:not(.dark) .tantawy-screen h3,
-html:not(.dark) .tantawy-screen h4 {
-  color: #0F2B38 !important;
 }
 
 html:not(.dark) .tantawy-screen .t-navy {
@@ -830,34 +825,17 @@ html:not(.dark) .ckpi-hint {
   font-weight: 700 !important;
 }
 
-/* معالجة أي نصوص بيضاء داخل كروت بيضاء أو فاتحة في الوضع النهاري */
-html:not(.dark) .bg-white .text-white:not(button):not(a):not(.app-btn):not([class*="bg-blue"]):not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-red"]):not([class*="bg-rose"]):not([class*="bg-amber"]):not([class*="bg-purple"]):not([class*="bg-slate-900"]):not([class*="bg-slate-950"]):not([class*="bg-[#0f2b38]"]) {
-  color: #0F2B38 !important;
-}
+/* تم إزالة القواعد القديمة التي كانت تحوّل النص الأبيض داخل الحاويات الفاتحة
+   إلى كحلي #0F2B38 بـ!important — كانت تخفي نص الهيدر الكحلي داخل الكروت البيضاء
+   (هيدر كحلي + نص كحلي = نص غير مرئي). التصميم الموحد الحالي لا يستخدم
+   نصاً أبيض على خلفية فاتحة إلا في الهيدرات الداكنة فقط. */
 
-html:not(.dark) .bg-slate-50 .text-white:not(button):not(a):not(.app-btn):not([class*="bg-blue"]):not([class*="bg-teal"]):not([class*="bg-emerald"]):not([class*="bg-red"]):not([class*="bg-rose"]):not([class*="bg-amber"]):not([class*="bg-purple"]):not([class*="bg-slate-900"]):not([class*="bg-slate-950"]):not([class*="bg-[#0f2b38]"]) {
-  color: #0F2B38 !important;
-}
-
-/* تعزيز وضوح وتباين الجداول في الوضع النهاري */
-html:not(.dark) table thead {
-  background: #F8FAFC !important;
-}
-
+/* جداول بهوية موحدة — تم إزالة القواعد القديمة التي كانت تفرض خلفية فاتحة ونصاً
+   داكناً على كل الجداول بـ!important (كانت تكسر الهيدر الكحلي والنص الأبيض).
+   كل جدول الآن يستخدم ألوانه من الهوية الموحدة: هيدر navy بـ text-white. */
 html:not(.dark) table thead th {
-  color: #475569 !important;
-  font-weight: 800 !important;
-  border-bottom: 2px solid #E2E8F0 !important;
-}
-
-html:not(.dark) table tbody tr {
-  background: #FFFFFF !important;
-  border-color: #E2E8F0 !important;
-  color: #0F172A !important;
-}
-
-html:not(.dark) table tbody tr:hover {
-  background: #F8FAFC !important;
+  font-weight: 800;
+  border-bottom: 2px solid var(--tg-line);
 }
 
 /* ---------- 2. الوضع الليلي الفاخر (Dark Mode) ---------- */

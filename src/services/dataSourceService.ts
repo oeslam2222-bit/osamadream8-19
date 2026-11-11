@@ -1,4 +1,28 @@
-export type PublishedSourceKind = 'google_sheets';
+﻿export type PublishedSourceKind = 'google_sheets';
+
+export type DataReadMode = 'supabase' | 'google_sheets';
+const DATA_READ_MODE_KEY = 'dream_dist_data_read_mode_v1';
+
+export function getDataReadMode(): DataReadMode {
+  if (typeof window === 'undefined') return 'supabase';
+  try {
+    const v = window.localStorage.getItem(DATA_READ_MODE_KEY);
+    return v === 'google_sheets' ? 'google_sheets' : 'supabase';
+  } catch {
+    return 'supabase';
+  }
+}
+
+export function setDataReadMode(mode: DataReadMode): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(DATA_READ_MODE_KEY, mode);
+  } catch {}
+}
+
+export function isGoogleSheetsReadMode(): boolean {
+  return getDataReadMode() === 'google_sheets';
+}
 
 export type PublishedDataSource = {
   kind: PublishedSourceKind;
@@ -280,3 +304,4 @@ export function isValidPublishedSource(source: PublishedDataSource): boolean {
 }
 
 export { defaultSources };
+

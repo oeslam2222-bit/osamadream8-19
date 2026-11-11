@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { COMPANY_INFO, INITIAL_AUDIT_LOGS, INITIAL_BRANCHES, INITIAL_USERS } from '../data/mockData';
 import { inferCustomerSector, BRANCHES } from '../data/branchDefinitions';
-import { DEFAULT_CLOUDINARY_CONFIG } from '../services/cloudinaryService';
+import { DEFAULT_CLOUDINARY_CONFIG, normalizeCloudinaryConfig } from '../services/cloudinaryService';
 import { clearCachedImages } from '../services/imageCacheService';
 import { idbClear, idbDelete, idbGet, idbSet, debouncedIdbSet, safeLocalStorageSet } from '../services/storageService';
 import { saveCustomerItemSales, mapSupabaseRowToCustomerItemSale } from '../services/customerItemSalesService';
@@ -79,15 +79,10 @@ import {
 import { currentMonthKey } from '../services/forecastService';
 import { sendOrderToMicrosoft365 } from '../services/microsoftSyncService';
 import { sendInvoiceToPowerAutomate } from '../services/powerAutomateService';
-import {
-  exportTargetsToExcel,
-  filterTargetsForUser,
-  generateSampleTargets,
-  inferTargetSector,
-  parseTargetExcel,
-  fetchTargetsFromGoogleSheetUrl,
-} from '../services/targetService';
-import { saveSingleSourceUrl, getPublishedDataSources, getSavedSourceUrl } from '../services/dataSourceService';
+import { fetchTargetsFromGoogleSheetUrl } from '../services/targetService';
+import { fetchDetailedCustomersFromGoogleSheet } from '../services/customerAnalyticsService';
+import { fetchAndParseGoogleSheet } from '../services/excelService';
+import { saveSingleSourceUrl, getPublishedDataSources, getSavedSourceUrl, isGoogleSheetsReadMode } from '../services/dataSourceService';
 import {
   fetchRemoteDataVersion,
   getLocalDataVersion,
@@ -774,10 +769,38 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
 
   // Load targets from the shared database so every device and role sees the same sheet update.
-  // بيسأل بصمة صف واحد الأول: لو الأهداف ما اتغيرتش بيوفّر ~30KB مع كل فتح.
+  // If Google Sheets read mode is enabled, prefer published sheet URLs to save Supabase egress.
   useEffect(() => {
     let cancelled = false;
+    const loadTargetsFromSheets = async (): Promise<boolean> => {
+      const savedSources = getPublishedDataSources();
+      const keys = ['targets', 'targets_electrical'] as const;
+      const all: TargetRecord[] = [];
+      for (const key of keys) {
+        const src = (savedSources as any)[key];
+        if (src?.enabled && src?.url && /^https?:\/\//i.test(String(src.url).trim())) {
+          try {
+            const sheetTargets = await fetchTargetsFromGoogleSheetUrl(String(src.url).trim());
+            if (sheetTargets?.length) all.push(...sheetTargets);
+          } catch (e: any) {
+            console.warn('Target Google Sheet load warning:', key, e?.message || e);
+          }
+        }
+      }
+      if (!cancelled && all.length > 0) {
+        const deduped = deduplicateTargetRecords(all);
+        setTargets(deduped);
+        return true;
+      }
+      return false;
+    };
+
     (async () => {
+      if (isGoogleSheetsReadMode()) {
+        const ok = await loadTargetsFromSheets();
+        if (ok || cancelled) return;
+      }
+
       const stamp = await fetchTargetContentStamp();
       const stored = readTargetContentStamp();
       const localCount = targets.length;
@@ -794,25 +817,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (result.success && result.targets && result.targets.length > 0) {
         const mapped: TargetRecord[] = result.targets.map(mapTargetRowToRecord);
         setTargets(mapped);
-        // نحفظ البصمة بعد التنزيل الناجح بس — فشل الجلب ما يعتبرش مزامنة.
         if (stamp && (stamp.count !== null || stamp.maxUpdatedAt !== null)) {
           saveTargetContentStamp(stamp);
         }
       } else {
-        // If Supabase has no target records yet, check if there's a saved published Google Sheet URL
-        const savedSources = getPublishedDataSources();
-        if (savedSources.targets?.enabled && savedSources.targets?.url && /^https?:\/\//i.test(savedSources.targets.url.trim())) {
-          try {
-            const sheetTargets = await fetchTargetsFromGoogleSheetUrl(savedSources.targets.url);
-            if (!cancelled && sheetTargets && sheetTargets.length > 0) {
-              const deduped = deduplicateTargetRecords(sheetTargets);
-              setTargets(deduped);
-              saveTargetsToSupabase(deduped).catch(() => {});
-            }
-          } catch (e: any) {
-            console.warn('Target Google Sheet background auto-sync standby note:', e?.message || e);
-          }
-        }
+        await loadTargetsFromSheets();
       }
     })().catch(() => {});
     return () => { cancelled = true; };
@@ -1083,8 +1092,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cart, setCart] = useState<CartItem[]>([]);
 
   const [cloudinaryConfig, setCloudinaryConfig] = useState<CloudinaryConfig>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CLOUDINARY);
-    return saved ? JSON.parse(saved) : DEFAULT_CLOUDINARY_CONFIG;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.CLOUDINARY);
+      // تطبيع القيمة المخزنة: نسخة قديمة ناقصة (cloudName فاضي/مفقود) كانت
+      // بتكسر رفع الصور، فبنكمّلها بالإعداد الافتراضي الصالح.
+      return saved ? normalizeCloudinaryConfig(JSON.parse(saved)) : DEFAULT_CLOUDINARY_CONFIG;
+    } catch {
+      return DEFAULT_CLOUDINARY_CONFIG;
+    }
   });
 
   const [accountingLogs, setAccountingLogs] = useState<AccountingSyncLog[]>(() => {
@@ -2784,24 +2799,76 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           if (!syncRes.updated) {
             // Fallback: If version wasn't newer, ensure products and customers are loaded from Supabase if empty
             if (products.length === 0) {
-              fetchProductsFromSupabase().then((pRes) => {
-                if (pRes.success && pRes.products && pRes.products.length > 0) {
-                  setProducts((curr) => {
-                    if (curr.length === 0) {
-                      const valid = sanitizeProducts(pRes.products!);
+              if (isGoogleSheetsReadMode()) {
+                const savedSources = getPublishedDataSources();
+                const prodKeys = ['products', 'products_electrical'] as const;
+                (async () => {
+                  const allProducts: Product[] = [];
+                  for (const key of prodKeys) {
+                    const src = (savedSources as any)[key];
+                    if (src?.enabled && src?.url && /^https?:\/\//i.test(String(src.url).trim())) {
+                      try {
+                        const res = await fetchAndParseGoogleSheet(String(src.url).trim());
+                        if (res?.products?.length) allProducts.push(...res.products);
+                      } catch {}
+                    }
+                  }
+                  if (allProducts.length > 0) {
+                    setProducts((curr) => {
+                      if (curr.length > 0) return curr;
+                      const valid = sanitizeProducts(allProducts);
                       idbSet(STORAGE_KEYS.PRODUCTS, valid).catch(() => {});
                       return valid;
-                    }
-                    return curr;
-                  });
-                }
-              });
+                    });
+                  }
+                })().catch(() => {});
+              } else {
+                fetchProductsFromSupabase().then((pRes) => {
+                  if (pRes.success && pRes.products && pRes.products.length > 0) {
+                    setProducts((curr) => {
+                      if (curr.length === 0) {
+                        const valid = sanitizeProducts(pRes.products!);
+                        idbSet(STORAGE_KEYS.PRODUCTS, valid).catch(() => {});
+                        return valid;
+                      }
+                      return curr;
+                    });
+                  }
+                });
+              }
             }
             const hasLocalCusts = (customersRef.current?.length || 0) > 0 || customers.length > 0;
             if (!hasLocalCusts) {
               idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS).then((cached) => {
                 if (cached && cached.length > 0) {
                   setCustomers(cached);
+                  return;
+                }
+                if (isGoogleSheetsReadMode()) {
+                  const savedSources = getPublishedDataSources();
+                  const custKeys = ['customers', 'customers_electrical'] as const;
+                  (async () => {
+                    const allCustomers: Customer[] = [];
+                    for (const key of custKeys) {
+                      const src = (savedSources as any)[key];
+                      if (src?.enabled && src?.url && /^https?:\/\//i.test(String(src.url).trim())) {
+                        try {
+                          const res = await fetchDetailedCustomersFromGoogleSheet(String(src.url).trim());
+                          if (res?.customers?.length) allCustomers.push(...res.customers);
+                        } catch {}
+                      }
+                    }
+                    if (allCustomers.length > 0) {
+                      const linked = linkCustomersToUsers(sanitizeCustomers(allCustomers), users);
+                      const valid = deduplicateCustomersArray(linked);
+                      setCustomers((curr) => {
+                        if (curr.length > 0) return curr;
+                        idbSet(STORAGE_KEYS.CUSTOMERS, valid).catch(() => {});
+                        saveLocalCustomersFingerprint(valid);
+                        return valid;
+                      });
+                    }
+                  })().catch(() => {});
                   return;
                 }
                 fetchCustomersFromSupabase(customerFetchScope).then(async (cRes) => {
@@ -2815,7 +2882,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                     setCustomers((curr) => {
                       const map = new Map<string, Customer>();
                       valid.forEach((c) => map.set(c.id, c));
-                      // Keep only genuinely pending offline creations
                       curr.forEach((c) => {
                         if (pendingCustIds.has(c.id) && !map.has(c.id)) {
                           map.set(c.id, c);
@@ -6265,7 +6331,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const updateCloudinarySettings = (config: CloudinaryConfig) => {
-    setCloudinaryConfig(config);
+    setCloudinaryConfig(normalizeCloudinaryConfig(config));
   };
 
   const saveMatchedProductImages = (updates: { id: string; imageUrl: string }[]) => {
