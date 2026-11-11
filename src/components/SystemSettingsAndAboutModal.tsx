@@ -25,6 +25,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { normalizeCloudinaryConfig } from '../services/cloudinaryService';
 
 interface SystemSettingsAndAboutModalProps {
   isOpen: boolean;
@@ -467,7 +468,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                   <button
                     type="button"
                     onClick={() => {
-                      const updated = {
+                      const updated = normalizeCloudinaryConfig({
                         ...(cloudinaryConfig || {}),
                         cloudName: cloudNameInput.trim(),
                         uploadPreset: presetInput.trim(),
@@ -476,7 +477,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                         matchingPattern: 'auto' as const,
                         fileExtension: 'auto' as const,
                         baseUrlPattern: ''
-                      };
+                      });
                       if (updateCloudinarySettings) updateCloudinarySettings(updated);
                       try {
                         localStorage.setItem('dream_dist_cloudinary_v9', JSON.stringify(updated));

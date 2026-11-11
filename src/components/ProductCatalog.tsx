@@ -640,22 +640,22 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   };
 
   return (
-    <div className="catalog-page tantawy-screen min-w-0 w-full max-w-full space-y-5 pb-16" dir="rtl">
-      <div className="catalog-hero overflow-hidden rounded-[30px] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(61,216,176,0.28),transparent_30%),linear-gradient(135deg,#10293d_0%,#0d1b2a_45%,#08131d_100%)] shadow-[0_18px_40px_rgba(2,6,23,0.32)]">
-        <div className="relative z-10 flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3.5">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white shadow-lg backdrop-blur-sm">
-              <ShoppingCart className="h-7 w-7" />
+    <div className="catalog-page tantawy-screen min-w-0 w-full max-w-full space-y-6 pb-20 font-cairo" dir="rtl">
+      <div className="catalog-hero overflow-hidden rounded-[32px] border border-white/12 bg-[radial-gradient(circle_at_top_left,_rgba(61,216,176,0.22),transparent_35%),linear-gradient(135deg,#0f2b3d_0%,#0a1c2c_45%,#071726_100%)] shadow-[0_20px_50px_rgba(2,6,23,0.35)]">
+        <div className="relative z-10 flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[26px] border border-white/14 bg-white/12 text-white shadow-xl backdrop-blur-md">
+              <ShoppingCart className="h-8 w-8" />
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tight text-white sm:text-[26px]">كتالوج الأصناف</h1>
-              <p className="mt-0.5 text-[11px] font-bold text-white/75 sm:text-xs">
-                اختر المنتجات بسهولة وأضفها إلى فاتورتك
+              <h1 className="text-3xl font-black tracking-tight text-white sm:text-[32px] leading-tight">كتالوج الأصناف</h1>
+              <p className="mt-1 text-[12px] font-semibold text-white/80 sm:text-sm leading-relaxed">
+                اختر المنتجات بسهولة وأضفها إلى فاتورتك — تصفح حسب القطاع، الماركة، والمخزون المتوفر.
               </p>
             </div>
           </div>
 
-          <div className="relative z-20 w-full lg:max-w-xl" ref={searchWrapperRef}>
+          <div className="relative z-20 w-full lg:max-w-2xl" ref={searchWrapperRef}>
             <div className="relative">
               <input
                 type="text"
@@ -670,9 +670,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   }
                 }}
                 placeholder="ابحث باسم المنتج أو كود المنتج أو الكود الموحد ..."
-                className="w-full rounded-2xl border border-white/60 bg-white/95 py-3 pl-10 pr-11 text-xs font-bold text-slate-800 shadow-lg shadow-slate-950/20 transition placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#3dd8b0]/70 sm:text-sm"
+                className="w-full rounded-[20px] border border-white/50 bg-white/90 py-3.5 pl-12 pr-11 text-xs font-bold text-slate-800 shadow-xl shadow-slate-950/25 transition-all focus:outline-none focus:ring-2 focus:ring-[#3dd8b0]/80 focus:ring-offset-1 sm:text-sm sm:py-4 sm:pl-14"
               />
-              <Search className="pointer-events-none absolute right-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
+              <Search className="pointer-events-none absolute right-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-400" />
               {searchTerm && (
                 <button
                   type="button"
@@ -680,10 +680,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     setSearchTerm('');
                     setShowSearchSuggestions(false);
                   }}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 transition-all hover:bg-white/70 hover:text-slate-700"
                   title="مسح البحث"
                 >
-                  <X className="h-4 w-4" />
+                  <X className="h-5 w-5" />
                 </button>
               )}
             </div>
@@ -811,11 +811,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <Store className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] sm:text-xs text-light font-black leading-tight whitespace-nowrap truncate">مخزون فرع المندوب</p>
-              <p className="text-xl sm:text-2xl font-black text-[var(--app-navy-text)] tracking-tight leading-tight whitespace-nowrap">
-                {stats.branchCartons.toLocaleString('en-US')} <span className="text-[11px] font-bold text-slate-500">كرتونة</span>
+              <p className="text-xs font-black text-slate-600 leading-tight whitespace-nowrap truncate">مخزون فرع المندوب</p>
+              <p className="text-xl sm:text-2xl font-black text-[var(--app-navy-text)] tracking-tight leading-tight whitespace-nowrap tabular-nums">
+                {stats.branchCartons.toLocaleString('en-US')} <span className="text-xs font-bold text-slate-500">كرتونة</span>
               </p>
-              <p className="text-[10px] text-light font-bold leading-tight whitespace-nowrap truncate">رصيد متاح بالفرع ({currentActiveBranch})</p>
+              <p className="text-[11px] text-slate-500 font-bold leading-tight whitespace-nowrap truncate">رصيد متاح بالفرع ({currentActiveBranch})</p>
             </div>
           </div>
           <button
@@ -836,11 +836,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <Package className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] sm:text-xs text-light font-black leading-tight whitespace-nowrap truncate">المخزن الرئيسي (أكتوبر)</p>
-              <p className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight leading-tight whitespace-nowrap">
-                {stats.octoberCartons.toLocaleString('en-US')} <span className="text-[11px] font-bold text-emerald-500">كرتونة</span>
+              <p className="text-xs font-black text-slate-600 leading-tight whitespace-nowrap truncate">المخزن الرئيسي (أكتوبر)</p>
+              <p className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight leading-tight whitespace-nowrap tabular-nums">
+                {stats.octoberCartons.toLocaleString('en-US')} <span className="text-xs font-bold text-emerald-500">كرتونة</span>
               </p>
-              <p className="text-[10px] text-light font-bold leading-tight whitespace-nowrap truncate">رصيد مركزي متاح للسحب</p>
+              <p className="text-[11px] text-slate-500 font-bold leading-tight whitespace-nowrap truncate">رصيد مركزي متاح للسحب</p>
             </div>
           </div>
           <button
@@ -861,21 +861,21 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] sm:text-xs text-light font-black leading-tight whitespace-nowrap truncate">الأصناف المتوفرة للطلب</p>
-              <p className="text-xl sm:text-2xl font-black text-[var(--app-ok-text)] tracking-tight leading-tight whitespace-nowrap">
-                {stats.availableItemsCount.toLocaleString('en-US')} <span className="text-[11px] font-bold text-slate-500">صنف متاح</span>
+              <p className="text-xs font-black text-slate-600 leading-tight whitespace-nowrap truncate">الأصناف المتوفرة للطلب</p>
+              <p className="text-xl sm:text-2xl font-black text-[var(--app-ok-text)] tracking-tight leading-tight whitespace-nowrap tabular-nums">
+                {stats.availableItemsCount.toLocaleString('en-US')} <span className="text-xs font-bold text-slate-500">صنف متاح</span>
               </p>
-              <p className="text-[10px] text-light font-bold leading-tight whitespace-nowrap truncate">بمخزون &gt; 0 في الفرع أو أكتوبر</p>
+              <p className="text-[11px] text-slate-500 font-bold leading-tight whitespace-nowrap truncate">بمخزون &gt; 0 في الفرع أو أكتوبر</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* 3. Filter Bar */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3 select-none space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="bg-white rounded-[26px] border border-slate-100 shadow-lg p-4 select-none space-y-4 font-cairo">
+        <div className="flex flex-wrap items-center gap-3">
           {/* القطاعات (منزلي / كهرباء / كل القطاعات) - واضحة ومباشرة بنقرة واحدة */}
-          <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200">
+          <div className="flex items-center gap-1 p-1.5 bg-slate-50 rounded-[20px] border border-slate-200 shadow-sm">
             <button
               type="button"
               onClick={() => {
@@ -962,7 +962,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as any)}
               aria-label="الترتيب حسب"
-              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-secondary focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+              className="appearance-none bg-white border border-slate-200 hover:border-slate-300 rounded-[16px] px-3.5 py-2.5 pr-3 pl-10 text-[11px] font-black text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
             >
               <option value="default">الترتيب حسب</option>
               <option value="branch_stock_desc">الأعلى مخزوناً بفرعك</option>
@@ -980,7 +980,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
               aria-label="كل الحالات"
-              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-secondary focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+              className="appearance-none bg-white border border-slate-200 hover:border-slate-300 rounded-[16px] px-3.5 py-2.5 pr-3 pl-10 text-[11px] font-black text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
             >
               <option value="الكل">كل الحالات</option>
               <option value="متوفر">متوفر بفرعك</option>
@@ -996,7 +996,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               value={selectedBrand}
               onChange={(e) => setSelectedBrand(e.target.value)}
               aria-label="الصنف بالعائلة"
-              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-secondary focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[180px]"
+              className="appearance-none bg-white border border-slate-200 hover:border-slate-300 rounded-[16px] px-3.5 py-2.5 pr-3 pl-10 text-[11px] font-black text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer max-w-[180px]"
             >
               <option value="الكل">الصنف بالعائلة (الكل)</option>
               {brandsList.map((b) => (
@@ -1014,7 +1014,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               value={selectedDept}
               onChange={(e) => setSelectedDept(e.target.value)}
               aria-label="الصنف"
-              className="appearance-none bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-xl px-3.5 py-2 pr-3 pl-8 text-xs font-bold text-secondary focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer max-w-[180px]"
+              className="appearance-none bg-white border border-slate-200 hover:border-slate-300 rounded-[16px] px-3.5 py-2.5 pr-3 pl-10 text-[11px] font-black text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer max-w-[180px]"
             >
               <option value="الكل">الصنف (الكل)</option>
               {departmentsList.map((d) => (
@@ -1028,7 +1028,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
           {/* فلتر السعر: من / إلى */}
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black">
-            <span className="text-muted">السعر:</span>
+            <span className="text-muted">سعر القطعة:</span>
+            <span className="text-muted mx-1">من</span>
             <input
               type="number"
               placeholder="من"
@@ -1241,25 +1242,23 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* ERP Table View (Desktop/Laptop) */}
       <div className="catalog-erp-wrap hidden lg:block w-full overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs bg-white dark:bg-[#0f172a] animate-in fade-in">
         <table className="catalog-erp-table w-full min-w-[1100px] text-right border-collapse text-xs">
-          <thead className="bg-[#0f2b38] text-white font-black border-b border-[#1b4676] select-none sticky top-0 z-10">
+          <thead className="bg-[var(--tg-card-2)] text-[#0f172a] font-black border-b border-[var(--tg-line-strong)] select-none sticky top-0 z-10">
             <tr>
-              <th className="p-3 text-center text-white font-black w-12">#</th>
-              <th className="p-3 text-center text-white font-black w-16">الصورة</th>
-              <th className="p-3 text-right text-white font-black w-28">كود المنتج</th>
-              <th className="p-3 text-right text-white font-black w-24">الكود الموحد</th>
-              <th className="p-3 text-right text-white font-black min-w-[200px]">اسم المنتج</th>
-              <th className="p-3 text-center text-white font-black w-24">القطاع</th>
-              <th className="p-3 text-right text-white font-black w-24">سعر القطعة</th>
-              <th className="p-3 text-right text-white font-black w-24">سعر الكرتونة</th>
-              <th className="p-3 text-center text-white font-black w-20">الشدة</th>
+              <th className="p-3 text-center font-black w-12">#</th>
+              <th className="p-3 text-center font-black w-16">الصورة</th>
+              <th className="p-3 text-right font-black w-28">كود المنتج</th>
+              <th className="p-3 text-right font-black w-24">الكود الموحد</th>
+              <th className="p-3 text-right font-black min-w-[200px]">اسم المنتج</th>
+              <th className="p-3 text-center font-black w-24">القطاع</th>
+              <th className="p-3 text-right font-black w-24">سعر القطعة</th>
+              <th className="p-3 text-right font-black w-24">سعر الكرتونة</th>
+              <th className="p-3 text-center font-black w-20">الشدة</th>
               {showAllWarehouses ? (
                 <>
                   {COMPANY_WAREHOUSES.map((wh) => (
                     <th
                       key={wh.key}
-                      className={`p-3 text-center text-white font-black text-[11px] ${
-                        wh.isCentral ? 'bg-[#006d62]' : ''
-                      }`}
+                      className="p-3 text-center font-black text-[11px]"
                       title={wh.label}
                     >
                       {wh.shortLabel}
@@ -1268,12 +1267,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </>
               ) : (
                 <>
-                  <th className="p-3 text-center text-white font-black w-24">مخزون الفرع</th>
-                  <th className="p-3 text-center text-white font-black w-28 bg-[#006d62]">مخزون أكتوبر</th>
+                  <th className="p-3 text-center font-black w-24">مخزون الفرع</th>
+                  <th className="p-3 text-center font-black w-28">مخزون أكتوبر</th>
                 </>
               )}
-              <th className="p-3 text-center text-white font-black w-14">المفضلة</th>
-              <th className="p-3 text-center text-white font-black w-28">إضافة للسلة</th>
+              <th className="p-3 text-center font-black w-14">المفضلة</th>
+              <th className="p-3 text-center font-black w-28">إضافة للسلة</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold">
@@ -1291,8 +1290,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               const isOutOfStock = branchStock <= 0 && octoberStock <= 0;
 
               return (
-                <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition group bg-white dark:bg-[#0f172a]">
-                  <td className="p-3 text-center font-black text-slate-500 dark:text-slate-400 text-xs">{globalIdx}</td>
+                <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition group bg-white dark:bg-[#0f172a] font-cairo">
+                  <td className="p-3 text-center font-extrabold text-slate-500 dark:text-slate-400 text-xs">{globalIdx}</td>
                   <td className="p-3 text-center">
                     <button
                       type="button"
@@ -1315,38 +1314,38 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                             referrerPolicy="no-referrer"
                           />
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs font-bold">
+                          <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs font-extrabold">
                             📦
                           </div>
                         )}
                       </div>
                     </button>
                   </td>
-                  <td className="p-3 text-right font-black text-slate-900 dark:text-white text-xs font-mono truncate">{p.code || '—'}</td>
-                  <td className="p-3 text-right text-xs font-mono font-bold text-teal-700 dark:text-teal-400 truncate">
+                  <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white text-xs font-mono truncate">{p.code || '—'}</td>
+                  <td className="p-3 text-right text-xs font-mono font-extrabold text-[#1d4ed8] truncate">
                     {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
                   </td>
-                  <td className="p-3 text-right font-black text-slate-900 dark:text-white truncate max-w-[240px]" title={displayName}>
+                  <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white truncate max-w-[240px]" title={displayName}>
                     {displayName || `صنف ${p.code}`}
                   </td>
                   <td className="p-3 text-center">
-                    <span className={`inline-block px-2.5 py-0.5 rounded-lg text-[10px] font-black shrink-0 ${
+                    <span className={`inline-block px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold shrink-0 ${
                       isElec ? 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300' : 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300'
                     }`}>
                       {isElec ? '⚡ كهرباء' : '🏠 منزلي'}
                     </span>
                   </td>
-                  <td className="p-3 text-right font-black text-slate-900 dark:text-white">
+                  <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white">
                     {priceInfo.piecePrice > 0 ? (
-                      <span className="font-black font-mono">{formatCurrency(priceInfo.piecePrice)}</span>
+                      <span className="font-extrabold font-mono">{formatCurrency(priceInfo.piecePrice)}</span>
                     ) : (
                       <span className="text-slate-400">—</span>
                     )}
                     <span className="text-[10px] text-slate-400 block font-normal">/قطعة</span>
                   </td>
-                  <td className="p-3 text-right font-black text-slate-900 dark:text-white">
+                  <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white">
                     {priceInfo.factor > 1 && priceInfo.cartonPrice > 0 ? (
-                      <span className="font-black font-mono">{formatCurrency(priceInfo.cartonPrice)}</span>
+                      <span className="font-extrabold font-mono">{formatCurrency(priceInfo.cartonPrice)}</span>
                     ) : (
                       <span className="text-slate-400 text-xs font-normal">فردي</span>
                     )}
@@ -1354,7 +1353,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </td>
                   <td className="p-3 text-center font-mono">
                     {priceInfo.factor > 1 ? (
-                      <span className="inline-block bg-teal-50 text-teal-800 dark:bg-teal-950/40 dark:text-teal-300 border border-teal-200 dark:border-teal-800 text-[10px] px-2 py-0.5 rounded-md font-black">
+                      <span className="inline-block bg-[#eff6ff] text-[#1d4ed8] border border-[#bfdbfe] text-[10px] px-2 py-0.5 rounded-md font-black">
                         {priceInfo.factor} ق/ك
                       </span>
                     ) : (
@@ -1368,10 +1367,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       {COMPANY_WAREHOUSES.map((wh) => {
                         const stock = getWarehouseStock(p, wh.key);
                         return (
-                          <td key={wh.key} className={`p-3 text-center ${wh.isCentral ? 'bg-teal-50/30 dark:bg-teal-950/20' : ''}`}>
+                          <td key={wh.key} className={`p-3 text-center ${wh.isCentral ? 'bg-[#eff6ff]/60' : ''}`}>
                             <span className={`px-2 py-0.5 rounded-lg text-xs font-black font-mono ${
                               stock > 0
-                                ? 'bg-teal-50 text-teal-800 border border-teal-200 dark:bg-teal-950/40 dark:text-teal-300'
+                                ? 'bg-[#eff6ff] text-[#1d4ed8] border border-[#bfdbfe]'
                                 : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-800 dark:border-slate-700'
                             }`}>
                               {stock}
@@ -1382,8 +1381,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </>
                   ) : (
                     <>
-                      <td className="p-3 text-center">
-                        <span className={`px-2.5 py-1 rounded-xl text-xs font-black font-mono ${
+                      <td className="p-3 text-center bg-emerald-50/40 dark:bg-emerald-950/10">
+                        <span className={`px-2.5 py-1 rounded-xl text-[10px] font-extrabold font-mono ${
                           branchStock > 0
                             ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
                             : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-800 dark:border-slate-700'
@@ -1392,7 +1391,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         </span>
                       </td>
                       <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/20">
-                        <span className={`px-2.5 py-1 rounded-xl text-xs font-black font-mono ${
+                        <span className={`px-2.5 py-1 rounded-xl text-[10px] font-extrabold font-mono ${
                           octoberStock > 0
                             ? 'bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300'
                             : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-800 dark:border-slate-700'
@@ -1418,16 +1417,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </td>
                   <td className="p-3 text-center">
                     {isOutOfStock ? (
-                      <span className="inline-block py-1 px-2 rounded-xl text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 dark:text-slate-500 border border-slate-200 dark:border-slate-700 text-center">
+                      <span className="inline-block py-1 px-2 rounded-xl text-[10px] font-extrabold text-slate-400 bg-slate-100 dark:bg-slate-800 dark:text-slate-500 border border-slate-200 dark:border-slate-700 text-center">
                         نفد الرصيد
                       </span>
                     ) : (
                       <button
                         type="button"
                         onClick={() => handleAddToCart(p)}
-                        className="w-full py-2 px-2.5 rounded-xl text-xs font-black transition-all bg-[#0f2b38] hover:bg-[#00827a] text-white shadow-xs active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                        className="w-full py-2 px-2.5 rounded-xl text-[10px] font-extrabold transition-all bg-[#0f2b38] hover:bg-[#00827a] text-white shadow-xs active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
                       >
-                        <ShoppingCart className="w-3.5 h-3.5 shrink-0 text-teal-300" />
+                        <ShoppingCart className="w-3.5 h-3.5 shrink-0 text-[#7fc0ff]" />
                         <span>إضافة</span>
                       </button>
                     )}
@@ -1545,7 +1544,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </div>
                 <h3
                   onClick={() => setSelectedProductForModal(p)}
-                  className="min-h-[38px] cursor-pointer text-sm font-black leading-snug text-slate-900 transition hover:text-teal-600 dark:text-white"
+                  className="min-h-[38px] cursor-pointer text-sm font-black leading-snug text-slate-900 transition hover:text-[#2563eb] dark:text-white"
                   title={displayName}
                 >
                   {displayName || `صنف ${p.code}`}
@@ -1560,7 +1559,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     '—'
                   )}
                   {priceInfo.factor > 1 ? (
-                    <span className="rounded-md border border-teal-200 bg-teal-50 px-2 py-0.5 text-[10px] font-black text-teal-800 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-300">
+                    <span className="rounded-md border border-[#bfdbfe] bg-[#eff6ff] px-2 py-0.5 text-[10px] font-black text-[#1d4ed8]">
                       {priceInfo.factor} ق/ك
                     </span>
                   ) : null}
@@ -1579,7 +1578,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/80">
                   <span className="mb-0.5 block text-[10px] font-bold text-slate-400">الكود الموحد</span>
-                  <span className="block truncate font-mono text-xs font-black text-teal-700 dark:text-teal-400" title={p.unifiedCode}>
+                  <span className="block truncate font-mono text-xs font-black text-[#1d4ed8]" title={p.unifiedCode}>
                     {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
                   </span>
                 </div>
@@ -1637,7 +1636,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     onClick={() => handleAddToCart(p)}
                     className="flex min-h-[46px] flex-1 items-center justify-center gap-1.5 rounded-2xl bg-[#0f2b38] px-3 py-2.5 text-xs font-black text-white shadow-sm transition hover:bg-[#00827a] active:scale-[0.98]"
                   >
-                    <ShoppingCart className="h-4 w-4 text-teal-300" />
+                    <ShoppingCart className="h-4 w-4 text-[#7fc0ff]" />
                     <span>إضافة للفاتورة</span>
                   </button>
 

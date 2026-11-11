@@ -663,7 +663,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   {users.length} موظف مسجل
                 </span>
               </div>
-              <p className="text-xs sm:text-sm text-teal-100 mt-1 leading-relaxed">
+              <p className="text-xs sm:text-sm text-[#c3d9ec] mt-1 leading-relaxed">
                 إضافة المناديب والمشرفين • توزيع المناديب على المشرفين في كل فرع • سرية تامة وتحديد الصلاحيات
               </p>
             </div>

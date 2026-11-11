@@ -361,7 +361,7 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
       <div className="rounded-[28px] border border-[var(--tg-line)] bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-right text-xs border-collapse">
-            <thead className="bg-[var(--tg-navy-700)] text-white font-black sticky top-0 z-10">
+            <thead className="bg-[var(--tg-card-2)] text-[#0f172a] font-black sticky top-0 z-10">
               <tr>
                 <th className="p-3.5 text-[11px] font-black whitespace-nowrap">المندوب</th>
                 <th className="p-3.5 text-[11px] whitespace-nowrap">الفرع</th>
@@ -491,7 +491,7 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
         >
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={(e) => e.stopPropagation()} />
           <div
-            className="w-full sm:max-w-[480px] max-h-[90vh] bg-white rounded-[28px] shadow-2xl border border-[var(--tg-line)] flex flex-col overflow-hidden"
+            className="relative z-10 w-full sm:max-w-[480px] max-h-[90vh] bg-white rounded-[28px] shadow-2xl border border-[var(--tg-line)] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 bg-[var(--tg-navy-700)] text-white p-4 sm:p-5 sticky top-0 z-10 border-b border-white/10">

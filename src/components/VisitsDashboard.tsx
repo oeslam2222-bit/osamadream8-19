@@ -133,6 +133,10 @@ export const VisitsDashboard: React.FC = () => {
 
   const [form, setForm] = useState<VisitForm>(initialForm);
 
+  // بحث وفلترة العملاء داخل مودال تسجيل الزيارة
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerRepFilter, setCustomerRepFilter] = useState('all');
+
   const myCustomers = useMemo(() => {
     return getVisibleCustomers();
   }, [customers, users, currentUser, getVisibleCustomers]);
@@ -141,6 +145,33 @@ export const VisitsDashboard: React.FC = () => {
     if (!form.customerId) return null;
     return myCustomers.find((c) => c.id === form.customerId) || null;
   }, [form.customerId, myCustomers]);
+
+  // المناديب المتاحين للفلترة من قائمة العملاء
+  const customerRepOptions = useMemo(() => {
+    const reps = new Set<string>();
+    myCustomers.forEach((c) => {
+      const rep = c.salesRepName || c.repName;
+      if (rep) reps.add(rep);
+    });
+    return Array.from(reps);
+  }, [myCustomers]);
+
+  // العملاء المطابقون للبحث (اسم/كود) وفلتر المندوب
+  const filteredModalCustomers = useMemo(() => {
+    let list = myCustomers;
+    if (customerRepFilter !== 'all') {
+      list = list.filter((c) => (c.salesRepName || c.repName) === customerRepFilter);
+    }
+    const q = customerSearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (c) =>
+          (c.name || '').toLowerCase().includes(q) ||
+          (c.code || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [myCustomers, customerSearch, customerRepFilter]);
 
   // Request Rep current GPS position
   const requestCurrentRepGps = (): Promise<{ latitude: number; longitude: number; accuracy?: number } | null> => {
@@ -409,155 +440,114 @@ export const VisitsDashboard: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0b1329] p-3 sm:p-5 lg:p-7 space-y-6" dir="rtl">
-      {/* Flash message */}
+    <div className="tg-dash space-y-4" dir="rtl">
+      {/* Flash message (توحيد مع tg-toast) */}
       {flash && (
-        <div
-          className={`p-4 rounded-2xl border text-sm font-bold flex items-center justify-between shadow-sm animate-in fade-in slide-in-from-top-2 ${
-            flash.tone === 'success'
-              ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-              : 'bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
-          }`}
-        >
-          <span>{flash.text}</span>
-          <button
-            type="button"
-            onClick={() => setFlash(null)}
-            className="p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
-          >
-            <X className="w-4 h-4" />
-          </button>
+        <div className="tg-toast">
+          <div className={`tg-toast-item tg-toast--${flash.tone === 'success' ? 'ok' : 'err'}`}>
+            {flash.tone === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            )}
+            <span>{flash.text}</span>
+            <button onClick={() => setFlash(null)} className="ml-auto text-white/80 hover:text-white">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Header bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-[#0f172a] p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#0f2b38] to-[#1a4a5e] text-white flex items-center justify-center shadow-md shadow-[#0f2b38]/20 shrink-0">
-            <MapPin className="w-6 h-6 text-teal-300" />
-          </div>
+      {/* الهيدر — هوية التطبيق */}
+      <section className="ds-pagehead">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
           <div>
+            <div className="text-[11px] font-bold text-[#a9c8e4] mb-1 tracking-wider uppercase">
+              رئيسية <span className="mx-1 text-[#7fc0ff]">›</span> الزيارات الميدانية
+            </div>
             <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                لوحة الزيارات
-              </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-teal-50 text-teal-700 dark:bg-teal-950/50 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
-                {filtered.length} زيارة
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
-              متابعة الزيارات الميدانية والتحصيلات والمرتجعات لفرق المبيعات
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={resetFilters}
-            className="p-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 transition active:scale-95 text-xs font-bold flex items-center gap-1.5"
-            title="تحديث البيانات"
-          >
-            <RotateCw className="w-4 h-4" />
-            <span className="hidden md:inline">تحديث</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowForm(true)}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-3 bg-[#0f2b38] hover:bg-[#163f53] text-white font-black rounded-2xl text-xs sm:text-sm shadow-md shadow-[#0f2b38]/25 transition-all active:scale-95 cursor-pointer"
-          >
-            <Plus className="w-4 h-4 text-teal-300" />
-            <span>تسجيل زيارة جديدة</span>
-          </button>
-        </div>
-      </div>
-
-      {/* 4 KPI Summary Cards (Matching Tantawy Luxury Design) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        {/* Total Visits Card */}
-        <div className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-blue-300 dark:hover:border-blue-700 transition">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs sm:text-sm font-black text-slate-600 dark:text-slate-300">
-              إجمالي الزيارات
-            </span>
-            <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-              <Calendar className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 shadow-xs border border-white/20">
+                <MapPin className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 flex-wrap">
+                  لوحة الزيارات
+                  <span className="inline-flex items-center rounded-full bg-white/15 border border-white/20 px-2.5 py-0.5 text-[11px] font-black text-white">
+                    {filtered.length} زيارة
+                  </span>
+                </h1>
+                <p className="text-xs text-[#c3d9ec] mt-0.5">متابعة الزيارات الميدانية والتحصيلات وتوثيق المواقع لفرق المبيعات.</p>
+              </div>
             </div>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight">
-            {stats.total.toLocaleString()}
-          </div>
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 font-bold mt-1.5 flex items-center gap-1">
-            <span>زيارة مسجلة بالمنظومة</span>
-          </div>
-          <div className="absolute bottom-0 right-0 left-0 h-1 bg-gradient-to-r from-blue-500 to-cyan-400 opacity-80" />
-        </div>
 
-        {/* Completed Visits Card */}
-        <div className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-emerald-300 dark:hover:border-emerald-700 transition">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs sm:text-sm font-black text-slate-600 dark:text-slate-300">
-              الزيارات المنفذة
-            </span>
-            <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 text-white font-black px-3.5 py-2.5 text-xs transition cursor-pointer"
+              title="إعادة تعيين الفلاتر"
+            >
+              <RotateCw className="w-4 h-4" />
+              <span className="hidden sm:inline">تحديث</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2.5 text-xs shadow-sm transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>تسجيل زيارة جديدة</span>
+            </button>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
-            {stats.completed.toLocaleString()}
-          </div>
-          <div className="text-[11px] text-emerald-700 dark:text-emerald-300 font-bold mt-1.5 flex items-center gap-1">
-            <span>زيارات ناجحة ومكتملة</span>
-          </div>
-          <div className="absolute bottom-0 right-0 left-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-400 opacity-80" />
         </div>
+      </section>
 
-        {/* GPS Geofenced / Verified Visits Card */}
-        <div className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-teal-300 dark:hover:border-teal-700 transition">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs sm:text-sm font-black text-slate-600 dark:text-slate-300">
-              زيارات موثقة (GPS)
-            </span>
-            <div className="w-10 h-10 rounded-2xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
-              <MapPin className="w-5 h-5" />
-            </div>
+      {/* بطاقات المؤشرات — التصميم الجديد (كروت ملونة، أرقام كبيرة) */}
+      <section className="tg-grid-4">
+        <button type="button" className="tg-kpi-big tg-kpi-big--visits group cursor-pointer">
+          <div className="tg-kpi-big__top">
+            <span className="tg-kpi-big__icon tg-card--visits"><Calendar size={20} /></span>
           </div>
-          <div className="text-2xl sm:text-3xl font-black text-teal-600 dark:text-teal-400 tracking-tight">
-            {stats.gpsVerified.toLocaleString()}
-          </div>
-          <div className="text-[11px] text-teal-700 dark:text-teal-300 font-bold mt-1.5 flex items-center gap-1">
-            <span>نسبة التوثيق: {stats.total > 0 ? Math.round((stats.gpsVerified / stats.total) * 100) : 0}%</span>
-          </div>
-          <div className="absolute bottom-0 right-0 left-0 h-1 bg-gradient-to-r from-teal-500 to-cyan-400 opacity-80" />
-        </div>
+          <span className="tg-kpi-big__value">{stats.total.toLocaleString()}</span>
+          <span className="tg-kpi-big__label">إجمالي الزيارات</span>
+          <span className="tg-kpi-big__hint">زيارة مسجلة بالمنظومة</span>
+        </button>
 
-        {/* Collections Amount Card */}
-        <div className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-xs relative overflow-hidden group hover:border-teal-300 dark:hover:border-teal-700 transition">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs sm:text-sm font-black text-slate-600 dark:text-slate-300">
-              التحصيلات
-            </span>
-            <div className="w-10 h-10 rounded-2xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
-              <Wallet className="w-5 h-5" />
-            </div>
+        <button type="button" className="tg-kpi-big tg-kpi-big--sales group cursor-pointer">
+          <div className="tg-kpi-big__top">
+            <span className="tg-kpi-big__icon tg-card--sales"><CheckCircle2 size={20} /></span>
           </div>
-          <div className="text-xl sm:text-2xl font-black text-[#0f2b38] dark:text-teal-300 tracking-tight truncate">
-            {formatCurrency(stats.totalCollected)} <span className="text-xs font-normal text-slate-500">ج.م</span>
+          <span className="tg-kpi-big__value">{stats.completed.toLocaleString()}</span>
+          <span className="tg-kpi-big__label">الزيارات المنفذة</span>
+          <span className="tg-kpi-big__hint">زيارات ناجحة ومكتملة</span>
+        </button>
+
+        <button type="button" className="tg-kpi-big tg-kpi-big--customers group cursor-pointer">
+          <div className="tg-kpi-big__top">
+            <span className="tg-kpi-big__icon tg-card--customers"><MapPin size={20} /></span>
           </div>
-          <div className="text-[11px] text-teal-700 dark:text-teal-300 font-bold mt-1.5 flex items-center gap-1">
-            <span>{stats.collectionCount} عملية تحصيل مسجلة</span>
+          <span className="tg-kpi-big__value">{stats.gpsVerified.toLocaleString()}</span>
+          <span className="tg-kpi-big__label">زيارات موثقة (GPS)</span>
+          <span className="tg-kpi-big__hint">نسبة التوثيق: {stats.total > 0 ? Math.round((stats.gpsVerified / stats.total) * 100) : 0}%</span>
+        </button>
+
+        <button type="button" className="tg-kpi-big tg-kpi-big--invoices group cursor-pointer">
+          <div className="tg-kpi-big__top">
+            <span className="tg-kpi-big__icon tg-card--invoices"><Wallet size={20} /></span>
           </div>
-          <div className="absolute bottom-0 right-0 left-0 h-1 bg-gradient-to-r from-teal-500 to-blue-500 opacity-80" />
-        </div>
-      </div>
+          <span className="tg-kpi-big__value">{formatCurrency(stats.totalCollected)}</span>
+          <span className="tg-kpi-big__label">التحصيلات</span>
+          <span className="tg-kpi-big__hint">{stats.collectionCount} عملية تحصيل مسجلة</span>
+        </button>
+      </section>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 p-4 sm:p-5 shadow-xs space-y-3">
+      <section className="tg-card p-5 sm:p-6 space-y-4">
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
           {/* Main search input */}
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={search}
@@ -565,7 +555,7 @@ export const VisitsDashboard: React.FC = () => {
                 setSearch(e.target.value);
               }}
               placeholder="ابحث بالاسم، كود العميل، المندوب، الفرع، أو الملاحظات..."
-              className="w-full pr-10 pl-9 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-2xl text-xs sm:text-sm font-bold text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#009488]"
+              className="tg-input pr-10"
             />
             {search && (
               <button
@@ -587,7 +577,7 @@ export const VisitsDashboard: React.FC = () => {
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
                 timeFilter === 'today'
-                  ? 'bg-white dark:bg-slate-900 text-[#0f2b38] dark:text-teal-300 shadow-xs'
+                  ? 'bg-white text-[#0b2337] shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
@@ -600,7 +590,7 @@ export const VisitsDashboard: React.FC = () => {
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
                 timeFilter === 'week'
-                  ? 'bg-white dark:bg-slate-900 text-[#0f2b38] dark:text-teal-300 shadow-xs'
+                  ? 'bg-white text-[#0b2337] shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
@@ -613,7 +603,7 @@ export const VisitsDashboard: React.FC = () => {
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
                 timeFilter === 'month'
-                  ? 'bg-white dark:bg-slate-900 text-[#0f2b38] dark:text-teal-300 shadow-xs'
+                  ? 'bg-white text-[#0b2337] shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
@@ -626,7 +616,7 @@ export const VisitsDashboard: React.FC = () => {
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
                 timeFilter === 'all'
-                  ? 'bg-white dark:bg-slate-900 text-[#0f2b38] dark:text-teal-300 shadow-xs'
+                  ? 'bg-white text-[#0b2337] shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
@@ -636,16 +626,16 @@ export const VisitsDashboard: React.FC = () => {
         </div>
 
         {/* Secondary filters row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2 pt-3 border-t border-[var(--tg-line)] text-xs">
           {/* Visit Type */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">نوع الزيارة</label>
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">نوع الزيارة</label>
             <select
               value={typeFilter}
               onChange={(e) => {
                 setTypeFilter(e.target.value);
               }}
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="tg-select"
             >
               <option value="all">كل الأنواع</option>
               <option value="تحصيل">تحصيل 💰</option>
@@ -657,13 +647,13 @@ export const VisitsDashboard: React.FC = () => {
 
           {/* Status */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">الحالة</label>
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">الحالة</label>
             <select
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value as any);
               }}
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="tg-select"
             >
               <option value="all">كل الحالات</option>
               <option value="منفذة">منفذة ✅</option>
@@ -674,13 +664,13 @@ export const VisitsDashboard: React.FC = () => {
 
           {/* Sector */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">القطاع</label>
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">القطاع</label>
             <select
               value={sectorFilter}
               onChange={(e) => {
                 setSectorFilter(e.target.value as any);
               }}
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="tg-select"
             >
               <option value="all">كل القطاعات</option>
               <option value="home">منزلي 🏠</option>
@@ -690,13 +680,13 @@ export const VisitsDashboard: React.FC = () => {
 
           {/* Sales Rep */}
           <div>
-            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1">المندوب</label>
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">المندوب</label>
             <select
               value={repFilter}
               onChange={(e) => {
                 setRepFilter(e.target.value);
               }}
-              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              className="tg-select"
             >
               <option value="all">كل المناديب</option>
               {repOptions.map((name) => (
@@ -713,47 +703,47 @@ export const VisitsDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="w-full h-[38px] rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 font-bold hover:bg-rose-100 transition active:scale-95 flex items-center justify-center gap-1.5"
+                className="w-full h-[38px] rounded-xl border border-[var(--tg-line)] bg-white text-[#0b2337] font-bold hover:bg-[#f1f5f9] transition active:scale-95 flex items-center justify-center gap-1.5"
               >
                 <X className="w-3.5 h-3.5" />
                 <span>مسح الفلاتر</span>
               </button>
             ) : (
-              <div className="w-full h-[38px] flex items-center justify-center text-slate-400 font-medium text-[11px]">
+              <div className="w-full h-[38px] flex items-center justify-center text-[var(--tg-muted)] font-medium text-[11px]">
                 جميع الفلاتر افتراضية
               </div>
             )}
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Main Results Container */}
       <div className="space-y-4">
         {/* Count Bar */}
-        <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400 px-1">
+        <div className="flex items-center justify-between text-xs font-bold text-slate-600 px-1">
           <span>
             عرض {paginated.length} من أصل {filtered.length} زيارة مطابقة
           </span>
         </div>
 
-        {/* 1. Desktop & Laptop View: High Elegance ERP Table (hidden on mobile/tablet) */}
-        <div className="hidden lg:block w-full overflow-x-auto rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs bg-white dark:bg-[#0f172a]">
-          <table className="w-full text-right border-collapse text-xs">
-            <thead className="bg-[#0f2b38] text-white border-b border-[#1b4676] select-none sticky top-0 z-10 font-black">
+        {/* 1. Desktop & Laptop View: Table موحد (مخفي على الموبايل/التابلت) */}
+        <div className="hidden lg:block w-full overflow-hidden rounded-[28px] border border-[var(--tg-line)] bg-white shadow-sm">
+          <table className="tg-table w-full text-right text-xs">
+            <thead className="bg-[var(--tg-card-2)] text-[#0f172a] font-black sticky top-0 z-10">
               <tr>
-                <th className="p-3.5 text-center text-white font-black w-12">#</th>
-                <th className="p-3.5 text-right text-white font-black">العميل والمنطقة</th>
-                <th className="p-3.5 text-right text-white font-black w-28">كود العميل</th>
-                <th className="p-3.5 text-right text-white font-black w-36">تاريخ وتوقيت الزيارة</th>
-                <th className="p-3.5 text-center text-white font-black w-28">نوع الزيارة</th>
-                <th className="p-3.5 text-right text-white font-black w-28">المبلغ المحصل</th>
-                <th className="p-3.5 text-center text-white font-black w-24">القطاع</th>
-                <th className="p-3.5 text-right text-white font-black w-32">المندوب</th>
-                <th className="p-3.5 text-center text-white font-black w-24">الحالة</th>
-                <th className="p-3.5 text-center text-white font-black w-24">الإجراء</th>
+                <th className="w-12">#</th>
+                <th>العميل والمنطقة</th>
+                <th className="w-28">كود العميل</th>
+                <th className="w-36">تاريخ وتوقيت الزيارة</th>
+                <th className="text-center w-28">نوع الزيارة</th>
+                <th className="w-28">المبلغ المحصل</th>
+                <th className="text-center w-24">القطاع</th>
+                <th className="w-32">المندوب</th>
+                <th className="text-center w-24">الحالة</th>
+                <th className="text-center w-24">الإجراء</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold">
+            <tbody>
               {paginated.map((v, idx) => {
                 const globalIdx = idx + 1;
                 const isCollection = v.type?.includes('تحصيل') || Number(v.collectedAmount || 0) > 0;
@@ -765,22 +755,22 @@ export const VisitsDashboard: React.FC = () => {
                     className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition group cursor-pointer"
                     onClick={() => setSelectedVisit(v)}
                   >
-                    <td className="p-3 text-center font-black text-slate-500 dark:text-slate-400">
+                    <td className="p-3 text-center font-black text-slate-600">
                       {globalIdx}
                     </td>
 
                     <td className="p-3 text-right">
-                      <div className="font-black text-slate-900 dark:text-white text-sm group-hover:text-teal-600 transition">
+                      <div className="font-black text-slate-900 dark:text-white text-sm group-hover:text-[#2563eb] transition">
                         {v.customerName || 'عميل بدون اسم'}
                       </div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1 mt-0.5">
+                      <div className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5">
                         <Building2 className="w-3 h-3 text-slate-400" />
                         <span>{v.branchName || 'فرع الشركة'}</span>
                       </div>
                     </td>
 
-                    <td className="p-3 text-right">
-                      <span className="inline-block px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-[11px] font-black border border-slate-200 dark:border-slate-700">
+                    <td>
+                      <span className="inline-block px-2.5 py-1 rounded-lg bg-[#f1f5f9] text-[#0b2337] font-mono text-[11px] font-black border border-[var(--tg-line)]">
                         {v.customerCode || '—'}
                       </span>
                     </td>
@@ -790,22 +780,14 @@ export const VisitsDashboard: React.FC = () => {
                         <Calendar className="w-3.5 h-3.5 text-slate-400" />
                         <span>{v.date}</span>
                       </div>
-                      <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                      <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5">
                         <Clock className="w-3 h-3" />
                         <span>{v.time || '09:00 ص'}</span>
                       </div>
                     </td>
 
-                    <td className="p-3 text-center">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black border ${
-                          isCollection
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                            : isReturn
-                            ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
-                            : 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800'
-                        }`}
-                      >
+                    <td>
+                      <span className={`tg-badge tg-badge--${isCollection ? 'ok' : isReturn ? 'risk' : 'blue'}`}>
                         {v.type || 'دورية'}
                       </span>
                     </td>
@@ -820,14 +802,8 @@ export const VisitsDashboard: React.FC = () => {
                       )}
                     </td>
 
-                    <td className="p-3 text-center">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-lg text-[10px] font-black border ${
-                          v.sector === 'electrical'
-                            ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300'
-                            : 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300'
-                        }`}
-                      >
+                    <td className="text-center">
+                      <span className={`tg-badge tg-badge--${v.sector === 'electrical' ? 'warn' : 'blue'}`}>
                         {v.sector === 'electrical' ? '⚡ كهرباء' : '🏠 منزلي'}
                       </span>
                     </td>
@@ -838,16 +814,8 @@ export const VisitsDashboard: React.FC = () => {
                       </div>
                     </td>
 
-                    <td className="p-3 text-center">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-black ${
-                          v.status === 'منفذة'
-                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                            : (v.status as string) === 'معلقة' || v.status === 'مجدولة' || v.status === 'لم تتم'
-                            ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
-                            : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-                        }`}
-                      >
+                    <td className="text-center">
+                      <span className={`tg-badge tg-badge--${v.status === 'منفذة' ? 'ok' : (v.status as string) === 'معلقة' || v.status === 'مجدولة' || v.status === 'لم تتم' ? 'warn' : 'gray'}`}>
                         {v.status || 'منفذة'}
                       </span>
                     </td>
@@ -856,7 +824,7 @@ export const VisitsDashboard: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setSelectedVisit(v)}
-                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 border border-teal-200 dark:border-teal-800 hover:bg-teal-100 dark:hover:bg-teal-900/60 transition active:scale-95 cursor-pointer shadow-xs"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black text-[#1d4ed8] bg-[#eff6ff] border border-[#bfdbfe] hover:bg-[#dbeafe] transition active:scale-95 cursor-pointer shadow-xs"
                       >
                         <Eye className="w-3.5 h-3.5" />
                         <span>عرض</span>
@@ -877,7 +845,7 @@ export const VisitsDashboard: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => setShowForm(true)}
-                          className="px-5 py-2.5 rounded-2xl bg-[#0f2b38] hover:bg-[#163f53] text-white font-black text-xs transition active:scale-95 inline-flex items-center gap-2"
+                          className="px-5 py-2.5 rounded-2xl bg-[#0b2337] hover:bg-[#123a52] text-white font-black text-xs transition active:scale-95 inline-flex items-center gap-2"
                         >
                           <Plus className="w-4 h-4" />
                           <span>تسجيل زيارة جديدة الآن</span>
@@ -900,7 +868,7 @@ export const VisitsDashboard: React.FC = () => {
             return (
               <div
                 key={v.id || idx}
-                className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs space-y-3 active:scale-[0.99] transition"
+                className="tg-card p-4 sm:p-5 space-y-3 active:scale-[0.99] transition"
                 onClick={() => setSelectedVisit(v)}
               >
                 {/* Header: Customer Name + Status Badge */}
@@ -910,20 +878,14 @@ export const VisitsDashboard: React.FC = () => {
                       {v.customerName || 'عميل بدون اسم'}
                     </h3>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className="inline-block px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-[11px] font-black border border-slate-200 dark:border-slate-700">
+                      <span className="inline-block px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono text-[11px] font-black border border-slate-300">
                         {v.customerCode || '—'}
                       </span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400 font-bold flex items-center gap-1">
+                      <span className="text-xs text-slate-600 font-bold flex items-center gap-1">
                         <Building2 className="w-3 h-3 text-slate-400" />
                         {v.branchName || 'فرع الشركة'}
                       </span>
-                      <span
-                        className={`px-2 py-0.5 rounded-lg text-[10px] font-black border ${
-                          v.sector === 'electrical'
-                            ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300'
-                            : 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300'
-                        }`}
-                      >
+                      <span className={`tg-badge tg-badge--${v.sector === 'electrical' ? 'warn' : 'blue'}`}>
                         {v.sector === 'electrical' ? '⚡ كهرباء' : '🏠 منزلي'}
                       </span>
                       {v.location?.latitude && v.location?.longitude && (
@@ -932,7 +894,7 @@ export const VisitsDashboard: React.FC = () => {
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="px-2 py-0.5 rounded-lg text-[10px] font-black bg-teal-50 dark:bg-teal-950/50 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 flex items-center gap-1 hover:bg-teal-100"
+                          className="tg-badge tg-badge--blue flex items-center gap-1 hover:opacity-90 transition"
                         >
                           <MapPin className="w-2.5 h-2.5" />
                           <span>GPS موثق</span>
@@ -941,38 +903,22 @@ export const VisitsDashboard: React.FC = () => {
                     </div>
                   </div>
 
-                  <span
-                    className={`shrink-0 px-2.5 py-1 rounded-full text-[11px] font-black ${
-                      v.status === 'منفذة'
-                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'
-                        : (v.status as string) === 'معلقة' || v.status === 'مجدولة' || v.status === 'لم تتم'
-                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800'
-                        : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                    }`}
-                  >
+                  <span className={`shrink-0 tg-badge tg-badge--${v.status === 'منفذة' ? 'ok' : (v.status as string) === 'معلقة' || v.status === 'مجدولة' || v.status === 'لم تتم' ? 'warn' : 'gray'}`}>
                     {v.status || 'منفذة'}
                   </span>
                 </div>
 
                 {/* Key Metrics Row */}
-                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800 text-xs">
+                <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-[#f1f5f9] border border-[var(--tg-line)] text-xs">
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 block mb-0.5">نوع الزيارة</span>
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-black border ${
-                        isCollection
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
-                          : isReturn
-                          ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300'
-                          : 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300'
-                      }`}
-                    >
+                    <span className="text-[10px] font-bold text-[var(--tg-muted)] block mb-0.5">نوع الزيارة</span>
+                    <span className={`tg-badge tg-badge--${isCollection ? 'ok' : isReturn ? 'risk' : 'blue'}`}>
                       {v.type || 'دورية'}
                     </span>
                   </div>
 
                   <div>
-                    <span className="text-[10px] font-bold text-slate-400 block mb-0.5">المبلغ المحصل</span>
+                    <span className="text-[10px] font-bold text-slate-500 block mb-0.5">المبلغ المحصل</span>
                     {isCollection && Number(v.collectedAmount || 0) > 0 ? (
                       <div className="text-emerald-600 dark:text-emerald-400 font-mono font-black text-sm">
                         {formatCurrency(Number(v.collectedAmount))} <span className="text-[10px] font-normal">ج.م</span>
@@ -984,16 +930,16 @@ export const VisitsDashboard: React.FC = () => {
                 </div>
 
                 {/* Date & Rep Row */}
-                <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-400 font-bold pt-1 border-t border-slate-100 dark:border-slate-800">
+                <div className="flex items-center justify-between text-xs text-[var(--tg-muted)] font-bold pt-3 border-t border-[var(--tg-line)]">
                   <div className="flex items-center gap-2">
-                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{v.date}</span>
-                    <span className="text-slate-300">•</span>
-                    <Clock className="w-3 h-3 text-slate-400" />
-                    <span>{v.time || '09:00 ص'}</span>
+                    <Calendar className="w-3.5 h-3.5 text-[var(--tg-muted)]" />
+                    <span className="text-[#0b2337]">{v.date}</span>
+                    <span className="text-[var(--tg-muted)]">•</span>
+                    <Clock className="w-3 h-3 text-[var(--tg-muted)]" />
+                    <span className="text-[#0b2337]">{v.time || '09:00 ص'}</span>
                   </div>
-                  <div className="flex items-center gap-1 text-slate-700 dark:text-slate-300">
-                    <UserCheck className="w-3.5 h-3.5 text-teal-600" />
+                  <div className="flex items-center gap-1 text-[#0b2337]">
+                    <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
                     <span>{v.repName || 'المندوب'}</span>
                   </div>
                 </div>
@@ -1005,9 +951,9 @@ export const VisitsDashboard: React.FC = () => {
                     e.stopPropagation();
                     setSelectedVisit(v);
                   }}
-                  className="w-full min-h-[44px] rounded-2xl bg-slate-100 dark:bg-slate-800 text-teal-700 dark:text-teal-300 font-black text-xs flex items-center justify-center gap-2 hover:bg-teal-50 dark:hover:bg-teal-950/40 transition active:scale-95"
+                  className="w-full min-h-[44px] rounded-2xl bg-[#0b2337] hover:bg-[#123a52] text-white font-black text-xs flex items-center justify-center gap-2 transition active:scale-95 shadow-sm"
                 >
-                  <Eye className="w-4 h-4" />
+                  <Eye className="w-4 h-4 text-white" />
                   <span>عرض التفاصيل الكاملة</span>
                 </button>
               </div>
@@ -1015,35 +961,36 @@ export const VisitsDashboard: React.FC = () => {
           })}
 
           {paginated.length === 0 && (
-            <div className="p-8 bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 text-center">
-              <EmptyState
-                type="visits"
-                title="لا توجد زيارات"
-                description="لم يتم العثور على أي زيارات مطابقة للبحث أو الفلاتر المحددة."
-                action={
-                  <button
-                    type="button"
-                    onClick={() => setShowForm(true)}
-                    className="px-5 py-3 rounded-2xl bg-[#0f2b38] text-white font-black text-xs transition active:scale-95"
-                  >
-                    تسجيل زيارة جديدة الآن
-                  </button>
-                }
-              />
+            <div className="tg-empty-state">
+              <div className="tg-empty-state__icon">
+                <MapPin className="w-8 h-8" />
+              </div>
+              <h3 className="tg-empty-state__title">لا توجد زيارات</h3>
+              <p className="tg-empty-state__sub">
+                لم يتم العثور على أي زيارات مطابقة للبحث أو الفلاتر المحددة.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowForm(true)}
+                className="mt-6 inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-blue-600 to-blue-500 text-white font-black px-4 py-2.5 shadow-lg shadow-blue-500/25 hover:from-blue-500 hover:to-blue-600 transition shadow-sm cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>تسجيل زيارة جديدة الآن</span>
+              </button>
             </div>
           )}
         </div>
 
         {/* Pagination Strip */}
-        <div className="bg-white dark:bg-[#0f172a] rounded-3xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
-          <div className="flex items-center gap-2.5 text-xs font-bold text-slate-600 dark:text-slate-400">
+        <div className="tg-card p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
+          <div className="flex items-center gap-2.5 text-xs font-bold text-[var(--tg-muted)]">
             <span>عرض {paginated.length} من {filtered.length} زيارة</span>
           </div>
           {visibleVisitsCount < filtered.length && (
             <button
               type="button"
               onClick={() => setVisibleVisitsCount((c) => c + VISITS_CHUNK)}
-              className="min-h-[40px] px-4 py-2 rounded-xl text-xs font-black bg-teal-600 hover:bg-teal-700 text-white shadow-sm transition cursor-pointer"
+              className="min-h-[40px] px-4 py-2 rounded-xl text-xs font-black bg-[#0b2337] hover:bg-[#123a52] text-white shadow-sm transition cursor-pointer"
             >
               عرض المزيد ({filtered.length - paginated.length} متبقي)
             </button>
@@ -1066,12 +1013,12 @@ export const VisitsDashboard: React.FC = () => {
           >
             <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-[#eff6ff] text-[#2563eb] flex items-center justify-center">
                   <MapPin className="w-5 h-5" />
                 </div>
                 <div>
                   <h2 className="text-lg font-black text-slate-900 dark:text-white">تسجيل زيارة جديدة</h2>
-                  <p className="text-[11px] font-bold text-slate-400">توثيق الزيارة وحركات التحصيل والمرتجعات</p>
+                  <p className="text-[11px] font-bold text-slate-600">توثيق الزيارة وحركات التحصيل والمرتجعات</p>
                 </div>
               </div>
               <button
@@ -1085,45 +1032,83 @@ export const VisitsDashboard: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              {/* Customer selection */}
+              {/* Customer selection — بحث بالاسم/الكود + فلتر بالمندوب */}
               <label className="block">
-                <span className="text-xs text-slate-600 dark:text-slate-300 font-bold block mb-1">
+                <span className="text-xs font-bold text-[#0b2337] block mb-1">
                   العميل المستهدف *
                 </span>
+                <input
+                  type="text"
+                  value={customerSearch}
+                  onChange={(e) => setCustomerSearch(e.target.value)}
+                  placeholder="ابحث باسم العميل أو كود العميل..."
+                  className="tg-input mb-2"
+                />
                 <select
-                  value={form.customerId}
-                  onChange={(e) => {
-                    const c = myCustomers.find((x) => x.id === e.target.value);
-                    setForm({
-                      ...form,
-                      customerId: e.target.value,
-                      customerName: c?.name || '',
-                      customerCode: c?.code || '',
-                    });
-                  }}
-                  className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 px-3 py-3 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#009488]"
+                  value={customerRepFilter}
+                  onChange={(e) => setCustomerRepFilter(e.target.value)}
+                  className="tg-select mb-2"
+                  aria-label="فلترة العملاء حسب المندوب"
                 >
-                  <option value="">اختر العميل من القائمة...</option>
-                  {myCustomers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.code || 'بدون كود'}) — {c.region || c.governorate || c.branchName || 'الفرع'}
-                    </option>
+                  <option value="all">كل المناديب</option>
+                  {customerRepOptions.map((rep) => (
+                    <option key={rep} value={rep}>{rep}</option>
                   ))}
                 </select>
+                <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-300 divide-y divide-slate-100 bg-white">
+                  {filteredModalCustomers.length === 0 ? (
+                    <div className="p-4 text-center text-xs font-bold text-slate-500">
+                      لا يوجد عملاء مطابقون للبحث أو فلتر المندوب
+                    </div>
+                  ) : (
+                    filteredModalCustomers.slice(0, 40).map((c) => (
+                      <button
+                        type="button"
+                        key={c.id}
+                        onClick={() => {
+                          setForm({
+                            ...form,
+                            customerId: c.id,
+                            customerName: c.name || '',
+                            customerCode: c.code || '',
+                          });
+                        }}
+                        className={`w-full text-right px-3 py-2.5 flex items-center justify-between gap-2 transition ${
+                          form.customerId === c.id ? 'bg-[#eff6ff]' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="min-w-0">
+                          <span className={`block text-xs font-black truncate ${form.customerId === c.id ? 'text-[#1d4ed8]' : 'text-[#0b2337]'}`}>
+                            {c.name || 'عميل بدون اسم'}
+                          </span>
+                          <span className="block text-[10px] text-slate-500 font-bold mt-0.5">
+                            {c.code || 'بدون كود'} • {c.salesRepName || c.repName || '—'} • {c.branchName || '—'}
+                          </span>
+                        </span>
+                        {form.customerId === c.id && <CheckCircle2 className="w-4 h-4 text-[#2563eb] shrink-0" />}
+                      </button>
+                    ))
+                  )}
+                </div>
+                {filteredModalCustomers.length > 40 && (
+                  <p className="text-[10px] font-bold text-slate-500 mt-1 text-center">
+                    يظهر أول 40 عميل — استخدم البحث أو فلتر المندوب لتضييق النتائج
+                  </p>
+                )}
               </label>
 
               {/* Customer financial standing if selected */}
               {form.customerId && (
-                <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/50">
+                <div className="p-3.5 rounded-2xl border border-slate-300 bg-slate-50/80 dark:bg-slate-800/50">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-black text-slate-700 dark:text-slate-300">
                       موقف العميل المالي الحالي
                     </span>
-                    <span className="text-[10px] font-bold text-teal-600 dark:text-teal-400">بيانات لحظية</span>
+                    <span className="text-[10px] font-bold text-[#2563eb]">بيانات لحظية</span>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                    <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                      <div className="text-[10px] text-slate-400 font-bold">الرصيد الحالي</div>
+                    <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300">
+                      <div className="text-[10px] text-slate-600 font-black">الرصيد الحالي</div>
                       <div className="font-black text-slate-900 dark:text-white mt-0.5">
                         {formatCurrency(
                           myCustomers.find((x) => x.id === form.customerId)?.currentBalance ??
@@ -1132,16 +1117,16 @@ export const VisitsDashboard: React.FC = () => {
                         )}
                       </div>
                     </div>
-                    <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                      <div className="text-[10px] text-slate-400 font-bold">الحد الائتماني</div>
+                    <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300">
+                      <div className="text-[10px] text-slate-600 font-black">الحد الائتماني</div>
                       <div className="font-black text-slate-900 dark:text-white mt-0.5">
                         {formatCurrency(
                           myCustomers.find((x) => x.id === form.customerId)?.creditLimit ?? 0
                         )}
                       </div>
                     </div>
-                    <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                      <div className="text-[10px] text-slate-400 font-bold">المديونية</div>
+                    <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-300">
+                      <div className="text-[10px] text-slate-600 font-black">المديونية</div>
                       <div className="font-black text-rose-600 mt-0.5">
                         {formatCurrency(
                           myCustomers.find((x) => x.id === form.customerId)?.overdueBalance ?? 0
@@ -1154,10 +1139,10 @@ export const VisitsDashboard: React.FC = () => {
 
               {/* GPS Geofencing & Customer Location Capture */}
               {selectedCustomerObj && (
-                <div className="p-4 rounded-2xl border border-teal-200 dark:border-teal-800/80 bg-gradient-to-br from-teal-50/70 to-cyan-50/40 dark:from-teal-950/30 dark:to-cyan-950/20 space-y-3">
+                <div className="p-4 rounded-2xl border border-[#bfdbfe] bg-gradient-to-br from-[#eff6ff] to-[#dbeafe] space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className="w-7 h-7 rounded-lg bg-teal-600 text-white flex items-center justify-center shadow-xs">
+                      <div className="w-7 h-7 rounded-lg bg-[#2563eb] text-white flex items-center justify-center shadow-xs">
                         <MapPin className="w-4 h-4" />
                       </div>
                       <span className="text-xs font-black text-slate-800 dark:text-slate-100">
@@ -1178,15 +1163,15 @@ export const VisitsDashboard: React.FC = () => {
                   {/* If customer has saved GPS */}
                   {selectedCustomerObj.latitude && selectedCustomerObj.longitude ? (
                     <div className="space-y-2.5">
-                      <div className="flex items-center justify-between text-xs bg-white/80 dark:bg-slate-800/70 p-2.5 rounded-xl border border-teal-100 dark:border-teal-900">
+                      <div className="flex items-center justify-between text-xs bg-white/80 dark:bg-slate-800/70 p-2.5 rounded-xl border border-[#bfdbfe]">
                         <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                          الإحداثيات: <span className="font-mono text-teal-700 dark:text-teal-400 font-black">{selectedCustomerObj.latitude.toFixed(5)}, {selectedCustomerObj.longitude.toFixed(5)}</span>
+                          الإحداثيات: <span className="font-mono text-[#1d4ed8] font-black">{selectedCustomerObj.latitude.toFixed(5)}, {selectedCustomerObj.longitude.toFixed(5)}</span>
                         </div>
                         <a
                           href={`https://www.google.com/maps/search/?api=1&query=${selectedCustomerObj.latitude},${selectedCustomerObj.longitude}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-[11px] font-black text-teal-700 dark:text-teal-300 hover:underline"
+                          className="flex items-center gap-1 text-[11px] font-black text-[#1d4ed8] hover:underline"
                         >
                           <span>خرائط Google</span>
                           <ExternalLink className="w-3 h-3" />
@@ -1222,7 +1207,7 @@ export const VisitsDashboard: React.FC = () => {
                           type="button"
                           onClick={() => requestCurrentRepGps()}
                           disabled={isCapturingGps}
-                          className="w-full py-2 px-3 rounded-xl bg-white dark:bg-slate-800 border border-teal-200 dark:border-teal-700 text-teal-800 dark:text-teal-200 text-xs font-black hover:bg-teal-50 dark:hover:bg-slate-700 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                          className="w-full py-2 px-3 rounded-xl bg-white border border-[#bfdbfe] text-[#1d4ed8] text-xs font-black hover:bg-[#eff6ff] transition flex items-center justify-center gap-1.5 cursor-pointer"
                         >
                           <Navigation2 className={`w-3.5 h-3.5 ${isCapturingGps ? 'animate-spin' : ''}`} />
                           <span>{isCapturingGps ? 'جاري تحديد موقعك الحالي...' : 'تحقق من قربك لمتجر العميل (تأكيد النطاق)'}</span>
@@ -1233,7 +1218,7 @@ export const VisitsDashboard: React.FC = () => {
                         type="button"
                         onClick={handlePinCustomerLocation}
                         disabled={isCapturingGps}
-                        className="text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-teal-700 dark:hover:text-teal-300 underline block text-center w-full"
+                        className="text-[11px] font-bold text-slate-500 hover:text-[#1d4ed8] underline block text-center w-full"
                       >
                         🔄 نقل أو تحديث إحداثيات المتجر بموقعي الحالي
                       </button>
@@ -1248,7 +1233,7 @@ export const VisitsDashboard: React.FC = () => {
                         type="button"
                         onClick={handlePinCustomerLocation}
                         disabled={isCapturingGps}
-                        className="w-full py-2.5 px-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-xs shadow-sm transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="w-full py-2.5 px-3 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-black text-xs shadow-sm transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <MapPin className={`w-4 h-4 ${isCapturingGps ? 'animate-bounce' : ''}`} />
                         <span>{isCapturingGps ? 'جاري التقاط الإحداثيات...' : '📍 التقاط وتثبيت إحداثيات العميل الآن (GPS)'}</span>
@@ -1257,7 +1242,7 @@ export const VisitsDashboard: React.FC = () => {
                   )}
 
                   {gpsNotice && (
-                    <div className="text-[11px] font-bold text-teal-800 dark:text-teal-200 bg-teal-100/70 dark:bg-teal-950/50 p-2 rounded-xl">
+                    <div className="text-[11px] font-bold text-[#1d4ed8] bg-[#dbeafe]/70 p-2 rounded-xl">
                       {gpsNotice}
                     </div>
                   )}
@@ -1267,13 +1252,13 @@ export const VisitsDashboard: React.FC = () => {
               {/* Type and Date */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-xs text-slate-600 dark:text-slate-300 font-bold block mb-1">
+                  <span className="text-xs font-bold text-[#0b2337] block mb-1">
                     نوع الزيارة *
                   </span>
                   <select
                     value={form.type}
                     onChange={(e) => setForm({ ...form, type: e.target.value })}
-                    className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 px-3 py-3 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#009488]"
+                    className="w-full rounded-2xl border border-slate-300 px-3 py-3 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
                   >
                     {SIMPLE_VISIT_TYPES.map((t) => (
                       <option key={t.id} value={t.id}>
@@ -1284,14 +1269,14 @@ export const VisitsDashboard: React.FC = () => {
                 </label>
 
                 <label className="block">
-                  <span className="text-xs text-slate-600 dark:text-slate-300 font-bold block mb-1">
+                  <span className="text-xs font-bold text-[#0b2337] block mb-1">
                     تاريخ الزيارة
                   </span>
                   <input
                     type="date"
                     value={form.date}
                     onChange={(e) => setForm({ ...form, date: e.target.value })}
-                    className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 px-3 py-2.5 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#009488]"
+                    className="w-full rounded-2xl border border-slate-300 px-3 py-2.5 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
                   />
                 </label>
               </div>
@@ -1299,14 +1284,14 @@ export const VisitsDashboard: React.FC = () => {
               {/* Time & Collected Amount */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-xs text-slate-600 dark:text-slate-300 font-bold block mb-1">
+                  <span className="text-xs font-bold text-[#0b2337] block mb-1">
                     توقيت الزيارة
                   </span>
                   <input
                     type="time"
                     value={form.time}
                     onChange={(e) => setForm({ ...form, time: e.target.value })}
-                    className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 px-3 py-2.5 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#009488]"
+                    className="w-full rounded-2xl border border-slate-300 px-3 py-2.5 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
                   />
                 </label>
 
@@ -1328,14 +1313,14 @@ export const VisitsDashboard: React.FC = () => {
 
               {/* Notes */}
               <label className="block">
-                <span className="text-xs text-slate-600 dark:text-slate-300 font-bold block mb-1">
+                <span className="text-xs font-bold text-[#0b2337] block mb-1">
                   ملاحظات وإفادة الزيارة
                 </span>
                 <textarea
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   rows={2}
-                  className="w-full rounded-2xl border border-slate-200 dark:border-slate-700 px-3 py-2.5 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#009488]"
+                  className="w-full rounded-2xl border border-slate-300 px-3 py-2.5 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
                   placeholder="سجل تفاصيل المقابلة، البضاعة المطلوبة، أو سبب التأجيل..."
                 />
               </label>
@@ -1353,9 +1338,9 @@ export const VisitsDashboard: React.FC = () => {
 
               <button
                 type="submit"
-                className="w-full min-h-[46px] bg-[#0f2b38] hover:bg-[#163f53] text-white font-black text-sm rounded-2xl shadow-lg shadow-[#0f2b38]/30 transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full min-h-[46px] bg-[#0b2337] hover:bg-[#123a52] text-white font-black text-sm rounded-2xl shadow-lg shadow-[#0b2337]/30 transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
               >
-                <Clock className="w-4 h-4 text-teal-300" />
+                <Clock className="w-4 h-4 text-[#7fc0ff]" />
                 <span>حفظ وتوثيق الزيارة</span>
               </button>
             </div>
@@ -1377,12 +1362,12 @@ export const VisitsDashboard: React.FC = () => {
           >
             <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-[#eff6ff] text-[#2563eb] flex items-center justify-center">
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
                   <h2 className="text-lg font-black text-slate-900 dark:text-white">تفاصيل الزيارة الميدانية</h2>
-                  <p className="text-[11px] font-bold text-slate-400">سجل الزيارة الموثق بالمنظومة</p>
+                  <p className="text-[11px] font-bold text-slate-600">سجل الزيارة الموثق بالمنظومة</p>
                 </div>
               </div>
               <button
@@ -1398,16 +1383,16 @@ export const VisitsDashboard: React.FC = () => {
             <div className="space-y-3.5">
               {/* Customer and rep */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50">
-                  <span className="text-[10px] text-slate-400 font-bold block mb-1">العميل</span>
+                <div className="p-3.5 rounded-2xl border border-slate-300 bg-slate-50/70 dark:bg-slate-800/50">
+                  <span className="text-[10px] text-slate-600 font-black block mb-1">العميل</span>
                   <div className="font-black text-slate-900 dark:text-white text-sm">{selectedVisit.customerName}</div>
-                  <div className="text-[11px] font-mono font-bold text-teal-600 dark:text-teal-400 mt-0.5">
+                  <div className="text-[11px] font-mono font-bold text-[#2563eb] mt-0.5">
                     {selectedVisit.customerCode || 'بدون كود'}
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50">
-                  <span className="text-[10px] text-slate-400 font-bold block mb-1">المندوب القائم بالزيارة</span>
+                <div className="p-3.5 rounded-2xl border border-slate-300 bg-slate-50/70 dark:bg-slate-800/50">
+                  <span className="text-[10px] text-slate-600 font-black block mb-1">المندوب القائم بالزيارة</span>
                   <div className="font-black text-slate-900 dark:text-white text-sm">{selectedVisit.repName || 'المندوب'}</div>
                   <div className="text-[11px] text-slate-500 font-bold mt-0.5">{selectedVisit.branchName || 'فرع الشركة'}</div>
                 </div>
@@ -1415,14 +1400,14 @@ export const VisitsDashboard: React.FC = () => {
 
               {/* Timestamp & Type */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50">
-                  <span className="text-[10px] text-slate-400 font-bold block mb-1">التاريخ والتوقيت</span>
+                <div className="p-3.5 rounded-2xl border border-slate-300 bg-slate-50/70 dark:bg-slate-800/50">
+                  <span className="text-[10px] text-slate-600 font-black block mb-1">التاريخ والتوقيت</span>
                   <div className="font-black text-slate-900 dark:text-white text-sm">{selectedVisit.date}</div>
                   <div className="text-[11px] text-slate-400 mt-0.5">{selectedVisit.time || '09:00 ص'}</div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50">
-                  <span className="text-[10px] text-slate-400 font-bold block mb-1">نوع وحالة الزيارة</span>
+                <div className="p-3.5 rounded-2xl border border-slate-300 bg-slate-50/70 dark:bg-slate-800/50">
+                  <span className="text-[10px] text-slate-600 font-black block mb-1">نوع وحالة الزيارة</span>
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                       {selectedVisit.type}
@@ -1436,8 +1421,8 @@ export const VisitsDashboard: React.FC = () => {
 
               {/* Sector & Amount */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50">
-                  <span className="text-[10px] text-slate-400 font-bold block mb-1">القطاع</span>
+                <div className="p-3.5 rounded-2xl border border-slate-300 bg-slate-50/70 dark:bg-slate-800/50">
+                  <span className="text-[10px] text-slate-600 font-black block mb-1">القطاع</span>
                   <span
                     className={`inline-block px-2.5 py-1 rounded-xl text-xs font-black border ${
                       selectedVisit.sector === 'electrical'
@@ -1449,23 +1434,23 @@ export const VisitsDashboard: React.FC = () => {
                   </span>
                 </div>
 
-                <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50">
-                  <span className="text-[10px] text-slate-400 font-bold block mb-1">المبلغ المحصل</span>
+                <div className="p-3.5 rounded-2xl border border-slate-300 bg-slate-50/70 dark:bg-slate-800/50">
+                  <span className="text-[10px] text-slate-600 font-black block mb-1">المبلغ المحصل</span>
                   {selectedVisit.collectedAmount && selectedVisit.collectedAmount > 0 ? (
                     <div className="font-mono font-black text-emerald-600 dark:text-emerald-400 text-base">
                       {formatCurrency(selectedVisit.collectedAmount)} <span className="text-xs font-normal">ج.م</span>
                     </div>
                   ) : (
-                    <span className="text-slate-400 font-bold text-sm">—</span>
+                    <span className="text-slate-500 font-bold text-sm">—</span>
                   )}
                 </div>
               </div>
 
               {/* GPS Geolocation Verification */}
               {selectedVisit.location?.latitude && selectedVisit.location?.longitude && (
-                <div className="p-3.5 rounded-2xl border border-teal-200 dark:border-teal-800 bg-teal-50/60 dark:bg-teal-950/40">
+                <div className="p-3.5 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff]">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] text-teal-800 dark:text-teal-300 font-black flex items-center gap-1">
+                    <span className="text-[10px] text-[#1d4ed8] font-black flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5" />
                       موقع الزيارة الموثق (GPS)
                     </span>
@@ -1473,7 +1458,7 @@ export const VisitsDashboard: React.FC = () => {
                       href={selectedVisit.location.mapUrl || `https://www.google.com/maps/search/?api=1&query=${selectedVisit.location.latitude},${selectedVisit.location.longitude}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-[11px] font-black text-teal-700 dark:text-teal-300 hover:underline flex items-center gap-1"
+                      className="text-[11px] font-black text-[#1d4ed8] hover:underline flex items-center gap-1"
                     >
                       <span>عرض على الخريطة</span>
                       <ExternalLink className="w-3 h-3" />
@@ -1487,8 +1472,8 @@ export const VisitsDashboard: React.FC = () => {
 
               {/* Notes */}
               {selectedVisit.notes && (
-                <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/50">
-                  <span className="text-[10px] text-slate-400 font-bold block mb-1">ملاحظات وإفادة الزيارة</span>
+                <div className="p-3.5 rounded-2xl border border-slate-300 bg-slate-50/70 dark:bg-slate-800/50">
+                  <span className="text-[10px] text-slate-600 font-black block mb-1">ملاحظات وإفادة الزيارة</span>
                   <p className="text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
                     {selectedVisit.notes}
                   </p>
@@ -1500,7 +1485,7 @@ export const VisitsDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setSelectedVisit(null)}
-                className="w-full sm:w-auto px-7 py-2.5 rounded-2xl bg-[#0f2b38] hover:bg-[#163f53] text-white font-black text-xs transition cursor-pointer"
+                className="w-full sm:w-auto px-7 py-2.5 rounded-2xl bg-[#0b2337] hover:bg-[#123a52] text-white font-black text-xs transition cursor-pointer"
               >
                 إغلاق
               </button>

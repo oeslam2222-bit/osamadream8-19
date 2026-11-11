@@ -25,7 +25,7 @@ import { Customer } from '../types';
 import { getCustomerBalance, getCustomerOverdue } from '../services/customerFilterPredicates';
 import { getCustomerPaid } from '../services/customerTableSchema';
 import { resolveBranchName, resolveSectorFromBranch, inferSectorFromText } from '../services/arabicMatchingService';
-import { uploadCustomerPhoto } from '../services/cloudinaryService';
+import { uploadCustomerPhoto, normalizeCloudinaryConfig } from '../services/cloudinaryService';
 
 export interface CustomerProfileViewProps {
   onNavigateToTab?: (tab: string) => void;
@@ -160,13 +160,14 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
 
   const handleUploadPhoto = async (file: File) => {
     if (!activeCustomer) return;
-    if (!cloudinaryConfig?.cloudName) {
+    const effectiveCloudinary = normalizeCloudinaryConfig(cloudinaryConfig);
+    if (!effectiveCloudinary.cloudName) {
       alert('إعدادات Cloudinary غير مفعّلة. يرجى ضبط cloudName في إعدادات النظام قبل رفع الصور.');
       return;
     }
     setUploadingPhoto(true);
     try {
-      const { url, publicId } = await uploadCustomerPhoto(file, cloudinaryConfig, activeCustomer.id);
+      const { url, publicId } = await uploadCustomerPhoto(file, effectiveCloudinary, activeCustomer.id);
       const updated = { ...activeCustomer, profileImageUrl: url, profileImagePublicId: publicId };
       setActiveCustomer(updated);
       const res = await saveCustomersToSupabase([updated]);

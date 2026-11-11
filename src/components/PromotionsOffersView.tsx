@@ -5,14 +5,12 @@ import {
   Boxes,
   Calendar,
   CheckCircle2,
-  Download,
   Edit2,
   FileSpreadsheet,
   Filter,
   Flame,
   Layers,
   Percent,
-  Plus,
   RefreshCw,
   Search,
   Sparkles,
@@ -29,7 +27,6 @@ import {
   savePromotions,
   parsePromotionsFromExcelBuffer,
   applyPromotionsToProducts,
-  exportPromotionsToExcel,
 } from '../services/promotionService';
 import { formatCurrency } from '../services/invoiceService';
 import { cleanProductCode } from '../services/excelService';
@@ -43,8 +40,8 @@ export const PromotionsOffersView: React.FC = () => {
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('الكل');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'expired'>('all');
 
-  // Modal States
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  // Modal/Page States
+  const [showUploadPage, setShowUploadPage] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPromo, setEditingPromo] = useState<PromotionOffer | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
@@ -193,7 +190,7 @@ export const PromotionsOffersView: React.FC = () => {
       });
 
       showToast(`تم استيراد ${result.matchedCount} عرض بنجاح، وتطبيق الخصومات الترويجية على ${updatedCount} صنف في الكتالوج ونظام الفواتير! 🎉`);
-      setIsUploadModalOpen(false);
+      setShowUploadPage(false);
     } catch (err: any) {
       alert(`خطأ أثناء قراءة شيت العروض: ${err?.message || ''}`);
     } finally {
@@ -243,7 +240,7 @@ export const PromotionsOffersView: React.FC = () => {
         }
       });
       showToast(`تم بنجاح جلب ${result.matchedCount} عرض من شيت جوجل وتطبيق الخصم على ${updatedCount} صنف في الكتالوج والفواتير! ⚡`);
-      setIsUploadModalOpen(false);
+      setShowUploadPage(false);
       setGoogleSheetUrl('');
     } catch (err: any) {
       alert(`خطأ أثناء جلب شيت جوجل: ${err?.message || ''}`);
@@ -277,28 +274,6 @@ export const PromotionsOffersView: React.FC = () => {
     setAnnouncements(next);
     try { localStorage.setItem('tantawy_announcements_v1', JSON.stringify(next)); } catch {}
     showToast('تم حذف التعميم الإداري.');
-  };
-
-  // Re-apply discounts to catalog
-  const handleApplyDiscountsToCatalog = () => {
-    const { updatedProducts, updatedCount } = applyPromotionsToProducts(products, promotions);
-    // Trigger update for each matched product
-    updatedProducts.forEach((p) => {
-      if (p.status === 'عرض ترويجي') {
-        updateProduct({
-          ...p,
-          promoPrice: p.promoPrice,
-          promoPiecePrice: p.promoPiecePrice,
-          offerPrice: p.promoPrice,
-          discountPercent: p.discountPercent,
-          discountPercentage: p.discountPercent,
-          status: 'عرض ترويجي',
-          salesPriority: 'مرتفع',
-        });
-      }
-    });
-
-    showToast(`تم بنجاح تحديث وتفعيل الخصومات الترويجية على ${updatedCount} صنف بالكتالوج ونظام الفواتير! ⚡`);
   };
 
   // Handle Save Manual Offer
@@ -393,190 +368,223 @@ export const PromotionsOffersView: React.FC = () => {
     showToast('تم حذف العرض الترويجي بنجاح وإرجاع سعر الصنف لوضعه الطبيعي.');
   };
 
-  return (
-    <div className="space-y-4 pb-16 animate-in fade-in duration-300">
-      
-      {/* Success Toast */}
-      {successToast && (
-        <div className="bg-[var(--app-ok)] text-white p-3.5 rounded-2xl shadow-xl flex items-center justify-between text-xs font-black animate-in fade-in sticky top-20 z-30">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-[#0d9488]" />
-            <span>{successToast}</span>
+  if (showUploadPage) {
+    return (
+      <div className="tg-dash space-y-4 pb-16" dir="rtl">
+        <section className="ds-pagehead">
+          <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+            <div>
+              <div className="text-[11px] font-bold text-[#a9c8e4] mb-1 tracking-wider uppercase">
+                العروض والخصومات <span className="mx-1 text-[#7fc0ff]">›</span> رفع الشيت
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 shadow-xs border border-white/20">
+                  <Upload className="w-5 h-5" />
+                </div>
+                <div>
+                  <h1 className="text-xl sm:text-2xl font-black text-white">رفع شيت العروض</h1>
+                  <p className="text-xs text-[#c3d9ec] mt-0.5">استيراد العروض من ملف Excel/CSV أو رابط Google Sheets وتطبيقها على الأصناف.</p>
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowUploadPage(false)}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 text-white font-black px-4 py-2.5 text-xs transition cursor-pointer shrink-0"
+            >
+              <ArrowRight className="w-4 h-4" />
+              رجوع للعروض
+            </button>
           </div>
-          <button onClick={() => setSuccessToast(null)} className="text-white hover:text-[#0d9488]">
-            <X className="w-4 h-4" />
-          </button>
+        </section>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="tg-card p-5 border border-[var(--tg-line)]">
+            <h3 className="tg-card__title flex items-center gap-2 text-[#0b2337] mb-1">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"><FileSpreadsheet className="w-4 h-4" /></span>
+              رفع ملف Excel / CSV
+            </h3>
+            <p className="text-[11px] font-bold text-[var(--tg-muted)] mb-4">الأعمدة الموصى بها: كود الصنف، الكود الموحد (#)، نسبة الخصم، سعر العرض.</p>
+
+            <div className="border-2 border-dashed border-emerald-200 bg-emerald-50/40 rounded-2xl p-6 text-center space-y-3">
+              <Upload className="w-10 h-10 text-emerald-600 mx-auto" />
+              <div className="font-black text-sm text-[#0b2337]">اختر ملف العروض من جهازك</div>
+              <div className="text-[11px] text-slate-500">يدعم .xlsx / .xls / .csv</div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={handleFileUpload}
+                disabled={isUploading}
+                className="hidden"
+                id="promo-file-input"
+              />
+              <label
+                htmlFor="promo-file-input"
+                className={`inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-black text-white shadow-sm transition cursor-pointer ${
+                  isUploading ? 'bg-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                {isUploading ? 'جاري القراءة والمطابقة...' : 'استعراض واختيار الملف'}
+              </label>
+            </div>
+          </div>
+
+          <div className="tg-card p-5 border border-[var(--tg-line)]">
+            <h3 className="tg-card__title flex items-center gap-2 text-[#0b2337] mb-1">
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><RefreshCw className="w-4 h-4" /></span>
+              جلب من Google Sheets
+            </h3>
+            <p className="text-[11px] font-bold text-[var(--tg-muted)] mb-4">ألصق رابط الشيت (يجب أن يكون متاحاً لمن لديه الرابط).</p>
+
+            <div className="space-y-3">
+              <input
+                type="url"
+                value={googleSheetUrl}
+                onChange={(e) => setGoogleSheetUrl(e.target.value)}
+                placeholder="https://docs.google.com/spreadsheets/d/..."
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-mono text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+              />
+              <button
+                type="button"
+                onClick={handleFetchGoogleSheet}
+                disabled={isFetchingSheet || !googleSheetUrl.trim()}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black px-4 py-2.5 text-xs shadow-sm transition cursor-pointer"
+              >
+                {isFetchingSheet ? 'جاري الجلب والقراءة...' : 'جلب العروض من الرابط'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="tg-card p-4 sm:p-5 border border-[var(--tg-line)]">
+          <h3 className="tg-card__title flex items-center gap-2 text-[#0b2337] mb-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><Tag className="w-4 h-4" /></span>
+            ملاحظات الربط التلقائي
+          </h3>
+          <ul className="text-sm font-medium text-slate-700 space-y-1.5 list-disc pr-5 leading-6">
+            <li>يتم مطابقة الأصناف عبر <strong>كود الصنف</strong> أو <strong>الكود الموحد (#)</strong> أو <strong>اسم المنتج</strong>.</li>
+            <li>يدعم الأعمدة: <strong>سعر العرض</strong> / <strong>سعر الكرتونة بالعرض</strong> أو <strong>نسبة الخصم %</strong>.</li>
+            <li>بعد الاستيراد تُطبَّق الخصومات على الأصناف المطابقة وتُحفظ العروض تلقائياً.</li>
+          </ul>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="tg-dash space-y-4 pb-16">
+      {/* Toast (توحيد مع tg-toast) */}
+      {successToast && (
+        <div className="tg-toast">
+          <div className="tg-toast-item tg-toast--ok">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+            <span>{successToast}</span>
+            <button onClick={() => setSuccessToast(null)} className="ml-auto text-white/80 hover:text-white" aria-label="إغلاق">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Header & Quick Action Bar */}
-      <section className="bg-gradient-to-r from-slate-900 via-[var(--app-navy)] to-slate-900 text-white rounded-3xl p-4 sm:p-5 shadow-xl border border-slate-800">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-[var(--app-warn)] text-[#d97706] border border-[var(--app-warn)] flex items-center justify-center font-black shadow-inner shrink-0">
-              <Flame className="w-6 h-6 text-[#d97706]" />
+      {/* الهيدر — هوية التطبيق */}
+      <section className="ds-pagehead">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+          <div>
+            <div className="text-[11px] font-bold text-[#a9c8e4] mb-1 tracking-wider uppercase">
+              رئيسية <span className="mx-1 text-[#7fc0ff]">›</span> العروض والخصومات
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-black text-white">
-                  مركز العروض الترويجية 🎁
-                </h1>
-                <span className="bg-[var(--app-warn)] text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full">
-                  {stats.active} عرض نشط 🔥
-                </span>
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 shadow-xs border border-white/20">
+                <Flame className="w-5 h-5" />
               </div>
-              <p className="text-xs text-slate-300 mt-0.5">
-                ربط العروض بشيتات Google Sheets والإكسل • تطبيق الخصومات تلقائياً بكود الصنف والكود الموحد (#) • إشعارات للعملاء والمناديب
-              </p>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 flex-wrap">
+                  مركز العروض الترويجية
+                  <span className="inline-flex items-center rounded-full bg-amber-400/20 border border-amber-300/30 px-2.5 py-0.5 text-[11px] font-black text-amber-100">
+                    {stats.active} عرض نشط
+                  </span>
+                </h1>
+                <p className="text-xs text-[#c3d9ec] mt-0.5">إدارة العروض من شيتات Excel/Google Sheets ومتابعة الخصومات المطبّقة على الأصناف.</p>
+              </div>
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex items-center gap-2 flex-wrap shrink-0">
-            {/* Clear All Offers Button */}
             {['admin', 'developer', 'branch_manager'].includes(currentUser?.role || '') && promotions.length > 0 && (
               <button
                 type="button"
                 onClick={handleClearAllOffers}
-                className="bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-white font-bold px-3 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition active:scale-95 cursor-pointer shadow-md"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black px-3.5 py-2.5 text-xs shadow-sm transition cursor-pointer"
                 title="مسح كافة العروض وإلغاء الخصومات عن كافة الأصناف"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>مسح كافة العروض</span>
               </button>
             )}
-
-            {/* Upload Excel */}
             {['admin', 'developer', 'branch_manager'].includes(currentUser?.role || '') && (
               <button
                 type="button"
-                onClick={() => setIsUploadModalOpen(true)}
-                className="bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
-                title="رفع شيت عروض إكسل أو جوجل شيتس"
+                onClick={() => setShowUploadPage(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3.5 py-2.5 text-xs shadow-sm transition cursor-pointer"
+                title="فتح صفحة رفع شيت العروض"
               >
                 <Upload className="w-4 h-4" />
-                <span>رفع شيت العروض 📊</span>
+                <span>رفع شيت العروض</span>
               </button>
             )}
-
-            {/* Apply to Catalog */}
-            <button
-              type="button"
-              onClick={handleApplyDiscountsToCatalog}
-              className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black px-3.5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md transition active:scale-95 cursor-pointer"
-              title="تطبيق وتثبيت الخصومات على كافة المنتجات بالكتالوج ونظام الفواتير"
-            >
-              <Zap className="w-4 h-4" />
-              <span>تطبيق الخصم للعملاء ⚡</span>
-            </button>
-
-            {/* Add Manual Offer */}
-            {['admin', 'developer', 'branch_manager'].includes(currentUser?.role || '') && (
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingPromo(null);
-                  setFormData({
-                    title: '',
-                    productCode: '',
-                    unifiedCode: '',
-                    productName: '',
-                    discountPercentage: 15,
-                    startDate: new Date().toISOString().slice(0, 10),
-                    endDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-                    branchName: 'كل الفروع',
-                    status: 'نشط',
-                    notes: '',
-                  });
-                  setIsEditModalOpen(true);
-                }}
-                className="bg-slate-800 hover:bg-slate-700 text-[#d97706] border border-[var(--app-warn)] font-bold px-3 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
-              >
-                <Plus className="w-4 h-4 text-[#d97706]" />
-                <span>إضافة عرض يدوي</span>
-              </button>
-            )}
-
-            {/* Export Excel */}
-            <button
-              type="button"
-              onClick={() => exportPromotionsToExcel(promotions)}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-3 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
-              title="تصدير كشف العروض إكسل"
-            >
-              <FileSpreadsheet className="w-4 h-4 text-[#0d9488]" />
-              <span>تصدير إكسل</span>
-            </button>
           </div>
         </div>
       </section>
 
-      {/* KPI Stats Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-          <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1">
-            <Flame className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
-            <span>العروض النشطة:</span>
-          </div>
-          <div className="text-base sm:text-lg font-black text-[var(--app-warn-text)] font-mono">
-            {stats.active} عرض ساري
-          </div>
+      {/* مؤشرات */}
+      <div className="grid gap-4 grid-cols-2 xl:grid-cols-4">
+        <div className="tg-kpi tg-kpi--amber">
+          <div className="tg-kpi__top"><span className="tg-kpi__icon"><Flame size={20} /></span></div>
+          <span className="tg-kpi__value tabular-nums">{stats.active.toLocaleString('en-US')}</span>
+          <span className="tg-kpi__label">العروض النشطة</span>
+          <span className="tg-kpi__hint">سارية حالياً</span>
         </div>
-
-        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-          <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1">
-            <Percent className="w-3.5 h-3.5 text-[var(--app-risk-text)]" />
-            <span>متوسط نسبة الخصم:</span>
-          </div>
-          <div className="text-base sm:text-lg font-black text-[var(--app-risk-text)] font-mono">
-            %{stats.avgDiscount} تخفيض
-          </div>
+        <div className="tg-kpi tg-kpi--red">
+          <div className="tg-kpi__top"><span className="tg-kpi__icon"><Percent size={20} /></span></div>
+          <span className="tg-kpi__value tabular-nums">{stats.avgDiscount}%</span>
+          <span className="tg-kpi__label">متوسط الخصم</span>
+          <span className="tg-kpi__hint">على العروض النشطة</span>
         </div>
-
-        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-          <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1">
-            <Boxes className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
-            <span>إجمالي الأصناف المشمولة:</span>
-          </div>
-          <div className="text-base sm:text-lg font-black text-[var(--app-navy-text)] font-mono">
-            {promotions.length} صنف
-          </div>
+        <div className="tg-kpi tg-kpi--blue">
+          <div className="tg-kpi__top"><span className="tg-kpi__icon"><Boxes size={20} /></span></div>
+          <span className="tg-kpi__value tabular-nums">{promotions.length.toLocaleString('en-US')}</span>
+          <span className="tg-kpi__label">أصناف مشمولة</span>
+          <span className="tg-kpi__hint">إجمالي العروض</span>
         </div>
-
-        <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs space-y-1">
-          <div className="text-[11px] text-slate-500 font-bold flex items-center gap-1">
-            <Zap className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
-            <span>حالة التطبيق على الفاتورة:</span>
-          </div>
-          <div className="text-base sm:text-lg font-black text-[var(--app-ok-text)] flex items-center gap-1">
-            <span>مفعل تلقائياً 🟢</span>
-          </div>
+        <div className="tg-kpi tg-kpi--emerald">
+          <div className="tg-kpi__top"><span className="tg-kpi__icon"><Zap size={20} /></span></div>
+          <span className="tg-kpi__value" style={{ fontSize: 22 }}>مفعّل</span>
+          <span className="tg-kpi__label">تطبيق على الفاتورة</span>
+          <span className="tg-kpi__hint">تلقائي حسب العرض</span>
         </div>
       </div>
 
-      {/* Search & Filters */}
-      <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-        {/* Search */}
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5 pointer-events-none" />
+      {/* البحث والفلاتر */}
+      <div className="tg-card !flex-row !flex-wrap !items-center !justify-between !gap-3 !p-3.5">
+        <div className="relative w-full sm:max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="ابحث بكود الصنف، الكود الموحد (#)، أو اسم المنتج..."
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)]"
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3 py-2.5 text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
           />
         </div>
 
-        {/* Filters */}
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-          {/* Status filter */}
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
             <button
               type="button"
               onClick={() => setStatusFilter('all')}
-              className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
-                statusFilter === 'all' ? 'bg-[var(--app-warn)] text-slate-950 font-black' : 'text-slate-600'
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                statusFilter === 'all' ? 'bg-[#0b2337] text-white shadow-sm' : 'text-slate-700 hover:bg-white'
               }`}
             >
               الكل ({promotions.length})
@@ -584,21 +592,20 @@ export const PromotionsOffersView: React.FC = () => {
             <button
               type="button"
               onClick={() => setStatusFilter('active')}
-              className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
-                statusFilter === 'active' ? 'bg-[var(--app-ok)] text-white font-black' : 'text-slate-600'
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer ${
+                statusFilter === 'active' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-700 hover:bg-white'
               }`}
             >
               النشطة ({stats.active})
             </button>
           </div>
 
-          {/* Branch filter */}
           <select
             value={selectedBranchFilter}
             onChange={(e) => setSelectedBranchFilter(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-700 outline-none cursor-pointer"
+            className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 outline-none cursor-pointer focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
           >
-            <option value="الكل">🏢 كل الفروع</option>
+            <option value="الكل">كل الفروع</option>
             {branches.map((b) => (
               <option key={b.id} value={b.name}>{b.name}</option>
             ))}
@@ -608,15 +615,17 @@ export const PromotionsOffersView: React.FC = () => {
 
       {/* Promotions Cards Grid */}
       {filteredPromotions.length === 0 ? (
-        <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 space-y-3">
-          <Flame className="w-12 h-12 text-slate-300 mx-auto" />
-          <h3 className="text-base font-bold text-slate-700">لا توجد عروض مطابقة للبحث</h3>
-          <p className="text-xs text-slate-400">
-            يمكنك رفع شيت عروض جديد من Excel أو إضافة عرض يدوي بضغطة زر.
+        <div className="tg-card items-center justify-center text-center py-12 border border-dashed border-slate-300 bg-slate-50/50">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+            <Flame className="w-7 h-7" />
+          </div>
+          <h3 className="text-base font-black text-[#0b2337]">لا توجد عروض مطابقة</h3>
+          <p className="mt-1 text-[11px] font-bold text-[var(--tg-muted)] max-w-md">
+            يمكنك رفع شيت عروض جديد من Excel أو Google Sheets من زر "رفع شيت العروض" بالأعلى.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredPromotions.map((promo) => {
             const matchedProduct = products.find(
               (p) => cleanProductCode(p.code) === cleanProductCode(promo.productCode) ||
@@ -630,16 +639,15 @@ export const PromotionsOffersView: React.FC = () => {
             return (
               <div
                 key={promo.id}
-                className="bg-white rounded-2xl border border-slate-200 hover:border-[var(--app-warn)] shadow-xs hover:shadow-md transition p-3.5 flex flex-col justify-between space-y-3 relative overflow-hidden"
+                className="tg-card relative overflow-hidden !gap-3 p-4 border border-[var(--tg-line)] hover:border-blue-300/60 hover:shadow-md transition"
               >
-                {/* Promo Badge Corner */}
-                <div className="absolute top-0 left-0 bg-gradient-to-r from-[var(--app-risk)] to-[var(--app-warn)] text-white font-black text-[11px] px-3 py-1 rounded-br-2xl shadow-sm flex items-center gap-1">
-                  <Flame className="w-3 h-3" />
+                {/* Promo Badge */}
+                <div className="absolute top-0 left-0 bg-gradient-to-l from-rose-600 to-amber-500 text-white font-black text-[11px] px-3 py-1.5 rounded-br-2xl shadow-sm flex items-center gap-1.5">
+                  <Flame className="w-3.5 h-3.5" />
                   <span>خصم {promo.discountPercentage}%</span>
                 </div>
 
-                {/* Card Header: Product Info & Image */}
-                <div className="flex items-start gap-3 pt-2">
+                <div className="flex items-start gap-3 pt-4">
                   {matchedProduct ? (
                     <ProductImage
                       product={matchedProduct}
@@ -648,24 +656,24 @@ export const PromotionsOffersView: React.FC = () => {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-16 h-16 rounded-xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)] flex items-center justify-center font-black shrink-0 text-xl">
+                    <div className="w-16 h-16 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-black shrink-0 text-xl">
                       🎁
                     </div>
                   )}
 
                   <div className="min-w-0 flex-1 space-y-1">
-                    <h3 className="font-black text-slate-900 text-xs sm:text-sm line-clamp-2 leading-snug">
+                    <h3 className="font-black text-[#0b2337] text-sm leading-snug line-clamp-2">
                       {promo.title}
                     </h3>
                     <div className="text-[11px] text-slate-600 font-bold truncate">
                       {promo.productName}
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
-                      <span className="bg-slate-100 text-[var(--app-warn-text)] font-mono font-bold px-1.5 py-0.5 rounded border border-slate-200">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="bg-slate-100 text-slate-700 font-mono text-[10px] font-black px-1.5 py-0.5 rounded-md border border-slate-200">
                         كود: {promo.productCode}
                       </span>
                       {promo.unifiedCode && (
-                        <span className="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] font-mono font-bold px-1.5 py-0.5 rounded border border-[var(--app-navy-line)]">
+                        <span className="bg-blue-50 text-blue-800 font-mono text-[10px] font-black px-1.5 py-0.5 rounded-md border border-blue-200">
                           #{promo.unifiedCode}
                         </span>
                       )}
@@ -673,41 +681,34 @@ export const PromotionsOffersView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Pricing Box */}
-                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex items-end justify-between gap-3">
                   <div>
-                    <span className="text-[10px] text-slate-400 block line-through">
-                      السعر الأصلي: {formatCurrency(cartonPrice)}
-                    </span>
-                    <span className="text-xs sm:text-sm font-black text-[var(--app-risk-text)] font-mono">
-                      سعر العرض: {formatCurrency(promoPrice)}
-                    </span>
+                    <div className="text-[10px] font-bold text-slate-500 line-through">السعر الأصلي: {formatCurrency(cartonPrice)}</div>
+                    <div className="text-base font-black text-rose-700 tabular-nums">سعر العرض: {formatCurrency(promoPrice)}</div>
                   </div>
-                  <div className="text-left text-[10px] text-slate-500 font-bold">
-                    <span>الفرع: </span>
-                    <strong className="text-slate-800">{promo.branchName}</strong>
+                  <div className="text-left">
+                    <div className="text-[10px] font-bold text-slate-500">الفرع</div>
+                    <div className="text-[11px] font-black text-[#0b2337]">{promo.branchName}</div>
                   </div>
                 </div>
 
-                {/* Validity Dates & Notes */}
-                <div className="text-[10.5px] text-slate-500 space-y-0.5 border-t border-slate-100 pt-2">
-                  <div className="flex items-center justify-between">
-                    <span>صالح من: <strong className="font-mono text-slate-700">{promo.startDate}</strong></span>
-                    <span>إلى: <strong className="font-mono text-slate-700">{promo.endDate}</strong></span>
+                <div className="text-[11px] font-medium text-slate-600 space-y-1 border-t border-slate-100 pt-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span>من: <strong className="font-mono text-slate-800">{promo.startDate}</strong></span>
+                    <span>إلى: <strong className="font-mono text-slate-800">{promo.endDate}</strong></span>
                   </div>
                   {promo.notes && (
-                    <div className="text-slate-600 truncate text-[10px]">
-                      💡 {promo.notes}
-                    </div>
+                    <div className="text-slate-600 truncate" title={promo.notes}>💡 {promo.notes}</div>
                   )}
                 </div>
 
-                {/* Card Actions */}
-                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                    promo.status === 'نشط' ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]' : 'bg-slate-100 text-slate-600'
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black border ${
+                    promo.status === 'نشط'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      : 'bg-slate-100 text-slate-600 border-slate-200'
                   }`}>
-                    {promo.status === 'نشط' ? 'ساري ونشط 🟢' : 'منتهي الصلاحية'}
+                    {promo.status === 'نشط' ? 'ساري ونشط' : 'منتهي الصلاحية'}
                   </span>
 
                   {['admin', 'developer', 'branch_manager'].includes(currentUser?.role || '') && (
@@ -719,7 +720,7 @@ export const PromotionsOffersView: React.FC = () => {
                           setFormData(promo);
                           setIsEditModalOpen(true);
                         }}
-                        className="p-1 rounded-lg text-slate-500 hover:text-[var(--app-warn-text)] hover:bg-slate-100 transition cursor-pointer"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-blue-700 hover:border-blue-300 hover:bg-blue-50 transition cursor-pointer"
                         title="تعديل العرض"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
@@ -727,7 +728,7 @@ export const PromotionsOffersView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleDeleteOffer(promo.id)}
-                        className="p-1 rounded-lg text-slate-400 hover:text-[var(--app-risk-text)] hover:bg-[var(--app-risk-tint)] transition cursor-pointer"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-rose-700 hover:border-rose-300 hover:bg-rose-50 transition cursor-pointer"
                         title="حذف العرض"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -735,68 +736,13 @@ export const PromotionsOffersView: React.FC = () => {
                     </div>
                   )}
                 </div>
-
               </div>
             );
           })}
         </div>
       )}
 
-      {/* ================= MODAL: رفع شيت العروض ================= */}
-      {isUploadModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in" dir="rtl">
-          <div className="bg-white rounded-3xl w-full max-w-lg p-5 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div className="flex items-center gap-2">
-                <FileSpreadsheet className="w-5 h-5 text-[var(--app-ok-text)]" />
-                <h3 className="font-black text-slate-900 text-sm sm:text-base">
-                  رفع شيت عروض ترويجية من Excel أو Google Sheets
-                </h3>
-              </div>
-              <button onClick={() => setIsUploadModalOpen(false)} className="text-slate-400 hover:text-slate-600">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed">
-              يقوم النظام تلقائياً بالتعرف على أعمدة الشيت ومطابقة الأصناف عبر <strong>كود الصنف</strong> أو <strong>الكود الموحد (#)</strong> أو <strong>اسم المنتج</strong>، وتطبيق نسبة الخصم وسعر العرض على الكتالوج والفواتير فوراً.
-            </p>
-
-            <div className="border-2 border-dashed border-[var(--app-ok-line)] bg-[var(--app-ok-tint)] rounded-2xl p-6 text-center space-y-3">
-              <Upload className="w-8 h-8 text-[var(--app-ok-text)] mx-auto" />
-              <div className="space-y-1">
-                <div className="font-bold text-xs text-slate-800">اختر ملف إكسل (.xlsx أو .csv)</div>
-                <div className="text-[11px] text-slate-500">الأعمدة الموصى بها: كود الصنف، الكود الموحد، نسبة الخصم، سعر العرض</div>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                onChange={handleFileUpload}
-                disabled={isUploading}
-                className="hidden"
-                id="promo-file-input"
-              />
-              <label
-                htmlFor="promo-file-input"
-                className="inline-block bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black px-4 py-2 rounded-xl text-xs shadow-md transition cursor-pointer"
-              >
-                {isUploading ? 'جاري القراءة والمطابقة...' : 'استعراض واختيار الملف 📂'}
-              </label>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setIsUploadModalOpen(false)}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-xs font-bold"
-              >
-                إلغاء
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ================= MODAL: إضافة / تعديل عرض يدوي ================= */}
       {isEditModalOpen && (

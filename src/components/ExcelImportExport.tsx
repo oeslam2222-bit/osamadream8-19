@@ -48,9 +48,12 @@ import {
 } from '../services/customerAnalyticsService';
 import {
   getPublishedDataSources,
+  getDataReadMode,
   isValidPublishedSource,
   PublishedDataSources,
-  saveSingleSourceUrl
+  saveSingleSourceUrl,
+  setDataReadMode,
+  type DataReadMode
 } from '../services/dataSourceService';
 import {
   exportCustomersToExcel,
@@ -116,6 +119,11 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
   // Active sector tab (قطاع الأدوات المنزلية / قطاع الكهرباء)
   const [activeSectorTab, setActiveSectorTab] = useState<'home' | 'electrical'>('home');
+  const [dataReadMode, setDataReadModeState] = useState<DataReadMode>(() => getDataReadMode());
+  const handleDataReadModeChange = (mode: DataReadMode) => {
+    setDataReadMode(mode);
+    setDataReadModeState(mode);
+  };
 
   // Saved sources from localStorage/service
   const [sources, setSources] = useState<PublishedDataSources>(() => getPublishedDataSources());
@@ -1015,13 +1023,13 @@ function onEdit(e) {
       <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-[#12283e] text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 space-y-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 border border-white/15 text-[#5eead4] rounded-xl text-xs font-black">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 border border-white/15 text-[#7fc0ff] rounded-xl text-xs font-black">
               <Sparkles className="w-4 h-4" />
               <span>مركز إدارة الشيتات السحابية الخمس المركزية (صفحة واحدة موحدة)</span>
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
-              <FileSpreadsheet className="w-8 h-8 text-[#5eead4]" />
+              <FileSpreadsheet className="w-8 h-8 text-[#7fc0ff]" />
               <span>لوحة الربط والمزامنة المركزية لملفات الإكسل وجوجل شيت</span>
             </h1>
 
@@ -1034,15 +1042,15 @@ function onEdit(e) {
           <div className="flex items-center gap-3 shrink-0 flex-wrap">
             <div className="bg-white/10 backdrop-blur-xs border border-white/10 rounded-2xl p-4 text-center min-w-[120px]">
               <div className="text-[11px] text-slate-300 font-bold">الشيتات المتصلة</div>
-              <div className="text-2xl font-black text-[#5eead4] font-mono mt-0.5">
+              <div className="text-2xl font-black text-[#7fc0ff] font-mono mt-0.5">
                 {metrics.connectedSheetsCount} / 5
               </div>
-              <div className="text-[10px] text-[#5eead4] font-bold mt-1">🟢 سحابية Live</div>
+              <div className="text-[10px] text-[#7fc0ff] font-bold mt-1">🟢 سحابية Live</div>
             </div>
 
             <div className="bg-white/10 backdrop-blur-xs border border-white/10 rounded-2xl p-4 text-center min-w-[120px]">
               <div className="text-[11px] text-slate-300 font-bold">قاعدة العملاء</div>
-              <div className="text-2xl font-black text-[#5eead4] font-mono mt-0.5">
+              <div className="text-2xl font-black text-[#7fc0ff] font-mono mt-0.5">
                 {metrics.totalCustomers.toLocaleString('ar-EG')}
               </div>
               <div className="text-[10px] text-slate-300 mt-1">عميل فريد (0 تكرار)</div>
@@ -1051,7 +1059,37 @@ function onEdit(e) {
         </div>
 
         {/* Master Control Buttons */}
-        <div className="pt-4 border-t border-white/10 flex flex-wrap items-center justify-between gap-3">
+        <div className="pt-4 border-t border-white/10 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white/5 border border-white/10 rounded-2xl p-3">
+            <div>
+              <div className="text-xs font-black text-white">مصدر قراءة البيانات</div>
+              <div className="text-[11px] text-slate-300 mt-0.5">
+                اختر {`"Google Sheets مباشر"`} لتقليل استهلاك Supabase egress. (يتطلب روابط شيتات محفوظة ومفعّلة)
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleDataReadModeChange('supabase')}
+                className={`px-3 py-2 rounded-xl text-xs font-black border transition ${dataReadMode === 'supabase' ? 'bg-white text-slate-900 border-white' : 'bg-transparent text-white border-white/20 hover:bg-white/10'}`}
+              >
+                Supabase
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDataReadModeChange('google_sheets')}
+                className={`px-3 py-2 rounded-xl text-xs font-black border transition ${dataReadMode === 'google_sheets' ? 'bg-emerald-400 text-slate-900 border-emerald-300' : 'bg-transparent text-white border-white/20 hover:bg-white/10'}`}
+              >
+                Google Sheets مباشر
+              </button>
+            </div>
+          </div>
+          {dataReadMode === 'google_sheets' && (
+            <div className="text-[11px] text-amber-200 bg-amber-500/10 border border-amber-400/20 rounded-xl px-3 py-2">
+              وضع القراءة من Google Sheets مفعّل على هذا الجهاز. حمّل/زامن الشيتات (عملاء، أصناف، تارجت) من الأسفل ثم حدّث الصفحة لتظهر البيانات مباشرة من الشيت وتوفير استهلاك Supabase.
+            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
@@ -1077,7 +1115,7 @@ function onEdit(e) {
               onClick={handleRunDedupAudit}
               className="bg-white/10 hover:bg-white/20 text-white border border-white/15 font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer"
             >
-              <ShieldCheck className="w-4 h-4 text-[#5eead4]" />
+              <ShieldCheck className="w-4 h-4 text-[#7fc0ff]" />
               <span>فحص ومنع التكرار الشامل (0 تكرار)</span>
             </button>
 
@@ -1165,6 +1203,7 @@ function onEdit(e) {
               <span>تصفير ومسح البيانات للبدء من جديد</span>
             </button>
           </div>
+        </div>
         </div>
 
         {/* Master Sync Progress Bar */}
@@ -1579,7 +1618,7 @@ function onEdit(e) {
                 onClick={() => exportCustomerAnalyticsToExcel(customers, 'تقرير_مبيعات_كافة_العملاء_2026')}
                 className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-[#5eead4]" />
+                <FileSpreadsheet className="w-3.5 h-3.5 text-[#7fc0ff]" />
                 <span>تصدير إكسل (مبيعات العملاء)</span>
               </button>
             </div>
@@ -1904,7 +1943,7 @@ function onEdit(e) {
               onClick={exportTargetsReport}
               className="bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-[#5eead4]" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-[#7fc0ff]" />
               <span>تصدير تقرير أهداف المناديب ({targets.length})</span>
             </button>
           </div>
@@ -1990,7 +2029,7 @@ function onEdit(e) {
               >
                 {savedUrlNotice === 'offers' ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-[#5eead4]" />
+                    <Check className="w-3.5 h-3.5 text-[#7fc0ff]" />
                     <span>تم حفظ الرابط ✓</span>
                   </>
                 ) : (
@@ -2038,8 +2077,8 @@ function onEdit(e) {
       <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-sm space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2">
-            <FileCheck className="w-5 h-5 text-[#5eead4]" />
-            <h4 className="font-extrabold text-sm text-[#5eead4]">
+            <FileCheck className="w-5 h-5 text-[#7fc0ff]" />
+            <h4 className="font-extrabold text-sm text-[#7fc0ff]">
               الأعمدة الأساسية المقروءة والمدعومة تلقائياً في الشيتات الخمس:
             </h4>
           </div>
@@ -2050,14 +2089,14 @@ function onEdit(e) {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
           <div className="bg-white/5 p-3 rounded-2xl border border-white/10 space-y-1.5">
-            <strong className="text-[#5eead4] block font-black">شيت العملاء والمديونيات:</strong>
+            <strong className="text-[#7fc0ff] block font-black">شيت العملاء والمديونيات:</strong>
             <p className="text-slate-300 text-[11px] leading-5">
               كود العميل، اسم العميل، الفرع، اسم المندوب، المشرف، المنطقة، رقم الهاتف، المديونية الحالية، الحد الائتماني، حالة الدين، صلاحية التعامل.
             </p>
           </div>
 
           <div className="bg-white/5 p-3 rounded-2xl border border-white/10 space-y-1.5">
-            <strong className="text-[#5eead4] block font-black">شيت مبيعات العملاء والتارجت:</strong>
+            <strong className="text-[#7fc0ff] block font-black">شيت مبيعات العملاء والتارجت:</strong>
             <p className="text-slate-300 text-[11px] leading-5">
               كود العميل، اسم العميل، مبيعات 2026، مبيعات 2025، نسبة النمو %، تحصيلات 2026، مبيعات الشهور 1 إلى 12، تحصيلات الشهور 1 إلى 12، تارجت العميل.
             </p>
@@ -2095,7 +2134,7 @@ function onEdit(e) {
             </p>
 
             <div className="relative">
-              <pre className="bg-slate-950 text-[#5eead4] p-4 rounded-2xl overflow-x-auto text-[11px] font-mono leading-relaxed" dir="ltr">
+              <pre className="bg-slate-950 text-[#7fc0ff] p-4 rounded-2xl overflow-x-auto text-[11px] font-mono leading-relaxed" dir="ltr">
                 {sampleAppsScript}
               </pre>
               <button
@@ -2105,7 +2144,7 @@ function onEdit(e) {
               >
                 {copiedScript ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-[#5eead4]" />
+                    <Check className="w-3.5 h-3.5 text-[#7fc0ff]" />
                     <span>تم النسخ ✓</span>
                   </>
                 ) : (

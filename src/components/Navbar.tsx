@@ -53,6 +53,7 @@ import { InstallAppModal } from './InstallAppModal';
 import { SystemSettingsAndAboutModal } from './SystemSettingsAndAboutModal';
 import { InternalNotificationCenter } from './InternalNotificationCenter';
 import { UserProfileAvatarModal } from './UserProfileAvatarModal';
+import { DatabaseConnectionModal } from './DatabaseConnectionModal';
 
 interface NavbarProps {
   activeTab: string;
@@ -99,7 +100,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     installPromptEvent,
     isInstallModalOpen,
     setIsInstallModalOpen,
-    login
+    login,
+    supabaseStatus,
+    checkDatabaseConnection
   } = useApp();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -107,6 +110,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
+  const [isDbModalOpen, setIsDbModalOpen] = useState(false);
 
   const [internalSidebarCollapsed, setInternalSidebarCollapsed] = useState<boolean>(() => {
     try {
@@ -331,6 +335,24 @@ export const Navbar: React.FC<NavbarProps> = ({
               {isOffline ? <WifiOff aria-hidden="true" /> : <Wifi aria-hidden="true" />}
               <span className={isOffline ? '' : 'ds-vis-ge-md'}>{isOffline ? 'أوفلاين' : 'متصل'}</span>
             </div>
+
+            {/* مزامنة قاعدة البيانات — يفتح مودال حالة الاتصال والمزامنة */}
+            <button
+              type="button"
+              onClick={() => setIsDbModalOpen(true)}
+              className="ds-iconbtn ds-vis-ge-lg"
+              title="حالة قاعدة البيانات والمزامنة"
+              aria-label="حالة قاعدة البيانات والمزامنة"
+            >
+              <CloudLightning aria-hidden="true" />
+              <span className="ds-vis-ge-md">
+                {supabaseStatus?.connected === false
+                  ? 'غير متصل'
+                  : supabaseStatus?.customersCount != null && supabaseStatus.customersCount === 0
+                    ? 'مزامنة البيانات'
+                    : 'قاعدة البيانات'}
+              </span>
+            </button>
 
             {/* بحث ذكي (موبايل) */}
             <button
@@ -657,6 +679,12 @@ export const Navbar: React.FC<NavbarProps> = ({
       <UserProfileAvatarModal
         isOpen={isAvatarModalOpen}
         onClose={() => setIsAvatarModalOpen(false)}
+      />
+
+      {/* مودال حالة قاعدة البيانات والمزامنة */}
+      <DatabaseConnectionModal
+        isOpen={isDbModalOpen}
+        onClose={() => setIsDbModalOpen(false)}
       />
 
       {/* بحث ذكي عام */}

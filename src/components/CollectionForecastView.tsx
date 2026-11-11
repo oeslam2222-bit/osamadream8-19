@@ -1394,36 +1394,37 @@ export default function CollectionForecastView() {
   const suggestedCount = suggestedWeekCountForSpan(spanLength);
 
   return (
-    <div className="space-y-4" dir="rtl">
+    <div className="tg-dash space-y-4" dir="rtl">
       {/* ========================================================================= */}
       {/* 1. Header with Month Navigator & Actions                                  */}
       {/* ========================================================================= */}
-      <section className="bg-gradient-to-r from-[var(--app-ok)] via-slate-900 to-[var(--app-navy)] text-white rounded-3xl p-4 sm:p-5 shadow-lg border border-[var(--app-ok)] space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-full bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)] text-xs font-black flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-[#0d9488]" />
-                <span>توقعات التحصيل</span>
-              </span>
-              <span className="px-2 py-0.5 rounded-md bg-white/10 text-slate-300 text-xs font-bold">
-                نسخة خفيفة وسريعة ⚡
-              </span>
+      <section className="ds-pagehead">
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+          <div>
+            <div className="text-[11px] font-bold text-[#a9c8e4] mb-1 tracking-wider uppercase">
+              التحصيل <span className="mx-1 text-[#7fc0ff]">›</span> توقعات التحصيل
             </div>
-            <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-              <span>جدول التوقع الأسبوعي والشهري</span>
-              <span className="text-[#0d9488] font-mono text-base">({formatMonthLabel(monthKey)})</span>
-            </h1>
-            <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-              من جدول العملاء: الاسم والكود والمديونية وإجمالي المستحقات، مع التوقع الأسبوعي والتقسيم الشهري المستقل للأدمن.
-            </p>
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 shadow-xs border border-white/20">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 flex-wrap">
+                  <span>جدول التوقع الأسبوعي والشهري</span>
+                  <span className="text-[#a9c8e4] font-mono text-sm sm:text-base">({formatMonthLabel(monthKey)})</span>
+                </h1>
+                <p className="text-xs text-[#c3d9ec] mt-0.5 max-w-2xl leading-relaxed">
+                  من جدول العملاء: الاسم والكود والمديونية وإجمالي المستحقات، مع التوقع الأسبوعي والتقسيم الشهري المستقل للأدمن.
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900/90 px-3 py-2 shadow-sm" aria-label="شهر التوقع الحالي">
-              <CalendarDays className="h-4 w-4 text-[#0d9488]" />
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <div className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2" aria-label="شهر التوقع الحالي">
+              <CalendarDays className="h-4 w-4 text-[#c3d9ec]" />
               <span className="text-xs font-black text-white">{formatMonthLabel(monthKey)}</span>
-              <span className="rounded-lg bg-[var(--app-ok)] px-2 py-1 text-[10px] font-black text-[#0d9488]">الشهر الحالي</span>
+              <span className="rounded-lg bg-emerald-500/20 border border-emerald-300/30 px-2 py-0.5 text-[10px] font-black text-emerald-100">الشهر الحالي</span>
             </div>
 
             {isAdmin && (
@@ -1431,8 +1432,8 @@ export default function CollectionForecastView() {
                 type="button"
                 onClick={togglePlanClosed}
                 title={plan.isClosed ? 'فتح الشهر من جديد للكل' : 'قفل الشهر ومنع التعديل على كل الأدوار'}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-xs font-black shadow-sm transition cursor-pointer ${
-                  plan.isClosed ? 'bg-[var(--app-ok)] hover:bg-[var(--app-ok)]' : 'bg-slate-600 hover:bg-slate-500'
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-white text-xs font-black border border-white/20 transition cursor-pointer ${
+                  plan.isClosed ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-white/10 hover:bg-white/20'
                 }`}
               >
                 {plan.isClosed ? <LockOpen className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
@@ -1444,7 +1445,7 @@ export default function CollectionForecastView() {
               <button
                 type="button"
                 onClick={openPlanEditor}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white text-xs font-black shadow-sm transition cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-black transition cursor-pointer"
                 title="تحديد بداية ونهاية الشهر ونهاية كل أسبوع (الأدمن والمطوّر فقط)"
               >
                 <CalendarDays className="w-4 h-4" />
@@ -1452,7 +1453,7 @@ export default function CollectionForecastView() {
               </button>
             )}
 
-            {/* نسخ ومطابقة التوقعات — الإدارة والمطور فقط (لصق جماعي بيعدّل على كتير من السجلات) */}
+            {/* نسخ ومطابقة التوقعات — الإدارة والمطور فقط */}
             {isAdmin && (
               <button
                 type="button"
@@ -1460,7 +1461,7 @@ export default function CollectionForecastView() {
                   setPasteWeekIndex(String(suggestedPasteWeek || ''));
                   setShowPasteMonthly(true);
                 }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 text-xs font-black shadow-sm transition cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-300/30 text-amber-50 text-xs font-black transition cursor-pointer"
                 title="لصق ومطابقة أكواد العملاء لتوقع الشهر الحالي أو إحدى فتراته الأسبوعية"
               >
                 <ClipboardPaste className="w-4 h-4" />
@@ -1471,10 +1472,10 @@ export default function CollectionForecastView() {
             <button
               type="button"
               onClick={handleExport}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white text-xs font-black shadow-sm transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-sm transition cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              <span>تصدير Excel 📥</span>
+              <span>تصدير Excel</span>
             </button>
 
             {/* One-Click Approve All Button for Supervisor / Admin */}
@@ -1483,11 +1484,11 @@ export default function CollectionForecastView() {
                 type="button"
                 onClick={handleApproveAllPending}
                 disabled={isApprovingScope || !!approvingSlot || planLocked || totalPendingApprovalCount === 0}
-                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-[var(--app-ok)] to-[var(--app-ok)] hover:from-[var(--app-ok)] hover:to-[var(--app-ok)] text-slate-950 font-black text-xs shadow-md transition cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-black text-xs shadow-sm transition cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
                 title="اعتماد كافة توقعات المناديب لهذا الشهر بنقرة واحدة مباشرة دون خطوات إضافية"
               >
-                {isApprovingScope ? <LoaderCircle className="w-4 h-4 animate-spin text-slate-950" /> : <CheckCircle2 className="w-4 h-4 text-slate-950" />}
-                <span>{isApprovingScope ? 'جاري الاعتماد...' : `اعتماد الكل (${totalPendingApprovalCount}) ⚡`}</span>
+                {isApprovingScope ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                <span>{isApprovingScope ? 'جاري الاعتماد...' : `اعتماد الكل (${totalPendingApprovalCount})`}</span>
               </button>
             )}
           </div>
@@ -1614,11 +1615,13 @@ export default function CollectionForecastView() {
         </div>
       </section>
 
-      {/* Notification Toast */}
+      {/* Notification Toast (توحيد مع tg-toast) */}
       {savedFlash && (
-        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)] text-xs font-black shadow-sm animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)]" />
-          <span>{savedFlash}</span>
+        <div className="tg-toast">
+          <div className="tg-toast-item tg-toast--ok">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+            <span>{savedFlash}</span>
+          </div>
         </div>
       )}
 
@@ -1657,259 +1660,219 @@ export default function CollectionForecastView() {
       )}
 
       {/* ========================================================================= */}
-      {/* 2. Executive KPI Cards Summary (خفيفة جداً ومحسوبة بالذاكرة)             */}
+      {/* 2. Executive KPI Cards Summary (كروت ملونة، أرقام كبيرة)                   */}
       {/* ========================================================================= */}
-      <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
-          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
-            <span>إجمالي المتوقع للتحصيل</span>
-            <CalendarCheck className="w-4 h-4 text-[var(--app-ok-text)]" />
+      <section className="tg-grid-4">
+        {/* متوقع للتحصيل — أخضر (مبيعات) */}
+        <button type="button" className="tg-kpi-big tg-kpi-big--sales group cursor-pointer">
+          <div className="tg-kpi-big__top">
+            <span className="tg-kpi-big__icon tg-card--sales"><CalendarCheck className="w-5 h-5" /></span>
           </div>
-          <div className="text-base sm:text-lg font-black text-[var(--app-ok-text)] mt-1 font-mono">
-            {formatCurrency(kpiTotals.plannedTotal)}
-          </div>
-          <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
-            شهري مستقل ({kpiTotals.monthEntryCount} عميل): <span className="text-slate-700 font-black">{formatCurrency(kpiTotals.monthTotal)}</span>
-            {' · '}
-            بديل أسبوعي: <span className="text-slate-700 font-black">{formatCurrency(kpiTotals.weeklyFallbackTotal)}</span>
-            <span className="block mt-1">
-              إجمالي الأسابيع للمقارنة: <span className="text-slate-700 font-black">{formatCurrency(kpiTotals.weeklyTotal)}</span>
-              {' · '}{filteredCustomers.length} عميل حسب الفلاتر الحالية
-            </span>
-            {kpiTotals.customersAboveDues > 0 && (
-              <span className="block mt-1 text-[var(--app-warn-text)]">
-                تنبيه: توقع {kpiTotals.customersAboveDues} عميل أعلى من مستحقاته بإجمالي {formatCurrency(kpiTotals.plannedAboveDues)}.
-              </span>
-            )}
-          </div>
-        </div>
+          <span className="tg-kpi-big__value">{formatCurrency(kpiTotals.plannedTotal)}</span>
+          <span className="tg-kpi-big__label">إجمالي المتوقع للتحصيل</span>
+          <span className="tg-kpi-big__hint">شهري مستقل · {filteredCustomers.length} عميل</span>
+        </button>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
-          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
-            <span>إجمالي المستحقات في النطاق</span>
-            <Wallet className="w-4 h-4 text-[var(--app-warn-text)]" />
+        {/* المستحقات — برتقالي (فواتير) */}
+        <button type="button" className="tg-kpi-big tg-kpi-big--invoices group cursor-pointer">
+          <div className="tg-kpi-big__top">
+            <span className="tg-kpi-big__icon tg-card--invoices"><Wallet className="w-5 h-5" /></span>
           </div>
-          <div className="text-base sm:text-lg font-black text-[var(--app-warn-text)] mt-1 font-mono">
-            {formatCurrency(kpiTotals.dueTotal)}
-          </div>
-          <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
-            للعملاء المطابقين للفلاتر الحالية
-          </div>
-        </div>
+          <span className="tg-kpi-big__value">{formatCurrency(kpiTotals.dueTotal)}</span>
+          <span className="tg-kpi-big__label">إجمالي المستحقات في النطاق</span>
+          <span className="tg-kpi-big__hint">لعملاء الفلاتر الحالية</span>
+        </button>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
-          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
-            <span>هدف التحصيل المطلوب</span>
-            <Target className="w-4 h-4 text-[var(--app-navy-text)]" />
+        {/* الهدف المطلوب — بنفسجي (زيارات) */}
+        <button type="button" className="tg-kpi-big tg-kpi-big--visits group cursor-pointer">
+          <div className="tg-kpi-big__top">
+            <span className="tg-kpi-big__icon tg-card--visits"><Target className="w-5 h-5" /></span>
           </div>
-          <div className="text-base sm:text-lg font-black text-[var(--app-navy-text)] mt-1 font-mono">
-            {formatCurrency(kpiTotals.targetCollection)}
-          </div>
-          <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
-            نسبة التغطية: <span className="text-[var(--app-ok-text)] font-black">{kpiTotals.coverage}%</span>
-          </div>
-        </div>
+          <span className="tg-kpi-big__value">{formatCurrency(kpiTotals.targetCollection)}</span>
+          <span className="tg-kpi-big__label">هدف التحصيل المطلوب</span>
+          <span className="tg-kpi-big__hint">نسبة التغطية: {kpiTotals.coverage}%</span>
+        </button>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
-          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
-            <span>المحقق الفعلي حتى الآن</span>
-            <CheckCircle2 className="w-4 h-4 text-[var(--app-navy-text)]" />
+        {/* المحقق الفعلي — أزرق (عملاء) */}
+        <button type="button" className="tg-kpi-big tg-kpi-big--customers group cursor-pointer">
+          <div className="tg-kpi-big__top">
+            <span className="tg-kpi-big__icon tg-card--customers"><CheckCircle2 className="w-5 h-5" /></span>
           </div>
-          <div className="text-base sm:text-lg font-black text-[var(--app-navy-text)] mt-1 font-mono">
-            {formatCurrency(kpiTotals.actualCollection)}
-          </div>
-          <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
-            فارق التوقع: {formatCurrency(kpiTotals.plannedTotal - kpiTotals.actualCollection)}
-          </div>
-        </div>
+          <span className="tg-kpi-big__value">{formatCurrency(kpiTotals.actualCollection)}</span>
+          <span className="tg-kpi-big__label">المحقق الفعلي حتى الآن</span>
+          <span className="tg-kpi-big__hint">فارق: {formatCurrency(kpiTotals.plannedTotal - kpiTotals.actualCollection)}</span>
+        </button>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
-          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
-            <span>الفروع في النطاق</span>
-            <MapPin className="w-4 h-4 text-[var(--app-navy-text)]" />
+        {/* الفروع — أز� (عملاء) */}
+        <button type="button" className="tg-kpi-big tg-kpi-big--customers group cursor-pointer">
+          <div className="tg-kpi-big__top">
+            <span className="tg-kpi-big__icon tg-card--customers"><MapPin className="w-5 h-5" /></span>
           </div>
-          <div className="text-base sm:text-lg font-black text-slate-900 mt-1 font-mono">
-            {kpiTotals.branchCount.toLocaleString('ar-EG')}
-          </div>
-          <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
-            {branchFilter === 'ALL' ? 'الفروع المطابقة للفلاتر' : branchFilter}
-          </div>
-        </div>
+          <span className="tg-kpi-big__value">{kpiTotals.branchCount.toLocaleString('ar-EG')}</span>
+          <span className="tg-kpi-big__label">الفروع في النطاق</span>
+          <span className="tg-kpi-big__hint">{branchFilter === 'ALL' ? 'الفروع المطابقة' : branchFilter}</span>
+        </button>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
-          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
-            <span>المشرفون في النطاق</span>
-            <UserCheck className="w-4 h-4 text-[var(--app-navy-text)]" />
+        {/* المشرفون + المناديب — أخضر (مبيعات) */}
+        <button type="button" className="tg-kpi-big tg-kpi-big--sales group cursor-pointer">
+          <div className="tg-kpi-big__top">
+            <span className="tg-kpi-big__icon tg-card--sales"><Users className="w-5 h-5" /></span>
           </div>
-          <div className="text-base sm:text-lg font-black text-slate-900 mt-1 font-mono">
-            {kpiTotals.supervisorCount.toLocaleString('ar-EG')}
-          </div>
-          <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
-            حسب الفرع والمشرف المختارين
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs">
-          <div className="text-[11px] font-bold text-slate-500 flex items-center justify-between">
-            <span>المناديب والعملاء</span>
-            <Users className="w-4 h-4 text-[var(--app-navy-text)]" />
-          </div>
-          <div className="flex items-baseline gap-3 mt-1">
-            <span className="text-base sm:text-lg font-black text-slate-900 font-mono">
-              {kpiTotals.repCount.toLocaleString('ar-EG')} <span className="text-[10px] text-slate-400">مندوب</span>
-            </span>
-            <span className="text-sm font-black text-[var(--app-navy-text)] font-mono">
-              {filteredCustomers.length.toLocaleString('ar-EG')} <span className="text-[10px] text-slate-400">عميل</span>
-            </span>
-          </div>
-          <div className="text-[10.5px] text-slate-500 font-bold mt-0.5">
-            {debtOnly ? 'العملاء عليهم مستحقات فقط' : 'كل العملاء في النطاق'}
-          </div>
-        </div>
+          <span className="tg-kpi-big__value">{kpiTotals.repCount.toLocaleString('ar-EG')}</span>
+          <span className="tg-kpi-big__label">مناديب وعملاء النطاق</span>
+          <span className="tg-kpi-big__hint">{filteredCustomers.length.toLocaleString('ar-EG')} عميل · {debtOnly ? 'مديونية فقط' : 'كل النطاق'}</span>
+        </button>
       </section>
 
       {/* ========================================================================= */}
-      {/* 3. Fast Instant Filter Bar (بدون أي تأخير)                                */}
+      {/* 3. Fast Instant Filter Bar (توحيد مع tg-input / tg-select)                  */}
       {/* ========================================================================= */}
-      <section className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-3 flex flex-wrap items-center gap-2.5">
-        <div className="relative flex-1 min-w-[220px]">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="بحث فوري باسم العميل أو الكود أو المندوب أو الفرع..."
-            className="w-full px-3 py-2 pl-8 rounded-xl border border-slate-300 text-xs focus:outline-none focus:border-[var(--app-ok)]"
-          />
-          <Search className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
+      <section className="tg-card p-4 sm:p-5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2.5 min-w-0">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="بحث فوري باسم العميل أو الكود أو المندوب أو الفرع..."
+                className="tg-input pr-10"
+              />
+            </div>
+
+            <select
+              value={branchFilter}
+              onChange={(e) => {
+                setBranchFilter(e.target.value);
+                setSupervisorFilter('ALL');
+                setRepFilter('ALL');
+              }}
+              aria-label="تصفية حسب الفرع"
+              className="tg-select"
+            >
+              <option value="ALL">كل الفروع ({branchOptions.length})</option>
+              {branchOptions.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+            </select>
+
+            <select
+              value={supervisorFilter}
+              onChange={(e) => {
+                setSupervisorFilter(e.target.value);
+                setRepFilter('ALL');
+              }}
+              aria-label="تصفية حسب المشرف"
+              className="tg-select"
+            >
+              <option value="ALL">كافة المشرفين ({supervisorOptions.length})</option>
+              {supervisorOptions.map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
+
+            <select
+              value={repFilter}
+              onChange={(e) => setRepFilter(e.target.value)}
+              aria-label="تصفية حسب المندوب"
+              className="tg-select"
+            >
+              <option value="ALL">كافة المناديب ({repOptions.length})</option>
+              {repOptions.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+
+            {weeksCount > 0 && (
+            <select
+              value={weekFilter}
+              onChange={(e) => setWeekFilter(e.target.value)}
+              className="tg-select"
+            >
+              <option value="ALL">كافة الفترات ({weeksCount})</option>
+              {weeks.map((w) => (
+                <option key={w.index} value={String(w.index)}>
+                  {weekLabel(w)} ({formatWeekRange(w)})
+                </option>
+              ))}
+            </select>
+            )}
+
+            <select
+              value={classFilter}
+              onChange={(e) => setClassFilter(e.target.value)}
+              className="tg-select"
+            >
+              <option value="ALL">كل التصنيفات</option>
+              <option value="eligible">قابل للتعامل فقط</option>
+              <option value="blocked">غير قابل للتعامل فقط</option>
+            </select>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={() => setDebtOnly((v) => !v)}
+              title="عرض العملاء الذين مديونيتهم أكبر من صفر، حتى لو كانت المستحقات غير مسجلة في الشيت"
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black border transition cursor-pointer ${
+                debtOnly
+                  ? 'bg-[var(--app-risk)] text-white border-[var(--app-risk)]'
+                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>{debtOnly ? 'المديونية أكبر من صفر' : 'كل العملاء'}</span>
+            </button>
+
+            <div className="flex items-center gap-1.5 text-xs font-bold text-[var(--tg-muted)]">
+              <span>عرض:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="tg-select"
+                style={{ width: 84 }}
+              >
+                <option value={15}>15</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="px-2 py-1.5 rounded-xl bg-[#f1f5f9] hover:bg-[#e2e8f0] text-slate-600 text-xs font-bold cursor-pointer border border-[var(--tg-line)]"
+              >
+                مسح البحث ✕
+              </button>
+            )}
+          </div>
         </div>
-
-        <select
-          value={branchFilter}
-          onChange={(e) => {
-            setBranchFilter(e.target.value);
-            setSupervisorFilter('ALL');
-            setRepFilter('ALL');
-          }}
-          aria-label="تصفية حسب الفرع"
-          className="min-w-[145px] px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white cursor-pointer"
-        >
-          <option value="ALL">كل الفروع ({branchOptions.length})</option>
-          {branchOptions.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
-        </select>
-
-        <select
-          value={supervisorFilter}
-          onChange={(e) => {
-            setSupervisorFilter(e.target.value);
-            setRepFilter('ALL');
-          }}
-          aria-label="تصفية حسب المشرف"
-          className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white cursor-pointer"
-        >
-          <option value="ALL">كافة المشرفين ({supervisorOptions.length})</option>
-          {supervisorOptions.map((name) => <option key={name} value={name}>{name}</option>)}
-        </select>
-
-        <select
-          value={repFilter}
-          onChange={(e) => setRepFilter(e.target.value)}
-          aria-label="تصفية حسب المندوب"
-          className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white cursor-pointer"
-        >
-          <option value="ALL">كافة المناديب ({repOptions.length})</option>
-          {repOptions.map(([id, name]) => (
-            <option key={id} value={id}>
-              {name}
-            </option>
-          ))}
-        </select>
-
-        {weeksCount > 0 && (
-        <select
-          value={weekFilter}
-          onChange={(e) => setWeekFilter(e.target.value)}
-          className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white cursor-pointer"
-        >
-          <option value="ALL">كافة الفترات ({weeksCount})</option>
-          {weeks.map((w) => (
-            <option key={w.index} value={String(w.index)}>
-              {weekLabel(w)} ({formatWeekRange(w)})
-            </option>
-          ))}
-        </select>
-        )}
-
-        <select
-          value={classFilter}
-          onChange={(e) => setClassFilter(e.target.value)}
-          className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold bg-white cursor-pointer"
-        >
-          <option value="ALL">كل التصنيفات</option>
-          <option value="eligible">قابل للتعامل فقط</option>
-          <option value="blocked">غير قابل للتعامل فقط</option>
-        </select>
-
-        <button
-          type="button"
-          onClick={() => setDebtOnly((v) => !v)}
-          title="عرض العملاء الذين مديونيتهم أكبر من صفر، حتى لو كانت المستحقات غير مسجلة في الشيت"
-          className={`px-3 py-2 rounded-xl text-xs font-black border transition cursor-pointer flex items-center gap-1.5 ${
-            debtOnly
-              ? 'bg-[var(--app-risk)] text-white border-[var(--app-risk)]'
-              : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
-          }`}
-        >
-          <Filter className="w-3.5 h-3.5" />
-          <span>{debtOnly ? 'المديونية أكبر من صفر' : 'كل العملاء'}</span>
-        </button>
-
-        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
-          <span>عرض:</span>
-          <select
-            value={pageSize}
-            onChange={(e) => setPageSize(Number(e.target.value))}
-            className="px-2 py-1 rounded-lg border border-slate-300 text-xs font-black bg-white cursor-pointer"
-          >
-            <option value={15}>15</option>
-            <option value={25}>25</option>
-            <option value={50}>50</option>
-            <option value={100}>100</option>
-          </select>
-        </div>
-
-        {search && (
-          <button
-            type="button"
-            onClick={() => setSearch('')}
-            className="px-2 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold cursor-pointer"
-          >
-            مسح البحث ✕
-          </button>
-        )}
       </section>
 
       {/* ========================================================================= */}
       {/* 4. Streamlined Customer Forecast Table (جدول العملاء والتوقع السريع)      */}
       {/* ========================================================================= */}
-      <section className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
+      <section className="bg-white rounded-[22px] border border-[var(--tg-line)] shadow-[var(--tg-shadow)] overflow-hidden">
+        <div className="px-4 py-3 bg-[var(--tg-card-2)] border-b border-[var(--tg-line)] flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <Users className="w-4 h-4 text-[var(--app-ok-text)]" />
-            <span className="text-xs font-black text-slate-900">
+            <Users className="w-4 h-4 text-emerald-700" />
+            <span className="text-xs font-black text-[#0b2337]">
               قائمة العملاء وبيانات المديونية والمستحقات والتوقع
             </span>
-            <span className="text-[11px] font-bold text-slate-500 font-mono">
+            <span className="text-[11px] font-bold text-[var(--tg-muted)] font-mono">
               ({sortedCustomers.length} عميل مطابق)
             </span>
           </div>
-          <div className="text-[11px] text-slate-500 font-medium flex items-center gap-2">
+          <div className="text-[11px] text-[var(--tg-muted)] font-medium flex items-center gap-2">
             <span>💡 اضغط على اسم العميل أو زر (👁️) لفتح الملف الشامل والزيارات</span>
           </div>
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs border-collapse">
-            <thead className="bg-slate-900 text-slate-100 font-black">
+          <table className="tg-table w-full text-right text-xs border-collapse">
+            <thead className="bg-[var(--tg-card-2)] text-[#0f172a] font-black sticky top-0 z-10">
               <tr>
                 {/* مفيش عمود رقم عن قصد: الكود هو أول عمود وعنوانه فوق خانة
                     الكود على طول، فمفيش أي سبب يخلي الصف ينزلق تحت عنوان غلط. */}
@@ -1949,7 +1912,7 @@ export default function CollectionForecastView() {
                 <th className="p-3 text-center">الإجراءات</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-[var(--tg-line)]">
               {pageCustomers.map((c) => {
                 const balance = resolveCustomerBalanceValue(c);
                 const dues = resolveCustomerDuesValue(c);
@@ -2381,7 +2344,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                   <th className="p-2.5 text-center">الإجراءات</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-[var(--tg-line)]">
                 {progress.map((p) => (
                   <tr key={p.repId || p.repName} className="hover:bg-slate-50/70 transition-colors">
                     <td className="p-2.5 font-bold text-slate-600 whitespace-nowrap">{p.branchName || '—'}</td>
@@ -2771,7 +2734,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                           <th className="p-2.5 text-center">نسبة السداد</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100">
+                      <tbody className="divide-y divide-[var(--tg-line)]">
                         {MONTH_NAMES_AR_12.map((mName, idx) => {
                           const mNum = idx + 1;
                           const s = c.monthlySales2026?.[mNum] || 0;
@@ -3061,7 +3024,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
                         <th className="p-2.5 text-center w-16">إزالة</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-[var(--tg-line)]">
                       {planDraft.weeks.map((w) => {
                         const len =
                           (new Date(w.end).getTime() - new Date(w.start).getTime()) / 86400000 + 1;

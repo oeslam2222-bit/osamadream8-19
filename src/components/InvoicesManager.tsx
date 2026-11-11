@@ -35,12 +35,6 @@ import {
   Boxes,
   Truck,
   RefreshCw,
-  Share2,
-  Printer,
-  ChevronDown,
-  CreditCard,
-  Handshake,
-  ShoppingCart,
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -52,7 +46,6 @@ import { CreditAuditModal } from './CreditAuditModal';
 import { CreditStatusBadge } from './CreditStatusBadge';
 import { OrderReturnModal } from './OrderReturnModal';
 import { ExcelInvoicePreviewModal } from './ExcelInvoicePreviewModal';
-import { PowerAppsSharePointBridgeModal } from './PowerAppsSharePointBridgeModal';
 import { EmptyState } from './ui/EmptyState';
 
 interface InvoicesManagerProps {
@@ -116,7 +109,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
-  const [showPowerAppsModal, setShowPowerAppsModal] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -301,21 +293,21 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     setTimeout(() => setSuccessToast(null), 4500);
   };
 
-  // شارات الحالة بألوان باستيل موحدة مع هوية النظام
-  const statusStyles: Record<string, { bg: string; text?: string; label?: string; border: string }> = {
-    'مسودة': { bg: 'bg-slate-50', text: 'text-slate-700', label: 'مسودة', border: 'border-slate-200' },
-    'قيد مراجعة المشرف': { bg: 'bg-amber-50', text: 'text-amber-800', label: 'قيد مراجعة المشرف', border: 'border-amber-200' },
-    'معلقة بانتظار اعتماد الفرع': { bg: 'bg-amber-50', text: 'text-amber-800', label: 'بانتظار مدير الفرع', border: 'border-amber-200' },
-    'قيد المراجعة': { bg: 'bg-amber-50', text: 'text-amber-800', label: 'قيد المراجعة', border: 'border-amber-200' },
-    'في انتظار اعتماد الإدارة': { bg: 'bg-amber-50', text: 'text-amber-800', label: 'في انتظار الإدارة', border: 'border-amber-200' },
-    'معتمدة ومصروفة من المخزن': { bg: 'bg-emerald-50', text: 'text-emerald-800', label: 'معتمدة ومصروفة', border: 'border-emerald-200' },
-    'معتمدة': { bg: 'bg-emerald-50', text: 'text-emerald-800', label: 'معتمدة', border: 'border-emerald-200' },
-    'جاري التجهيز': { bg: 'bg-blue-50', text: 'text-blue-800', label: 'جاري التجهيز', border: 'border-blue-200' },
-    'جاري تحضير المنتجات': { bg: 'bg-blue-50', text: 'text-blue-800', label: 'جارٍ التحضير', border: 'border-blue-200' },
-    'تم التسليم': { bg: 'bg-emerald-50', text: 'text-emerald-800', label: 'تم التسليم', border: 'border-emerald-200' },
-    'إغلاق الطلبية': { bg: 'bg-emerald-50', text: 'text-emerald-800', label: 'مغلقة', border: 'border-emerald-200' },
-    'مرفوضة / ملغاة': { bg: 'bg-rose-50', text: 'text-rose-800', label: 'مرفوضة / ملغاة', border: 'border-rose-200' },
-    'ملغاة': { bg: 'bg-rose-50', text: 'text-rose-800', label: 'ملغاة', border: 'border-rose-200' },
+  // شارات الحالة بألوان الهوية الموحدة (tg-badge)
+  const statusStyles: Record<string, { variant: 'gray' | 'warn' | 'ok' | 'blue' | 'emerald' | 'risk'; label?: string }> = {
+    'مسودة': { variant: 'gray', label: 'مسودة' },
+    'قيد مراجعة المشرف': { variant: 'warn', label: 'قيد مراجعة المشرف' },
+    'معلقة بانتظار اعتماد الفرع': { variant: 'warn', label: 'بانتظار مدير الفرع' },
+    'قيد المراجعة': { variant: 'warn', label: 'قيد المراجعة' },
+    'في انتظار اعتماد الإدارة': { variant: 'warn', label: 'في انتظار الإدارة' },
+    'معتمدة ومصروفة من المخزن': { variant: 'ok', label: 'معتمدة ومصروفة' },
+    'معتمدة': { variant: 'ok', label: 'معتمدة' },
+    'جاري التجهيز': { variant: 'blue', label: 'جاري التجهيز' },
+    'جاري تحضير المنتجات': { variant: 'blue', label: 'جارٍ التحضير' },
+    'تم التسليم': { variant: 'emerald', label: 'تم التسليم' },
+    'إغلاق الطلبية': { variant: 'emerald', label: 'مغلقة' },
+    'مرفوضة / ملغاة': { variant: 'risk', label: 'مرفوضة / ملغاة' },
+    'ملغاة': { variant: 'risk', label: 'ملغاة' },
   };
 
   const handleSupervisorApprove = (invoiceId: string) => {
@@ -414,55 +406,45 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   return (
     <div className="tg-dash space-y-4" dir="rtl">
 
-      {/* Success Notification Toast */}
+      {/* Success Notification Toast (الهوية الموحدة) */}
       {successToast && (
-        <div className="bg-emerald-600 text-white p-3.5 rounded-[22px] shadow-lg shadow-emerald-500/25 flex items-center justify-between text-xs animate-in fade-in sticky top-4 z-30">
-          <div className="flex items-center gap-2 font-bold">
-            <CheckCircle2 className="w-5 h-5 text-white/70" />
+        <div className="tg-toast">
+          <div className="tg-toast-item tg-toast--ok">
+            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
             <span>{successToast}</span>
+            <button onClick={() => setSuccessToast(null)} className="ml-auto text-white/80 hover:text-white">
+              <X className="w-3 h-3" />
+            </button>
           </div>
-          <button onClick={() => setSuccessToast(null)} className="text-white hover:text-white/70">
-            <X className="w-4 h-4" />
-          </button>
         </div>
       )}
 
-      {/* ---------- Hero Header (مطابق للتصميم الجديد) ---------- */}
+      {/* ---------- Hero Header (كحلي الهوية) ---------- */}
       <section className="ds-pagehead">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
           <div>
-            <div className="text-[11px] font-bold text-[#a9c8e4] mb-1 tracking-wider">
-              الرئيسية <span className="mx-1 text-[#7fc0ff]">›</span> أوامر البيع والاعتمادات
+            <div className="text-[11px] font-bold text-[#a9c8e4] mb-1 tracking-wider uppercase">
+              الرئيسية <span className="mx-1 text-[#7fc0ff]">›</span> الفواتير والاعتمادات
             </div>
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-xl bg-blue-600/30 text-blue-300 flex items-center justify-center shrink-0 shadow-xs border border-blue-400/30">
-                <FileText className="w-5 h-5 text-blue-200" />
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 shadow-xs border border-white/20">
+                <Receipt className="w-5 h-5" />
               </div>
               <div>
                 <h2 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-                  <span className="font-black">أوامر البيع والاعتمادات</span>
+                  <span className="font-black">الفواتير والاعتمادات</span>
                   <span className="bg-[rgba(255,255,255,0.15)] border border-white/20 text-[#7fc0ff] text-[10px] px-2.5 py-0.5 rounded-full font-bold whitespace-nowrap">
-                    {accessibleInvoices.length} أمر بيع
+                    {accessibleInvoices.length} فاتورة
                   </span>
                 </h2>
                 <p className="text-xs text-[#c3d9ec] mt-0.5">
-                  متابعة أوامر البيع، وحالات الاعتماد والسداد، وتصدير التقارير.
+                  إدارة أوامر البيع، حالات الاعتماد، وعرض فواتير المناديب حسب نطاق صلاحيتك.
                 </p>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowPowerAppsModal(true)}
-              className="flex items-center gap-1.5 px-3 h-10 rounded-xl text-xs font-black border border-white/20 bg-white/10 text-white hover:bg-white/20 transition shadow-xs cursor-pointer shadow-sm"
-              title="ربط ومزامنة أوامر البيع والاعتمادات مع Microsoft Power Apps & SharePoint"
-            >
-              <Share2 className="w-4 h-4 text-white" />
-              <span className="hidden md:inline">ربط Power Apps</span>
-              <span className="md:hidden">Power Apps</span>
-            </button>
-
             <button
               onClick={handleManualRefresh}
               disabled={isRefreshing}
@@ -484,248 +466,197 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         </div>
       </section>
 
-      {/* ---------- KPI Cards Row (مطابق للباستيل في صورة أوامر البيع) ---------- */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* كارت 1: أوامر البيع (Rose / Red) */}
-        <button
-          type="button"
-          onClick={() => setSelectedStatus('قيد مراجعة المشرف')}
-          className="p-4 sm:p-5 rounded-2xl bg-[#fff1f2] border border-[#fecdd3] hover:shadow-md transition text-start cursor-pointer group flex items-center justify-between"
-        >
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-black text-rose-700 mb-1">
-              <ShoppingCart size={15} />
-              <span>أوامر البيع</span>
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-rose-950 tabular-nums">
-              {tabCounts.pending.toLocaleString('en-US')}
-            </div>
-            <div className="text-[11px] font-bold text-rose-600 mt-1 flex items-center gap-1">
-              <AlertTriangle size={11} />
-              <span>غير اعتماد</span>
-            </div>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 shadow-inner">
-            <ShoppingCart size={24} />
-          </div>
-        </button>
-
-        {/* كارت 2: أوامر معتمدة (Emerald / Green) */}
-        <button
-          type="button"
-          onClick={() => setSelectedStatus('معتمدة ومصروفة من المخزن')}
-          className="p-4 sm:p-5 rounded-2xl bg-[#f0fdf4] border border-[#bbf7d0] hover:shadow-md transition text-start cursor-pointer group flex items-center justify-between"
-        >
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-black text-emerald-700 mb-1">
-              <Handshake size={15} />
-              <span>أوامر معتمدة</span>
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-emerald-950 tabular-nums">
-              {tabCounts.approved.toLocaleString('en-US')}
-            </div>
-            <div className="text-[11px] font-bold text-emerald-600 mt-1 flex items-center gap-1">
-              <TrendingUp size={11} />
-              <span>عن الشهر الماضي</span>
-            </div>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 shadow-inner">
-            <CheckCircle2 size={24} />
-          </div>
-        </button>
-
-        {/* كارت 3: قيد المراجعة (Amber / Yellow) */}
-        <button
-          type="button"
-          onClick={() => setSelectedStatus('قيد مراجعة المشرف')}
-          className="p-4 sm:p-5 rounded-2xl bg-[#fffbeb] border border-[#fef08a] hover:shadow-md transition text-start cursor-pointer group flex items-center justify-between"
-        >
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-black text-amber-700 mb-1">
-              <Clock size={15} />
-              <span>قيد المراجعة</span>
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-amber-950 tabular-nums">
-              {tabCounts.pending.toLocaleString('en-US')}
-            </div>
-            <div className="text-[11px] font-bold text-amber-600 mt-1 flex items-center gap-1">
-              <Clock size={11} />
-              <span>كما الشهر الماضي</span>
-            </div>
-          </div>
-          <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 shadow-inner">
-            <Clock size={24} />
-          </div>
-        </button>
-
-        {/* كارت 4: إجمالي المبيعات (Blue) */}
+      {/* ---------- KPI Cards Row (التصميم الجديد — كروت ملونة، أرقام كبيرة) ---------- */}
+      <section className="tg-grid-4">
+        {/* Total invoices — Orange (فواتير) */}
         <button
           type="button"
           onClick={() => setSelectedStatus('الكل')}
-          className="p-4 sm:p-5 rounded-2xl bg-[#eff6ff] border border-[#bfdbfe] hover:shadow-md transition text-start cursor-pointer group flex items-center justify-between"
+          className="tg-kpi-big tg-kpi-big--invoices group cursor-pointer"
         >
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-black text-blue-700 mb-1">
-              <TrendingUp size={15} />
-              <span>إجمالي المبيعات</span>
-            </div>
-            <div className="text-2xl sm:text-3xl font-black text-blue-950 tabular-nums">
-              {tabCounts.all.toLocaleString('en-US')}
-            </div>
-            <div className="text-[11px] font-bold text-blue-600 mt-1 flex items-center gap-1">
-              <TrendingUp size={11} />
-              <span>+ عن الشهر الماضي</span>
-            </div>
+          <div className="tg-kpi-big__top">
+            <span className="tg-kpi-big__icon tg-card--invoices">
+              <FileText size={20} />
+            </span>
+            <ArrowUpRight size={16} className="opacity-60" />
           </div>
-          <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 shadow-inner">
-            <TrendingUp size={24} />
+          <span className="tg-kpi-big__value">{tabCounts.all.toLocaleString('en-US')}</span>
+          <span className="tg-kpi-big__label">إجمالي الفواتير</span>
+          <span className="tg-kpi-big__hint">كل الفواتير المسجلة</span>
+        </button>
+
+        {/* Approved — Green (مبيعات/مكتمل) */}
+        <button
+          type="button"
+          onClick={() => setSelectedStatus('معتمدة ومصروفة من المخزن')}
+          className="tg-kpi-big tg-kpi-big--sales group cursor-pointer"
+        >
+          <div className="tg-kpi-big__top">
+            <span className="tg-kpi-big__icon tg-card--sales">
+              <CheckCircle2 size={20} />
+            </span>
+            <ArrowUpRight size={16} className="opacity-60" />
           </div>
+          <span className="tg-kpi-big__value">{tabCounts.approved.toLocaleString('en-US')}</span>
+          <span className="tg-kpi-big__label">معتمدة ومصروفة</span>
+          <span className="tg-kpi-big__hint">فواتير مكتملة وصروفة</span>
+        </button>
+
+        {/* Pending — Blue (قيد المعالجة) */}
+        <button
+          type="button"
+          onClick={() => setSelectedStatus('قيد مراجعة المشرف')}
+          className="tg-kpi-big tg-kpi-big--customers group cursor-pointer"
+        >
+          <div className="tg-kpi-big__top">
+            <span className="tg-kpi-big__icon tg-card--customers">
+              <Clock size={20} />
+            </span>
+            <ArrowUpRight size={16} className="opacity-60" />
+          </div>
+          <span className="tg-kpi-big__value">{tabCounts.pending.toLocaleString('en-US')}</span>
+          <span className="tg-kpi-big__label">بانتظار الاعتماد</span>
+          <span className="tg-kpi-big__hint">قيد المراجعة والاعتماد</span>
+        </button>
+
+        {/* Cancelled — Red (ملغاة) */}
+        <button
+          type="button"
+          onClick={() => setSelectedStatus('مرفوضة / ملغاة')}
+          className="tg-kpi-big tg-kpi-big--risk group cursor-pointer"
+        >
+          <div className="tg-kpi-big__top">
+            <span className="tg-kpi-big__icon" style={{ background: '#fee2e2', color: '#ef4444', boxShadow: '0 6px 14px rgba(239, 68, 68, 0.22)' }}>
+              <AlertTriangle size={20} />
+            </span>
+            <ArrowUpRight size={16} className="opacity-60" />
+          </div>
+          <span className="tg-kpi-big__value">{tabCounts.cancelled.toLocaleString('en-US')}</span>
+          <span className="tg-kpi-big__label">ملغاة / مرفوضة</span>
+          <span className="tg-kpi-big__hint">فواتير ملغاة أو مرفوضة</span>
         </button>
       </section>
 
-      {/* ---------- شريط الفلاتر والبحث (مطابق لصورة أوامر البيع) ---------- */}
-      <section className="bg-[#0b1e33] text-white p-4 sm:p-5 rounded-2xl shadow-xl space-y-3.5 border border-white/10">
-        <div className="flex flex-wrap items-center gap-2.5">
-          {/* البحث برقم الفاتورة أو اسم العميل */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="البحث برقم الفاتورة أو اسم العميل..."
-              className="w-full pl-3 pr-9 py-2 bg-white/10 border border-white/20 rounded-xl text-xs font-bold text-white placeholder:text-slate-400 focus:bg-white/15 focus:outline-none focus:ring-2 focus:ring-blue-400 transition"
-            />
-          </div>
-
-          {/* زر تصدير Excel */}
-          <button
-            type="button"
-            onClick={handleExportList}
-            title="تصدير الفواتير إلى ملف Excel"
-            className="flex items-center gap-1.5 bg-emerald-600/90 hover:bg-emerald-600 border border-emerald-400/30 px-3.5 py-2 rounded-xl text-xs font-black text-white shadow-sm transition active:scale-95 cursor-pointer shrink-0"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
-            <span>تصدير Excel</span>
-          </button>
-
-          {/* الفترة الزمنية */}
-          <div className="flex items-center gap-1.5 bg-white/10 border border-white/20 rounded-xl px-2.5 py-1.5 shrink-0">
-            <span className="text-[10px] text-slate-400 font-bold whitespace-nowrap">الفترة:</span>
-            <select
-              value={viewSegment}
-              onChange={(e) => setViewSegment(e.target.value as any)}
-              className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
+      {/* ---------- Filters Bar (فاتح مع حدود كحلية) ---------- */}
+      <section className="tg-card p-5 sm:p-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          {/* Left: Export + Search */}
+          <div className="flex items-center gap-4 flex-wrap min-w-0">
+            <button
+              type="button"
+              onClick={handleExportList}
+              title="تصدير الفواتير إلى ملف Excel"
+              className="flex items-center gap-2 bg-white border border-[var(--tg-line)] px-4 py-2.5 rounded-xl text-sm font-black text-[#0b2337] shadow-sm hover:bg-[#eef5fd] transition active:scale-95 cursor-pointer"
             >
-              <option value="all" className="bg-[#0b1e33] text-white">الكل</option>
-              <option value="invoices" className="bg-[#0b1e33] text-white">الفواتير فقط</option>
-            </select>
+              <Download className="w-4 h-4 text-[#0b2337]" />
+              <span>تصدير Excel</span>
+            </button>
+
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="ابحث برقم الفاتورة أو اسم العميل..."
+                className="tg-input"
+              />
+            </div>
           </div>
 
-          {/* العميل */}
-          <div className="flex items-center gap-1.5 bg-white/10 border border-white/20 rounded-xl px-2.5 py-1.5 shrink-0 min-w-[130px]">
-            <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <select
-              value={selectedCustomerId || 'الكل'}
-              onChange={(e) => setSelectedCustomerId(e.target.value === 'الكل' ? null : e.target.value)}
-              className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer w-full truncate"
-            >
-              <option value="الكل" className="bg-[#0b1e33] text-white">العميل: الكل</option>
-              {customers.slice(0, 30).map((c) => (
-                <option key={c.id} value={c.id} className="bg-[#0b1e33] text-white">
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* الحالة */}
-          <div className="flex items-center gap-1.5 bg-white/10 border border-white/20 rounded-xl px-2.5 py-1.5 shrink-0">
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
-            >
-              <option value="الكل" className="bg-[#0b1e33] text-white">الحالة: الكل</option>
-              <option value="معتمدة ومصروفة من المخزن" className="bg-[#0b1e33] text-white">معتمدة</option>
-              <option value="قيد مراجعة المشرف" className="bg-[#0b1e33] text-white">قيد المراجعة</option>
-              <option value="مرفوضة / ملغاة" className="bg-[#0b1e33] text-white">ملغاة / مرفوضة</option>
-              <option value="فواتير النواقص" className="bg-[#0b1e33] text-white">النواقص</option>
-            </select>
-          </div>
-
-          {/* المندوب */}
-          {currentUser?.role !== 'sales_rep' && (
-            <div className="flex items-center gap-1.5 bg-white/10 border border-white/20 rounded-xl px-2.5 py-1.5 shrink-0">
-              <UserCheck className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          {/* Right filters */}
+          <div className="flex items-center gap-3 flex-wrap min-w-0">
+            {/* حالة الفاتورة */}
+            <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[150px]">
+              <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">حالة الفاتورة</span>
               <select
-                value={selectedRepFilter}
-                onChange={(e) => setSelectedRepFilter(e.target.value)}
-                className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="tg-select"
               >
-                {repsList.map((r) => (
-                  <option key={r} value={r} className="bg-[#0b1e33] text-white">
-                    {r}
-                  </option>
-                ))}
+                <option value="الكل">الكل</option>
+                <option value="فواتير الأصناف المتوفرة">الأصناف المتوفرة</option>
+                <option value="فواتير النواقص">النواقص (-NQ)</option>
+                <option value="قيد مراجعة المشرف">قيد مراجعة المشرف</option>
+                <option value="معلقة بانتظار اعتماد الفرع">بانتظار مدير الفرع</option>
+                <option value="في انتظار اعتماد الإدارة">في انتظار الإدارة</option>
+                <option value="معتمدة ومصروفة من المخزن">معتمدة ومصروفة</option>
+                <option value="مرفوضة / ملغاة">مرفوضة / ملغاة</option>
               </select>
             </div>
-          )}
-
-          {/* التاريخ من / إلى */}
-          <div className="flex items-center gap-2 bg-white/10 border border-white/20 rounded-xl px-2.5 py-1.5 shrink-0">
-            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-slate-400">من</span>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="bg-transparent text-white text-[11px] font-mono focus:outline-none cursor-pointer"
-              />
+            {/* المندوب */}
+            {currentUser?.role !== 'sales_rep' && (
+              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[150px]">
+                <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">المندوب</span>
+                <select
+                  value={selectedRepFilter}
+                  onChange={(e) => setSelectedRepFilter(e.target.value)}
+                  className="tg-select"
+                >
+                  {repsList.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {/* الفرع */}
+            {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') && (
+              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[150px]">
+                <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">الفرع</span>
+                <select
+                  value={selectedBranchFilter}
+                  onChange={(e) => setSelectedBranchFilter(e.target.value)}
+                  className="tg-select"
+                >
+                  <option value="الكل">الكل</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.name}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {/* التاريخ من / إلى */}
+            <div className="flex items-end gap-2 bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-1.5">
+              <Calendar className="w-4 h-4 text-slate-400 mb-1.5 shrink-0" />
+              <div className="flex flex-col">
+                <span className="text-[9px] text-slate-600 font-bold leading-none mb-0.5">من</span>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  aria-label="من تاريخ"
+                  className="bg-transparent font-black text-[#0b2337] text-[11px] focus:outline-none cursor-pointer"
+                />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] text-slate-600 font-bold leading-none mb-0.5">إلى</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  aria-label="إلى تاريخ"
+                  className="bg-transparent font-black text-[#0b2337] text-[11px] focus:outline-none cursor-pointer"
+                />
+              </div>
+              {(dateFrom || dateTo) && (
+                <button
+                  type="button"
+                  onClick={() => { setDateFrom(''); setDateTo(''); }}
+                  title="مسح فلتر التاريخ"
+                  className="text-slate-500 hover:text-rose-500 mb-1 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-slate-400">إلى</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="bg-transparent text-white text-[11px] font-mono focus:outline-none cursor-pointer"
-              />
-            </div>
-          </div>
-
-          {/* أزرار البحث وعرض الكل */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => {}}
-              className="flex items-center gap-1 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-black transition active:scale-95 shadow-sm cursor-pointer"
-            >
-              <Search size={13} />
-              <span>بحث</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setSearchTerm('');
-                setSelectedStatus('الكل');
-                setSelectedRepFilter('الكل');
-                setSelectedCustomerId(null);
-                setDateFrom('');
-                setDateTo('');
-              }}
-              className="flex items-center gap-1 px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs font-black transition active:scale-95 cursor-pointer"
-            >
-              <RotateCcw size={13} />
-              <span>عرض الكل</span>
-            </button>
           </div>
         </div>
-      </section>
 
-      {/* Quick filter tabs (باستيل الهوية) */}
-      <section className="tg-card p-5 sm:p-6 space-y-4">
+        {/* Quick filter tabs (باستيل الهوية) */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 w-full">
           <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold scrollbar-none w-full sm:w-auto min-w-0">
             {[
@@ -813,12 +744,12 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       <div className="space-y-4">
 
         {accessibleInvoices.length === 0 ? (
-          <div className="tg-card p-12 sm:p-8 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[28px] bg-slate-100 text-slate-400 shadow-inner">
+          <div className="tg-empty-state">
+            <div className="tg-empty-state__icon">
               <Receipt className="w-8 h-8" />
             </div>
-            <h3 className="text-base font-black text-[#0b2337]">لا توجد أوامر بيع</h3>
-            <p className="mt-1 text-sm font-bold text-slate-500">
+            <h3 className="tg-empty-state__title">لا توجد أوامر بيع</h3>
+            <p className="tg-empty-state__sub">
               يمكنك إنشاء أمر بيع جديد للعميل عبر الضغط على زر "فاتورة جديدة" بالأعلى.
             </p>
             <button
@@ -835,7 +766,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             {/* Mobile Cards Layout (mobiles/tablets) */}
             <div className="md:hidden space-y-3">
               {displayedInvoices.map((invoice) => {
-                const style = statusStyles[invoice.status] || { bg: 'bg-slate-50', text: 'text-slate-700', label: invoice.status, border: 'border-slate-200' };
+                const style = statusStyles[invoice.status] || { variant: 'gray', label: invoice.status };
                 const isPending =
                   invoice.status === 'قيد مراجعة المشرف' ||
                   invoice.status === 'معلقة بانتظار اعتماد الفرع' ||
@@ -860,7 +791,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                     {/* Header: Number + Status */}
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono font-black text-xs px-2.5 py-1 rounded-lg bg-slate-50 text-[#0b2337] border border-[var(--tg-line)]">
+                        <span className="font-mono font-black text-xs px-2.5 py-1 rounded-lg bg-[#f1f5f9] text-[#0b2337] border border-[var(--tg-line)]">
                           #{invoice.invoiceNumber}
                         </span>
                         {invoice.isShortageInvoice && (
@@ -869,7 +800,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           </span>
                         )}
                       </div>
-                      <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-black ${style.bg} ${style.text || ''} ${style.border}`}>
+                      <span className={`tg-badge tg-badge--${style.variant}`}>
                         {style.label || invoice.status}
                       </span>
                     </div>
@@ -893,7 +824,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                     </div>
 
                     {/* Stats Strip */}
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-[var(--tg-line)]">
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-[#f1f5f9] border border-[var(--tg-line)]">
                       <div>
                         <div className="text-[10px] text-slate-500 font-bold">الكميات المطلوبة</div>
                         <div className="text-xs font-black text-[#0b2337] mt-0.5">
@@ -924,7 +855,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => onEditInvoice(invoice)}
-                            className="h-9 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                            className="h-9 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
                           >
                             <Pencil className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                             <span>تعديل</span>
@@ -947,18 +878,18 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         <button
                           type="button"
                           onClick={() => downloadInvoicePDF(invoice)}
-                          className="w-9 h-9 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-[var(--tg-line)] flex items-center justify-center transition cursor-pointer"
+                          className="w-9 h-9 rounded-xl bg-[#f1f5f9] hover:bg-[#e2e8f0] text-slate-700 border border-[var(--tg-line)] flex items-center justify-center transition cursor-pointer"
                           title="تحميل PDF"
                         >
-                          <Download className="w-4 h-4" />
+                          <Download className="w-4 h-4 text-slate-600" />
                         </button>
                         <button
                           type="button"
                           onClick={() => setPreviewExcelInvoice(invoice)}
-                          className="w-9 h-9 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-[var(--tg-line)] flex items-center justify-center transition cursor-pointer"
+                          className="w-9 h-9 rounded-xl bg-[#f1f5f9] hover:bg-[#e2e8f0] text-emerald-600 border border-[var(--tg-line)] flex items-center justify-center transition cursor-pointer"
                           title="معاينة إكسل"
                         >
-                          <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                          <FileSpreadsheet className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -967,28 +898,31 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               })}
             </div>
 
-            {/* Desktop Table View (مطابق لجدول أوامر البيع في الصورة) */}
-            <div className="hidden md:block overflow-hidden rounded-[24px] border border-[var(--tg-line)] bg-white shadow-sm">
-              <table className="invoice-orders-table w-full text-right text-xs">
-                <thead className="bg-[#f8fafc] text-slate-700 font-black border-b border-[var(--tg-line)] sticky top-0 z-10">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-hidden rounded-[28px] border border-[var(--tg-line)] bg-white shadow-sm">
+              <table className="tg-table w-full text-right text-xs">
+                <thead className="bg-[var(--tg-card-2)] text-[#0f172a] font-black sticky top-0 z-10">
                   <tr>
-                    <th className="p-3 text-[11px] font-black text-center w-12">#</th>
-                    <th className="p-3 text-[11px] font-black whitespace-nowrap">رقم الأمر</th>
-                    <th className="p-3 text-[11px] font-black whitespace-nowrap">التاريخ</th>
-                    <th className="p-3 text-[11px] font-black whitespace-nowrap">العميل</th>
-                    <th className="p-3 text-[11px] font-black text-center whitespace-nowrap">نوع الأمر</th>
-                    <th className="p-3 text-[11px] font-black whitespace-nowrap">المبلغ</th>
-                    <th className="p-3 text-[11px] font-black text-center whitespace-nowrap">حالة الاعتماد</th>
-                    <th className="p-3 text-[11px] font-black text-center whitespace-nowrap">حالة السداد</th>
-                    <th className="p-3 text-[11px] font-black text-center whitespace-nowrap">الإجراءات</th>
+                    <th className="font-black whitespace-nowrap uppercase tracking-tighter">رقم الفاتورة</th>
+                    <th className="whitespace-nowrap">العميل</th>
+                    <th className="whitespace-nowrap">المندوب</th>
+                    <th className="whitespace-nowrap">الفرع</th>
+                    <th className="whitespace-nowrap">التاريخ</th>
+                    <th className="text-center whitespace-nowrap">الكميات</th>
+                    <th className="text-left whitespace-nowrap">الإجمالي</th>
+                    <th className="text-center whitespace-nowrap">طريقة الدفع</th>
+                    <th className="text-center whitespace-nowrap">الحالة</th>
+                    <th className="text-center whitespace-nowrap">الإجراءات</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--tg-line)] bg-white">
-                  {displayedInvoices.map((invoice, idx) => {
-                    const isApproved = invoice.status === 'معتمدة ومصروفة من المخزن' || (invoice.status as string) === 'معتمد';
-                    const isPending = invoice.status.includes('قيد') || invoice.status.includes('معلقة') || invoice.status.includes('انتظار') || invoice.status === 'مسودة';
-                    const isCancelled = invoice.status.includes('ملغ') || invoice.status.includes('مرفوض');
-                    const isPaid = invoice.paymentMethod === 'نقدي (كاش)' || (invoice as any).paymentStatus === 'مدفوع';
+                <tbody>
+                  {displayedInvoices.map((invoice) => {
+                    const style = statusStyles[invoice.status] || { variant: 'gray', label: invoice.status };
+                    const isPending =
+                      invoice.status === 'قيد مراجعة المشرف' ||
+                      invoice.status === 'معلقة بانتظار اعتماد الفرع' ||
+                      invoice.status === 'قيد المراجعة' ||
+                      invoice.status === 'مسودة';
 
                     const isOwnerRep = currentUser?.role === 'sales_rep' && (invoice.repId === currentUser.id || invoice.repName === currentUser.name);
                     const canEditPending = Boolean(
@@ -1003,156 +937,93 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                     return (
                       <tr
                         key={invoice.id}
-                        className="hover:bg-[#f8fafc] transition-colors group border-b border-[var(--tg-line)] last:border-0"
+                        className="hover:bg-[#f6f9fe] transition-colors group border-b border-[var(--tg-line)] last:border-0"
                       >
-                        {/* 1. الرقم الترتيبي # */}
-                        <td className="p-3.5 text-center text-slate-400 font-bold font-mono">
-                          {idx + 1}
-                        </td>
-
-                        {/* 2. رقم الأمر */}
-                        <td className="p-3.5">
-                          <span className="font-mono font-black text-sm text-[#0b2337]">
-                            {invoice.invoiceNumber}
-                          </span>
-                          {invoice.isShortageInvoice && (
-                            <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 mr-1.5">
-                              نواقص
-                            </span>
-                          )}
-                        </td>
-
-                        {/* 3. التاريخ */}
-                        <td className="p-3.5 whitespace-nowrap">
-                          <div className="font-mono text-xs font-bold text-[#0b2337]">{invoice.date}</div>
-                          <div className="text-[10px] text-slate-400">
-                            {invoice.createdAt ? new Date(invoice.createdAt).toLocaleDateString('ar-EG', { weekday: 'long' }) : 'أمر مسجل'}
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono font-black text-sm text-[#0b2337]">{invoice.invoiceNumber}</span>
+                            {invoice.isShortageInvoice && (
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 ml-1">
+                                نواقص
+                              </span>
+                            )}
                           </div>
                         </td>
-
-                        {/* 4. العميل */}
-                        <td className="p-3.5">
+                        <td>
                           <div
                             onClick={() => handleSelectCustomer(invoice.customerId)}
-                            className="cursor-pointer hover:text-blue-700 transition"
+                            className="cursor-pointer hover:text-[#0b2337] transition"
                           >
                             <div className="font-black text-sm text-[#0b2337] truncate">{invoice.customerName}</div>
-                            <div className="text-[10px] text-slate-500 font-medium mt-0.5">
-                              مندوب: {invoice.repName} • {invoice.branchName}
-                            </div>
+                            <div className="text-[11px] text-slate-500 font-medium mt-0.5">{invoice.customerPhone || 'لا يوجد هاتف'}</div>
                           </div>
                         </td>
-
-                        {/* 5. نوع الأمر */}
-                        <td className="p-3.5 text-center">
-                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black bg-blue-50 text-blue-700 border border-blue-200">
-                            <ShoppingCart size={12} />
-                            <span>بيع عادي</span>
+                        <td>
+                          <span className="text-sm font-bold text-[#0b2337]">{invoice.repName}</span>
+                        </td>
+                        <td>
+                          <span className="text-sm text-slate-600 font-medium">{invoice.branchName}</span>
+                        </td>
+                        <td>
+                          <span className="text-sm font-mono text-[#0b2337]">{invoice.date}</span>
+                        </td>
+                        <td className="text-center">
+                          <span className="text-sm font-black text-slate-600 tabular-nums">
+                            {invoice.totalCartons} ك / {invoice.totalPieces} ق
                           </span>
                         </td>
-
-                        {/* 6. المبلغ */}
-                        <td className="p-3.5">
-                          <div className="font-black text-sm text-[#0b2337] tabular-nums font-mono">
-                            {formatCurrency(invoice.estimatedGrandTotal)}
-                          </div>
-                          <div className="text-[10px] text-slate-400">
-                            {invoice.totalCartons} كرتونة ({invoice.totalPieces} ق)
-                          </div>
+                        <td className="text-left">
+                          <span className="text-sm font-black text-[#0b2337] tabular-nums">{formatCurrency(invoice.estimatedGrandTotal)}</span>
                         </td>
-
-                        {/* 7. حالة الاعتماد */}
-                        <td className="p-3.5 text-center">
-                          {isApproved ? (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <CheckCircle2 size={12} />
-                              <span>معتمد</span>
-                            </span>
-                          ) : isPending ? (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black bg-amber-50 text-amber-700 border border-amber-200">
-                              <Clock size={12} />
-                              <span>قيد المراجعة</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 border border-rose-200">
-                              <XCircle size={12} />
-                              <span>ملغي</span>
-                            </span>
-                          )}
+                        <td className="text-center">
+                          <span className="text-xs font-bold text-slate-500">{invoice.paymentMethod}</span>
                         </td>
-
-                        {/* 8. حالة السداد */}
-                        <td className="p-3.5 text-center">
-                          {isPaid ? (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <CheckCircle2 size={12} />
-                              <span>مدفوع</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 border border-rose-200">
-                              <XCircle size={12} />
-                              <span>غير مدفوع</span>
-                            </span>
-                          )}
+                        <td className="text-center">
+                          <span className={`tg-badge tg-badge--${style.variant}`}>
+                            {style.label || invoice.status}
+                          </span>
                         </td>
-
-                        {/* 9. الإجراءات */}
-                        <td className="p-3.5 text-center">
+                        <td className="text-center">
                           <div className="flex items-center justify-center gap-1.5">
-                            {/* زر عرض */}
                             <button
                               type="button"
                               onClick={() => onViewInvoice(invoice)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition cursor-pointer border border-blue-200 shadow-2xs"
-                              title="عرض تفاصيل الأمر"
+                              className="w-8 h-8 rounded-xl bg-[#009488] hover:bg-[#007a70] text-white flex items-center justify-center transition shadow-xs cursor-pointer"
+                              title="عرض الفاتورة"
                             >
-                              <Eye size={13} />
-                              <span>عرض</span>
+                              <Eye className="w-4 h-4 text-white" />
                             </button>
 
-                            {/* زر طباعة PDF */}
-                            <button
-                              type="button"
-                              onClick={() => downloadInvoicePDF(invoice)}
-                              className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 flex items-center justify-center transition cursor-pointer"
-                              title="طباعة وتحميل الفاتورة PDF"
-                            >
-                              <Printer size={13} />
-                            </button>
-
-                            {/* زر معاينة إكسل */}
-                            <button
-                              type="button"
-                              onClick={() => setPreviewExcelInvoice(invoice)}
-                              className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 flex items-center justify-center transition cursor-pointer"
-                              title="معاينة إكسل"
-                            >
-                              <FileSpreadsheet size={13} className="text-emerald-600" />
-                            </button>
-
-                            {/* زر اعتماد سريع إن كان بانتظار الاعتماد */}
-                            {canApprove && (
-                              <button
-                                type="button"
-                                onClick={() => handleApproveClick(invoice.id)}
-                                className="w-8 h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center transition shadow-2xs cursor-pointer"
-                                title="اعتماد الأمر"
-                              >
-                                <CheckCircle2 size={14} />
-                              </button>
-                            )}
-
-                            {/* زر تعديل */}
                             {canEditPending && onEditInvoice && (
                               <button
                                 type="button"
                                 onClick={() => onEditInvoice(invoice)}
                                 className="w-8 h-8 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 flex items-center justify-center transition cursor-pointer"
-                                title="تعديل الأمر"
+                                title="تعديل الفاتورة"
                               >
-                                <Pencil size={13} />
+                                <Pencil className="w-4 h-4 text-amber-700" />
                               </button>
                             )}
+
+                            {canApprove && (
+                              <button
+                                type="button"
+                                onClick={() => handleApproveClick(invoice.id)}
+                                className="w-8 h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center transition shadow-xs cursor-pointer"
+                                title="اعتماد الفاتورة"
+                              >
+                                <CheckCircle2 className="w-4 h-4 text-white" />
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => downloadInvoicePDF(invoice)}
+                              className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-[var(--tg-line)] flex items-center justify-center transition cursor-pointer"
+                              title="تحميل PDF"
+                            >
+                              <Download className="w-4 h-4 text-slate-600" />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -1162,18 +1033,18 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               </table>
             </div>
 
-            {/* Pagination / Load More */}
+            {/* Pagination / Load More (الهوية الموحدة) */}
             {itemsPerPage !== 'all' && accessibleInvoices.length > itemsPerPage && (
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-[var(--tg-line)]">
                 <span className="text-xs font-bold text-slate-600">
                   عرض {displayedInvoices.length} من {accessibleInvoices.length} فاتورة
                 </span>
-                <div className="flex items-center gap-2">
+                <div className="tg-pagination">
                   <button
                     type="button"
                     disabled={currentPage === 1}
                     onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    className="px-4 py-2 rounded-xl border border-[var(--tg-line)] bg-white text-[#0b2337] font-black text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#eef5fd] transition"
+                    className="tg-pagination__btn"
                   >
                     السابق
                   </button>
@@ -1184,7 +1055,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                     type="button"
                     disabled={currentPage >= totalPages}
                     onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    className="px-4 py-2 rounded-xl border border-[var(--tg-line)] bg-white text-[#0b2337] font-black text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[#eef5fd] transition"
+                    className="tg-pagination__btn"
                   >
                     التالي
                   </button>
@@ -1225,11 +1096,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         invoice={previewExcelInvoice}
         isOpen={!!previewExcelInvoice}
         onClose={() => setPreviewExcelInvoice(null)}
-      />
-      <PowerAppsSharePointBridgeModal
-        isOpen={showPowerAppsModal}
-        onClose={() => setShowPowerAppsModal(false)}
-        invoices={accessibleInvoices}
       />
 
     </div>
