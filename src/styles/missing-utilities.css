@@ -14,7 +14,7 @@
 .focus\:ring-blue-500\/25:focus{box-shadow:0 0 0 2px rgba(59,130,246,.25)}
 .focus\:ring-emerald-500:focus{--tw-ring-color:#10b981;box-shadow:0 0 0 2px var(--tw-ring-color)}
 .focus\:ring-teal-500:focus{--tw-ring-color:#14b8a6;box-shadow:0 0 0 2px var(--tw-ring-color)}
-.focus\:ring-\[\#009488\]:focus{box-shadow:0 0 0 2px #009488}
+.focus\:ring-\[\#0D9488\]:focus{box-shadow:0 0 0 2px #0D9488}
 .focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}
 .fade-in{animation:tstFadeIn .3s ease-out}.slide-in-from-top-2{animation:tstSlideIn .3s ease-out}
 @keyframes tstFadeIn{from{opacity:0}to{opacity:1}}

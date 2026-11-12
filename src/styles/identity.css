@@ -615,11 +615,12 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
   opacity: 0.72;
 }
 
-.tg-kpi--red { background: linear-gradient(160deg, #fff2f2, #ffe1e1); border-color: #ffd2d2; color: #b42323; }
-.tg-kpi--violet { background: linear-gradient(160deg, #f6f1ff, #ece2ff); border-color: #e0d3ff; color: #6d28d9; }
-.tg-kpi--amber { background: linear-gradient(160deg, #fff7ec, #ffecd2); border-color: #ffe0b8; color: #b45309; }
-.tg-kpi--emerald { background: linear-gradient(160deg, #effaf4, #dcf6e8); border-color: #c5efdc; color: #047857; }
-.tg-kpi--blue { background: linear-gradient(160deg, #eef5ff, #dceaff); border-color: #c9deff; color: #1d4ed8; }
+/* هوية التطبيق: Navy #0F2B38 · Primary #2563EB · Teal #0D9488 (تحويف Light) */
+.tg-kpi--red { background: linear-gradient(160deg, #FEF2F2, #FEE2E2); border-color: #FECACA; color: #B91C1C; }
+.tg-kpi--violet { background: linear-gradient(160deg, #F5F3FF, #EDE9FE); border-color: #DDD6FE; color: #6D28D9; }
+.tg-kpi--amber { background: linear-gradient(160deg, #FFFBEB, #FEF3C7); border-color: #FDE68A; color: #B45309; }
+.tg-kpi--emerald { background: linear-gradient(160deg, #ECFDF5, #D1FAE5); border-color: #A7F3D0; color: #047857; }
+.tg-kpi--blue { background: linear-gradient(160deg, #EFF6FF, #DBEAFE); border-color: #BFDBFE; color: #1E3A8A; }
 
 /* ---------- سطح/كارت موحد ---------- */
 .tg-card {
@@ -3306,12 +3307,24 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
   margin-top: 2px;
 }
 
-/* تطبيق ألوان الكروت على Big KPI */
-.tg-kpi-big--sales { background: linear-gradient(145deg, rgba(16, 185, 129, 0.14), rgba(16, 185, 129, 0.07)); border-color: rgba(16, 185, 129, 0.3); color: #065f46; }
-.tg-kpi-big--customers { background: linear-gradient(145deg, rgba(59, 130, 246, 0.14), rgba(59, 130, 246, 0.07)); border-color: rgba(59, 130, 246, 0.3); color: #1d4ed8; }
-.tg-kpi-big--invoices { background: linear-gradient(145deg, rgba(249, 115, 22, 0.14), rgba(249, 115, 22, 0.07)); border-color: rgba(249, 115, 22, 0.3); color: #92400e; }
-.tg-kpi-big--visits { background: linear-gradient(145deg, rgba(168, 85, 247, 0.14), rgba(168, 85, 247, 0.07)); border-color: rgba(168, 85, 247, 0.3); color: #6d28d9; }
-.tg-kpi-big--risk { background: linear-gradient(145deg, rgba(239, 68, 68, 0.10), rgba(239, 68, 68, 0.05)); border-color: rgba(239, 68, 68, 0.25); color: #991b1b; }
+/* تطبيق ألوان الكروت على Big KPI — هوية التطبيق (Navy · Primary · Teal) */
+.tg-kpi-big--sales { background: linear-gradient(145deg, rgba(13, 148, 136, .16), rgba(13, 148, 136, .07)); border-color: rgba(13, 148, 136, .32); color: #0F5A50; }
+.tg-kpi-big--customers { background: linear-gradient(145deg, rgba(37, 99, 235, .14), rgba(37, 99, 235, .06)); border-color: rgba(37, 99, 235, .30); color: #1E3A8A; }
+.tg-kpi-big--invoices { background: linear-gradient(145deg, rgba(15, 43, 56, .18), rgba(15, 43, 56, .08)); border-color: rgba(15, 43, 56, .32); color: #0F2B38; }
+.tg-kpi-big--visits { background: linear-gradient(145deg, rgba(217, 119, 6, .14), rgba(217, 119, 6, .06)); border-color: rgba(217, 119, 6, .30); color: #B45309; }
+.tg-kpi-big--risk { background: linear-gradient(145deg, rgba(220, 38, 38, .10), rgba(220, 38, 38, .05)); border-color: rgba(220, 38, 38, .25); color: #B91C1C; }
+
+/* للوضع الداكن — ألوان فاتحة مقروءة على كروت داكنة */
+.dark .tg-kpi--red { background: rgba(248, 113, 113, .12); border-color: rgba(248, 113, 113, .30); color: #FCA5A5; }
+.dark .tg-kpi--amber { background: rgba(251, 191, 36, .12); border-color: rgba(251, 191, 36, .30); color: #FDE047; }
+.dark .tg-kpi--emerald { background: rgba(45, 212, 191, .12); border-color: rgba(45, 212, 191, .30); color: #5EEAD4; }
+.dark .tg-kpi--blue { background: rgba(96, 165, 250, .14); border-color: rgba(96, 165, 250, .30); color: #93C5FD; }
+.dark .tg-kpi--violet { background: rgba(196, 181, 253, .12); border-color: rgba(196, 181, 253, .30); color: #C4B5FD; }
+.dark .tg-kpi-big--sales { background: rgba(45, 212, 191, .14); border-color: rgba(45, 212, 191, .30); color: #5EEAD4; }
+.dark .tg-kpi-big--customers { background: rgba(96, 165, 250, .14); border-color: rgba(96, 165, 250, .30); color: #93C5FD; }
+.dark .tg-kpi-big--invoices { background: rgba(226, 232, 240, .08); border-color: rgba(226, 232, 240, .18); color: #E2E8F0; }
+.dark .tg-kpi-big--visits { background: rgba(251, 191, 36, .14); border-color: rgba(251, 191, 36, .30); color: #FDE047; }
+.dark .tg-kpi-big--risk { background: rgba(248, 113, 113, .14); border-color: rgba(248, 113, 113, .30); color: #FCA5A5; }
 
 @media (max-width: 639px) {
   .tg-kpi-big { min-height: 128px; padding: 16px 14px; }

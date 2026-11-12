@@ -14,6 +14,9 @@
    ملاحظات:
    - مفيش `@import "tailwindcss"` هنا لأننا مش عايزين الـ preflight
      ولا إعادة تهيئة الـ base styles — utilities فقط.
+   - بنستورد `theme.css` كمان: من غيره الـ utilities اللي محتاجة قيم
+     theme (spacing زي `h-64`/`p-4`، والـ breakpoints زي `sm:`/`lg:`)
+     بتقع في السكات لأن مفيش `--spacing` ولا `--breakpoint-*` معرفين.
    - `@source` صريح عشان ملفات components/ الجديدة (SmartProfilePage،
      CustomerProfileDrawer) تتكسكان مع ضماداتها.
    - `@source inline(...)` ليستـSafety net للكلاسات اللي السكانرsometimes
@@ -23,6 +26,101 @@
 @source "../**/*.{ts,tsx,js,jsx}";
 @source "../../index.html";
 
-@source inline("bg-black/50 bg-black/40 bg-black/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:ring-1 focus:ring-emerald-500 focus:ring-teal-500 focus:ring-[#009488] gap-x-6 md:p-8 py-0.2 right-1.5 top-1.5 text-blue-500 text-purple-500 text-violet-500 text-slate decoration-amber-400 shadow-blue-500/25 shadow-emerald-500/25 shadow-navy/25 fade-in slide-in-from-top-2 sm:max-w-[480px] sm:max-w-[560px] sm:max-h-[90vh] max-h-[400px] max-h-[90vh] hover:bg-amber-50/40 hover:bg-blue-50/40 hover:border-blue-300/60 hover:from-emerald-400 hover:text-rose-500 hover:to-blue-600 hover:to-teal-500 hover:text-[#0b2337] hover:bg-[#eef5fd] hover:bg-[#f6f9fe] hover:border-blue-300 hover:text-slate-600 hover:text-slate-800 hover:from-blue-500 active:scale-95 active:scale-[0.98] active:scale-[0.99] lg:grid-cols-3 lg:grid-cols-4 lg:grid-cols-5 lg:block lg:hidden lg:p-7 md:block md:flex-row md:grid-cols-2 md:hidden md:inline md:items-center md:p-8 sm:block sm:flex-none sm:flex-row sm:gap-4 sm:grid-cols-2 sm:grid-cols-3 sm:grid-cols-4 sm:grid-cols-5 sm:hidden sm:inline sm:items-center sm:items-end sm:justify-between sm:p-4 sm:p-5 sm:p-6 sm:p-7 sm:p-8 sm:px-4 sm:rounded-3xl sm:self-auto sm:text-2xl sm:text-3xl sm:text-base sm:text-lg sm:text-sm sm:text-xl sm:text-xs sm:w-auto placeholder:text-slate-400 group-hover:opacity-100 group-hover:scale-110 group-hover:text-teal-600 last:border-0 dark:bg-[#0b1329] dark:bg-[#0f172a] dark:bg-slate-800 dark:bg-slate-800/50 dark:bg-slate-800/60 dark:bg-slate-800/70 dark:bg-slate-800/80 dark:border-slate-700 dark:border-slate-800 dark:divide-slate-800/60 dark:hover:bg-slate-700 dark:hover:bg-slate-800/40 dark:hover:bg-white/10 dark:hover:border-blue-700 dark:hover:border-emerald-700 dark:hover:text-teal-300 dark:text-amber-300 dark:text-blue-300 dark:text-blue-400 dark:text-emerald-300 dark:text-emerald-400 dark:text-rose-300 dark:text-slate-100 dark:text-slate-200 dark:text-slate-300 dark:text-slate-400 dark:text-teal-200 dark:text-teal-300 dark:text-teal-400 dark:text-white disabled:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:opacity-50 disabled:opacity-60 disabled:opacity-70");
+/* ============================================================
+   Dark mode class-based (.dark on <html>) + design-system tokens
+   (Dream Tantawy unified light/dark identity) — same values as
+   src/design-system/tokens/colors.ts.
+   ============================================================ */
+@custom-variant dark (&:where(.dark, .dark *));
 
+:root {
+  --ds-background: #F1F5F9;
+  --ds-surface: #FFFFFF;
+  --ds-surface-subtle: #F8FAFC;
+  --ds-surface-elevated: #FFFFFF;
+  --ds-card: #FFFFFF;
+  --ds-border: #E2E8F0;
+  --ds-border-subtle: #F1F5F9;
+  --ds-text: #0F172A;
+  --ds-text-secondary: #475569;
+  --ds-text-muted: #94A3B8;
+  --ds-text-inverse: #F8FAFC;
+  --ds-primary: #2563EB;
+  --ds-primary-hover: #1D4ED8;
+  --ds-primary-active: #1E40AF;
+  --ds-secondary: #0D9488;
+  --ds-secondary-hover: #0F766E;
+  --ds-accent: #0D9488;
+  --ds-accent-hover: #0F766E;
+  --ds-success: #16A34A;
+  --ds-success-light: #ECFDF5;
+  --ds-warning: #F59E0B;
+  --ds-warning-light: #FFFBEB;
+  --ds-error: #DC2626;
+  --ds-error-light: #FEF2F2;
+  --ds-violet: #7C3AED;
+  --ds-overlay: rgba(15, 23, 42, 0.45);
+}
+
+.dark {
+  --ds-background: #0B1220;
+  --ds-surface: #111C2E;
+  --ds-surface-subtle: #17243A;
+  --ds-surface-elevated: #1E2A3B;
+  --ds-card: #111C2E;
+  --ds-border: #26364D;
+  --ds-border-subtle: #1E2A3B;
+  --ds-text: #F1F5F9;
+  --ds-text-secondary: #94A3B8;
+  --ds-text-muted: #64748B;
+  --ds-text-inverse: #0F172A;
+  --ds-primary: #60A5FA;
+  --ds-primary-hover: #3B82F6;
+  --ds-primary-active: #2563EB;
+  --ds-secondary: #2DD4BF;
+  --ds-secondary-hover: #14B8A6;
+  --ds-accent: #2DD4BF;
+  --ds-accent-hover: #14B8A6;
+  --ds-success: #4ADE80;
+  --ds-success-light: #064E3B;
+  --ds-warning: #FBBF24;
+  --ds-warning-light: #451A03;
+  --ds-error: #F87171;
+  --ds-error-light: #450A0A;
+  --ds-violet: #A78BFA;
+  --ds-overlay: rgba(2, 6, 23, 0.6);
+}
+
+@theme inline {
+  --color-background: var(--ds-background);
+  --color-surface: var(--ds-surface);
+  --color-surface-subtle: var(--ds-surface-subtle);
+  --color-surface-elevated: var(--ds-surface-elevated);
+  --color-card: var(--ds-card);
+  --color-border: var(--ds-border);
+  --color-border-subtle: var(--ds-border-subtle);
+  --color-text: var(--ds-text);
+  --color-text-secondary: var(--ds-text-secondary);
+  --color-text-muted: var(--ds-text-muted);
+  --color-text-inverse: var(--ds-text-inverse);
+  --color-primary: var(--ds-primary);
+  --color-primary-hover: var(--ds-primary-hover);
+  --color-primary-active: var(--ds-primary-active);
+  --color-secondary: var(--ds-secondary);
+  --color-secondary-hover: var(--ds-secondary-hover);
+  --color-accent: var(--ds-accent);
+  --color-accent-hover: var(--ds-accent-hover);
+  --color-success: var(--ds-success);
+  --color-success-light: var(--ds-success-light);
+  --color-warning: var(--ds-warning);
+  --color-warning-light: var(--ds-warning-light);
+  --color-error: var(--ds-error);
+  --color-error-light: var(--ds-error-light);
+  --color-violet: var(--ds-violet);
+  --color-overlay: var(--ds-overlay);
+}
+
+@source inline("bg-black/50 bg-black/40 bg-black/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:ring-1 focus:ring-emerald-500 focus:ring-teal-500 focus:ring-[#0D9488] gap-x-6 md:p-8 py-0.2 right-1.5 top-1.5 text-blue-500 text-purple-500 text-violet-500 text-slate decoration-amber-400 shadow-blue-500/25 shadow-emerald-500/25 shadow-navy/25 fade-in slide-in-from-top-2 sm:max-w-[480px] sm:max-w-[560px] sm:max-h-[90vh] max-h-[400px] max-h-[90vh] hover:bg-amber-50/40 hover:bg-blue-50/40 hover:border-blue-300/60 hover:from-emerald-400 hover:text-rose-500 hover:to-blue-600 hover:to-teal-500 hover:text-[#0b2337] hover:bg-[#eef5fd] hover:bg-[#f6f9fe] hover:border-blue-300 hover:text-slate-600 hover:text-slate-800 hover:from-blue-500 active:scale-95 active:scale-[0.98] active:scale-[0.99] lg:grid-cols-3 lg:grid-cols-4 lg:grid-cols-5 lg:block lg:hidden lg:p-7 md:block md:flex-row md:grid-cols-2 md:hidden md:inline md:items-center md:p-8 sm:block sm:flex-none sm:flex-row sm:gap-4 sm:grid-cols-2 sm:grid-cols-3 sm:grid-cols-4 sm:grid-cols-5 sm:hidden sm:inline sm:items-center sm:items-end sm:justify-between sm:p-4 sm:p-5 sm:p-6 sm:p-7 sm:p-8 sm:px-4 sm:rounded-3xl sm:self-auto sm:text-2xl sm:text-3xl sm:text-base sm:text-lg sm:text-sm sm:text-xl sm:text-xs sm:w-auto placeholder:text-slate-400 group-hover:opacity-100 group-hover:scale-110 group-hover:text-teal-600 last:border-0 dark:bg-[#0b1329] dark:bg-[#0f172a] dark:bg-slate-800 dark:bg-slate-800/50 dark:bg-slate-800/60 dark:bg-slate-800/70 dark:bg-slate-800/80 dark:border-slate-700 dark:border-slate-800 dark:divide-slate-800/60 dark:hover:bg-slate-700 dark:hover:bg-slate-800/40 dark:hover:bg-white/10 dark:hover:border-blue-700 dark:hover:border-emerald-700 dark:hover:text-teal-300 dark:text-amber-300 dark:text-blue-300 dark:text-blue-400 dark:text-emerald-300 dark:text-emerald-400 dark:text-rose-300 dark:text-slate-100 dark:text-slate-200 dark:text-slate-300 dark:text-slate-400 dark:text-teal-200 dark:text-teal-300 dark:text-teal-400 dark:text-white disabled:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:opacity-50 disabled:opacity-60 disabled:opacity-70");
+
+@import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css";

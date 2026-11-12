@@ -25,7 +25,7 @@ html.dark {
   color-scheme: dark;
 }
 @media (min-width: 1024px) { :root { --ds-topbar-h: 68px; --ds-gutter: 24px; } }
-@media (min-width: 768px) and (max-width: 1023px) { :root { --ds-gutter: 18px; } }
+@media (min-width: 768px) and (max-width: 1023px) { :root { --ds-gutter: 20px; } }
 
 /* ---------- أدوات إظهار/إخفاء (لا تغيّر display الأصلي للعنصر، تخفيه فقط) ---------- */
 @media (max-width: 767px)  { .ds-vis-ge-md { display: none !important; } }
