@@ -1,6 +1,7 @@
 import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
+import TemplateApp from './templates/TemplateApp';
 import './index.css';
 import './styles/tailwind-utilities.css';
 import './styles/missing-utilities.css';
@@ -10,10 +11,17 @@ import './styles/beautiful-cards.css';
 import './styles/app-shell.css';
 import './styles/identity.css';
 
-// Force light mode (no dark mode toggle)
-try {
-  document.documentElement.classList.remove('dark');
-} catch {}
+// Template preview (?template in the URL — captured before AppContext strips
+// the query string as a security measure).
+const TEMPLATE_PREVIEW = new URLSearchParams(window.location.search).has('template');
+
+// Force light mode for the main app (no dark mode toggle yet).
+// Template previews manage their own class-based dark mode.
+if (!TEMPLATE_PREVIEW) {
+  try {
+    document.documentElement.classList.remove('dark');
+  } catch {}
+}
 
 const CHUNK_RECOVERY_KEY = 'tantawy:chunk-recovery';
 
@@ -80,6 +88,10 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    {TEMPLATE_PREVIEW ? (
+      <TemplateApp />
+    ) : (
+      <App />
+    )}
   </StrictMode>,
 );
