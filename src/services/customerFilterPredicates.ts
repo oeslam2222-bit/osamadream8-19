@@ -1,4 +1,5 @@
 import { Customer } from '../types';
+import { classifyEligibilityColumn } from './customerFinancialService';
 
 /**
  * شروط فلترة شاشة العملاء في مكان واحد.
@@ -45,13 +46,16 @@ export const getCustomerCollectionRate = (c: Customer): number => {
   return collected > 0 ? 100 : 0;
 };
 
-/** قابل للتعامل / غير قابل — الشرط الأصلي بالحرف. */
+/**
+ * قابل للتعامل / غير قابل — من عامود «قابل / غير» في الشيت فقط.
+ * ما فيش تخمين تاني: لو العامود فاضي أو فيه «غير متعامل قابل للتعامل»
+ * (قابل للتعامل طالما العميل غير ممنوع) بيبقى قابل للتعامل.
+ */
 export const matchesEligibilityFilter = (c: Customer, filter: EligibilityFilter): boolean => {
   if (filter === 'ALL') return true;
-  const value = (c.dealEligibility || '').trim();
-  if (!value) return false;
-  const isNotEligible = value.includes('غير') || value.includes('موقوف');
-  return filter === 'غير قابل' ? isNotEligible : value.includes('قابل') && !isNotEligible;
+  const info = classifyEligibilityColumn(c.dealEligibility);
+  if (!info) return false;
+  return filter === 'غير قابل' ? !info.eligible : info.eligible;
 };
 
 export const matchesDebtFilter = (c: Customer, filter: DebtFilter): boolean => {
@@ -159,13 +163,15 @@ export const getCreditUsagePercent = (c: Customer): number => {
   return Math.min(999, Math.round((getCustomerBalance(c) / limit) * 100));
 };
 
-/** تصنيف التعامل (قابل / غير قابل) — للون الموحّد في الجدول واللوحة. */
+/**
+ * تصنيف التعامل (قابل / غير قابل) — من عامود «قابل / غير» مباشرة.
+ * `label` هو نص الخلية نفسه من الشيت، و `tone` مبني على eligible فقط
+ * (موقوف/غير قابل = risk، أي شيء قابل = ok).
+ */
 export const getEligibilityBadge = (c: Customer): { label: string; tone: CustomerTone } => {
-  const raw = (c.dealEligibility || '').trim();
-  if (!raw) return { label: 'غير محدد', tone: 'muted' };
-  if (raw.includes('غير') || raw.includes('موقوف')) return { label: raw, tone: 'risk' };
-  if (raw.includes('قابل')) return { label: raw, tone: 'ok' };
-  return { label: raw, tone: 'muted' };
+  const info = classifyEligibilityColumn(c.dealEligibility);
+  if (!info) return { label: 'غير محدد', tone: 'muted' };
+  return { label: info.raw, tone: info.eligible ? 'ok' : 'risk' };
 };
 
 /**
@@ -178,13 +184,10 @@ export const getEligibilityBadge = (c: Customer): { label: string; tone: Custome
 export const getCustomerDealtBadge = (
   c: Customer
 ): { label: string; tone: CustomerTone; raw: string } => {
-  const raw = (c.dealEligibility || '').trim();
-  if (!raw) return { label: 'غير محدد', tone: 'muted', raw: '' };
-  if (raw.includes('غير متعامل') || raw.includes('غير قابل') || raw.includes('موقوف')) {
-    return { label: 'غير متعامل', tone: 'risk', raw };
-  }
-  if (raw.includes('متعامل') || raw.includes('قابل')) {
-    return { label: 'متعامل', tone: 'ok', raw };
-  }
-  return { label: raw, tone: 'muted', raw };
+  const info = classifyEligibilityColumn(c.dealEligibility);
+  if (!info) return { label: 'غير محدد', tone: 'muted', raw: '' };
+  if (info.dealt === false) return { label: 'غير متعامل', tone: 'risk', raw: info.raw };
+  if (info.dealt === true) return { label: 'متعامل', tone: 'ok', raw: info.raw };
+  // العامود بيقول فقط "قابل" أو "غير قابل" من غير حكم على الشراء — نخزن eligible فقط.
+  return { label: info.eligible ? 'قابل للتعامل' : 'غير قابل', tone: info.eligible ? 'ok' : 'risk', raw: info.raw };
 };

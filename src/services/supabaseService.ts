@@ -6,10 +6,8 @@ import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from './custome
 import { normalizeArabicText } from './arabicMatchingService';
 import { classifyError, handleSupabaseError, withRetry, NetworkErrorType } from './networkErrorHandler';
 
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rxthpgmlcsfckstpqhqf.supabase.co';
-export const SUPABASE_ANON_KEY =
-  import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4dGhwZ21sY3NmY2tzdHBxaHFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2NDIwMzgsImV4cCI6MjEwMzIxODAzOH0.2v4eRUKQjLM0xDomaE9HAiy_qTJ6NoijNuwC3JV1ZUA';
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 // Helper to normalize Supabase role strings to supported UserRole
 export function normalizeUserRole(rawRole: any, isAdminFlag?: boolean): UserRole {
@@ -1984,6 +1982,13 @@ export async function fetchInvoicesFromSupabase(limitOrScope: number | InvoiceFe
         .select('*')
         .order('created_at', { ascending: false })
         .limit(limit) as any;
+      // 🚀 تقليل EGRESS: صفوف التخزين الداخلية (chunks الكتالوج ~330KB للصف
+      // ومخزن مزامنة المستخدمين) بتترتب حديثة بـ created_at، فكانت بتاخد
+      // حصة من الـ limit وبتتنزل كل مرة وبعدين بتترمي في الفلتر المحلي.
+      // الفلترة هنا على السيرفر توفّر ميجابايتات في كل تحميل فواتير.
+      query = query.not('id', 'like', 'dream_%');
+      query = query.neq('id', USER_SYNC_STORE_ID);
+      query = query.not('status', 'ilike', 'catalog_sync%');
       if (repIds.length > 0) {
         query = query.in('rep_id', repIds);
       }
@@ -2071,16 +2076,106 @@ export interface InvoiceContentStamp {
   table: 'orders' | 'invoices';
 }
 
+/**
+ * 🚀 تجميع المبيعات على السيرفر — طلب واحد صغير بدل تنزيل الفواتير.
+ *
+ * بيرجّع كل اللي شاشة التحليلات محتاجاه (KPIs + اتجاه يومي + فروع + مناديب +
+ * أصناف + عملاء + آخر 10 فواتير) من دالة SQL واحدة (get_sales_summary).
+ * لو الدالة مش منفذة على القاعدة بعد (ملف supabase/add_sales_summary_rpc.sql)
+ * بيرجّع unavailable=true عشان الشاشة تكمّل بالتجميع المحلي من غير خطأ.
+ */
+export interface SalesSummaryKpis {
+  sales: number;
+  orders: number;
+  customers: number;
+  cartons: number;
+}
+export interface SalesSummaryDaily {
+  day: string;
+  sales: number;
+  orders: number;
+}
+export interface SalesSummaryNamed {
+  name: string | null;
+  sales: number;
+  orders: number;
+}
+export interface SalesSummaryProduct {
+  product_name: string;
+  sales: number;
+  cartons: number;
+}
+export interface SalesSummaryMonth {
+  month: string;
+  sales: number;
+  orders: number;
+}
+export interface SalesSummaryMonthNamed {
+  month: string;
+  name: string | null;
+  sales: number;
+  orders: number;
+}
+export interface SalesSummaryRecent {
+  id: string;
+  invoice_number: string | null;
+  customer_name: string | null;
+  branch_name: string | null;
+  rep_name: string | null;
+  status: string | null;
+  estimated_grand_total: number;
+  date: string;
+}
+export interface SalesSummary {
+  generated_at?: string;
+  days: number;
+  from?: string;
+  kpis: SalesSummaryKpis;
+  daily: SalesSummaryDaily[];
+  by_branch: SalesSummaryNamed[];
+  by_rep: SalesSummaryNamed[];
+  top_products: SalesSummaryProduct[];
+  top_customers: SalesSummaryNamed[];
+  recent: SalesSummaryRecent[];
+  by_month: SalesSummaryMonth[];
+  by_branch_month: SalesSummaryMonthNamed[];
+  by_rep_month: SalesSummaryMonthNamed[];
+  by_customer_month: SalesSummaryMonthNamed[];
+}
+
+export async function fetchSalesSummaryFromSupabase(
+  days = 30
+): Promise<{ success: boolean; summary?: SalesSummary; error?: string; unavailable?: boolean }> {
+  try {
+    const { data, error } = await supabase.rpc('get_sales_summary', { p_days: days });
+    if (error) {
+      const code = String((error as any)?.code || '');
+      const msg = String(error.message || '');
+      const unavailable =
+        code === '42883' || code === '404' || msg.includes('does not exist') || msg.includes('schema cache');
+      return { success: false, error: msg, unavailable };
+    }
+    if (!data || typeof data !== 'object') return { success: false, error: 'استجابة غير متوقعة' };
+    return { success: true, summary: data as unknown as SalesSummary };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'فشل تجميع المبيعات' };
+  }
+}
+
 export async function fetchInvoiceContentStamp(
   scope?: InvoiceFetchScope
-): Promise<InvoiceContentStamp | null> {
-  const repIds = (scope?.repIds || []).map((r) => String(r).trim()).filter(Boolean);
+): Promise<InvoiceContentStamp | null> {  const repIds = (scope?.repIds || []).map((r) => String(r).trim()).filter(Boolean);
   const probe = async (table: 'orders' | 'invoices') => {
     let query = supabase
       .from(table)
       .select('created_at', { count: 'exact' })
       .order('created_at', { ascending: false, nullsFirst: false })
       .limit(1) as any;
+    // نفس استبعاد صفوف التخزين بتاع fetchInvoicesFromSupabase — عشان البصمة
+    // تعدّ الفواتير الحقيقية بس وتبقى متطابقة مع اللي بينزّله التطبيق فعلًا.
+    query = query.not('id', 'like', 'dream_%');
+    query = query.neq('id', USER_SYNC_STORE_ID);
+    query = query.not('status', 'ilike', 'catalog_sync%');
     if (repIds.length > 0) query = query.in('rep_id', repIds);
     return query;
   };
@@ -2247,7 +2342,10 @@ const CHUNK_SIZE = 400;
  * Uses chunked snapshot in shared store for 100% full rich sync (including Fayoum & all branch stocks)
  * + standard products table upsert
  */
-export async function saveProductsToSupabase(products: Product[]): Promise<{ success: boolean; error?: string }> {
+export async function saveProductsToSupabase(
+  products: Product[],
+  options?: { snapshot?: boolean }
+): Promise<{ success: boolean; error?: string }> {
   try {
     if (!products || products.length === 0) return { success: true };
 
@@ -2258,81 +2356,158 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
     });
     const uniqueProducts = Array.from(idMap.values());
 
-    // 1. Save rich chunked snapshot into shared store so all 5000+ items and branch stocks are 100% preserved
-    const totalChunks = Math.ceil(uniqueProducts.length / CHUNK_SIZE);
-    try {
-      // Save manifest first
-      await supabase.from('orders').upsert({
-        id: CATALOG_MANIFEST_ID,
-        status: 'catalog_sync_manifest',
-        total: uniqueProducts.length,
-        items: { totalChunks, totalProducts: uniqueProducts.length, updatedAt: new Date().toISOString() } as any,
-      });
-
-      // Save each chunk
-      for (let i = 0; i < totalChunks; i++) {
-        const chunk = uniqueProducts.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+    // 1. (اختياري) كتالوج الـ snapshot الغني داخل orders — للمستندين القدامى بس.
+    //    كان بيتكتب على كل تعديل (‏~3.5MB رفع لكل دفعة) — دلوقتي بيتكتب فقط
+    //    مع الاستيراد الكامل/المزامنة اليدوية الكاملة (options.snapshot === true).
+    //    القراءة الحديثة بتفضّل جدول products الغني (انظر fetchProductsFromSupabase).
+    if (options?.snapshot === true) {
+      const totalChunks = Math.ceil(uniqueProducts.length / CHUNK_SIZE);
+      try {
+        // Save manifest first — mode=products_table_v2 يعني القراء الجدد يفضلوا الجدول.
         await supabase.from('orders').upsert({
-          id: `${CATALOG_CHUNK_PREFIX}${i}`,
-          status: 'catalog_sync_chunk',
-          total: chunk.length,
-          items: chunk as any,
+          id: CATALOG_MANIFEST_ID,
+          status: 'catalog_sync_manifest',
+          total: uniqueProducts.length,
+          items: {
+            totalChunks,
+            totalProducts: uniqueProducts.length,
+            updatedAt: new Date().toISOString(),
+            mode: 'products_table_v2',
+          } as any,
         });
+
+        // Save each chunk
+        for (let i = 0; i < totalChunks; i++) {
+          const chunk = uniqueProducts.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+          await supabase.from('orders').upsert({
+            id: `${CATALOG_CHUNK_PREFIX}${i}`,
+            status: 'catalog_sync_chunk',
+            total: chunk.length,
+            items: chunk as any,
+          });
+        }
+      } catch (storeErr) {
+        console.warn('Catalog snapshot chunk store fallback:', storeErr);
       }
-    } catch (storeErr) {
-      console.warn('Catalog snapshot chunk store fallback:', storeErr);
     }
 
-    // 2. Also upsert into standard products table in chunks
-    const payload = uniqueProducts.map((p) => {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.id);
-      const safeId = isUuid ? p.id : stringToUuid(p.id);
-      const cartonQuantity = Math.max(1, Number(p.cartonQuantity || p.factor) || 1);
-      const piecePrice = Number(p.piecePrice || p.salesPrice || 0) ||
-        (Number(p.cartonPrice || 0) > 0 ? Math.round((Number(p.cartonPrice) / cartonQuantity) * 100) / 100 : 0);
-      return {
-        id: safeId,
-        code: p.code?.trim() || null,
-        name: p.name,
-        category: p.itemGroup || p.department || p.category || 'عام',
-        price: piecePrice,
-        stock: p.branchStockActual || 0,
-        image_url: p.imageUrl || null,
-      };
-    });
+    /**
+     * بناء الـ payload: غني (كل أعمدة add_products_rich_columns.sql) أو
+     * قديم (7 أعمدة) — المحاولة الغنية الأول، ولو أعمدة الجدول ناقصة
+     * (الميجريشن لسه ما اتنفذش) نرجع للقديم بدل ما فشل الحفظ كله.
+     */
+    const buildPayload = (rich: boolean) =>
+      uniqueProducts.map((p) => {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.id);
+        const safeId = isUuid ? p.id : stringToUuid(p.id);
+        const cartonQuantity = Math.max(1, Number(p.cartonQuantity || p.factor) || 1);
+        const piecePrice = Number(p.piecePrice || p.salesPrice || 0) ||
+          (Number(p.cartonPrice || 0) > 0 ? Math.round((Number(p.cartonPrice) / cartonQuantity) * 100) / 100 : 0);
+        const branchActual = Number(p.branchStockActual) || 0;
+        const base = {
+          id: safeId,
+          code: p.code?.trim() || null,
+          name: p.name,
+          category: p.itemGroup || p.department || p.category || 'عام',
+          price: piecePrice,
+          stock: branchActual,
+          image_url: p.imageUrl || null,
+        };
+        if (!rich) return base;
+        return {
+          ...base,
+          sales_priority: p.salesPriority || 'عادي',
+          status: p.status || 'متاح',
+          carton_quantity: cartonQuantity,
+          size: p.size || null,
+          color: p.color || null,
+          branch_stock_actual: branchActual,
+          branch_stock_reserved:
+            typeof p.branchStockReserved === 'number' ? p.branchStockReserved : branchActual,
+          main_warehouse_actual: Number(p.mainWarehouseActual) || 0,
+          main_warehouse_reserved:
+            typeof p.mainWarehouseReserved === 'number' ? p.mainWarehouseReserved : Number(p.mainWarehouseActual) || 0,
+          item_group: p.itemGroup || p.department || 'عام',
+          department: p.department || 'عام',
+          family_name: p.familyName || 'أصناف عامة',
+          classification: p.classification || 'أصناف عامة',
+          piece_price: piecePrice,
+          carton_price:
+            Number(p.cartonPrice) || Math.round(piecePrice * cartonQuantity * 100) / 100,
+          cloudinary_public_id: p.cloudinaryPublicId || null,
+          barcode: p.barcode || null,
+          unified_code: p.unifiedCode || null,
+          branch_stocks: p.branchStocks ?? {},
+          sector: p.sector ?? null,
+          branch_name: p.branchName || null,
+        };
+      });
 
     // The products table treats a normalized code as unique, even when imported
     // rows have different IDs. Keep only the last row for each code in this save.
-    const productsByKey = new Map<string, (typeof payload)[number]>();
-    payload.forEach((product) => {
-      const key = product.code
-        ? `code:${product.code.toLowerCase()}`
-        : `id:${product.id}`;
-      productsByKey.set(key, product);
-    });
-    const deduplicatedPayload = Array.from(productsByKey.values());
-    const productsWithCode = deduplicatedPayload.filter((product) => product.code);
-    const productsWithoutCode = deduplicatedPayload.filter((product) => !product.code);
+    const dedupePayload = <T extends { id: string; code: string | null }>(payload: T[]): T[] => {
+      const productsByKey = new Map<string, T>();
+      payload.forEach((product) => {
+        const key = product.code
+          ? `code:${product.code.toLowerCase()}`
+          : `id:${product.id}`;
+        productsByKey.set(key, product);
+      });
+      return Array.from(productsByKey.values());
+    };
+
     let saveError: string | undefined;
+    let usedRichPayload = false;
 
     const saveChunks = async (
-      rows: typeof payload,
+      rows: { id: string; code: string | null }[],
       onConflict: 'code' | 'id'
     ) => {
       for (let i = 0; i < rows.length; i += 100) {
         const chunk = rows.slice(i, i + 100);
-        const { error } = await supabase.from('products').upsert(chunk, { onConflict });
+        const { error } = await supabase.from('products').upsert(chunk as any, { onConflict });
         if (error) {
           console.warn('Direct products chunk save notice:', error.message);
           saveError ??= error.message;
+          return false;
         }
       }
+      return true;
     };
 
-    await saveChunks(productsWithCode, 'code');
-    await saveChunks(productsWithoutCode, 'id');
+    const isMissingColumn = (msg: string) =>
+      /does not exist|could not find the|schema cache/i.test(msg);
+
+    // محاولة غنية أولًا — وبعد فشل "عمود مش موجود" نرجع للـ payload القديم.
+    const richRows = dedupePayload(buildPayload(true));
+    const richWithCode = richRows.filter((product) => product.code);
+    const richWithoutCode = richRows.filter((product) => !product.code);
+    const richOk =
+      (await saveChunks(richWithCode, 'code')) &&
+      (await saveChunks(richWithoutCode, 'id')) &&
+      !saveError;
+
+    if (!richOk && saveError && isMissingColumn(saveError)) {
+      saveError = undefined;
+      const minimalRows = dedupePayload(buildPayload(false));
+      const minimalWithCode = minimalRows.filter((product) => product.code);
+      const minimalWithoutCode = minimalRows.filter((product) => !product.code);
+      await saveChunks(minimalWithCode, 'code');
+      await saveChunks(minimalWithoutCode, 'id');
+    } else if (richOk) {
+      usedRichPayload = true;
+    }
 
     if (saveError) return { success: false, error: saveError };
+
+    // كتالوج snapshot قديم مش متحدث + الجدول الرسمي اتحدث غني → القراء القدامى
+    // بيشوفوا بيانات قديمة لحد ما الجهاز ده يتحدث — مقبول (تحديث موحد للفريق)
+    // ومن غير الدي كان كل تعديل بيدفع 3.5MB رفع.
+    if (usedRichPayload) {
+      console.info(
+        `Supabase rich products save: ${richRows.length} rows (no snapshot rewrite).`
+      );
+    }
 
     return { success: true };
   } catch (e: any) {
@@ -2343,22 +2518,72 @@ export async function saveProductsToSupabase(products: Product[]): Promise<{ suc
 }
 
 /**
+ * حذف صنف من جدول products على السيرفر — ضروري بعد ما بقى الجدول هو المصدر،
+ * لأن الـ upsert لوحده كان بيسيب الصف المحذوف محذوف محليًا وحي على السيرفر.
+ */
+export async function deleteProductFromSupabase(
+  productId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!productId) return { success: false, error: 'معرف الصنف مفقود' };
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId);
+    const safeId = isUuid ? productId : stringToUuid(productId);
+    const { error } = await supabase.from('products').delete().eq('id', safeId);
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: any) {
+    console.error('Supabase product delete error:', e);
+    return { success: false, error: e?.message };
+  }
+}
+
+/**
+ * هل جدول المنتجات الرسمي الغني هو المصدر المتفق عليه؟
+ * بقرأ صف الماني فست بس (صف واحد صغير) — بيستخدم عشان نقرر نستخدم
+ * السحب التدريجي (fetchProductsIncremental) ولا لا. قبل أول استيراد
+ * كامل بعد الميجريشن، الجدول لسه مش مكتمل فبنرجع لمسار الـ chunks.
+ */
+export async function isProductsTableAuthoritative(): Promise<boolean> {
+  try {
+    const { data: manifestRows } = await supabase
+      .from('orders')
+      .select('items')
+      .eq('id', CATALOG_MANIFEST_ID)
+      .limit(1);
+    const rawManifest = (manifestRows && manifestRows[0]?.items) as any;
+    return typeof rawManifest?.mode === 'string' && rawManifest.mode === 'products_table_v2';
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Fetch products catalog from Supabase
  * Safely fetches all products without being capped at Supabase's default 1,000 row limit
  */
 export async function fetchProductsFromSupabase(): Promise<{ success: boolean; products?: Product[]; error?: string }> {
   try {
-    // 1. Check if chunked rich catalog snapshot exists
-    const { data: manifestData, error: manErr } = await supabase
+    // 0. بصمة الماني فست — بتحدد المصدر المتفق عليه. items.mode='products_table_v2'
+    //    يعني الجدول الرسمي الغني هو المصدر (بيتكتب مع أول استيراد/مزامنة كاملة
+    //    بعد ميجريشن supabase/add_products_rich_columns.sql).
+    const { data: manifestRows } = await supabase
       .from('orders')
-      .select('*')
+      .select('items')
       .eq('id', CATALOG_MANIFEST_ID)
       .limit(1);
+    const rawManifest = (manifestRows && manifestRows[0]?.items) as any;
+    const snapshotMode = typeof rawManifest?.mode === 'string' ? rawManifest.mode : null;
+    const totalChunks = typeof rawManifest?.totalChunks === 'number' ? rawManifest.totalChunks : 0;
 
-    if (!manErr && manifestData && manifestData.length > 0 && manifestData[0].items) {
-      const rawManifest = manifestData[0].items as any;
-      const totalChunks = rawManifest?.totalChunks;
-      if (typeof totalChunks === 'number' && totalChunks > 0) {
+    // 1. الجدول الرسمي الغني: ~416KB بدل ~3.5MB من صفوف catalog_sync_chunk.
+    if (snapshotMode === 'products_table_v2') {
+      const rich = await readRichProductsTable();
+      if (rich.ok) return { success: true, products: rich.products };
+      // أعمدة ناقصة (الميجريشن ما اتنفذش) أو جدول فاضي → نكمل بالمسار القديم كشبكة أمان.
+    }
+
+    // 2. Fallback: chunked rich catalog snapshot (المسار القديم)
+    if (totalChunks > 0) {
         const chunkPromises: Promise<any>[] = [];
         for (let i = 0; i < totalChunks; i++) {
           chunkPromises.push(
@@ -2383,7 +2608,6 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
         if (allItems.length > 0) {
           return { success: true, products: allItems };
         }
-      }
     }
 
     // 2. Fallback: Check if single catalog snapshot exists
@@ -2435,52 +2659,7 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
     }
 
     if (allProdData.length > 0) {
-      const mapped: Product[] = allProdData.map((p: any) => {
-        const cartonQuantity = Math.max(1, Number(p.carton_quantity ?? p.cartonQuantity ?? p.factor) || 1);
-        const rawPiecePrice = Number(p.piece_price ?? p.sales_price ?? p.salesPrice ?? p.piecePrice ?? p.price ?? 0);
-        let cartonPrice = Math.round(rawPiecePrice * cartonQuantity * 100) / 100;
-        let piecePrice = rawPiecePrice;
-
-        if (piecePrice === 0 && Number(p.carton_price ?? p.cartonPrice ?? 0) > 0) {
-          cartonPrice = Number(p.carton_price ?? p.cartonPrice);
-          piecePrice = Math.round((cartonPrice / cartonQuantity) * 100) / 100;
-        }
-
-        return {
-          id: p.id,
-          code: p.code || p.name?.slice(0, 8) || 'PRD',
-          name: p.name || 'صنف دريم',
-          salesPriority: p.sales_priority || p.salesPriority || 'عادي',
-          status: p.status || 'متاح',
-          cartonQuantity,
-          factor: cartonQuantity,
-          size: p.size || '',
-          color: p.color || '',
-          branchStockActual: Number(p.stock ?? p.branch_stock_actual ?? 50),
-          branchStockReserved: Number(p.branch_stock_reserved ?? p.stock ?? p.branch_stock_actual ?? 50),
-          mainWarehouseActual: Number(p.main_warehouse_actual ?? 500),
-          mainWarehouseReserved: Number(p.main_warehouse_reserved ?? p.main_warehouse_actual ?? 500),
-          department: p.item_group || p.itemGroup || p.category || p.department || 'عام',
-          category: p.item_group || p.itemGroup || p.category || 'عام',
-          itemGroup: p.item_group || p.itemGroup || p.category || p.department || 'عام',
-          familyName: p.family_name || p.familyName || p.classification || 'أصناف عامة',
-          classification: p.classification || 'أصناف عامة',
-          piecePrice,
-          cartonPrice,
-          branchName: p.branch_name || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
-          imageUrl: p.image_url || undefined,
-          cloudinaryPublicId: p.cloudinary_public_id || undefined,
-          barcode: p.barcode || undefined,
-          unifiedCode: p.unified_code || p.unifiedCode || undefined,
-          branchStocks: p.branch_stocks || p.branchStocks || undefined,
-          sector: p.sector || (
-            `${p.item_group || ''} ${p.category || ''} ${p.department || ''} ${p.family_name || ''} ${p.name || ''}`.includes('كهرب')
-              ? 'electrical'
-              : 'home'
-          ),
-        };
-      });
-      return { success: true, products: mapped };
+      return { success: true, products: allProdData.map(mapProductTableRow) };
     }
 
     return { success: true, products: [] };
@@ -2488,6 +2667,71 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
     const { message } = handleSupabaseError(err, 'fetchProductsFromSupabase');
     return { success: false, error: message };
   }
+}
+
+/** تحويل صف جدول products إلى كائن Product الغني (مشترك بين القراءة الغنية والقديمة). */
+function mapProductTableRow(p: any): Product {
+  const cartonQuantity = Math.max(1, Number(p.carton_quantity ?? p.cartonQuantity ?? p.factor) || 1);
+  const rawPiecePrice = Number(p.piece_price ?? p.sales_price ?? p.salesPrice ?? p.piecePrice ?? p.price ?? 0);
+  let cartonPrice = Math.round(rawPiecePrice * cartonQuantity * 100) / 100;
+  let piecePrice = rawPiecePrice;
+
+  if (piecePrice === 0 && Number(p.carton_price ?? p.cartonPrice ?? 0) > 0) {
+    cartonPrice = Number(p.carton_price ?? p.cartonPrice);
+    piecePrice = Math.round((cartonPrice / cartonQuantity) * 100) / 100;
+  }
+
+  return {
+    id: p.id,
+    code: p.code || p.name?.slice(0, 8) || 'PRD',
+    name: p.name || 'صنف دريم',
+    salesPriority: p.sales_priority || p.salesPriority || 'عادي',
+    status: p.status || 'متاح',
+    cartonQuantity,
+    factor: cartonQuantity,
+    size: p.size || '',
+    color: p.color || '',
+    branchStockActual: Number(p.stock ?? p.branch_stock_actual ?? 50),
+    branchStockReserved: Number(p.branch_stock_reserved ?? p.stock ?? p.branch_stock_actual ?? 50),
+    mainWarehouseActual: Number(p.main_warehouse_actual ?? 500),
+    mainWarehouseReserved: Number(p.main_warehouse_reserved ?? p.main_warehouse_actual ?? 500),
+    department: p.item_group || p.itemGroup || p.category || p.department || 'عام',
+    category: p.item_group || p.itemGroup || p.category || 'عام',
+    itemGroup: p.item_group || p.itemGroup || p.category || p.department || 'عام',
+    familyName: p.family_name || p.familyName || p.classification || 'أصناف عامة',
+    classification: p.classification || 'أصناف عامة',
+    piecePrice,
+    cartonPrice,
+    branchName: p.branch_name || 'فرع أكتوبر (الفرع الرئيسي والمخزن المركزي)',
+    imageUrl: p.image_url || undefined,
+    cloudinaryPublicId: p.cloudinary_public_id || undefined,
+    barcode: p.barcode || undefined,
+    unifiedCode: p.unified_code || p.unifiedCode || undefined,
+    branchStocks: p.branch_stocks || p.branchStocks || undefined,
+    sector: p.sector || (
+      `${p.item_group || ''} ${p.category || ''} ${p.department || ''} ${p.family_name || ''} ${p.name || ''}`.includes('كهرب')
+        ? 'electrical'
+        : 'home'
+    ),
+  };
+}
+
+/** قراءة جدول products الغني (بعد ميجريشن add_products_rich_columns.sql) على دفعات. */
+async function readRichProductsTable(): Promise<{ ok: boolean; products: Product[] }> {
+  const pageSize = 1000;
+  const rows: any[] = [];
+  for (let page = 0; page < MAX_PRODUCT_PAGES; page++) {
+    const { data, error } = await supabase
+      .from('products')
+      .select(PRODUCTS_SELECT_COLUMNS)
+      .order('id', { ascending: true })
+      .range(page * pageSize, page * pageSize + pageSize - 1);
+    if (error) return { ok: false, products: [] };
+    if (!data || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < pageSize) break;
+  }
+  return { ok: rows.length > 0, products: rows.map(mapProductTableRow) };
 }
 
 /**
@@ -3454,7 +3698,9 @@ export async function fetchProductsIncremental(): Promise<{
     if (nextCursor) setSyncCursor('products', nextCursor.ts, nextCursor.id);
     return {
       success: true,
-      products: changedRows,
+      // صفوف الـ snake_case من قاعدة البيانات بتتحول لـ Product الغني قبل الدمج —
+      // mergeProductsIncremental بيدمجها في الحالة مباشرة فلازم تكون mapped.
+      products: changedRows.map(mapProductTableRow),
       entity: 'products',
       count: changedRows.length,
       isFullFetch,

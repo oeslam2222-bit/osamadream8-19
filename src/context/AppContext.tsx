@@ -34,6 +34,7 @@ import {
   fetchInvoiceContentStamp,
   fetchProductsFromSupabase,
   fetchProductsIncremental,
+  isProductsTableAuthoritative,
   mergeProductsIncremental,
   fetchTargetsFromSupabase,
   fetchTargetContentStamp,
@@ -67,6 +68,7 @@ import {
   saveCustomerToSupabase,
   deleteCustomerFromSupabase,
   saveProductsToSupabase,
+  deleteProductFromSupabase,
   fetchCustomerItemSalesIncremental,
   mergeCustomerItemSalesIncremental,
   saveUsersToSupabase,
@@ -79,7 +81,13 @@ import {
 import { currentMonthKey } from '../services/forecastService';
 import { sendOrderToMicrosoft365 } from '../services/microsoftSyncService';
 import { sendInvoiceToPowerAutomate } from '../services/powerAutomateService';
-import { fetchTargetsFromGoogleSheetUrl } from '../services/targetService';
+import {
+  fetchTargetsFromGoogleSheetUrl,
+  parseTargetExcel,
+  exportTargetsToExcel,
+  inferTargetSector,
+  filterTargetsForUser,
+} from '../services/targetService';
 import { fetchDetailedCustomersFromGoogleSheet } from '../services/customerAnalyticsService';
 import { fetchAndParseGoogleSheet } from '../services/excelService';
 import { saveSingleSourceUrl, getPublishedDataSources, getSavedSourceUrl, isGoogleSheetsReadMode } from '../services/dataSourceService';
@@ -1531,7 +1539,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         window.localStorage.setItem(STORAGE_KEYS.FORECASTS, JSON.stringify(next));
       } catch {}
       await syncOrQueue('forecasts', 'delete', id, undefined, () => deleteForecastFromSupabase(id));
-      publishDataVersionUpdate({ scope: 'all' }).catch(() => {});
+      publishDataVersionUpdate({ scope: 'forecasts' }).catch(() => {});
     },
     [forecasts, syncOrQueue]
   );
@@ -1553,7 +1561,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       for (const item of targetsToDelete) {
         await syncOrQueue('forecasts', 'delete', item.id, undefined, () => deleteForecastFromSupabase(item.id));
       }
-      publishDataVersionUpdate({ scope: 'all' }).catch(() => {});
+      publishDataVersionUpdate({ scope: 'forecasts' }).catch(() => {});
     },
     [forecasts, syncOrQueue]
   );
@@ -2114,7 +2122,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           pushedInvoicesCount = invBatchRes.savedCount;
         }
         if (products.length > 0) {
-          const productsResult = await saveProductsToSupabase(products);
+          // مزامنة يدوية كاملة → الجدول الغني + snapshot محدث (مقبول هنا لأنها نادرة).
+          const productsResult = await saveProductsToSupabase(products, { snapshot: true });
           if (productsResult.success) {
             await publishNewDataVersion({
               scope: 'products',
@@ -2254,6 +2263,30 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       // المحلية بتفضل مكانها لحد ما الجديد يوصل فعلاً.
       const inScope = (s: SyncScope) => scope === 'all' || scope === s;
 
+      /**
+       * سحب الكتالوج داخل معالج الإصدار: تدريجي أولًا لو الجدول الرسمي
+       * هو المصدر (بعد ميجريشن updated_at) — يعني كل جهاز بينزّل الصفوف
+       * المتغيرة بس (~KB) بدل قراءة كاملة (939KB) مع كل نسخة كتالوج.
+       * أي فشل أو جدول مش authoritative بعد → القراءة الكاملة القديمة.
+       */
+      const pullProductsForVersionSync = async (): Promise<{ success: boolean; products?: Product[]; error?: string } | null> => {
+        if (!inScope('products')) return null;
+        if (await isProductsTableAuthoritative()) {
+          const inc = await fetchProductsIncremental().catch(() => null);
+          if (inc?.success) {
+            const incoming = inc.products || [];
+            if (!inc.isFullFetch && incoming.length === 0) {
+              // مفيش تغييرات: نرجّع الحالة الحالية عشان منطق الاستبدال
+              // اللي تحت ميحذفش الأصناف الموجودة من غير سبب.
+              return { success: true, products: productsRef.current };
+            }
+            const merged = inc.isFullFetch ? incoming : mergeProductsIncremental(productsRef.current, incoming);
+            return { success: true, products: merged };
+          }
+        }
+        return fetchProductsFromSupabase();
+      };
+
       // Fresh payloads, held until we know which ones actually arrived.
       let freshProducts: Product[] | null = null;
       let freshCustomers: Customer[] | null = null;
@@ -2266,7 +2299,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       // بدل مجموع الأوقات (الكتالوج والعملاء والفواتير
       // والزيارات كانت بتنزل ورا بعض متسلسلة).
       const [prodRes, custRes, trgRes, invRes, visRes, visStamp, custStamp] = await Promise.all([
-        inScope('products') ? fetchProductsFromSupabase() : Promise.resolve(null),
+        inScope('products') ? pullProductsForVersionSync() : Promise.resolve(null),
         inScope('customers') ? fetchCustomersFromSupabase(customerFetchScope) : Promise.resolve(null),
         inScope('targets') ? fetchTargetsFromSupabase() : Promise.resolve(null),
         inScope('invoices') ? fetchInvoicesFromSupabase(buildInvoiceFetchScope(currentUser, users)) : Promise.resolve(null),
@@ -4221,7 +4254,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const deleteUser = (userId: string) => {
     setUsers((prev) => prev.filter((u) => u.id !== userId));
     syncOrQueue('users', 'delete', userId, undefined, () => deleteUserFromSupabase(userId))
-      .then(() => publishDataVersionUpdate({ scope: 'all', notes: 'حذف مستخدم من النظام' }))
+      .then(() => publishDataVersionUpdate({ scope: 'customers', notes: 'حذف مستخدم من النظام' }))
       .catch((e) => console.warn('Supabase delete user failed:', e));
     if (currentUser?.id === userId) {
       logout();
@@ -4552,6 +4585,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
   const deleteProduct = (productId: string) => {
     setProducts((prev) => prev.filter((p) => p.id !== productId));
+    // بعد ما جدول products بقى هو المصدر، الحذف لازم يتم على السيرفر أيضًا —
+    // الـ upsert لوحده كان بيسيب الصف المحذوف حي هناك فيرجع مع المزامنة.
+    deleteProductFromSupabase(productId).catch((e) =>
+      console.warn('Supabase product delete failed:', e)
+    );
     scheduleProductSync();
   };
 
@@ -4677,7 +4715,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
 
     // Persist full catalog to Supabase so reps & branch supervisors instantly receive it on all devices
-    saveProductsToSupabase(finalUpdated).then((result) => {
+    // استيراد كامل → snapshot الـ chunks بيتحدث كمان (للأجهزة القديمة/الاحتياط).
+    saveProductsToSupabase(finalUpdated, { snapshot: true }).then((result) => {
       if (!result.success) {
         console.warn('Supabase catalog auto-sync warning:', result.error || 'Product save failed.');
         return;
@@ -6293,7 +6332,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));
     idbSet(STORAGE_KEYS.USERS, nextUsers);
     syncOrQueue('users', 'upsert', secured.id, secured, () => saveUserToSupabase(secured, nextUsers))
-      .then(() => publishDataVersionUpdate({ scope: 'all', notes: `إضافة مستخدم ${secured.name || secured.username}` }))
+      .then(() => publishDataVersionUpdate({ scope: 'customers', notes: `إضافة مستخدم ${secured.name || secured.username}` }))
       .catch((e) => console.warn('Supabase save user failed:', e));
     setTimeout(() => {
       refreshCustomerRepLinks();
@@ -6323,7 +6362,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       setCurrentUser(secured);
     }
     syncOrQueue('users', 'upsert', secured.id, secured, () => saveUserToSupabase(secured, nextUsers))
-      .then(() => publishDataVersionUpdate({ scope: 'all', notes: `تعديل مستخدم ${secured.name || secured.username}` }))
+      .then(() => publishDataVersionUpdate({ scope: 'customers', notes: `تعديل مستخدم ${secured.name || secured.username}` }))
       .catch((e) => console.warn('Supabase update user failed:', e));
     setTimeout(() => {
       refreshCustomerRepLinks();

@@ -27,10 +27,8 @@ function getSectorConfig(sector: Sector): SectorDatabaseConfig | null {
     if (url && anonKey) return { url, anonKey };
   }
   // sector === 'both' || sector === 'all' → استخدم القاعدة الافتراضية
-  const url = import.meta.env.VITE_SUPABASE_URL || 'https://rxthpgmlcsfckstpqhqf.supabase.co';
-  const anonKey =
-    import.meta.env.VITE_SUPABASE_ANON_KEY ||
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4dGhwZ21sY3NmY2tzdHBxaHFmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2NDIwMzgsImV4cCI6MjEwMzIxODAzOH0.2v4eRUKQjLM0xDomaE9HAiy_qTJ6NoijNuwC3JV1ZUA';
+  const url = import.meta.env.VITE_SUPABASE_URL || '';
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
   return { url, anonKey };
 }
 

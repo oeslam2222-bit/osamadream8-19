@@ -158,6 +158,26 @@ export function optimizeImageUrl(rawUrl: string, targetSize = 550, isDataSaver =
 /**
  * Generate a clean, bright, branded SVG placeholder image when no image is available
  */
+/**
+ * صورة محل بديلة للعملاء الذين لا توجد لهم صورة محل (بديلة للـUnsplash).
+ * تُنشأ محلياً كـdata URI — صفر بايت من استهلاك الشبكة والـCDN.
+ */
+export function generateStorePlaceholderSvg(name: string, seed = 0): string {
+  const palettes = [
+    ['#1E3A8A', '#3B82F6'],
+    ['#0F766E', '#14B8A6'],
+    ['#B45309', '#F59E0B'],
+    ['#7C3AED', '#A78BFA'],
+    ['#B91C1C', '#F87171'],
+    ['#0F2B38', '#38BDF8'],
+  ];
+  const idx = Math.abs(seed) % palettes.length;
+  const [deep, light] = palettes[idx];
+  const initial = (name || '?').trim().charAt(0) || '?';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${light}"/><stop offset="1" stop-color="${deep}"/></linearGradient></defs><rect width="160" height="160" fill="url(#bg)"/><g fill="#ffffff" opacity="0.55"><polygon points="30,86 80,42 130,86"/><rect x="42" y="86" width="76" height="48" rx="6"/></g><rect x="68" y="108" width="24" height="26" rx="3" fill="${deep}" opacity="0.9"/><text x="80" y="72" font-family="Cairo, Arial, sans-serif" font-size="30" font-weight="800" fill="#ffffff" text-anchor="middle">${initial}</text></svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
 export function generateProductPlaceholderSvg(code: string, category: string, name: string): string {
   const shortCode = code || 'ITEM';
   const cat = category || 'دريم طنطاوي';

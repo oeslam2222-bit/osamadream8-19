@@ -9,7 +9,9 @@ import { idbDelete, idbClear } from './storageService';
 export const GLOBAL_VERSION_RECORD_ID = GLOBAL_SYNC_VERSION_RECORD_ID;
 export const CLIENT_VERSION_STORAGE_KEY = 'dream_dist_client_data_version_meta_v1';
 
-export type SyncScope = 'all' | 'products' | 'customers' | 'targets' | 'invoices' | 'visits';
+// 'forecasts' نطاق محايد: تغييرات التنبؤات مش بتتسحب من معالج الإصدار
+// (بتتجلب عند الطلب)، فنشرها معناه رفع الإصدار بس من غير أي سحب ثقيل.
+export type SyncScope = 'all' | 'products' | 'customers' | 'targets' | 'invoices' | 'visits' | 'forecasts';
 
 export interface GlobalDataVersionMeta {
   id: string;

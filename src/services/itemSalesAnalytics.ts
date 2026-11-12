@@ -13,7 +13,7 @@ export const GROUP_COLORS = [
   '#102b4e',
   '#c99a43',
   '#0e9f8a',
-  '#1e5f9d',
+  '#2563EB',
   '#8b5cf6',
   '#ef7d3a',
   '#94a3b8'
