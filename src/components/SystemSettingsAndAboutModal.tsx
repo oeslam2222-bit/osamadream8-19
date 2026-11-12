@@ -63,7 +63,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-[var(--app-line)] shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-navy-panel text-[#d97706] flex items-center justify-center font-black shadow-md shrink-0">
+            <div className="w-11 h-11 rounded-2xl bg-navy-panel text-[#2dd4bf] flex items-center justify-center font-black shadow-md shrink-0">
               <Settings className="w-6 h-6" />
             </div>
             <div>
@@ -89,7 +89,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
             onClick={() => setActiveTab('team')}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
               activeTab === 'team'
-                ? 'bg-navy-panel text-[#d97706] shadow-xs'
+                ? 'bg-navy-panel text-[#2dd4bf] shadow-xs'
                 : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -101,7 +101,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
             onClick={() => setActiveTab('about')}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
               activeTab === 'about'
-                ? 'bg-navy-panel text-[#d97706] shadow-xs'
+                ? 'bg-navy-panel text-[#2dd4bf] shadow-xs'
                 : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -113,7 +113,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
             onClick={() => setActiveTab('settings')}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
               activeTab === 'settings'
-                ? 'bg-navy-panel text-[#d97706] shadow-xs'
+                ? 'bg-navy-panel text-[#2dd4bf] shadow-xs'
                 : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -125,7 +125,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
             onClick={() => setActiveTab('install')}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
               activeTab === 'install'
-                ? 'bg-navy-panel text-[#d97706] shadow-xs'
+                ? 'bg-navy-panel text-[#2dd4bf] shadow-xs'
                 : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -137,7 +137,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
             onClick={() => setActiveTab('privacy')}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
               activeTab === 'privacy'
-                ? 'bg-navy-panel text-[#d97706] shadow-xs'
+                ? 'bg-navy-panel text-[#2dd4bf] shadow-xs'
                 : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
             }`}
           >
@@ -172,7 +172,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                 {/* Sector Leadership Card */}
                 <div className="bg-slate-50 border border-[var(--app-line)] rounded-2xl p-4 space-y-2 hover:border-[var(--app-warn)] transition">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-navy-panel text-[#d97706] flex items-center justify-center font-black shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-navy-panel text-[#2dd4bf] flex items-center justify-center font-black shrink-0">
                       <Building className="w-5 h-5" />
                     </div>
                     <div>
@@ -384,7 +384,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                   onClick={() => setAutoSyncOrders(!autoSyncOrders)}
                   className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
                     autoSyncOrders
-                      ? 'bg-navy-panel text-[#d97706] shadow-sm'
+                      ? 'bg-navy-panel text-[#2dd4bf] shadow-sm'
                       : 'bg-white border border-[var(--app-line)] text-slate-700 hover:bg-slate-100'
                   }`}
                 >
@@ -507,7 +507,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                 <div className="flex items-center gap-3">
                   <img src="/tantawy-brand-logo.svg" alt="الطنطاوي" className="w-12 h-12 rounded-xl bg-white/10 p-1 border border-white/20 shrink-0" />
                   <div>
-                    <h4 className="font-black text-sm text-[#d97706]">تثبيت التطبيق على الشاشة الرئيسية (PWA)</h4>
+                    <h4 className="font-black text-sm text-[#2dd4bf]">تثبيت التطبيق على الشاشة الرئيسية (PWA)</h4>
                     <p className="text-[11px] text-slate-300 mt-0.5">
                       تثبيت فوري بدون استهلاك مساحة، يعمل كـ تطبيق أصلي بكامل الشاشة على جميع الهواتف والأجهزة.
                     </p>
@@ -519,7 +519,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
               <div className="bg-slate-50 border border-[var(--app-line)] rounded-2xl p-4 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-start gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-navy-panel text-[#d97706] flex items-center justify-center font-black shadow-md shrink-0">
+                    <div className="w-11 h-11 rounded-2xl bg-navy-panel text-[#2dd4bf] flex items-center justify-center font-black shadow-md shrink-0">
                       <Smartphone className="w-6 h-6" />
                     </div>
                     <div>
@@ -540,7 +540,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                         alert('يمكنك تثبيت التطبيق بالنقر على زر المشاركة أو القائمة في المتصفح واختيار "إضافة إلى الشاشة الرئيسية".');
                       }
                     }}
-                    className="bg-navy-panel hover:bg-navy-hover text-[#d97706] font-black px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shrink-0 cursor-pointer transition"
+                    className="bg-navy-panel hover:bg-navy-hover text-[#2dd4bf] font-black px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shrink-0 cursor-pointer transition"
                   >
                     <Download className="w-4 h-4" />
                     <span>تثبيت الأيقونة الآن</span>
@@ -676,7 +676,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
           </div>
           <button
             onClick={onClose}
-            className="bg-navy-panel hover:bg-navy-hover text-[#d97706] font-black px-5 py-2 rounded-xl text-xs transition cursor-pointer"
+            className="bg-navy-panel hover:bg-navy-hover text-[#2dd4bf] font-black px-5 py-2 rounded-xl text-xs transition cursor-pointer"
           >
             إغلاق
           </button>

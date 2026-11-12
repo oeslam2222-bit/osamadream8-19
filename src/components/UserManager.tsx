@@ -965,7 +965,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
               <div key={user.id} className={`p-4 space-y-3 ${isCurrent ? 'row-brass' : ''}`}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-2xl bg-[var(--app-navy)] text-[var(--app-accent)] flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
+                    <div className="w-10 h-10 rounded-2xl bg-[var(--app-navy)] text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs">
                       {user.name.charAt(0)}
                     </div>
                     <div>
@@ -1092,7 +1092,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     {/* Name & Avatar */}
                     <td className="p-3.5">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-2xl bg-[var(--app-navy)] text-[var(--app-accent)] flex items-center justify-center font-black text-sm shrink-0 border border-[rgba(16,43,78,.3)]">
+                        <div className="w-9 h-9 rounded-2xl bg-[var(--app-navy)] text-white flex items-center justify-center font-black text-sm shrink-0 border border-[rgba(16,43,78,.3)]">
                           {user.name.charAt(0)}
                         </div>
                         <div>

@@ -159,7 +159,7 @@ export const ItemRankingCard: React.FC<ItemRankingCardProps> = ({
                   style={{ fill: '#334155', fontSize: 9, fontWeight: 800 }}
                 />
                 {chartData.map((item, index) => (
-                  <Cell key={`${item.itemCode}-${index}`} fill={index === 0 ? '#c99a43' : '#1e5f9d'} />
+                  <Cell key={`${item.itemCode}-${index}`} fill={index === 0 ? '#c99a43' : '#2563EB'} />
                 ))}
               </Bar>
             </BarChart>

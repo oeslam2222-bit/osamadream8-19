@@ -148,7 +148,7 @@
 
 /* Mobile buttons */
 .btn-mobile-primary {
-  background: linear-gradient(to right, #009488, #0e7a6e);
+  background: linear-gradient(to right, #0D9488, #0F766E);
   color: #ffffff;
   font-weight: 700;
   border-radius: 0.5rem;
@@ -185,7 +185,7 @@
 
 .input-mobile:focus {
   outline: none;
-  border-color: #009488;
+  border-color: #0D9488;
   box-shadow: 0 0 0 3px rgba(0, 148, 136, 0.2);
 }
 
@@ -324,7 +324,7 @@
   align-items: center;
   justify-content: center;
   background: #f8fafc;
-  color: #009488;
+  color: #0D9488;
   font-size: 1rem;
 }
 
@@ -406,12 +406,12 @@
 }
 
 .action-btn-mobile-primary {
-  background: #009488;
+  background: #0D9488;
   color: #ffffff;
 }
 
 .action-btn-mobile-primary:hover {
-  background: #0e7a6e;
+  background: #0F766E;
 }
 
 /* ============================================================
@@ -467,7 +467,7 @@
   
   /* أزرار الإضافة للمنتجات */
   table td button[class*=\"bg-blue-600\"], table td button[class*=\"bg-indigo-600\"] {
-    background: linear-gradient(to right, #009488, #0e7a6e) !important;
+    background: linear-gradient(to right, #0D9488, #0F766E) !important;
     color: #ffffff !important;
     font-weight: 700 !important;
     border-radius: 0.5rem !important;
@@ -611,7 +611,7 @@
   
   input[type=\"text\"]:focus, input[type=\"password\"]:focus, input[type=\"number\"]:focus, input[type=\"email\"]:focus, input[type=\"date\"]:focus, input[type=\"time\"]:focus, select:focus, textarea:focus {
     outline: none !important;
-    border-color: #009488 !important;
+    border-color: #0D9488 !important;
     box-shadow: 0 0 0 3px rgba(0, 148, 136, 0.2) !important;
   }
   

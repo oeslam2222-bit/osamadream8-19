@@ -601,6 +601,8 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                               <ProductImage
                                 product={item.product}
                                 cloudinaryConfig={cloudinaryConfig}
+                                targetSize={120}
+                                sizeVariant="thumbnail"
                                 containerClassName="w-12 h-12 rounded-xl bg-blue-soft border border-[var(--app-line)] shrink-0"
                                 className="w-full h-full object-cover"
                               />
@@ -855,7 +857,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                             <button
                               type="button"
                               onClick={() => handleQuickAddProduct(p, 1, 'carton')}
-                              className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-[#0f2b38] hover:bg-[#009488] text-white text-[11px] font-black transition cursor-pointer shadow-xs whitespace-nowrap text-center"
+                              className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-[#0f2b38] hover:bg-[#0D9488] text-white text-[11px] font-black transition cursor-pointer shadow-xs whitespace-nowrap text-center"
                               title="إضافة 1 كرتونة"
                             >
                               + كرتونة

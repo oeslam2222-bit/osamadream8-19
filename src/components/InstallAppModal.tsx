@@ -124,22 +124,22 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
           
           {/* Important Explanation: Chrome Badge Solution Box */}
           <div className="bg-[#15345c]/60 border border-[#1b4676]/50 rounded-2xl p-4 space-y-3 text-xs">
-            <div className="flex items-center gap-2 text-[var(--app-accent)] font-black text-sm">
-              <AlertTriangle className="w-4 h-4 text-[var(--app-accent)] shrink-0" />
+            <div className="flex items-center gap-2 text-[#60a5fa] font-black text-sm">
+              <AlertTriangle className="w-4 h-4 text-[#60a5fa] shrink-0" />
               <span>كيفية إظهار الأيقونة الأصلية دون علامة كروم</span>
             </div>
             <p className="text-slate-300 leading-relaxed text-[11px]">
               إذا ظهرت أيقونة التطبيق مع علامة متصفح صغيرة، فهذا يعني أنك اخترت سابقاً <strong className="text-white">"إضافة إلى الشاشة الرئيسية"</strong> كإختصار ويب بدلاً من التثبيت الفعلي.
             </p>
             <div className="bg-[#0a1c30]/50 rounded-xl p-3 border border-[#1b4676]/40 space-y-2 text-[11px] text-slate-200">
-              <div className="flex items-center gap-2 text-[var(--app-accent)] font-bold">
+              <div className="flex items-center gap-2 text-[#60a5fa] font-bold">
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                 <span>الخطوات الصحيحة:</span>
               </div>
               <ol className="list-decimal list-inside space-y-1.5 pr-1">
                 <li><strong className="text-[#ef4444]">احذف الإختصار القديم</strong> الذي يظهر عليه علامة كروم من شاشتك.</li>
                 <li>اضغط زر <strong className="text-white">«تثبيت التطبيق الآن»</strong> بالأسفل.</li>
-                <li>اختر دائماً <strong className="text-[var(--app-accent)]">«تثبيت» (Install)</strong> وليس مجرد إضافة رابط.</li>
+                <li>اختر دائماً <strong className="text-[#60a5fa]">«تثبيت» (Install)</strong> وليس مجرد إضافة رابط.</li>
               </ol>
             </div>
           </div>
@@ -147,12 +147,12 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
           {/* Quick Features Highlight */}
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="bg-[#15345c]/40 p-2.5 rounded-2xl border border-[#1b4676]/40">
-              <Zap className="w-5 h-5 text-[var(--app-accent)] mx-auto mb-1.5" />
+              <Zap className="w-5 h-5 text-[#60a5fa] mx-auto mb-1.5" />
               <div className="text-[11px] font-black text-white">سرعة فائقة</div>
               <div className="text-[9px] text-slate-400">فتح مباشر دون تحميل</div>
             </div>
             <div className="bg-[#15345c]/40 p-2.5 rounded-2xl border border-[#1b4676]/40">
-              <ShieldCheck className="w-5 h-5 text-[var(--app-accent)] mx-auto mb-1.5" />
+              <ShieldCheck className="w-5 h-5 text-[#60a5fa] mx-auto mb-1.5" />
               <div className="text-[11px] font-black text-white">توفير الباقة</div>
               <div className="text-[9px] text-slate-400">تخزين الصور في الهاتف</div>
             </div>
@@ -165,7 +165,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
 
           {/* Status Message if user triggered install */}
           {installStatusMsg && (
-            <div className="p-3 bg-[#15345c]/60 border border-[#1b4676]/50 text-[var(--app-accent)] rounded-xl text-xs font-bold text-center animate-in fade-in">
+            <div className="p-3 bg-[#15345c]/60 border border-[#1b4676]/50 text-[#60a5fa] rounded-xl text-xs font-bold text-center animate-in fade-in">
               {installStatusMsg}
             </div>
           )}
@@ -209,37 +209,37 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
           <div className="space-y-3">
             <div className="text-xs font-black text-slate-300 flex items-center justify-between">
               <span>خطوات التثبيت من المتصفح:</span>
-              <span className="text-[10px] text-[var(--app-accent)] font-bold">لضمان إزالة علامة كروم</span>
+              <span className="text-[10px] text-[#60a5fa] font-bold">لضمان إزالة علامة كروم</span>
             </div>
 
             {/* Android Chrome Instructions */}
             {(!isIOS || isAndroid) && (
               <div className="bg-[#0a1c30]/50 p-4 rounded-2xl border border-[#1b4676]/40 space-y-3 text-xs">
-                <div className="font-black text-[var(--app-accent)] flex items-center gap-2">
-                  <Smartphone className="w-4 h-4 text-[var(--app-accent)]" />
+                <div className="font-black text-[#60a5fa] flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-[#60a5fa]" />
                   <span>خطوات التثبيت على هواتف أندرويد (سامسونج، شاومي، أوبو، فيفو...):</span>
                 </div>
                 
                 <div className="space-y-2.5 text-slate-300 leading-relaxed text-[11px]">
                   <div className="flex items-start gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
-                    <span className="w-5 h-5 rounded-full bg-[var(--app-accent)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">1</span>
+                    <span className="w-5 h-5 rounded-full bg-[#0d9488] text-white font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">1</span>
                     <div>
-                      <span>اضغط على قائمة <strong>الخيارات (الثلاث نقاط)</strong> <MoreVertical className="w-3.5 h-3.5 inline text-[var(--app-accent)] mx-0.5" /> بأعلى شاشة متصفح Google Chrome.</span>
+                      <span>اضغط على قائمة <strong>الخيارات (الثلاث نقاط)</strong> <MoreVertical className="w-3.5 h-3.5 inline text-[#60a5fa] mx-0.5" /> بأعلى شاشة متصفح Google Chrome.</span>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
-                    <span className="w-5 h-5 rounded-full bg-[var(--app-accent)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">2</span>
+                    <span className="w-5 h-5 rounded-full bg-[#0d9488] text-white font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">2</span>
                     <div>
                       <span>ابحث عن خيار <strong className="text-[#0d9488]">"تثبيت التطبيق" (Install app)</strong> <Download className="w-3.5 h-3.5 inline text-[#0d9488] mx-0.5" />.</span>
-                      <p className="text-[10px] text-[var(--app-accent)] font-semibold mt-0.5">
+                      <p className="text-[10px] text-[#60a5fa] font-semibold mt-0.5">
                         ⚠️ ملحوظة: تجنب خيار "إضافة إلى الشاشة الرئيسية" واختر دائماً "تثبيت التطبيق".
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
-                    <span className="w-5 h-5 rounded-full bg-[var(--app-accent)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">3</span>
+                    <span className="w-5 h-5 rounded-full bg-[#0d9488] text-white font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">3</span>
                     <div>
                       <span>اضغط <strong>تثبيت (Install)</strong> لتأكيد التثبيت.</span>
                       <p className="text-[10px] text-[#0d9488] font-bold mt-0.5">
@@ -254,21 +254,21 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
             {/* iOS Safari Instructions */}
             {isIOS && (
               <div className="bg-[#0a1c30]/50 p-4 rounded-2xl border border-[#1b4676]/40 space-y-3 text-xs">
-                <div className="font-black text-[var(--app-accent)] flex items-center gap-2">
-                  <Smartphone className="w-4 h-4 text-[var(--app-accent)]" />
+                <div className="font-black text-[#60a5fa] flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-[#60a5fa]" />
                   <span>خطوات التثبيت على الآيفون والآيباد (iPhone / iPad - Safari):</span>
                 </div>
                 <div className="space-y-2 text-slate-300 leading-relaxed text-[11px]">
                   <div className="flex items-center gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
-                    <span className="w-5 h-5 rounded-full bg-[var(--app-accent)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0">1</span>
+                    <span className="w-5 h-5 rounded-full bg-[#0d9488] text-white font-black flex items-center justify-center text-[10px] shrink-0">1</span>
                     <span>اضغط على زر <strong>المشاركة (Share)</strong> <Share className="w-3.5 h-3.5 inline text-[#60a5fa] mx-1" /> في أسفل متصفح Safari.</span>
                   </div>
                   <div className="flex items-center gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
-                    <span className="w-5 h-5 rounded-full bg-[var(--app-accent)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0">2</span>
+                    <span className="w-5 h-5 rounded-full bg-[#0d9488] text-white font-black flex items-center justify-center text-[10px] shrink-0">2</span>
                     <span>مرر لأسفل واختر <strong>"إضافة إلى الصفحة الرئيسية" (Add to Home Screen)</strong> <PlusSquare className="w-3.5 h-3.5 inline text-[#0d9488] mx-1" />.</span>
                   </div>
                   <div className="flex items-center gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
-                    <span className="w-5 h-5 rounded-full bg-[var(--app-accent)] text-slate-950 font-black flex items-center justify-center text-[10px] shrink-0">3</span>
+                    <span className="w-5 h-5 rounded-full bg-[#0d9488] text-white font-black flex items-center justify-center text-[10px] shrink-0">3</span>
                     <span>اضغط على <strong>إضافة (Add)</strong> بالأعلى. ستظهر أيقونة التطبيق الفخمة فوراً بدون علامة متصفح.</span>
                   </div>
                 </div>
@@ -280,10 +280,10 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
           <div className="pt-2">
             <button
               onClick={() => setShowTroubleshooting(!showTroubleshooting)}
-              className="w-full text-right text-xs text-[var(--app-accent)] hover:text-[var(--app-accent)] font-bold flex items-center justify-between p-2.5 bg-[#0a1c30]/40 rounded-xl border border-[#1b4676]/40 transition cursor-pointer"
+              className="w-full text-right text-xs text-[#60a5fa] hover:text-[#60a5fa] font-bold flex items-center justify-between p-2.5 bg-[#0a1c30]/40 rounded-xl border border-[#1b4676]/40 transition cursor-pointer"
             >
               <span className="flex items-center gap-1.5">
-                <HelpCircle className="w-4 h-4 text-[var(--app-accent)]" />
+                <HelpCircle className="w-4 h-4 text-[#60a5fa]" />
                 <span>ما زالت علامة كروم ظاهرة على الأيقونة؟ اضغط هنا للحل</span>
               </span>
               <span className="text-slate-400">{showTroubleshooting ? '▲' : '▼'}</span>

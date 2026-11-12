@@ -462,7 +462,7 @@ export const UnifiedReturnsView: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs shadow-sm transition cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-l from-[#0D9488] to-[#0F2B38] hover:opacity-95 text-white font-black text-xs shadow-sm transition cursor-pointer"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
               <span>تسجيل مرتجع جديد لعميل</span>

@@ -7,15 +7,16 @@ import {
   Trophy,
   Star,
   X,
+  RotateCcw,
 } from 'lucide-react';
 
 interface EncouragementContextType {
-  showEncouragement: (type: 'visit' | 'collection' | 'order' | 'customer' | 'target' | 'general') => void;
+  showEncouragement: (type: 'visit' | 'collection' | 'order' | 'customer' | 'target' | 'general' | 'returns') => void;
   activeEncouragement: EncouragementItem | null;
 }
 
 interface EncouragementItem {
-  type: 'visit' | 'collection' | 'order' | 'customer' | 'target' | 'general';
+  type: 'visit' | 'collection' | 'order' | 'customer' | 'target' | 'general' | 'returns';
   title: string;
   message: string;
   icon: React.ElementType;
@@ -70,6 +71,13 @@ const MESSAGES: Record<string, EncouragementItem> = {
     icon: Star,
     color: 'text-[var(--app-accent)] bg-[rgba(201,154,67,.12)] border-[rgba(201,154,67,.30)]',
   },
+  returns: {
+    type: 'returns',
+    title: 'مرتجعات مضبوطة',
+    message: 'المرتجعات اللي بتتسجل بدقة بتحافظ على هامش الربح وتكشف مشاكل الجودة بدري،استمروا بالضبط',
+    icon: RotateCcw,
+    color: 'text-[var(--app-warn)] bg-[rgba(155,112,39,.14)] border-[rgba(155,112,39,.30)]',
+  },
 };
 
 export function EncouragementProvider({ children }: { children: ReactNode }) {
@@ -114,7 +122,7 @@ export function useEncouragement() {
 export function EncouragementBadge({ type, count }: { type: keyof typeof MESSAGES; count?: number }) {
   const { showEncouragement } = useEncouragement();
   const item = MESSAGES[type];
-  const encouragementType = type as 'visit' | 'collection' | 'order' | 'customer' | 'target' | 'general';
+  const encouragementType = type as 'visit' | 'collection' | 'order' | 'customer' | 'target' | 'general' | 'returns';
 
   return (
     <button

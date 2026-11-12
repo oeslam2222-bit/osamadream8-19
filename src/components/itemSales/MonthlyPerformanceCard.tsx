@@ -100,9 +100,9 @@ export const MonthlyPerformanceCard: React.FC<MonthlyPerformanceCardProps> = ({
               <Line
                 type="monotone"
                 dataKey="amount"
-                stroke="#1e5f9d"
+                stroke="#2563EB"
                 strokeWidth={2.5}
-                dot={{ r: 3.5, fill: '#ffffff', stroke: '#1e5f9d', strokeWidth: 2 }}
+                dot={{ r: 3.5, fill: '#ffffff', stroke: '#2563EB', strokeWidth: 2 }}
                 activeDot={{ r: 5, fill: '#c99a43', stroke: '#ffffff', strokeWidth: 2 }}
               >
                 <LabelList

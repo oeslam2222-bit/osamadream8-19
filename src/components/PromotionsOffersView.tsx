@@ -526,7 +526,7 @@ export const PromotionsOffersView: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowUploadPage(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black px-3.5 py-2.5 text-xs shadow-sm transition cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white font-black px-3.5 py-2.5 text-xs shadow-sm transition cursor-pointer"
                 title="فتح صفحة رفع شيت العروض"
               >
                 <Upload className="w-4 h-4" />
@@ -642,7 +642,7 @@ export const PromotionsOffersView: React.FC = () => {
                 className="tg-card relative overflow-hidden !gap-3 p-4 border border-[var(--tg-line)] hover:border-blue-300/60 hover:shadow-md transition"
               >
                 {/* Promo Badge */}
-                <div className="absolute top-0 left-0 bg-gradient-to-l from-rose-600 to-amber-500 text-white font-black text-[11px] px-3 py-1.5 rounded-br-2xl shadow-sm flex items-center gap-1.5">
+                <div className="absolute top-0 left-0 bg-gradient-to-l from-[#0D9488] to-[#0F2B38] text-white font-black text-[11px] px-3 py-1.5 rounded-br-2xl shadow-sm flex items-center gap-1.5">
                   <Flame className="w-3.5 h-3.5" />
                   <span>خصم {promo.discountPercentage}%</span>
                 </div>
@@ -652,11 +652,13 @@ export const PromotionsOffersView: React.FC = () => {
                     <ProductImage
                       product={matchedProduct}
                       cloudinaryConfig={cloudinaryConfig}
+                      targetSize={160}
+                      sizeVariant="thumbnail"
                       containerClassName="w-16 h-16 rounded-xl bg-slate-50 border border-slate-200 shrink-0"
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-16 h-16 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-black shrink-0 text-xl">
+                    <div className="w-16 h-16 rounded-xl bg-[#F1F5F9] text-[#0F2B38] border border-[#CBD5E1] flex items-center justify-center font-black shrink-0 text-xl">
                       🎁
                     </div>
                   )}
@@ -684,7 +686,7 @@ export const PromotionsOffersView: React.FC = () => {
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex items-end justify-between gap-3">
                   <div>
                     <div className="text-[10px] font-bold text-slate-500 line-through">السعر الأصلي: {formatCurrency(cartonPrice)}</div>
-                    <div className="text-base font-black text-rose-700 tabular-nums">سعر العرض: {formatCurrency(promoPrice)}</div>
+                    <div className="text-base font-black text-[#0F766E] tabular-nums">سعر العرض: {formatCurrency(promoPrice)}</div>
                   </div>
                   <div className="text-left">
                     <div className="text-[10px] font-bold text-slate-500">الفرع</div>

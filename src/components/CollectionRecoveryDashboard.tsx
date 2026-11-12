@@ -471,7 +471,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
       {topRep && (
         <div className="tg-card !flex-row !items-center !justify-between gap-3 border border-emerald-200 bg-gradient-to-l from-emerald-50 to-white">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-sm font-black text-white shadow-sm">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0D9488] to-[#0F2B38] text-sm font-black text-white shadow-sm">
               {topRep.avatar}
             </div>
             <div className="min-w-0">

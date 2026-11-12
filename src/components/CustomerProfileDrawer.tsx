@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { normalizeArabicText } from '../services/arabicMatchingService';
+import { classifyEligibilityColumn } from '../services/customerFinancialService';
 import { normalizeCloudinaryConfig } from '../services/cloudinaryService';
 import type { Invoice } from '../types';
 
@@ -137,6 +138,13 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
     }
   }, [customer, getVisibleVisits]);
 
+  /* ---------- آخر بيع وآخر تحصيل (من الفواتير والزيارات المحلية) ---------- */
+  const lastSale = useMemo(() => customerInvoices[0] || null, [customerInvoices]);
+  const lastCollection = useMemo(
+    () => visits.find((v) => Number(v.collectedAmount) > 0) || null,
+    [visits]
+  );
+
   /* ---------- المبيعات والتحصيلات الشهرية الديناميكية ---------- */
   const monthly = useMemo(() => {
     const rawSales = customer?.monthlySales2026 || {};
@@ -206,12 +214,10 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
   const sector = customer?.sector;
   const avatarTone = sector === 'home' ? 'home' : sector === 'electrical' ? 'electrical' : 'default';
   
-  // تصنيف العميل المعتمد من عمود قابل /غير
-  const rawEligibility = (customer?.dealEligibility || customer?.dealClassification || customer?.eligibilityStatusLabel || '').trim();
-  const isEligible = rawEligibility
-    ? (!rawEligibility.includes('غير') && !rawEligibility.includes('موقوف') && !rawEligibility.includes('ممتنع'))
-    : true;
-  const eligibilityLabel = rawEligibility || (isEligible ? 'قابل للتعامل' : 'غير قابل للتعامل');
+  // تصنيف العميل — من عامود «قابل / غير» حصريًا (نفس الدالة اللي في الشيت imports والتحليلات)
+  const eligibilityInfo = classifyEligibilityColumn(customer?.dealEligibility);
+  const isEligible = eligibilityInfo ? eligibilityInfo.eligible : true;
+  const eligibilityLabel = eligibilityInfo?.raw || (isEligible ? 'قابل للتعامل' : 'غير قابل للتعامل');
 
   const totalSales = Math.max(
     Number(customer?.totalSales ?? customer?.sales2026 ?? 0),
@@ -377,13 +383,13 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
   const currentLng = gps?.lng ?? customer.longitude;
   const googleMapsUrl = currentLat && currentLng ? `https://www.google.com/maps?q=${currentLat},${currentLng}` : null;
 
-  const tabs: { key: TabKey; label: string; icon: any; count?: number }[] = [
-    { key: 'overview', label: 'البيانات المالية', icon: Building2 },
-    { key: 'invoices', label: 'الفواتير والطلبات', icon: FileText, count: customerInvoices.length },
-    { key: 'months', label: 'المبيعات الشهرية', icon: TrendingUp },
-    { key: 'visits', label: 'الزيارات', icon: CalendarCheck, count: visits.length },
-    { key: 'gps', label: 'تثبيت GPS', icon: MapPin },
-    { key: 'photos', label: 'صور المحل', icon: ImageIcon, count: photosCount },
+  const tabs: { key: TabKey; label: string; icon: any; count?: number; hint?: string }[] = [
+    { key: 'overview', label: 'التفاصيل المالية', icon: Wallet, hint: 'المديونية والتحصيل' },
+    { key: 'invoices', label: 'الفواتير', icon: FileText, count: customerInvoices.length },
+    { key: 'months', label: 'المبيعات الشهرية', icon: TrendingUp, count: monthly.length || undefined },
+    { key: 'visits', label: 'الزيارات', icon: CalendarCheck, count: visits.length, hint: 'سجل الزيارات الميدانية' },
+    { key: 'gps', label: 'الموقع GPS', icon: MapPin },
+    { key: 'photos', label: 'صور المحل', icon: ImageIcon, count: photosCount, hint: 'توثيق صور المحل' },
   ];
 
   return (
@@ -502,36 +508,177 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
         </div>
 
         {/* ====== التبويبات ====== */}
-        <div className="tg-cp__tabs">
-          {tabs.map((t) => {
-            const Icon = t.icon;
-            const isActive = tab === t.key;
-            return (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTab(t.key)}
-                className={`tg-cp__tab ${isActive ? 'tg-cp__tab--active' : ''}`}
-              >
-                <Icon size={14} />
-                <span>{t.label}</span>
-                {t.count !== undefined && t.count > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
-                    isActive ? 'bg-white/25 text-white' : 'bg-blue-100 text-blue-800'
-                  }`}>
-                    {t.count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        <div className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] sticky top-0 z-10">
+          <div className="px-3 sm:px-4 pt-3 pb-2">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-[11px] font-black text-slate-600 dark:text-slate-300">أقسام ملف العميل</span>
+              <span className="text-[10px] font-bold text-slate-400">التفاصيل المالية • الزيارات • صور المحل</span>
+            </div>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              {tabs.map((t) => {
+                const Icon = t.icon;
+                const isActive = tab === t.key;
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => setTab(t.key)}
+                    className={`relative flex flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2.5 text-center transition min-h-[58px] ${
+                      isActive
+                        ? 'bg-[#0b2337] text-white border-[#0b2337] shadow-sm'
+                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800/60 dark:text-slate-200 dark:border-slate-700'
+                    }`}
+                    title={t.hint || t.label}
+                  >
+                    <Icon size={15} />
+                    <span className="text-[10px] sm:text-[11px] font-black leading-tight">{t.label}</span>
+                    {t.count !== undefined && (
+                      <span
+                        className={`absolute top-1 left-1 min-w-[17px] h-[17px] px-1 rounded-full text-[9px] font-black inline-flex items-center justify-center ${
+                          isActive ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-700'
+                        }`}
+                      >
+                        {t.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* ====== المحتوى الداخلي ====== */}
         <div className="tg-cp__body flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0b1329] p-4 sm:p-5 space-y-4">
-          {/* التبويب 1: البيانات المالية والنظرة العامة */}
+          {/* التبويب 1: التفاصيل المالية والنظرة العامة */}
           {tab === 'overview' && (
             <div className="space-y-4">
+              {/* وصول سريع للأقسام المطلوبة */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTab('months')}
+                  className="tg-card p-3 text-right hover:border-blue-300 hover:bg-blue-50/40 transition group"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
+                      <TrendingUp size={15} />
+                    </span>
+                    <ChevronRight size={14} className="text-slate-400 group-hover:text-blue-600 rotate-180" />
+                  </div>
+                  <div className="text-xs font-black text-[#0b2337]">التفاصيل المالية الشهرية</div>
+                  <div className="text-[10px] font-bold text-slate-500 mt-0.5">مبيعات وتحصيلات حسب الشهر</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTab('visits')}
+                  className="tg-card p-3 text-right hover:border-emerald-300 hover:bg-emerald-50/40 transition group"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                      <CalendarCheck size={15} />
+                    </span>
+                    <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 rounded-full px-2 py-0.5">{visits.length}</span>
+                  </div>
+                  <div className="text-xs font-black text-[#0b2337]">سجل الزيارات</div>
+                  <div className="text-[10px] font-bold text-slate-500 mt-0.5">كل الزيارات الميدانية للعميل</div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTab('photos')}
+                  className="tg-card p-3 text-right hover:border-violet-300 hover:bg-violet-50/40 transition group"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="w-8 h-8 rounded-xl bg-violet-100 text-violet-700 flex items-center justify-center">
+                      <ImageIcon size={15} />
+                    </span>
+                    <span className="text-[10px] font-black bg-violet-100 text-violet-700 rounded-full px-2 py-0.5">{photosCount}/{MAX_PHOTOS}</span>
+                  </div>
+                  <div className="text-xs font-black text-[#0b2337]">صور المحل</div>
+                  <div className="text-[10px] font-bold text-slate-500 mt-0.5">توثيق وعرض صور المحل</div>
+                </button>
+              </div>
+
+              {/* آخر بيع وآخر تحصيل */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="tg-card p-3 flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-xl bg-[var(--app-accent,#2563EB)]/10 text-[var(--app-accent,#2563EB)] flex items-center justify-center shrink-0">
+                    <ShoppingCart size={17} />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold text-slate-500">آخر بيع</div>
+                    {lastSale ? (
+                      <>
+                        <div className="text-xs font-black text-[#0b2337] dark:text-white truncate">{lastSale.invoiceNumber}</div>
+                        <div className="text-[10px] tabular-nums text-slate-500">
+                          {(lastSale.date || lastSale.createdAt || '').slice(0, 10)} · {fmt(Number(lastSale.estimatedGrandTotal || lastSale.totalAmount || 0))} ج.م
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-xs font-black text-slate-400">لا يوجد بيع مسجل</div>
+                    )}
+                  </div>
+                </div>
+                <div className="tg-card p-3 flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-xl bg-[var(--app-ok,#0D9488)]/10 text-[var(--app-ok,#0D9488)] flex items-center justify-center shrink-0">
+                    <CreditCard size={17} />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold text-slate-500">آخر تحصيل</div>
+                    {lastCollection ? (
+                      <>
+                        <div className="text-xs font-black text-[#0b2337] dark:text-white tabular-nums">
+                          {fmt(Number(lastCollection.collectedAmount || 0))} ج.م
+                        </div>
+                        <div className="text-[10px] tabular-nums text-slate-500">
+                          {(lastCollection.date || '').slice(0, 10)} · {lastCollection.repName || '—'}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-xs font-black text-slate-400">لا يوجد تحصيل مسجل</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* التفاصيل المالية */}
+              <div className="tg-card p-4 bg-white dark:bg-[#131e36] border border-slate-200 dark:border-slate-800">
+                <div className="tg-cp__section-title text-[#0b2337] dark:text-white font-black mb-3">
+                  <Wallet size={15} className="text-blue-600" />
+                  التفاصيل المالية
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-[10px] font-bold text-slate-500 mb-0.5">المديونية الحالية</div>
+                    <div className="text-sm font-black text-[#0b2337] tabular-nums">{fmt(balance)} ج.م</div>
+                  </div>
+                  <div className="rounded-xl border border-rose-100 bg-rose-50/70 p-3">
+                    <div className="text-[10px] font-bold text-rose-700 mb-0.5">المتأخرات</div>
+                    <div className="text-sm font-black text-rose-700 tabular-nums">{fmt(overdue)} ج.م</div>
+                  </div>
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3">
+                    <div className="text-[10px] font-bold text-blue-700 mb-0.5">إجمالي المبيعات</div>
+                    <div className="text-sm font-black text-blue-700 tabular-nums">{fmt(totalSales)} ج.م</div>
+                  </div>
+                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-3">
+                    <div className="text-[10px] font-bold text-emerald-700 mb-0.5">إجمالي التحصيل</div>
+                    <div className="text-sm font-black text-emerald-700 tabular-nums">{fmt(totalColl)} ج.م</div>
+                  </div>
+                  <div className="rounded-xl border border-violet-100 bg-violet-50/70 p-3">
+                    <div className="text-[10px] font-bold text-violet-700 mb-0.5">نسبة التحصيل</div>
+                    <div className="text-sm font-black text-violet-700 tabular-nums">
+                      {totalSales > 0 ? `${Math.min(100, Math.round((totalColl / totalSales) * 100))}%` : '—'}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-amber-100 bg-amber-50/70 p-3">
+                    <div className="text-[10px] font-bold text-amber-700 mb-0.5">الحد الائتماني</div>
+                    <div className="text-sm font-black text-amber-700 tabular-nums">{limit > 0 ? `${fmt(limit)} ج.م` : 'غير محدد'}</div>
+                  </div>
+                </div>
+              </div>
+
               {/* تصنيف العميل المعتمد من عمود قابل /غير في الشيت */}
               <div className={`p-4 rounded-2xl border transition-all ${
                 isEligible
@@ -546,7 +693,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                       {isEligible ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
                     </div>
                     <div>
-                      <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">تصنيف الشيت المعتمد (قابل / غير)</div>
+                      <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">تصنيف العميل (قابل / غير)</div>
                       <div className={`text-base font-black ${isEligible ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>
                         {eligibilityLabel}
                       </div>
@@ -557,7 +704,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                       ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 border border-emerald-200/60'
                       : 'bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200 border border-rose-200/60'
                   }`}>
-                    {isEligible ? '✓ مؤهل للتعامل والطلبات' : '✕ غير مؤهل للتعامل'}
+                    {isEligible ? '✓ مؤهل للتعامل' : '✕ غير مؤهل'}
                   </span>
                 </div>
               </div>
@@ -567,11 +714,11 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                 <div className="tg-card p-4 bg-white dark:bg-[#131e36] border border-slate-200 dark:border-slate-800">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[11px] font-black text-[#0b2337] dark:text-white flex items-center gap-1.5">
-                      <Wallet size={14} className="text-blue-600" />
-                      حد الائتمان المسموح
+                      <CreditCard size={14} className="text-blue-600" />
+                      استخدام الحد الائتماني
                     </span>
                     <span className={`text-[11px] font-black ${exceeded ? 'text-rose-600' : 'text-emerald-600'}`}>
-                      {usagePct}% مستخدم {exceeded && '(تجاوز الحد!)'}
+                      {usagePct}% {exceeded && '(تجاوز الحد)'}
                     </span>
                   </div>
                   <div className="tg-cp__meter">
@@ -587,7 +734,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                   </div>
                   <div className="flex items-center justify-between mt-2 text-[10px] font-bold text-slate-500 dark:text-slate-400">
                     <span>المستخدم: {fmt(balance + overdue)} ج.م</span>
-                    <span>الحد: {fmt(limit)} ج.م</span>
+                    <span>المتاح: {fmt(Math.max(0, limit - (balance + overdue)))} ج.م</span>
                   </div>
                 </div>
               )}
@@ -788,12 +935,12 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
             </div>
           )}
 
-          {/* التبويب 3: المبيعات الشهرية */}
+          {/* التبويب 3: التفاصيل المالية الشهرية */}
           {tab === 'months' && (
             <div className="space-y-4">
               <div className="tg-cp__section-title">
                 <TrendingUp size={15} className="text-blue-600" />
-                المبيعات والتحصيلات شهرياً لعام 2026
+                التفاصيل المالية الشهرية (مبيعات وتحصيل)
               </div>
 
               {monthly.length === 0 ? (

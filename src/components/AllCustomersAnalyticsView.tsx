@@ -105,6 +105,7 @@ import {
   matchesOrderFilter,
   matchesVisitFilter,
 } from '../services/customerFilterPredicates';
+import { classifyEligibilityColumn } from '../services/customerFinancialService';
 import { CustomerFilterBar, CustomerFilterBarState } from './customers/CustomerFilterBar';
 import { CustomerQuickDrawer } from './customers/CustomerQuickDrawer';
 import { CustomerTableSettings } from './customers/CustomerTableSettings';
@@ -698,12 +699,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     let unknown = 0;
 
     repCustomersList.forEach((c) => {
-      const raw = (c.dealEligibility || '').trim();
-      if (!raw) unknown += 1;
-      else if (raw.includes('غير') || raw.includes('موقوف')) notEligible += 1;
-      else if (raw.includes('متعامل')) dealt += 1;
-      else if (raw.includes('قابل')) eligible += 1;
-      else unknown += 1;
+      const info = classifyEligibilityColumn(c.dealEligibility);
+      if (!info) unknown += 1;
+      else if (!info.eligible) notEligible += 1;
+      else if (info.dealt === true) dealt += 1;
+      else eligible += 1;
     });
 
     return [
@@ -964,12 +964,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     let unknown = 0;
 
     filteredCustomers.forEach((c) => {
-      const raw = (c.dealEligibility || '').trim();
-      if (!raw) unknown += 1;
-      else if (raw.includes('غير') || raw.includes('موقوف')) notEligible += 1;
-      else if (raw.includes('متعامل')) dealt += 1;
-      else if (raw.includes('قابل')) eligible += 1;
-      else unknown += 1;
+      const info = classifyEligibilityColumn(c.dealEligibility);
+      if (!info) unknown += 1;
+      else if (!info.eligible) notEligible += 1;
+      else if (info.dealt === true) dealt += 1;
+      else eligible += 1;
     });
 
     return [
@@ -2308,7 +2307,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         <button
                           type="button"
                           onClick={() => onOpenNewOrderForCustomer(c)}
-                          className="h-8 px-3 rounded-xl bg-[#0f2b38] hover:bg-[#009488] text-white font-black text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0"
+                          className="h-8 px-3 rounded-xl bg-[#0f2b38] hover:bg-[#0D9488] text-white font-black text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0"
                           title="بدء طلبية بيع جديدة"
                         >
                           <ShoppingCart className="w-3.5 h-3.5 text-teal-300" />
@@ -3253,7 +3252,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   <button
                     type="button"
                     onClick={() => setIsAddingStorePhoto(!isAddingStorePhoto)}
-                    className="px-3 py-1.5 rounded-xl bg-[#009488] hover:bg-[#007f74] text-white text-xs font-black flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                    className="px-3 py-1.5 rounded-xl bg-[#0D9488] hover:bg-[#007f74] text-white text-xs font-black flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>إضافة صورة للمحل</span>
@@ -3660,8 +3659,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           const paid = getCustomerPaid(cust);
                           const creditLimit = cust.creditLimit || 0;
                           const creditPercent = creditLimit > 0 ? Math.min(100, Math.round((debt / creditLimit) * 100)) : 0;
-                          const rawDeal = (cust.dealEligibility || '').trim();
-                          const isEligible = !rawDeal.includes('غير') && !rawDeal.includes('موقوف');
+                          const eligibilityInfo = classifyEligibilityColumn(cust.dealEligibility);
+                          const isEligible = eligibilityInfo ? eligibilityInfo.eligible : true;
 
                           return (
                             <div

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Users, Search, Building2, Wallet, ShoppingCart, TrendingUp,
-  ChevronRight, ChevronLeft, X, Clock, MapPin, CreditCard,
+  ChevronRight, ChevronLeft, X, Clock, MapPin, CreditCard, Star, Phone,
   AlertTriangle, CheckCircle2, FileText, BarChart3, RefreshCw,
   Plus, Activity, Filter, UserCheck,
   ArrowUpRight, Image as ImageIcon, CalendarCheck, Check, ExternalLink,
@@ -9,6 +9,8 @@ import {
 import { useApp } from '../context/AppContext';
 import { inferTargetSector } from '../services/targetService';
 import { normalizeArabicText } from '../services/arabicMatchingService';
+import { generateStorePlaceholderSvg } from '../services/cloudinaryService';
+import { classifyEligibilityColumn } from '../services/customerFinancialService';
 import type { Customer, TargetRecord, User } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { CustomerProfileDrawer } from './CustomerProfileDrawer';
@@ -66,10 +68,16 @@ function findRepUser(users: User[], repName: string): User | undefined {
 
 interface SmartProfilePageProps {
   onOpenNewOrderForCustomer?: (customer: Customer) => void;
+  /** مرجع عميل (id / كود / اسم) يُفتح بروفايله تلقائيًا — من شاشة التحليلات مثلًا. */
+  focusCustomerId?: string | null;
+  /** يستدعى بعد استهلاك الـ focus حتى لا يُعاد فتحه عند الرجوع للصفحة. */
+  onFocusConsumed?: () => void;
 }
 
 export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
   onOpenNewOrderForCustomer,
+  focusCustomerId,
+  onFocusConsumed,
 }) => {
   const {
     currentUser,
@@ -110,6 +118,21 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
   const allTargets = useMemo(() => getVisibleTargets(), [targets, currentUser, users, customers, getVisibleTargets]);
   const allCustomers = useMemo(() => getVisibleCustomers(), [customers, currentUser, getVisibleCustomers]);
   const allInvoices = useMemo(() => getVisibleInvoices(), [targets, currentUser, getVisibleInvoices]);
+
+  /* ---------- فتح بروفايل عميل محدد من خارج الصفحة (id / كود / اسم) ---------- */
+  useEffect(() => {
+    if (!focusCustomerId) return;
+    const ref = String(focusCustomerId).trim();
+    const found = allCustomers.find(
+      (c) =>
+        c.id === ref ||
+        (c.code || '').trim() === ref ||
+        normalizeArabicText(c.name || '') === normalizeArabicText(ref)
+    );
+    const targetId = found ? found.id : ref;
+    setOpenCustomerId((prev) => (prev === targetId ? prev : targetId));
+    if (onFocusConsumed) onFocusConsumed();
+  }, [focusCustomerId, allCustomers]);
 
   /* ---------- تجميع بيانات المندوبين ---------- */
   type RepProfile = {
@@ -250,6 +273,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     totalCollections: number;
     tier: string;
     lastVisit?: string;
+    lastOrderDate?: string;
     address?: string;
     branchName: string;
     storePhotos: string[];
@@ -292,10 +316,12 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
         if (sup) supervisor = sup.name;
       }
 
-      // تصنيف العميل المعتمد من عمود قابل /غير
-      const rawDeal = (c.dealEligibility || (c as any).deal_eligibility || (c as any).dealClassification || (c as any).eligibilityStatusLabel || '').trim();
-      const isEligible = rawDeal ? (!rawDeal.includes('غير') && !rawDeal.includes('موقوف') && !rawDeal.includes('ممتنع')) : true;
-      const eligibilityLabel = rawDeal || (isEligible ? 'قابل للتعامل' : 'غير قابل للتعامل');
+      // تصنيف العميل — من عامود «قابل / غير» حصريًا
+      const eligibilityInfo = classifyEligibilityColumn(
+        c.dealEligibility || (c as any).deal_eligibility
+      );
+      const isEligible = eligibilityInfo ? eligibilityInfo.eligible : true;
+      const eligibilityLabel = eligibilityInfo?.raw || (isEligible ? 'قابل للتعامل' : 'غير قابل للتعامل');
 
       map.set(c.id, {
         id: c.id,
@@ -313,6 +339,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
         totalSales: inv.sales,
         totalCollections: inv.collection,
         tier: c.tier || 'عادي',
+        lastOrderDate: c.lastOrderDate || undefined,
         dealEligibility: eligibilityLabel,
         isEligible,
         latitude: c.latitude,
@@ -651,102 +678,88 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                 <p className="mt-1 text-sm font-bold text-slate-500">جرّب تعديل البحث أو الفلاتر.</p>
               </div>
             ) : (
-              displayedCustomers.map((cust) => {
+              displayedCustomers.map((cust, idx) => {
                 const exceeded = cust.creditLimit > 0 && (cust.balance + cust.overdue) > cust.creditLimit;
+                const sector = ((cust.sector || 'all') as 'home' | 'electrical' | 'both' | 'all');
+                const sectorChip =
+                  sector === 'home'
+                    ? 'bg-[#F0FDFA] text-[#0F766E] border-[#99F6E4]'
+                    : sector === 'electrical'
+                      ? 'bg-[#EFF6FF] text-[#1E3A8A] border-[#BFDBFE]'
+                      : 'bg-slate-100 text-slate-600 border-slate-200';
+                const sectorLabel = sector === 'home' ? '🏠 منزلي' : sector === 'electrical' ? '⚡ كهرباء' : 'كلاهما';
+                const photoSrc = cust.storePhotos && cust.storePhotos.length > 0
+                  ? cust.storePhotos[0]
+                  : generateStorePlaceholderSvg(cust.name, idx);
+                const lastBuyDays = (() => {
+                  if (!cust.lastOrderDate) return null;
+                  const d = new Date(cust.lastOrderDate);
+                  return Number.isNaN(d.getTime()) ? null : Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
+                })();
+                const lastBuyLabel = lastBuyDays === null ? '—' : lastBuyDays === 0 ? 'اليوم' : `منذ ${lastBuyDays} يوم`;
                 return (
                   <div
                     key={cust.id}
                     onClick={() => handleOpenCustomer(cust.id)}
-                    className="tg-card p-4 sm:p-5 cursor-pointer group hover:border-blue-300 hover:shadow-[0_18px_40px_rgba(9,30,66,0.14)] hover:-translate-y-1 transition-all border-[var(--tg-line)] relative overflow-hidden"
+                    className="relative overflow-hidden rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm cursor-pointer transition-all hover:shadow-xl hover:-translate-y-0.5"
                   >
-                    <span className={`absolute top-0 inset-x-0 h-1 ${
-                      cust.sector === 'home'
-                        ? 'bg-gradient-to-r from-blue-500 to-indigo-400'
-                        : cust.sector === 'electrical'
-                          ? 'bg-gradient-to-r from-purple-500 to-violet-400'
-                          : 'bg-gradient-to-r from-slate-400 to-slate-300'
-                    }`} />
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="relative shrink-0">
-                          <div className={`w-12 h-12 rounded-2xl overflow-hidden flex items-center justify-center font-black text-lg shadow-md ring-2 ${
-                            cust.sector === 'home'
-                              ? 'bg-gradient-to-br from-blue-600 to-indigo-500 text-white ring-blue-200'
-                              : cust.sector === 'electrical'
-                                ? 'bg-gradient-to-br from-purple-600 to-violet-500 text-white ring-purple-200'
-                                : 'bg-gradient-to-br from-slate-700 to-slate-500 text-white ring-slate-200'
-                          }`}>
-                            {cust.storePhotos && cust.storePhotos.length > 0 ? (
-                              <img src={cust.storePhotos[0]} alt={cust.name} className="w-full h-full object-cover" loading="lazy" />
-                            ) : (
-                              <span>{cust.name.charAt(0)}</span>
-                            )}
-                          </div>
-                          {cust.storePhotos && cust.storePhotos.length > 1 && (
-                            <span className="absolute -bottom-1 -left-1 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-white text-[9px] font-black flex items-center justify-center ring-2 ring-white">
-                              +{cust.storePhotos.length - 1}
-                            </span>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-black text-sm text-[#0b2337] truncate">{cust.name}</div>
-                          <div className="text-[10px] text-slate-500 font-medium flex items-center gap-1 flex-wrap">
-                            <span className="font-mono">{cust.code}</span>
-                            {cust.phone && cust.phone !== '—' && <span>• {cust.phone}</span>}
-                          </div>
-                          {cust.branch && cust.branch !== '—' && (
-                            <div className="text-[10px] text-slate-400 mt-0.5 truncate">{cust.branch}</div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        {/* تصنيف الشيت (قابل / غير) */}
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border shadow-2xs ${
-                          (cust as any).isEligible
-                            ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700'
-                            : 'bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border-rose-300 dark:border-rose-700'
-                        }`}>
-                          {(cust as any).dealEligibility || 'قابل للتعامل'}
+                    {/* شريحة القطاع */}
+                    <span className={`absolute left-3 top-3 z-10 rounded-full border px-2.5 py-0.5 text-[10px] font-black shadow-xs ${sectorChip}`}>
+                      {sectorLabel}
+                    </span>
+                    {/* نجمة */}
+                    <Star className="absolute right-3 top-3 z-10 h-5 w-5 fill-amber-400 text-amber-400" />
+                    {/* الصورة والاسم */}
+                    <div className="flex flex-col items-center pt-2 text-center">
+                      <img
+                        src={photoSrc}
+                        alt={cust.name}
+                        loading="lazy"
+                        className="h-24 w-24 rounded-full border-4 border-slate-100 bg-slate-100 object-cover shadow-md"
+                      />
+                      <h3 className="mt-2 max-w-full truncate text-base font-black text-[#0b2337] sm:text-lg">{cust.name}</h3>
+                      <p className="mt-0.5 flex max-w-full items-center justify-center gap-1 truncate text-[10px] font-medium text-slate-500">
+                        <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
+                        {cust.branch && cust.branch !== '—' ? cust.branch : 'فرع غير محدد'}
+                      </p>
+                      {(cust as any).dealEligibility && (
+                        <span className="mt-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-600">
+                          {(cust as any).dealEligibility}
                         </span>
-                        <span className={`text-[9px] font-black px-1.5 py-0.2 rounded-full ${
-                          exceeded
-                            ? 'bg-rose-50 text-rose-800 border border-rose-200'
-                            : cust.balance > 0
-                              ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                              : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                        }`}>
-                          {exceeded ? 'تجاوز الحد' : cust.balance > 0 ? 'عليه مستحق' : 'خالص'}
-                        </span>
+                      )}
+                      {/* مؤشرات مالية */}
+                      <div className="mt-3 grid w-full grid-cols-2 gap-2">
+                        <div className={`rounded-xl border p-2 ${exceeded ? 'border-rose-300 bg-rose-100' : 'border-rose-100 bg-rose-50/70'}`}>
+                          <div className="mb-0.5 flex items-center justify-center gap-1 text-[9px] font-bold text-slate-500">
+                            <span className="h-1.5 w-1.5 rounded-full bg-rose-400" /> مديونية
+                          </div>
+                          <div className="text-[11px] font-black tabular-nums text-rose-600 sm:text-xs">{fmt(cust.balance)} ج.م</div>
+                        </div>
+                        <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-2">
+                          <div className="mb-0.5 flex items-center justify-center gap-1 text-[9px] font-bold text-slate-500">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> آخر شراء
+                          </div>
+                          <div className="text-[11px] font-black tabular-nums text-emerald-700">{lastBuyLabel}</div>
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 mb-3">
-                      <div className="bg-slate-50 rounded-xl p-3 border border-[var(--tg-line)]">
-                        <div className="text-[10px] font-bold text-slate-500 mb-0.5">مديونية</div>
-                        <div className="text-xs font-black text-[#0b2337] tabular-nums">{fmt(cust.balance)}</div>
+                      {cust.balance > 0 && (
+                        <div className="mt-1 text-[10px] font-black text-amber-700">⚠️ مديونية مسجلة — راجع التحصيل</div>
+                      )}
+                      {cust.phone && cust.phone !== '—' && (
+                        <a
+                          href={`tel:${cust.phone}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium text-slate-500 transition hover:text-blue-600"
+                        >
+                          <Phone className="h-3 w-3" />
+                          <span className="font-mono tabular-nums">{cust.phone}</span>
+                        </a>
+                      )}
+                      {/* CTA */}
+                      <div className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#0F2B38] py-2.5 text-[11px] font-black text-white transition hover:brightness-125">
+                        عرض التفاصيل
+                        <ChevronLeft className="h-3.5 w-3.5" />
                       </div>
-                      <div className="bg-slate-50 rounded-xl p-3 border border-[var(--tg-line)]">
-                        <div className="text-[10px] font-bold text-slate-500 mb-0.5">متأخرات</div>
-                        <div className={`text-xs font-bold ${exceeded ? 'text-rose-700' : 'text-emerald-700'} tabular-nums`}>{fmt(cust.overdue)}</div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 mb-3">
-                      <div className="bg-slate-50 rounded-xl p-3 border border-[var(--tg-line)]">
-                        <div className="text-[10px] font-bold text-slate-500 mb-0.5">مبيعات</div>
-                        <div className="text-xs font-black text-blue-700 tabular-nums">{fmt(cust.totalSales)}</div>
-                      </div>
-                      <div className="bg-slate-50 rounded-xl p-3 border border-[var(--tg-line)]">
-                        <div className="text-[10px] font-bold text-slate-500 mb-0.5">تحصيل</div>
-                        <div className="text-xs font-black text-emerald-700 tabular-nums">{fmt(cust.totalCollections)}</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between pt-3 border-t border-[var(--tg-line)] text-xs">
-                      <span className="font-bold text-slate-600">الفئة:</span>
-                      <span className={`font-black ${cust.tier === 'مميز' ? 'text-blue-700' : cust.tier === 'راقي' ? 'text-emerald-700' : cust.tier === 'متوسط' ? 'text-amber-700' : 'text-slate-700'}`}>
-                        {cust.tier}
-                      </span>
                     </div>
                   </div>
                 );

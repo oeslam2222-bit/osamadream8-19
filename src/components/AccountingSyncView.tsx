@@ -240,13 +240,13 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
       <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-md border border-slate-800 space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-2xl bg-[var(--app-accent)] text-slate-950 flex items-center justify-center font-black">
+            <div className="w-12 h-12 rounded-2xl bg-[#fbbf24] text-slate-950 flex items-center justify-center font-black">
               <Terminal className="w-6 h-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-xl font-black">وحدة المطور التقني والربط المحاسبي (Developer Console & ERP)</h2>
-                <span className="bg-[rgba(201,154,67,.15)] text-[#8a6420] text-xs px-2 py-0.5 rounded-full border border-[rgba(201,154,67,.35)] font-bold">
+                <span className="bg-[rgba(251,191,36,.15)] text-[#fbbf24] text-xs px-2 py-0.5 rounded-full border border-[rgba(251,191,36,.35)] font-bold">
                   Dev & Admin
                 </span>
               </div>
@@ -261,7 +261,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
             <button
               onClick={() => setActiveSubTab('erp')}
               className={`px-3 py-2 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                activeSubTab === 'erp' ? 'bg-[var(--app-accent)] text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                activeSubTab === 'erp' ? 'bg-[#fbbf24] text-slate-950 shadow' : 'text-slate-400 hover:text-white'
               }`}
             >
               <Server className="w-3.5 h-3.5" />
@@ -271,7 +271,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
             <button
               onClick={() => setActiveSubTab('supabase')}
               className={`px-3 py-2 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                activeSubTab === 'supabase' ? 'bg-[var(--app-accent)] text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                activeSubTab === 'supabase' ? 'bg-[#fbbf24] text-slate-950 shadow' : 'text-slate-400 hover:text-white'
               }`}
             >
               <Database className="w-3.5 h-3.5" />
@@ -281,7 +281,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
             <button
               onClick={() => setActiveSubTab('sql')}
               className={`px-3 py-2 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                activeSubTab === 'sql' ? 'bg-[var(--app-accent)] text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                activeSubTab === 'sql' ? 'bg-[#fbbf24] text-slate-950 shadow' : 'text-slate-400 hover:text-white'
               }`}
             >
               <Code className="w-3.5 h-3.5" />
@@ -291,7 +291,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
             <button
               onClick={() => setActiveSubTab('backup')}
               className={`px-3 py-2 rounded-xl font-bold transition cursor-pointer flex items-center gap-1.5 ${
-                activeSubTab === 'backup' ? 'bg-[var(--app-accent)] text-slate-950 shadow' : 'text-slate-400 hover:text-white'
+                activeSubTab === 'backup' ? 'bg-[#fbbf24] text-slate-950 shadow' : 'text-slate-400 hover:text-white'
               }`}
             >
               <Download className="w-3.5 h-3.5" />
@@ -329,14 +329,14 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
             <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-xs space-y-1">
               <span className="text-xs text-slate-500 font-bold">فواتير قيد الانتظار للترحيل</span>
               <div className="flex items-center justify-between">
-                <div className="text-xl font-black text-[#8a6420]">
+                <div className="text-xl font-black text-[#b45309]">
                   {unsyncedInvoices.length} فاتورة
                 </div>
                 {unsyncedInvoices.length > 0 && (
                   <button
                     disabled={isSyncingAll}
                     onClick={handleSyncAll}
-                    className="flex items-center gap-1.5 bg-[var(--app-accent)] hover:bg-[#b98a35] text-slate-950 font-black px-3 py-1 rounded-xl text-xs shadow transition cursor-pointer"
+                    className="flex items-center gap-1.5 bg-[#fbbf24] hover:bg-[#f59e0b] text-slate-950 font-black px-3 py-1 rounded-xl text-xs shadow transition cursor-pointer"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSyncingAll ? 'animate-spin' : ''}`} />
                     <span>ترحيل الآن</span>
@@ -374,7 +374,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
                   onClick={handleSyncAllMicrosoft}
                   className="flex items-center gap-1.5 bg-gradient-to-r from-[var(--app-navy)] to-[var(--app-navy)] hover:from-[var(--app-navy)] hover:to-[var(--app-navy)] text-white font-bold px-3.5 py-2 rounded-xl text-xs shadow-md transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Sparkles className={`w-3.5 h-3.5 text-[var(--app-accent)] ${isSyncingAllMicrosoft ? 'animate-spin' : ''}`} />
+                  <Sparkles className={`w-3.5 h-3.5 text-[#fbbf24] ${isSyncingAllMicrosoft ? 'animate-spin' : ''}`} />
                   <span>{isSyncingAllMicrosoft ? 'جاري الترحيل...' : `ترحيل كل الفواتير المعتمدة (${approvedInvoices.length}) 🚀`}</span>
                 </button>
               </div>
@@ -384,7 +384,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-slate-300 font-bold px-1">
                 <span>الفواتير المعتمدة الجاهزة للربط والترحيل ({approvedInvoices.length})</span>
-                <span className="text-[11px] text-[var(--app-navy)]">يمكنك فحص وإرسال أي فاتورة فردياً أو جماعياً</span>
+                <span className="text-[11px] text-[#a9c8e4]">يمكنك فحص وإرسال أي فاتورة فردياً أو جماعياً</span>
               </div>
 
               {approvedInvoices.length === 0 ? (
@@ -399,7 +399,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
                       className="bg-slate-950/70 border border-white/10 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:border-[rgba(16,43,78,.35)] transition"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="font-mono font-bold text-[var(--app-accent)] text-xs">#{inv.invoiceNumber}</span>
+                        <span className="font-mono font-bold text-[#fbbf24] text-xs">#{inv.invoiceNumber}</span>
                         <span className="text-white font-bold text-xs truncate max-w-[140px] sm:max-w-[200px]">{inv.customerName}</span>
                         <span className="bg-slate-800 text-slate-300 px-2 py-0.5 rounded text-[10px] font-mono">
                           {formatCurrency(inv.estimatedGrandTotal || 0)}
@@ -413,7 +413,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
                         onClick={() => handleSyncToMicrosoft(inv.id, inv.invoiceNumber)}
                         className="flex items-center justify-center gap-1.5 bg-[var(--app-navy)] hover:bg-[#0b2039] text-white font-bold px-3 py-1.5 rounded-lg text-xs transition cursor-pointer shadow-xs disabled:opacity-60"
                       >
-                        <Sparkles className="w-3 h-3 text-[#d97706]" />
+                        <Sparkles className="w-3 h-3 text-[#fbbf24]" />
                         <span>{syncingMicrosoftId === inv.id ? 'جاري الإرسال...' : 'إرسال لـ Microsoft 365 🏢'}</span>
                       </button>
                     </div>
@@ -493,7 +493,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
               <button
                 disabled={isSupabaseSyncing}
                 onClick={() => syncWithSupabase('fetch')}
-                className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-[#d97706] font-bold px-3 py-2 rounded-xl text-xs transition cursor-pointer"
+                className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-[#fbbf24] font-bold px-3 py-2 rounded-xl text-xs transition cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span>سحب من Supabase (Pull)</span>
@@ -520,7 +520,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
 
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
               <span className="font-bold text-slate-700">Anon Public Key:</span>
-              <code className="block bg-slate-900 text-[#d97706] p-2.5 rounded-xl font-mono text-[11px] truncate select-all">
+              <code className="block bg-slate-900 text-[#fbbf24] p-2.5 rounded-xl font-mono text-[11px] truncate select-all">
                 {SUPABASE_ANON_KEY}
               </code>
             </div>
@@ -545,7 +545,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
         <div className="bg-slate-950 text-slate-100 rounded-3xl p-6 border border-slate-800 shadow-xl space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Code className="w-5 h-5 text-[#d97706]" />
+              <Code className="w-5 h-5 text-[#fbbf24]" />
               <h3 className="font-black text-sm text-white">
                 استعلامات SQL ومخطط الجداول الجاهزة للتشغيل (Supabase SQL Editor)
               </h3>
@@ -594,7 +594,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
               </p>
               <button
                 onClick={handleExportJsonBackup}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-[#d97706] font-black py-2.5 rounded-xl text-xs transition cursor-pointer shadow flex items-center justify-center gap-2"
+                className="w-full bg-slate-900 hover:bg-slate-800 text-[#fbbf24] font-black py-2.5 rounded-xl text-xs transition cursor-pointer shadow flex items-center justify-center gap-2"
               >
                 <Download className="w-4 h-4" />
                 <span>تحميل ملف النسخة الاحتياطية JSON 📥</span>

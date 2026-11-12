@@ -716,6 +716,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         <ProductImage
                           product={prod}
                           cloudinaryConfig={cloudinaryConfig}
+                          targetSize={110}
+                          sizeVariant="thumbnail"
                           className="w-full h-full object-contain"
                         />
                       </div>
@@ -747,10 +749,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <div className="shrink-0 text-left">
                         {isAvailable ? (
                           <div className="flex flex-col items-end gap-0.5">
-                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                            <span className="text-[10px] font-bold text-[#0F2B38] bg-[#F1F5F9] px-2 py-0.5 rounded-md border border-[#CBD5E1]">
                               الفرع: {bStock} ك
                             </span>
-                            <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                            <span className="text-[10px] font-bold text-[#1E3A8A] bg-[#EFF6FF] px-2 py-0.5 rounded-md border border-[#BFDBFE]">
                               أكتوبر: {oStock} ك
                             </span>
                           </div>
@@ -776,9 +778,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
       {/* Selected Customer Bar if applicable */}
       {selectedCustomer && (
-        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 flex items-center justify-between gap-3">
+        <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-2xl p-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
+            <div className="w-8 h-8 rounded-xl bg-[#1E3A8A] text-white flex items-center justify-center font-bold text-xs">
               عميل
             </div>
             <div>
@@ -807,12 +809,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         {/* مخزون فرع المندوب */}
         <div className="bg-white rounded-2xl border border-[var(--app-navy-line)] shadow-sm p-3.5 sm:p-4 flex items-center justify-between gap-2 min-w-0">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-[#0B1220] text-white flex items-center justify-center shrink-0 dark:bg-[#0B1220] dark:text-white">
               <Store className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-black text-slate-600 leading-tight whitespace-nowrap truncate">مخزون فرع المندوب</p>
-              <p className="text-xl sm:text-2xl font-black text-[var(--app-navy-text)] tracking-tight leading-tight whitespace-nowrap tabular-nums">
+              <p className="text-xl sm:text-2xl font-black text-[#0B1220] dark:text-slate-100 tracking-tight leading-tight whitespace-nowrap tabular-nums">
                 {stats.branchCartons.toLocaleString('en-US')} <span className="text-xs font-bold text-slate-500">كرتونة</span>
               </p>
               <p className="text-[11px] text-slate-500 font-bold leading-tight whitespace-nowrap truncate">رصيد متاح بالفرع ({currentActiveBranch})</p>
@@ -823,7 +825,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             onClick={() => setSortBy('branch_stock_desc')}
             title="ترتيب حسب مخزون الفرع"
             aria-label="ترتيب حسب مخزون الفرع"
-            className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 hover:bg-blue-100 flex items-center justify-center shrink-0 transition cursor-pointer"
+            className="w-8 h-8 rounded-full bg-[#0B1220]/10 text-[#0B1220] hover:bg-[#0B1220]/20 dark:bg-white/10 dark:text-slate-100 dark:hover:bg-white/20 flex items-center justify-center shrink-0 transition cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -832,13 +834,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         {/* مخزون أكتوبر المركزي */}
         <div className="bg-white rounded-2xl border border-emerald-100 shadow-sm p-3.5 sm:p-4 flex items-center justify-between gap-2 min-w-0">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+            <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl bg-[#0B1220] text-white flex items-center justify-center shrink-0 dark:bg-[#0B1220] dark:text-white">
               <Package className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-black text-slate-600 leading-tight whitespace-nowrap truncate">المخزن الرئيسي (أكتوبر)</p>
-              <p className="text-xl sm:text-2xl font-black text-emerald-600 tracking-tight leading-tight whitespace-nowrap tabular-nums">
-                {stats.octoberCartons.toLocaleString('en-US')} <span className="text-xs font-bold text-emerald-500">كرتونة</span>
+              <p className="text-xl sm:text-2xl font-black text-[#0B1220] dark:text-slate-100 tracking-tight leading-tight whitespace-nowrap tabular-nums">
+                {stats.octoberCartons.toLocaleString('en-US')} <span className="text-xs font-bold text-slate-500 dark:text-slate-300">كرتونة</span>
               </p>
               <p className="text-[11px] text-slate-500 font-bold leading-tight whitespace-nowrap truncate">رصيد مركزي متاح للسحب</p>
             </div>
@@ -848,7 +850,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             onClick={() => setSortBy('october_stock_desc')}
             title="ترتيب حسب مخزون أكتوبر"
             aria-label="ترتيب حسب مخزون أكتوبر"
-            className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 hover:bg-emerald-100 flex items-center justify-center shrink-0 transition cursor-pointer"
+            className="w-8 h-8 rounded-full bg-[#0B1220]/10 text-[#0B1220] hover:bg-[#0B1220]/20 dark:bg-white/10 dark:text-slate-100 dark:hover:bg-white/20 flex items-center justify-center shrink-0 transition cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -1322,7 +1324,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </button>
                   </td>
                   <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white text-xs font-mono truncate">{p.code || '—'}</td>
-                  <td className="p-3 text-right text-xs font-mono font-extrabold text-[#1d4ed8] truncate">
+                  <td className="p-3 text-right text-xs font-mono font-extrabold text-[#1e3a8a] truncate">
                     {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
                   </td>
                   <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white truncate max-w-[240px]" title={displayName}>
@@ -1330,7 +1332,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </td>
                   <td className="p-3 text-center">
                     <span className={`inline-block px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold shrink-0 ${
-                      isElec ? 'bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300' : 'bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300'
+                      isElec ? 'bg-[#EFF6FF] text-[#1E3A8A] border border-[#BFDBFE] dark:bg-[#1E3A8A]/20 dark:text-[#93C5FD]' : 'bg-[#F0FDFA] text-[#0F766E] border border-[#99F6E4] dark:bg-[#0D9488]/15 dark:text-[#5EEAD4]'
                     }`}>
                       {isElec ? '⚡ كهرباء' : '🏠 منزلي'}
                     </span>
@@ -1353,7 +1355,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </td>
                   <td className="p-3 text-center font-mono">
                     {priceInfo.factor > 1 ? (
-                      <span className="inline-block bg-[#eff6ff] text-[#1d4ed8] border border-[#bfdbfe] text-[10px] px-2 py-0.5 rounded-md font-black">
+                      <span className="inline-block bg-[#eff6ff] text-[#1e3a8a] border border-[#bfdbfe] text-[10px] px-2 py-0.5 rounded-md font-black">
                         {priceInfo.factor} ق/ك
                       </span>
                     ) : (
@@ -1367,10 +1369,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       {COMPANY_WAREHOUSES.map((wh) => {
                         const stock = getWarehouseStock(p, wh.key);
                         return (
-                          <td key={wh.key} className={`p-3 text-center ${wh.isCentral ? 'bg-[#eff6ff]/60' : ''}`}>
+                          <td key={wh.key} className="p-3 text-center">
                             <span className={`px-2 py-0.5 rounded-lg text-xs font-black font-mono ${
                               stock > 0
-                                ? 'bg-[#eff6ff] text-[#1d4ed8] border border-[#bfdbfe]'
+                                ? 'bg-[#0B1220] text-white border border-[#0B1220] dark:bg-[#0B1220] dark:text-white dark:border-slate-600'
                                 : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-800 dark:border-slate-700'
                             }`}>
                               {stock}
@@ -1381,19 +1383,19 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </>
                   ) : (
                     <>
-                      <td className="p-3 text-center bg-emerald-50/40 dark:bg-emerald-950/10">
+                      <td className="p-3 text-center">
                         <span className={`px-2.5 py-1 rounded-xl text-[10px] font-extrabold font-mono ${
                           branchStock > 0
-                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
+                            ? 'bg-[#0B1220] text-white border border-[#0B1220] dark:bg-[#0B1220] dark:text-white dark:border-slate-600'
                             : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-800 dark:border-slate-700'
                         }`}>
                           {branchStock}
                         </span>
                       </td>
-                      <td className="p-3 text-center bg-blue-50/30 dark:bg-blue-950/20">
+                      <td className="p-3 text-center">
                         <span className={`px-2.5 py-1 rounded-xl text-[10px] font-extrabold font-mono ${
                           octoberStock > 0
-                            ? 'bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300'
+                            ? 'bg-[#0B1220] text-white border border-[#0B1220] dark:bg-[#0B1220] dark:text-white dark:border-slate-600'
                             : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-800 dark:border-slate-700'
                         }`}>
                           {octoberStock}
@@ -1493,11 +1495,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 <div className="flex items-center gap-1.5 min-w-0">
                   <span className="shrink-0">{statusBadge}</span>
                   {isElectrical ? (
-                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap rounded-lg border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-300">
+                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-2 py-0.5 text-[10px] font-black text-[#1E3A8A] dark:border-[#3B82F6]/40 dark:bg-[#1E3A8A]/25 dark:text-[#93C5FD]">
                       ⚡ كهرباء
                     </span>
                   ) : (
-                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap rounded-lg border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap rounded-lg border border-[#99F6E4] bg-[#F0FDFA] px-2 py-0.5 text-[10px] font-black text-[#0F766E] dark:border-[#2DD4BF]/40 dark:bg-[#0D9488]/15 dark:text-[#5EEAD4]">
                       🏠 منزلي
                     </span>
                   )}
@@ -1559,7 +1561,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     '—'
                   )}
                   {priceInfo.factor > 1 ? (
-                    <span className="rounded-md border border-[#bfdbfe] bg-[#eff6ff] px-2 py-0.5 text-[10px] font-black text-[#1d4ed8]">
+                    <span className="rounded-md border border-[#bfdbfe] bg-[#eff6ff] px-2 py-0.5 text-[10px] font-black text-[#1e3a8a]">
                       {priceInfo.factor} ق/ك
                     </span>
                   ) : null}
@@ -1578,7 +1580,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-2 dark:border-slate-700 dark:bg-slate-800/80">
                   <span className="mb-0.5 block text-[10px] font-bold text-slate-400">الكود الموحد</span>
-                  <span className="block truncate font-mono text-xs font-black text-[#1d4ed8]" title={p.unifiedCode}>
+                  <span className="block truncate font-mono text-xs font-black text-[#1e3a8a]" title={p.unifiedCode}>
                     {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
                   </span>
                 </div>
@@ -1597,9 +1599,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                           key={wh.key}
                           className={`rounded-xl border p-1 text-[10px] ${
                             stock > 0
-                              ? wh.isCentral
-                                ? 'border-blue-200 bg-blue-50 text-blue-900 font-bold dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300'
-                                : 'border-emerald-200 bg-emerald-50 text-emerald-900 font-bold dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                              ? 'border-[#0B1220] bg-[#0B1220] text-white font-bold dark:border-slate-600 dark:bg-[#0B1220] dark:text-white'
                               : 'border-slate-200 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-800'
                           }`}
                         >
@@ -1612,15 +1612,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-2 text-center">
-                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-2.5 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
-                    <div className="flex items-center justify-center gap-1 text-[11px] font-black text-emerald-700 dark:text-emerald-400">
+                  <div className="rounded-2xl border border-[#0B1220] bg-[#0B1220] p-2.5 text-white dark:border-slate-600 dark:bg-[#0B1220] dark:text-white">
+                    <div className="flex items-center justify-center gap-1 text-[11px] font-black text-white dark:text-white">
                       <Store className="w-3.5 h-3.5" />
                       <span>مخزون الفرع</span>
                     </div>
                     <div className="mt-0.5 font-mono text-base font-black">{branchStock}</div>
                   </div>
-                  <div className="rounded-2xl border border-blue-200 bg-blue-50/70 p-2.5 text-blue-800 dark:border-blue-800 dark:bg-blue-950/30 dark:text-blue-300">
-                    <div className="flex items-center justify-center gap-1 text-[11px] font-black text-blue-700 dark:text-blue-400">
+                  <div className="rounded-2xl border border-[#0B1220] bg-[#0B1220] p-2.5 text-white dark:border-slate-600 dark:bg-[#0B1220] dark:text-white">
+                    <div className="flex items-center justify-center gap-1 text-[11px] font-black text-white dark:text-white">
                       <Calendar className="w-3.5 h-3.5" />
                       <span>مخزون أكتوبر</span>
                     </div>

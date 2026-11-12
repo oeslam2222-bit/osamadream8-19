@@ -463,6 +463,8 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
                           <ProductImage
                             product={v.rawProduct}
                             alt={v.name}
+                            targetSize={140}
+                            sizeVariant="thumbnail"
                             className="w-full h-full object-contain"
                           />
                           <div className="absolute bottom-0 inset-x-0 bg-slate-900/80 text-[8px] font-black text-white text-center py-0.5 truncate">

@@ -845,7 +845,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         <button
                           type="button"
                           onClick={() => onViewInvoice(invoice)}
-                          className="h-9 px-3.5 rounded-xl bg-[#009488] hover:bg-[#007a70] text-white font-black text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0"
+                          className="h-9 px-3.5 rounded-xl bg-[#0D9488] hover:bg-[#007a70] text-white font-black text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0"
                         >
                           <Eye className="w-4 h-4 text-white shrink-0" />
                           <span className="text-white font-black">عرض</span>
@@ -988,7 +988,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             <button
                               type="button"
                               onClick={() => onViewInvoice(invoice)}
-                              className="w-8 h-8 rounded-xl bg-[#009488] hover:bg-[#007a70] text-white flex items-center justify-center transition shadow-xs cursor-pointer"
+                              className="w-8 h-8 rounded-xl bg-[#0D9488] hover:bg-[#007a70] text-white flex items-center justify-center transition shadow-xs cursor-pointer"
                               title="عرض الفاتورة"
                             >
                               <Eye className="w-4 h-4 text-white" />
