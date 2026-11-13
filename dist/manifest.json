@@ -1,0 +1,40 @@
+{
+  "id": "/",
+  "name": "طنطاوي جروب | Tantawy Group",
+  "short_name": "طنطاوي جروب",
+  "description": "منظومة المبيعات وإدارة المخزون والكتالوج والفواتير والتحصيلات لمجموعة الطنطاوي",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "dir": "rtl",
+  "lang": "ar",
+  "background_color": "#0f2b38",
+  "theme_color": "#0f2b38",
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": [
+    "business",
+    "productivity",
+    "shopping"
+  ]
+}
