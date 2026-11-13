@@ -1,0 +1,1221 @@
+/* ==========================================================================
+   TANTAWY BRAND v2 — مطابقة المرجع المعتمد (صور الويب + الموبايل)
+   --------------------------------------------------------------------------
+   * اللوحة الرسمية: #0F2B38 (داكن) • #1E3A8A (أساسي) • #2563EB (تفاعلي)
+                    #D97706 (برتقالي) • #059669 (أخضر) • #EEF4FB (خلفية)
+   * الخط الوحيد: Cairo (محمّل من index.html) — ممنوع أي خط تاني.
+   * الملف ده بيتحمّل بعد identity.css في main.tsx فيبيثبّت القيم فوقه.
+   * هوية الدور: --role بيتحدد من data-role على .tantawy-shell:
+       sales_rep=أزرق • supervisor=بنفسجي • branch_manager=ذهبي • admin/developer=تيل
+   ========================================================================== */
+
+:root {
+  /* ---- البراند الرسمي ---- */
+  --tg-navy: #0f2b38;
+  --tg-navy-2: #0c2431;
+  --tg-navy-3: #081c26;
+  --tg-navy-ink: #071726;
+  --tg-brand-blue: #1e3a8a;
+  --tg-blue: #2563eb;
+  --tg-blue-2: #3b82f6;
+  --tg-orange: #d97706;
+  --tg-orange-2: #f59e0b;
+  --tg-green: #059669;
+  --tg-green-2: #10b981;
+  --tg-violet: #7c3aed;
+  --tg-violet-2: #8b5cf6;
+  --tg-teal: #0d9488;
+  --tg-teal-2: #14b8a6;
+  --tg-red: #dc2626;
+
+  --tg-page: #eef4fb;
+  --tg-card: #ffffff;
+  --tg-card-2: #f8fafc;
+  --tg-line: #e2e8f0;
+  --tg-line-2: #cbd9ea;
+
+  --tg-ink: #0f172a;
+  --tg-ink-2: #334155;
+  --tg-muted: #64748b;
+
+  /* ---- المقاسات المعتمدة ---- */
+  --tg-radius: 16px;
+  --tg-radius-lg: 20px;
+  --tg-radius-sm: 12px;
+  --tg-shadow: 0 6px 18px rgba(15, 43, 56, 0.06);
+  --tg-shadow-md: 0 10px 26px rgba(15, 43, 56, 0.1);
+  --tg-shadow-lg: 0 22px 50px rgba(9, 30, 66, 0.14);
+  --tg-shadow-navy: 0 12px 30px rgba(7, 23, 38, 0.28);
+
+  /* ---- تدرجات البراند ---- */
+  --tg-grad-navy: linear-gradient(180deg, #102e3c 0%, #0f2b38 58%, #0a1f2a 100%);
+  --tg-grad-blue: linear-gradient(135deg, #3b82f6 0%, #2563eb 55%, #1e3a8a 100%);
+  --tg-grad-orange: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  --tg-grad-green: linear-gradient(135deg, #10b981 0%, #059669 100%);
+
+  /* ---- توكنات قديمة تتظبط على الجديد (توافق كامل) ---- */
+  --app-bg: var(--tg-page);
+  --app-card: var(--tg-card);
+  --app-text: var(--tg-ink);
+  --app-text-muted: var(--tg-muted);
+  --app-border: var(--tg-line);
+  --app-line: var(--tg-line);
+  --app-radius-card: var(--tg-radius);
+  --app-shadow-card: var(--tg-shadow);
+  --app-shadow-float: var(--tg-shadow-lg);
+
+  /* ---- هوية الدور (افتراضي: مندوب) ---- */
+  --role: #2563eb;
+  --role-2: #3b82f6;
+  --role-soft: rgba(37, 99, 235, 0.1);
+  --role-line: rgba(37, 99, 235, 0.28);
+
+  --ds-topbar-h: 66px;
+  color-scheme: light;
+}
+
+/* ---------- هوية الدور على مستوى الشيل ---------- */
+.tantawy-shell[data-role='sales_rep'] {
+  --role: #2563eb;
+  --role-2: #3b82f6;
+  --role-soft: rgba(37, 99, 235, 0.1);
+  --role-line: rgba(37, 99, 235, 0.3);
+}
+.tantawy-shell[data-role='supervisor'] {
+  --role: #7c3aed;
+  --role-2: #8b5cf6;
+  --role-soft: rgba(124, 58, 237, 0.1);
+  --role-line: rgba(124, 58, 237, 0.3);
+}
+.tantawy-shell[data-role='branch_manager'] {
+  --role: #d97706;
+  --role-2: #f59e0b;
+  --role-soft: rgba(217, 119, 6, 0.12);
+  --role-line: rgba(217, 119, 6, 0.32);
+}
+.tantawy-shell[data-role='admin'],
+.tantawy-shell[data-role='developer'] {
+  --role: #0d9488;
+  --role-2: #14b8a6;
+  --role-soft: rgba(13, 148, 136, 0.1);
+  --role-line: rgba(13, 148, 136, 0.3);
+}
+.tantawy-shell[data-role='warehouse_keeper'] {
+  --role: #059669;
+  --role-2: #10b981;
+  --role-soft: rgba(5, 150, 105, 0.1);
+  --role-line: rgba(5, 150, 105, 0.3);
+}
+.tantawy-shell[data-role='technical_support'] {
+  --role: #1e3a8a;
+  --role-2: #2563eb;
+  --role-soft: rgba(30, 58, 138, 0.1);
+  --role-line: rgba(30, 58, 138, 0.3);
+}
+
+/* ==========================================================================
+   السايدبار — كحلي #0F2B38 متدرج زي المرجع بالظبط
+   ========================================================================== */
+.ds-sidebar {
+  background: var(--tg-grad-navy) !important;
+  box-shadow: -12px 0 40px rgba(4, 18, 32, 0.32) !important;
+}
+
+.ds-sidebar::after {
+  /* خط دور خافت على الحافة الداخلية */
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--role-2), var(--role) 45%, transparent);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.ds-sidebar__item[aria-current='page'],
+html.dark .ds-sidebar__item[aria-current='page'] {
+  background: linear-gradient(135deg, var(--role-2), var(--role)) !important;
+  box-shadow: 0 10px 22px var(--role-line) !important;
+}
+
+.ds-sidebar__user {
+  border-inline-start: 3px solid var(--role) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.04)) !important;
+}
+
+.ds-sidebar__user-avatar::after {
+  border-color: var(--role-2) !important;
+}
+
+/* ==========================================================================
+   التوب بار — كحلي متدرج + خط الدور أسفله (زي صورة 1 و3)
+   ========================================================================== */
+.ds-topbar {
+  background: var(--tg-grad-navy) !important;
+  border-bottom: none !important;
+  box-shadow: var(--tg-shadow-navy) !important;
+  position: relative;
+}
+
+.ds-topbar::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 3px;
+  background: linear-gradient(270deg, var(--role-2) 0%, var(--role) 34%, rgba(15, 43, 56, 0) 72%);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.ds-iconbtn--primary {
+  background: linear-gradient(135deg, var(--role-2), var(--role)) !important;
+  box-shadow: 0 8px 18px var(--role-line);
+}
+
+/* ==========================================================================
+   الخلفية والكروت العامة
+   ========================================================================== */
+html,
+body,
+.tantawy-shell {
+  background-color: var(--tg-page) !important;
+  color: var(--tg-ink);
+}
+
+/* كارت مرجعي موحد — نفس شكل كروت الصور */
+.tg-card {
+  background: var(--tg-card);
+  border: 1px solid var(--tg-line);
+  border-radius: var(--tg-radius);
+  box-shadow: var(--tg-shadow);
+}
+
+.tg-card--hover {
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.tg-card--hover:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--tg-shadow-md);
+  border-color: var(--tg-line-2);
+}
+
+/* ---------- كروت KPI (زي شريط الكتالوج في صورة 3) ---------- */
+.tg-kpi {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--tg-radius);
+  border: 1px solid transparent;
+  box-shadow: var(--tg-shadow);
+  background: var(--tg-card);
+  overflow: hidden;
+  min-height: 92px;
+}
+.tg-kpi__icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(15, 43, 56, 0.08);
+  flex-shrink: 0;
+}
+.tg-kpi__icon svg {
+  width: 24px;
+  height: 24px;
+}
+.tg-kpi__label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tg-ink-2);
+  line-height: 1.3;
+}
+.tg-kpi__value {
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.3px;
+}
+.tg-kpi__hint {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tg-muted);
+}
+
+.tg-kpi--blue { background: linear-gradient(150deg, #eaf2ff 0%, #f6f9ff 70%); border-color: #d4e3fb; }
+.tg-kpi--blue .tg-kpi__value { color: #1e3a8a; }
+.tg-kpi--blue .tg-kpi__icon { color: #2563eb; }
+
+.tg-kpi--green { background: linear-gradient(150deg, #e7f8f1 0%, #f5fdf9 70%); border-color: #c9ecd9; }
+.tg-kpi--green .tg-kpi__value { color: #047857; }
+.tg-kpi--green .tg-kpi__icon { color: #059669; }
+
+.tg-kpi--orange { background: linear-gradient(150deg, #fdf3e3 0%, #fffaf2 70%); border-color: #f6e2bd; }
+.tg-kpi--orange .tg-kpi__value { color: #b45309; }
+.tg-kpi--orange .tg-kpi__icon { color: #d97706; }
+
+.tg-kpi--violet { background: linear-gradient(150deg, #f3efff 0%, #faf8ff 70%); border-color: #e2d9fb; }
+.tg-kpi--violet .tg-kpi__value { color: #6d28d9; }
+.tg-kpi--violet .tg-kpi__icon { color: #7c3aed; }
+
+.tg-kpi--red { background: linear-gradient(150deg, #fdecec 0%, #fff7f7 70%); border-color: #f5cfcf; }
+.tg-kpi--red .tg-kpi__value { color: #b91c1c; }
+.tg-kpi--red .tg-kpi__icon { color: #dc2626; }
+
+/* ---------- حبوب (Pills) داخل الكروت — زي مخزون الفرع/أكتوبر ---------- */
+.tg-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.tg-pill svg { width: 16px; height: 16px; flex-shrink: 0; }
+.tg-pill__label { display: block; font-size: 10px; font-weight: 600; opacity: 0.75; }
+.tg-pill__value { display: block; font-size: 15px; font-weight: 900; font-variant-numeric: tabular-nums; }
+
+.tg-pill--blue { background: #eaf2ff; color: #1e3a8a; }
+.tg-pill--green { background: #e7f8f1; color: #047857; }
+.tg-pill--orange { background: #fdf3e3; color: #b45309; }
+.tg-pill--violet { background: #f3efff; color: #6d28d9; }
+.tg-pill--red { background: #fdecec; color: #b91c1c; }
+.tg-pill--slate { background: #f1f5f9; color: #334155; }
+
+/* ---------- بادجات الحالة — متوفر/محدود/نفد ---------- */
+.tg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+.tg-badge svg { width: 12px; height: 12px; }
+.tg-badge--ok { background: #dcfce7; color: #15803d; }
+.tg-badge--warn { background: #fef3c7; color: #b45309; }
+.tg-badge--danger { background: #fee2e2; color: #b91c1c; }
+.tg-badge--info { background: #dbeafe; color: #1d4ed8; }
+.tg-badge--violet { background: #ede9fe; color: #6d28d9; }
+.tg-badge--navy { background: #0f2b38; color: #ffffff; }
+
+/* ---------- أزرار البراند ---------- */
+.tg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 13px;
+  min-height: 42px;
+  padding: 0 16px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: filter 0.15s ease, transform 0.1s ease, background 0.15s ease;
+}
+.tg-btn:active { transform: scale(0.97); }
+.tg-btn svg { width: 17px; height: 17px; }
+
+.tg-btn--primary {
+  background: linear-gradient(135deg, var(--role-2), var(--role));
+  color: #fff;
+  box-shadow: 0 8px 18px var(--role-line);
+}
+.tg-btn--primary:hover { filter: brightness(1.06); }
+
+.tg-btn--blue {
+  background: var(--tg-grad-blue);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.3);
+}
+
+.tg-btn--soft {
+  background: var(--role-soft);
+  color: var(--role);
+  border-color: var(--role-line);
+}
+.tg-btn--ghost {
+  background: #fff;
+  color: var(--tg-ink-2);
+  border-color: var(--tg-line);
+}
+.tg-btn--ghost:hover { background: var(--tg-card-2); }
+
+.tg-btn--danger { background: #fee2e2; color: #b91c1c; }
+.tg-btn--danger:hover { background: #fecaca; }
+
+/* ---------- شيبس ورقائق ---------- */
+.tg-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #fff;
+  border: 1px solid var(--tg-line);
+  color: var(--tg-ink-2);
+}
+
+/* ---------- الأرقام المالية: إنجليزية Tabular دايماً ---------- */
+.tg-num {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+  letter-spacing: -0.2px;
+}
+
+/* ---------- حقول الإدخال ---------- */
+.tg-input {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 12px;
+  border: 1px solid var(--tg-line-2);
+  background: #fff;
+  padding: 0 14px;
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--tg-ink);
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.tg-input::placeholder { color: var(--tg-muted); font-weight: 500; }
+.tg-input:focus {
+  border-color: var(--role);
+  box-shadow: 0 0 0 3px var(--role-soft);
+}
+
+/* ---------- شرائح التقدم (زي التوب 10 مناديب) ---------- */
+.tg-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #e8eef7;
+  overflow: hidden;
+}
+.tg-track__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--role-2), var(--role));
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tg-track--green .tg-track__fill { background: linear-gradient(90deg, #34d399, #059669); }
+.tg-track--orange .tg-track__fill { background: linear-gradient(90deg, #fbbf24, #d97706); }
+
+/* ==========================================================================
+   الموبايل — Bottom Nav أبيض ناصع زي صورة 2
+   ========================================================================== */
+@media (max-width: 1023px) {
+  .ds-bottom {
+    background: #ffffff !important;
+    border-top: 1px solid var(--tg-line) !important;
+    box-shadow: 0 -8px 24px rgba(15, 43, 56, 0.08) !important;
+  }
+  .ds-bottom__item[aria-current='page'] .ds-bottom__icon {
+    color: var(--role) !important;
+    background: var(--role-soft) !important;
+  }
+  .ds-bottom__item[aria-current='page'] .ds-bottom__label {
+    color: var(--role) !important;
+    font-weight: 800;
+  }
+
+  /* درج الموبايل بنفس كحلي البراند */
+  .ds-drawer {
+    background: var(--tg-grad-navy) !important;
+  }
+  .ds-drawer__item[aria-current='page'] {
+    background: linear-gradient(135deg, var(--role-2), var(--role)) !important;
+    color: #fff !important;
+  }
+}
+
+/* ==========================================================================
+   الشاشات الضيقة جداً — ضبط الكثافة
+   ========================================================================== */
+@media (max-width: 480px) {
+  .tg-kpi { min-height: 80px; padding: 12px; }
+  .tg-kpi__value { font-size: 22px; }
+  .tg-kpi__icon { width: 40px; height: 40px; border-radius: 12px; }
+  .tg-btn { min-height: 40px; }
+}
+
+/* ==========================================================================
+   كثافة العرض (Density) — افتراضي: مصغّر .tg-compact
+   * html.tg-compact يصغّر كل المقاسات المبنية على rem بنسبة ~6%
+     (Tailwind v4 بيحسب المسافات والأحجام من root font-size)
+   * بدونه الوضع "المريح" 16px.
+   ========================================================================== */
+html.tg-compact {
+  font-size: 15px;
+}
+
+/* ---------- تصغير الهيكل العام (دائماً) ---------- */
+:root {
+  --ds-topbar-h: 60px;
+}
+
+@media (min-width: 1024px) {
+  .ds-sidebar {
+    width: 246px !important;
+    padding: 14px 11px 11px !important;
+  }
+
+  .ds-topbar,
+  .app-main,
+  footer {
+    margin-inline-start: 246px !important;
+  }
+}
+
+.ds-sidebar__item {
+  min-height: 42px;
+  padding: 4px 8px;
+  gap: 8px;
+}
+
+.ds-sidebar__icon-badge {
+  width: 34px;
+  height: 34px;
+}
+
+.ds-sidebar__brand {
+  padding: 0 4px 12px;
+}
+
+.ds-sidebar__user {
+  padding: 10px;
+}
+
+/* ---------- تصغير مكونات البراند في الوضع المصغّر ---------- */
+html.tg-compact .tg-card {
+  border-radius: 14px;
+}
+
+html.tg-compact .tg-kpi {
+  min-height: 78px;
+  padding: 11px 13px;
+  gap: 10px;
+}
+
+html.tg-compact .tg-kpi__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+html.tg-compact .tg-kpi__value {
+  font-size: 22px;
+}
+
+html.tg-compact .tg-kpi__label {
+  font-size: 12.5px;
+}
+
+html.tg-compact .tg-btn {
+  min-height: 38px;
+  padding: 0 14px;
+  font-size: 12.5px;
+}
+
+html.tg-compact .tg-input {
+  min-height: 38px;
+  font-size: 12.5px;
+}
+
+html.tg-compact .tg-pill {
+  padding: 6px 10px;
+}
+
+html.tg-compact .tg-pill__value {
+  font-size: 14px;
+}
+
+html.tg-compact .tg-badge {
+  padding: 3px 8px;
+  font-size: 10.5px;
+}
+
+html.tg-compact .tg-chip {
+  padding: 4px 10px;
+  font-size: 11.5px;
+}
+
+html.tg-compact .ds-bottom {
+  /* الارتفاع بيتظبط من المتغير --ds-bottom-h في قسم أبعاد الموبايل */
+}
+
+/* ==========================================================================
+   أبعاد الموبايل المعتمدة (زي جهاز المرجع 390×844)
+   ========================================================================== */
+@media (max-width: 640px) {
+  :root {
+    --ds-bottom-h: 58px;
+    --ds-topbar-h: 56px;
+  }
+
+  .ds-bottom__icon {
+    width: 46px;
+    height: 28px;
+  }
+  .ds-bottom__item {
+    font-size: 10.5px;
+    gap: 2px;
+  }
+
+  .tg-card,
+  .tg-kpi,
+  .tg-target-card,
+  .tg-quick-card {
+    border-radius: 14px;
+  }
+
+  .tg-daycard {
+    border-radius: 16px;
+    padding: 14px 14px 11px;
+  }
+  .tg-daycard__value {
+    font-size: 26px;
+  }
+  .tg-daycard__chart {
+    width: 38px;
+    height: 38px;
+  }
+
+  .tg-hero {
+    padding: 16px 14px !important;
+    border-radius: 16px !important;
+  }
+  .tg-hero__title {
+    font-size: 19px !important;
+  }
+  .tg-hero__sub {
+    font-size: 12px !important;
+    line-height: 1.6;
+  }
+  .tg-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 14px;
+    font-size: 17px;
+  }
+
+  .tg-btn {
+    min-height: 40px;
+    font-size: 12px;
+  }
+  .tg-input {
+    min-height: 40px;
+  }
+
+  .tg-kpi__value {
+    font-size: 20px;
+  }
+
+  /* الكروت الرقمية الكبيرة تتظبط للعرض الضيق */
+  .tg-target__value {
+    font-size: 18px;
+  }
+}
+
+/* ==========================================================================
+   كروت العملاء والمناديب على الموبايل: عمودين مصغّرة بدل كارت بياخد الشاشة
+   ========================================================================== */
+@media (max-width: 640px) {
+  .kpi-grid {
+    gap: 8px !important;
+  }
+  .kpi-grid .tg-kpi {
+    padding: 12px !important;
+  }
+  .kpi-grid .tg-kpi__value {
+    font-size: 16px !important;
+  }
+
+  .cust-grid,
+  .rep-grid {
+    gap: 10px !important;
+  }
+
+  .cust-card,
+  .rep-card {
+    padding: 10px 10px 9px !important;
+    border-radius: 14px !important;
+  }
+
+  /* --- كارت العميل --- */
+  .cust-card img {
+    width: 46px !important;
+    height: 46px !important;
+    border-radius: 12px !important;
+    border-width: 2px !important;
+  }
+  .cust-card h3 {
+    font-size: 13.5px !important;
+    line-height: 1.35 !important;
+  }
+  .cust-card > div > div:first-child {
+    gap: 9px !important;
+  }
+  .cust-card .text-base,
+  .cust-card .text-sm,
+  .cust-card .text-xs {
+    font-size: 10.5px !important;
+  }
+  .cust-card .text-\[17px\] {
+    font-size: 13.5px !important;
+  }
+  .cust-rows {
+    margin-top: 9px !important;
+  }
+  .cust-row {
+    padding: 6px 8px !important;
+    gap: 6px !important;
+  }
+  .cust-row .text-xs {
+    font-size: 10.5px !important;
+  }
+  .cust-row .text-\[11px\] {
+    font-size: 9px !important;
+    line-height: 1.4 !important;
+  }
+  .cust-row .text-base,
+  .cust-row .sm\:text-lg {
+    font-size: 12.5px !important;
+  }
+  .cust-row .text-sm {
+    font-size: 11.5px !important;
+  }
+  .cust-row .text-xs.font-extrabold {
+    font-size: 9px !important;
+  }
+  .cust-cta {
+    margin-top: 9px !important;
+    gap: 6px !important;
+  }
+  .cust-cta a,
+  .cust-cta > div {
+    min-height: 32px !important;
+    border-radius: 10px !important;
+    font-size: 10.5px !important;
+    padding-inline: 7px !important;
+  }
+  .cust-cta a .font-mono {
+    font-size: 9.5px !important;
+  }
+  /* بادج GPS يصغر مع الأفاتار */
+  .cust-card .h-6.w-6 {
+    height: 20px !important;
+    width: 20px !important;
+  }
+  .cust-card .h-6.w-6 svg {
+    height: 11px !important;
+    width: 11px !important;
+  }
+
+  /* --- كارت المندوب --- */
+  .rep-card img {
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 12px !important;
+  }
+  .rep-card .text-base {
+    font-size: 13px !important;
+  }
+  .rep-mini {
+    padding: 7px 8px !important;
+  }
+  .rep-mini .text-\[11px\] {
+    font-size: 9px !important;
+  }
+  .rep-mini .text-sm {
+    font-size: 11.5px !important;
+  }
+  .rep-card .inline-flex.px-2 {
+    font-size: 9px !important;
+    padding: 2px 5px !important;
+  }
+  .rep-card .text-xs.font-black.px-2\.5 {
+    font-size: 10px !important;
+  }
+  .rep-card .pt-3 {
+    padding-top: 8px !important;
+  }
+  .rep-card .pt-3 .text-xs {
+    font-size: 10px !important;
+  }
+}
+
+/* ==========================================================================
+   تكثيف شاشات التشغيل على الموبايل: الكتالوج + المرتجعات + التحصيل + الزيارات
+   ========================================================================== */
+@media (max-width: 640px) {
+  /* --- كتالوج المنتجات: عمودين + صورة مش مربعة عملاقة --- */
+  .cat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .cat-card {
+    padding: 8px !important;
+    border-radius: 14px !important;
+    gap: 7px !important;
+  }
+  .cat-card .aspect-square {
+    aspect-ratio: auto !important;
+    height: 104px !important;
+    border-radius: 11px !important;
+  }
+  .cat-card h3 {
+    min-height: 0 !important;
+    font-size: 11.5px !important;
+    line-height: 1.35 !important;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .cat-card .text-sm.font-black {
+    font-size: 12px !important;
+  }
+  .cat-card .ml-1 {
+    font-size: 9px !important;
+  }
+  .cat-card .grid.grid-cols-2 {
+    gap: 4px !important;
+  }
+  .cat-card .grid.grid-cols-2 > div {
+    padding: 4px 3px !important;
+    border-radius: 8px !important;
+  }
+  .cat-card .grid.grid-cols-2 .text-xs {
+    font-size: 9.5px !important;
+  }
+  .cat-card .grid.grid-cols-2 .text-\[10px\] {
+    font-size: 8px !important;
+  }
+  .cat-card button.h-9.w-9 {
+    height: 28px !important;
+    width: 28px !important;
+    border-radius: 9px !important;
+  }
+  .cat-card .px-2\.5.py-1 {
+    padding: 2px 6px !important;
+    font-size: 9px !important;
+    gap: 3px !important;
+  }
+  .cat-card .px-2\.5.py-1 svg {
+    height: 11px !important;
+    width: 11px !important;
+  }
+  .cat-card .hidden.sm\:inline-flex {
+    display: none !important;
+  }
+
+  /* --- المرتجعات: كارت أسرع قراءة (عمود واحد لكن مكثف) --- */
+  .ret-list {
+    gap: 8px !important;
+  }
+  .ret-list > * + * {
+    margin-top: 0 !important;
+  }
+  .ret-card {
+    padding: 10px !important;
+    border-radius: 14px !important;
+    gap: 8px !important;
+    margin-bottom: 8px !important;
+  }
+  .ret-card .w-10.h-10 {
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 10px !important;
+  }
+  .ret-card .w-10.h-10 svg {
+    height: 15px !important;
+    width: 15px !important;
+  }
+  .ret-card .text-sm.sm\:text-base {
+    font-size: 12.5px !important;
+  }
+  .ret-card .text-base.sm\:text-lg {
+    font-size: 14px !important;
+  }
+  .ret-card .text-xs {
+    font-size: 10px !important;
+  }
+  .ret-card .text-\[11px\] {
+    font-size: 9.5px !important;
+  }
+  .ret-card .px-2\.5.py-0\.5 {
+    padding: 2px 6px !important;
+    font-size: 9px !important;
+  }
+  .ret-card .bg-slate-50\/80 {
+    padding: 7px 8px !important;
+    border-radius: 10px !important;
+  }
+  .ret-card .pb-3 {
+    padding-bottom: 7px !important;
+  }
+  .ret-card > div:first-child {
+    gap: 7px !important;
+  }
+
+  /* --- التحصيل: كارت العميل المتأخر مكثف + توب 5 عمودين --- */
+  .coll-top {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .coll-card {
+    padding: 10px !important;
+    border-radius: 14px !important;
+  }
+  .coll-card > div:first-child {
+    gap: 9px !important;
+  }
+  .coll-card img.h-14 {
+    width: 42px !important;
+    height: 42px !important;
+    border-radius: 12px !important;
+  }
+  .coll-card h4 {
+    font-size: 13px !important;
+  }
+  .coll-card .text-xs {
+    font-size: 10px !important;
+  }
+  .coll-card .text-base.sm\:text-lg {
+    font-size: 13px !important;
+  }
+  .coll-card .px-3\.5.py-2\.5 {
+    padding: 6px 8px !important;
+  }
+  .coll-card .text-xs.font-extrabold {
+    font-size: 9.5px !important;
+  }
+
+  /* --- الزيارات: كارت الزيارة مكثف --- */
+  .visit-card {
+    padding: 10px !important;
+    border-radius: 14px !important;
+    gap: 7px !important;
+  }
+  .visit-card img.w-11 {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 11px !important;
+  }
+  .visit-card h3 {
+    font-size: 13px !important;
+  }
+  .visit-card .text-xs {
+    font-size: 10px !important;
+  }
+  .visit-card .text-\[11px\] {
+    font-size: 9.5px !important;
+  }
+  .visit-card .grid.grid-cols-2 {
+    padding: 7px 8px !important;
+    gap: 6px !important;
+    border-radius: 11px !important;
+  }
+  .visit-card .text-\[10px\] {
+    font-size: 8.5px !important;
+  }
+  .visit-card .p-3.rounded-2xl {
+    padding: 7px 8px !important;
+  }
+}
+
+/* ==========================================================================
+   قاعدة التباين الذهبية: نص فاتح فوق أي سطح غامق، ونص غامق فوق أي سطح فاتح
+   السطوح الغامقة المعروفة: التوب بار، السايدبار، الدرج، الهيرو، كارت اليوم
+   ========================================================================== */
+.ds-topbar,
+.ds-topbar *,
+.ds-sidebar,
+.ds-sidebar *,
+.ds-drawer,
+.ds-drawer *,
+.tg-hero,
+.tg-hero .tg-hero__title,
+.tg-hero .tg-hero__sub,
+.tg-hero .tg-chip,
+.tg-hero .tg-mini__label,
+.tg-hero .tg-mini__value,
+.tg-hero .tg-mini__rem-label,
+.tg-hero .tg-mini__rem-value,
+.tg-daycard,
+.tg-daycard * {
+  color-scheme: dark;
+}
+
+.tg-hero .tg-hero__title {
+  color: #ffffff !important;
+}
+.tg-hero .tg-hero__sub {
+  color: rgba(219, 234, 254, 0.92) !important;
+}
+.tg-hero .tg-chip {
+  color: #dbeafe !important;
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.12);
+}
+.tg-hero .tg-chip svg {
+  color: #93c5fd;
+}
+.tg-hero .tg-mini__label {
+  color: rgba(219, 234, 254, 0.85) !important;
+}
+.tg-hero .tg-mini__value {
+  color: #ffffff !important;
+}
+.tg-hero .tg-mini__rem-label {
+  color: rgba(219, 234, 254, 0.8) !important;
+}
+.tg-hero .tg-mini__rem-value {
+  color: #ffffff !important;
+}
+.tg-hero .tg-avatar {
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.25), 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+.tg-hero .tg-btn {
+  color: #0f2b38 !important; /* زر أبيض فوق الهيرو الغامق — نص غامق صح */
+}
+.tg-hero .tg-btn.tg-btn--ghost {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.25) !important;
+  color: #ffffff !important;
+}
+
+/* الفوتر: سطح كحلي غامق — كل النصوص داخله لازم تكون فاتحة (قاعدة التباين) */
+body footer,
+body footer * {
+  color: #cbd5e1;
+}
+body footer .font-black,
+body footer span.font-black {
+  color: #ffffff;
+}
+:root body footer .text-slate-300,
+:root body footer .text-slate-400,
+:root body footer .text-slate-500,
+:root body footer .text-slate-600 {
+  color: #94a3b8 !important;
+}
+
+/* النصوص التوضيحية الصغيرة فوق الكروت الملونة الفاتحة — ترفع لرمادي غامق واضح */
+.tg-target__sub,
+.tg-q__sub,
+.tg-stat__sub,
+.tg-kpi__hint {
+  color: #475569 !important;
+}
+.tg-kpi__label,
+.tg-pill__label {
+  color: #334155 !important;
+}
+
+/* نسب التقيمات الملونة: نغمعها لدرجات أغمق واضحة */
+.tg-target__pct.text-red-600,
+.tg-target__pct .text-red-600 {
+  color: #b91c1c !important;
+}
+.tg-target__pct.text-amber-600,
+.tg-target__pct .text-amber-600 {
+  color: #b45309 !important;
+}
+
+/* نص كارت اليوم الأزرق: أفتح شوية للتباين الكامل */
+.tg-daycard__label,
+.tg-daycard__sub {
+  color: #eff6ff !important;
+}
+.tg-daycard__chip {
+  color: #ffffff !important;
+}
+
+/* تواريخ سجل النشاط + ملاحظات التحميل الرمادية الباهتة على الأبيض */
+.tg-act__date {
+  color: #64748b !important;
+}
+.app-main .text-slate-300 {
+  color: #475569 !important;
+}
+
+/* الأرقام داخل الحبوب الملونة الفاتحة تفضل غامقة (مش بيضاء) */
+.tg-pill .tg-pill__value,
+.tg-pill .tg-pill__label {
+  color: inherit;
+}
+
+/* ==========================================================================
+   كارت مبيعات اليوم (موبايل) — زي المرجع: أزرق متدرج + نسبة + تحصيل
+   ========================================================================== */
+.tg-daycard {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  padding: 18px 18px 13px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 55%, #1e3a8a 100%);
+  color: #ffffff;
+  box-shadow: 0 14px 30px rgba(30, 58, 138, 0.32);
+}
+.tg-daycard__glow {
+  position: absolute;
+  top: -45%;
+  inset-inline-end: -15%;
+  width: 230px;
+  height: 230px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.16), transparent 65%);
+  pointer-events: none;
+}
+.tg-daycard__row {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.tg-daycard__label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #dbeafe;
+  margin-bottom: 2px;
+}
+.tg-daycard__value {
+  display: block;
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+  color: #ffffff;
+}
+.tg-daycard__unit {
+  font-size: 13px;
+  font-weight: 700;
+  color: #bfdbfe;
+}
+.tg-daycard__chart {
+  color: rgba(255, 255, 255, 0.85);
+  flex-shrink: 0;
+}
+.tg-daycard__foot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+}
+.tg-daycard__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 12px;
+  font-weight: 800;
+  color: #ffffff;
+}
+.tg-daycard__sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: #dbeafe;
+}
+.tg-daycard__sub b {
+  font-weight: 900;
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   الموبايل — ضبط كثافة الرئيسية زي المرجع
+   ========================================================================== */
+@media (max-width: 1023px) {
+  /* شبكة 2×2 ثابتة زي صورة الموبايل */
+  .tg-quick-row,
+  .tg-target-row {
+    gap: 10px;
+  }
+  .tg-quick-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tg-quick-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 12px;
+    border-radius: 16px;
+    border-left-width: 3px;
+    box-shadow: 0 2px 8px rgba(15, 43, 56, 0.05);
+  }
+  .tg-q__icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+  .tg-q__value {
+    font-size: 20px;
+  }
+  .tg-q__sub {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .tg-target-card {
+    padding: 12px;
+    border-radius: 16px;
+    gap: 6px;
+    border-left-width: 3px;
+  }
+  .tg-target__icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+  }
+  .tg-target__value {
+    font-size: 20px;
+  }
+
+  /* الهيرو يبقى مكثف — الأزرار مكررة مع القائمة السفلية */
+  .tg-hero__actions {
+    display: none;
+  }
+  .tg-hero__sub {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+/* ==========================================================================
+   طباعة نظيفة
+   ========================================================================== */
+@media print {
+  .ds-sidebar,
+  .ds-topbar,
+  .ds-bottom,
+  .ds-drawer-root { display: none !important; }
+  .app-main,
+  footer { margin-inline-start: 0 !important; }
+}

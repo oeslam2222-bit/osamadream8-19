@@ -22,6 +22,36 @@ export const isSupabaseConfigured = Boolean(
   !SUPABASE_URL.includes('YOUR-PROJECT')
 );
 
+/**
+ * منع تكرار نفس الطلب في نفس اللحظة (In-flight dedupe)
+ * ------------------------------------------------------------------
+ * المشكلة: عند تحميل التطبيق أو أول مزامنة، عدة مكونات تنادي نفس
+ * الفetcher في نفس الوقت (زيارات/عملاء/منتجات/فواتير) → نفس البيانات
+ * بتتنزّل أكتر من مرة من Supabase = استهلاك egress مضاعف ممكن يوصل
+ * لحد الـ5 جيجا بسرعة مع 500 مستخدم.
+ *
+ * الحل: أي طلب بنفس المفتاح أثناء تنفيذ طلب سابق بيستخدم نفس النتيجة
+ * بدون طلب إضافي. مفيش أي تأثير على حداثة البيانات (مفيش كاش طويل).
+ */
+const inFlightRequests = new Map<string, Promise<unknown>>();
+
+export function dedupeInFlightRequest<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  const pending = inFlightRequests.get(key);
+  if (pending) return pending as Promise<T>;
+  const promise = fetcher().finally(() => {
+    if (inFlightRequests.get(key) === promise) {
+      inFlightRequests.delete(key);
+    }
+  });
+  inFlightRequests.set(key, promise);
+  return promise;
+}
+
+/** تصفير يدوي عند الحاجة (مثلاً بعد تعديل جوهري) */
+export function clearSupabaseInFlightCache(): void {
+  inFlightRequests.clear();
+}
+
 const offlineSafeFetch: typeof fetch = async () =>
   new Response(
     JSON.stringify({ message: 'Supabase is not configured in this environment', code: 'OFFLINE_NO_CONFIG' }),
@@ -467,7 +497,17 @@ async function fetchAllRows(
 /**
  * Fetch all customers from Supabase (checking 'customers' or 'clients')
  */
-export async function fetchCustomersFromSupabase(
+export function fetchCustomersFromSupabase(
+  scope?: CustomerFetchScope,
+  options?: { updatedSince?: string }
+): Promise<{ success: boolean; customers?: Customer[]; error?: string; scoped?: boolean }> {
+  return dedupeInFlightRequest(
+    `customers:${JSON.stringify(scope ?? null)}:${options?.updatedSince ?? ''}`,
+    () => fetchCustomersFromSupabaseImpl(scope, options)
+  );
+}
+
+async function fetchCustomersFromSupabaseImpl(
   scope?: CustomerFetchScope,
   options?: { updatedSince?: string }
 ): Promise<{ success: boolean; customers?: Customer[]; error?: string; scoped?: boolean }> {
@@ -1083,7 +1123,16 @@ export async function fetchTargetsRecentMonths(
   }
 }
 
-export async function fetchTargetsFromSupabase(
+export function fetchTargetsFromSupabase(
+  scope?: TargetFetchScope
+): Promise<{ success: boolean; targets?: any[]; error?: string }> {
+  return dedupeInFlightRequest(
+    `targets:${JSON.stringify(scope ?? null)}`,
+    () => fetchTargetsFromSupabaseImpl(scope)
+  );
+}
+
+async function fetchTargetsFromSupabaseImpl(
   scope?: TargetFetchScope
 ): Promise<{ success: boolean; targets?: any[]; error?: string }> {
   try {
@@ -2112,7 +2161,17 @@ export interface InvoiceFetchScope {
   limit?: number;
 }
 
-export async function fetchInvoicesFromSupabase(
+export function fetchInvoicesFromSupabase(
+  limitOrScope: number | InvoiceFetchScope = 150,
+  options?: { updatedSince?: string; stampColumn?: 'updated_at' | 'created_at' }
+): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
+  return dedupeInFlightRequest(
+    `invoices:${JSON.stringify(limitOrScope ?? null)}:${JSON.stringify(options ?? null)}`,
+    () => fetchInvoicesFromSupabaseImpl(limitOrScope, options)
+  );
+}
+
+async function fetchInvoicesFromSupabaseImpl(
   limitOrScope: number | InvoiceFetchScope = 150,
   options?: { updatedSince?: string; stampColumn?: 'updated_at' | 'created_at' }
 ): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
@@ -2733,7 +2792,11 @@ export async function isProductsTableAuthoritative(): Promise<boolean> {
  * Fetch products catalog from Supabase
  * Safely fetches all products without being capped at Supabase's default 1,000 row limit
  */
-export async function fetchProductsFromSupabase(): Promise<{ success: boolean; products?: Product[]; error?: string }> {
+export function fetchProductsFromSupabase(): Promise<{ success: boolean; products?: Product[]; error?: string }> {
+  return dedupeInFlightRequest('products:all', () => fetchProductsFromSupabaseImpl());
+}
+
+async function fetchProductsFromSupabaseImpl(): Promise<{ success: boolean; products?: Product[]; error?: string }> {
   try {
     // 0. بصمة الماني فست — بتحدد المصدر المتفق عليه. items.mode='products_table_v2'
     //    يعني الجدول الرسمي الغني هو المصدر (بيتكتب مع أول استيراد/مزامنة كاملة
@@ -2925,7 +2988,17 @@ async function readRichProductsTable(): Promise<{ ok: boolean; products: Product
  *
  * نفس باترن `fetchAllRows` بتاع العملاء: `.range()` بالدفعات لحد ما الجدول يخلص.
  */
-export async function fetchVisitsFromSupabase(
+export function fetchVisitsFromSupabase(
+  scope?: VisitFetchScope,
+  options?: { updatedSince?: string }
+): Promise<{ success: boolean; visits?: CustomerVisit[]; error?: string; scoped?: boolean }> {
+  return dedupeInFlightRequest(
+    `visits:${JSON.stringify(scope ?? null)}:${options?.updatedSince ?? ''}`,
+    () => fetchVisitsFromSupabaseImpl(scope, options)
+  );
+}
+
+async function fetchVisitsFromSupabaseImpl(
   scope?: VisitFetchScope,
   options?: { updatedSince?: string }
 ): Promise<{ success: boolean; visits?: CustomerVisit[]; error?: string; scoped?: boolean }> {
@@ -3495,7 +3568,16 @@ export async function fetchCustomerCommentsStamp(
   }
 }
 
-export async function fetchForecastsFromSupabase(
+export function fetchForecastsFromSupabase(
+  scope?: ForecastFetchScope
+): Promise<{ success: boolean; forecasts?: any[]; error?: string }> {
+  return dedupeInFlightRequest(
+    `forecasts:${JSON.stringify(scope ?? null)}`,
+    () => fetchForecastsFromSupabaseImpl(scope)
+  );
+}
+
+async function fetchForecastsFromSupabaseImpl(
   scope?: ForecastFetchScope
 ): Promise<{ success: boolean; forecasts?: any[]; error?: string }> {
   try {
@@ -3700,7 +3782,17 @@ export async function saveForecastMonthPlanToSupabase(plan: any): Promise<{ succ
   }
 }
 
-export async function fetchCustomerCommentsFromSupabase(
+export function fetchCustomerCommentsFromSupabase(
+  scope?: ForecastFetchScope,
+  options?: { updatedSince?: string }
+): Promise<{ success: boolean; comments?: any[]; error?: string }> {
+  return dedupeInFlightRequest(
+    `comments:${JSON.stringify(scope ?? null)}:${options?.updatedSince ?? ''}`,
+    () => fetchCustomerCommentsFromSupabaseImpl(scope, options)
+  );
+}
+
+async function fetchCustomerCommentsFromSupabaseImpl(
   scope?: ForecastFetchScope,
   options?: { updatedSince?: string }
 ): Promise<{ success: boolean; comments?: any[]; error?: string }> {

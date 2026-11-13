@@ -45,6 +45,7 @@ export interface LegalCase {
   referredByName: string;
   referredAt: string;
   referralReason: string;
+  transferIcon?: string;
 
   branchManagerApproved: boolean;
   branchManagerApprovedBy?: string;
@@ -227,11 +228,20 @@ export function getLegalCaseForCustomer(customerOrId: Customer | string | undefi
   });
 }
 
+export function getLegalTransferOptions(): Array<{ emoji: string; label: string; reason: string }> {
+  return [
+    { emoji: '🚨', label: 'هارب / اختفاء', reason: 'ارتداء العميل عن السداد واختفاء فجأة — متابعة قضائية' },
+    { emoji: '😟', label: 'متعثر جداً / معسر', reason: 'فقدان القدرة الشرائية العميقة وانعكاس مزمن يلغي أركان الدين القانوني' },
+    { emoji: '⚖️', label: 'مخالفة احتقاقية / غش', reason: 'مخالفة قانونية متكررة وإجراءات غش أو تزوير مستمرة' },
+  ];
+}
+
 export function referCustomerToLegal(params: {
   customer: Customer;
   referredByName: string;
   referredByRole: string;
   reason: string;
+  transferIcon?: string;
   totalDebt?: number;
   overdueAmount?: number;
 }): { success: boolean; message: string; legalCase?: LegalCase } {
@@ -280,6 +290,7 @@ export function referCustomerToLegal(params: {
     referredByName: params.referredByName,
     referredAt: formattedDate,
     referralReason: params.reason || 'تأخر في السداد وتجاوز المدة الائتمانية القانونية المسموح بها.',
+    transferIcon: params.transferIcon || '😟',
     branchManagerApproved: isDirectApproved,
     branchManagerApprovedBy: isDirectApproved ? params.referredByName : undefined,
     branchManagerApprovedAt: isDirectApproved ? formattedDate : undefined,

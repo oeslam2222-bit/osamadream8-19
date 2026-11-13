@@ -248,6 +248,16 @@ export function getCandidateImageUrls(
     }
   }
 
+  // 2. Cloudinary fallback مربوط بكود المنتج — الكود ثابت وفريد، فمفيش مخاطرة
+  //    إن الصورة تتلقط باسم غلط زي ما بيحصل لو الربط كان بالمسي العربي الحر.
+  const publicId = typeof product.cloudinaryPublicId === 'string' ? product.cloudinaryPublicId.trim() : '';
+  if (publicId) {
+    const { cloudName } = normalizeCloudinaryConfig(_config);
+    if (cloudName) {
+      candidates.push(`https://res.cloudinary.com/${cloudName}/image/upload/${publicId}`);
+    }
+  }
+
   return Array.from(new Set(candidates));
 }
 
@@ -419,6 +429,23 @@ export async function uploadCustomerPhoto(
   const cleanCode = (customerCode || customerId || 'cust').replace(/[^a-zA-Z0-9_-]/g, '_');
   const targetFolder = `customer_photos/${cleanCode}`;
   return uploadImageToCloudinary(compressed, config, targetFolder);
+}
+
+/**
+ * ترفع صورة منتج إلى Cloudinary مرتبة بكود المنتج (public_id = الكود).
+ * الكود ثابت وفريد، فالصورة تفضل مربوطة بالمنتج حتى لو اتغير الاسم.
+ */
+export async function uploadProductPhoto(
+  file: File,
+  config: CloudinaryConfig = DEFAULT_CLOUDINARY_CONFIG,
+  productCode: string,
+  productId?: string
+): Promise<{ url: string; publicId?: string }> {
+  const compressed = await compressImageFile(file, 800, 800, 0.7);
+  const cleanCode = (productCode || productId || 'product').replace(/[^a-zA-Z0-9_-]/g, '_');
+  const targetFolder = `product_photos/${cleanCode}`;
+  const result = await uploadImageToCloudinary(compressed, config, targetFolder);
+  return { ...result, publicId: result.publicId || cleanCode };
 }
 
 /**
