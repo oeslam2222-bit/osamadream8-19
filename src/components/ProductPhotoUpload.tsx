@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Product } from '../types';
 import { Upload, Image as ImageIcon, RefreshCw, CheckCircle2, X, AlertTriangle } from 'lucide-react';
+import { uploadProductPhoto, normalizeCloudinaryConfig } from '../services/cloudinaryService';
 
 interface ProductPhotoUploadProps {
   product: Product;
@@ -15,6 +16,7 @@ export const ProductPhotoUpload: React.FC<ProductPhotoUploadProps> = ({
   const {
     currentUser,
     updateProduct,
+    cloudinaryConfig,
   } = useApp();
 
   const [uploading, setUploading] = useState(false);
@@ -39,11 +41,25 @@ export const ProductPhotoUpload: React.FC<ProductPhotoUploadProps> = ({
     if (!file || !currentUser) return;
     setUploading(true);
     try {
-      const imageUrl = previewUrl || '';
+      let imageUrl = previewUrl || '';
+      let cloudinaryPublicId: string | undefined = product.cloudinaryPublicId;
+
+      // أول محاولة: رفع حقيقي إلى Cloudinary مربوط بكود المنتج (ثابت وفريد)
+      const effectiveConfig = normalizeCloudinaryConfig(cloudinaryConfig);
+      if (effectiveConfig.cloudName && effectiveConfig.uploadPreset) {
+        try {
+          const uploaded = await uploadProductPhoto(file, effectiveConfig, product.code, product.id);
+          imageUrl = uploaded.url;
+          cloudinaryPublicId = uploaded.publicId;
+        } catch (err) {
+          console.warn('Cloudinary upload failed, falling back to local preview', err);
+        }
+      }
 
       const updatedProduct: Product = {
         ...product,
         imageUrl,
+        cloudinaryPublicId,
         photoStatus: 'pending',
         photoUploadedBy: currentUser.name,
         photoUploadedAt: new Date().toISOString(),

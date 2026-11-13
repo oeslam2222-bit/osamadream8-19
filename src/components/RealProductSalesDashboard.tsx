@@ -30,6 +30,7 @@ import {
   Percent,
   Crown,
   TrendingUp,
+  ExternalLink,
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { fetchSalesSummaryFromSupabase, type SalesSummary } from "../services/supabaseService";
@@ -103,11 +104,11 @@ interface AggRep {
   pieces: number;
 }
 
-export const RealProductSalesDashboard: React.FC<{ isDark: boolean }> = ({ isDark }) => {
+export const RealProductSalesDashboard: React.FC<{ isDark: boolean; onOpenCustomer?: (customerId: string) => void }> = ({ isDark, onOpenCustomer }) => {
   const { currentUser, getVisibleInvoices, getVisibleVisits, getVisibleCustomers, getVisibleTargets, targets, isOffline } = useApp();
   const palette = isDark ? chartPalette.dark : chartPalette.light;
 
-  const [period, setPeriod] = useState<Period>("week");
+  const [period, setPeriod] = useState<Period>("month");
   const [section, setSection] = useState<Section>("product");
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
 
@@ -557,6 +558,14 @@ export const RealProductSalesDashboard: React.FC<{ isDark: boolean }> = ({ isDar
                             ))}
                           </ul>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => onOpenCustomer?.(c.key)}
+                          className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-[var(--app-accent,#2563EB)] px-2.5 py-1.5 text-[11px] font-bold text-white transition hover:opacity-90"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          فتح بروفايل العميل — المشتريات والزيارات
+                        </button>
                       </div>
                     )}
                   </li>

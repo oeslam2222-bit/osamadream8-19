@@ -18,8 +18,9 @@ import {
   TrendingUp,
   Wallet,
   X,
+  Scale,
 } from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import { inferCustomerSector } from '../data/branchDefinitions';
@@ -35,6 +36,9 @@ import {
   watermarkAndCompressLivePhoto,
 } from '../services/geoVerificationService';
 import type { Customer, CustomerVisit } from '../types';
+import { getLegalCases, subscribeToLegalCases, referCustomerToLegal } from '../services/legalAffairsService';
+import type { LegalCase } from '../services/legalAffairsService';
+import { LegalTransferModal } from './LegalTransferModal';
 
 const todayKey = (): string => {
   const now = new Date();
@@ -142,6 +146,28 @@ export const CollectionRecoveryDashboard: React.FC = () => {
   const [confirmUploadingProof, setConfirmUploadingProof] = useState(false);
   const [confirmPinInitialLocation, setConfirmPinInitialLocation] = useState(false);
   const [visibleCustomersCount, setVisibleCustomersCount] = useState(CUSTOMERS_PAGE_SIZE);
+  const [legalCases, setLegalCases] = useState<LegalCase[]>([]);
+  const [legalTransferCustomer, setLegalTransferCustomer] = useState<Customer | null>(null);
+  const unsubLegalRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    unsubLegalRef.current = subscribeToLegalCases((c) => setLegalCases(c));
+    setLegalCases(getLegalCases());
+    return () => unsubLegalRef.current?.();
+  }, []);
+  const canTransferToLegal = ['admin', 'branch_manager', 'developer', 'supervisor'].includes(currentUser?.role || '');
+  const handleTransferToLegal = (customer: Customer, reason?: string, transferIcon?: string) => {
+    const res = referCustomerToLegal({
+      customer,
+      referredByName: currentUser?.name || currentUser?.username || 'الإدارة العليا',
+      referredByRole: currentUser?.role || 'branch_manager',
+      reason: reason || `تعثر العميل ${customer.name} في السداد وتم تجاوز فترة الائتمان المسموح بها — تمت الإحالة للشؤون القانونية من شاشة التحصيل.`,
+      transferIcon: transferIcon || '😟',
+      totalDebt: customer.currentBalance ?? customer.balance ?? 0,
+      overdueAmount: customer.totalOverdueAndDue ?? customer.overdueBalance ?? 0,
+    });
+    if (res.success) setLegalCases(getLegalCases());
+    return res;
+  };
 
   // أي تغيير في البحث/الفلاتر يرجّع التحميل لأول دفعة
   useEffect(() => {
@@ -736,7 +762,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                   </div>
                   <span className="text-[10px] font-black text-amber-800 bg-amber-100 border border-amber-200 px-2 py-1 rounded-full">أولوية التحصيل</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2.5">
+                <div className="coll-top grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-2.5">
                   {topOverdueCustomers.map((customer, idx) => {
                     const debt = getCustomerDebt(customer);
                     const isSelected = selectedCustomer?.id === customer.id;
@@ -801,7 +827,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                 return (
                   <div
                     key={customer.id}
-                    className={`rounded-2xl border p-4 sm:p-5 transition-all ${
+                    className={`coll-card rounded-2xl border p-4 sm:p-5 transition-all ${
                       isSelected
                         ? 'border-emerald-600 bg-emerald-50/40 shadow-md ring-1 ring-emerald-300'
                         : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
@@ -920,6 +946,16 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                         </div>
 
                         <div className="mt-3 flex gap-2">
+                          {canTransferToLegal && (
+                            <button
+                              type="button"
+                              onClick={() => setLegalTransferCustomer(customer)}
+                              className="min-h-[44px] inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs sm:text-sm font-black text-slate-800 hover:bg-slate-50 transition cursor-pointer"
+                            >
+                              <Scale className="h-4 w-4 text-[#1E3A8A]" />
+                              تحويل للشؤون القانونية
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => openConfirmModal(customer)}
@@ -1320,6 +1356,19 @@ export const CollectionRecoveryDashboard: React.FC = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {legalTransferCustomer && (
+        <LegalTransferModal
+          customer={legalTransferCustomer}
+          referredByName={currentUser?.name || currentUser?.username || 'الإدارة العليا'}
+          referredByRole={currentUser?.role || 'branch_manager'}
+          onClose={() => setLegalTransferCustomer(null)}
+          onConfirm={(reason, icon) => {
+            handleTransferToLegal(legalTransferCustomer, reason, icon);
+            setLegalTransferCustomer(null);
+          }}
+        />
       )}
     </div>
   );

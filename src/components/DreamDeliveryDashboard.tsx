@@ -227,11 +227,34 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
     { label: 'التحصيلات', icon: Wallet, onClick: () => onNavigate?.('collections') },
   ];
 
-  const AVATAR_COLORS = ['bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-violet-500', 'bg-rose-500'];
+  const AVATAR_COLORS = ['#3b82f6', '#059669', '#d97706', '#7c3aed', '#e11d48'];
   const avatarBg = AVATAR_COLORS[displayName.length % AVATAR_COLORS.length];
 
   return (
     <div className="tg-dash" dir="rtl">
+      {/* ---------- كارت مبيعات اليوم (موبايل) — زي المرجع ---------- */}
+      <section className="tg-daycard lg:hidden">
+        <span className="tg-daycard__glow" aria-hidden="true" />
+        <div className="tg-daycard__row">
+          <div className="min-w-0">
+            <span className="tg-daycard__label">مبيعات اليوم</span>
+            <span className="tg-daycard__value tg-num">
+              {fmt(totalSalesToday)} <span className="tg-daycard__unit">ج.م</span>
+            </span>
+          </div>
+          <TrendingUp size={46} className="tg-daycard__chart" aria-hidden="true" />
+        </div>
+        <div className="tg-daycard__foot">
+          <span className="tg-daycard__chip">
+            <TrendingUp size={13} />
+            <span className="tg-num">{salesPercent}%</span>
+          </span>
+          <span className="tg-daycard__sub">
+            تحصيل اليوم: <b className="tg-num">{fmt(totalCollectedToday)}</b> ج.م
+          </span>
+        </div>
+      </section>
+
       {/* ---------- Hero ---------- */}
       <section className="tg-hero">
         <span className="tg-hero__blob tg-hero__blob--blue" aria-hidden="true" />

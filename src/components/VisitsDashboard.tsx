@@ -1017,7 +1017,7 @@ export const VisitsDashboard: React.FC = () => {
             return (
               <div
                 key={v.id || idx}
-                className="tg-card p-4 sm:p-5 space-y-3 active:scale-[0.99] transition"
+                className="visit-card tg-card p-4 sm:p-5 space-y-3 active:scale-[0.99] transition"
                 onClick={() => setSelectedVisit(v)}
               >
                 {/* Header: Customer Store Avatar + Name + Status Badge */}

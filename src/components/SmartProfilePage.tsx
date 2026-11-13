@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Users, Search, Building2, Wallet, ShoppingCart, TrendingUp,
+  Users, Search, Building2, Wallet, ShoppingCart, TrendingUp, Trophy, Scale,
   ChevronRight, ChevronLeft, X, Clock, MapPin, CreditCard, Star, Phone,
   AlertTriangle, CheckCircle2, FileText, BarChart3, RefreshCw,
   Plus, Activity, Filter, UserCheck, RotateCcw,
@@ -11,6 +11,9 @@ import { inferTargetSector } from '../services/targetService';
 import { normalizeArabicText } from '../services/arabicMatchingService';
 import { optimizeImageUrl } from '../services/cloudinaryService';
 import { classifyEligibilityColumn } from '../services/customerFinancialService';
+import { getLegalCases, subscribeToLegalCases, referCustomerToLegal, isCustomerReferredToLegal } from '../services/legalAffairsService';
+import type { LegalCase } from '../services/legalAffairsService';
+import { LegalTransferModal } from './LegalTransferModal';
 import customerMerchantAvatar from '../assets/images/customer_merchant_avatar_1794559829020.jpg';
 import type { Customer, TargetRecord, User } from '../types';
 import { formatCurrency } from '../services/invoiceService';
@@ -273,6 +276,52 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
   }, [repsMap, searchQuery, selectedBranch, selectedSupervisor, selectedSector]);
 
   const displayedReps = useMemo(() => filteredReps.slice(0, visibleRepsCount), [filteredReps, visibleRepsCount]);
+
+  /* ---------- تحليلات المناديب: توب 10 + دونات حصة المبيعات + منحنى شهري ---------- */
+  const repAnalytics = useMemo(() => {
+    const top10 = filteredReps.slice(0, 10);
+    const leader = top10[0];
+    const totalSales = filteredReps.reduce((s, r) => s + r.salesAchieved, 0);
+
+    const donut = top10.slice(0, 5).map((r) => ({ name: r.repName, value: r.salesAchieved }));
+    const othersValue = totalSales - donut.reduce((s, d) => s + d.value, 0);
+    if (othersValue > 0) donut.push({ name: 'باقي المناديب', value: othersValue });
+
+    const months = leader ? Object.keys(leader.monthlySales).sort() : [];
+    const line = months.map((mk) => ({
+      key: mk,
+      label: MONTHS_AR[Number(mk.slice(5, 7)) - 1] || mk,
+      sales: leader.monthlySales[mk] || 0,
+      collection: leader.monthlyCollection[mk] || 0,
+    }));
+
+    return { top10, leader, totalSales, donut, line };
+  }, [filteredReps]);
+
+  /* ---------- الشؤون القانونية: إحالة العميل + تتبع القضايا ---------- */
+  const [legalCases, setLegalCases] = useState<LegalCase[]>([]);
+  const [legalTransferCustomer, setLegalTransferCustomer] = useState<Customer | CustomerProfile | null>(null);
+  useEffect(() => {
+    const unsub = subscribeToLegalCases((c) => setLegalCases(c));
+    setLegalCases(getLegalCases());
+    return unsub;
+  }, []);
+  const canTransferToLegal = ['admin', 'branch_manager', 'developer'].includes(currentUser?.role || '');
+  const handleTransferToLegal = (cust: Customer | CustomerProfile, reason?: string, transferIcon?: string) => {
+    const customerLike = cust as unknown as Customer;
+    const res = referCustomerToLegal({
+      customer: customerLike,
+      referredByName: currentUser?.name || currentUser?.username || 'الإدارة العليا',
+      referredByRole: currentUser?.role || 'branch_manager',
+      reason: reason || `تعثر العميل ${cust.name} في السداد وتم تجاوز فترة الائتمان المسموح بها — تمت الإحالة للشؤون القانونية.`,
+      transferIcon: transferIcon || '😟',
+      totalDebt: customerLike.currentBalance ?? customerLike.balance ?? 0,
+      overdueAmount: customerLike.totalOverdueAndDue ?? customerLike.overdueBalance ?? 0,
+    });
+    if (res.success) setLegalCases(getLegalCases());
+    return res;
+  };
+  const isCustomerInLegal = (cust: Customer) => isCustomerReferredToLegal(cust);
 
   /* ---------- تجميع بيانات العملاء ---------- */
   type CustomerProfile = {
@@ -631,7 +680,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {canViewReps && (
+            {mode === 'reps' && canViewReps && (
               <button
                 type="button"
                 onClick={() => setActiveTab('reps')}
@@ -645,18 +694,20 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                 <span>المناديب</span>
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => setActiveTab('customers')}
-              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
-                activeTab === 'customers'
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
-                  : 'bg-white/15 border border-white/25 text-white hover:bg-white/25'
-              }`}
-            >
-              <Users size={16} />
-              <span>العملاء</span>
-            </button>
+            {mode === 'reps' && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('customers')}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
+                  activeTab === 'customers'
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
+                    : 'bg-white/15 border border-white/25 text-white hover:bg-white/25'
+                }`}
+              >
+                <Users size={16} />
+                <span>العملاء</span>
+              </button>
+            )}
             <button
               type="button"
               disabled={isRefreshing}
@@ -674,7 +725,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
       {activeTab === 'customers' && (
         <div>
           {/* كروت الإجمالية */}
-          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <section className="kpi-grid grid grid-cols-2 lg:grid-cols-4 gap-2.5 md:gap-4">
             <div className="tg-kpi tg-kpi--amber">
               <div className="tg-kpi__top">
                 <span className="tg-kpi__icon"><CreditCard size={20} /></span>
@@ -778,7 +829,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
           </section>
 
           {/* كروت العملاء (بروفايل احترافي عالي التباين) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div className="cust-grid grid grid-cols-2 xl:grid-cols-3 gap-2.5 md:gap-4">
             {displayedCustomers.length === 0 ? (
               <div className="col-span-full tg-card p-12 text-center">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
@@ -802,7 +853,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                   <article
                     key={cust.id}
                     onClick={() => handleOpenCustomer(cust.id)}
-                    className="group relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs transition-all duration-150 hover:border-slate-300 hover:shadow-md cursor-pointer"
+                    className="cust-card group relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs transition-all duration-150 hover:border-slate-300 hover:shadow-md cursor-pointer"
                   >
                     {/* رأس الكارت: الأفاتار التعبيري + الاسم + الميتاداتا النظيفة بدون كبسولات */}
                     <div>
@@ -871,9 +922,9 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                       </div>
 
                       {/* قسم التحصيل والمديونيات والمرتجعات — جدول منسق عالي التباين سهل القراءة أثناء الحركة */}
-                      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/90 divide-y divide-slate-200">
+                      <div className="cust-rows mt-4 rounded-xl border border-slate-200 bg-slate-50/90 divide-y divide-slate-200">
                         {/* 1) المديونيات والمتأخرات */}
-                        <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                        <div className="cust-row flex items-center justify-between gap-3 px-3.5 py-2.5">
                           <div className="min-w-0">
                             <div className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
                               <CreditCard className="h-3.5 w-3.5 text-slate-700 shrink-0" />
@@ -905,7 +956,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                         </div>
 
                         {/* 2) التحصيل */}
-                        <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                        <div className="cust-row flex items-center justify-between gap-3 px-3.5 py-2.5">
                           <div className="min-w-0">
                             <div className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
                               <Wallet className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
@@ -927,7 +978,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                         </div>
 
                         {/* 3) المرتجعات */}
-                        <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                        <div className="cust-row flex items-center justify-between gap-3 px-3.5 py-2.5">
                           <div className="min-w-0">
                             <div className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
                               <RotateCcw className="h-3.5 w-3.5 text-amber-700 shrink-0" />
@@ -965,7 +1016,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                     </div>
 
                     {/* شريط الإجراءات السريع — أهداف لمس كبيرة مريحة أثناء الحركة */}
-                    <div className="mt-3.5 flex items-center gap-2">
+                    <div className="cust-cta mt-3.5 flex items-center gap-2">
                       {hasPhone && (
                         <a
                           href={`tel:${cust.phone}`}
@@ -976,6 +1027,19 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                           <Phone className="h-4 w-4 text-slate-800 shrink-0" />
                           <span className="font-mono tabular-nums" dir="ltr">{cust.phone}</span>
                         </a>
+                      )}
+                      {canTransferToLegal && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setLegalTransferCustomer(cust);
+                          }}
+                          className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#0F2B38] px-3.5 text-xs font-black text-white hover:bg-[#123554] transition shrink-0"
+                        >
+                          <Scale className="h-3.5 w-3.5" />
+                          <span>تحويل للشؤون القانونية</span>
+                        </button>
                       )}
                       <div className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl bg-[#0b2337] px-4 text-xs sm:text-sm font-black text-white transition group-hover:bg-[#123554]">
                         <span>ملف العميل</span>
@@ -1006,7 +1070,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
       {activeTab === 'reps' && (
         <div>
           {/* كروت الإجمالية للمندوبين */}
-          <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <section className="kpi-grid grid grid-cols-2 lg:grid-cols-4 gap-2.5 md:gap-4">
             <div className="tg-kpi tg-kpi--amber">
               <div className="tg-kpi__top">
                 <span className="tg-kpi__icon"><CreditCard size={20} /></span>
@@ -1040,6 +1104,147 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               <span className="tg-kpi__hint">تحقيق المندوبين</span>
             </div>
           </section>
+
+          {/* تحليلات المناديب: دونات الحصص + توب 10 + منحنى شهري لأفضل مندوب */}
+          {repAnalytics.top10.length > 0 && (
+            <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* دونات حصص المبيعات */}
+              <div className="tg-card p-4 sm:p-5 flex flex-col items-center">
+                <div className="w-full flex items-center justify-between gap-2 mb-2">
+                  <h3 className="text-sm font-black text-slate-900">حصة المبيعات</h3>
+                  <span className="text-[11px] font-extrabold text-slate-600 tabular-nums">إجمالي {fmt(repAnalytics.totalSales)} ج.م</span>
+                </div>
+                <div className="relative w-[190px] h-[190px] my-1">
+                  <svg viewBox="0 0 140 140" className="w-full h-full -rotate-90">
+                    {(() => {
+                      const C = 2 * Math.PI * 54;
+                      let acc = 0;
+                      const colors = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#0f2b38', '#94a3b8'];
+                      return repAnalytics.donut.map((d, i) => {
+                        const frac = repAnalytics.totalSales > 0 ? d.value / repAnalytics.totalSales : 0;
+                        const dash = `${Math.max(frac * C - 2, 0)} ${C}`;
+                        const offset = -acc * C;
+                        acc += frac;
+                        return (
+                          <circle
+                            key={d.name}
+                            cx="70" cy="70" r="54" fill="none"
+                            stroke={colors[i % colors.length]}
+                            strokeWidth="16"
+                            strokeDasharray={dash}
+                            strokeDashoffset={offset}
+                            strokeLinecap="butt"
+                          />
+                        );
+                      });
+                    })()}
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-[10.5px] font-extrabold text-slate-600">أفضل مندوب</span>
+                    <span className="text-[13px] font-black text-slate-900 text-center leading-tight px-2 line-clamp-2">
+                      {repAnalytics.leader?.repName || '—'}
+                    </span>
+                  </div>
+                </div>
+                <div className="w-full mt-2 space-y-1">
+                  {(() => {
+                    const colors = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#0f2b38', '#94a3b8'];
+                    return repAnalytics.donut.map((d, i) => {
+                      const frac = repAnalytics.totalSales > 0 ? Math.round((d.value / repAnalytics.totalSales) * 100) : 0;
+                      return (
+                        <div key={d.name} className="flex items-center justify-between gap-2 text-[11px]">
+                          <span className="flex items-center gap-1.5 font-bold text-slate-800 truncate">
+                            <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: colors[i % colors.length] }} />
+                            <span className="truncate max-w-[110px]">{d.name}</span>
+                          </span>
+                          <span className="font-black tabular-nums text-slate-900 shrink-0">{frac}%</span>
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+
+              {/* توب 10 مناديب */}
+              <div className="tg-card p-4 sm:p-5 lg:col-span-2">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="h-8 w-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                    <Trophy className="h-4.5 w-4.5" />
+                  </span>
+                  <h3 className="text-sm font-black text-slate-900">أعلى 10 مناديب في المبيعات</h3>
+                </div>
+                <div className="space-y-2.5">
+                  {repAnalytics.top10.map((rep, i) => {
+                    const leaderSales = repAnalytics.top10[0].salesAchieved;
+                    const w = leaderSales > 0 ? Math.max(6, Math.round((rep.salesAchieved / leaderSales) * 100)) : 0;
+                    const medal = i === 0 ? 'bg-amber-400 text-white' : i === 1 ? 'bg-slate-300 text-slate-900' : i === 2 ? 'bg-orange-300 text-orange-950' : 'bg-slate-100 text-slate-700';
+                    return (
+                      <div
+                        key={rep.repKey}
+                        onClick={() => handleOpenRep(rep.repKey)}
+                        className="flex items-center gap-3 cursor-pointer group"
+                      >
+                        <span className={`h-7 w-7 rounded-lg text-[11px] font-black flex items-center justify-center shrink-0 tabular-nums ${medal}`}>
+                          {i + 1}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="text-[12.5px] font-black text-slate-900 truncate group-hover:text-blue-800 transition-colors">
+                              {rep.repName}
+                            </span>
+                            <span className="text-[12px] font-black tabular-nums text-slate-900 shrink-0">
+                              {fmt(rep.salesAchieved)} <span className="text-[10px] font-extrabold text-slate-600">ج.م</span>
+                            </span>
+                          </div>
+                          <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${i === 0 ? 'bg-gradient-to-l from-blue-500 to-blue-700' : 'bg-blue-400/80'}`}
+                              style={{ width: `${w}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* منحنى المبيعات الشهري لأفضل مندوب */}
+              {repAnalytics.line.length > 1 && (
+                <div className="tg-card p-4 sm:p-5 lg:col-span-3">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <h3 className="text-sm font-black text-slate-900">
+                      مبيعات {repAnalytics.leader?.repName || ''} شهرياً
+                    </h3>
+                    <span className="text-[11px] font-extrabold text-slate-600">مبيعات × تحصيل</span>
+                  </div>
+                  <svg viewBox="0 0 600 170" className="w-full h-[170px]" preserveAspectRatio="none">
+                    {(() => {
+                      const pts = repAnalytics.line;
+                      const max = Math.max(...pts.map((p) => Math.max(p.sales, p.collection)), 1);
+                      const x = (i: number) => 20 + (i * 560) / Math.max(pts.length - 1, 1);
+                      const y = (v: number) => 150 - (v / max) * 128;
+                      const path = (key: 'sales' | 'collection') => pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' ');
+                      return (
+                        <>
+                          <line x1="20" y1="150" x2="580" y2="150" stroke="#e2e8f0" strokeWidth="1.5" />
+                          <path d={`${path('sales')} L${x(pts.length - 1).toFixed(1)},150 L20,150 Z`} fill="rgba(37,99,235,0.10)" stroke="none" />
+                          <path d={path('sales')} fill="none" stroke="#2563eb" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+                          <path d={path('collection')} fill="none" stroke="#059669" strokeWidth="2.5" strokeDasharray="6 4" strokeLinejoin="round" strokeLinecap="round" />
+                          {pts.map((p, i) => (
+                            <g key={p.key}>
+                              <circle cx={x(i)} cy={y(p.sales)} r="3.5" fill="#ffffff" stroke="#2563eb" strokeWidth="2" />
+                              <text x={x(i)} y="166" textAnchor="middle" fontSize="10" fontWeight="800" fill="#475569">{p.label}</text>
+                            </g>
+                          ))}
+                        </>
+                      );
+                    })()}
+                  </svg>
+                </div>
+              )}
+            </section>
+          )}
 
           {/* فلاتر المندوبين */}
           <section className="tg-card p-5 sm:p-6 space-y-4">
@@ -1097,7 +1302,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
           </section>
 
           {/* كروت المندوبين (بروفايل) - أول 5 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="rep-grid grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 md:gap-4">
             {repsMap.length === 0 ? (
               <div className="col-span-full tg-card p-12 text-center">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[28px] bg-slate-100 text-slate-600 shadow-inner">
@@ -1123,7 +1328,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                   <div
                     key={rep.repKey}
                     onClick={() => handleOpenRep(rep.repKey)}
-                    className="tg-card p-4 sm:p-5 cursor-pointer group hover:border-blue-400 transition border-[var(--tg-line)]"
+                    className="rep-card tg-card p-4 sm:p-5 cursor-pointer group hover:border-blue-400 transition border-[var(--tg-line)]"
                   >
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div className="flex items-center gap-3 min-w-0">
@@ -1167,7 +1372,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 mb-2.5">
+                    <div className="rep-mini grid grid-cols-2 gap-2 mb-2.5">
                       <div className="bg-slate-100/80 rounded-xl p-3 border border-slate-200">
                         <div className="text-[11px] font-extrabold text-slate-700 mb-0.5">مديونية عملائه</div>
                         <div className="text-sm font-black text-[#0f172a] tabular-nums">{fmt(rep.debt)}</div>
@@ -1178,7 +1383,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="rep-mini grid grid-cols-2 gap-2 mb-3">
                       <div className="bg-blue-50/70 rounded-xl p-3 border border-blue-200/70">
                         <div className="text-[11px] font-extrabold text-blue-900 mb-0.5">مبيعات</div>
                         <div className="text-sm font-black text-blue-800 tabular-nums">{fmt(rep.salesAchieved)}</div>
@@ -1559,6 +1764,20 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL: إحالة العميل للشؤون القانونية مع اختيار السبب/الأيقونة */}
+      {legalTransferCustomer && (
+        <LegalTransferModal
+          customer={legalTransferCustomer as Customer}
+          referredByName={currentUser?.name || currentUser?.username || 'الإدارة العليا'}
+          referredByRole={currentUser?.role || 'branch_manager'}
+          onClose={() => setLegalTransferCustomer(null)}
+          onConfirm={(reason, icon) => {
+            handleTransferToLegal(legalTransferCustomer, reason, icon);
+            setLegalTransferCustomer(null);
+          }}
+        />
       )}
     </div>
   );

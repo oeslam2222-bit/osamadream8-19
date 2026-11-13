@@ -1008,17 +1008,6 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </span>
           </button>
 
-          {/* Tile 5: المنتجات والمخزون */}
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('inventory')}
-            className="group bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] hover:border-[#D97706] dark:hover:border-[#FBBF24] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
-          >
-            <IconBadge icon={Package} variant="secondary" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight text-[#0F172A] dark:text-[#F1F5F9]">أرصدة المخزون</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">الفرع والمخزن المركزي</span>
-          </button>
-
           {/* Tile 6: خطة الزيارات الميدانية */}
           <button
             type="button"

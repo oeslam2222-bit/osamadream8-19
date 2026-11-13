@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Scale,
   ShieldAlert,
@@ -26,6 +26,8 @@ import { useApp } from '../context/AppContext';
 import { Customer, Invoice } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { filterCustomersByRBAC } from '../services/customerAnalyticsService';
+import { getLegalCaseForCustomer, addLegalStatement, getLegalCases, subscribeToLegalCases, isCustomerReferredToLegal } from '../services/legalAffairsService';
+import type { LegalCase } from '../services/legalAffairsService';
 
 interface LegalNotice {
   id: string;
@@ -124,6 +126,11 @@ export const LegalAdvisorDashboard: React.FC = () => {
   const [newCheckAmount, setNewCheckAmount] = useState<number>(0);
   const [newCheckDate, setNewCheckDate] = useState('');
   const [newCheckType, setNewCheckType] = useState<GuaranteeCheck['type']>('شيك بنكي');
+  const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
+  const [findingsCustomer, setFindingsCustomer] = useState<Customer | null>(null);
+  const [findingsText, setFindingsText] = useState('');
+  const [findingsStatus, setFindingsStatus] = useState<LegalCase['status']>('قيد المتابعة والتحقيق');
+  const [findingsAction, setFindingsAction] = useState('إفادة استفسارية قانونية');
 
   const saveNotices = (updated: LegalNotice[]) => {
     setNotices(updated);
@@ -135,10 +142,21 @@ export const LegalAdvisorDashboard: React.FC = () => {
     try { localStorage.setItem('tantawy_legal_checks', JSON.stringify(updated)); } catch {}
   };
 
-  // Filter customers by RBAC permissions (strict role & branch isolation)
+  // الخصوصية: المستشار القانوني يشوف فقط العملاء المتحولين للشؤون القانونية (ملفاته) —
+  // مفيش وصول لمبيعات أو أرصدة باقي العملاء أو التارجت — سرية بيانات المنظومة أولاً.
+  const [legalCases, setLegalCases] = useState<LegalCase[]>(() => getLegalCases());
+  useEffect(() => {
+    const unsub = subscribeToLegalCases((c) => setLegalCases(c));
+    setLegalCases(getLegalCases());
+    return unsub;
+  }, []);
   const accessibleCustomers = useMemo(() => {
-    return filterCustomersByRBAC(customers, currentUser, users);
-  }, [customers, currentUser, users]);
+    // المستشار القانوني: يبدأ من القاعدة الكاملة ثم يتقطّع على العملاء المتحولين فقط (سرية تامة)
+    const base = currentUser?.role === 'legal_advisor' ? customers : filterCustomersByRBAC(customers, currentUser, users);
+    const ids = new Set(legalCases.map((c) => c.customerId).filter(Boolean));
+    const codes = new Set(legalCases.map((c) => c.customerCode).filter(Boolean));
+    return base.filter((c) => ids.has(c.id) || (!!c.code && codes.has(c.code)) || isCustomerReferredToLegal(c));
+  }, [customers, currentUser, users, legalCases]);
 
   // Filter delinquent customers (debt > minDebtFilter)
   const delinquentCustomers = useMemo(() => {
@@ -238,6 +256,31 @@ export const LegalAdvisorDashboard: React.FC = () => {
     setNewCheckBank('');
     setNewCheckNum('');
     setNewCheckAmount(0);
+  };
+
+  /* ---------- تسجيل إفادة قانونية نهائية للمستشار القانوني ---------- */
+  const handleSaveLegalFindings = () => {
+    if (!findingsCustomer) return;
+    const legalCase = getLegalCaseForCustomer(findingsCustomer);
+    if (!legalCase) {
+      alert('لا يوجد ملف قانوني مسجل بعد لهذا العميل — يرجى إتمام عملية الإحالة للشؤون القانونية أولاً.');
+      return;
+    }
+    const res = addLegalStatement(
+      legalCase.id,
+      findingsText,
+      currentUser?.name || currentUser?.username || 'المستشار القانوني',
+      currentUser?.role || 'legal_advisor',
+      findingsStatus,
+      findingsAction
+    );
+    if (res.success) {
+      setIsFindingsModalOpen(false);
+      setFindingsCustomer(null);
+      setFindingsText('');
+      setFindingsStatus('قيد المتابعة والتحقيق');
+      setFindingsAction('إفادة استفسارية قانونية');
+    }
   };
 
   return (
@@ -402,6 +445,109 @@ export const LegalAdvisorDashboard: React.FC = () => {
         </button>
       </div>
 
+      {/* MODAL: تسجيل إفادة قانونية نهائية */}
+      {isFindingsModalOpen && findingsCustomer && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-[var(--app-line)] space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[var(--app-line)]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-navy-panel text-amber-400 flex items-center justify-center font-black">
+                  <FileCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-sm sm:text-base">تسجيل إفادة قانونية نهائية</h3>
+                  <p className="text-[11px] text-slate-500">العميل: {findingsCustomer.name}</p>
+                </div>
+              </div>
+              <button onClick={() => setIsFindingsModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-xl border border-[var(--app-line)] flex items-center justify-between">
+              <div>
+                <span className="text-slate-500 block text-[11px]">إجمالي المديونية:</span>
+                <span className="font-black text-base text-rose-600 tabular-nums">
+                  {formatCurrency(findingsCustomer.currentBalance ?? findingsCustomer.balance ?? 0)}
+                </span>
+              </div>
+              <div className="text-left">
+                <span className="text-slate-500 block text-[11px]">الفرع والمندوب:</span>
+                <span className="font-bold text-slate-800">
+                  {findingsCustomer.branchName || 'الفرع الرئيسي'} — {findingsCustomer.salesRepName || findingsCustomer.repName || 'غير مسند'}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 mb-1 block">الإفادة النهائية (توصية المستشار القانوني):</label>
+                <textarea
+                  value={findingsText}
+                  onChange={(e) => setFindingsText(e.target.value)}
+                  placeholder="أدخل ملخص الإفادة القانونية النهائية والتوصيات..."
+                  className="w-full min-h-[110px] p-3 rounded-xl border border-[var(--app-line)] font-bold text-slate-800 bg-white resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 mb-1 block">الإجراء القانوني التالي:</label>
+                  <select
+                    value={findingsStatus}
+                    onChange={(e) => setFindingsStatus(e.target.value as LegalCase['status'])}
+                    className="w-full h-10 px-3 rounded-xl border border-[var(--app-line)] font-bold text-slate-800 bg-white"
+                  >
+                    <option value="قيد المتابعة والتحقيق">قيد المتابعة والتحقيق</option>
+                    <option value="محال للشؤون القانونية">محال للشؤون القانونية</option>
+                    <option value="جدولة المديونية">جدولة المديونية</option>
+                    <option value="تسوية ودية">تسوية ودية</option>
+                    <option value="إجراء قضائي ومحضر">إجراء قضائي ومحضر</option>
+                    <option value="تم سداد كامل المديونية وإغلاق الملف">تم سداد كامل المديونية وإغلاق الملف</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 mb-1 block">الإجراء المتخذ:</label>
+                  <select
+                    value={findingsAction}
+                    onChange={(e) => setFindingsAction(e.target.value)}
+                    className="w-full h-10 px-3 rounded-xl border border-[var(--app-line)] font-bold text-slate-800 bg-white"
+                  >
+                    <option value="إفادة استفسارية قانونية">إفادة استفسارية قانونية</option>
+                    <option value="إنذار رسمي على يد محضر">إنذار رسمي على يد محضر</option>
+                    <option value="أمر أداء تجاري">أمر أداء تجاري</option>
+                    <option value="جنحة شيك بدون رصيد">جنحة شيك بدون رصيد</option>
+                    <option value="إقرار دين وجدولة">إقرار دين وجدولة</option>
+                    <option value="إجراء قضائي قيد المتابعة">إجراء قضائي قيد المتابعة</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleSaveLegalFindings}
+                  className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl bg-[#0F2B38] hover:bg-[#123554] px-4 py-2.5 text-xs font-black text-white transition cursor-pointer"
+                >
+                  <FileCheck className="w-4 h-4" />
+                  <span>حفظ الإفادة وتحديث الملف</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsFindingsModalOpen(false)}
+                  className="min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-700 font-black text-xs hover:bg-slate-50 transition cursor-pointer"
+                >
+                  <span className="inline-flex items-center gap-1.5">
+                    <X className="w-4 h-4" />
+                    <span>إلغاء</span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* TAB 1: DELINQUENT CUSTOMERS */}
       {activeTab === 'delinquents' && (
         <div className="bg-white rounded-2xl border border-[var(--app-line)] shadow-sm p-4 sm:p-5 space-y-4">
@@ -494,16 +640,31 @@ export const LegalAdvisorDashboard: React.FC = () => {
                           </span>
                         </td>
                         <td className="p-3">
-                          <button
-                            onClick={() => {
-                              setSelectedCustomerForNotice(c);
-                              setIsNoticeModalOpen(true);
-                            }}
-                            className="bg-navy-panel hover:bg-navy-hover text-amber-300 font-black px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer active:scale-95"
-                          >
-                            <Scale className="w-3.5 h-3.5" />
-                            <span>إصدار إنذار قانوني</span>
-                          </button>
+                          <div className="flex flex-col sm:flex-row gap-1.5">
+                            <button
+                              onClick={() => {
+                                setSelectedCustomerForNotice(c);
+                                setIsNoticeModalOpen(true);
+                              }}
+                              className="bg-navy-panel hover:bg-navy-hover text-amber-300 font-black px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer active:scale-95"
+                            >
+                              <Scale className="w-3.5 h-3.5" />
+                              <span>إصدار إنذار قانوني</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setFindingsCustomer(c);
+                                setFindingsText('');
+                                setFindingsStatus('قيد المتابعة والتحقيق');
+                                setFindingsAction('إفادة استفسارية قانونية');
+                                setIsFindingsModalOpen(true);
+                              }}
+                              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-black px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition cursor-pointer active:scale-95"
+                            >
+                              <FileCheck className="w-3.5 h-3.5" />
+                              <span>تسجيل إفادة نهائية</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

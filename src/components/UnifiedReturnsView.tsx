@@ -751,7 +751,7 @@ export const UnifiedReturnsView: React.FC = () => {
           </p>
         </div>
       ) : (
-        <div className="space-y-3.5">
+        <div className="ret-list space-y-3.5">
           {filteredReturns.slice(0, visibleReturnsCount).map((visit) => {
             const customer = customers.find((c) => c.id === visit.customerId || c.code === visit.customerCode);
             const status = visit.returnStatus || 'عند العميل';
@@ -764,7 +764,7 @@ export const UnifiedReturnsView: React.FC = () => {
             return (
               <div
                 key={visit.id}
-                className={`bg-white rounded-[22px] border p-4 sm:p-5 shadow-[var(--tg-shadow)] transition hover:shadow-md space-y-3.5 ${
+                className={`ret-card bg-white rounded-[22px] border p-4 sm:p-5 shadow-[var(--tg-shadow)] transition hover:shadow-md space-y-3.5 ${
                   isClosed
                     ? 'border-slate-200/80 bg-slate-50/40'
                     : isAtWarehouse

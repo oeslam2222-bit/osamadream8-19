@@ -43,7 +43,9 @@ import {
   PackageSearch,
   Search,
   Camera,
-  Percent
+  Percent,
+  Minimize2,
+  Maximize2
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -113,6 +115,24 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [isDbModalOpen, setIsDbModalOpen] = useState(false);
 
+  // كثافة العرض: مصغّر (المحتوى الأكتر على الشاشة) / مريح — بيتم الحفظ محلياً
+  const [density, setDensity] = useState<'compact' | 'comfortable'>(() => {
+    try {
+      return localStorage.getItem('tantawy_density') === 'comfortable' ? 'comfortable' : 'compact';
+    } catch {
+      return 'compact';
+    }
+  });
+
+  React.useEffect(() => {
+    document.documentElement.classList.toggle('tg-compact', density === 'compact');
+    try {
+      localStorage.setItem('tantawy_density', density);
+    } catch {}
+  }, [density]);
+
+  const toggleDensity = () => setDensity((d) => (d === 'compact' ? 'comfortable' : 'compact'));
+
   const [internalSidebarCollapsed, setInternalSidebarCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem('tantawy_sidebar_collapsed') === 'true';
@@ -152,7 +172,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     supervisor: { label: 'مشرف المناديب', bg: 'bg-[var(--app-navy)] border-[var(--app-navy)]', text: 'text-[#60a5fa]' },
     sales_rep: { label: 'المندوب', bg: 'bg-[var(--app-ok)] border-[var(--app-ok)]', text: 'text-[#0d9488]' },
     warehouse_keeper: { label: 'أمين المخزن', bg: 'bg-[var(--app-ok)] border-[var(--app-ok)]', text: 'text-[#0d9488]' },
-    legal_advisor: { label: 'الشؤون القانونية', bg: 'bg-[var(--app-navy)] border-[var(--app-navy)]', text: 'text-[#60a5fa]' }, // صفحة معطلة
+    legal_advisor: { label: 'الشؤون القانونية', bg: 'bg-[var(--app-navy)] border-[var(--app-navy)]', text: 'text-[#60a5fa]' },
     technical_support: { label: 'الدعم الفني', bg: 'bg-[var(--app-accent)] border-[var(--app-accent)]', text: 'text-white' },
   };
 
@@ -183,17 +203,16 @@ export const Navbar: React.FC<NavbarProps> = ({
   const isFieldRole = currentUser.role === 'sales_rep' || currentUser.role === 'supervisor';
 
   const navItems = [
-    { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
+    { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper', 'legal_advisor'] },
     { id: 'product_sales', label: 'مبيعات الصناف', icon: ShoppingBag, roles: ['admin', 'developer', 'branch_manager', 'supervisor'] },
     { id: 'invoices', label: 'أوامر البيع والاعتمادات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
-    { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
+    { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'reps', label: 'المناديب', icon: UserCheck, roles: ['admin', 'branch_manager', 'supervisor', 'developer'] },
     { id: 'collection', label: 'تحصيل', icon: Wallet, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'returns', label: 'المرتجعات', icon: RotateCcw, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
-    { id: 'inventory', label: 'المخزون', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
-    { id: 'stock', label: 'مؤشر المخزون', icon: PackageSearch, roles: ['admin', 'developer', 'branch_manager', 'supervisor', 'warehouse_keeper'] },
-    { id: 'offers', label: 'العروض', icon: Percent, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'], promo: true },
+    { id: 'returns', label: 'المرتجعات', icon: RotateCcw, roles: ['warehouse_keeper'] },
+    { id: 'legal_advisor', label: 'المستشار القانوني', icon: ShieldCheck, roles: ['legal_advisor'] },
+    { id: 'offers', label: 'العروض', icon: Percent, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], promo: true },
     { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'visits', label: 'الزيارات', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'excel', label: 'الإكسل', icon: FileSpreadsheet, roles: ['admin', 'developer'] },
@@ -215,6 +234,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'invoices', navId: 'invoices', label: 'الطلبات', icon: Receipt, badge: pendingOrdersCount },
     { id: 'customers', navId: 'all_customers', label: 'العملاء', icon: Users, badge: 0 },
     { id: 'targets', navId: 'targets', label: 'التقارير', icon: BarChart3, badge: 0 },
+    { id: 'returns', navId: 'returns', label: 'المرتجعات', icon: RotateCcw, badge: 0 },
   ].filter((b) => filteredNavItems.some((n) => n.id === b.id || (b.id === 'targets' && filteredNavItems.some(f => f.id === 'targets' || f.id === 'dashboard'))));
 
   const sectionBadgeTheme: Record<string, { bg: string; text: string; darkBg: string; darkText: string }> = {
@@ -230,8 +250,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     visits: { bg: 'bg-purple-100', text: 'text-[#7C3AED]', darkBg: 'dark:bg-purple-950/60', darkText: 'dark:text-purple-300' },
     returns: { bg: 'bg-rose-100', text: 'text-[#DC2626]', darkBg: 'dark:bg-rose-950/60', darkText: 'dark:text-rose-300' },
     returns_customers: { bg: 'bg-rose-100', text: 'text-[#DC2626]', darkBg: 'dark:bg-rose-950/60', darkText: 'dark:text-rose-300' },
-    inventory: { bg: 'bg-amber-100', text: 'text-[#D97706]', darkBg: 'dark:bg-amber-950/60', darkText: 'dark:text-amber-300' },
-    stock: { bg: 'bg-amber-100', text: 'text-[#D97706]', darkBg: 'dark:bg-amber-950/60', darkText: 'dark:text-amber-300' },
     targets: { bg: 'bg-amber-100', text: 'text-[#F59E0B]', darkBg: 'dark:bg-amber-950/60', darkText: 'dark:text-amber-300' },
     dashboard: { bg: 'bg-purple-100', text: 'text-[#7C3AED]', darkBg: 'dark:bg-purple-950/60', darkText: 'dark:text-purple-300' },
     excel: { bg: 'bg-emerald-100', text: 'text-[#16A34A]', darkBg: 'dark:bg-emerald-950/60', darkText: 'dark:text-emerald-300' },
@@ -256,7 +274,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="ds-sidebar__user">
           <div className="ds-sidebar__user-avatar" aria-hidden="true">
             <img
-              src={currentUser.avatar || DEFAULT_EXECUTIVE_AVATAR}
+              src={currentUser.avatar || '/assets/rep-avatar.jpg'}
               alt={displayName}
               referrerPolicy="no-referrer"
               className="w-full h-full object-cover rounded-[10px]"
@@ -402,6 +420,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               </select>
             )}
 
+            {/* كثافة العرض: مصغّر / مريح */}
+            <button
+              type="button"
+              onClick={toggleDensity}
+              className="ds-iconbtn ds-vis-ge-lg"
+              title={density === 'compact' ? 'العرض الحالي: مصغّر — اضغط للتحويل للوضع المريح' : 'العرض الحالي: مريح — اضغط للتحويل للوضع المصغّر'}
+              aria-label="كثافة العرض"
+            >
+              {density === 'compact' ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
+              <span className="ds-vis-ge-xl">{density === 'compact' ? 'مصغّر' : 'مريح'}</span>
+            </button>
+
             {/* الإعدادات */}
             <button
               id="navbar-settings-and-about-btn"
@@ -459,7 +489,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <span className="ds-avatar" aria-hidden="true">
                   <img
-                    src={currentUser.avatar || DEFAULT_EXECUTIVE_AVATAR}
+                    src={currentUser.avatar || '/assets/rep-avatar.jpg'}
                     alt={displayName}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover rounded-full"
@@ -482,7 +512,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <div className="ds-popover__head">
                       <span className="ds-avatar ds-popover__avatar" aria-hidden="true">
                         <img
-                          src={currentUser.avatar || DEFAULT_EXECUTIVE_AVATAR}
+                          src={currentUser.avatar || '/assets/rep-avatar.jpg'}
                           alt={displayName}
                           referrerPolicy="no-referrer"
                           className="w-full h-full object-cover rounded-2xl"
