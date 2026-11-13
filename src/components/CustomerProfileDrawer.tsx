@@ -4,12 +4,18 @@ import {
   AlertTriangle, CheckCircle2, Building2, ShoppingCart, Phone,
   TrendingUp, Wallet, CalendarCheck, Users, Maximize2, Trash2,
   FileText, ExternalLink, Navigation, Check, Clock, AlertCircle,
-  CreditCard, ChevronRight, Eye, ShieldCheck, Printer,
+  CreditCard, ChevronRight, Eye, ShieldCheck, Printer, Lock, Unlock, RotateCcw,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { normalizeArabicText } from '../services/arabicMatchingService';
 import { classifyEligibilityColumn } from '../services/customerFinancialService';
-import { normalizeCloudinaryConfig } from '../services/cloudinaryService';
+import { normalizeCloudinaryConfig, optimizeImageUrl, uploadImageToCloudinary } from '../services/cloudinaryService';
+import customerMerchantAvatar from '../assets/images/customer_merchant_avatar_1794559829020.jpg';
+import {
+  canManageLocationLock,
+  requestLiveGps,
+  watermarkAndCompressLivePhoto,
+} from '../services/geoVerificationService';
 import type { Invoice } from '../types';
 
 const MAX_PHOTOS = 3;
@@ -77,6 +83,8 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
   const [uploading, setUploading] = useState(false);
   const [gpsLoading, setGpsLoading] = useState(false);
   const [gps, setGps] = useState<{ lat: number; lng: number; acc?: number } | null>(null);
+  const [storeFrontPhotoUrl, setStoreFrontPhotoUrl] = useState<string>('');
+  const [isCapturingStorePhoto, setIsCapturingStorePhoto] = useState(false);
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
   const [tab, setTab] = useState<TabKey>('overview');
   const [lightbox, setLightbox] = useState<string | null>(null);
@@ -87,6 +95,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
     setNewFiles([]);
     setPreviews([]);
     setGps(null);
+    setStoreFrontPhotoUrl(customer.locationPhotoUrl || '');
     setToast(null);
     setTab('overview');
     setLightbox(null);
@@ -227,38 +236,103 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
     Number(customer?.totalCollections ?? customer?.collections2026 ?? 0),
     visitsCollSum
   );
+  const customerReturns = useMemo(() => visits.filter((v) => v.isReturn), [visits]);
+  const totalReturnsValue = useMemo(
+    () => customerReturns.reduce((sum, v) => sum + Number(v.returnValue || 0), 0),
+    [customerReturns]
+  );
+  const pendingReturnsCount = useMemo(
+    () => customerReturns.filter((v) => v.returnStatus !== 'مغلق' && v.returnStatus !== 'مرفوض').length,
+    [customerReturns]
+  );
   const usagePct = limit > 0 ? Math.min(100, Math.round(((balance + overdue) / limit) * 100)) : 0;
   const photosCount = photos.length + newFiles.length;
 
-  /* ---------- GPS وتثبيت الموقع الجغرافي ---------- */
-  const requestGps = useCallback((): Promise<{ lat: number; lng: number; acc?: number } | null> => {
-    return new Promise((resolve) => {
-      if (!('geolocation' in navigator)) {
-        setToast({ ok: false, text: 'المتصفح أو الجهاز لا يدعم خدمة تحديد الموقع GPS' });
-        resolve(null);
-        return;
-      }
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
-          setGps(coords);
-          resolve(coords);
-        },
-        (err) => {
-          let msg = 'تعذر الوصول لـ GPS — يرجى تفعيل الموقع في المتصفح أو الهاتف';
-          if (err.code === 1) msg = 'تم رفض الإذن لتحديد الموقع الجغرافي';
-          else if (err.code === 2) msg = 'إشارة الـ GPS غير متوفرة حالياً';
-          else if (err.code === 3) msg = 'انتهت مهلة تحديد الموقع';
-          setToast({ ok: false, text: msg });
-          resolve(null);
-        },
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
-      );
-    });
+  /* ---------- GPS وتثبيت الموقع الجغرافي + قفل الاعتماد ---------- */
+  const canEditLocationLock = canManageLocationLock(currentUser?.role);
+  const isCustomerLocationLocked = Boolean(customer?.locationLocked);
+
+  const requestGps = useCallback(async (): Promise<{ lat: number; lng: number; acc?: number } | null> => {
+    const res = await requestLiveGps(15000);
+    if (!res.ok) {
+      setToast({ ok: false, text: 'error' in res ? res.error : 'تعذر التقاط الموقع' });
+      return null;
+    }
+    const coords = {
+      lat: res.coords.latitude,
+      lng: res.coords.longitude,
+      acc: res.coords.accuracy,
+    };
+    setGps(coords);
+    return coords;
   }, []);
+
+  const handleCaptureStoreFrontPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !customer) return;
+
+    setIsCapturingStorePhoto(true);
+    setToast(null);
+    try {
+      const liveCoords = gps || (customer.latitude && customer.longitude ? { lat: customer.latitude, lng: customer.longitude } : null);
+      const stamped = await watermarkAndCompressLivePhoto(file, {
+        customerName: customer.name,
+        repName: currentUser?.name || 'المندوب',
+        latitude: liveCoords?.lat,
+        longitude: liveCoords?.lng,
+        reason: 'توثيق واجهة المحل',
+      });
+      const cfg = normalizeCloudinaryConfig(cloudinaryConfig);
+      const uploaded = await uploadImageToCloudinary(stamped, cfg, 'tantawy_store_locations');
+      setStoreFrontPhotoUrl(uploaded.url);
+      if (customer.latitude && customer.longitude && (!isCustomerLocationLocked || canEditLocationLock)) {
+        await updateCustomer({ ...customer, locationPhotoUrl: uploaded.url });
+      }
+      setToast({ ok: true, text: 'تم التقاط ورفع صورة واجهة المحل المختومة بنجاح' });
+      setTimeout(() => setToast(null), 3500);
+    } catch (err: any) {
+      setToast({ ok: false, text: err?.message || 'تعذر رفع صورة توثيق المحل' });
+    } finally {
+      setIsCapturingStorePhoto(false);
+    }
+  };
+
+  const handleToggleLocationLock = async (shouldLock: boolean) => {
+    if (!customer || !canEditLocationLock) return;
+    setGpsLoading(true);
+    try {
+      const updated = {
+        ...customer,
+        locationLocked: shouldLock,
+        locationApprovedBy: shouldLock ? (currentUser?.name || 'المشرف') : undefined,
+        locationApprovedAt: shouldLock ? new Date().toISOString() : undefined,
+      };
+      await updateCustomer(updated);
+      setToast({
+        ok: true,
+        text: shouldLock
+          ? 'تم اعتماد وقفل موقع العميل 🔒 — لن يتمكن أي مندوب من تغييره'
+          : 'تم فتح قفل الموقع مؤقتاً لإعادة التثبيت 🔓',
+      });
+      setTimeout(() => setToast(null), 4000);
+    } catch (err: any) {
+      setToast({ ok: false, text: err?.message || 'تعذر تحديث قفل الموقع' });
+    } finally {
+      setGpsLoading(false);
+    }
+  };
 
   const handleVisitWithGps = async () => {
     if (!customer) return;
+    if (isCustomerLocationLocked && !canEditLocationLock) {
+      setToast({
+        ok: false,
+        text: 'هذا الموقع معتمد ومقفل من المشرف 🔒. لتغييره يرجى التواصل مع المشرف أو مدير الفرع.',
+      });
+      return;
+    }
+
     setGpsLoading(true);
     setToast(null);
 
@@ -269,13 +343,20 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
     }
 
     try {
+      const nowIso = new Date().toISOString();
+      const autoLock = canEditLocationLock;
       const updatedCustomerData = {
         ...customer,
         latitude: coords.lat,
         longitude: coords.lng,
         locationAddress: customer.address || customer.region || customer.branchName || '',
-        locationCapturedAt: new Date().toISOString(),
+        locationCapturedAt: nowIso,
         locationCapturedBy: currentUser?.name || 'المندوب',
+        locationAccuracy: coords.acc,
+        locationPhotoUrl: storeFrontPhotoUrl || customer.locationPhotoUrl,
+        locationLocked: autoLock ? true : Boolean(customer.locationLocked),
+        locationApprovedBy: autoLock ? (currentUser?.name || 'المشرف') : customer.locationApprovedBy,
+        locationApprovedAt: autoLock ? nowIso : customer.locationApprovedAt,
       };
 
       await updateCustomer(updatedCustomerData);
@@ -286,7 +367,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
           customerId: customer.id,
           customerName: customer.name,
           customerCode: customer.code,
-          date: new Date().toISOString().slice(0, 10),
+          date: nowIso.slice(0, 10),
           time: new Date().toLocaleTimeString('en-GB', { hour12: false }),
           repId: currentUser.id,
           repName: currentUser.name,
@@ -298,6 +379,20 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
           outcome: 'تم تثبيت GPS',
           status: 'منفذة',
           collectedAmount: 0,
+          location: {
+            latitude: coords.lat,
+            longitude: coords.lng,
+            accuracy: coords.acc,
+            timestamp: nowIso,
+            mapUrl: `https://www.google.com/maps/search/?api=1&query=${coords.lat},${coords.lng}`,
+          },
+          geoVerification: {
+            status: 'verified',
+            distanceMeters: 0,
+            accuracyMeters: coords.acc,
+            proofPhotoUrl: storeFrontPhotoUrl || customer.locationPhotoUrl,
+            verifiedAt: nowIso,
+          },
           notes: `تثبيت إحداثيات موقع العميل GPS بدقة ±${Math.round(coords.acc || 0)}م`,
           syncStatus: 'local_only',
         } as any);
@@ -305,7 +400,9 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
 
       setToast({
         ok: true,
-        text: `تم تثبيت إحداثيات ${customer.name} بنجاح (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`,
+        text: autoLock
+          ? `تم تثبيت واعتماد وقفل إحداثيات ${customer.name} بنجاح 🔒`
+          : `تم تثبيت إحداثيات ${customer.name} (${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}) — بانتظار اعتماد المشرف للقفل`,
       });
       setTimeout(() => setToast(null), 5000);
     } catch (err: any) {
@@ -415,12 +512,20 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
 
           <div className="flex items-start gap-3">
             <div className="relative shrink-0">
-              <div className={`tg-cp__avatar tg-cp__avatar--${avatarTone}`}>
-                {photos[0] ? (
-                  <img src={photos[0]} alt={customer.name} className="w-full h-full object-cover rounded-2xl" />
-                ) : (
-                  <span>{String(customer.name || '؟').charAt(0)}</span>
-                )}
+              <div className={`tg-cp__avatar tg-cp__avatar--${avatarTone} overflow-hidden`}>
+                <img
+                  src={photos[0] ? optimizeImageUrl(photos[0], 200, true) : customerMerchantAvatar}
+                  alt={customer.name}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    if (!img.dataset.fallback) {
+                      img.dataset.fallback = '1';
+                      img.src = customerMerchantAvatar;
+                    }
+                  }}
+                  className="w-full h-full object-cover object-top rounded-2xl"
+                />
               </div>
               {photosCount > 1 && <span className="tg-cp__photos">+{photosCount - 1}</span>}
             </div>
@@ -643,38 +748,46 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                 </div>
               </div>
 
-              {/* التفاصيل المالية */}
+              {/* التفاصيل المالية: التحصيل والمديونيات والمرتجعات */}
               <div className="tg-card p-4 bg-white dark:bg-[#131e36] border border-slate-200 dark:border-slate-800">
                 <div className="tg-cp__section-title text-[#0b2337] dark:text-white font-black mb-3">
                   <Wallet size={15} className="text-blue-600" />
-                  التفاصيل المالية
+                  التحصيل والمديونيات والمرتجعات
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="text-[10px] font-bold text-slate-500 mb-0.5">المديونية الحالية</div>
-                    <div className="text-sm font-black text-[#0b2337] tabular-nums">{fmt(balance)} ج.م</div>
+                    <div className="text-[11px] font-extrabold text-slate-700 mb-0.5">المديونية الحالية</div>
+                    <div className="text-sm sm:text-base font-black text-slate-950 tabular-nums">{fmt(balance)} ج.م</div>
                   </div>
-                  <div className="rounded-xl border border-rose-100 bg-rose-50/70 p-3">
-                    <div className="text-[10px] font-bold text-rose-700 mb-0.5">المتأخرات</div>
-                    <div className="text-sm font-black text-rose-700 tabular-nums">{fmt(overdue)} ج.م</div>
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
+                    <div className="text-[11px] font-extrabold text-rose-800 mb-0.5">المتأخرات</div>
+                    <div className="text-sm sm:text-base font-black text-rose-700 tabular-nums">{fmt(overdue)} ج.م</div>
                   </div>
-                  <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3">
-                    <div className="text-[10px] font-bold text-blue-700 mb-0.5">إجمالي المبيعات</div>
-                    <div className="text-sm font-black text-blue-700 tabular-nums">{fmt(totalSales)} ج.م</div>
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+                    <div className="text-[11px] font-extrabold text-emerald-800 mb-0.5">إجمالي التحصيل</div>
+                    <div className="text-sm sm:text-base font-black text-emerald-800 tabular-nums">{fmt(totalColl)} ج.م</div>
                   </div>
-                  <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-3">
-                    <div className="text-[10px] font-bold text-emerald-700 mb-0.5">إجمالي التحصيل</div>
-                    <div className="text-sm font-black text-emerald-700 tabular-nums">{fmt(totalColl)} ج.م</div>
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
+                    <div className="text-[11px] font-extrabold text-blue-800 mb-0.5">إجمالي المبيعات</div>
+                    <div className="text-sm sm:text-base font-black text-blue-800 tabular-nums">{fmt(totalSales)} ج.م</div>
                   </div>
-                  <div className="rounded-xl border border-violet-100 bg-violet-50/70 p-3">
-                    <div className="text-[10px] font-bold text-violet-700 mb-0.5">نسبة التحصيل</div>
-                    <div className="text-sm font-black text-violet-700 tabular-nums">
-                      {totalSales > 0 ? `${Math.min(100, Math.round((totalColl / totalSales) * 100))}%` : '—'}
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                    <div className="text-[11px] font-extrabold text-amber-900 mb-0.5 flex items-center gap-1">
+                      <RotateCcw size={12} /> المرتجعات ({customerReturns.length})
                     </div>
+                    <div className="text-sm sm:text-base font-black text-amber-800 tabular-nums">
+                      {totalReturnsValue > 0 ? `${fmt(totalReturnsValue)} ج.م` : `${customerReturns.length} إذن`}
+                    </div>
+                    {pendingReturnsCount > 0 && (
+                      <div className="text-[10px] font-bold text-amber-900 mt-0.5">{pendingReturnsCount} قيد المتابعة</div>
+                    )}
                   </div>
-                  <div className="rounded-xl border border-amber-100 bg-amber-50/70 p-3">
-                    <div className="text-[10px] font-bold text-amber-700 mb-0.5">الحد الائتماني</div>
-                    <div className="text-sm font-black text-amber-700 tabular-nums">{limit > 0 ? `${fmt(limit)} ج.م` : 'غير محدد'}</div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="text-[11px] font-extrabold text-slate-700 mb-0.5">نسبة التحصيل / الحد</div>
+                    <div className="text-sm sm:text-base font-black text-slate-900 tabular-nums">
+                      {totalSales > 0 ? `${Math.min(100, Math.round((totalColl / totalSales) * 100))}%` : '—'}
+                      {limit > 0 ? ` · ${fmt(limit)}` : ''}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1034,38 +1147,68 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
             </div>
           )}
 
-          {/* التبويب 5: تثبيت الموقع GPS */}
+          {/* التبويب 5: تثبيت الموقع GPS + قفل الاعتماد */}
           {tab === 'gps' && (
             <div className="space-y-4">
-              <div className="tg-cp__section-title">
-                <MapPin size={15} className="text-emerald-600" />
-                تثبيت الموقع الجغرافي وخرائط Google
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="tg-cp__section-title mb-0">
+                  <MapPin size={15} className="text-emerald-600" />
+                  تثبيت واعتماد الموقع الجغرافي الأساسي
+                </div>
+                {currentLat && currentLng && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-black border ${
+                      isCustomerLocationLocked
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                        : 'bg-amber-50 text-amber-800 border-amber-300'
+                    }`}
+                  >
+                    {isCustomerLocationLocked ? <Lock size={12} /> : <Clock size={12} />}
+                    {isCustomerLocationLocked ? 'موقع معتمد ومقفل' : 'بانتظار اعتماد المشرف'}
+                  </span>
+                )}
               </div>
 
               <div className="tg-card p-5 space-y-4 text-center">
-                <div className="w-16 h-16 mx-auto rounded-3xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shadow-inner">
-                  <MapPin size={32} />
+                <div className={`w-16 h-16 mx-auto rounded-3xl border flex items-center justify-center shadow-inner ${
+                  isCustomerLocationLocked
+                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                    : 'bg-blue-50 text-blue-600 border-blue-200'
+                }`}>
+                  {isCustomerLocationLocked ? <Lock size={30} /> : <MapPin size={30} />}
                 </div>
 
                 <div>
                   <h3 className="text-sm font-black text-[#0b2337]">
-                    {currentLat && currentLng ? 'الموقع الجغرافي مثبت للعميل' : 'لم يتم تثبيت الموقع الجغرافي'}
+                    {currentLat && currentLng
+                      ? isCustomerLocationLocked
+                        ? 'الموقع الأساسي للعميل معتمد ومقفل'
+                        : 'تم تسجيل موقع العميل (غير مقفل بعد)'
+                      : 'لم يتم تثبيت الموقع الأساسي للعميل بعد'}
                   </h3>
-                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                    اضغط على الزر أدناه أثناء تواجدك في مقر العميل لتسجيل الإحداثيات بدقة عبر نظام الملاحة وتسهيل وصول المناديب لاحقاً.
+                  <p className="text-xs text-slate-600 mt-1 max-w-md mx-auto leading-relaxed">
+                    {isCustomerLocationLocked
+                      ? 'تعتمد جميع الزيارات والتحصيلات والمرتجعات على هذه الإحداثيات (نطاق 200 متر) ولا يمكن تغييرها إلا بواسطة المشرف أو الإدارة.'
+                      : 'التقط إحداثيات المحل أثناء تواجدك أمامه مع صورة حية للواجهة بالكاميرا لتوثيق الموقع الأساسي.'}
                   </p>
                 </div>
 
                 {currentLat && currentLng && (
-                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-start">
-                    <div>
-                      <div className="text-[10px] font-black text-slate-500">الإحداثيات الحالية</div>
-                      <div className="font-mono text-xs font-black text-slate-800" dir="ltr">
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-start">
+                    <div className="space-y-0.5">
+                      <div className="text-[10px] font-black text-slate-500">الإحداثيات المعتمدة</div>
+                      <div className="font-mono text-xs font-black text-slate-900" dir="ltr">
                         {Number(currentLat).toFixed(6)}, {Number(currentLng).toFixed(6)}
                       </div>
                       {customer.locationCapturedBy && (
-                        <div className="text-[10px] text-slate-400 mt-0.5">
-                          سجلها: {customer.locationCapturedBy}
+                        <div className="text-[11px] font-bold text-slate-600">
+                          ثبّتها: {customer.locationCapturedBy}
+                          {customer.locationAccuracy ? ` • دقة ±${customer.locationAccuracy}م` : ''}
+                        </div>
+                      )}
+                      {isCustomerLocationLocked && customer.locationApprovedBy && (
+                        <div className="text-[11px] font-black text-emerald-700">
+                          اعتماد وقفل: {customer.locationApprovedBy}
                         </div>
                       )}
                     </div>
@@ -1074,7 +1217,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                         href={googleMapsUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black transition cursor-pointer shadow-sm"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-black transition cursor-pointer shadow-sm shrink-0"
                       >
                         <Navigation size={14} />
                         فتح في خرائط Google
@@ -1084,15 +1227,93 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={handleVisitWithGps}
-                  disabled={gpsLoading}
-                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white text-sm font-black shadow-lg shadow-emerald-600/25 transition active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
-                >
-                  {gpsLoading ? <RefreshCw size={18} className="animate-spin" /> : <MapPin size={18} />}
-                  <span>{gpsLoading ? 'جاري الاتصال بالأقمار الصناعية وتحديد الإحداثيات...' : '📍 تثبيت موقع العميل بالـ GPS الآن'}</span>
-                </button>
+                {/* Live Storefront Camera Photo */}
+                {(storeFrontPhotoUrl || !isCustomerLocationLocked || canEditLocationLock) && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3 text-right space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                        <Camera size={14} className="text-blue-600" />
+                        صورة واجهة المحل الحية (مختومة بالوقت والموقع)
+                      </span>
+                      {(!isCustomerLocationLocked || canEditLocationLock) && (
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-blue-200 text-blue-700 hover:bg-blue-50 text-[11px] font-black cursor-pointer transition">
+                          {isCapturingStorePhoto ? <RefreshCw size={12} className="animate-spin" /> : <Camera size={12} />}
+                          <span>{isCapturingStorePhoto ? 'جاري الختم والرفع...' : storeFrontPhotoUrl ? 'إعادة التصوير بالكاميرا' : 'التقاط صورة المحل'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            disabled={isCapturingStorePhoto}
+                            onChange={handleCaptureStoreFrontPhoto}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                    </div>
+                    {storeFrontPhotoUrl && (
+                      <div
+                        onClick={() => setLightbox(storeFrontPhotoUrl)}
+                        className="relative h-36 rounded-xl overflow-hidden border border-slate-200 cursor-pointer group"
+                      >
+                        <img src={storeFrontPhotoUrl} alt="صورة واجهة المحل" className="w-full h-full object-cover" />
+                        <span className="absolute bottom-1.5 right-1.5 px-2 py-0.5 rounded-md bg-black/70 text-white text-[10px] font-bold">
+                          صورة موثقة بالكاميرا — اضغط للتكبير
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Supervisor Lock / Unlock Actions */}
+                {currentLat && currentLng && canEditLocationLock && (
+                  <div className="flex flex-wrap gap-2">
+                    {!isCustomerLocationLocked ? (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleLocationLock(true)}
+                        disabled={gpsLoading}
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer disabled:opacity-60"
+                      >
+                        <Lock size={15} />
+                        <span>اعتماد وقفل الموقع نهائياً (للمشرف/الإدارة)</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleToggleLocationLock(false)}
+                        disabled={gpsLoading}
+                        className="flex-1 py-2.5 px-4 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 text-xs font-black flex items-center justify-center gap-1.5 transition cursor-pointer disabled:opacity-60"
+                      >
+                        <Unlock size={15} />
+                        <span>فتح قفل الموقع مؤقتاً للتعديل</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Capture / Update Button (strictly locked for sales_rep once locked) */}
+                {isCustomerLocationLocked && !canEditLocationLock ? (
+                  <div className="rounded-2xl bg-amber-50 border border-amber-200 p-3 text-xs font-bold text-amber-900 flex items-center justify-center gap-2">
+                    <Lock size={15} className="shrink-0 text-amber-700" />
+                    <span>الموقع مقفل ومعتمد ولا يمكن تعديله من حساب المندوب — تواصل مع المشرف عند انتقال المحل.</span>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleVisitWithGps}
+                    disabled={gpsLoading}
+                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white text-sm font-black shadow-lg shadow-emerald-600/25 transition active:scale-[0.99] cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    {gpsLoading ? <RefreshCw size={18} className="animate-spin" /> : <MapPin size={18} />}
+                    <span>
+                      {gpsLoading
+                        ? 'جاري قراءة الأقمار الصناعية بدقة عالية...'
+                        : currentLat && currentLng
+                        ? '🔄 تحديث وتثبيت موقع العميل بالـ GPS الآن'
+                        : '📍 تثبيت الموقع الأساسي للعميل بالـ GPS الآن'}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
           )}

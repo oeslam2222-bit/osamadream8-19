@@ -26,34 +26,45 @@ import {
   Navigation2,
   Crosshair,
   Compass,
+  Camera,
+  Lock,
+  ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
+import { normalizeCloudinaryConfig, optimizeImageUrl, uploadImageToCloudinary } from '../services/cloudinaryService';
+import defaultStoreAvatar from '../assets/images/store_avatar_1794558443874.jpg';
+import {
+  calculateDistanceMeters,
+  formatDistance,
+  canManageLocationLock,
+  requestLiveGps,
+  verifyVisitLocation,
+  watermarkAndCompressLivePhoto,
+  geoStatusBadgeMeta,
+  LiveGpsReading,
+} from '../services/geoVerificationService';
 import type { Customer, CustomerVisit } from '../types';
 import { EmptyState } from './ui/EmptyState';
 
-// Helper to calculate distance between two coordinates in meters
-function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371e3; // Earth radius in metres
-  const phi1 = (lat1 * Math.PI) / 180;
-  const phi2 = (lat2 * Math.PI) / 180;
-  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
-  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+const resolveStoreAvatar = (customer?: Partial<Customer> | null): string => {
+  const uploaded =
+    customer?.locationPhotoUrl ||
+    customer?.storePhotos?.[0] ||
+    customer?.profileImageUrl ||
+    customer?.avatarUrl ||
+    '';
+  return uploaded ? optimizeImageUrl(uploaded, 160, true) : defaultStoreAvatar;
+};
 
-  const a =
-    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return Math.round(R * c);
-}
-
-function formatDistance(meters: number): string {
-  if (meters < 1000) {
-    return `${meters} متر`;
+const onStoreAvatarError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+  const img = e.currentTarget;
+  if (!img.dataset.fallback) {
+    img.dataset.fallback = '1';
+    img.src = defaultStoreAvatar;
   }
-  return `${(meters / 1000).toFixed(1)} كم`;
-}
+};
 
 const SIMPLE_VISIT_TYPES: { id: string; label: string; color: string }[] = [
   { id: 'دورية', label: 'زيارة دورية', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800' },
@@ -79,9 +90,11 @@ export const VisitsDashboard: React.FC = () => {
     currentUser,
     customers,
     users,
+    cloudinaryConfig,
     getVisibleVisits,
     getVisibleCustomers,
     addVisit,
+    updateVisit,
     updateCustomer,
   } = useApp();
 
@@ -104,6 +117,7 @@ export const VisitsDashboard: React.FC = () => {
   const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'week' | 'month'>('month');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'منفذة' | 'معلقة' | 'ملغاة'>('all');
+  const [geoFilter, setGeoFilter] = useState<'all' | 'verified' | 'flagged'>('all');
   const [repFilter, setRepFilter] = useState<string>('all');
   const [sectorFilter, setSectorFilter] = useState<'all' | 'home' | 'electrical'>('all');
   const VISITS_CHUNK = 10;
@@ -115,9 +129,13 @@ export const VisitsDashboard: React.FC = () => {
   const [todayStr] = useState(() => new Date().toISOString().slice(0, 10));
 
   // Geolocation & Geofencing states
-  const [repGps, setRepGps] = useState<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
+  const [repGps, setRepGps] = useState<LiveGpsReading | null>(null);
   const [isCapturingGps, setIsCapturingGps] = useState(false);
   const [gpsNotice, setGpsNotice] = useState<string | null>(null);
+  const [proofPhotoUrl, setProofPhotoUrl] = useState<string>('');
+  const [isUploadingProof, setIsUploadingProof] = useState(false);
+
+  const canApproveLocations = canManageLocationLock(currentUser?.role);
 
   const initialForm: VisitForm = {
     customerId: '',
@@ -140,6 +158,21 @@ export const VisitsDashboard: React.FC = () => {
   const myCustomers = useMemo(() => {
     return getVisibleCustomers();
   }, [customers, users, currentUser, getVisibleCustomers]);
+
+  const customerMap = useMemo(() => {
+    const map = new Map<string, Customer>();
+    customers.forEach((c) => {
+      if (c.id) map.set(c.id, c);
+      if (c.code) map.set(`code:${c.code}`, c);
+    });
+    return map;
+  }, [customers]);
+
+  const findCustomerForVisit = (v: Pick<CustomerVisit, 'customerId' | 'customerCode'>): Customer | null => {
+    if (v.customerId && customerMap.has(v.customerId)) return customerMap.get(v.customerId)!;
+    if (v.customerCode && customerMap.has(`code:${v.customerCode}`)) return customerMap.get(`code:${v.customerCode}`)!;
+    return null;
+  };
 
   const selectedCustomerObj = useMemo(() => {
     if (!form.customerId) return null;
@@ -173,41 +206,71 @@ export const VisitsDashboard: React.FC = () => {
     return list;
   }, [myCustomers, customerSearch, customerRepFilter]);
 
-  // Request Rep current GPS position
-  const requestCurrentRepGps = (): Promise<{ latitude: number; longitude: number; accuracy?: number } | null> => {
-    return new Promise((resolve) => {
-      if (!('geolocation' in navigator)) {
-        setGpsNotice('متصفحك لا يدعم نظام تحديد المواقع GPS');
-        resolve(null);
-        return;
-      }
-      setIsCapturingGps(true);
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setIsCapturingGps(false);
-          const coords = {
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-          };
-          setRepGps(coords);
-          resolve(coords);
-        },
-        (err) => {
-          setIsCapturingGps(false);
-          console.warn('Geolocation capture notice:', err.message);
-          setGpsNotice('يرجى السماح بالوصول للموقع لالتقاط إحداثيات المتجر بدقة.');
-          resolve(null);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-      );
-    });
+  // Request Rep live GPS position (maximumAge: 0 prohibits stale cache)
+  const requestCurrentRepGps = async (): Promise<LiveGpsReading | null> => {
+    setIsCapturingGps(true);
+    const res = await requestLiveGps(12000);
+    setIsCapturingGps(false);
+    if (!res.ok) {
+      setGpsNotice('error' in res ? res.error : 'تعذر التقاط الموقع');
+      return null;
+    }
+    setRepGps(res.coords);
+    setGpsNotice(null);
+    return res.coords;
   };
 
-  // Pin customer GPS permanently into customer record
+  useEffect(() => {
+    if (showForm) {
+      setProofPhotoUrl('');
+      setFormErrors([]);
+      setGpsNotice(null);
+      requestCurrentRepGps().catch(() => {});
+    }
+  }, [showForm]);
+
+  const liveGeoCheck = useMemo(() => {
+    return verifyVisitLocation({
+      repGps,
+      customer: selectedCustomerObj,
+      repVisits: visits,
+      repId: form.repId || currentUser?.id,
+    });
+  }, [repGps, selectedCustomerObj, visits, form.repId, currentUser?.id]);
+
+  const handleCaptureProofPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !selectedCustomerObj) return;
+    setIsUploadingProof(true);
+    setGpsNotice(null);
+    try {
+      const stamped = await watermarkAndCompressLivePhoto(file, {
+        customerName: selectedCustomerObj.name,
+        repName: currentUser?.name || 'المندوب',
+        latitude: repGps?.latitude,
+        longitude: repGps?.longitude,
+        distanceMeters: liveGeoCheck.distanceMeters,
+        reason: liveGeoCheck.status === 'outside_range' ? 'خارج النطاق' : 'إثبات ميداني',
+      });
+      const cfg = normalizeCloudinaryConfig(cloudinaryConfig);
+      const uploaded = await uploadImageToCloudinary(stamped, cfg, 'tantawy_visit_proofs');
+      setProofPhotoUrl(uploaded.url);
+    } catch (err: any) {
+      setGpsNotice(err?.message || 'تعذر رفع صورة الإثبات الميداني');
+    } finally {
+      setIsUploadingProof(false);
+    }
+  };
+
+  // Pin customer GPS into customer record (respecting supervisor lock)
   const handlePinCustomerLocation = async () => {
     if (!selectedCustomerObj) return;
-    setGpsNotice('جاري تحديد إحداثيات موقع المتجر عبر الأقمار الصناعية...');
+    if (selectedCustomerObj.locationLocked && !canApproveLocations) {
+      setGpsNotice('موقع العميل معتمد ومقفل 🔒 من المشرف ولا يمكن تغييره من حساب المندوب.');
+      return;
+    }
+    setGpsNotice('جاري قراءة الأقمار الصناعية وتحديد موقع المتجر بدقة...');
     const coords = await requestCurrentRepGps();
     if (!coords) return;
 
@@ -215,13 +278,22 @@ export const VisitsDashboard: React.FC = () => {
       ...selectedCustomerObj,
       latitude: coords.latitude,
       longitude: coords.longitude,
+      locationAccuracy: coords.accuracy,
       locationAddress: selectedCustomerObj.address || selectedCustomerObj.region || selectedCustomerObj.branchName || '',
-      locationCapturedAt: new Date().toISOString(),
+      locationCapturedAt: coords.timestamp,
       locationCapturedBy: currentUser?.name || 'المندوب',
+      locationPhotoUrl: proofPhotoUrl || selectedCustomerObj.locationPhotoUrl,
+      locationLocked: canApproveLocations ? true : Boolean(selectedCustomerObj.locationLocked),
+      locationApprovedBy: canApproveLocations ? (currentUser?.name || 'المشرف') : selectedCustomerObj.locationApprovedBy,
+      locationApprovedAt: canApproveLocations ? coords.timestamp : selectedCustomerObj.locationApprovedAt,
     };
 
     updateCustomer(updatedCustomer);
-    setGpsNotice(`تم بنجاح حفظ وتثبيت إحداثيات المتجر (${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}) في ملف العميل! ستظهر تلقائياً في كل زياراته القادمة.`);
+    setGpsNotice(
+      canApproveLocations
+        ? `تم تثبيت واعتماد وقفل موقع ${selectedCustomerObj.name} بنجاح 🔒`
+        : `تم تثبيت موقع ${selectedCustomerObj.name} (${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}) — بانتظار اعتماد المشرف للقفل`
+    );
   };
 
   const [formErrors, setFormErrors] = useState<string[]>([]);
@@ -230,6 +302,16 @@ export const VisitsDashboard: React.FC = () => {
     const errors: string[] = [];
     if (!form.customerId) errors.push('يرجى اختيار العميل');
     if (form.type === 'تحصيل' && form.collectedAmount <= 0) errors.push('يرجى إدخال مبلغ التحصيل');
+    if (selectedCustomerObj && !repGps && !proofPhotoUrl && currentUser?.role === 'sales_rep') {
+      errors.push('يرجى تفعيل GPS لالتقاط موقعك الحي أو التقاط صورة حية لواجهة المحل بالكاميرا');
+    }
+    if (liveGeoCheck.requiresLivePhoto && !proofPhotoUrl) {
+      errors.push(
+        liveGeoCheck.status === 'suspected_spoof'
+          ? 'تم رصد اشتباه في إشارة الـ GPS — يرجى التقاط صورة حية لواجهة المحل بالكاميرا للمتابعة'
+          : `أنت خارج نطاق المتجر (${formatDistance(liveGeoCheck.distanceMeters ?? 0)}) — يرجى التقاط صورة حية للمحل بالكاميرا للتوثيق`
+      );
+    }
     setFormErrors(errors);
     return errors.length === 0;
   };
@@ -241,25 +323,27 @@ export const VisitsDashboard: React.FC = () => {
     const r = users.find((u) => u.id === form.repId);
     const c = myCustomers.find((x) => x.id === form.customerId);
 
-    // If rep GPS isn't captured yet, try a quick capture or submit with existing
+    // STRICT ANTI-SPOOF: Never silently copy customer coordinates when rep GPS is missing
     const visitLocation = repGps
       ? {
           latitude: repGps.latitude,
           longitude: repGps.longitude,
           accuracy: repGps.accuracy,
-          timestamp: new Date().toISOString(),
+          timestamp: repGps.timestamp,
           address: c?.address || c?.region || '',
           mapUrl: `https://www.google.com/maps/search/?api=1&query=${repGps.latitude},${repGps.longitude}`,
         }
-      : c?.latitude && c?.longitude
-      ? {
-          latitude: c.latitude,
-          longitude: c.longitude,
-          address: c.address || c.region || '',
-          mapUrl: `https://www.google.com/maps/search/?api=1&query=${c.latitude},${c.longitude}`,
-          timestamp: new Date().toISOString(),
-        }
       : undefined;
+
+    const finalGeoVerification = {
+      status: liveGeoCheck.status,
+      distanceMeters: liveGeoCheck.distanceMeters,
+      accuracyMeters: liveGeoCheck.accuracyMeters,
+      speedKmh: liveGeoCheck.speedKmh,
+      flags: liveGeoCheck.flags,
+      proofPhotoUrl: proofPhotoUrl || undefined,
+      verifiedAt: liveGeoCheck.verifiedAt,
+    };
 
     const result = addVisit({
       customerId: form.customerId,
@@ -284,6 +368,8 @@ export const VisitsDashboard: React.FC = () => {
       collectedAmount: form.collectedAmount,
       notes: form.notes,
       location: visitLocation,
+      geoVerification: finalGeoVerification,
+      reviewStatus: liveGeoCheck.requiresSupervisorReview ? 'pending' : 'approved',
     });
 
     if (!result.success) {
@@ -291,13 +377,18 @@ export const VisitsDashboard: React.FC = () => {
       return;
     }
 
-    setFlash({ tone: 'success', text: 'تم تسجيل الزيارة بنجاح بالمنظومة وتوثيق الموقع ✅' });
-    setTimeout(() => setFlash(null), 4000);
+    setFlash({
+      tone: 'success',
+      text: liveGeoCheck.requiresSupervisorReview
+        ? 'تم تسجيل الزيارة وإرسالها لمراجعة المشرف بسبب التحقق الجغرافي ⚠️'
+        : 'تم تسجيل الزيارة وتوثيق الموقع بنجاح ✅',
+    });
     setTimeout(() => setFlash(null), 4000);
 
     setShowForm(false);
     setForm(initialForm);
     setFormErrors([]);
+    setProofPhotoUrl('');
   };
 
   // Filter pipeline
@@ -374,6 +465,18 @@ export const VisitsDashboard: React.FC = () => {
       );
     }
 
+    if (geoFilter === 'verified') {
+      result = result.filter((v) => v.geoVerification?.status === 'verified' || (v.location?.latitude && v.geoVerification?.status !== 'outside_range' && v.geoVerification?.status !== 'suspected_spoof'));
+    } else if (geoFilter === 'flagged') {
+      result = result.filter(
+        (v) =>
+          v.geoVerification?.status === 'outside_range' ||
+          v.geoVerification?.status === 'suspected_spoof' ||
+          v.geoVerification?.status === 'low_accuracy' ||
+          v.reviewStatus === 'pending'
+      );
+    }
+
     return result;
   }, [
     visits,
@@ -381,6 +484,7 @@ export const VisitsDashboard: React.FC = () => {
     timeFilter,
     typeFilter,
     statusFilter,
+    geoFilter,
     repFilter,
     sectorFilter,
     currentUser?.sector,
@@ -392,7 +496,13 @@ export const VisitsDashboard: React.FC = () => {
     const total = filtered.length;
     const completed = filtered.filter((v) => v.status === 'منفذة').length;
     const gpsVerified = filtered.filter(
-      (v) => Boolean(v.location?.latitude && v.location?.longitude)
+      (v) => v.geoVerification?.status === 'verified' || Boolean(v.location?.latitude && v.location?.longitude)
+    ).length;
+    const flaggedCount = visits.filter(
+      (v) =>
+        v.geoVerification?.status === 'outside_range' ||
+        v.geoVerification?.status === 'suspected_spoof' ||
+        v.reviewStatus === 'pending'
     ).length;
     const collectionVisits = filtered.filter(
       (v) => v.type?.includes('تحصيل') || Number(v.collectedAmount || 0) > 0
@@ -406,16 +516,17 @@ export const VisitsDashboard: React.FC = () => {
       total,
       completed,
       gpsVerified,
+      flaggedCount,
       collectionCount: collectionVisits.length,
       totalCollected,
     };
-  }, [filtered]);
+  }, [filtered, visits]);
 
   const paginated = filtered.slice(0, visibleVisitsCount);
 
   useEffect(() => {
     setVisibleVisitsCount(VISITS_CHUNK);
-  }, [search, timeFilter, typeFilter, statusFilter, repFilter, sectorFilter, visits.length]);
+  }, [search, timeFilter, typeFilter, statusFilter, geoFilter, repFilter, sectorFilter, visits.length]);
 
   const repOptions = useMemo(() => {
     const reps = [...new Set(visits.map((v) => v.repName).filter(Boolean))];
@@ -427,6 +538,7 @@ export const VisitsDashboard: React.FC = () => {
     timeFilter !== 'month' ||
     typeFilter !== 'all' ||
     statusFilter !== 'all' ||
+    geoFilter !== 'all' ||
     repFilter !== 'all' ||
     sectorFilter !== 'all';
 
@@ -435,6 +547,7 @@ export const VisitsDashboard: React.FC = () => {
     setTimeFilter('month');
     setTypeFilter('all');
     setStatusFilter('all');
+    setGeoFilter('all');
     setRepFilter('all');
     setSectorFilter('all');
   };
@@ -697,8 +810,22 @@ export const VisitsDashboard: React.FC = () => {
             </select>
           </div>
 
+          {/* Geo Verification Filter */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">توثيق الموقع (GPS)</label>
+            <select
+              value={geoFilter}
+              onChange={(e) => setGeoFilter(e.target.value as any)}
+              className="tg-select"
+            >
+              <option value="all">كل الزيارات</option>
+              <option value="verified">موثقة بالنطاق ✅</option>
+              <option value="flagged">تحتاج مراجعة ({stats.flaggedCount}) ⚠️</option>
+            </select>
+          </div>
+
           {/* Clear Filters */}
-          <div className="flex items-end">
+          <div className="flex items-end col-span-2 sm:col-span-1">
             {hasActiveFilters ? (
               <button
                 type="button"
@@ -760,12 +887,23 @@ export const VisitsDashboard: React.FC = () => {
                     </td>
 
                     <td className="p-3 text-right">
-                      <div className="font-black text-slate-900 dark:text-white text-sm group-hover:text-[#2563eb] transition">
-                        {v.customerName || 'عميل بدون اسم'}
-                      </div>
-                      <div className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5">
-                        <Building2 className="w-3 h-3 text-slate-400" />
-                        <span>{v.branchName || 'فرع الشركة'}</span>
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <img
+                          src={resolveStoreAvatar(findCustomerForVisit(v))}
+                          alt={v.customerName || 'متجر العميل'}
+                          referrerPolicy="no-referrer"
+                          onError={onStoreAvatarError}
+                          className="w-10 h-10 rounded-xl object-cover border border-slate-200 bg-slate-50 shadow-xs shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="font-black text-slate-900 dark:text-white text-sm group-hover:text-[#2563eb] transition truncate">
+                            {v.customerName || 'عميل بدون اسم'}
+                          </div>
+                          <div className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5">
+                            <Building2 className="w-3 h-3 text-slate-400" />
+                            <span>{v.branchName || 'فرع الشركة'}</span>
+                          </div>
+                        </div>
                       </div>
                     </td>
 
@@ -815,9 +953,20 @@ export const VisitsDashboard: React.FC = () => {
                     </td>
 
                     <td className="text-center">
-                      <span className={`tg-badge tg-badge--${v.status === 'منفذة' ? 'ok' : (v.status as string) === 'معلقة' || v.status === 'مجدولة' || v.status === 'لم تتم' ? 'warn' : 'gray'}`}>
-                        {v.status || 'منفذة'}
-                      </span>
+                      <div className="flex flex-col items-center gap-1">
+                        <span className={`tg-badge tg-badge--${v.status === 'منفذة' ? 'ok' : (v.status as string) === 'معلقة' || v.status === 'مجدولة' || v.status === 'لم تتم' ? 'warn' : 'gray'}`}>
+                          {v.status || 'منفذة'}
+                        </span>
+                        {v.geoVerification?.status && (() => {
+                          const meta = geoStatusBadgeMeta(v.geoVerification.status);
+                          return (
+                            <span className={`tg-badge tg-badge--${meta.tone}`}>
+                              {meta.label}
+                              {v.geoVerification.distanceMeters !== undefined ? ` (${formatDistance(v.geoVerification.distanceMeters)})` : ''}
+                            </span>
+                          );
+                        })()}
+                      </div>
                     </td>
 
                     <td className="p-3 text-center" onClick={(e) => e.stopPropagation()}>
@@ -871,8 +1020,15 @@ export const VisitsDashboard: React.FC = () => {
                 className="tg-card p-4 sm:p-5 space-y-3 active:scale-[0.99] transition"
                 onClick={() => setSelectedVisit(v)}
               >
-                {/* Header: Customer Name + Status Badge */}
-                <div className="flex items-start justify-between gap-2">
+                {/* Header: Customer Store Avatar + Name + Status Badge */}
+                <div className="flex items-start justify-between gap-2.5">
+                  <img
+                    src={resolveStoreAvatar(findCustomerForVisit(v))}
+                    alt={v.customerName || 'متجر العميل'}
+                    referrerPolicy="no-referrer"
+                    onError={onStoreAvatarError}
+                    className="w-11 h-11 rounded-2xl object-cover border border-slate-200 bg-slate-50 shadow-xs shrink-0 mt-0.5"
+                  />
                   <div className="min-w-0 flex-1">
                     <h3 className="font-black text-slate-900 dark:text-white text-base leading-tight truncate">
                       {v.customerName || 'عميل بدون اسم'}
@@ -888,7 +1044,18 @@ export const VisitsDashboard: React.FC = () => {
                       <span className={`tg-badge tg-badge--${v.sector === 'electrical' ? 'warn' : 'blue'}`}>
                         {v.sector === 'electrical' ? '⚡ كهرباء' : '🏠 منزلي'}
                       </span>
-                      {v.location?.latitude && v.location?.longitude && (
+                      {v.geoVerification?.status ? (() => {
+                        const meta = geoStatusBadgeMeta(v.geoVerification.status);
+                        return (
+                          <span className={`tg-badge tg-badge--${meta.tone} flex items-center gap-1`}>
+                            <MapPin className="w-2.5 h-2.5" />
+                            <span>
+                              {meta.label}
+                              {v.geoVerification.distanceMeters !== undefined ? ` (${formatDistance(v.geoVerification.distanceMeters)})` : ''}
+                            </span>
+                          </span>
+                        );
+                      })() : v.location?.latitude && v.location?.longitude && (
                         <a
                           href={v.location.mapUrl || `https://www.google.com/maps/search/?api=1&query=${v.location.latitude},${v.location.longitude}`}
                           target="_blank"
@@ -1077,12 +1244,21 @@ export const VisitsDashboard: React.FC = () => {
                           form.customerId === c.id ? 'bg-[#eff6ff]' : 'hover:bg-slate-50'
                         }`}
                       >
-                        <span className="min-w-0">
-                          <span className={`block text-xs font-black truncate ${form.customerId === c.id ? 'text-[#1d4ed8]' : 'text-[#0b2337]'}`}>
-                            {c.name || 'عميل بدون اسم'}
-                          </span>
-                          <span className="block text-[10px] text-slate-500 font-bold mt-0.5">
-                            {c.code || 'بدون كود'} • {c.salesRepName || c.repName || '—'} • {c.branchName || '—'}
+                        <span className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <img
+                            src={resolveStoreAvatar(c)}
+                            alt={c.name || 'متجر العميل'}
+                            referrerPolicy="no-referrer"
+                            onError={onStoreAvatarError}
+                            className="w-9 h-9 rounded-xl object-cover border border-slate-200 bg-slate-50 shrink-0"
+                          />
+                          <span className="min-w-0">
+                            <span className={`block text-xs font-black truncate ${form.customerId === c.id ? 'text-[#1d4ed8]' : 'text-[#0b2337]'}`}>
+                              {c.name || 'عميل بدون اسم'}
+                            </span>
+                            <span className="block text-[10px] text-slate-500 font-bold mt-0.5 truncate">
+                              {c.code || 'بدون كود'} • {c.salesRepName || c.repName || '—'} • {c.branchName || '—'}
+                            </span>
                           </span>
                         </span>
                         {form.customerId === c.id && <CheckCircle2 className="w-4 h-4 text-[#2563eb] shrink-0" />}
@@ -1137,112 +1313,143 @@ export const VisitsDashboard: React.FC = () => {
                 </div>
               )}
 
-              {/* GPS Geofencing & Customer Location Capture */}
+              {/* GPS Geofencing, Anti-Spoof & Live Camera Proof */}
               {selectedCustomerObj && (
                 <div className="p-4 rounded-2xl border border-[#bfdbfe] bg-gradient-to-br from-[#eff6ff] to-[#dbeafe] space-y-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-lg bg-[#2563eb] text-white flex items-center justify-center shadow-xs">
                         <MapPin className="w-4 h-4" />
                       </div>
-                      <span className="text-xs font-black text-slate-800 dark:text-slate-100">
-                        تحديد وتوثيق موقع العميل (GPS)
+                      <span className="text-xs font-black text-slate-900">
+                        تحدي وتوثيق موقع الزيارة (GPS)
                       </span>
                     </div>
                     {selectedCustomerObj.latitude && selectedCustomerObj.longitude ? (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700">
-                        إحداثيات مسجلة ✅
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black border ${
+                        selectedCustomerObj.locationLocked
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-blue-100 text-blue-800 border-blue-300'
+                      }`}>
+                        {selectedCustomerObj.locationLocked ? <Lock className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                        {selectedCustomerObj.locationLocked ? 'موقع معتمد ومقفل' : 'موقع مسجل'}
                       </span>
                     ) : (
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
-                        موقع غير مثبت 📍
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-800 border border-amber-300">
+                        العميل غير مثبت 📍
                       </span>
                     )}
                   </div>
 
-                  {/* If customer has saved GPS */}
-                  {selectedCustomerObj.latitude && selectedCustomerObj.longitude ? (
-                    <div className="space-y-2.5">
-                      <div className="flex items-center justify-between text-xs bg-white/80 dark:bg-slate-800/70 p-2.5 rounded-xl border border-[#bfdbfe]">
-                        <div className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                          الإحداثيات: <span className="font-mono text-[#1d4ed8] font-black">{selectedCustomerObj.latitude.toFixed(5)}, {selectedCustomerObj.longitude.toFixed(5)}</span>
+                  {/* Live Anti-Spoof Status Banner */}
+                  {repGps ? (
+                    <div className={`p-3 rounded-xl border text-xs font-bold space-y-1.5 ${
+                      liveGeoCheck.status === 'verified'
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                        : liveGeoCheck.status === 'suspected_spoof'
+                        ? 'bg-rose-50 border-rose-300 text-rose-900'
+                        : liveGeoCheck.status === 'outside_range'
+                        ? 'bg-amber-50 border-amber-300 text-amber-900'
+                        : 'bg-white border-slate-200 text-slate-800'
+                    }`}>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 font-black">
+                          {liveGeoCheck.status === 'verified' ? (
+                            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                          ) : (
+                            <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0" />
+                          )}
+                          <span>{liveGeoCheck.label}</span>
                         </div>
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${selectedCustomerObj.latitude},${selectedCustomerObj.longitude}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1 text-[11px] font-black text-[#1d4ed8] hover:underline"
-                        >
-                          <span>خرائط Google</span>
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
+                        {repGps.accuracy !== undefined && (
+                          <span className="text-[11px] font-mono bg-white/80 px-2 py-0.5 rounded-md border border-slate-200">
+                            دقة ±{repGps.accuracy}م
+                          </span>
+                        )}
                       </div>
-
-                      {/* Rep proximity check if rep GPS is available */}
-                      {repGps ? (
-                        (() => {
-                          const dist = calculateDistanceMeters(
-                            repGps.latitude,
-                            repGps.longitude,
-                            selectedCustomerObj.latitude!,
-                            selectedCustomerObj.longitude!
-                          );
-                          const isWithinRange = dist <= 200; // 200 meters geofence
-                          return (
-                            <div className={`p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between ${
-                              isWithinRange
-                                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 text-emerald-800 dark:text-emerald-200'
-                                : 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 text-amber-800 dark:text-amber-200'
-                            }`}>
-                              <div className="flex items-center gap-1.5">
-                                <Crosshair className="w-3.5 h-3.5 shrink-0" />
-                                <span>{isWithinRange ? 'أنت داخل نطاق المتجر (موثق)' : 'أنت خارج نطاق المتجر المسجل'}</span>
-                              </div>
-                              <span className="font-black font-mono">المسافة: {formatDistance(dist)}</span>
-                            </div>
-                          );
-                        })()
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => requestCurrentRepGps()}
-                          disabled={isCapturingGps}
-                          className="w-full py-2 px-3 rounded-xl bg-white border border-[#bfdbfe] text-[#1d4ed8] text-xs font-black hover:bg-[#eff6ff] transition flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <Navigation2 className={`w-3.5 h-3.5 ${isCapturingGps ? 'animate-spin' : ''}`} />
-                          <span>{isCapturingGps ? 'جاري تحديد موقعك الحالي...' : 'تحقق من قربك لمتجر العميل (تأكيد النطاق)'}</span>
-                        </button>
+                      {liveGeoCheck.speedKmh && liveGeoCheck.speedKmh > 130 && (
+                        <div className="text-[11px] text-rose-800 font-bold">
+                          تنبيه: سرعة انتقال غير منطقية عن آخر زيارة ({liveGeoCheck.speedKmh} كم/ساعة).
+                        </div>
                       )}
-
-                      <button
-                        type="button"
-                        onClick={handlePinCustomerLocation}
-                        disabled={isCapturingGps}
-                        className="text-[11px] font-bold text-slate-500 hover:text-[#1d4ed8] underline block text-center w-full"
-                      >
-                        🔄 نقل أو تحديث إحداثيات المتجر بموقعي الحالي
-                      </button>
                     </div>
                   ) : (
-                    /* Customer has no saved GPS yet */
-                    <div className="space-y-2">
-                      <p className="text-[11px] text-slate-600 dark:text-slate-300 font-semibold leading-relaxed">
-                        هذا العميل لم يتم تثبيت موقعه بعد. يمكنك الآن بنقرة واحدة التقاط وتثبيت موقع متجره عبر GPS ليتم حفظه بملف العميل ويظهر تلقائياً في كل الزيارات القادمة.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={handlePinCustomerLocation}
-                        disabled={isCapturingGps}
-                        className="w-full py-2.5 px-3 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-black text-xs shadow-sm transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <MapPin className={`w-4 h-4 ${isCapturingGps ? 'animate-bounce' : ''}`} />
-                        <span>{isCapturingGps ? 'جاري التقاط الإحداثيات...' : '📍 التقاط وتثبيت إحداثيات العميل الآن (GPS)'}</span>
-                      </button>
+                    <button
+                      type="button"
+                      onClick={() => requestCurrentRepGps()}
+                      disabled={isCapturingGps}
+                      className="w-full py-2.5 px-3 rounded-xl bg-white border border-[#bfdbfe] text-[#1d4ed8] text-xs font-black hover:bg-[#eff6ff] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Navigation2 className={`w-3.5 h-3.5 ${isCapturingGps ? 'animate-spin' : ''}`} />
+                      <span>{isCapturingGps ? 'جاري قراءة GPS الحي...' : 'تحديث قراءة GPS الحية للتحقق'}</span>
+                    </button>
+                  )}
+
+                  {/* Live Camera Proof (required when outside range, spoof suspected, or no GPS) */}
+                  {(liveGeoCheck.requiresLivePhoto || !repGps || !selectedCustomerObj.latitude) && (
+                    <div className="rounded-xl bg-white/90 border border-slate-200 p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="text-[11px] font-black text-slate-800 flex items-center gap-1.5">
+                          <Camera className="w-3.5 h-3.5 text-blue-600" />
+                          {liveGeoCheck.requiresLivePhoto
+                            ? 'إلزامي: صورة حية لواجهة المحل بالكاميرا (مختومة بالوقت والموقع)'
+                            : 'صورة حية للمحل بالكاميرا (تُرفع على Cloudinary)'}
+                        </span>
+                        <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black cursor-pointer transition">
+                          {isUploadingProof ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
+                          <span>{isUploadingProof ? 'جاري الختم والرفع...' : proofPhotoUrl ? 'إعادة التصوير' : 'فتح الكاميرا'}</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            disabled={isUploadingProof}
+                            onChange={handleCaptureProofPhoto}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                      {proofPhotoUrl && (
+                        <div className="relative h-28 rounded-xl overflow-hidden border border-emerald-300">
+                          <img src={proofPhotoUrl} alt="إثبات الزيارة" className="w-full h-full object-cover" />
+                          <span className="absolute bottom-1 right-1 px-2 py-0.5 rounded bg-emerald-700/90 text-white text-[10px] font-black">
+                            تم التوثيق والختم ✅
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Primary Customer Pinning (only if not yet pinned OR supervisor/manager override) */}
+                  {!selectedCustomerObj.latitude || !selectedCustomerObj.longitude ? (
+                    <button
+                      type="button"
+                      onClick={handlePinCustomerLocation}
+                      disabled={isCapturingGps}
+                      className="w-full py-2.5 px-3 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-black text-xs shadow-sm transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <MapPin className={`w-4 h-4 ${isCapturingGps ? 'animate-bounce' : ''}`} />
+                      <span>{isCapturingGps ? 'جاري التثبيت...' : '📍 تثبيت هذا الموقع كـ "الموقع الأساسي للعميل"'}</span>
+                    </button>
+                  ) : !selectedCustomerObj.locationLocked || canApproveLocations ? (
+                    <button
+                      type="button"
+                      onClick={handlePinCustomerLocation}
+                      disabled={isCapturingGps}
+                      className="text-[11px] font-bold text-slate-600 hover:text-[#1d4ed8] underline block text-center w-full cursor-pointer"
+                    >
+                      {canApproveLocations
+                        ? '🔒 تحديث واعتماد الموقع الأساسي للعميل بموقعي الحالي'
+                        : '🔄 تحديث الموقع الأساسي للعميل (غير مقفل بعد)'}
+                    </button>
+                  ) : (
+                    <div className="text-[11px] font-bold text-slate-600 flex items-center justify-center gap-1">
+                      <Lock className="w-3 h-3 text-emerald-700" />
+                      <span>الموقع الأساسي مقفل ومعتمد — لا يمكن تغييره من حساب المندوب</span>
                     </div>
                   )}
 
                   {gpsNotice && (
-                    <div className="text-[11px] font-bold text-[#1d4ed8] bg-[#dbeafe]/70 p-2 rounded-xl">
+                    <div className="text-[11px] font-bold text-[#1d4ed8] bg-[#dbeafe]/80 p-2 rounded-xl border border-[#93c5fd]">
                       {gpsNotice}
                     </div>
                   )}
@@ -1383,11 +1590,20 @@ export const VisitsDashboard: React.FC = () => {
             <div className="space-y-3.5">
               {/* Customer and rep */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="p-3.5 rounded-2xl border border-slate-300 bg-slate-50/70 dark:bg-slate-800/50">
-                  <span className="text-[10px] text-slate-600 font-black block mb-1">العميل</span>
-                  <div className="font-black text-slate-900 dark:text-white text-sm">{selectedVisit.customerName}</div>
-                  <div className="text-[11px] font-mono font-bold text-[#2563eb] mt-0.5">
-                    {selectedVisit.customerCode || 'بدون كود'}
+                <div className="p-3.5 rounded-2xl border border-slate-300 bg-slate-50/70 dark:bg-slate-800/50 flex items-center gap-2.5">
+                  <img
+                    src={resolveStoreAvatar(findCustomerForVisit(selectedVisit))}
+                    alt={selectedVisit.customerName || 'متجر العميل'}
+                    referrerPolicy="no-referrer"
+                    onError={onStoreAvatarError}
+                    className="w-11 h-11 rounded-xl object-cover border border-slate-200 bg-white shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-600 font-black block mb-0.5">العميل</span>
+                    <div className="font-black text-slate-900 dark:text-white text-sm truncate">{selectedVisit.customerName}</div>
+                    <div className="text-[11px] font-mono font-bold text-[#2563eb] mt-0.5">
+                      {selectedVisit.customerCode || 'بدون كود'}
+                    </div>
                   </div>
                 </div>
 
@@ -1446,27 +1662,97 @@ export const VisitsDashboard: React.FC = () => {
                 </div>
               </div>
 
-              {/* GPS Geolocation Verification */}
-              {selectedVisit.location?.latitude && selectedVisit.location?.longitude && (
-                <div className="p-3.5 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff]">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] text-[#1d4ed8] font-black flex items-center gap-1">
+              {/* GPS Geolocation & Anti-Spoof Verification */}
+              {(selectedVisit.location?.latitude || selectedVisit.geoVerification) && (
+                <div className="p-3.5 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-[11px] text-[#1d4ed8] font-black flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5" />
-                      موقع الزيارة الموثق (GPS)
+                      التحقق الجغرافي للزيارة (GPS)
                     </span>
-                    <a
-                      href={selectedVisit.location.mapUrl || `https://www.google.com/maps/search/?api=1&query=${selectedVisit.location.latitude},${selectedVisit.location.longitude}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[11px] font-black text-[#1d4ed8] hover:underline flex items-center gap-1"
-                    >
-                      <span>عرض على الخريطة</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
+                    {selectedVisit.geoVerification?.status && (() => {
+                      const meta = geoStatusBadgeMeta(selectedVisit.geoVerification.status);
+                      return (
+                        <span className={`tg-badge tg-badge--${meta.tone}`}>
+                          {meta.label}
+                          {selectedVisit.geoVerification.distanceMeters !== undefined
+                            ? ` • ${formatDistance(selectedVisit.geoVerification.distanceMeters)}`
+                            : ''}
+                        </span>
+                      );
+                    })()}
                   </div>
-                  <div className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
-                    {selectedVisit.location.latitude.toFixed(5)}, {selectedVisit.location.longitude.toFixed(5)}
-                  </div>
+
+                  {selectedVisit.location?.latitude && selectedVisit.location?.longitude && (
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="text-xs font-mono font-bold text-slate-800">
+                        {selectedVisit.location.latitude.toFixed(5)}, {selectedVisit.location.longitude.toFixed(5)}
+                        {selectedVisit.location.accuracy ? ` (±${Math.round(selectedVisit.location.accuracy)}م)` : ''}
+                      </div>
+                      <a
+                        href={selectedVisit.location.mapUrl || `https://www.google.com/maps/search/?api=1&query=${selectedVisit.location.latitude},${selectedVisit.location.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-black text-[#1d4ed8] hover:underline flex items-center gap-1"
+                      >
+                        <span>عرض على الخريطة</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  )}
+
+                  {selectedVisit.geoVerification?.proofPhotoUrl && (
+                    <div className="rounded-xl overflow-hidden border border-slate-200 bg-white">
+                      <img
+                        src={selectedVisit.geoVerification.proofPhotoUrl}
+                        alt="صورة إثبات الزيارة"
+                        className="w-full max-h-48 object-cover"
+                      />
+                    </div>
+                  )}
+
+                  {canApproveLocations && selectedVisit.reviewStatus === 'pending' && (
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = {
+                            ...selectedVisit,
+                            reviewStatus: 'approved' as const,
+                            reviewedByName: currentUser?.name || 'المشرف',
+                            reviewedAt: new Date().toISOString(),
+                            reviewNote: 'تمت مراجعة الموقع وإثبات الكاميرا واعتماد الزيارة',
+                          };
+                          updateVisit(updated);
+                          setSelectedVisit(updated);
+                          setFlash({ tone: 'success', text: 'تم اعتماد الزيارة بعد مراجعة الموقع ✅' });
+                          setTimeout(() => setFlash(null), 3500);
+                        }}
+                        className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black cursor-pointer transition"
+                      >
+                        اعتماد الزيارة ✅
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = {
+                            ...selectedVisit,
+                            reviewStatus: 'needs_fix' as const,
+                            reviewedByName: currentUser?.name || 'المشرف',
+                            reviewedAt: new Date().toISOString(),
+                            reviewNote: 'مخالفة موقع أو عدم تطابق الإحداثيات',
+                          };
+                          updateVisit(updated);
+                          setSelectedVisit(updated);
+                          setFlash({ tone: 'error', text: 'تم تسجيل ملاحظة مخالفة موقع على الزيارة ⚠️' });
+                          setTimeout(() => setFlash(null), 3500);
+                        }}
+                        className="flex-1 py-2 px-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-black cursor-pointer transition"
+                      >
+                        مخالفة موقع ⚠️
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 

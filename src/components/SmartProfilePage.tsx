@@ -3,14 +3,15 @@ import {
   Users, Search, Building2, Wallet, ShoppingCart, TrendingUp,
   ChevronRight, ChevronLeft, X, Clock, MapPin, CreditCard, Star, Phone,
   AlertTriangle, CheckCircle2, FileText, BarChart3, RefreshCw,
-  Plus, Activity, Filter, UserCheck,
+  Plus, Activity, Filter, UserCheck, RotateCcw,
   ArrowUpRight, Image as ImageIcon, CalendarCheck, Check, ExternalLink,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { inferTargetSector } from '../services/targetService';
 import { normalizeArabicText } from '../services/arabicMatchingService';
-import { generateStorePlaceholderSvg } from '../services/cloudinaryService';
+import { optimizeImageUrl } from '../services/cloudinaryService';
 import { classifyEligibilityColumn } from '../services/customerFinancialService';
+import customerMerchantAvatar from '../assets/images/customer_merchant_avatar_1794559829020.jpg';
 import type { Customer, TargetRecord, User } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { CustomerProfileDrawer } from './CustomerProfileDrawer';
@@ -67,6 +68,7 @@ function findRepUser(users: User[], repName: string): User | undefined {
 }
 
 interface SmartProfilePageProps {
+  mode?: 'customers' | 'reps';
   onOpenNewOrderForCustomer?: (customer: Customer) => void;
   /** مرجع عميل (id / كود / اسم) يُفتح بروفايله تلقائيًا — من شاشة التحليلات مثلًا. */
   focusCustomerId?: string | null;
@@ -75,6 +77,7 @@ interface SmartProfilePageProps {
 }
 
 export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
+  mode,
   onOpenNewOrderForCustomer,
   focusCustomerId,
   onFocusConsumed,
@@ -93,8 +96,14 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     setSelectedBranchFilter,
   } = useApp();
 
+  const canViewReps = ['admin', 'developer', 'branch_manager', 'supervisor', 'technical_support'].includes(
+    currentUser?.role || ''
+  );
+
   /* ---------- حالة الصفحة ---------- */
-  const [activeTab, setActiveTab] = useState<'customers' | 'reps'>('customers');
+  const [activeTab, setActiveTab] = useState<'customers' | 'reps'>(() =>
+    mode === 'reps' && canViewReps ? 'reps' : 'customers'
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSector, setSelectedSector] = useState<'all' | 'home' | 'electrical'>('all');
   const [selectedBranch, setSelectedBranch] = useState('الكل');
@@ -106,6 +115,14 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
   const [openRepId, setOpenRepId] = useState<string | null>(null);
   const [repAnalysisTab, setRepAnalysisTab] = useState<'overview' | 'monthly' | 'customers' | 'visits'>('overview');
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (mode === 'reps' && canViewReps) {
+      setActiveTab('reps');
+    } else if (mode === 'customers' || !canViewReps) {
+      setActiveTab('customers');
+    }
+  }, [mode, canViewReps]);
 
   useEffect(() => {
     setVisibleCustomersCount(12);
@@ -130,6 +147,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
         normalizeArabicText(c.name || '') === normalizeArabicText(ref)
     );
     const targetId = found ? found.id : ref;
+    setActiveTab('customers');
     setOpenCustomerId((prev) => (prev === targetId ? prev : targetId));
     if (onFocusConsumed) onFocusConsumed();
   }, [focusCustomerId, allCustomers]);
@@ -277,6 +295,12 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     address?: string;
     branchName: string;
     storePhotos: string[];
+    avatarUrl: string;
+    lastCollectionAmount: number;
+    lastCollectionDate?: string;
+    returnsCount: number;
+    returnsValue: number;
+    pendingReturnsCount: number;
     dealEligibility?: string;
     isEligible?: boolean;
     latitude?: number;
@@ -289,23 +313,89 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     monthlyCollections2026?: Record<string | number, number>;
   };
 
+  const allVisitsList = useMemo(
+    () => (getVisibleVisits ? getVisibleVisits() : ctxVisits || []),
+    [getVisibleVisits, ctxVisits]
+  );
+
   const customersMap = useMemo(() => {
     const map = new Map<string, CustomerProfile>();
     const invoiceByCustomer = new Map<string, { sales: number; collection: number }>();
 
     for (const inv of allInvoices) {
       const key = inv.customerId || inv.customerName || 'غير محدد';
-      let cur = invoiceByCustomer.get(key) || { sales: 0, collection: 0 };
+      const cur = invoiceByCustomer.get(key) || { sales: 0, collection: 0 };
       cur.sales += Number(inv.estimatedGrandTotal || 0);
       if (inv.paymentMethod === 'نقدي (كاش)') cur.collection += Number(inv.estimatedGrandTotal || 0);
       invoiceByCustomer.set(key, cur);
+    }
+
+    const visitsStatsByCustomer = new Map<
+      string,
+      { collected: number; returnsCount: number; returnsValue: number; pendingReturnsCount: number }
+    >();
+    const addVisitStat = (key: string | undefined, v: any) => {
+      if (!key) return;
+      const cur = visitsStatsByCustomer.get(key) || {
+        collected: 0,
+        returnsCount: 0,
+        returnsValue: 0,
+        pendingReturnsCount: 0,
+      };
+      const col = Number(v.collectedAmount || 0);
+      if (col > 0) cur.collected += col;
+      if (v.isReturn) {
+        cur.returnsCount += 1;
+        cur.returnsValue += Number(v.returnValue || 0);
+        if (v.returnStatus !== 'مغلق' && v.returnStatus !== 'مرفوض') {
+          cur.pendingReturnsCount += 1;
+        }
+      }
+      visitsStatsByCustomer.set(key, cur);
+    };
+
+    for (const v of allVisitsList) {
+      addVisitStat(v.customerId, v);
+      if (v.customerCode && v.customerCode !== v.customerId) {
+        addVisitStat(v.customerCode, v);
+      }
     }
 
     for (const c of allCustomers) {
       const balance = Number(c.currentBalance ?? c.balance ?? 0);
       const overdue = Number(c.overdueBalance ?? c.totalOverdueAndDue ?? 0);
       const creditLimit = Number(c.creditLimit ?? 0);
-      const inv = invoiceByCustomer.get(c.id) || invoiceByCustomer.get(c.code) || invoiceByCustomer.get(c.name) || { sales: 0, collection: 0 };
+      const inv =
+        invoiceByCustomer.get(c.id) ||
+        invoiceByCustomer.get(c.code) ||
+        invoiceByCustomer.get(c.name) ||
+        { sales: 0, collection: 0 };
+      const vStats =
+        visitsStatsByCustomer.get(c.id) ||
+        (c.code ? visitsStatsByCustomer.get(c.code) : undefined) ||
+        { collected: 0, returnsCount: 0, returnsValue: 0, pendingReturnsCount: 0 };
+
+      const monthlySalesSum = c.monthlySales2026
+        ? Object.values(c.monthlySales2026).reduce((s, val) => s + (Number(val) || 0), 0)
+        : 0;
+      const monthlyCollSum = c.monthlyCollections2026
+        ? Object.values(c.monthlyCollections2026).reduce((s, val) => s + Math.abs(Number(val) || 0), 0)
+        : 0;
+
+      const totalSales = Math.max(
+        Number(c.sales2026 || 0),
+        Number(c.totalMonthlySales || 0),
+        Number(c.totalOverallSales || 0),
+        monthlySalesSum,
+        inv.sales
+      );
+      const totalCollections = Math.max(
+        Number(c.collections2026 || 0),
+        Number(c.totalMonthlyCollections || 0),
+        Number(c.totalOverallCollections || 0),
+        monthlyCollSum,
+        inv.collection + vStats.collected
+      );
 
       let supervisor = 'بدون مشرف';
       const repName = normalizeRepName(c.salesRepName || c.repName);
@@ -323,6 +413,14 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
       const isEligible = eligibilityInfo ? eligibilityInfo.eligible : true;
       const eligibilityLabel = eligibilityInfo?.raw || (isEligible ? 'قابل للتعامل' : 'غير قابل للتعامل');
 
+      const rawPhoto =
+        c.locationPhotoUrl ||
+        (Array.isArray(c.storePhotos) ? c.storePhotos[0] : '') ||
+        c.profileImageUrl ||
+        c.avatarUrl ||
+        '';
+      const avatarUrl = rawPhoto ? optimizeImageUrl(rawPhoto, 200, true) : customerMerchantAvatar;
+
       map.set(c.id, {
         id: c.id,
         name: c.name || 'غير محدد',
@@ -336,8 +434,8 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
         balance,
         overdue,
         creditLimit,
-        totalSales: inv.sales,
-        totalCollections: inv.collection,
+        totalSales,
+        totalCollections,
         tier: c.tier || 'عادي',
         lastOrderDate: c.lastOrderDate || undefined,
         dealEligibility: eligibilityLabel,
@@ -351,13 +449,19 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
         monthlySales2026: c.monthlySales2026,
         monthlyCollections2026: c.monthlyCollections2026,
         lastVisit: c.lastCollectionDate || undefined,
+        lastCollectionAmount: Number(c.lastCollectionAmount || 0),
+        lastCollectionDate: c.lastCollectionDate || undefined,
+        returnsCount: vStats.returnsCount,
+        returnsValue: vStats.returnsValue,
+        pendingReturnsCount: vStats.pendingReturnsCount,
         address: c.address || c.region || '',
         storePhotos: Array.isArray(c.storePhotos) ? c.storePhotos : [],
+        avatarUrl,
       });
     }
 
     return Array.from(map.values()).sort((a, b) => b.balance - a.balance);
-  }, [allCustomers, allInvoices, users]);
+  }, [allCustomers, allInvoices, allVisitsList, users]);
 
   const filteredCustomers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -410,6 +514,10 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
   }, [allCustomers, customersMap, openCustomerId]);
 
   const selectedRep = useMemo(() => repsMap.find((r) => r.repKey === openRepId), [repsMap, openRepId]);
+  const selectedRepUser = useMemo(
+    () => (selectedRep ? findRepUser(users, selectedRep.repName) : undefined),
+    [users, selectedRep]
+  );
 
   const repCustomers = useMemo(() => {
     if (!selectedRep) return [];
@@ -502,56 +610,58 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
       <section className="ds-pagehead">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
           <div>
-            <div className="text-[11px] font-bold text-[#a9c8e4] mb-1 tracking-wider uppercase">
-              رئيسية <span className="mx-1 text-[#7fc0ff]">›</span> بروفايلات العملاء والمندوب
+            <div className="text-xs font-extrabold text-[#dbeafe] mb-1">
+              رئيسية <span className="mx-1 text-[#7fc0ff]">›</span> {activeTab === 'reps' ? 'المناديب' : 'العملاء'}
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 shadow-xs border border-white/20">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-white/15 text-white flex items-center justify-center shrink-0 shadow-xs border border-white/25">
                 {activeTab === 'customers' ? <Users className="w-5 h-5" /> : <UserCheck className="w-5 h-5" />}
               </div>
               <div>
                 <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2">
-                  {activeTab === 'customers' ? 'بروفايلات العملاء' : 'بروفايل المندوب'}
+                  {activeTab === 'reps' ? 'بروفايل المناديب' : 'قاعدة العملاء والبروفايلات'}
                 </h1>
-                <p className="text-xs text-[#c3d9ec] mt-0.5">
+                <p className="text-xs sm:text-sm font-semibold text-[#dbeafe] mt-0.5">
                   {activeTab === 'customers'
-                    ? 'عرض كل العملاء مع تفاصيل المديونية والتحصيل والمبيعات لكل عميل.'
-                    : 'عرض بيانات المندوب وأهدافه وتحقيقه وتفاصيل عملائه.'}
+                    ? 'عرض كل العملاء مع تفاصيل المديونية والتحصيل والزيارات وتثبيت الموقع الجغرافي.'
+                    : 'متابعة ملف كل مندوب وأهدافه الشهرية والتحصيل والمديونيات وزياراته.'}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {canViewReps && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('reps')}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
+                  activeTab === 'reps'
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
+                    : 'bg-white/15 border border-white/25 text-white hover:bg-white/25'
+                }`}
+              >
+                <UserCheck size={16} />
+                <span>المناديب</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setActiveTab('customers')}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
                 activeTab === 'customers'
                   ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
-                  : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
+                  : 'bg-white/15 border border-white/25 text-white hover:bg-white/25'
               }`}
             >
               <Users size={16} />
-              العملاء
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('reps')}
-              className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
-                activeTab === 'reps'
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
-                  : 'bg-white/10 border border-white/20 text-white hover:bg-white/20'
-              }`}
-            >
-              <UserCheck size={16} />
-              المندوب
+              <span>العملاء</span>
             </button>
             <button
               type="button"
               disabled={isRefreshing}
               onClick={handleRefresh}
-              className="flex items-center gap-1.5 px-3 h-10 rounded-xl text-xs font-black border border-white/20 bg-white/10 text-white hover:bg-white/20 transition shadow-xs cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 h-10 rounded-xl text-xs font-black border border-white/25 bg-white/15 text-white hover:bg-white/25 transition shadow-xs cursor-pointer disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
               <span>تحديث</span>
@@ -603,18 +713,18 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
           <section className="tg-card p-5 sm:p-6 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="relative flex-1 min-w-[240px]">
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="ابحث باسم العميل أو الكود أو الهاتف..."
-                  className="w-full pl-9 pr-4 py-2.5 bg-white border border-[var(--tg-line)] rounded-xl text-sm font-bold text-[#0b2337] placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition"
+                  className="w-full pl-9 pr-4 py-2.5 bg-white border border-[var(--tg-line)] rounded-xl text-sm font-bold text-[#0f172a] placeholder:text-slate-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition"
                 />
               </div>
 
               <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
-                <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">القطاع</span>
+                <span className="text-[11px] font-extrabold text-slate-700 leading-none mb-1">القطاع</span>
                 <select
                   value={selectedSector}
                   onChange={(e) => setSelectedSector(e.target.value as 'all' | 'home' | 'electrical')}
@@ -627,7 +737,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               </div>
 
               <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
-                <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">الفرع</span>
+                <span className="text-[11px] font-extrabold text-slate-700 leading-none mb-1">الفرع</span>
                 <select
                   value={selectedBranch}
                   onChange={(e) => setSelectedBranch(e.target.value)}
@@ -639,12 +749,12 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                 </select>
               </div>
 
-              <div className="flex flex-col justify-center bg-[#eef5fd] dark:bg-slate-800 border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
-                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 leading-none mb-1">المشرف / المندوب</span>
+              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
+                <span className="text-[11px] font-extrabold text-slate-700 leading-none mb-1">المشرف / المندوب</span>
                 <select
                   value={selectedSupervisor}
                   onChange={(e) => setSelectedSupervisor(e.target.value)}
-                  className="bg-transparent font-black text-[#0b2337] dark:text-white text-sm focus:outline-none cursor-pointer w-full"
+                  className="bg-transparent font-black text-[#0b2337] text-sm focus:outline-none cursor-pointer w-full"
                 >
                   {supervisorOptions.map((s) => (
                     <option key={s} value={s}>{s}</option>
@@ -652,12 +762,12 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                 </select>
               </div>
 
-              <div className="flex flex-col justify-center bg-[#eef5fd] dark:bg-slate-800 border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
-                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 leading-none mb-1">تصنيف الشيت (قابل / غير)</span>
+              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
+                <span className="text-[11px] font-extrabold text-slate-700 leading-none mb-1">تصنيف الشيت (قابل / غير)</span>
                 <select
                   value={selectedEligibility}
                   onChange={(e) => setSelectedEligibility(e.target.value as any)}
-                  className="bg-transparent font-black text-[#0b2337] dark:text-white text-sm focus:outline-none cursor-pointer w-full"
+                  className="bg-transparent font-black text-[#0b2337] text-sm focus:outline-none cursor-pointer w-full"
                 >
                   <option value="all">كل التصنيفات</option>
                   <option value="eligible">قابل للتعامل</option>
@@ -667,101 +777,212 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
             </div>
           </section>
 
-          {/* كروت العملاء (بروفايل) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {/* كروت العملاء (بروفايل احترافي عالي التباين) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {displayedCustomers.length === 0 ? (
               <div className="col-span-full tg-card p-12 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[28px] bg-slate-100 text-slate-400 shadow-inner">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
                   <Users className="w-8 h-8" />
                 </div>
-                <h3 className="text-base font-black text-[#0b2337]">لا يوجد عملاء مطابقة للبحث</h3>
-                <p className="mt-1 text-sm font-bold text-slate-500">جرّب تعديل البحث أو الفلاتر.</p>
+                <h3 className="text-base font-black text-slate-950">لا يوجد عملاء مطابقة للبحث</h3>
+                <p className="mt-1 text-sm font-bold text-slate-700">جرّب تعديل البحث أو الفلاتر.</p>
               </div>
             ) : (
-              displayedCustomers.map((cust, idx) => {
+              displayedCustomers.map((cust) => {
                 const exceeded = cust.creditLimit > 0 && (cust.balance + cust.overdue) > cust.creditLimit;
-                const sector = ((cust.sector || 'all') as 'home' | 'electrical' | 'both' | 'all');
-                const sectorChip =
-                  sector === 'home'
-                    ? 'bg-[#F0FDFA] text-[#0F766E] border-[#99F6E4]'
-                    : sector === 'electrical'
-                      ? 'bg-[#EFF6FF] text-[#1E3A8A] border-[#BFDBFE]'
-                      : 'bg-slate-100 text-slate-600 border-slate-200';
-                const sectorLabel = sector === 'home' ? '🏠 منزلي' : sector === 'electrical' ? '⚡ كهرباء' : 'كلاهما';
-                const photoSrc = cust.storePhotos && cust.storePhotos.length > 0
-                  ? cust.storePhotos[0]
-                  : generateStorePlaceholderSvg(cust.name, idx);
-                const lastBuyDays = (() => {
-                  if (!cust.lastOrderDate) return null;
-                  const d = new Date(cust.lastOrderDate);
-                  return Number.isNaN(d.getTime()) ? null : Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
-                })();
-                const lastBuyLabel = lastBuyDays === null ? '—' : lastBuyDays === 0 ? 'اليوم' : `منذ ${lastBuyDays} يوم`;
+                const totalDebtDue = Math.max(cust.balance, cust.overdue);
+                const sector = (cust.sector || 'all') as 'home' | 'electrical' | 'both' | 'all';
+                const sectorLabel = sector === 'home' ? 'منزلي' : sector === 'electrical' ? 'كهرباء' : 'عام';
+                const collRate =
+                  cust.totalSales > 0 ? Math.min(100, Math.round((cust.totalCollections / cust.totalSales) * 100)) : 0;
+                const hasPhone = Boolean(cust.phone && cust.phone !== '—');
+                const debtTone = exceeded || cust.overdue > 0 ? 'risk' : cust.balance > 0 ? 'warn' : 'ok';
+
                 return (
-                  <div
+                  <article
                     key={cust.id}
                     onClick={() => handleOpenCustomer(cust.id)}
-                    className="relative overflow-hidden rounded-[26px] border border-slate-200 bg-white p-4 shadow-sm cursor-pointer transition-all hover:shadow-xl hover:-translate-y-0.5"
+                    className="group relative flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 shadow-xs transition-all duration-150 hover:border-slate-300 hover:shadow-md cursor-pointer"
                   >
-                    {/* شريحة القطاع */}
-                    <span className={`absolute left-3 top-3 z-10 rounded-full border px-2.5 py-0.5 text-[10px] font-black shadow-xs ${sectorChip}`}>
-                      {sectorLabel}
-                    </span>
-                    {/* نجمة */}
-                    <Star className="absolute right-3 top-3 z-10 h-5 w-5 fill-amber-400 text-amber-400" />
-                    {/* الصورة والاسم */}
-                    <div className="flex flex-col items-center pt-2 text-center">
-                      <img
-                        src={photoSrc}
-                        alt={cust.name}
-                        loading="lazy"
-                        className="h-24 w-24 rounded-full border-4 border-slate-100 bg-slate-100 object-cover shadow-md"
-                      />
-                      <h3 className="mt-2 max-w-full truncate text-base font-black text-[#0b2337] sm:text-lg">{cust.name}</h3>
-                      <p className="mt-0.5 flex max-w-full items-center justify-center gap-1 truncate text-[10px] font-medium text-slate-500">
-                        <MapPin className="h-3 w-3 shrink-0 text-slate-400" />
-                        {cust.branch && cust.branch !== '—' ? cust.branch : 'فرع غير محدد'}
-                      </p>
-                      {(cust as any).dealEligibility && (
-                        <span className="mt-1.5 rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-bold text-slate-600">
-                          {(cust as any).dealEligibility}
-                        </span>
-                      )}
-                      {/* مؤشرات مالية */}
-                      <div className="mt-3 grid w-full grid-cols-2 gap-2">
-                        <div className={`rounded-xl border p-2 ${exceeded ? 'border-rose-300 bg-rose-100' : 'border-rose-100 bg-rose-50/70'}`}>
-                          <div className="mb-0.5 flex items-center justify-center gap-1 text-[9px] font-bold text-slate-500">
-                            <span className="h-1.5 w-1.5 rounded-full bg-rose-400" /> مديونية
-                          </div>
-                          <div className="text-[11px] font-black tabular-nums text-rose-600 sm:text-xs">{fmt(cust.balance)} ج.م</div>
+                    {/* رأس الكارت: الأفاتار التعبيري + الاسم + الميتاداتا النظيفة بدون كبسولات */}
+                    <div>
+                      <div className="flex items-start gap-3.5">
+                        <div className="relative shrink-0">
+                          <img
+                            src={cust.avatarUrl}
+                            alt={cust.name}
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              const img = e.currentTarget;
+                              if (!img.dataset.fallback) {
+                                img.dataset.fallback = '1';
+                                img.src = customerMerchantAvatar;
+                              }
+                            }}
+                            className={`h-16 w-16 rounded-2xl object-cover object-top bg-slate-100 border-2 ${
+                              debtTone === 'risk'
+                                ? 'border-rose-400'
+                                : debtTone === 'warn'
+                                  ? 'border-amber-400'
+                                  : 'border-emerald-400'
+                            }`}
+                          />
+                          {cust.latitude && cust.longitude && (
+                            <span
+                              title="موقع GPS مثبت"
+                              className="absolute -bottom-1 -left-1 flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-600 text-white border-2 border-white shadow-xs"
+                            >
+                              <MapPin className="h-3.5 w-3.5" />
+                            </span>
+                          )}
                         </div>
-                        <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-2">
-                          <div className="mb-0.5 flex items-center justify-center gap-1 text-[9px] font-bold text-slate-500">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> آخر شراء
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="text-base sm:text-[17px] font-black text-slate-950 leading-snug line-clamp-1 group-hover:text-blue-900 transition-colors">
+                              {cust.name}
+                            </h3>
+                            <span
+                              className={`shrink-0 text-xs font-black ${
+                                cust.isEligible ? 'text-emerald-700' : 'text-rose-700'
+                              }`}
+                            >
+                              {cust.isEligible ? 'قابل' : 'غير قابل'}
+                            </span>
                           </div>
-                          <div className="text-[11px] font-black tabular-nums text-emerald-700">{lastBuyLabel}</div>
+
+                          {/* سطر بيانات وصفية نظيف بفواصل نقطية (Zero-Pill) وتباين عالٍ */}
+                          <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-bold text-slate-700">
+                            <span className="font-mono font-black text-slate-900">{cust.code}</span>
+                            <span aria-hidden="true" className="text-slate-400">·</span>
+                            <span>{sectorLabel}</span>
+                            <span aria-hidden="true" className="text-slate-400">·</span>
+                            <span className="truncate max-w-[140px]">
+                              {cust.branch && cust.branch !== '—' ? cust.branch : 'فرع غير محدد'}
+                            </span>
+                          </div>
+
+                          {/* اسم المندوب والمسؤولية */}
+                          <div className="mt-1 text-xs font-semibold text-slate-700 truncate">
+                            المندوب: <span className="font-black text-slate-900">{cust.repName}</span>
+                          </div>
                         </div>
                       </div>
-                      {cust.balance > 0 && (
-                        <div className="mt-1 text-[10px] font-black text-amber-700">⚠️ مديونية مسجلة — راجع التحصيل</div>
-                      )}
-                      {cust.phone && cust.phone !== '—' && (
+
+                      {/* قسم التحصيل والمديونيات والمرتجعات — جدول منسق عالي التباين سهل القراءة أثناء الحركة */}
+                      <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/90 divide-y divide-slate-200">
+                        {/* 1) المديونيات والمتأخرات */}
+                        <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                          <div className="min-w-0">
+                            <div className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                              <CreditCard className="h-3.5 w-3.5 text-slate-700 shrink-0" />
+                              <span>المديونية والمتأخرات</span>
+                            </div>
+                            <div className="mt-0.5 text-[11px] font-bold text-slate-700">
+                              {exceeded
+                                ? 'تجاوز الحد الائتماني'
+                                : cust.overdue > 0
+                                  ? `متأخرات مستحقة: ${fmt(cust.overdue)} ج.م`
+                                  : cust.balance > 0
+                                    ? 'مديونية جارية منتظمة'
+                                    : 'حساب منتظم بدون مديونية'}
+                            </div>
+                          </div>
+                          <div className="text-left shrink-0">
+                            <div
+                              className={`text-base sm:text-lg font-black tabular-nums leading-tight ${
+                                debtTone === 'risk'
+                                  ? 'text-rose-700'
+                                  : debtTone === 'warn'
+                                    ? 'text-slate-950'
+                                    : 'text-emerald-700'
+                              }`}
+                            >
+                              {fmt(totalDebtDue)} <span className="text-xs font-extrabold">ج.م</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 2) التحصيل */}
+                        <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                          <div className="min-w-0">
+                            <div className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                              <Wallet className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
+                              <span>التحصيل</span>
+                            </div>
+                            <div className="mt-0.5 text-[11px] font-bold text-slate-700 tabular-nums">
+                              {cust.lastCollectionDate
+                                ? `آخر تحصيل ${cust.lastCollectionDate}${cust.lastCollectionAmount > 0 ? ` (${fmt(cust.lastCollectionAmount)})` : ''}`
+                                : cust.totalSales > 0
+                                  ? `نسبة السداد ${collRate}% من المبيعات`
+                                  : 'لا توجد تحصيلات مسجلة'}
+                            </div>
+                          </div>
+                          <div className="text-left shrink-0">
+                            <div className="text-base sm:text-lg font-black tabular-nums text-emerald-800 leading-tight">
+                              {fmt(cust.totalCollections)} <span className="text-xs font-extrabold">ج.م</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 3) المرتجعات */}
+                        <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                          <div className="min-w-0">
+                            <div className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
+                              <RotateCcw className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+                              <span>المرتجعات</span>
+                            </div>
+                            <div className="mt-0.5 text-[11px] font-bold text-slate-700">
+                              {cust.returnsCount > 0
+                                ? cust.pendingReturnsCount > 0
+                                  ? `${cust.returnsCount} إذن (${cust.pendingReturnsCount} قيد المتابعة)`
+                                  : `${cust.returnsCount} إذن مرتجع مسجل`
+                                : 'لا توجد مرتجعات مسجلة'}
+                            </div>
+                          </div>
+                          <div className="text-left shrink-0">
+                            <div
+                              className={`text-sm sm:text-base font-black tabular-nums leading-tight ${
+                                cust.pendingReturnsCount > 0
+                                  ? 'text-amber-800'
+                                  : cust.returnsValue > 0
+                                    ? 'text-slate-900'
+                                    : 'text-slate-700'
+                              }`}
+                            >
+                              {cust.returnsValue > 0 ? (
+                                <>
+                                  {fmt(cust.returnsValue)} <span className="text-xs font-extrabold">ج.م</span>
+                                </>
+                              ) : (
+                                `${cust.returnsCount} إذن`
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* شريط الإجراءات السريع — أهداف لمس كبيرة مريحة أثناء الحركة */}
+                    <div className="mt-3.5 flex items-center gap-2">
+                      {hasPhone && (
                         <a
                           href={`tel:${cust.phone}`}
                           onClick={(e) => e.stopPropagation()}
-                          className="mt-1.5 flex items-center gap-1.5 text-[10px] font-medium text-slate-500 transition hover:text-blue-600"
+                          className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-slate-300 bg-white px-3.5 text-xs font-black text-slate-900 hover:bg-slate-100 transition shrink-0"
+                          title={`اتصال بالعميل: ${cust.phone}`}
                         >
-                          <Phone className="h-3 w-3" />
-                          <span className="font-mono tabular-nums">{cust.phone}</span>
+                          <Phone className="h-4 w-4 text-slate-800 shrink-0" />
+                          <span className="font-mono tabular-nums" dir="ltr">{cust.phone}</span>
                         </a>
                       )}
-                      {/* CTA */}
-                      <div className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#0F2B38] py-2.5 text-[11px] font-black text-white transition hover:brightness-125">
-                        عرض التفاصيل
-                        <ChevronLeft className="h-3.5 w-3.5" />
+                      <div className="flex-1 min-h-[44px] flex items-center justify-center gap-1.5 rounded-xl bg-[#0b2337] px-4 text-xs sm:text-sm font-black text-white transition group-hover:bg-[#123554]">
+                        <span>ملف العميل</span>
+                        <ChevronLeft className="h-4 w-4 shrink-0" />
                       </div>
                     </div>
-                  </div>
+                  </article>
                 );
               })
             )}
@@ -824,18 +1045,18 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
           <section className="tg-card p-5 sm:p-6 space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="relative flex-1 min-w-[240px]">
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="ابحث باسم المندوب أو الكود أو الفرع..."
-                  className="w-full pl-9 pr-4 py-2.5 bg-white border border-[var(--tg-line)] rounded-xl text-sm font-bold text-[#0b2337] placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition"
+                  className="w-full pl-9 pr-4 py-2.5 bg-white border border-[var(--tg-line)] rounded-xl text-sm font-bold text-[#0f172a] placeholder:text-slate-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition"
                 />
               </div>
 
               <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
-                <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">القطاع</span>
+                <span className="text-[11px] font-extrabold text-slate-700 leading-none mb-1">القطاع</span>
                 <select
                   value={selectedSector}
                   onChange={(e) => setSelectedSector(e.target.value as 'all' | 'home' | 'electrical')}
@@ -848,7 +1069,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               </div>
 
               <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
-                <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">الفرع</span>
+                <span className="text-[11px] font-extrabold text-slate-700 leading-none mb-1">الفرع</span>
                 <select
                   value={selectedBranch}
                   onChange={(e) => setSelectedBranch(e.target.value)}
@@ -861,7 +1082,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               </div>
 
               <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
-                <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">المشرف</span>
+                <span className="text-[11px] font-extrabold text-slate-700 leading-none mb-1">المشرف</span>
                 <select
                   value={selectedSupervisor}
                   onChange={(e) => setSelectedSupervisor(e.target.value)}
@@ -879,87 +1100,101 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {repsMap.length === 0 ? (
               <div className="col-span-full tg-card p-12 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[28px] bg-slate-100 text-slate-400 shadow-inner">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[28px] bg-slate-100 text-slate-600 shadow-inner">
                   <UserCheck className="w-8 h-8" />
                 </div>
                 <h3 className="text-base font-black text-[#0b2337]">لا يوجد مندوب مسجّل</h3>
-                <p className="mt-1 text-sm font-bold text-slate-500">لا توجد بيانات أهداف لتجميع المندوبين منها. يرجى تحميل بيانات المندوبين أولاً.</p>
+                <p className="mt-1 text-sm font-bold text-slate-700">لا توجد بيانات أهداف لتجميع المندوبين منها. يرجى تحميل بيانات المندوبين أولاً.</p>
               </div>
             ) : displayedReps.length === 0 ? (
               <div className="col-span-full tg-card p-12 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[28px] bg-slate-100 text-slate-400 shadow-inner">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[28px] bg-slate-100 text-slate-600 shadow-inner">
                   <UserCheck className="w-8 h-8" />
                 </div>
                 <h3 className="text-base font-black text-[#0b2337]">لا يوجد مندوبون مطابقة للبحث</h3>
-                <p className="mt-1 text-sm font-bold text-slate-500">جرّب تعديل البحث أو الفلاتر (الفرع، المشرف، القطاع).</p>
+                <p className="mt-1 text-sm font-bold text-slate-700">جرّب تعديل البحث أو الفلاتر (الفرع، المشرف، القطاع).</p>
               </div>
             ) : (
               displayedReps.map((rep) => {
                 const salesPct = pctOf(rep.salesAchieved, rep.salesTarget);
-                const collPct = pctOf(rep.collectionAchieved, rep.collectionTarget);
+                const repUser = findRepUser(users, rep.repName);
+                const repAvatar = repUser?.avatar || '/assets/rep-avatar.jpg';
                 return (
                   <div
                     key={rep.repKey}
                     onClick={() => handleOpenRep(rep.repKey)}
-                    className="tg-card p-4 sm:p-5 cursor-pointer group hover:border-blue-300/60 transition border-[var(--tg-line)]"
+                    className="tg-card p-4 sm:p-5 cursor-pointer group hover:border-blue-400 transition border-[var(--tg-line)]"
                   >
                     <div className="flex items-start justify-between gap-2 mb-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-black shadow-sm">
-                          {(rep.repName || '؟').charAt(0)}
-                        </div>
-                        <div>
-                          <div className="font-black text-sm text-[#0b2337] truncate">{rep.repName}</div>
-                          <div className="text-[10px] text-slate-600 font-bold flex items-center gap-1 flex-wrap">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={repAvatar}
+                          alt={rep.repName}
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            if (!img.dataset.fallback) {
+                              img.dataset.fallback = '1';
+                              img.src = '/assets/rep-avatar.jpg';
+                            }
+                          }}
+                          className="w-12 h-12 rounded-2xl object-cover object-top border-2 border-blue-200 bg-slate-100 shadow-sm shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="font-black text-base text-[#0f172a] truncate">{rep.repName}</div>
+                          <div className="text-xs text-slate-700 font-bold flex items-center gap-1.5 flex-wrap mt-0.5">
                             {rep.repUsername && (
-                              <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">{rep.repUsername}</span>
+                              <span className="font-mono bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded font-bold">{rep.repUsername}</span>
                             )}
-                            {rep.branch && rep.branch !== '—' && <span>• {rep.branch}</span>}
+                            {rep.branch && rep.branch !== '—' && <span>{rep.branch}</span>}
                           </div>
-                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black ${getSectorColor(rep.sector)}`}>
+                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-black ${getSectorColor(rep.sector)}`}>
                               {getSectorLabel(rep.sector)}
                             </span>
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-extrabold bg-indigo-50 text-indigo-900 border border-indigo-200">
                               مشرف: {rep.supervisor}
                             </span>
                           </div>
                         </div>
                       </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        salesPct >= 100 ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' :
-                        salesPct >= 70 ? 'bg-amber-50 text-amber-800 border border-amber-200' :
-                        'bg-rose-50 text-rose-800 border border-rose-200'
+                      <span className={`text-xs font-black px-2.5 py-0.5 rounded-lg shrink-0 tabular-nums ${
+                        salesPct >= 100 ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' :
+                        salesPct >= 70 ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                        'bg-rose-100 text-rose-900 border border-rose-300'
                       }`}>
                         {salesPct}%
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 mb-3">
-                      <div className="bg-slate-50 rounded-xl p-3 border border-[var(--tg-line)]">
-                        <div className="text-[10px] font-bold text-slate-500 mb-0.5">مديونية عملاءه</div>
-                        <div className="text-xs font-black text-[#0b2337] tabular-nums">{fmt(rep.debt)}</div>
+                    <div className="grid grid-cols-2 gap-2 mb-2.5">
+                      <div className="bg-slate-100/80 rounded-xl p-3 border border-slate-200">
+                        <div className="text-[11px] font-extrabold text-slate-700 mb-0.5">مديونية عملائه</div>
+                        <div className="text-sm font-black text-[#0f172a] tabular-nums">{fmt(rep.debt)}</div>
                       </div>
-                      <div className="bg-slate-50 rounded-xl p-3 border border-[var(--tg-line)]">
-                        <div className="text-[10px] font-bold text-slate-500 mb-0.5">متأخرات</div>
-                        <div className={`text-xs font-bold ${rep.overdue > 0 ? 'text-rose-700' : 'text-emerald-700'} tabular-nums`}>{fmt(rep.overdue)}</div>
+                      <div className="bg-slate-100/80 rounded-xl p-3 border border-slate-200">
+                        <div className="text-[11px] font-extrabold text-slate-700 mb-0.5">متأخرات</div>
+                        <div className={`text-sm font-black tabular-nums ${rep.overdue > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{fmt(rep.overdue)}</div>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 mb-3">
-                      <div className="bg-slate-50 rounded-xl p-3 border border-[var(--tg-line)]">
-                        <div className="text-[10px] font-bold text-slate-500 mb-0.5">مبيعات</div>
-                        <div className="text-xs font-black text-blue-700 tabular-nums">{fmt(rep.salesAchieved)}</div>
+                      <div className="bg-blue-50/70 rounded-xl p-3 border border-blue-200/70">
+                        <div className="text-[11px] font-extrabold text-blue-900 mb-0.5">مبيعات</div>
+                        <div className="text-sm font-black text-blue-800 tabular-nums">{fmt(rep.salesAchieved)}</div>
                       </div>
-                      <div className="bg-slate-50 rounded-xl p-3 border border-[var(--tg-line)]">
-                        <div className="text-[10px] font-bold text-slate-500 mb-0.5">تحصيل</div>
-                        <div className="text-xs font-black text-emerald-700 tabular-nums">{fmt(rep.collectionAchieved)}</div>
+                      <div className="bg-emerald-50/70 rounded-xl p-3 border border-emerald-200/70">
+                        <div className="text-[11px] font-extrabold text-emerald-900 mb-0.5">تحصيل</div>
+                        <div className="text-sm font-black text-emerald-800 tabular-nums">{fmt(rep.collectionAchieved)}</div>
                       </div>
                     </div>
 
                     <div className="flex items-center justify-between pt-3 border-t border-[var(--tg-line)] text-xs">
-                      <span className="font-bold text-slate-600">عملاءه:</span>
-                      <span className="font-black text-sm text-[#0b2337]">{rep.customerCount}</span>
+                      <span className="font-extrabold text-slate-700">عملاؤه: <strong className="text-[#0f172a] tabular-nums">{rep.customerCount}</strong></span>
+                      <span className="inline-flex items-center gap-1 font-black text-blue-700 group-hover:text-blue-800">
+                        فتح الملف
+                        <ChevronLeft className="w-3.5 h-3.5" />
+                      </span>
                     </div>
                   </div>
                 );
@@ -994,40 +1229,59 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
         />
       )}
 
-      {/* ================= درج تفاصيل المندوب (يمين الشاشة) ================= */}
+      {/* ================= نافذة تفاصيل المندوب ================= */}
       {selectedRep && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 md:p-6 font-arabic" dir="rtl" onClick={() => setOpenRepId(null)}>
-          <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" />
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden"
+          dir="rtl"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`ملف المندوب ${selectedRep.repName}`}
+        >
           <div
-            className="relative z-10 w-full sm:max-w-3xl h-[94vh] sm:h-auto sm:max-h-[92vh] bg-[#f4f7fb] rounded-t-[28px] sm:rounded-[28px] shadow-2xl border border-slate-200/70 flex flex-col overflow-hidden"
+            className="fixed inset-0 bg-[#071726]/80 backdrop-blur-sm transition-opacity cursor-pointer"
+            onClick={() => setOpenRepId(null)}
+            aria-label="إغلاق الخلفية"
+          />
+          <div
+            className="tg-cp relative z-10 w-full sm:max-w-3xl max-h-[92vh] bg-[#f4f7fb] rounded-[28px] shadow-[0_25px_70px_rgba(0,0,0,0.55)] border border-slate-200 flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="relative shrink-0 bg-gradient-to-l from-[#0b2540] via-[#12385d] to-[#1b4f7a] text-white px-4 sm:px-6 pt-4 pb-4 sm:pt-5 sm:pb-5">
-              <div className="absolute inset-0 opacity-20 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 20% 20%, #ffffff 0, transparent 35%), radial-gradient(circle at 80% 0%, #60a5fa 0, transparent 30%)' }} />
-              <div className="relative flex items-start justify-between gap-3">
+            <div className="relative z-10 shrink-0 bg-gradient-to-l from-[#0b2337] via-[#12385d] to-[#155a80] text-white px-4 sm:px-6 pt-4 pb-4 sm:pt-5 sm:pb-5">
+              <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/15 border border-white/25 backdrop-blur flex items-center justify-center text-2xl font-black shadow-inner shrink-0">
-                    {(selectedRep.repName || '؟').charAt(0)}
-                  </div>
+                  <img
+                    src={selectedRepUser?.avatar || '/assets/rep-avatar.jpg'}
+                    alt={selectedRep.repName}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (!img.dataset.fallback) {
+                        img.dataset.fallback = '1';
+                        img.src = '/assets/rep-avatar.jpg';
+                      }
+                    }}
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover object-top border-2 border-white/40 bg-slate-800 shadow-md shrink-0"
+                  />
                   <div className="min-w-0">
-                    <div className="font-black text-lg sm:text-xl leading-tight truncate">{selectedRep.repName}</div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] sm:text-xs">
-                      <span className="px-2 py-0.5 rounded-full bg-white/15 border border-white/20 font-bold">{selectedRep.branch || 'بدون فرع'}</span>
-                      <span className={`px-2 py-0.5 rounded-full border font-bold ${selectedRep.sector === 'home' ? 'bg-blue-400/20 border-blue-200/30 text-blue-50' : selectedRep.sector === 'electrical' ? 'bg-violet-400/20 border-violet-200/30 text-violet-50' : 'bg-white/10 border-white/20'}`}>
+                    <div className="font-black text-lg sm:text-xl text-white leading-tight truncate">{selectedRep.repName}</div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-extrabold">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-white/15 border border-white/25 text-white">{selectedRep.branch || 'بدون فرع'}</span>
+                      <span className={`px-2.5 py-0.5 rounded-lg border ${selectedRep.sector === 'home' ? 'bg-blue-500/30 border-blue-300/45 text-white' : selectedRep.sector === 'electrical' ? 'bg-violet-500/30 border-violet-300/45 text-white' : 'bg-white/15 border-white/25 text-white'}`}>
                         {getSectorLabel(selectedRep.sector)}
                       </span>
-                      <span className="px-2 py-0.5 rounded-full bg-amber-400/20 border border-amber-200/30 text-amber-50 font-bold">مشرف: {selectedRep.supervisor}</span>
+                      <span className="px-2.5 py-0.5 rounded-lg bg-amber-400/25 border border-amber-200/45 text-amber-100">مشرف: {selectedRep.supervisor}</span>
                     </div>
                     {selectedRep.repUsername && (
-                      <div className="mt-1 text-[10px] text-blue-100/80 font-mono truncate">{selectedRep.repUsername}</div>
+                      <div className="mt-1.5 text-xs font-bold text-[#dbeafe] font-mono truncate">{selectedRep.repUsername}</div>
                     )}
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setOpenRepId(null)}
-                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white flex items-center justify-center transition shrink-0"
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/15 hover:bg-white/25 border border-white/25 text-white flex items-center justify-center transition shrink-0 cursor-pointer"
                   aria-label="إغلاق"
                 >
                   <X className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -1035,34 +1289,34 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               </div>
 
               {/* Quick KPIs */}
-              <div className="relative mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <div className="rounded-xl bg-white/10 border border-white/15 px-3 py-2 backdrop-blur-sm">
-                  <div className="text-[10px] text-blue-100">المبيعات المحققة</div>
-                  <div className="font-black text-sm sm:text-base tabular-nums">{fmt(selectedRep.salesAchieved)}</div>
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="rounded-xl bg-[#0d2a44]/85 border border-white/20 px-3 py-2.5">
+                  <div className="text-xs font-extrabold text-[#dbeafe]">المبيعات المحققة</div>
+                  <div className="font-black text-base sm:text-lg text-white tabular-nums mt-0.5">{fmt(selectedRep.salesAchieved)}</div>
                 </div>
-                <div className="rounded-xl bg-white/10 border border-white/15 px-3 py-2 backdrop-blur-sm">
-                  <div className="text-[10px] text-blue-100">التحصيل المحقق</div>
-                  <div className="font-black text-sm sm:text-base tabular-nums">{fmt(selectedRep.collectionAchieved)}</div>
+                <div className="rounded-xl bg-[#0d2a44]/85 border border-white/20 px-3 py-2.5">
+                  <div className="text-xs font-extrabold text-[#dbeafe]">التحصيل المحقق</div>
+                  <div className="font-black text-base sm:text-lg text-white tabular-nums mt-0.5">{fmt(selectedRep.collectionAchieved)}</div>
                 </div>
-                <div className="rounded-xl bg-white/10 border border-white/15 px-3 py-2 backdrop-blur-sm">
-                  <div className="text-[10px] text-blue-100">نسبة البيع / التحصيل</div>
-                  <div className="font-black text-sm sm:text-base tabular-nums">{pctOf(selectedRep.salesAchieved, selectedRep.salesTarget)}% / {pctOf(selectedRep.collectionAchieved, selectedRep.collectionTarget)}%</div>
+                <div className="rounded-xl bg-[#0d2a44]/85 border border-white/20 px-3 py-2.5">
+                  <div className="text-xs font-extrabold text-[#dbeafe]">نسبة البيع / التحصيل</div>
+                  <div className="font-black text-base sm:text-lg text-white tabular-nums mt-0.5">{pctOf(selectedRep.salesAchieved, selectedRep.salesTarget)}% / {pctOf(selectedRep.collectionAchieved, selectedRep.collectionTarget)}%</div>
                 </div>
-                <div className="rounded-xl bg-white/10 border border-white/15 px-3 py-2 backdrop-blur-sm">
-                  <div className="text-[10px] text-blue-100">العملاء / زيارات الشهر</div>
-                  <div className="font-black text-sm sm:text-base tabular-nums">{selectedRep.customerCount} / {repMonthlyVisitsCount}</div>
+                <div className="rounded-xl bg-[#0d2a44]/85 border border-white/20 px-3 py-2.5">
+                  <div className="text-xs font-extrabold text-[#dbeafe]">العملاء / زيارات الشهر</div>
+                  <div className="font-black text-base sm:text-lg text-white tabular-nums mt-0.5">{selectedRep.customerCount} / {repMonthlyVisitsCount}</div>
                 </div>
               </div>
             </div>
 
             {/* Tabs */}
             <div className="shrink-0 bg-white border-b border-slate-200 px-3 sm:px-5 pt-3">
-              <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2.5 no-scrollbar">
                 {[
-                  { key: 'overview' as const, label: 'نظرة عامة', icon: <Activity className="w-3.5 h-3.5" /> },
-                  { key: 'monthly' as const, label: 'أداء الشهور', icon: <BarChart3 className="w-3.5 h-3.5" /> },
-                  { key: 'customers' as const, label: `العملاء (${repCustomers.length})`, icon: <Users className="w-3.5 h-3.5" /> },
-                  { key: 'visits' as const, label: `الزيارات (${repMonthlyVisitsCount})`, icon: <MapPin className="w-3.5 h-3.5" /> },
+                  { key: 'overview' as const, label: 'نظرة عامة', icon: <Activity className="w-4 h-4" /> },
+                  { key: 'monthly' as const, label: 'أداء الشهور', icon: <BarChart3 className="w-4 h-4" /> },
+                  { key: 'customers' as const, label: `العملاء (${repCustomers.length})`, icon: <Users className="w-4 h-4" /> },
+                  { key: 'visits' as const, label: `الزيارات (${repMonthlyVisitsCount})`, icon: <MapPin className="w-4 h-4" /> },
                 ].map((t) => {
                   const active = repAnalysisTab === t.key;
                   return (
@@ -1070,14 +1324,14 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                       key={t.key}
                       type="button"
                       onClick={() => setRepAnalysisTab(t.key)}
-                      className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black whitespace-nowrap transition border ${
+                      className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-black whitespace-nowrap shrink-0 transition border cursor-pointer ${
                         active
                           ? 'bg-[#12385d] text-white border-[#12385d] shadow-sm'
-                          : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-800'
+                          : 'bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200 hover:text-slate-950'
                       }`}
                     >
                       {t.icon}
-                      {t.label}
+                      <span>{t.label}</span>
                     </button>
                   );
                 })}
@@ -1085,81 +1339,81 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
             </div>
 
             {/* Body */}
-            <div className="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4">
+            <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 space-y-4">
               {/* تبويب 1: نظرة عامة */}
               {repAnalysisTab === 'overview' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                    <div className="rounded-2xl bg-white border border-amber-200 p-3.5 shadow-sm">
-                      <div className="flex items-center justify-between mb-1"><span className="text-[11px] font-bold text-amber-800">مديونية العملاء</span><CreditCard className="w-4 h-4 text-amber-600" /></div>
-                      <div className="font-black text-base text-amber-900 tabular-nums">{fmt(selectedRep.debt)} <span className="text-xs font-bold">ج.م</span></div>
+                    <div className="rounded-2xl bg-white border border-amber-300 p-3.5 shadow-sm">
+                      <div className="flex items-center justify-between mb-1"><span className="text-xs font-extrabold text-amber-900">مديونية العملاء</span><CreditCard className="w-4 h-4 text-amber-700" /></div>
+                      <div className="font-black text-lg text-amber-950 tabular-nums">{fmt(selectedRep.debt)} <span className="text-xs font-extrabold">ج.م</span></div>
                     </div>
-                    <div className="rounded-2xl bg-white border border-rose-200 p-3.5 shadow-sm">
-                      <div className="flex items-center justify-between mb-1"><span className="text-[11px] font-bold text-rose-800">المتأخرات</span><AlertTriangle className="w-4 h-4 text-rose-600" /></div>
-                      <div className={`font-black text-base tabular-nums ${selectedRep.overdue > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{fmt(selectedRep.overdue)} <span className="text-xs font-bold">ج.م</span></div>
+                    <div className="rounded-2xl bg-white border border-rose-300 p-3.5 shadow-sm">
+                      <div className="flex items-center justify-between mb-1"><span className="text-xs font-extrabold text-rose-900">المتأخرات</span><AlertTriangle className="w-4 h-4 text-rose-700" /></div>
+                      <div className={`font-black text-lg tabular-nums ${selectedRep.overdue > 0 ? 'text-rose-800' : 'text-emerald-800'}`}>{fmt(selectedRep.overdue)} <span className="text-xs font-extrabold">ج.م</span></div>
                     </div>
-                    <div className="rounded-2xl bg-white border border-blue-200 p-3.5 shadow-sm">
-                      <div className="flex items-center justify-between mb-1"><span className="text-[11px] font-bold text-blue-800">إجمالي المبيعات</span><ShoppingCart className="w-4 h-4 text-blue-600" /></div>
-                      <div className="font-black text-base text-blue-900 tabular-nums">{fmt(selectedRep.salesAchieved)} <span className="text-xs font-bold">ج.م</span></div>
+                    <div className="rounded-2xl bg-white border border-blue-300 p-3.5 shadow-sm">
+                      <div className="flex items-center justify-between mb-1"><span className="text-xs font-extrabold text-blue-900">إجمالي المبيعات</span><ShoppingCart className="w-4 h-4 text-blue-700" /></div>
+                      <div className="font-black text-lg text-blue-950 tabular-nums">{fmt(selectedRep.salesAchieved)} <span className="text-xs font-extrabold">ج.م</span></div>
                     </div>
-                    <div className="rounded-2xl bg-white border border-emerald-200 p-3.5 shadow-sm">
-                      <div className="flex items-center justify-between mb-1"><span className="text-[11px] font-bold text-emerald-800">إجمالي التحصيل</span><Wallet className="w-4 h-4 text-emerald-600" /></div>
-                      <div className="font-black text-base text-emerald-900 tabular-nums">{fmt(selectedRep.collectionAchieved)} <span className="text-xs font-bold">ج.م</span></div>
+                    <div className="rounded-2xl bg-white border border-emerald-300 p-3.5 shadow-sm">
+                      <div className="flex items-center justify-between mb-1"><span className="text-xs font-extrabold text-emerald-900">إجمالي التحصيل</span><Wallet className="w-4 h-4 text-emerald-700" /></div>
+                      <div className="font-black text-lg text-emerald-950 tabular-nums">{fmt(selectedRep.collectionAchieved)} <span className="text-xs font-extrabold">ج.م</span></div>
                     </div>
-                    <div className="rounded-2xl bg-white border border-teal-200 p-3.5 shadow-sm">
-                      <div className="flex items-center justify-between mb-1"><span className="text-[11px] font-bold text-teal-800">زيارات الشهر</span><MapPin className="w-4 h-4 text-teal-600" /></div>
-                      <div className="font-black text-base text-teal-900 tabular-nums">{repMonthlyVisitsCount} <span className="text-xs font-bold">زيارة</span></div>
+                    <div className="rounded-2xl bg-white border border-teal-300 p-3.5 shadow-sm">
+                      <div className="flex items-center justify-between mb-1"><span className="text-xs font-extrabold text-teal-900">زيارات الشهر</span><MapPin className="w-4 h-4 text-teal-700" /></div>
+                      <div className="font-black text-lg text-teal-950 tabular-nums">{repMonthlyVisitsCount} <span className="text-xs font-extrabold">زيارة</span></div>
                     </div>
-                    <div className="rounded-2xl bg-white border border-slate-200 p-3.5 shadow-sm">
-                      <div className="flex items-center justify-between mb-1"><span className="text-[11px] font-bold text-slate-700">عدد العملاء</span><Users className="w-4 h-4 text-slate-600" /></div>
-                      <div className="font-black text-base text-slate-900 tabular-nums">{selectedRep.customerCount} <span className="text-xs font-bold">عميل</span></div>
+                    <div className="rounded-2xl bg-white border border-slate-300 p-3.5 shadow-sm">
+                      <div className="flex items-center justify-between mb-1"><span className="text-xs font-extrabold text-slate-800">عدد العملاء</span><Users className="w-4 h-4 text-slate-700" /></div>
+                      <div className="font-black text-lg text-slate-950 tabular-nums">{selectedRep.customerCount} <span className="text-xs font-extrabold">عميل</span></div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                     <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm space-y-3">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2"><span className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center"><TrendingUp className="w-4 h-4" /></span><span className="font-black text-sm text-slate-800">أداء المبيعات</span></div>
-                        <span className={`text-xs font-black px-2 py-1 rounded-full ${pctOf(selectedRep.salesAchieved, selectedRep.salesTarget) >= 80 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{pctOf(selectedRep.salesAchieved, selectedRep.salesTarget)}%</span>
+                        <div className="flex items-center gap-2"><span className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center"><TrendingUp className="w-4 h-4" /></span><span className="font-black text-sm text-slate-900">أداء المبيعات</span></div>
+                        <span className={`text-xs font-black px-2.5 py-1 rounded-lg tabular-nums ${pctOf(selectedRep.salesAchieved, selectedRep.salesTarget) >= 80 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{pctOf(selectedRep.salesAchieved, selectedRep.salesTarget)}%</span>
                       </div>
-                      <div className="space-y-1.5 text-xs">
-                        <div className="flex justify-between"><span className="text-slate-500">المستهدف</span><span className="font-bold tabular-nums text-slate-800">{fmt(selectedRep.salesTarget)} ج.م</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">المحقق</span><span className="font-black tabular-nums text-blue-700">{fmt(selectedRep.salesAchieved)} ج.م</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">المتبقي</span><span className="font-black tabular-nums text-rose-600">{fmt(Math.max(0, selectedRep.salesTarget - selectedRep.salesAchieved))} ج.م</span></div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between"><span className="font-bold text-slate-700">المستهدف</span><span className="font-black tabular-nums text-slate-900">{fmt(selectedRep.salesTarget)} ج.م</span></div>
+                        <div className="flex justify-between"><span className="font-bold text-slate-700">المحقق</span><span className="font-black tabular-nums text-blue-800">{fmt(selectedRep.salesAchieved)} ج.م</span></div>
+                        <div className="flex justify-between"><span className="font-bold text-slate-700">المتبقي</span><span className="font-black tabular-nums text-rose-700">{fmt(Math.max(0, selectedRep.salesTarget - selectedRep.salesAchieved))} ج.م</span></div>
                       </div>
-                      <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden"><div className="h-full rounded-full bg-gradient-to-l from-blue-500 to-blue-700" style={{ width: `${Math.min(100, pctOf(selectedRep.salesAchieved, selectedRep.salesTarget))}%` }} /></div>
+                      <div className="h-2.5 w-full rounded-full bg-slate-200 overflow-hidden"><div className="h-full rounded-full bg-gradient-to-l from-blue-500 to-blue-700" style={{ width: `${Math.min(100, pctOf(selectedRep.salesAchieved, selectedRep.salesTarget))}%` }} /></div>
                     </div>
 
                     <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm space-y-3">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2"><span className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center"><Wallet className="w-4 h-4" /></span><span className="font-black text-sm text-slate-800">أداء التحصيل</span></div>
-                        <span className={`text-xs font-black px-2 py-1 rounded-full ${pctOf(selectedRep.collectionAchieved, selectedRep.collectionTarget) >= 80 ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{pctOf(selectedRep.collectionAchieved, selectedRep.collectionTarget)}%</span>
+                        <div className="flex items-center gap-2"><span className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center"><Wallet className="w-4 h-4" /></span><span className="font-black text-sm text-slate-900">أداء التحصيل</span></div>
+                        <span className={`text-xs font-black px-2.5 py-1 rounded-lg tabular-nums ${pctOf(selectedRep.collectionAchieved, selectedRep.collectionTarget) >= 80 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{pctOf(selectedRep.collectionAchieved, selectedRep.collectionTarget)}%</span>
                       </div>
-                      <div className="space-y-1.5 text-xs">
-                        <div className="flex justify-between"><span className="text-slate-500">المستهدف</span><span className="font-bold tabular-nums text-slate-800">{fmt(selectedRep.collectionTarget)} ج.م</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">المحقق</span><span className="font-black tabular-nums text-emerald-700">{fmt(selectedRep.collectionAchieved)} ج.م</span></div>
-                        <div className="flex justify-between"><span className="text-slate-500">المتبقي</span><span className="font-black tabular-nums text-rose-600">{fmt(Math.max(0, selectedRep.collectionTarget - selectedRep.collectionAchieved))} ج.م</span></div>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between"><span className="font-bold text-slate-700">المستهدف</span><span className="font-black tabular-nums text-slate-900">{fmt(selectedRep.collectionTarget)} ج.م</span></div>
+                        <div className="flex justify-between"><span className="font-bold text-slate-700">المحقق</span><span className="font-black tabular-nums text-emerald-800">{fmt(selectedRep.collectionAchieved)} ج.م</span></div>
+                        <div className="flex justify-between"><span className="font-bold text-slate-700">المتبقي</span><span className="font-black tabular-nums text-rose-700">{fmt(Math.max(0, selectedRep.collectionTarget - selectedRep.collectionAchieved))} ج.م</span></div>
                       </div>
-                      <div className="h-2.5 w-full rounded-full bg-slate-100 overflow-hidden"><div className="h-full rounded-full bg-gradient-to-l from-emerald-500 to-emerald-700" style={{ width: `${Math.min(100, pctOf(selectedRep.collectionAchieved, selectedRep.collectionTarget))}%` }} /></div>
+                      <div className="h-2.5 w-full rounded-full bg-slate-200 overflow-hidden"><div className="h-full rounded-full bg-gradient-to-l from-emerald-500 to-emerald-700" style={{ width: `${Math.min(100, pctOf(selectedRep.collectionAchieved, selectedRep.collectionTarget))}%` }} /></div>
                     </div>
                   </div>
 
                   <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm">
                     <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-rose-600" /><span className="font-black text-sm text-slate-800">عملاء عليهم مديونية</span><span className="text-xs font-bold text-slate-500">({repCustomersWithDebt.length})</span></div>
-                      <button type="button" onClick={() => setRepAnalysisTab('customers')} className="text-xs font-bold text-blue-700 hover:text-blue-800">عرض الكل</button>
+                      <div className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-rose-600" /><span className="font-black text-sm text-slate-900">عملاء عليهم مديونية</span><span className="text-xs font-extrabold text-slate-700">({repCustomersWithDebt.length})</span></div>
+                      <button type="button" onClick={() => setRepAnalysisTab('customers')} className="text-xs font-black text-blue-700 hover:text-blue-900 cursor-pointer">عرض الكل</button>
                     </div>
                     <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
                       {repCustomersWithDebt.length === 0 ? (
-                        <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center text-sm font-bold text-emerald-700">جميع عملاء المندوب خالصون حالياً</div>
+                        <div className="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-center text-sm font-extrabold text-emerald-800">جميع عملاء المندوب خالصون حالياً</div>
                       ) : (
                         repCustomersWithDebt.slice(0, 6).map((c) => (
                           <div key={c.id} onClick={() => { setOpenRepId(null); setOpenCustomerId(c.id); }} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 hover:border-blue-300 hover:bg-blue-50/40 cursor-pointer transition">
                             <div className="min-w-0 flex items-center gap-2.5">
-                              <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-700 font-black flex items-center justify-center shrink-0">{c.name.charAt(0)}</div>
-                              <div className="min-w-0"><div className="font-bold text-sm text-slate-800 truncate">{c.name}</div><div className="text-[10px] text-slate-500 font-mono">{c.code}</div></div>
+                              <div className="w-9 h-9 rounded-lg bg-slate-100 text-slate-800 font-black flex items-center justify-center shrink-0">{c.name.charAt(0)}</div>
+                              <div className="min-w-0"><div className="font-black text-sm text-slate-900 truncate">{c.name}</div><div className="text-xs font-bold text-slate-700 font-mono">{c.code}</div></div>
                             </div>
-                            <div className="text-left shrink-0"><div className="font-black text-sm text-rose-700 tabular-nums">{fmt(c.balance)} ج.م</div><div className="text-[10px] text-slate-400">مديونية</div></div>
+                            <div className="text-left shrink-0"><div className="font-black text-sm text-rose-700 tabular-nums">{fmt(c.balance)} ج.م</div><div className="text-xs font-bold text-slate-700">مديونية</div></div>
                           </div>
                         ))
                       )}
@@ -1173,14 +1427,14 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                 <div className="space-y-3">
                   <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm flex items-center justify-between gap-2">
                     <div>
-                      <div className="font-black text-slate-800">تحليل الأداء الشهري</div>
-                      <div className="text-xs text-slate-500 mt-0.5">مقارنة التارجت والمحقق للمبيعات والتحصيل</div>
+                      <div className="font-black text-base text-slate-900">تحليل الأداء الشهري</div>
+                      <div className="text-xs font-bold text-slate-700 mt-0.5">مقارنة التارجت والمحقق للمبيعات والتحصيل</div>
                     </div>
-                    <span className="text-xs font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full">{selectedRep.repName}</span>
+                    <span className="text-xs font-black text-slate-800 bg-slate-100 border border-slate-200 px-3 py-1 rounded-lg">{selectedRep.repName}</span>
                   </div>
 
                   {monthlyAnalysis.length === 0 ? (
-                    <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-sm font-bold text-slate-500">لا توجد بيانات شهرية مسجلة لهذا المندوب</div>
+                    <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-sm font-extrabold text-slate-700">لا توجد بيانات شهرية مسجلة لهذا المندوب</div>
                   ) : (
                     monthlyAnalysis.map((m) => {
                       const salesRate = pctOf(m.achSales, m.targetSales);
@@ -1188,22 +1442,22 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                       return (
                         <div key={m.month} className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm space-y-3">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2"><span className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-black">{m.month}</span><span className="font-black text-slate-800">{m.label}</span></div>
-                            <div className="flex items-center gap-2 text-[11px] font-bold">
-                              <span className={`px-2 py-0.5 rounded-full ${salesRate >= 80 ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>بيع {salesRate}%</span>
-                              <span className={`px-2 py-0.5 rounded-full ${collRate >= 80 ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>تحصيل {collRate}%</span>
+                            <div className="flex items-center gap-2"><span className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-800 flex items-center justify-center text-xs font-black tabular-nums">{m.month}</span><span className="font-black text-sm text-slate-900">{m.label}</span></div>
+                            <div className="flex items-center gap-2 text-xs font-black">
+                              <span className={`px-2.5 py-0.5 rounded-lg tabular-nums ${salesRate >= 80 ? 'bg-blue-100 text-blue-800' : 'bg-slate-100 text-slate-800'}`}>بيع {salesRate}%</span>
+                              <span className={`px-2.5 py-0.5 rounded-lg tabular-nums ${collRate >= 80 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'}`}>تحصيل {collRate}%</span>
                             </div>
                           </div>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-1.5">
-                              <div className="flex justify-between text-[11px]"><span className="font-bold text-slate-600">المبيعات</span><span className="font-black text-blue-700">{salesRate}%</span></div>
+                            <div className="rounded-xl bg-slate-100/70 border border-slate-200 p-3 space-y-1.5">
+                              <div className="flex justify-between text-xs"><span className="font-extrabold text-slate-800">المبيعات</span><span className="font-black text-blue-800 tabular-nums">{salesRate}%</span></div>
                               <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden"><div className="h-full bg-blue-600 rounded-full" style={{ width: `${Math.min(100, salesRate)}%` }} /></div>
-                              <div className="flex justify-between text-[11px] text-slate-500"><span>محقق: <b className="text-blue-700">{fmt(m.achSales)}</b></span><span>تارجت: {fmt(m.targetSales)}</span></div>
+                              <div className="flex justify-between text-xs font-bold text-slate-700 tabular-nums"><span>محقق: <b className="text-blue-800">{fmt(m.achSales)}</b></span><span>تارجت: {fmt(m.targetSales)}</span></div>
                             </div>
-                            <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-1.5">
-                              <div className="flex justify-between text-[11px]"><span className="font-bold text-slate-600">التحصيل</span><span className="font-black text-emerald-700">{collRate}%</span></div>
-                              <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: `${Math.min(100, collRate)}%` }} /></div>
-                              <div className="flex justify-between text-[11px] text-slate-500"><span>محقق: <b className="text-emerald-700">{fmt(m.achColl)}</b></span><span>تارجت: {fmt(m.targetColl)}</span></div>
+                            <div className="rounded-xl bg-slate-100/70 border border-slate-200 p-3 space-y-1.5">
+                              <div className="flex justify-between text-xs"><span className="font-extrabold text-slate-800">التحصيل</span><span className="font-black text-emerald-800 tabular-nums">{collRate}%</span></div>
+                              <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden"><div className="h-full bg-emerald-600 rounded-full" style={{ width: `${Math.min(100, collRate)}%` }} /></div>
+                              <div className="flex justify-between text-xs font-bold text-slate-700 tabular-nums"><span>محقق: <b className="text-emerald-800">{fmt(m.achColl)}</b></span><span>تارجت: {fmt(m.targetColl)}</span></div>
                             </div>
                           </div>
                         </div>
@@ -1217,28 +1471,28 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               {repAnalysisTab === 'customers' && (
                 <div className="space-y-3">
                   <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-black text-slate-800">عملاء المندوب ({repCustomers.length})</div>
-                    <div className="flex gap-2 text-xs font-bold">
-                      <span className="px-2.5 py-1 rounded-full bg-rose-100 text-rose-700">عليهم مديونية: {repCustomersWithDebt.length}</span>
-                      <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">خالص: {Math.max(0, repCustomers.length - repCustomersWithDebt.length)}</span>
+                    <div className="font-black text-base text-slate-900">عملاء المندوب ({repCustomers.length})</div>
+                    <div className="flex gap-2 text-xs font-black">
+                      <span className="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800">عليهم مديونية: {repCustomersWithDebt.length}</span>
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800">خالص: {Math.max(0, repCustomers.length - repCustomersWithDebt.length)}</span>
                     </div>
                   </div>
                   <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
                     {repCustomers.length === 0 ? (
-                      <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-sm font-bold text-slate-500">لا يوجد عملاء مسجلين لهذا المندوب</div>
+                      <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-sm font-extrabold text-slate-700">لا يوجد عملاء مسجلين لهذا المندوب</div>
                     ) : (
                       repCustomers.map((c) => (
                         <div key={c.id} onClick={() => { setOpenRepId(null); setOpenCustomerId(c.id); }} className="rounded-2xl bg-white border border-slate-200 p-3.5 flex items-center justify-between gap-3 cursor-pointer hover:border-blue-300 hover:shadow-sm transition group">
                           <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${c.balance > 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}`}>{c.name.charAt(0)}</div>
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${c.balance > 0 ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}`}>{c.name.charAt(0)}</div>
                             <div className="min-w-0">
-                              <div className="font-black text-sm text-slate-800 truncate group-hover:text-blue-700">{c.name}</div>
-                              <div className="text-[11px] text-slate-500 truncate"><span className="font-mono">{c.code}</span>{c.branch && c.branch !== '—' ? ` • ${c.branch}` : ''}{c.phone && c.phone !== '—' ? ` • ${c.phone}` : ''}</div>
+                              <div className="font-black text-sm text-slate-900 truncate group-hover:text-blue-700">{c.name}</div>
+                              <div className="text-xs font-bold text-slate-700 truncate"><span className="font-mono">{c.code}</span>{c.branch && c.branch !== '—' ? ` • ${c.branch}` : ''}{c.phone && c.phone !== '—' ? ` • ${c.phone}` : ''}</div>
                             </div>
                           </div>
                           <div className="text-left shrink-0">
                             <div className={`font-black text-sm tabular-nums ${c.balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{fmt(c.balance)} ج.م</div>
-                            <div className={`text-[10px] font-bold ${c.balance > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>{c.balance > 0 ? 'مديونية' : 'خالص'}</div>
+                            <div className={`text-xs font-extrabold ${c.balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{c.balance > 0 ? 'مديونية' : 'خالص'}</div>
                           </div>
                         </div>
                       ))
@@ -1251,28 +1505,28 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               {repAnalysisTab === 'visits' && (
                 <div className="space-y-3">
                   <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm flex items-center justify-between gap-2">
-                    <div className="font-black text-slate-800">سجل الزيارات الميدانية ({repVisits.length})</div>
-                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-teal-100 text-teal-700">هذا الشهر: {repMonthlyVisitsCount}</span>
+                    <div className="font-black text-base text-slate-900">سجل الزيارات الميدانية ({repVisits.length})</div>
+                    <span className="text-xs font-black px-2.5 py-1 rounded-lg bg-teal-100 text-teal-800">هذا الشهر: {repMonthlyVisitsCount}</span>
                   </div>
                   <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
                     {repVisits.length === 0 ? (
-                      <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-sm font-bold text-slate-500">لا توجد زيارات ميدانية مسجلة لهذا المندوب</div>
+                      <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-sm font-extrabold text-slate-700">لا توجد زيارات ميدانية مسجلة لهذا المندوب</div>
                     ) : (
                       repVisits.map((v: any, idx: number) => (
                         <div key={v.id || idx} className="rounded-2xl bg-white border border-slate-200 p-3.5 flex items-start justify-between gap-3">
                           <div className="flex items-start gap-3 min-w-0 flex-1">
-                            <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0"><MapPin className="w-4 h-4" /></div>
+                            <div className="w-9 h-9 rounded-xl bg-teal-100 text-teal-800 flex items-center justify-center shrink-0"><MapPin className="w-4 h-4" /></div>
                             <div className="min-w-0">
-                              <div className="font-black text-sm text-slate-800 truncate">{v.customerName || 'عميل'}</div>
+                              <div className="font-black text-sm text-slate-900 truncate">{v.customerName || 'عميل'}</div>
                               <div className="flex flex-wrap items-center gap-1.5 mt-1">
-                                {v.date && <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{v.date}</span>}
-                                <span className="text-[10px] font-bold text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full">{v.outcome || v.type || 'زيارة'}</span>
+                                {v.date && <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-lg tabular-nums">{v.date}</span>}
+                                <span className="text-xs font-bold text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-lg">{v.outcome || v.type || 'زيارة'}</span>
                               </div>
-                              {v.notes && <div className="text-[11px] text-slate-500 mt-1 line-clamp-2">{v.notes}</div>}
+                              {v.notes && <div className="text-xs font-semibold text-slate-700 mt-1.5 line-clamp-2">{v.notes}</div>}
                             </div>
                           </div>
                           {Number(v.collectedAmount || 0) > 0 && (
-                            <div className="text-left shrink-0"><div className="font-black text-sm text-emerald-700 tabular-nums">{fmt(v.collectedAmount)} ج.م</div><div className="text-[10px] text-slate-400">تحصيل</div></div>
+                            <div className="text-left shrink-0"><div className="font-black text-sm text-emerald-700 tabular-nums">{fmt(v.collectedAmount)} ج.م</div><div className="text-xs font-bold text-slate-700">تحصيل</div></div>
                           )}
                         </div>
                       ))
@@ -1296,10 +1550,10 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                       setOpenRepId(null);
                     }
                   }}
-                  className="w-full py-3.5 rounded-2xl bg-gradient-to-l from-emerald-600 to-teal-500 text-white font-black text-sm sm:text-base shadow-lg shadow-emerald-600/20 hover:from-emerald-500 hover:to-teal-500 transition flex items-center justify-center gap-2"
+                  className="w-full py-3.5 rounded-2xl bg-gradient-to-l from-emerald-600 to-teal-500 text-white font-black text-sm sm:text-base shadow-lg shadow-emerald-600/20 hover:from-emerald-500 hover:to-teal-500 transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Plus size={18} />
-                  إنشاء فاتورة جديدة لأحد عملاء {selectedRep.repName}
+                  <span>إنشاء فاتورة جديدة لأحد عملاء {selectedRep.repName}</span>
                 </button>
               </div>
             </div>

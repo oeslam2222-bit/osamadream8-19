@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CheckCircle2,
   Database,
@@ -45,6 +45,11 @@ export const DatabaseConnectionModal: React.FC<DatabaseConnectionModalProps> = (
   const [testResult, setTestResult] = useState<string | null>(null);
   const [writeProbes, setWriteProbes] = useState<TableWriteProbe[] | null>(null);
   const [isProbing, setIsProbing] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    checkDatabaseConnection().catch(() => {});
+  }, [isOpen, checkDatabaseConnection]);
 
   if (!isOpen) return null;
 

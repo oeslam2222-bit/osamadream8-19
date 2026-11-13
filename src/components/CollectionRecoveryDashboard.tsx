@@ -1,11 +1,16 @@
 import {
   AlertTriangle,
+  Camera,
   CheckCircle2,
   ChevronRight,
   Clock3,
   Coins,
   Flame,
+  Lock,
   MapPin,
+  Phone,
+  RefreshCw,
+  RotateCcw,
   Search,
   ShieldCheck,
   Sparkles,
@@ -19,6 +24,16 @@ import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import { inferCustomerSector } from '../data/branchDefinitions';
 import { normalizeArabicText } from '../services/arabicMatchingService';
+import { normalizeCloudinaryConfig, optimizeImageUrl, uploadImageToCloudinary } from '../services/cloudinaryService';
+import defaultStoreAvatar from '../assets/images/store_avatar_1794558443874.jpg';
+import {
+  formatDistance,
+  geoStatusBadgeMeta,
+  LiveGpsReading,
+  requestLiveGps,
+  verifyVisitLocation,
+  watermarkAndCompressLivePhoto,
+} from '../services/geoVerificationService';
 import type { Customer, CustomerVisit } from '../types';
 
 const todayKey = (): string => {
@@ -65,12 +80,31 @@ const buildInitials = (name: string): string => {
     .join('') || 'م';
 };
 
+const resolveCustomerStoreAvatar = (customer?: Partial<Customer> | null): string => {
+  const uploaded =
+    customer?.locationPhotoUrl ||
+    customer?.storePhotos?.[0] ||
+    customer?.profileImageUrl ||
+    customer?.avatarUrl ||
+    '';
+  return uploaded ? optimizeImageUrl(uploaded, 160, true) : defaultStoreAvatar;
+};
+
+const handleStoreAvatarError = (e: React.SyntheticEvent<HTMLImageElement>) => {
+  const img = e.currentTarget;
+  if (!img.dataset.fallback) {
+    img.dataset.fallback = '1';
+    img.src = defaultStoreAvatar;
+  }
+};
+
 const formatOutcomeText = (): CustomerVisit['outcome'] => 'تم التحصيل';
 
 interface RepSummary {
   repId: string;
   repName: string;
   avatar: string;
+  avatarUrl: string;
   sales: number;
   collections: number;
   customers: number;
@@ -89,6 +123,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     addVisit,
     updateCustomer,
     visits,
+    cloudinaryConfig,
   } = useApp();
 
   const [search, setSearch] = useState('');
@@ -100,6 +135,12 @@ export const CollectionRecoveryDashboard: React.FC = () => {
   const [notesByCustomer, setNotesByCustomer] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<string | null>(null);
   const [confirmCustomer, setConfirmCustomer] = useState<Customer | null>(null);
+  const [confirmRepGps, setConfirmRepGps] = useState<LiveGpsReading | null>(null);
+  const [confirmGpsLoading, setConfirmGpsLoading] = useState(false);
+  const [confirmGpsError, setConfirmGpsError] = useState<string | null>(null);
+  const [confirmProofPhoto, setConfirmProofPhoto] = useState<string | null>(null);
+  const [confirmUploadingProof, setConfirmUploadingProof] = useState(false);
+  const [confirmPinInitialLocation, setConfirmPinInitialLocation] = useState(false);
   const [visibleCustomersCount, setVisibleCustomersCount] = useState(CUSTOMERS_PAGE_SIZE);
 
   // أي تغيير في البحث/الفلاتر يرجّع التحميل لأول دفعة
@@ -197,8 +238,35 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     [visits]
   );
 
+  const returnsByCustomerKey = useMemo(() => {
+    const map = new Map<string, { count: number; value: number; pending: number }>();
+    const add = (key: string | undefined, v: CustomerVisit) => {
+      if (!key) return;
+      const cur = map.get(key) || { count: 0, value: 0, pending: 0 };
+      cur.count += 1;
+      cur.value += Number(v.returnValue || 0);
+      if (v.returnStatus !== 'مغلق' && v.returnStatus !== 'مرفوض') cur.pending += 1;
+      map.set(key, cur);
+    };
+    visits.forEach((v) => {
+      if (!v.isReturn) return;
+      add(v.customerId, v);
+      if (v.customerCode && v.customerCode !== v.customerId) add(v.customerCode, v);
+    });
+    return map;
+  }, [visits]);
+
   const repSummaries = useMemo<RepSummary[]>(() => {
     const map = new Map<string, RepSummary>();
+    const resolveRepAvatarUrl = (repId?: string, repName?: string): string => {
+      const targetName = normalizeArabicText(repName || '');
+      const matched = users.find(
+        (u) =>
+          (repId && (u.id === repId || u.username === repId)) ||
+          (targetName && normalizeArabicText(u.name || '') === targetName)
+      );
+      return matched?.avatar || '/assets/rep-avatar.jpg';
+    };
 
     repoCustomers.forEach((customer) => {
       const repName = customer.salesRepName || customer.repName || 'غير محدد';
@@ -207,6 +275,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         repId: customer.repId || key,
         repName,
         avatar: buildInitials(repName),
+        avatarUrl: resolveRepAvatarUrl(customer.repId, repName),
         sales: 0,
         collections: 0,
         customers: 0,
@@ -226,6 +295,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         repId,
         repName,
         avatar: buildInitials(repName),
+        avatarUrl: resolveRepAvatarUrl(repId, repName),
         sales: 0,
         collections: 0,
         customers: 0,
@@ -246,6 +316,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         repId: visit.repId || key,
         repName,
         avatar: buildInitials(repName),
+        avatarUrl: resolveRepAvatarUrl(visit.repId, repName),
         sales: 0,
         collections: 0,
         customers: 0,
@@ -265,7 +336,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         rate: rep.sales > 0 ? Math.min(100, Math.round((rep.collections / rep.sales) * 100)) : 0,
       }))
       .sort((a, b) => b.collections - a.collections || b.sales - a.sales);
-  }, [repoCustomers, invoices, visits]);
+  }, [repoCustomers, invoices, visits, users]);
 
   const topRep = repSummaries[0];
   const managerKpis = useMemo(() => {
@@ -313,6 +384,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         id: rep.repId,
         repName: rep.repName,
         avatar: rep.avatar,
+        avatarUrl: rep.avatarUrl,
         collected,
         count,
         proportion: rep.rate,
@@ -324,17 +396,81 @@ export const CollectionRecoveryDashboard: React.FC = () => {
 
   const selectedCustomer = overdueCustomers.find((customer) => customer.id === selectedCustomerId) ?? overdueCustomers[0] ?? null;
 
+  const confirmGeoCheck = useMemo(() => {
+    if (!confirmCustomer) return null;
+    return verifyVisitLocation({
+      repGps: confirmRepGps,
+      customer: confirmCustomer,
+      repVisits: visits,
+      repId: currentUser?.id,
+    });
+  }, [confirmCustomer, confirmRepGps, visits, currentUser?.id]);
+
+  const fetchCollectionGps = async () => {
+    setConfirmGpsLoading(true);
+    setConfirmGpsError(null);
+    const res = await requestLiveGps(10000);
+    setConfirmGpsLoading(false);
+    if (res.ok) {
+      setConfirmRepGps(res.coords);
+    } else {
+      setConfirmRepGps(null);
+      setConfirmGpsError('error' in res ? res.error : 'تعذر التقاط GPS');
+    }
+  };
+
+  const handleConfirmProofUpload = async (file?: File | null) => {
+    if (!file || !confirmCustomer) return;
+    setConfirmUploadingProof(true);
+    try {
+      const stamped = await watermarkAndCompressLivePhoto(file, {
+        customerName: confirmCustomer.name,
+        repName: currentUser?.name || 'المندوب',
+        latitude: confirmRepGps?.latitude,
+        longitude: confirmRepGps?.longitude,
+        distanceMeters: confirmGeoCheck?.distanceMeters,
+        reason: 'إثبات تحصيل',
+      });
+      const uploaded = await uploadImageToCloudinary(
+        stamped,
+        normalizeCloudinaryConfig(cloudinaryConfig),
+        'tantawy_collection_proofs'
+      );
+      setConfirmProofPhoto(uploaded.url);
+    } catch {
+      setToast('تعذر رفع صورة الإثبات — تأكد من الاتصال بالإنترنت');
+      setTimeout(() => setToast(null), 3500);
+    } finally {
+      setConfirmUploadingProof(false);
+    }
+  };
+
   const handleSave = (customer: Customer) => {
     if (!currentUser) return;
 
     const debt = getCustomerDebt(customer);
-    const amount = Number(amountByCustomer[customer.id] ?? Math.min(debt, debt || 0));
+    const amount = Number(amountByCustomer[customer.id] ?? 0);
 
     if (amount <= 0) {
       setToast('يرجى إدخال مبلغ التحصيل قبل الحفظ');
+      setTimeout(() => setToast(null), 3500);
       return;
     }
 
+    const geoCheck = confirmGeoCheck || verifyVisitLocation({
+      repGps: confirmRepGps,
+      customer,
+      repVisits: visits,
+      repId: currentUser.id,
+    });
+
+    if (geoCheck.requiresLivePhoto && !confirmProofPhoto) {
+      setToast('يلزم التقاط صورة حية لمحل العميل قبل حفظ التحصيل لأن الموقع خارج النطاق أو مشتبه به');
+      setTimeout(() => setToast(null), 4000);
+      return;
+    }
+
+    const customNote = (notesByCustomer[customer.id] || '').trim();
     const visit: Omit<CustomerVisit, 'id' | 'createdAt' | 'createdBy'> = {
       customerId: customer.id,
       customerName: customer.name,
@@ -351,15 +487,40 @@ export const CollectionRecoveryDashboard: React.FC = () => {
       outcome: formatOutcomeText(),
       status: 'منفذة',
       collectedAmount: amount,
-      notes: notesByCustomer[customer.id] || `تحصيل مبلغ ${formatCurrency(amount)} من العميل ${customer.name}`,
-      reviewStatus: 'approved',
-      reviewedByName: currentUser.name,
-      reviewNote: 'تم تسجيل زيارة تحصيل من شاشة التحصيل',
+      notes: customNote || `تحصيل مبلغ ${formatCurrency(amount)} من العميل ${customer.name}`,
+      location: confirmRepGps
+        ? {
+            latitude: confirmRepGps.latitude,
+            longitude: confirmRepGps.longitude,
+            accuracy: confirmRepGps.accuracy,
+            timestamp: confirmRepGps.timestamp,
+          }
+        : undefined,
+      geoVerification: {
+        status: geoCheck.status,
+        distanceMeters: geoCheck.distanceMeters,
+        accuracyMeters: geoCheck.accuracyMeters,
+        speedKmh: geoCheck.speedKmh,
+        flags: geoCheck.flags,
+        proofPhotoUrl: confirmProofPhoto || undefined,
+        verifiedAt: geoCheck.verifiedAt,
+      },
+      reviewStatus: geoCheck.requiresSupervisorReview ? 'pending' : 'approved',
+      reviewedByName: geoCheck.requiresSupervisorReview ? undefined : currentUser.name,
+      reviewNote: geoCheck.requiresSupervisorReview
+        ? `تنبيه موقع التحصيل: ${geoCheck.label}`
+        : 'تم تسجيل زيارة تحصيل من شاشة التحصيل',
       syncStatus: 'local_only',
     };
 
     const result = addVisit(visit);
     const remaining = Math.max(0, debt - amount);
+    const shouldPinInitialLocation =
+      Boolean(confirmRepGps) &&
+      confirmPinInitialLocation &&
+      !customer.locationLocked &&
+      (!customer.latitude || !customer.longitude);
+
     updateCustomer({
       ...customer,
       balance: remaining,
@@ -369,19 +530,40 @@ export const CollectionRecoveryDashboard: React.FC = () => {
       dueBalance: remaining,
       lastCollectionDate: visit.date,
       lastCollectionAmount: amount,
+      ...(shouldPinInitialLocation && confirmRepGps
+        ? {
+            latitude: confirmRepGps.latitude,
+            longitude: confirmRepGps.longitude,
+            locationCapturedAt: new Date().toISOString(),
+            locationCapturedBy: currentUser.name,
+            locationAccuracy: confirmRepGps.accuracy,
+            ...(confirmProofPhoto ? { locationPhotoUrl: confirmProofPhoto } : {}),
+          }
+        : {}),
     });
 
     const alertText = result.success
-      ? `تم تسجيل تحصيل العميل ${customer.name} بمبلغ ${formatCurrency(amount)} بنجاح. أحسنت يا بطل`
+      ? `تم تسجيل تحصيل العميل ${customer.name} بمبلغ ${formatCurrency(amount)} بنجاح${shouldPinInitialLocation ? ' وتثبيت موقع العميل المبدئي' : ''}`
       : result.message;
 
     setToast(alertText);
+    setAmountByCustomer((prev) => ({ ...prev, [customer.id]: 0 }));
+    setNotesByCustomer((prev) => ({ ...prev, [customer.id]: '' }));
     setConfirmCustomer(null);
+    setConfirmRepGps(null);
+    setConfirmProofPhoto(null);
     setSelectedCustomerId(customer.id);
     setTimeout(() => setToast(null), 4400);
   };
 
-  const openConfirmModal = (customer: Customer) => setConfirmCustomer(customer);
+  const openConfirmModal = (customer: Customer) => {
+    setConfirmCustomer(customer);
+    setConfirmRepGps(null);
+    setConfirmGpsError(null);
+    setConfirmProofPhoto(null);
+    setConfirmPinInitialLocation(!customer.latitude || !customer.longitude);
+    void fetchCollectionGps();
+  };
 
   return (
     <div className="tg-dash space-y-4" dir="rtl">
@@ -471,16 +653,26 @@ export const CollectionRecoveryDashboard: React.FC = () => {
       {topRep && (
         <div className="tg-card !flex-row !items-center !justify-between gap-3 border border-emerald-200 bg-gradient-to-l from-emerald-50 to-white">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0D9488] to-[#0F2B38] text-sm font-black text-white shadow-sm">
-              {topRep.avatar}
-            </div>
+            <img
+              src={topRep.avatarUrl || '/assets/rep-avatar.jpg'}
+              alt={topRep.repName}
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                const img = e.currentTarget;
+                if (!img.dataset.fallback) {
+                  img.dataset.fallback = '1';
+                  img.src = '/assets/rep-avatar.jpg';
+                }
+              }}
+              className="h-12 w-12 shrink-0 rounded-2xl object-cover object-top border-2 border-emerald-300 shadow-sm"
+            />
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.15em] text-emerald-700">الأداء المميز</div>
+              <div className="text-[11px] font-black text-emerald-700">الأداء المميز</div>
               <div className="text-base font-black text-[#0b2337] truncate">{topRep.repName} يتصدر اليوم</div>
-              <div className="text-[11px] font-bold text-emerald-800/80">محصّل {formatCurrency(topRep.collections)} • نسبة {topRep.rate}%</div>
+              <div className="text-xs font-bold text-emerald-800">محصّل {formatCurrency(topRep.collections)} • نسبة {topRep.rate}%</div>
             </div>
           </div>
-          <div className="inline-flex items-center gap-2 shrink-0 rounded-full border border-emerald-300 bg-white px-3 py-1.5 text-[11px] font-black text-emerald-800 shadow-sm">
+          <div className="inline-flex items-center gap-2 shrink-0 rounded-full border border-emerald-300 bg-white px-3 py-1.5 text-xs font-black text-emerald-800 shadow-sm">
             <Flame className="h-4 w-4 text-amber-500" />
             استمر في التقدم
           </div>
@@ -556,9 +748,13 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                         className={`text-right rounded-xl border p-3 transition group ${isSelected ? 'border-emerald-400 bg-emerald-50 shadow-sm ring-1 ring-emerald-200' : 'border-slate-200 bg-white hover:border-amber-300 hover:shadow-sm'}`}
                       >
                         <div className="flex items-center gap-2 mb-2">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${idx === 0 ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white' : 'bg-slate-100 text-slate-700'}`}>
-                            {buildInitials(customer.name)}
-                          </div>
+                          <img
+                            src={resolveCustomerStoreAvatar(customer)}
+                            alt={customer.name}
+                            referrerPolicy="no-referrer"
+                            onError={handleStoreAvatarError}
+                            className={`w-10 h-10 rounded-xl object-cover shrink-0 border shadow-xs ${idx === 0 ? 'border-amber-400 ring-2 ring-amber-200' : 'border-slate-200 bg-slate-50'}`}
+                          />
                           <div className="min-w-0 flex-1">
                             <div className="font-black text-xs text-[#0b2337] truncate group-hover:text-amber-800">{customer.name}</div>
                             <div className="text-[10px] text-slate-500 font-mono truncate">{customer.code || '—'}</div>
@@ -588,77 +784,128 @@ export const CollectionRecoveryDashboard: React.FC = () => {
             ) : (
               pagedOverdueCustomers.map((customer) => {
                 const debt = getCustomerDebt(customer);
-                const amountValue = amountByCustomer[customer.id] ?? Math.max(debt, 0);
-                const noteValue = notesByCustomer[customer.id] || `متابعة تحصيل ${customer.name}`;
+                const amountValue = amountByCustomer[customer.id] ?? 0;
+                const noteValue = notesByCustomer[customer.id] ?? '';
                 const isSelected = selectedCustomer?.id === customer.id;
+                const returnStats =
+                  returnsByCustomerKey.get(customer.id) ||
+                  (customer.code ? returnsByCustomerKey.get(customer.code) : undefined) ||
+                  { count: 0, value: 0, pending: 0 };
+                const totalCollectedCustomer = Math.max(
+                  Number(customer.collections2026 || 0),
+                  Number(customer.totalMonthlyCollections || 0),
+                  Number(customer.totalOverallCollections || 0),
+                  Number(customer.lastCollectionAmount || 0)
+                );
 
                 return (
                   <div
                     key={customer.id}
-                    className={`rounded-2xl border p-4 transition-all ${
+                    className={`rounded-2xl border p-4 sm:p-5 transition-all ${
                       isSelected
-                        ? 'border-emerald-400 bg-gradient-to-l from-emerald-50 to-white shadow-md shadow-emerald-500/10 ring-1 ring-emerald-200'
+                        ? 'border-emerald-600 bg-emerald-50/40 shadow-md ring-1 ring-emerald-300'
                         : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
                     }`}
                   >
-                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-slate-700 to-slate-900 text-xs font-black text-white shrink-0">
-                            {buildInitials(customer.name)}
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch xl:justify-between">
+                      <div className="min-w-0 flex-1 flex flex-col justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <img
+                            src={resolveCustomerStoreAvatar(customer)}
+                            alt={customer.name}
+                            referrerPolicy="no-referrer"
+                            onError={handleStoreAvatarError}
+                            className="h-14 w-14 rounded-2xl object-cover border-2 border-slate-200 bg-slate-100 shadow-xs shrink-0"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="text-base sm:text-lg font-black text-slate-950 truncate">{customer.name}</h4>
+                              <span className="shrink-0 text-xs font-black text-rose-700">مستحق للتحصيل</span>
+                            </div>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-bold text-slate-700">
+                              <span className="font-mono font-black text-slate-900">{customer.code || '—'}</span>
+                              <span aria-hidden="true" className="text-slate-400">·</span>
+                              <span>{customer.branchName || 'فرع رئيسي'}</span>
+                              <span aria-hidden="true" className="text-slate-400">·</span>
+                              <span>{customer.salesRepName || customer.repName || 'مندوب غير محدد'}</span>
+                            </div>
+                            {customer.phone && (
+                              <div className="mt-1 flex items-center gap-2 text-xs font-bold text-slate-800">
+                                <a
+                                  href={`tel:${customer.phone}`}
+                                  className="inline-flex items-center gap-1 hover:text-blue-700 transition"
+                                >
+                                  <Phone className="h-3.5 w-3.5 text-slate-700" />
+                                  <span className="font-mono tabular-nums" dir="ltr">{customer.phone}</span>
+                                </a>
+                              </div>
+                            )}
                           </div>
-                          <div className="min-w-0">
-                            <h4 className="text-base font-black text-[#0b2337] truncate">{customer.name}</h4>
-                            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                              <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono font-bold text-slate-700">{customer.code}</span>
-                              <span className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-black text-rose-700">
-                                <AlertTriangle className="h-3 w-3" /> متأخر
-                              </span>
+                        </div>
+
+                        {/* قسم منسّق للتحصيل والمديونيات والمرتجعات واضح أثناء الحركة */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 rounded-xl border border-slate-200 bg-slate-50/90 divide-y sm:divide-y-0 sm:divide-x sm:divide-x-reverse divide-slate-200">
+                          <div className="px-3.5 py-2.5">
+                            <div className="text-xs font-extrabold text-rose-800">المديونية المستحقة</div>
+                            <div className="mt-0.5 text-base sm:text-lg font-black text-rose-700 tabular-nums">
+                              {formatCurrency(debt)}
+                            </div>
+                            <div className="text-[11px] font-bold text-slate-700 mt-0.5">
+                              الحد: {customer.creditLimit ? formatCurrency(customer.creditLimit) : 'غير محدد'}
                             </div>
                           </div>
-                        </div>
 
-                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs font-medium text-slate-600">
-                          <span className="inline-flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-slate-400" />{customer.branchName || 'فرع رئيسي'}</span>
-                          <span className="inline-flex items-center gap-1.5"><Star className="h-3.5 w-3.5 text-amber-500" />{customer.salesRepName || customer.repName || 'مندوب غير محدد'}</span>
-                          <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5 text-slate-400" />آخر تحصيل: {customer.lastCollectionDate || 'لا يوجد'}</span>
-                        </div>
+                          <div className="px-3.5 py-2.5">
+                            <div className="text-xs font-extrabold text-emerald-800">التحصيل المسجل</div>
+                            <div className="mt-0.5 text-base sm:text-lg font-black text-emerald-800 tabular-nums">
+                              {totalCollectedCustomer > 0 ? formatCurrency(totalCollectedCustomer) : '0 ج.م'}
+                            </div>
+                            <div className="text-[11px] font-bold text-slate-700 mt-0.5">
+                              {customer.lastCollectionDate ? `آخر تحصيل: ${customer.lastCollectionDate}` : 'لم يُسجّل تحصيل'}
+                            </div>
+                          </div>
 
-                        <div className="mt-3 inline-flex items-center gap-3 rounded-xl border border-rose-200 bg-rose-50/70 px-3 py-2">
-                          <div>
-                            <div className="text-[10px] font-bold text-rose-700/80">المبلغ المستحق</div>
-                            <div className="text-lg font-black text-rose-700 tabular-nums">{formatCurrency(debt)}</div>
+                          <div className="px-3.5 py-2.5">
+                            <div className="text-xs font-extrabold text-amber-900">المرتجعات</div>
+                            <div className={`mt-0.5 text-base sm:text-lg font-black tabular-nums ${returnStats.count > 0 ? 'text-amber-800' : 'text-slate-800'}`}>
+                              {returnStats.value > 0 ? formatCurrency(returnStats.value) : `${returnStats.count} إذن`}
+                            </div>
+                            <div className="text-[11px] font-bold text-slate-700 mt-0.5">
+                              {returnStats.count > 0
+                                ? `${returnStats.count} إذن${returnStats.pending > 0 ? ` (${returnStats.pending} معلق)` : ''}`
+                                : 'لا توجد مرتجعات'}
+                            </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="w-full xl:w-[320px] shrink-0 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                      <div className="w-full xl:w-[340px] shrink-0 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 flex flex-col justify-between">
                         <div className="grid gap-2.5">
-                          <label className="text-[11px] font-black text-slate-700">
+                          <label className="text-xs font-black text-slate-900">
                             مبلغ التحصيل
-                            <div className="mt-1 flex gap-2">
+                            <div className="mt-1.5 flex gap-2">
                               <input
                                 type="number"
                                 min={0}
                                 value={amountValue}
                                 onChange={(event) => setAmountByCustomer((prev) => ({
                                   ...prev,
-                                  [customer.id]: Number(event.target.value || 0),
+                                  [customer.id]: Math.max(0, Number(event.target.value || 0)),
                                 }))}
-                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-900 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
+                                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base font-black text-slate-950 tabular-nums outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-500/20"
                               />
                               <button
                                 type="button"
                                 onClick={() => setAmountByCustomer((prev) => ({ ...prev, [customer.id]: Math.max(debt, 0) }))}
-                                className="shrink-0 rounded-xl border border-emerald-200 bg-emerald-50 px-2.5 text-[10px] font-black text-emerald-800 hover:bg-emerald-100"
-                                title="تعبئة كامل المبلغ"
+                                className="min-h-[44px] shrink-0 rounded-xl border border-emerald-400 bg-emerald-50 px-3.5 text-xs font-black text-emerald-900 hover:bg-emerald-100 cursor-pointer"
+                                title="تعبئة كامل المبلغ المستحق"
                               >
                                 كامل
                               </button>
                             </div>
                           </label>
 
-                          <label className="text-[11px] font-black text-slate-700">
+                          <label className="text-xs font-black text-slate-900">
                             ملاحظة التحصيل
                             <input
                               value={noteValue}
@@ -666,8 +913,8 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                                 ...prev,
                                 [customer.id]: event.target.value,
                               }))}
-                              className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15"
-                              placeholder="اكتب ملاحظة..."
+                              className="mt-1.5 min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs sm:text-sm font-bold text-slate-950 placeholder:text-slate-500 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-500/20"
+                              placeholder="أدخل ملاحظة التحصيل (اختياري)..."
                             />
                           </label>
                         </div>
@@ -676,7 +923,8 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => openConfirmModal(customer)}
-                            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-emerald-600 to-teal-600 px-3 py-2.5 text-xs font-black text-white shadow-sm hover:brightness-110 transition"
+                            disabled={amountValue <= 0}
+                            className="min-h-[44px] inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-3 py-2.5 text-xs sm:text-sm font-black text-white shadow-xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <CheckCircle2 className="h-4 w-4" />
                             تسجيل تحصيل
@@ -684,10 +932,10 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setSelectedCustomerId(customer.id)}
-                            className={`rounded-xl border px-3 py-2.5 text-xs font-black transition ${
+                            className={`min-h-[44px] rounded-xl border px-3.5 py-2.5 text-xs font-black transition cursor-pointer ${
                               isSelected
-                                ? 'border-emerald-300 bg-emerald-100 text-emerald-900'
-                                : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                                ? 'border-emerald-600 bg-emerald-100 text-emerald-950'
+                                : 'border-slate-300 bg-white text-slate-900 hover:bg-slate-100'
                             }`}
                           >
                             تفاصيل
@@ -727,10 +975,19 @@ export const CollectionRecoveryDashboard: React.FC = () => {
 
             {selectedCustomer ? (
               <div className="space-y-3">
-                <div className="rounded-2xl bg-gradient-to-l from-slate-50 to-white border border-slate-200 p-3.5">
-                  <div className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500">العميل</div>
-                  <div className="mt-1 text-base font-black text-[#0b2337]">{selectedCustomer.name}</div>
-                  <div className="mt-0.5 text-xs font-medium text-slate-600">{selectedCustomer.code} • {selectedCustomer.phone || 'لا يوجد هاتف'}</div>
+                <div className="rounded-2xl bg-gradient-to-l from-slate-50 to-white border border-slate-200 p-3.5 flex items-center gap-3">
+                  <img
+                    src={resolveCustomerStoreAvatar(selectedCustomer)}
+                    alt={selectedCustomer.name}
+                    referrerPolicy="no-referrer"
+                    onError={handleStoreAvatarError}
+                    className="h-12 w-12 rounded-2xl object-cover border border-slate-200 bg-white shadow-xs shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500">العميل</div>
+                    <div className="mt-0.5 text-base font-black text-[#0b2337] truncate">{selectedCustomer.name}</div>
+                    <div className="mt-0.5 text-xs font-medium text-slate-600 truncate">{selectedCustomer.code} • {selectedCustomer.phone || 'لا يوجد هاتف'}</div>
+                  </div>
                 </div>
 
                 <div className="grid gap-2 sm:grid-cols-2">
@@ -803,10 +1060,20 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                   <tr key={row.id} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/70 transition">
                     <td className="py-3 pr-4 pl-2">
                       <div className="flex items-center gap-3">
-                        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-slate-600 to-slate-800 text-[11px] font-black text-white">
-                          {row.avatar}
-                        </div>
-                        <span className="font-black text-slate-800">{row.repName}</span>
+                        <img
+                          src={row.avatarUrl || '/assets/rep-avatar.jpg'}
+                          alt={row.repName}
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            if (!img.dataset.fallback) {
+                              img.dataset.fallback = '1';
+                              img.src = '/assets/rep-avatar.jpg';
+                            }
+                          }}
+                          className="h-9 w-9 rounded-xl object-cover object-top border border-slate-200 shrink-0"
+                        />
+                        <span className="font-black text-slate-900">{row.repName}</span>
                       </div>
                     </td>
                     <td className="px-3 py-3 font-bold text-slate-700">{row.count}</td>
@@ -840,12 +1107,22 @@ export const CollectionRecoveryDashboard: React.FC = () => {
           {repSummaries.map((rep) => (
             <div key={rep.repId} className="rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-4 shadow-sm hover:shadow-md transition">
               <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-sm font-black text-white shadow-sm">
-                  {rep.avatar}
-                </div>
+                <img
+                  src={rep.avatarUrl || '/assets/rep-avatar.jpg'}
+                  alt={rep.repName}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    const img = e.currentTarget;
+                    if (!img.dataset.fallback) {
+                      img.dataset.fallback = '1';
+                      img.src = '/assets/rep-avatar.jpg';
+                    }
+                  }}
+                  className="h-12 w-12 rounded-2xl object-cover object-top border-2 border-emerald-200 shadow-sm shrink-0"
+                />
                 <div className="min-w-0">
                   <div className="text-base font-black text-[#0b2337] truncate">{rep.repName}</div>
-                  <div className="text-xs font-medium text-slate-500">{rep.customers} عميل متأخر / متعامل</div>
+                  <div className="text-xs font-bold text-slate-600">{rep.customers} عميل متأخر / متعامل</div>
                 </div>
               </div>
 
@@ -882,11 +1159,11 @@ export const CollectionRecoveryDashboard: React.FC = () => {
       {/* تأكيد التحصيل */}
       {confirmCustomer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 backdrop-blur-sm p-4" onClick={() => setConfirmCustomer(null)}>
-          <div className="w-full max-w-md rounded-[24px] border border-slate-200 bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-4 flex items-center justify-between">
+          <div className="w-full max-w-md rounded-[24px] border border-slate-200 bg-white p-5 shadow-2xl space-y-3.5 max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-lg font-black text-[#0b2337]">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><AlertTriangle className="h-5 w-5" /></span>
-                تأكيد التحصيل
+                تأكيد التحصيل وتوثيق الموقع
               </div>
               <button type="button" onClick={() => setConfirmCustomer(null)} className="rounded-xl bg-slate-100 p-2 text-slate-600 hover:bg-slate-200 transition" aria-label="إغلاق">
                 <X className="h-4 w-4" />
@@ -894,12 +1171,122 @@ export const CollectionRecoveryDashboard: React.FC = () => {
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
-              <div className="font-black text-[#0b2337] text-base">{confirmCustomer.name}</div>
-              <div className="mt-2 flex items-center justify-between text-slate-600"><span>المبلغ المستحق</span><span className="font-black text-rose-700">{formatCurrency(getCustomerDebt(confirmCustomer))}</span></div>
-              <div className="mt-1.5 flex items-center justify-between text-slate-600"><span>سيتم تسجيل</span><span className="font-black text-emerald-700 text-base">{formatCurrency(Number(amountByCustomer[confirmCustomer.id] ?? Math.max(getCustomerDebt(confirmCustomer), 0)))}</span></div>
+              <div className="flex items-center gap-3">
+                <img
+                  src={resolveCustomerStoreAvatar(confirmCustomer)}
+                  alt={confirmCustomer.name}
+                  referrerPolicy="no-referrer"
+                  onError={handleStoreAvatarError}
+                  className="h-11 w-11 rounded-xl object-cover border border-slate-200 bg-white shadow-xs shrink-0"
+                />
+                <div className="min-w-0">
+                  <div className="font-black text-[#0b2337] text-base truncate">{confirmCustomer.name}</div>
+                  <div className="text-[11px] font-mono text-slate-500">{confirmCustomer.code || '—'}</div>
+                </div>
+              </div>
+              <div className="mt-3 flex items-center justify-between text-slate-700 font-bold"><span>المبلغ المستحق</span><span className="font-black text-rose-700 tabular-nums">{formatCurrency(getCustomerDebt(confirmCustomer))}</span></div>
+              <div className="mt-1.5 flex items-center justify-between text-slate-700 font-bold"><span>سيتم تسجيل</span><span className="font-black text-emerald-700 text-base tabular-nums">{formatCurrency(Number(amountByCustomer[confirmCustomer.id] ?? 0))}</span></div>
             </div>
 
-            <div className="mt-4 flex gap-3">
+            {/* التحقق الحي من موقع التحصيل */}
+            {(() => {
+              const badge = geoStatusBadgeMeta(confirmGeoCheck?.status);
+              const toneClass =
+                badge.tone === 'ok'
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                  : badge.tone === 'warn'
+                  ? 'border-amber-200 bg-amber-50 text-amber-900'
+                  : badge.tone === 'risk'
+                  ? 'border-rose-200 bg-rose-50 text-rose-900'
+                  : 'border-slate-200 bg-slate-50 text-slate-800';
+              return (
+                <div className={`rounded-2xl border p-3.5 text-xs space-y-2 ${toneClass}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="font-black flex items-center gap-1.5">
+                      <MapPin className="w-4 h-4 shrink-0" />
+                      <span>
+                        {confirmGpsLoading ? 'جاري التقاط موقعك الحي...' : confirmGeoCheck?.label || 'حالة الـ GPS'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void fetchCollectionGps()}
+                      disabled={confirmGpsLoading}
+                      className="inline-flex items-center gap-1 rounded-lg border border-current/25 bg-white/80 px-2 py-1 text-[11px] font-black hover:bg-white cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3 h-3 ${confirmGpsLoading ? 'animate-spin' : ''}`} />
+                      تحديث GPS
+                    </button>
+                  </div>
+
+                  {confirmRepGps && (
+                    <div className="text-[11px] font-bold opacity-85 flex flex-wrap gap-x-3 gap-y-1">
+                      <span className="font-mono">{confirmRepGps.latitude.toFixed(5)}, {confirmRepGps.longitude.toFixed(5)}</span>
+                      {confirmRepGps.accuracy !== undefined && <span>دقة: ±{confirmRepGps.accuracy}م</span>}
+                      {confirmGeoCheck?.distanceMeters !== undefined && (
+                        <span>المسافة للعميل: {formatDistance(confirmGeoCheck.distanceMeters)}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {confirmGpsError && (
+                    <div className="text-[11px] font-bold text-rose-700">{confirmGpsError}</div>
+                  )}
+
+                  {confirmCustomer.locationLocked && (
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-800">
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>موقع العميل الأساسي مقفول ومعتمد ولا يتغير من التحصيل</span>
+                    </div>
+                  )}
+
+                  {!confirmCustomer.latitude && !confirmCustomer.longitude && !confirmCustomer.locationLocked && confirmRepGps && (
+                    <label className="flex items-center gap-2 pt-1 text-[11px] font-black cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={confirmPinInitialLocation}
+                        onChange={(e) => setConfirmPinInitialLocation(e.target.checked)}
+                        className="rounded border-slate-300"
+                      />
+                      <span>تثبيت هذا الموقع كإحداثي مبدئي للعميل (لأنه غير مثبت بعد)</span>
+                    </label>
+                  )}
+
+                  {confirmGeoCheck?.requiresLivePhoto && (
+                    <div className="pt-1.5 border-t border-current/15 space-y-2">
+                      <div className="font-black text-[11px]">
+                        مطلوب التقاط صورة حية لواجهة العميل (مختومة بالوقت والموقع) بسبب التحذير:
+                      </div>
+                      <label className="inline-flex items-center gap-2 rounded-xl bg-white border border-current/30 px-3 py-2 text-xs font-black cursor-pointer hover:bg-slate-50">
+                        <Camera className="w-4 h-4" />
+                        <span>{confirmUploadingProof ? 'جاري الختم والرفع...' : confirmProofPhoto ? 'تغيير صورة الإثبات' : 'التقاط صورة إثبات حية'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          disabled={confirmUploadingProof}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) void handleConfirmProofUpload(f);
+                            e.target.value = '';
+                          }}
+                          className="hidden"
+                        />
+                      </label>
+                      {confirmProofPhoto && (
+                        <img
+                          src={confirmProofPhoto}
+                          alt="صورة إثبات التحصيل"
+                          className="h-24 w-full rounded-xl object-cover border border-white shadow-xs"
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            <div className="flex gap-3 pt-1">
               <button
                 type="button"
                 onClick={() => setConfirmCustomer(null)}
@@ -909,8 +1296,9 @@ export const CollectionRecoveryDashboard: React.FC = () => {
               </button>
               <button
                 type="button"
+                disabled={confirmUploadingProof}
                 onClick={() => handleSave(confirmCustomer)}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-emerald-600 to-teal-600 px-4 py-3 text-sm font-black text-white shadow-sm hover:brightness-110 transition"
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-emerald-600 to-teal-600 px-4 py-3 text-sm font-black text-white shadow-sm hover:brightness-110 transition disabled:opacity-60"
               >
                 <CheckCircle2 className="h-4 w-4" />
                 تأكيد الحفظ

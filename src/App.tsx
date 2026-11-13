@@ -35,30 +35,30 @@ import { Customer, Invoice, UserRole } from './types';
 
 export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
-    'home', 'catalog', 'offers', 'customer_item_sales',
+    'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'reps',
     'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'stock', 'excel', 'users', 'guide', 'permissions'
   ],
   admin: [
-    'home', 'catalog', 'offers', 'customer_item_sales',
+    'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'reps',
     'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'stock', 'excel', 'users', 'guide', 'permissions'
   ],
   branch_manager: [
-    'home', 'catalog', 'offers', 'customer_item_sales',
+    'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'reps',
     'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'stock', 'users', 'guide'
   ],
   supervisor: [
-    'home', 'catalog', 'offers', 'customer_item_sales',
+    'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'reps',
     'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'stock', 'users'
   ],
   sales_rep: [
-    'home', 'catalog', 'offers', 'customer_item_sales', 'collection'
+    'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'collection'
   ],
   technical_support: [
-    'home', 'catalog', 'offers', 'customer_item_sales',
+    'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'reps',
     'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
     'inventory', 'stock', 'excel', 'users', 'guide', 'permissions'
   ],
@@ -171,7 +171,7 @@ const MainLayout: React.FC = () => {
   // Land on authorized tab and strictly guard unauthorized tabs
   useEffect(() => {
     if (currentUser) {
-      const allowed = allowedTabs.includes(activeTab) || ['all_customers', 'customers'].includes(activeTab);
+      const allowed = allowedTabs.includes(activeTab);
       if (!allowed) {
         setActiveTab('home');
       }
@@ -216,7 +216,8 @@ const MainLayout: React.FC = () => {
       }
       setIsOrderModalOpen(true);
     } else {
-      alert(res.message);
+      setAppToastMsg(res.message || 'تعذر فتح أمر البيع للتعديل');
+      setTimeout(() => setAppToastMsg(null), 4000);
     }
   };
 
@@ -235,10 +236,7 @@ const MainLayout: React.FC = () => {
       sync: 'excel',
     };
     const target = tabAliases[tab] || tab;
-    const permitted =
-      target === 'all_customers' ||
-      target === 'customers' ||
-      allowedTabs.includes(target);
+    const permitted = allowedTabs.includes(target);
     setActiveTab(permitted ? target : 'home');
   };
 
@@ -252,10 +250,7 @@ const MainLayout: React.FC = () => {
       sync: 'excel',
     };
     const target = tabAliases[tab] || tab;
-    const permitted =
-      target === 'all_customers' ||
-      target === 'customers' ||
-      allowedTabs.includes(target);
+    const permitted = allowedTabs.includes(target);
     setGlobalSearchQuery(query || '');
     setGlobalSearchSeq((s) => s + 1);
     setActiveTab(permitted ? target : 'home');
@@ -337,8 +332,20 @@ const MainLayout: React.FC = () => {
           {activeTab === 'collection' && allowedTabs.includes('collection') && <CollectionRecoveryDashboard />}
 
           {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
-          {(activeTab === 'all_customers' || activeTab === 'customers') && (
+          {(activeTab === 'all_customers' || activeTab === 'customers') && (allowedTabs.includes('all_customers') || allowedTabs.includes('customers')) && (
             <SmartProfilePage
+              mode="customers"
+              onOpenNewOrderForCustomer={(cust) => {
+                setOrderInitialCustomer(cust);
+                setActiveTab('catalog');
+              }}
+              focusCustomerId={profileFocusCustomerId}
+              onFocusConsumed={() => setProfileFocusCustomerId(null)}
+            />
+          )}
+          {activeTab === 'reps' && allowedTabs.includes('reps') && (
+            <SmartProfilePage
+              mode="reps"
               onOpenNewOrderForCustomer={(cust) => {
                 setOrderInitialCustomer(cust);
                 setActiveTab('catalog');

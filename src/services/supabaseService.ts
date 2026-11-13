@@ -5,9 +5,28 @@ import { pickUserColumns, sanitizeSupervisorId } from './userRowPayload';
 import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from './customerDues';
 import { normalizeArabicText } from './arabicMatchingService';
 import { classifyError, handleSupabaseError, withRetry, NetworkErrorType } from './networkErrorHandler';
+import {
+  encodeCustomerNotesWithGeo,
+  extractCustomerGeoFromNotes,
+  encodeVisitGeoVerificationTag,
+  extractVisitGeoFromNotes,
+} from './geoVerificationService';
 
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+export const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+export const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+
+export const isSupabaseConfigured = Boolean(
+  SUPABASE_URL &&
+  SUPABASE_ANON_KEY &&
+  /^https?:\/\//i.test(SUPABASE_URL) &&
+  !SUPABASE_URL.includes('YOUR-PROJECT')
+);
+
+const offlineSafeFetch: typeof fetch = async () =>
+  new Response(
+    JSON.stringify({ message: 'Supabase is not configured in this environment', code: 'OFFLINE_NO_CONFIG' }),
+    { status: 503, headers: { 'Content-Type': 'application/json' } }
+  );
 
 // Helper to normalize Supabase role strings to supported UserRole
 export function normalizeUserRole(rawRole: any, isAdminFlag?: boolean): UserRole {
@@ -22,26 +41,22 @@ export function normalizeUserRole(rawRole: any, isAdminFlag?: boolean): UserRole
   return 'sales_rep';
 }
 
-// Initialize Supabase Client
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-  },
-});
+// Initialize Supabase Client (safe fallback when env vars are not provisioned)
+export const supabase = createClient(
+  isSupabaseConfigured ? SUPABASE_URL : 'https://offline-local.supabase.co',
+  isSupabaseConfigured ? SUPABASE_ANON_KEY : 'offline-local-anon-key',
+  {
+    ...(isSupabaseConfigured ? {} : { global: { fetch: offlineSafeFetch } }),
+    auth: {
+      persistSession: isSupabaseConfigured,
+      autoRefreshToken: isSupabaseConfigured,
+      detectSessionInUrl: isSupabaseConfigured,
+    },
+  }
+);
 
-// Reconnect Supabase Realtime when page comes back from Back-Forward Cache (BFCache)
-if (typeof window !== 'undefined') {
-  window.addEventListener('pageshow', (event) => {
-    if (event.persisted) {
-      try {
-        supabase.realtime.connect();
-      } catch {
-        // Realtime reconnect failed silently
-      }
-    }
-  });
-}
+// Note: BFCache realtime reconnection is handled selectively in AppContext
+// so sales_rep devices do not reopen unnecessary WebSocket connections.
 
 export interface SupabaseSyncStatus {
   connected: boolean;
@@ -89,6 +104,13 @@ function resolveInvoicesTableState(
  * Test connectivity with Supabase project and check available tables
  */
 export async function testSupabaseConnection(): Promise<SupabaseSyncStatus> {
+  if (!isSupabaseConfigured) {
+    return {
+      connected: false,
+      pingMs: 0,
+      error: 'لم يتم ضبط إعدادات الاتصال بـ Supabase (يعمل النظام محلياً)',
+    };
+  }
   const startTime = Date.now();
   try {
     let foundTable = '';
@@ -202,6 +224,9 @@ export interface TableWriteProbe {
  * التحديث بنفس القيمة مش بيغيّر أي بيانات.
  */
 export async function probeWriteAccess(): Promise<TableWriteProbe[]> {
+  if (!isSupabaseConfigured) {
+    return [];
+  }
   const tables = ['users', 'customers', 'products', 'orders', 'targets', 'visits'];
   const probes: TableWriteProbe[] = [];
 
@@ -279,17 +304,14 @@ export interface CustomerFetchScope {
   repIds?: string[];
   /** عملاء بدون فرع مسجّل — بيظهرون للمشرف/المدير بعد الاستنتاج من العنوان. */
   includeUnassignedBranch?: boolean;
+  /** للمندوب: عدم السقوط لقراءة قاعدة الشركة كاملة إذا لم يطابق النطاق صفوفاً. */
+  strictNoFullFallback?: boolean;
+  /** تقليص الأعمدة الثقيلة (مثل visit_history و guarantee_docs) لأجهزة المناديب الميدانيين. */
+  slimFieldColumns?: boolean;
 }
 
 /**
  * Which slice of the visits table a device is allowed to download.
- *
- * نفس منطق العملاء بالظبط: جدول الزيارات بيVOLUME كبير (آلاف الصفوف)،
- * والمندوب شغال في فرع واحد بس. سحب السجل كامل onto كل جهاز =_payload
- * بيدفع فاتورة الاستضافة على 400 جهاز لمحتوى مش هيتشاف أصلاً.
- *
- * الأدمن والمطور بيسحبوا كل حاجة عشان تقرير المرتجعات وحالات الديون
- * على مستوى الشركة محتاجها.
  */
 export interface VisitFetchScope {
   branchNames?: string[];
@@ -299,6 +321,8 @@ export interface VisitFetchScope {
   includeUnassignedBranch?: boolean;
   /** حد أدنى للتاريخ (YYYY-MM-DD): الزيارات الأقدم مش محمولة على الموبايل. */
   sinceDate?: string;
+  /** للمندوب: عدم السقوط لقراءة جدول الزيارات بالكامل إذا لم يطابق النطاق صفوفاً. */
+  strictNoFullFallback?: boolean;
 }
 
 /**
@@ -357,6 +381,41 @@ function applyScopeToQuery(query: any, scope?: CustomerFetchScope | VisitFetchSc
 /** أربعين ألف صف: حدّ أمان ضد جدول مش متوقع، مش رقم تشغيل. */
 const MAX_VISIT_PAGES = 40;
 
+const isMissingColumnError = (err: any): boolean => {
+  const code = String(err?.code || '');
+  const msg = String(err?.message || '').toLowerCase();
+  return code === '42703' || code === 'PGRST204' || (msg.includes('column') && msg.includes('does not exist')) || msg.includes('could not find');
+};
+
+const CUSTOMERS_FULL_SELECT_COLUMNS = [
+  'id', 'code', 'name', 'store_name', 'phone', 'address', 'region', 'city', 'governorate',
+  'branch_name', 'sector', 'rep_name', 'rep_id', 'tax_number', 'tier', 'credit_limit',
+  'balance', 'current_balance', 'notes', 'last_visit_date', 'visit_count_2026', 'visit_history',
+  'created_at', 'updated_at', 'sales_2026', 'total_monthly_sales', 'total_overall_sales',
+  'collections_2026', 'total_monthly_collections', 'total_overall_collections',
+  'monthly_sales_2026', 'monthly_collections_2026', 'sales_2025', 'collections_2025',
+  'overdue_2025', 'overdue_2026', 'due_until_period', 'opening_balance_2026',
+  'total_overdue', 'total_overdue_and_due', 'overdue_balance', 'due_balance',
+  'deal_eligibility', 'dealt_2026', 'dealt_in_2026', 'has_dealt_in_2026',
+  'activity_type', 'client_type', 'payment_terms', 'guarantee_docs', 'guarantee_amount',
+  'last_collection_date', 'last_collection_amount',
+].join(',');
+
+// نسخة مخففة للمناديب الميدانيين: تحذف الحقول النصية/الـJSON الضخمة غير المطلوبة ميدانياً (مثل visit_history و guarantee_docs)
+const CUSTOMERS_FIELD_SELECT_COLUMNS = [
+  'id', 'code', 'name', 'store_name', 'phone', 'address', 'region', 'city', 'governorate',
+  'branch_name', 'sector', 'rep_name', 'rep_id', 'tax_number', 'tier', 'credit_limit',
+  'balance', 'current_balance', 'notes', 'last_visit_date', 'visit_count_2026',
+  'created_at', 'updated_at', 'sales_2026', 'total_monthly_sales', 'total_overall_sales',
+  'collections_2026', 'total_monthly_collections', 'total_overall_collections',
+  'monthly_sales_2026', 'monthly_collections_2026', 'sales_2025', 'collections_2025',
+  'overdue_2025', 'overdue_2026', 'due_until_period', 'opening_balance_2026',
+  'total_overdue', 'total_overdue_and_due', 'overdue_balance', 'due_balance',
+  'deal_eligibility', 'dealt_2026', 'dealt_in_2026', 'has_dealt_in_2026',
+  'activity_type', 'client_type', 'payment_terms', 'guarantee_amount',
+  'last_collection_date', 'last_collection_amount',
+].join(',');
+
 /**
  * Supabase REST returns at most 1,000 rows per request by default.
  * Read the table in pages so imports and role-specific counts include the full dataset.
@@ -368,9 +427,15 @@ async function fetchAllRows(
 ): Promise<{ data: any[]; error: any }> {
   const pageSize = 1000;
   const rows: any[] = [];
+  let selectCols =
+    table === 'customers'
+      ? scope?.slimFieldColumns
+        ? CUSTOMERS_FIELD_SELECT_COLUMNS
+        : CUSTOMERS_FULL_SELECT_COLUMNS
+      : '*';
 
   for (let from = 0; ; from += pageSize) {
-    let query = supabase.from(table).select('*');
+    let query = supabase.from(table).select(selectCols);
     query = applyScopeToQuery(query, scope);
     // ترتيب ثابت ضروري لصفحات `.range()` — من غيره الصفحات ممكن تكرر
     // أو تتخطى صفوف لو السيرفر رجّعهم بترتيب مختلف بين الطلبات.
@@ -381,7 +446,15 @@ async function fetchAllRows(
     if (updatedSince) {
       query = query.gte('updated_at', updatedSince);
     }
-    const { data, error } = await query.range(from, from + pageSize - 1);
+    let { data, error } = await query.range(from, from + pageSize - 1);
+
+    if (error && selectCols !== '*' && isMissingColumnError(error)) {
+      selectCols = '*';
+      let fallbackQuery = supabase.from(table).select('*');
+      fallbackQuery = applyScopeToQuery(fallbackQuery, scope).order('id', { ascending: true });
+      if (updatedSince) fallbackQuery = fallbackQuery.gte('updated_at', updatedSince);
+      ({ data, error } = await fallbackQuery.range(from, from + pageSize - 1));
+    }
 
     if (error) return { data: rows, error };
     rows.push(...(data || []));
@@ -403,10 +476,10 @@ export async function fetchCustomersFromSupabase(
     let rawCustomers: any[] | null = null;
     let scopedUsed = hasScopeFilters(scope);
     let { data: custData, error: cErr } = await fetchAllRows('customers', scope, updatedSince);
-    if (!cErr && !updatedSince && scopedUsed && custData.length === 0) {
+    if (!cErr && !updatedSince && scopedUsed && custData.length === 0 && !scope?.strictNoFullFallback) {
       // Branch names are free-text Arabic, so a narrow read that matches nothing
-      // must degrade to the full base - never to an empty customer list on a
-      // rep's phone. Worst case here is "downloads more than needed".
+      // degrades to the full base for managers/supervisors - but strict field reps
+      // stay scoped to avoid downloading 5,400+ company rows unnecessarily.
       console.warn('Scoped customer fetch matched no rows; falling back to the full base.');
       scopedUsed = false;
       const fallback = await fetchAllRows('customers');
@@ -417,7 +490,7 @@ export async function fetchCustomersFromSupabase(
     }
     if (!cErr && custData.length > 0) {
       rawCustomers = custData;
-    } else if (!updatedSince) {
+    } else if (!updatedSince && !scope?.strictNoFullFallback) {
       const { data: clientData, error: clErr } = await fetchAllRows('clients', scope);
       if (!clErr && clientData.length > 0) {
         rawCustomers = clientData;
@@ -434,6 +507,9 @@ export async function fetchCustomersFromSupabase(
           } catch {}
           return undefined;
         };
+        const { cleanNotes, meta: geoMeta } = extractCustomerGeoFromNotes(c.notes);
+        const resolvedLat = c.latitude !== undefined && c.latitude !== null ? Number(c.latitude) : geoMeta?.lat;
+        const resolvedLng = c.longitude !== undefined && c.longitude !== null ? Number(c.longitude) : geoMeta?.lng;
         return {
           id: c.id || `cust-${idx + 1}`,
           code: c.code || c.customer_code || `CUST-${1000 + idx + 1}`,
@@ -452,7 +528,17 @@ export async function fetchCustomersFromSupabase(
           creditLimit: Number(c.credit_limit ?? c.creditLimit ?? 0),
           balance: Number(c.balance ?? c.current_balance ?? 0),
           currentBalance: Number(c.current_balance ?? c.balance ?? 0),
-          notes: c.notes || '',
+          notes: cleanNotes,
+          latitude: resolvedLat,
+          longitude: resolvedLng,
+          locationAddress: c.location_address || geoMeta?.addr || undefined,
+          locationCapturedAt: c.location_captured_at || geoMeta?.at || undefined,
+          locationCapturedBy: c.location_captured_by || geoMeta?.by || undefined,
+          locationLocked: c.location_locked !== undefined ? Boolean(c.location_locked) : Boolean(geoMeta?.locked),
+          locationApprovedBy: c.location_approved_by || geoMeta?.appBy || undefined,
+          locationApprovedAt: c.location_approved_at || geoMeta?.appAt || undefined,
+          locationPhotoUrl: c.location_photo_url || geoMeta?.photo || undefined,
+          locationAccuracy: geoMeta?.acc,
           lastVisitDate: c.last_visit_date || c.lastVisitDate || undefined,
           visitCount2026: c.visit_count_2026 !== undefined ? Number(c.visit_count_2026) : undefined,
           visitHistory: c.visit_history ? (typeof c.visit_history === 'string' ? JSON.parse(c.visit_history) : c.visit_history) : undefined,
@@ -567,18 +653,46 @@ export interface VisitContentStamp {
  * التارجت بيتغيّر مرة أو مرتين في الشهر، لكن التطبيق كان بينزّل الـ572 صف
  * (~30KB مضغوطة) مع **كل فتح**. البصمة دي بتخلّي الفتح العادي يكلّف ~0.5KB.
  */
+export interface TargetFetchScope {
+  branchNames?: string[];
+  repNames?: string[];
+}
+
+function applyTargetScope(query: any, scope?: TargetFetchScope): any {
+  if (!scope) return query;
+  const clauses: string[] = [];
+  const branches = (scope.branchNames || []).map((b) => String(b).trim()).filter(Boolean);
+  if (branches.length > 0) {
+    clauses.push(`branch.in.(${branches.map(quoteOrValue).join(',')})`);
+    branches.forEach((b) => {
+      const shortBranch = b.replace(/فرع/g, '').replace(/\([^)]*\)/g, '').trim();
+      if (shortBranch.length >= 3) {
+        clauses.push(`branch.ilike.${quoteOrValue(`*${shortBranch}*`)}`);
+      }
+    });
+  }
+  (scope.repNames || []).map((n) => String(n).trim()).filter(Boolean).forEach((name) => {
+    clauses.push(`rep_name.ilike.${quoteOrValue(`*${name}*`)}`);
+  });
+  return clauses.length > 0 ? query.or(clauses.join(',')) : query;
+}
+
 export interface TargetContentStamp {
   count: number | null;
   maxUpdatedAt: string | null;
 }
 
-export async function fetchTargetContentStamp(): Promise<TargetContentStamp | null> {
+export async function fetchTargetContentStamp(
+  scope?: TargetFetchScope
+): Promise<TargetContentStamp | null> {
   try {
-    const { data, error, count } = await supabase
+    let query = supabase
       .from('targets')
       .select('updated_at', { count: 'exact' })
       .order('updated_at', { ascending: false, nullsFirst: false })
       .limit(1);
+    query = applyTargetScope(query, scope);
+    const { data, error, count } = await query;
     if (error) return null;
     const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
     return {
@@ -675,7 +789,7 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
         credit_limit: Number(c.creditLimit || 0),
         balance: resolveCustomerBalanceValue(c),
         current_balance: resolveCustomerBalanceValue(c),
-        notes: c.notes || null,
+        notes: encodeCustomerNotesWithGeo(c) || null,
         last_visit_date: c.lastVisitDate || null,
         visit_count_2026: Number(c.visitCount2026 || 0),
         visit_history: (c.visitHistory || []).length > 0 ? JSON.stringify(c.visitHistory) : null,
@@ -898,11 +1012,21 @@ export const USER_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000002';
 /** خمسين ألف صف تارجت ≈ 125 شهر لكل مندوب (10 سنين). */
 const MAX_TARGET_PAGES = 50;
 
+const TARGETS_FETCH_COLUMNS = [
+  'id', 'branch', 'rep_name', 'sales_target', 'sales_achieved', 'sales_percentage',
+  'collection_target', 'collection_achieved', 'collection_percentage',
+  'target_date', 'month', 'year', 'quarter', 'remaining_sales', 'remaining_collection',
+  'notes', 'updated_at',
+].join(',');
+
 /**
  * جلب التارجت لآخر N شهر بس — يقلل الـ egress على الفتح الأول.
  * الصف الواحد صغير، لكن عشرات الاف الصفوف تتراكم بسرعة على كل جهاز.
  */
-export async function fetchTargetsRecentMonths(monthCount = 24): Promise<{ success: boolean; targets?: any[]; error?: string; count?: number }> {
+export async function fetchTargetsRecentMonths(
+  monthCount = 24,
+  scope?: TargetFetchScope
+): Promise<{ success: boolean; targets?: any[]; error?: string; count?: number }> {
   try {
     const now = new Date();
     const latestYear = now.getFullYear();
@@ -914,15 +1038,27 @@ export async function fetchTargetsRecentMonths(monthCount = 24): Promise<{ succe
 
     const pageSize = 1000;
     const rows: any[] = [];
+    let selectCols = TARGETS_FETCH_COLUMNS;
     for (let page = 0; page < MAX_TARGET_PAGES; page++) {
       const from = page * pageSize;
-      const { data, error } = await supabase
-        .from('targets')
-        .select('*')
-        .gte('year', minYear)
-        .order('year', { ascending: false })
-        .order('month', { ascending: true })
-        .range(from, from + pageSize - 1);
+      const makeTargetQuery = (cols: string) => {
+        let q = supabase
+          .from('targets')
+          .select(cols)
+          .gte('year', minYear)
+          .order('year', { ascending: false })
+          .order('month', { ascending: true });
+        return applyTargetScope(q, scope);
+      };
+
+      let { data, error }: { data: any[] | null; error: any } = await makeTargetQuery(selectCols).range(
+        from,
+        from + pageSize - 1
+      );
+      if (error && selectCols !== '*' && isMissingColumnError(error)) {
+        selectCols = '*';
+        ({ data, error } = await makeTargetQuery('*').range(from, from + pageSize - 1));
+      }
       if (error) return { success: false, error: error.message };
       const list = (data || []).filter((r: any) => {
         const y = Number(r.year);
@@ -933,7 +1069,7 @@ export async function fetchTargetsRecentMonths(monthCount = 24): Promise<{ succe
       rows.push(...list);
       if (!data || data.length < pageSize) break;
       // لو عدّينا النافذة بالكامل نوقف بدل ما نجيب صفوف قديمة
-      const oldest = data[data.length - 1];
+      const oldest = data[data.length - 1] as any;
       const oy = Number(oldest?.year);
       if (oy && oy < minYear) break;
       if (page === MAX_TARGET_PAGES - 1) {
@@ -947,28 +1083,28 @@ export async function fetchTargetsRecentMonths(monthCount = 24): Promise<{ succe
   }
 }
 
-export async function fetchTargetsFromSupabase(): Promise<{ success: boolean; targets?: any[]; error?: string }> {
+export async function fetchTargetsFromSupabase(
+  scope?: TargetFetchScope
+): Promise<{ success: boolean; targets?: any[]; error?: string }> {
   try {
-    /**
-     * بيتقرأ بالدفعات مش `select('*')` من غير حد.
-     *
-     * `select('*')` من غير range بيرجع أول 1,000 صف بصمت، فكان أول ما عدد
-     * المندوبين يعدّي 1,000 صف التارجت بيبدأ ينقص من غير رسالة خطأ.
-     * الترتيب موجود أصلاً (year desc, month asc) والـrange بيشتغل معاه عادي.
-     *
-     * الحد الأقصى 50 ألف صف ≈ صف لكل مندوب × ~125 شهر (10 سنين). أقدم من
-     * كده نادر، والـconsole.warn بيقولها صراحةً لو وصلنا.
-     */
     const pageSize = 1000;
     const rows: any[] = [];
+    let selectCols = TARGETS_FETCH_COLUMNS;
     for (let page = 0; page < MAX_TARGET_PAGES; page++) {
       const from = page * pageSize;
-      const { data, error } = await supabase
-        .from('targets')
-        .select('*')
-        .order('year', { ascending: false })
-        .order('month', { ascending: true })
-        .range(from, from + pageSize - 1);
+      const buildQuery = (cols: string) => {
+        let q = supabase
+          .from('targets')
+          .select(cols)
+          .order('year', { ascending: false })
+          .order('month', { ascending: true });
+        return applyTargetScope(q, scope);
+      };
+      let { data, error } = await buildQuery(selectCols).range(from, from + pageSize - 1);
+      if (error && selectCols !== '*' && isMissingColumnError(error)) {
+        selectCols = '*';
+        ({ data, error } = await buildQuery('*').range(from, from + pageSize - 1));
+      }
       if (error) return { success: false, error: error.message };
       rows.push(...(data || []));
       if (!data || data.length < pageSize) break;
@@ -1018,28 +1154,39 @@ export async function saveTargetsToSupabase(targets: any[]): Promise<{ success: 
 }
 
 let cachedUsersResponse: { data: User[]; timestamp: number } | null = null;
-const USERS_CACHE_TTL_MS = 60 * 1000; // 60 seconds memory cache
+const USERS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes memory cache for 500-user scale
 let activeUsersFetchPromise: Promise<{ success: boolean; users?: User[]; error?: string }> | null = null;
 
 /**
  * pagination لجدول المستخدمين.
- *
- * الحجم المستهدف 400 موظف، والصفحة 1,000 صف — يعني في الواقع قراءة واحدة.
- * الحد موجود عشان لو الجدول كبر فجأة (نسخة تانية من الشركة، بيانات تجريبية)
- * التطبيق ما يفترضش إن 1,000 صف = الجدول كله.
  */
 const USER_PAGE_SIZE = 1000;
 const MAX_USER_PAGES = 5;
+
+const USER_SELECT_BY_TABLE: Record<'users' | 'app_users' | 'profiles', string> = {
+  users: 'id,name,username,email,password,role,branch_name,supervisor_id,phone,commission_rate,is_active,approval_status',
+  app_users: 'id,name,username,email,password,role,branch_name,phone,is_active,approval_status',
+  profiles: 'id,full_name,username,email,role,branch_name,phone,is_active,approval_status',
+};
+
+const USER_PUBLIC_SELECT_BY_TABLE: Record<'users' | 'app_users' | 'profiles', string> = {
+  users: 'id,name,username,email,role,branch_name,supervisor_id,phone,commission_rate,is_active,approval_status',
+  app_users: 'id,name,username,email,role,branch_name,phone,is_active,approval_status',
+  profiles: 'id,full_name,username,email,role,branch_name,phone,is_active,approval_status',
+};
 
 export function invalidateUsersCache() {
   cachedUsersResponse = null;
 }
 
 /**
- * Fetch all users from Supabase (checking 'users', 'app_users', 'profiles' and central snapshot)
- * Optimized with in-memory caching and request deduplication to accelerate loading
+ * Fetch all users from Supabase (prioritizing 'users', falling back to 'app_users'/'profiles'/snapshot ONLY if 'users' is empty)
  */
-export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Promise<{ success: boolean; users?: User[]; error?: string }> {
+export async function fetchUsersFromSupabase(
+  forceRefresh: boolean = false,
+  options?: { includeCredentials?: boolean }
+): Promise<{ success: boolean; users?: User[]; error?: string }> {
+  const includeCredentials = options?.includeCredentials ?? true;
   const now = Date.now();
   if (!forceRefresh && cachedUsersResponse && (now - cachedUsersResponse.timestamp < USERS_CACHE_TTL_MS)) {
     return { success: true, users: cachedUsersResponse.data };
@@ -1053,7 +1200,6 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
     try {
       const byId = new Map<string, User>();
       const byEmail = new Map<string, User>();
-      const tableCandidates = ['users', 'app_users', 'profiles'];
 
       const mapUser = (u: any, tbl: string, idx: number): User => {
         const rawEmail = String(u.email || '').trim();
@@ -1074,18 +1220,23 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
         };
       };
 
-      // 1. Prioritize querying the primary 'users' table first
-      // بيتقرأ بالدفعات: `select('*')` من غير range بيرجع أول 1,000 صف بس
-      // بصمت. جدول المستخدمين كله ~400 صف دلوقتي، بس ده بالظبط الرقم اللي
-      // ركبنا عليه، وأول ما يعدّيه التطبيق هيتعطل لعدد مندوبين على manuals.
-      const readUserRows = async (table: string): Promise<any[] | null> => {
+      const readUserRows = async (table: 'users' | 'app_users' | 'profiles'): Promise<any[] | null> => {
         const rows: any[] = [];
+        const colsMap = includeCredentials ? USER_SELECT_BY_TABLE : USER_PUBLIC_SELECT_BY_TABLE;
+        let selectCols = colsMap[table] || '*';
         for (let page = 0; page < MAX_USER_PAGES; page++) {
           const from = page * USER_PAGE_SIZE;
-          const { data, error } = await supabase
+          let { data, error } = await supabase
             .from(table)
-            .select('*')
+            .select(selectCols)
             .range(from, from + USER_PAGE_SIZE - 1);
+          if (error && selectCols !== '*' && isMissingColumnError(error)) {
+            selectCols = '*';
+            ({ data, error } = await supabase
+              .from(table)
+              .select('*')
+              .range(from, from + USER_PAGE_SIZE - 1));
+          }
           if (error) return null;
           rows.push(...(data || []));
           if (!data || data.length < USER_PAGE_SIZE) break;
@@ -1112,56 +1263,58 @@ export async function fetchUsersFromSupabase(forceRefresh: boolean = false): Pro
         // Continue to secondary tables if needed
       }
 
-      // 2. Always query and merge records from 'app_users' and 'profiles' safely
-      for (const tbl of ['app_users', 'profiles']) {
-        try {
-          const data = await readUserRows(tbl);
-          if (!data) continue;
-          data.forEach((row: any, idx: number) => {
-            const user = mapUser(row, tbl, idx);
-            const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
-            
-            // CRITICAL: NEVER overwrite an existing non-empty password with an empty one!
-            const mergedPassword = (user.password && user.password.trim().length > 0)
-              ? user.password.trim()
-              : (existing?.password || '');
-            const mergedPhone = (user.phone && user.phone.trim().length > 0)
-              ? user.phone.trim()
-              : (existing?.phone || '');
-            const mergedUser: User = {
-              ...existing,
-              ...user,
-              password: mergedPassword,
-              phone: mergedPhone,
-              branchName: (user.branchName && user.branchName.trim().length > 0)
-                ? user.branchName
-                : (existing?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'),
-            };
-            byId.set(mergedUser.id, mergedUser);
-            if (mergedUser.email) byEmail.set(mergedUser.email.toLowerCase(), mergedUser);
-          });
-        } catch {
-          // Continue
+      // Query fallback tables ONLY when primary 'users' table returned 0 records (saves 3 roundtrips & egress per refresh)
+      if (byId.size === 0) {
+        for (const tbl of ['app_users', 'profiles'] as const) {
+          try {
+            const data = await readUserRows(tbl);
+            if (!data) continue;
+            data.forEach((row: any, idx: number) => {
+              const user = mapUser(row, tbl, idx);
+              const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
+              const mergedPassword = (user.password && user.password.trim().length > 0)
+                ? user.password.trim()
+                : (existing?.password || '');
+              const mergedPhone = (user.phone && user.phone.trim().length > 0)
+                ? user.phone.trim()
+                : (existing?.phone || '');
+              const mergedUser: User = {
+                ...existing,
+                ...user,
+                password: mergedPassword,
+                phone: mergedPhone,
+                branchName: (user.branchName && user.branchName.trim().length > 0)
+                  ? user.branchName
+                  : (existing?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'),
+              };
+              byId.set(mergedUser.id, mergedUser);
+              if (mergedUser.email) byEmail.set(mergedUser.email.toLowerCase(), mergedUser);
+            });
+          } catch {
+            // Continue
+          }
         }
       }
 
-      // 3. Check central snapshot as fallback if needed
-      try {
-        const { data } = await supabase.from('orders').select('items').eq('id', USER_SYNC_STORE_ID).limit(1);
-        const items = data?.[0]?.items;
-        const snapshot = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
-        snapshot.forEach((row: any, idx: number) => {
-          const user = mapUser(row, 'snapshot', idx);
-          const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
-          if (!existing) {
-            byId.set(user.id, user);
-            if (user.email) byEmail.set(user.email.toLowerCase(), user);
-          } else if ((!existing.password || existing.password.trim().length === 0) && user.password && user.password.trim().length > 0) {
-            existing.password = user.password.trim();
-          }
-        });
-      } catch {
-        // snapshot optional
+      // Check central snapshot ONLY if primary tables yielded zero users
+      if (byId.size === 0) {
+        try {
+          const { data } = await supabase.from('orders').select('items').eq('id', USER_SYNC_STORE_ID).limit(1);
+          const items = data?.[0]?.items;
+          const snapshot = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
+          snapshot.forEach((row: any, idx: number) => {
+            const user = mapUser(row, 'snapshot', idx);
+            const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
+            if (!existing) {
+              byId.set(user.id, user);
+              if (user.email) byEmail.set(user.email.toLowerCase(), user);
+            } else if ((!existing.password || existing.password.trim().length === 0) && user.password && user.password.trim().length > 0) {
+              existing.password = user.password.trim();
+            }
+          });
+        } catch {
+          // snapshot optional
+        }
       }
 
       const users = Array.from(byId.values());
@@ -1210,67 +1363,44 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
       return { success: false, error: 'المعرف فارغ' };
     }
 
-    // 1. Force fresh fetch from Supabase to catch newly created employees across devices
-    const remoteRes = await fetchUsersFromSupabase(true);
-    if (remoteRes.success && remoteRes.users && remoteRes.users.length > 0) {
-      const found = remoteRes.users.find((u) => {
-        const uEmail = sanitizeEmail(u.email || '');
-        const uUser = sanitizeIdentifier(u.username || '').toLowerCase();
-        const uName = sanitizeIdentifier(u.name || '').toLowerCase();
-        const uNameNorm = normalizeArabicText(u.name || '').replace(/\s+/g, '');
-        const uPhoneDigits = (u.phone || '').replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()).replace(/\D/g, '').trim();
-
-        // Email match
-        if (cleanEmail && (uEmail === cleanEmail || uEmail.startsWith(cleanLower) || (cleanEmail.includes('@') && uEmail === cleanEmail))) return true;
-        if (!cleanEmail.includes('@') && uEmail === `${cleanLower}@dream.com`) return true;
-
-        // Username match
-        if (cleanLower && (uUser === cleanLower || normalizeArabicText(u.username || '').replace(/\s+/g, '') === normInput)) return true;
-
-        // Full Name match
-        if (cleanLower && (uName === cleanLower || uNameNorm === normInput)) return true;
-        if (normInput.length >= 3 && (uNameNorm.includes(normInput) || normInput.includes(uNameNorm))) return true;
-
-        // Phone match
-        if (asciiDigits.length >= 7 && uPhoneDigits.length >= 7) {
-          if (uPhoneDigits === asciiDigits || uPhoneDigits.endsWith(asciiDigits) || asciiDigits.endsWith(uPhoneDigits)) return true;
-        }
-
-        // ID match
-        if (cleanLower && String(u.id).toLowerCase() === cleanLower) return true;
-
-        return false;
-      });
-
-      if (found) {
-        return { success: true, user: found };
-      }
-    }
-
-    // 2. Direct database query fallback for exact matches on 'users' and 'app_users' first
-    const targetTables = ['users', 'app_users', 'profiles'];
+    // 1. Direct targeted 1-row lookup on 'users' / 'app_users' / 'profiles' FIRST
+    // Saves fetching all 500 user rows on every employee login.
+    const targetTables = ['users', 'app_users', 'profiles'] as const;
+    const escapedClean = cleanLower.replace(/[,()]/g, ' ').trim();
     for (const tbl of targetTables) {
       try {
-        const queryTerm = cleanEmail.includes('@') ? cleanEmail : cleanLower;
-        let queryBuilder = supabase.from(tbl).select('*');
+        let selectCols = USER_SELECT_BY_TABLE[tbl] || '*';
+        const buildUserLookupQuery = (cols: string) => {
+          let qb = supabase.from(tbl).select(cols);
+          if (cleanEmail.includes('@')) {
+            qb = qb.ilike('email', cleanEmail);
+          } else if (asciiDigits.length >= 8) {
+            qb = qb.ilike('phone', `%${asciiDigits.slice(-8)}%`);
+          } else if (escapedClean) {
+            qb = qb.or(
+              `username.ilike.${quoteOrValue(escapedClean)},email.ilike.${quoteOrValue(`${escapedClean}%`)},name.ilike.${quoteOrValue(`*${escapedClean}*`)}`
+            );
+          } else {
+            return null;
+          }
+          return qb.limit(1);
+        };
 
-        if (cleanEmail.includes('@')) {
-          queryBuilder = queryBuilder.eq('email', cleanEmail);
-        } else if (asciiDigits.length >= 8) {
-          queryBuilder = queryBuilder.eq('phone', asciiDigits);
-        } else {
-          queryBuilder = queryBuilder.or(`username.ilike.${cleanLower},email.ilike.${cleanLower}%`);
+        const firstQuery = buildUserLookupQuery(selectCols);
+        if (!firstQuery) continue;
+        let { data: rows, error: qErr } = await firstQuery;
+        if (qErr && selectCols !== '*' && isMissingColumnError(qErr)) {
+          const fbQuery = buildUserLookupQuery('*');
+          if (fbQuery) ({ data: rows, error: qErr } = await fbQuery);
         }
 
-        const { data: rows, error: qErr } = await queryBuilder.limit(1);
-
         if (!qErr && rows && rows.length > 0) {
-          const rawRow = rows[0];
+          const rawRow = rows[0] as any;
           const rawEmail = String(rawRow.email || '').trim();
           const emailPrefix = rawEmail ? rawEmail.split('@')[0] : '';
           let password = String(rawRow.password || rawRow.pass || '').trim();
 
-          // If profiles was matched and has no password, attempt immediate lookup from users/app_users
+          // If profiles was matched and has no password, attempt immediate lookup from users
           if (!password && tbl === 'profiles' && rawRow.id) {
             try {
               const { data: uRows } = await supabase.from('users').select('password').eq('id', rawRow.id).limit(1);
@@ -1296,6 +1426,33 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
         }
       } catch {
         // try next table
+      }
+    }
+
+    // 2. Fallback to cached/directory match ONLY if targeted 1-row lookup missed (e.g., Arabic normalized name or snapshot)
+    const remoteRes = await fetchUsersFromSupabase(false, { includeCredentials: true });
+    if (remoteRes.success && remoteRes.users && remoteRes.users.length > 0) {
+      const found = remoteRes.users.find((u) => {
+        const uEmail = sanitizeEmail(u.email || '');
+        const uUser = sanitizeIdentifier(u.username || '').toLowerCase();
+        const uName = sanitizeIdentifier(u.name || '').toLowerCase();
+        const uNameNorm = normalizeArabicText(u.name || '').replace(/\s+/g, '');
+        const uPhoneDigits = (u.phone || '').replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()).replace(/\D/g, '').trim();
+
+        if (cleanEmail && (uEmail === cleanEmail || uEmail.startsWith(cleanLower) || (cleanEmail.includes('@') && uEmail === cleanEmail))) return true;
+        if (!cleanEmail.includes('@') && uEmail === `${cleanLower}@dream.com`) return true;
+        if (cleanLower && (uUser === cleanLower || normalizeArabicText(u.username || '').replace(/\s+/g, '') === normInput)) return true;
+        if (cleanLower && (uName === cleanLower || uNameNorm === normInput)) return true;
+        if (normInput.length >= 3 && (uNameNorm.includes(normInput) || normInput.includes(uNameNorm))) return true;
+        if (asciiDigits.length >= 7 && uPhoneDigits.length >= 7) {
+          if (uPhoneDigits === asciiDigits || uPhoneDigits.endsWith(asciiDigits) || asciiDigits.endsWith(uPhoneDigits)) return true;
+        }
+        if (cleanLower && String(u.id).toLowerCase() === cleanLower) return true;
+        return false;
+      });
+
+      if (found) {
+        return { success: true, user: found };
       }
     }
 
@@ -1955,7 +2112,10 @@ export interface InvoiceFetchScope {
   limit?: number;
 }
 
-export async function fetchInvoicesFromSupabase(limitOrScope: number | InvoiceFetchScope = 150): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
+export async function fetchInvoicesFromSupabase(
+  limitOrScope: number | InvoiceFetchScope = 150,
+  options?: { updatedSince?: string; stampColumn?: 'updated_at' | 'created_at' }
+): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
   try {
     const scope: InvoiceFetchScope =
       typeof limitOrScope === 'number' ? { limit: limitOrScope } : limitOrScope || {};
@@ -1963,36 +2123,45 @@ export async function fetchInvoicesFromSupabase(limitOrScope: number | InvoiceFe
     const repIds = (scope.repIds || [])
       .map((r) => String(r).trim())
       .filter(Boolean);
+    const updatedSince = options?.updatedSince?.trim() || '';
+    const sinceCol: 'updated_at' | 'created_at' = options?.stampColumn || 'created_at';
 
-    /**
-     * الاتنين بيتقرؤوا **مع بعض** مش واحد ورا التاني.
-     *
-     * المنطق زي ما كان بالظبط (جدول invoices الأول و orders fallback لو
-     * رجع فاضي)، بس الكود كان مستني invoices يخلص ثم يطلب orders، يعني
-     * كل قراءة فاتورتين ورا بعض. ده بيتكرر عند 5 مواضع في الإقلاع والمزامنة،
-     * وكل واحد منهم = طلب زائد على الشبكة.
-     *
-     * `Promise.allSettled` مش بيعمل فشلش: لو واحد فيهم وقع، التاني بيفضل
-     * شغال. وترتيب الاختيار بيفضل زي ما كان — invoices لو فيها صف، غير كده
-     * orders.
-     */
-    const buildQuery = (table: 'invoices' | 'orders') => {
-      let query = supabase
-        .from(table)
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(limit) as any;
-      // 🚀 تقليل EGRESS: صفوف التخزين الداخلية (chunks الكتالوج ~330KB للصف
-      // ومخزن مزامنة المستخدمين) بتترتب حديثة بـ created_at، فكانت بتاخد
-      // حصة من الـ limit وبتتنزل كل مرة وبعدين بتترمي في الفلتر المحلي.
-      // الفلترة هنا على السيرفر توفّر ميجابايتات في كل تحميل فواتير.
-      query = query.not('id', 'like', 'dream_%');
-      query = query.neq('id', USER_SYNC_STORE_ID);
-      query = query.not('status', 'ilike', 'catalog_sync%');
-      if (repIds.length > 0) {
-        query = query.in('rep_id', repIds);
+    const INVOICES_SELECT_COLUMNS = [
+      'id', 'invoice_number', 'customer_code', 'customer_name', 'customer_phone',
+      'customer_address', 'customer_tax_number', 'date', 'time', 'created_at',
+      'rep_id', 'rep_name', 'supervisor_name', 'branch_name', 'items',
+      'total_cartons', 'total_pieces', 'subtotal', 'discount_percentage',
+      'discount_amount', 'estimated_grand_total', 'payment_method', 'status', 'notes',
+      'synced_to_accounting', 'has_shortage_split', 'shortage_invoice_number',
+      'is_shortage_invoice', 'parent_invoice_id', 'parent_invoice_number', 'qr_payload',
+    ].join(',');
+
+    const buildQuery = async (table: 'invoices' | 'orders') => {
+      const makeQuery = (selectCols: string, filterCol: 'updated_at' | 'created_at' | null) => {
+        let query = supabase
+          .from(table)
+          .select(selectCols)
+          .order('created_at', { ascending: false })
+          .limit(limit) as any;
+        query = query.not('id', 'like', 'dream_%');
+        query = query.neq('id', USER_SYNC_STORE_ID);
+        query = query.not('status', 'ilike', 'catalog_sync%');
+        if (repIds.length > 0) {
+          query = query.in('rep_id', repIds);
+        }
+        if (updatedSince && filterCol) {
+          query = query.gte(filterCol, updatedSince);
+        }
+        return query;
+      };
+      let first = await makeQuery(INVOICES_SELECT_COLUMNS, updatedSince ? sinceCol : null);
+      if (first?.error && updatedSince && sinceCol === 'updated_at' && isMissingColumnError(first.error)) {
+        first = await makeQuery(INVOICES_SELECT_COLUMNS, 'created_at');
       }
-      return query;
+      if (first?.error && isMissingColumnError(first.error)) {
+        return makeQuery('*', updatedSince ? 'created_at' : null);
+      }
+      return first;
     };
 
     // Query 'orders' directly as it is the primary production table for invoices.
@@ -2074,16 +2243,9 @@ export interface InvoiceContentStamp {
   count: number | null;
   maxCreatedAt: string | null;
   table: 'orders' | 'invoices';
+  stampColumn?: 'updated_at' | 'created_at';
 }
 
-/**
- * 🚀 تجميع المبيعات على السيرفر — طلب واحد صغير بدل تنزيل الفواتير.
- *
- * بيرجّع كل اللي شاشة التحليلات محتاجاه (KPIs + اتجاه يومي + فروع + مناديب +
- * أصناف + عملاء + آخر 10 فواتير) من دالة SQL واحدة (get_sales_summary).
- * لو الدالة مش منفذة على القاعدة بعد (ملف supabase/add_sales_summary_rpc.sql)
- * بيرجّع unavailable=true عشان الشاشة تكمّل بالتجميع المحلي من غير خطأ.
- */
 export interface SalesSummaryKpis {
   sales: number;
   orders: number;
@@ -2164,15 +2326,14 @@ export async function fetchSalesSummaryFromSupabase(
 
 export async function fetchInvoiceContentStamp(
   scope?: InvoiceFetchScope
-): Promise<InvoiceContentStamp | null> {  const repIds = (scope?.repIds || []).map((r) => String(r).trim()).filter(Boolean);
-  const probe = async (table: 'orders' | 'invoices') => {
+): Promise<InvoiceContentStamp | null> {
+  const repIds = (scope?.repIds || []).map((r) => String(r).trim()).filter(Boolean);
+  const probe = async (table: 'orders' | 'invoices', col: 'updated_at' | 'created_at') => {
     let query = supabase
       .from(table)
-      .select('created_at', { count: 'exact' })
-      .order('created_at', { ascending: false, nullsFirst: false })
+      .select(col, { count: 'exact' })
+      .order(col, { ascending: false, nullsFirst: false })
       .limit(1) as any;
-    // نفس استبعاد صفوف التخزين بتاع fetchInvoicesFromSupabase — عشان البصمة
-    // تعدّ الفواتير الحقيقية بس وتبقى متطابقة مع اللي بينزّله التطبيق فعلًا.
     query = query.not('id', 'like', 'dream_%');
     query = query.neq('id', USER_SYNC_STORE_ID);
     query = query.not('status', 'ilike', 'catalog_sync%');
@@ -2182,17 +2343,28 @@ export async function fetchInvoiceContentStamp(
 
   try {
     let table: 'orders' | 'invoices' = 'orders';
-    let { data, error, count } = await probe('orders');
-    if (error || !data || data.length === 0) {
-      table = 'invoices';
-      ({ data, error, count } = await probe('invoices'));
+    let stampColumn: 'updated_at' | 'created_at' = 'updated_at';
+    let res = await probe('orders', 'updated_at');
+    if (res.error) {
+      stampColumn = 'created_at';
+      res = await probe('orders', 'created_at');
     }
-    if (error) return null;
-    const maxCreatedAt = data && data.length > 0 ? (data[0] as any)?.created_at ?? null : null;
+    if (res.error || !res.data || res.data.length === 0) {
+      table = 'invoices';
+      stampColumn = 'updated_at';
+      res = await probe('invoices', 'updated_at');
+      if (res.error) {
+        stampColumn = 'created_at';
+        res = await probe('invoices', 'created_at');
+      }
+    }
+    if (res.error) return null;
+    const maxVal = res.data && res.data.length > 0 ? (res.data[0] as any)?.[stampColumn] ?? null : null;
     return {
-      count: typeof count === 'number' ? count : null,
-      maxCreatedAt: maxCreatedAt != null ? String(maxCreatedAt) : null,
+      count: typeof res.count === 'number' ? res.count : null,
+      maxCreatedAt: maxVal != null ? String(maxVal) : null,
       table,
+      stampColumn,
     };
   } catch {
     return null;
@@ -2613,7 +2785,7 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
     // 2. Fallback: Check if single catalog snapshot exists
     const { data: snapshotData, error: snapErr } = await supabase
       .from('orders')
-      .select('*')
+      .select('items')
       .eq('id', CATALOG_SYNC_STORE_ID)
       .limit(1);
 
@@ -2633,12 +2805,21 @@ export async function fetchProductsFromSupabase(): Promise<{ success: boolean; p
     const pageSize = 1000;
     let page = 0;
     const allProdData: any[] = [];
+    let selectCols = PRODUCTS_SELECT_COLUMNS.replace(',updated_at', '');
 
     while (true) {
-      const { data: chunk, error: pErr } = await supabase
+      let { data: chunk, error: pErr } = await supabase
         .from('products')
-        .select('*')
+        .select(selectCols)
         .range(page * pageSize, (page + 1) * pageSize - 1);
+
+      if (pErr && selectCols !== '*' && isMissingColumnError(pErr)) {
+        selectCols = '*';
+        ({ data: chunk, error: pErr } = await supabase
+          .from('products')
+          .select('*')
+          .range(page * pageSize, (page + 1) * pageSize - 1));
+      }
 
       if (pErr || !chunk || chunk.length === 0) break;
       allProdData.push(...chunk);
@@ -2760,28 +2941,46 @@ export async function fetchVisitsFromSupabase(
      * فالسلوك هنا زي العملاء بالظبط: نرجع للقراءة الكاملة بدل ما نرجع
      * صفحة زيارات فاضية على موبايل المندوب.
      */
+    const VISITS_SELECT_COLUMNS = [
+      'id', 'customer_id', 'customer_name', 'customer_code', 'date', 'time',
+      'rep_id', 'rep_name', 'branch_name', 'supervisor_id', 'supervisor_name',
+      'status', 'type', 'outcome', 'collected_amount', 'notes', 'location',
+      'latitude', 'longitude', 'check_in_time', 'check_out_time', 'duration_minutes',
+      'store_stock_status', 'competitor_notes', 'customer_rating', 'next_visit_date',
+      'order_created_id', 'order_amount', 'is_return', 'return_value', 'return_reason',
+      'return_status', 'return_handled_by', 'return_handled_at', 'return_note',
+      'created_by', 'created_at', 'updated_at', 'review_status',
+      'reviewed_by_name', 'review_note', 'reviewed_at',
+    ].join(',');
+
     const readPages = async (useScope: boolean) => {
       const rows: any[] = [];
+      let selectCols = VISITS_SELECT_COLUMNS;
       for (let page = 0; page < MAX_VISIT_PAGES; page++) {
         const from = page * pageSize;
-        let query = supabase
-          .from('visits')
-          .select('*')
-          // ترتيب ثانوي ثابت عشان صفحات `.range()` ما تكررش/تتخطى صفوف.
-          .order('created_at', { ascending: false })
-          .order('id', { ascending: true });
-        if (useScope) {
-          query = applyScopeToQuery(query, scope);
+        const makeQuery = (cols: string) => {
+          let query = supabase
+            .from('visits')
+            .select(cols)
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: true });
+          if (useScope) {
+            query = applyScopeToQuery(query, scope);
+          }
+          if (useScope && sinceDate) {
+            query = query.gte('date', sinceDate);
+          }
+          if (updatedSince) {
+            query = query.gte('updated_at', updatedSince);
+          }
+          return query;
+        };
+
+        let { data, error } = await makeQuery(selectCols).range(from, from + pageSize - 1);
+        if (error && selectCols !== '*' && isMissingColumnError(error)) {
+          selectCols = '*';
+          ({ data, error } = await makeQuery('*').range(from, from + pageSize - 1));
         }
-        if (useScope && sinceDate) {
-          query = query.gte('date', sinceDate);
-        }
-        // مزامنة تدريجية: الصفوف المتغيرة بس بعد آخر بصمة محفوظة.
-        // `gte` عشان صفوف اللحظة الحدودية ترجع تاني بدل ما تتخطى (الدمج idempotent).
-        if (updatedSince) {
-          query = query.gte('updated_at', updatedSince);
-        }
-        const { data, error } = await query.range(from, from + pageSize - 1);
 
         if (error) return { data: rows, error };
         rows.push(...(data || []));
@@ -2798,7 +2997,7 @@ export async function fetchVisitsFromSupabase(
 
     let scopedUsed = hasScopeFilters(scope) || Boolean(sinceDate);
     let { data: rows, error } = await readPages(scopedUsed);
-    if (!error && !updatedSince && scopedUsed && rows.length === 0) {
+    if (!error && !updatedSince && scopedUsed && rows.length === 0 && !scope?.strictNoFullFallback) {
       console.warn('Scoped visits fetch matched no rows; falling back to the full table.');
       scopedUsed = false;
       const fallback = await readPages(false);
@@ -2811,50 +3010,82 @@ export async function fetchVisitsFromSupabase(
 
     if (rows.length === 0) return { success: true, visits: [], scoped: scopedUsed };
 
-    const mapped: CustomerVisit[] = rows.map((v: any) => ({
-      id: v.id || `visit-${v.created_at}-${v.customer_id}`,
-      customerId: v.customer_id || v.customerId || '',
-      customerName: v.customer_name || v.customerName || '',
-      customerCode: v.customer_code || v.customerCode || '',
-      date: v.date || '',
-      time: v.time || '',
-      repId: v.rep_id || v.repId || '',
-      repName: v.rep_name || v.repName || 'المندوب',
-      branchName: v.branch_name || v.branchName || '',
-      supervisorId: v.supervisor_id || v.supervisorId || '',
-      supervisorName: v.supervisor_name || v.supervisorName || '',
-      status: v.status || 'مجدولة',
-      type: v.type || 'زيارة دورية',
-      outcome: v.outcome || '',
-      collectedAmount: Number(v.collected_amount ?? v.collectedAmount ?? 0),
-      notes: v.notes || '',
-      location: v.location || (v.latitude && v.longitude ? { latitude: Number(v.latitude), longitude: Number(v.longitude), mapUrl: `https://maps.google.com/?q=${v.latitude},${v.longitude}` } : undefined),
-      checkInTime: v.check_in_time || v.checkInTime,
-      checkOutTime: v.check_out_time || v.checkOutTime,
-      durationMinutes: v.duration_minutes || v.durationMinutes,
-      storeStockStatus: v.store_stock_status || v.storeStockStatus,
-      competitorNotes: v.competitor_notes || v.competitorNotes,
-      customerRating: v.customer_rating || v.customerRating,
-      nextVisitDate: v.next_visit_date || v.nextVisitDate,
-      orderCreatedId: v.order_created_id || v.orderCreatedId,
-      orderAmount: v.order_amount || v.orderAmount,
-      isReturn: v.is_return !== undefined ? Boolean(v.is_return) : (v.isReturn !== undefined ? Boolean(v.isReturn) : false),
-      returnValue: v.return_value !== undefined && v.return_value !== null ? Number(v.return_value) : (v.returnValue !== undefined ? Number(v.returnValue) : undefined),
-      returnReason: v.return_reason || v.returnReason || undefined,
+    const mapped: CustomerVisit[] = rows.map((v: any) => {
+      const { cleanNotes, parsedCoords, geoVerification: parsedGeo } = extractVisitGeoFromNotes(v.notes);
+      const locObj =
+        v.location ||
+        (v.latitude && v.longitude
+          ? {
+              latitude: Number(v.latitude),
+              longitude: Number(v.longitude),
+              accuracy: v.location_accuracy !== undefined ? Number(v.location_accuracy) : undefined,
+              mapUrl: `https://maps.google.com/?q=${v.latitude},${v.longitude}`,
+            }
+          : parsedCoords
+          ? {
+              latitude: parsedCoords.latitude,
+              longitude: parsedCoords.longitude,
+              accuracy: parsedGeo?.accuracyMeters,
+              mapUrl: `https://maps.google.com/?q=${parsedCoords.latitude},${parsedCoords.longitude}`,
+            }
+          : undefined);
+      const resolvedGeo = v.geo_status
+        ? {
+            status: v.geo_status,
+            distanceMeters: v.geo_distance_meters !== undefined ? Number(v.geo_distance_meters) : parsedGeo?.distanceMeters,
+            accuracyMeters: v.location_accuracy !== undefined ? Number(v.location_accuracy) : parsedGeo?.accuracyMeters,
+            flags: Array.isArray(v.geo_flags) ? v.geo_flags : parsedGeo?.flags,
+            proofPhotoUrl: v.geo_proof_photo || parsedGeo?.proofPhotoUrl,
+            verifiedAt: parsedGeo?.verifiedAt,
+          }
+        : parsedGeo;
 
-      returnStatus: v.return_status || v.returnStatus || undefined,
-      returnHandledBy: v.return_handled_by || v.returnHandledBy || undefined,
-      returnHandledAt: v.return_handled_at || v.returnHandledAt || undefined,
-      returnNote: v.return_note || v.returnNote || undefined,
-      syncStatus: 'synced',
-      createdBy: v.created_by || v.createdBy || '',
-      createdAt: v.created_at || v.createdAt || new Date().toISOString(),
-      updatedAt: v.updated_at || v.updatedAt,
-      reviewStatus: v.review_status || v.reviewStatus || undefined,
-      reviewedByName: v.reviewed_by_name || v.reviewedByName || undefined,
-      reviewNote: v.review_note || v.reviewNote || undefined,
-      reviewedAt: v.reviewed_at || v.reviewedAt || undefined,
-    }));
+      return {
+        id: v.id || `visit-${v.created_at}-${v.customer_id}`,
+        customerId: v.customer_id || v.customerId || '',
+        customerName: v.customer_name || v.customerName || '',
+        customerCode: v.customer_code || v.customerCode || '',
+        date: v.date || '',
+        time: v.time || '',
+        repId: v.rep_id || v.repId || '',
+        repName: v.rep_name || v.repName || 'المندوب',
+        branchName: v.branch_name || v.branchName || '',
+        supervisorId: v.supervisor_id || v.supervisorId || '',
+        supervisorName: v.supervisor_name || v.supervisorName || '',
+        status: v.status || 'مجدولة',
+        type: v.type || 'زيارة دورية',
+        outcome: v.outcome || '',
+        collectedAmount: Number(v.collected_amount ?? v.collectedAmount ?? 0),
+        notes: cleanNotes,
+        location: locObj,
+        geoVerification: resolvedGeo,
+        checkInTime: v.check_in_time || v.checkInTime,
+        checkOutTime: v.check_out_time || v.checkOutTime,
+        durationMinutes: v.duration_minutes || v.durationMinutes,
+        storeStockStatus: v.store_stock_status || v.storeStockStatus,
+        competitorNotes: v.competitor_notes || v.competitorNotes,
+        customerRating: v.customer_rating || v.customerRating,
+        nextVisitDate: v.next_visit_date || v.nextVisitDate,
+        orderCreatedId: v.order_created_id || v.orderCreatedId,
+        orderAmount: v.order_amount || v.orderAmount,
+        isReturn: v.is_return !== undefined ? Boolean(v.is_return) : (v.isReturn !== undefined ? Boolean(v.isReturn) : false),
+        returnValue: v.return_value !== undefined && v.return_value !== null ? Number(v.return_value) : (v.returnValue !== undefined ? Number(v.returnValue) : undefined),
+        returnReason: v.return_reason || v.returnReason || undefined,
+
+        returnStatus: v.return_status || v.returnStatus || undefined,
+        returnHandledBy: v.return_handled_by || v.returnHandledBy || undefined,
+        returnHandledAt: v.return_handled_at || v.returnHandledAt || undefined,
+        returnNote: v.return_note || v.returnNote || undefined,
+        syncStatus: 'synced',
+        createdBy: v.created_by || v.createdBy || '',
+        createdAt: v.created_at || v.createdAt || new Date().toISOString(),
+        updatedAt: v.updated_at || v.updatedAt,
+        reviewStatus: v.review_status || v.reviewStatus || undefined,
+        reviewedByName: v.reviewed_by_name || v.reviewedByName || undefined,
+        reviewNote: v.review_note || v.reviewNote || undefined,
+        reviewedAt: v.reviewed_at || v.reviewedAt || undefined,
+      };
+    });
 
     return { success: true, visits: mapped, scoped: scopedUsed };
   } catch (err: any) {
@@ -2876,24 +3107,28 @@ export async function saveVisitsToSupabase(visits: CustomerVisit[]): Promise<{ s
     if (!visits || visits.length === 0) return { success: true, savedCount: 0 };
 
     const payload = visits.map((v) => {
-      let enhancedNotes = v.notes || '';
-      if (v.location?.latitude) {
+      let enhancedNotes = (v.notes || '').replace(/\n?\[GEO_VERIFY:[^\]]+\]/g, '').trim();
+      if (v.location?.latitude && !enhancedNotes.includes('[موقع GPS:')) {
         enhancedNotes += `\n[موقع GPS: ${v.location.latitude.toFixed(6)}, ${v.location.longitude.toFixed(6)}]`;
       }
-      if (v.checkInTime) {
+      if (v.checkInTime && !enhancedNotes.includes('[حضور:')) {
         enhancedNotes += `\n[حضور: ${v.checkInTime}${v.checkOutTime ? ` - انصراف: ${v.checkOutTime}` : ''}${v.durationMinutes ? ` (${v.durationMinutes} دقيقة)` : ''}]`;
       }
-      if (v.storeStockStatus) {
+      if (v.storeStockStatus && !enhancedNotes.includes('[حالة المخزون بالمتجر:')) {
         enhancedNotes += `\n[حالة المخزون بالمتجر: ${v.storeStockStatus}]`;
       }
-      if (v.competitorNotes) {
+      if (v.competitorNotes && !enhancedNotes.includes('[بضاعة وأسعار المنافسين:')) {
         enhancedNotes += `\n[بضاعة وأسعار المنافسين: ${v.competitorNotes}]`;
       }
-      if (v.customerRating) {
+      if (v.customerRating && !enhancedNotes.includes('[تقييم تجاوب العميل:')) {
         enhancedNotes += `\n[تقييم تجاوب العميل: ${v.customerRating}/5 ⭐]`;
       }
-      if (v.nextVisitDate) {
+      if (v.nextVisitDate && !enhancedNotes.includes('[الزيارة القادمة المتفق عليها:')) {
         enhancedNotes += `\n[الزيارة القادمة المتفق عليها: ${v.nextVisitDate}]`;
+      }
+      const geoTag = encodeVisitGeoVerificationTag(v);
+      if (geoTag) {
+        enhancedNotes += `\n${geoTag}`;
       }
 
       return {
@@ -3036,15 +3271,136 @@ CREATE TABLE customer_comments (
  * بصمت. الجداول دي مفهومة الحجم (شهر واحد لكل مندوب × 8 فترات)، فالحد
  * الأقصى هنا حماية ضد جدول مش متوقع مش رقم تشغيل.
  */
+export interface ForecastFetchScope {
+  branchNames?: string[];
+  repIds?: string[];
+  repNames?: string[];
+}
+
+export interface ContentStampMeta {
+  count: number | null;
+  maxUpdatedAt: string | null;
+}
+
+const FORECAST_SELECT_COLUMNS = [
+  'id',
+  'month_key',
+  'week_index',
+  'rep_id',
+  'rep_name',
+  'branch_name',
+  'customer_id',
+  'customer_code',
+  'customer_name',
+  'collection_forecast',
+  'sales_forecast',
+  'status',
+  'submitted_at',
+  'approved_by',
+  'approved_at',
+  'change_request_note',
+  'change_requested_by',
+  'change_requested_at',
+  'updated_by',
+  'updated_at',
+].join(',');
+
+const FORECAST_PLAN_SELECT_COLUMNS = [
+  'id',
+  'year',
+  'month',
+  'month_start',
+  'month_end',
+  'weeks',
+  'is_closed',
+  'created_by',
+  'created_at',
+  'updated_by',
+  'updated_at',
+].join(',');
+
+const CUSTOMER_COMMENTS_SELECT_COLUMNS = [
+  'id',
+  'customer_id',
+  'customer_code',
+  'customer_name',
+  'branch_name',
+  'rep_name',
+  'kind',
+  'body',
+  'author_name',
+  'created_at',
+  'updated_at',
+  'is_archived',
+  'archived_at',
+  'archived_by',
+].join(',');
+
+function applyForecastScope(query: any, scope?: ForecastFetchScope): any {
+  if (!scope) return query;
+  const clauses: string[] = [];
+  const branches = (scope.branchNames || []).map((b) => String(b).trim()).filter(Boolean);
+  if (branches.length > 0) {
+    clauses.push(`branch_name.in.(${branches.map(quoteOrValue).join(',')})`);
+  }
+  (scope.repIds || []).map((id) => String(id).trim()).filter(Boolean).forEach((id) => {
+    clauses.push(`rep_id.eq.${quoteOrValue(id)}`);
+  });
+  (scope.repNames || []).map((name) => String(name).trim()).filter(Boolean).forEach((name) => {
+    clauses.push(`rep_name.ilike.${quoteOrValue(`*${name}*`)}`);
+  });
+  return clauses.length > 0 ? query.or(clauses.join(',')) : query;
+}
+
+function applyCommentsScope(query: any, scope?: ForecastFetchScope): any {
+  if (!scope) return query;
+  const clauses: string[] = [];
+  const branches = (scope.branchNames || []).map((b) => String(b).trim()).filter(Boolean);
+  if (branches.length > 0) {
+    clauses.push(`branch_name.in.(${branches.map(quoteOrValue).join(',')})`);
+  }
+  (scope.repNames || []).map((name) => String(name).trim()).filter(Boolean).forEach((name) => {
+    clauses.push(`rep_name.ilike.${quoteOrValue(`*${name}*`)}`);
+  });
+  return clauses.length > 0 ? query.or(clauses.join(',')) : query;
+}
+
+/**
+ * قراءة بالدفعات لجداول التوقعات والتعليقات مع تحديد الأعمدة المطلوبة فقط.
+ */
 async function fetchAllRowsPaged(
   table: 'collection_forecasts' | 'customer_comments',
-  maxPages: number
+  maxPages: number,
+  scope?: ForecastFetchScope,
+  options?: { updatedSince?: string }
 ): Promise<{ data: any[]; error: any }> {
   const pageSize = 1000;
   const rows: any[] = [];
+  let selectCols =
+    table === 'collection_forecasts' ? FORECAST_SELECT_COLUMNS : CUSTOMER_COMMENTS_SELECT_COLUMNS;
+  let updatedSince = options?.updatedSince?.trim() || '';
+
   for (let page = 0; page < maxPages; page++) {
     const from = page * pageSize;
-    const { data, error } = await supabase.from(table).select('*').range(from, from + pageSize - 1);
+    const buildQuery = (cols: string, since: string) => {
+      let q = supabase.from(table).select(cols);
+      q = table === 'collection_forecasts' ? applyForecastScope(q, scope) : applyCommentsScope(q, scope);
+      if (since) q = q.gte('updated_at', since);
+      return q;
+    };
+
+    let { data, error } = await buildQuery(selectCols, updatedSince).range(from, from + pageSize - 1);
+
+    if (error && updatedSince && isMissingColumnError(error)) {
+      updatedSince = '';
+      ({ data, error } = await buildQuery(selectCols, '').range(from, from + pageSize - 1));
+    }
+
+    if (error && selectCols !== '*' && isMissingColumnError(error)) {
+      selectCols = '*';
+      ({ data, error } = await buildQuery('*', updatedSince).range(from, from + pageSize - 1));
+    }
+
     if (error) return { data: rows, error };
     rows.push(...(data || []));
     if (!data || data.length < pageSize) break;
@@ -3066,9 +3422,84 @@ const MAX_FORECAST_PAGES = 50;
 /** 20 ألف تعليق: تعليق لكل عميل بسعر فاضي. */
 const MAX_COMMENT_PAGES = 20;
 
-export async function fetchForecastsFromSupabase(): Promise<{ success: boolean; forecasts?: any[]; error?: string }> {
+export async function fetchForecastMonthStamp(
+  monthKey: string,
+  scope?: ForecastFetchScope
+): Promise<ContentStampMeta | null> {
   try {
-    const { data, error } = await fetchAllRowsPaged('collection_forecasts', MAX_FORECAST_PAGES);
+    let query = supabase
+      .from('collection_forecasts')
+      .select('updated_at', { count: 'exact' })
+      .eq('month_key', monthKey)
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(1);
+    query = applyForecastScope(query, scope);
+    const { data, error, count } = await query;
+    if (error) return null;
+    const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
+    return {
+      count: typeof count === 'number' ? count : null,
+      maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchForecastPlansStamp(): Promise<ContentStampMeta | null> {
+  try {
+    const { data, error, count } = await supabase
+      .from('forecast_month_plans')
+      .select('updated_at', { count: 'exact' })
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(1);
+    if (error) return null;
+    const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
+    return {
+      count: typeof count === 'number' ? count : null,
+      maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchCustomerCommentsStamp(
+  scope?: ForecastFetchScope
+): Promise<ContentStampMeta | null> {
+  try {
+    const buildStampQuery = (col: 'updated_at' | 'created_at') => {
+      let query = supabase
+        .from('customer_comments')
+        .select(col, { count: 'exact' })
+        .order(col, { ascending: false, nullsFirst: false })
+        .limit(1);
+      return applyCommentsScope(query, scope);
+    };
+
+    let res = await buildStampQuery('updated_at');
+    let usedCol: 'updated_at' | 'created_at' = 'updated_at';
+    if (res.error) {
+      res = await buildStampQuery('created_at');
+      usedCol = 'created_at';
+    }
+    if (res.error) return null;
+    const row = res.data && res.data.length > 0 ? (res.data[0] as any) : null;
+    const latest = row ? row[usedCol] ?? null : null;
+    return {
+      count: typeof res.count === 'number' ? res.count : null,
+      maxUpdatedAt: latest ? String(latest) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchForecastsFromSupabase(
+  scope?: ForecastFetchScope
+): Promise<{ success: boolean; forecasts?: any[]; error?: string }> {
+  try {
+    const { data, error } = await fetchAllRowsPaged('collection_forecasts', MAX_FORECAST_PAGES, scope);
     if (error) return { success: false, error: error.message };
     return { success: true, forecasts: data };
   } catch (error: any) {
@@ -3077,23 +3508,44 @@ export async function fetchForecastsFromSupabase(): Promise<{ success: boolean; 
 }
 
 /**
- * توقعات شهر واحد فقط — الفلترة على السيرفر بدل تحميل كل الشهور
- * (اللي كان بيصل لـ 50 ألف سطر في 50 طلب متتالي). شهر واحد =
- * مناديب × فترات، فحد 10 صفحات (10 آلاف سطر) أكتر من اللازم.
+ * توقعات شهر واحد فقط — الفلترة على السيرفر بدل تحميل كل الشهور.
  */
 const MAX_MONTH_FORECAST_PAGES = 10;
 
-export async function fetchForecastsByMonthFromSupabase(monthKey: string): Promise<{ success: boolean; forecasts?: any[]; error?: string }> {
+export async function fetchForecastsByMonthFromSupabase(
+  monthKey: string,
+  scope?: ForecastFetchScope,
+  options?: { updatedSince?: string }
+): Promise<{ success: boolean; forecasts?: any[]; error?: string }> {
   try {
     const pageSize = 1000;
     const rows: any[] = [];
+    let selectCols = FORECAST_SELECT_COLUMNS;
+    let updatedSince = options?.updatedSince?.trim() || '';
+
     for (let page = 0; page < MAX_MONTH_FORECAST_PAGES; page++) {
       const from = page * pageSize;
-      const { data, error } = await supabase
-        .from('collection_forecasts')
-        .select('*')
-        .eq('month_key', monthKey)
-        .range(from, from + pageSize - 1);
+      const buildQuery = (cols: string, since: string) => {
+        let query = supabase
+          .from('collection_forecasts')
+          .select(cols)
+          .eq('month_key', monthKey);
+        query = applyForecastScope(query, scope);
+        if (since) query = query.gte('updated_at', since);
+        return query;
+      };
+      let { data, error } = await buildQuery(selectCols, updatedSince).range(from, from + pageSize - 1);
+
+      if (error && updatedSince && isMissingColumnError(error)) {
+        updatedSince = '';
+        ({ data, error } = await buildQuery(selectCols, '').range(from, from + pageSize - 1));
+      }
+
+      if (error && selectCols !== '*' && isMissingColumnError(error)) {
+        selectCols = '*';
+        ({ data, error } = await buildQuery('*', updatedSince).range(from, from + pageSize - 1));
+      }
+
       if (error) return { success: false, error: error.message };
       rows.push(...(data || []));
       if (!data || data.length < pageSize) break;
@@ -3105,21 +3557,38 @@ export async function fetchForecastsByMonthFromSupabase(monthKey: string): Promi
 }
 
 /**
- * توقعات سنة كاملة (لوحة الإدارة). month_key نص 'YYYY-MM' فالـ
- * gte/lt بيقارنوا نصياً وبيعملوا نطاق سنة كامل على السيرفر.
+ * توقعات سنة كاملة (لوحة الإدارة). month_key نص 'YYYY-MM'.
  */
-export async function fetchForecastsByYearFromSupabase(year: number): Promise<{ success: boolean; forecasts?: any[]; error?: string }> {
+export async function fetchForecastsByYearFromSupabase(
+  year: number,
+  scope?: ForecastFetchScope
+): Promise<{ success: boolean; forecasts?: any[]; error?: string }> {
   try {
     const pageSize = 1000;
     const rows: any[] = [];
+    let selectCols = FORECAST_SELECT_COLUMNS;
+
     for (let page = 0; page < MAX_FORECAST_PAGES; page++) {
       const from = page * pageSize;
-      const { data, error } = await supabase
+      let query = supabase
         .from('collection_forecasts')
-        .select('*')
+        .select(selectCols)
         .gte('month_key', `${year}-01`)
-        .lt('month_key', `${year + 1}-01`)
-        .range(from, from + pageSize - 1);
+        .lt('month_key', `${year + 1}-01`);
+      query = applyForecastScope(query, scope);
+      let { data, error } = await query.range(from, from + pageSize - 1);
+
+      if (error && selectCols !== '*' && isMissingColumnError(error)) {
+        selectCols = '*';
+        let fbQuery = supabase
+          .from('collection_forecasts')
+          .select('*')
+          .gte('month_key', `${year}-01`)
+          .lt('month_key', `${year + 1}-01`);
+        fbQuery = applyForecastScope(fbQuery, scope);
+        ({ data, error } = await fbQuery.range(from, from + pageSize - 1));
+      }
+
       if (error) return { success: false, error: error.message };
       rows.push(...(data || []));
       if (!data || data.length < pageSize) break;
@@ -3179,9 +3648,23 @@ export async function fetchForecastMonthPlansFromSupabase(): Promise<{ success: 
     // صف واحد لكل شهر مُدار. حتى 20 سنة = 240 صف، فحد 5 آلاف أكثر من اللازم.
     const pageSize = 1000;
     const rows: any[] = [];
+    let selectCols = FORECAST_PLAN_SELECT_COLUMNS;
+
     for (let page = 0; page < 5; page++) {
       const from = page * pageSize;
-      const { data, error } = await supabase.from('forecast_month_plans').select('*').range(from, from + pageSize - 1);
+      let { data, error } = await supabase
+        .from('forecast_month_plans')
+        .select(selectCols)
+        .range(from, from + pageSize - 1);
+
+      if (error && selectCols !== '*' && isMissingColumnError(error)) {
+        selectCols = '*';
+        ({ data, error } = await supabase
+          .from('forecast_month_plans')
+          .select('*')
+          .range(from, from + pageSize - 1));
+      }
+
       if (error) return { success: false, error: error.message };
       rows.push(...(data || []));
       if (!data || data.length < pageSize) break;
@@ -3217,9 +3700,12 @@ export async function saveForecastMonthPlanToSupabase(plan: any): Promise<{ succ
   }
 }
 
-export async function fetchCustomerCommentsFromSupabase(): Promise<{ success: boolean; comments?: any[]; error?: string }> {
+export async function fetchCustomerCommentsFromSupabase(
+  scope?: ForecastFetchScope,
+  options?: { updatedSince?: string }
+): Promise<{ success: boolean; comments?: any[]; error?: string }> {
   try {
-    const { data, error } = await fetchAllRowsPaged('customer_comments', MAX_COMMENT_PAGES);
+    const { data, error } = await fetchAllRowsPaged('customer_comments', MAX_COMMENT_PAGES, scope, options);
     if (error) return { success: false, error: error.message };
     return { success: true, comments: data };
   } catch (error: any) {
@@ -3356,6 +3842,9 @@ export async function fetchCustomersIncremental(
     const maxUpdatedAt = nextCursor?.ts ?? null;
 
     const mapped: Customer[] = changedRows.map((c: any, idx: number) => {
+      const { cleanNotes, meta: geoMeta } = extractCustomerGeoFromNotes(c.notes);
+      const resolvedLat = c.latitude !== undefined && c.latitude !== null ? Number(c.latitude) : geoMeta?.lat;
+      const resolvedLng = c.longitude !== undefined && c.longitude !== null ? Number(c.longitude) : geoMeta?.lng;
       return {
         id: c.id || `cust-${idx + 1}`,
         code: c.code || `CUST-${1000 + idx + 1}`,
@@ -3374,7 +3863,17 @@ export async function fetchCustomersIncremental(
         creditLimit: Number(c.credit_limit ?? c.creditLimit ?? 0),
         balance: Number(c.balance ?? c.current_balance ?? 0),
         currentBalance: Number(c.current_balance ?? c.balance ?? 0),
-        notes: c.notes || '',
+        notes: cleanNotes,
+        latitude: resolvedLat,
+        longitude: resolvedLng,
+        locationAddress: c.location_address || geoMeta?.addr || undefined,
+        locationCapturedAt: c.location_captured_at || geoMeta?.at || undefined,
+        locationCapturedBy: c.location_captured_by || geoMeta?.by || undefined,
+        locationLocked: c.location_locked !== undefined ? Boolean(c.location_locked) : Boolean(geoMeta?.locked),
+        locationApprovedBy: c.location_approved_by || geoMeta?.appBy || undefined,
+        locationApprovedAt: c.location_approved_at || geoMeta?.appAt || undefined,
+        locationPhotoUrl: c.location_photo_url || geoMeta?.photo || undefined,
+        locationAccuracy: geoMeta?.acc,
         lastVisitDate: c.last_visit_date || c.lastVisitDate || undefined,
         visitCount2026: c.visit_count_2026 !== undefined ? Number(c.visit_count_2026) : undefined,
         visitHistory: c.visit_history
@@ -3596,7 +4095,9 @@ const TARGETS_SELECT_COLUMNS = [
   'notes', 'updated_at',
 ].join(',');
 
-export async function fetchTargetsIncremental(): Promise<{
+export async function fetchTargetsIncremental(
+  scope?: TargetFetchScope
+): Promise<{
   success: boolean;
   targets?: any[];
   error?: string;
@@ -3606,9 +4107,14 @@ export async function fetchTargetsIncremental(): Promise<{
   entity?: string;
 }> {
   try {
-    const cursor = getSyncCursor('targets');
+    const scopeKey = scope
+      ? `targets::${[...(scope.branchNames || []), ...(scope.repNames || [])].sort().join('|') || 'scoped'}`
+      : 'targets';
+    const cursor = getSyncCursor(scopeKey);
     const isFullFetch = !cursor;
-    const read = await readRowsPaged('targets', TARGETS_SELECT_COLUMNS, cursor?.ts);
+    const read = await readRowsPaged('targets', TARGETS_SELECT_COLUMNS, cursor?.ts, (q) =>
+      applyTargetScope(q, scope)
+    );
     if (read.error) {
       return { success: false, error: read.error.message, entity: 'targets', count: 0, isFullFetch, maxUpdatedAt: cursor?.ts ?? null };
     }
@@ -3619,7 +4125,7 @@ export async function fetchTargetsIncremental(): Promise<{
     }
     let nextCursor: SyncCursor | null = cursor;
     for (const r of rows) nextCursor = advanceSyncCursor(nextCursor, r);
-    if (nextCursor) setSyncCursor('targets', nextCursor.ts, nextCursor.id);
+    if (nextCursor) setSyncCursor(scopeKey, nextCursor.ts, nextCursor.id);
     return {
       success: true,
       targets: changedRows,
@@ -3663,16 +4169,24 @@ export async function fetchProductsIncremental(): Promise<{
     const isFullFetch = !cursor;
     const read = await readRowsPaged('products', PRODUCTS_SELECT_COLUMNS, cursor?.ts);
     if (read.error) {
-      // لو جدول الأصناف مش فيه updated_at، نرجع قراءة كاملة (مع Pagination) كبديل آمن.
       if (String(read.error.message || '').includes('updated_at')) {
         const all: any[] = [];
+        let fallbackCols = PRODUCTS_SELECT_COLUMNS.replace(',updated_at', '');
         for (let page = 0; page < INCREMENTAL_MAX_PAGES; page++) {
           const from = page * INCREMENTAL_PAGE_SIZE;
-          const { data, error: allErr } = await supabase
+          let { data, error: allErr } = await supabase
             .from('products')
-            .select('*')
+            .select(fallbackCols)
             .order('id', { ascending: true })
             .range(from, from + INCREMENTAL_PAGE_SIZE - 1);
+          if (allErr && fallbackCols !== '*' && isMissingColumnError(allErr)) {
+            fallbackCols = '*';
+            ({ data, error: allErr } = await supabase
+              .from('products')
+              .select('*')
+              .order('id', { ascending: true })
+              .range(from, from + INCREMENTAL_PAGE_SIZE - 1));
+          }
           if (allErr) {
             if (all.length === 0) {
               return { success: false, error: allErr.message, entity: 'products', count: 0, isFullFetch: true, maxUpdatedAt: null };
@@ -3684,7 +4198,7 @@ export async function fetchProductsIncremental(): Promise<{
           if (batch.length < INCREMENTAL_PAGE_SIZE) break;
         }
         // مفيش updated_at يعني مفيش مزامنة تدريجية ممكنة — منسجّلش مؤشر.
-        return { success: true, products: all, entity: 'products', count: all.length, isFullFetch: true, maxUpdatedAt: null };
+        return { success: true, products: all.map(mapProductTableRow), entity: 'products', count: all.length, isFullFetch: true, maxUpdatedAt: null };
       }
       return { success: false, error: read.error.message, entity: 'products', count: 0, isFullFetch, maxUpdatedAt: null };
     }
@@ -3727,7 +4241,10 @@ const CUSTOMER_ITEM_SALES_SELECT_COLUMNS = [
   'unit', 'factor', 'unit_price', 'discount', 'unified_code',
 ].join(',');
 
-export async function fetchCustomerItemSalesIncremental(): Promise<{
+export async function fetchCustomerItemSalesIncremental(scope?: {
+  repNames?: string[];
+  warehouses?: string[];
+}): Promise<{
   success: boolean;
   sales?: any[];
   error?: string;
@@ -3737,9 +4254,28 @@ export async function fetchCustomerItemSalesIncremental(): Promise<{
   entity?: string;
 }> {
   try {
-    const cursor = getSyncCursor('customer_item_sales');
+    const scopeKey = scope
+      ? `customer_item_sales::${[...(scope.repNames || []), ...(scope.warehouses || [])].sort().join('|') || 'scoped'}`
+      : 'customer_item_sales';
+    const cursor = getSyncCursor(scopeKey);
     const isFullFetch = !cursor;
-    const read = await readRowsPaged('customer_item_sales', CUSTOMER_ITEM_SALES_SELECT_COLUMNS, cursor?.ts);
+    const applyScope = (q: any) => {
+      if (!scope) return q;
+      const clauses: string[] = [];
+      (scope.repNames || []).map((n) => String(n).trim()).filter((n) => n.length >= 2).forEach((name) => {
+        clauses.push(`rep_name.ilike.${quoteOrValue(`*${name}*`)}`);
+      });
+      (scope.warehouses || []).map((w) => String(w).trim()).filter((w) => w.length >= 2).forEach((wh) => {
+        clauses.push(`warehouse.ilike.${quoteOrValue(`*${wh}*`)}`);
+      });
+      return clauses.length > 0 ? q.or(clauses.join(',')) : q;
+    };
+    const read = await readRowsPaged(
+      'customer_item_sales',
+      CUSTOMER_ITEM_SALES_SELECT_COLUMNS,
+      cursor?.ts,
+      scope ? applyScope : undefined
+    );
     if (read.error) {
       return { success: false, error: read.error.message, entity: 'customer_item_sales', count: 0, isFullFetch, maxUpdatedAt: cursor?.ts ?? null };
     }
@@ -3750,7 +4286,7 @@ export async function fetchCustomerItemSalesIncremental(): Promise<{
     }
     let nextCursor: SyncCursor | null = cursor;
     for (const r of rows) nextCursor = advanceSyncCursor(nextCursor, r);
-    if (nextCursor) setSyncCursor('customer_item_sales', nextCursor.ts, nextCursor.id);
+    if (nextCursor) setSyncCursor(scopeKey, nextCursor.ts, nextCursor.id);
     return {
       success: true,
       sales: changedRows,

@@ -337,8 +337,14 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
         return;
       }
 
-      // Non-blocking GPS capture on order submission to automatically record/pin customer location
-      if (typeof navigator !== 'undefined' && 'geolocation' in navigator && effectiveCustomer?.id) {
+      // Non-blocking initial GPS capture ONLY when customer has no saved/locked location yet
+      if (
+        typeof navigator !== 'undefined' &&
+        'geolocation' in navigator &&
+        effectiveCustomer?.id &&
+        !effectiveCustomer.locationLocked &&
+        (!effectiveCustomer.latitude || !effectiveCustomer.longitude)
+      ) {
         navigator.geolocation.getCurrentPosition(
           (pos) => {
             if (pos?.coords?.latitude && pos?.coords?.longitude && updateCustomer) {
@@ -346,13 +352,14 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 ...effectiveCustomer,
                 latitude: pos.coords.latitude,
                 longitude: pos.coords.longitude,
+                locationAccuracy: typeof pos.coords.accuracy === 'number' ? Math.round(pos.coords.accuracy) : undefined,
                 locationCapturedAt: new Date().toISOString(),
-                locationCapturedBy: currentUser?.name || 'مندوب المبيعات'
+                locationCapturedBy: currentUser?.name || 'مندوب المبيعات',
               });
             }
           },
           () => {},
-          { timeout: 3000, maximumAge: 60000 }
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
         );
       }
 

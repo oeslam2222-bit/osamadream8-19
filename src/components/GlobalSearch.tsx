@@ -21,7 +21,7 @@ interface GlobalSearchProps {
 
 const GROUP_META: Record<string, { label: string; icon: any; tab: string }> = {
   customers: { label: 'العملاء', icon: Users, tab: 'all_customers' },
-  reps: { label: 'المناديب والمشرفين', icon: UserCheck, tab: 'all_customers' },
+  reps: { label: 'المناديب والمشرفين', icon: UserCheck, tab: 'reps' },
   invoices: { label: 'أوامر البيع', icon: Receipt, tab: 'invoices' },
   products: { label: 'الأصناف', icon: Boxes, tab: 'catalog' },
   returns: { label: 'المرتجعات', icon: RotateCcw, tab: 'returns' },
@@ -86,8 +86,8 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ isOpen, onClose, all
       }));
     }
 
-    // Reps & Supervisors
-    if (allowedTabs.includes('all_customers') || allowedTabs.includes('dashboard')) {
+    // Reps & Supervisors (Only visible to supervisors, branch managers, admins, developers)
+    if (allowedTabs.includes('reps')) {
       const reps = (users || []).filter((u) => {
         const isRepOrSup = u.role === 'sales_rep' || u.role === 'supervisor';
         if (!isRepOrSup) return false;
@@ -105,7 +105,7 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ isOpen, onClose, all
         group: 'reps',
         title: u.name,
         subtitle: `${u.role === 'supervisor' ? 'مشرف مبيعات' : 'مندوب مبيعات'} • ${u.branchName || 'فرع غير محدد'}${u.phone ? ' • ' + u.phone : ''}`,
-        tab: 'all_customers',
+        tab: 'reps',
         query: u.name,
       }));
     }
@@ -234,6 +234,7 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ isOpen, onClose, all
               <div className="tg-search-empty__sub">اكتب اسم عميل، رقم فاتورة، كود صنف، أو مرتجع (حرفين فأكثر).</div>
               <div className="tg-search-quick">
                 {allowedTabs.includes('all_customers') && <button onClick={() => { onNavigate('all_customers'); onClose(); }} className="tg-search-quick__btn">العملاء</button>}
+                {allowedTabs.includes('reps') && <button onClick={() => { onNavigate('reps'); onClose(); }} className="tg-search-quick__btn">المناديب</button>}
                 {allowedTabs.includes('catalog') && <button onClick={() => { onNavigate('catalog'); onClose(); }} className="tg-search-quick__btn">الكتالوج</button>}
                 {allowedTabs.includes('invoices') && <button onClick={() => { onNavigate('invoices'); onClose(); }} className="tg-search-quick__btn">أوامر البيع</button>}
                 {allowedTabs.includes('collection') && <button onClick={() => { onNavigate('collection'); onClose(); }} className="tg-search-quick__btn">التحصيل</button>}

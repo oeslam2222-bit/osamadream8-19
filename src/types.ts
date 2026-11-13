@@ -278,6 +278,15 @@ export interface CustomerVisit {
     mapUrl?: string;
     timestamp?: string;
   };
+  geoVerification?: {
+    status: 'verified' | 'outside_range' | 'suspected_spoof' | 'low_accuracy' | 'no_gps' | 'unpinned_customer';
+    distanceMeters?: number;
+    accuracyMeters?: number;
+    speedKmh?: number;
+    flags?: string[];
+    proofPhotoUrl?: string;
+    verifiedAt?: string;
+  };
   checkInTime?: string;              // وقت تسجيل الحضور عند العميل (Check-In)
   checkOutTime?: string;             // وقت الانتهاء من الزيارة (Check-Out)
   durationMinutes?: number;          // مدة الزيارة بالدقائق
@@ -411,6 +420,11 @@ export interface Customer {
   locationAddress?: string;          // وصف الموقع أو العنوان الجغرافي
   locationCapturedAt?: string;       // تاريخ ووقت تثبيت الإحداثيات
   locationCapturedBy?: string;       // المندوب الذي وثّق الموقع
+  locationLocked?: boolean;          // هل تم قفل الموقع واعتماده من المشرف؟
+  locationApprovedBy?: string;       // اسم المشرف/المدير المعتمد للموقع
+  locationApprovedAt?: string;       // تاريخ اعتماد وقفل الموقع
+  locationPhotoUrl?: string;         // صورة حية لواجهة المحل عند التثبيت (Cloudinary)
+  locationAccuracy?: number;         // دقة قراءة GPS بالمتر وقت التثبيت
 
   sector?: 'home' | 'electrical' | 'both' | 'all';  // القطاع (منزلي / كهربائي) - لعزل البيانات بين القطاعات
   storePhotos?: string[];            // صور معرض/محل العميل (Cloudinary أو روابط مباشرة)

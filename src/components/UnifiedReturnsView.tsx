@@ -28,9 +28,19 @@ import {
   XCircle,
   Printer,
   FileSpreadsheet,
-  Download
+  Download,
+  ShieldCheck,
+  Lock
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { compressImageFile, normalizeCloudinaryConfig, uploadImageToCloudinary } from '../services/cloudinaryService';
+import {
+  formatDistance,
+  geoStatusBadgeMeta,
+  LiveGpsReading,
+  requestLiveGps,
+  verifyVisitLocation,
+} from '../services/geoVerificationService';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { Customer, CustomerVisit, Product } from '../types';
 
@@ -58,6 +68,8 @@ export const UnifiedReturnsView: React.FC = () => {
     getVisibleProducts,
     addVisit,
     updateVisit,
+    updateCustomer,
+    cloudinaryConfig,
     activeSectorFilter,
     setActiveSectorFilter
   } = useApp();
@@ -93,17 +105,69 @@ export const UnifiedReturnsView: React.FC = () => {
     }
   ]);
   const [attachedPhotos, setAttachedPhotos] = useState<string[]>([]);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [returnRepGps, setReturnRepGps] = useState<LiveGpsReading | null>(null);
+  const [returnGpsLoading, setReturnGpsLoading] = useState(false);
+  const [returnGpsError, setReturnGpsError] = useState<string | null>(null);
+  const [returnPinInitialLocation, setReturnPinInitialLocation] = useState(false);
 
   // Preview Image Lightbox
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   // Close/Action Modal State
   const [actionVisit, setActionVisit] = useState<CustomerVisit | null>(null);
+  const [actionMode, setActionMode] = useState<'close' | 'reject' | null>(null);
   const [actionNote, setActionNote] = useState('');
 
   // Print Warehouse Return Voucher State
   const [printReturnVoucher, setPrintReturnVoucher] = useState<CustomerVisit | null>(null);
+
+  const showErrorToast = (text: string) => {
+    setFlashMsg({ type: 'error', text });
+    setTimeout(() => setFlashMsg(null), 4500);
+  };
+
+  const captureReturnGps = async () => {
+    setReturnGpsLoading(true);
+    setReturnGpsError(null);
+    const res = await requestLiveGps(10000);
+    setReturnGpsLoading(false);
+    if (res.ok) {
+      setReturnRepGps(res.coords);
+    } else {
+      setReturnRepGps(null);
+      setReturnGpsError('error' in res ? res.error : 'تعذر قراءة GPS');
+    }
+  };
+
+  useEffect(() => {
+    if (isCreateModalOpen) {
+      void captureReturnGps();
+    } else {
+      setReturnRepGps(null);
+      setReturnGpsError(null);
+      setReturnPinInitialLocation(false);
+    }
+  }, [isCreateModalOpen]);
+
+  useEffect(() => {
+    if (selectedCustomer) {
+      setReturnPinInitialLocation(!selectedCustomer.latitude || !selectedCustomer.longitude);
+    } else {
+      setReturnPinInitialLocation(false);
+    }
+  }, [selectedCustomer]);
+
+  const returnGeoCheck = useMemo(() => {
+    if (!isCreateModalOpen || !selectedCustomer) return null;
+    return verifyVisitLocation({
+      repGps: returnRepGps,
+      customer: selectedCustomer,
+      repVisits: visits,
+      repId: currentUser?.id,
+    });
+  }, [isCreateModalOpen, selectedCustomer, returnRepGps, visits, currentUser?.id]);
 
   const handleExportReturnExcel = (visit: CustomerVisit) => {
     let rows: Array<{ code: string; name: string; cartons: number; pieces: number; condition: string; reason: string }> = [];
@@ -297,22 +361,35 @@ export const UnifiedReturnsView: React.FC = () => {
     setItemsDraft((prev) => prev.filter((i) => i.id !== draftId));
   };
 
-  // Handler: Image Upload (Multiple photos)
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handler: Image Upload (Compressed & uploaded to Cloudinary to avoid DB egress)
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith('image/')) return;
-      const reader = new FileReader();
-      reader.onload = (loadEvt) => {
-        const result = loadEvt.target?.result as string;
-        if (result) {
-          setAttachedPhotos((prev) => [...prev, result]);
+    setIsUploadingPhotos(true);
+    try {
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith('image/')) continue;
+        try {
+          const compressed = await compressImageFile(file, 900, 900, 0.65);
+          const uploaded = await uploadImageToCloudinary(
+            compressed,
+            normalizeCloudinaryConfig(cloudinaryConfig),
+            'tantawy_returns'
+          );
+          if (uploaded.url && !/^data:image\//i.test(uploaded.url)) {
+            setAttachedPhotos((prev) => [...prev, uploaded.url]);
+          } else {
+            showErrorToast('فشل رفع الصورة إلى السحابة. يرجى التأكد من الإنترنت والمحاولة مرة أخرى.');
+          }
+        } catch {
+          showErrorToast('تعذر رفع الصورة السحابي، تأكد من اتصال الإنترنت ثم أعد المحاولة.');
         }
-      };
-      reader.readAsDataURL(file);
-    });
+      }
+    } finally {
+      setIsUploadingPhotos(false);
+      e.target.value = '';
+    }
   };
 
   // Handler: Remove an attached photo
@@ -328,12 +405,24 @@ export const UnifiedReturnsView: React.FC = () => {
   // Handler: Submit New Return
   const handleSubmitReturn = async () => {
     if (!selectedCustomer) {
-      alert('يرجى اختيار العميل أولاً');
+      showErrorToast('يرجى اختيار العميل أولاً');
       return;
     }
     const validItems = itemsDraft.filter((i) => i.productName.trim() || i.productCode.trim());
     if (validItems.length === 0) {
-      alert('يرجى إضافة صنف واحد على الأقل للمرتجع');
+      showErrorToast('يرجى إضافة صنف واحد على الأقل للمرتجع');
+      return;
+    }
+
+    const geoCheck = returnGeoCheck || verifyVisitLocation({
+      repGps: returnRepGps,
+      customer: selectedCustomer,
+      repVisits: visits,
+      repId: currentUser?.id,
+    });
+
+    if (geoCheck.requiresLivePhoto && attachedPhotos.length === 0) {
+      showErrorToast('الموقع خارج نطاق العميل أو عليه تنبيه GPS — يرجى التقاط صورة حية للبضاعة أو واجهة المحل قبل الحفظ');
       return;
     }
 
@@ -360,11 +449,51 @@ export const UnifiedReturnsView: React.FC = () => {
         returnItems: itemsSummary,
         returnStatus: 'بانتظار المشرف',
         returnImages: attachedPhotos,
+        location: returnRepGps
+          ? {
+              latitude: returnRepGps.latitude,
+              longitude: returnRepGps.longitude,
+              accuracy: returnRepGps.accuracy,
+              timestamp: returnRepGps.timestamp,
+            }
+          : undefined,
+        geoVerification: {
+          status: geoCheck.status,
+          distanceMeters: geoCheck.distanceMeters,
+          accuracyMeters: geoCheck.accuracyMeters,
+          speedKmh: geoCheck.speedKmh,
+          flags: geoCheck.flags,
+          proofPhotoUrl: attachedPhotos[0] || undefined,
+          verifiedAt: geoCheck.verifiedAt,
+        },
+        reviewStatus: geoCheck.requiresSupervisorReview ? 'pending' : 'approved',
+        reviewNote: geoCheck.requiresSupervisorReview ? `مراجعة موقع المرتجع: ${geoCheck.label}` : undefined,
         notes: `إذن مرتجع مسجل بواسطة المندوب: ${currentUser?.name} • الأصناف: ${validItems.length} صنف • الإجمالي التقديري: ${formatCurrency(draftTotalValue)}`
       });
 
       if (res.success) {
-        setFlashMsg({ type: 'ok', text: `تم تسجيل إذن المرتجع للعميل (${selectedCustomer.name}) بنجاح! يتم متابعته فوراً في شاشة المرتجعات.` });
+        const shouldPinInitialLocation =
+          Boolean(returnRepGps) &&
+          returnPinInitialLocation &&
+          !selectedCustomer.locationLocked &&
+          (!selectedCustomer.latitude || !selectedCustomer.longitude);
+
+        if (shouldPinInitialLocation && returnRepGps) {
+          updateCustomer({
+            ...selectedCustomer,
+            latitude: returnRepGps.latitude,
+            longitude: returnRepGps.longitude,
+            locationCapturedAt: new Date().toISOString(),
+            locationCapturedBy: currentUser?.name || 'المندوب',
+            locationAccuracy: returnRepGps.accuracy,
+            ...(attachedPhotos[0] ? { locationPhotoUrl: attachedPhotos[0] } : {}),
+          });
+        }
+
+        setFlashMsg({
+          type: 'ok',
+          text: `تم تسجيل إذن المرتجع للعميل (${selectedCustomer.name}) بنجاح${shouldPinInitialLocation ? ' وتثبيت موقع العميل المبدئي' : ''}!`
+        });
         setIsCreateModalOpen(false);
         setSelectedCustomer(null);
         setCustomerSearch('');
@@ -383,7 +512,7 @@ export const UnifiedReturnsView: React.FC = () => {
         ]);
         setTimeout(() => setFlashMsg(null), 5000);
       } else {
-        alert(res.message);
+        showErrorToast(res.message || 'تعذر حفظ إذن المرتجع');
       }
     } finally {
       setIsSubmitting(false);
@@ -409,10 +538,11 @@ export const UnifiedReturnsView: React.FC = () => {
         text: `تم تحديث حالة المرتجع بنجاح إلى: (${newStatus}) بواسطة ${currentUser?.name}`
       });
       setActionVisit(null);
+      setActionMode(null);
       setActionNote('');
       setTimeout(() => setFlashMsg(null), 4000);
     } else {
-      alert(res.message);
+      showErrorToast(res.message || 'تعذر تحديث حالة المرتجع');
     }
   };
 
@@ -471,42 +601,58 @@ export const UnifiedReturnsView: React.FC = () => {
         </div>
       </section>
 
-      {/* كروت المؤشرات — التصميم الجديد */}
-      <section className="tg-grid-4">
-        <button type="button" className="tg-kpi-big tg-kpi-big--invoices group cursor-pointer">
-          <div className="tg-kpi-big__top">
-            <span className="tg-kpi-big__icon tg-card--invoices"><Package className="w-5 h-5" /></span>
+      {/* كروت المؤشرات — هوية tg-kpi */}
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <button
+          type="button"
+          onClick={() => setActiveTabFilter('all')}
+          className="tg-kpi tg-kpi--blue text-right cursor-pointer hover:shadow-md transition"
+        >
+          <div className="tg-kpi__top">
+            <span className="tg-kpi__icon"><Package className="w-5 h-5" /></span>
           </div>
-          <span className="tg-kpi-big__value">{metrics.totalCount}</span>
-          <span className="tg-kpi-big__label">إجمالي المرتجعات</span>
-          <span className="tg-kpi-big__hint">القيمة: {formatCurrency(metrics.totalValue)} ج.م</span>
+          <span className="tg-kpi__value tabular-nums">{metrics.totalCount}</span>
+          <span className="tg-kpi__label">إجمالي المرتجعات</span>
+          <span className="tg-kpi__hint tabular-nums">القيمة: {formatCurrency(metrics.totalValue)}</span>
         </button>
 
-        <button type="button" className="tg-kpi-big tg-kpi-big--visits group cursor-pointer">
-          <div className="tg-kpi-big__top">
-            <span className="tg-kpi-big__icon tg-card--visits"><Clock className="w-5 h-5" /></span>
+        <button
+          type="button"
+          onClick={() => setActiveTabFilter('at_customer')}
+          className="tg-kpi tg-kpi--amber text-right cursor-pointer hover:shadow-md transition"
+        >
+          <div className="tg-kpi__top">
+            <span className="tg-kpi__icon"><Clock className="w-5 h-5" /></span>
           </div>
-          <span className="tg-kpi-big__value">{metrics.pendingCount}</span>
-          <span className="tg-kpi-big__label">عند العميل (بانتظار)</span>
-          <span className="tg-kpi-big__hint">تنتظر استلام المخزن أو المندوب</span>
+          <span className="tg-kpi__value tabular-nums">{metrics.pendingCount}</span>
+          <span className="tg-kpi__label">عند العميل (بانتظار)</span>
+          <span className="tg-kpi__hint">تنتظر استلام المخزن</span>
         </button>
 
-        <button type="button" className="tg-kpi-big tg-kpi-big--customers group cursor-pointer">
-          <div className="tg-kpi-big__top">
-            <span className="tg-kpi-big__icon tg-card--customers"><Warehouse className="w-5 h-5" /></span>
+        <button
+          type="button"
+          onClick={() => setActiveTabFilter('at_warehouse')}
+          className="tg-kpi tg-kpi--red text-right cursor-pointer hover:shadow-md transition"
+        >
+          <div className="tg-kpi__top">
+            <span className="tg-kpi__icon"><Warehouse className="w-5 h-5" /></span>
           </div>
-          <span className="tg-kpi-big__value">{metrics.inWarehouseCount}</span>
-          <span className="tg-kpi-big__label">بالمخزن (قيد الفحص)</span>
-          <span className="tg-kpi-big__hint">تسليم لأمين المخزن للمراجعة</span>
+          <span className="tg-kpi__value tabular-nums">{metrics.inWarehouseCount}</span>
+          <span className="tg-kpi__label">بالمخزن (قيد الفحص)</span>
+          <span className="tg-kpi__hint">تسليم لأمين المخزن للمراجعة</span>
         </button>
 
-        <button type="button" className="tg-kpi-big tg-kpi-big--sales group cursor-pointer">
-          <div className="tg-kpi-big__top">
-            <span className="tg-kpi-big__icon tg-card--sales"><CheckCircle2 className="w-5 h-5" /></span>
+        <button
+          type="button"
+          onClick={() => setActiveTabFilter('closed')}
+          className="tg-kpi tg-kpi--emerald text-right cursor-pointer hover:shadow-md transition"
+        >
+          <div className="tg-kpi__top">
+            <span className="tg-kpi__icon"><CheckCircle2 className="w-5 h-5" /></span>
           </div>
-          <span className="tg-kpi-big__value">{metrics.closedCount}</span>
-          <span className="tg-kpi-big__label">مغلقة ومعتمدة</span>
-          <span className="tg-kpi-big__hint">التسوية وإرجاع الرصيد للعميل</span>
+          <span className="tg-kpi__value tabular-nums">{metrics.closedCount}</span>
+          <span className="tg-kpi__label">مغلقة ومعتمدة</span>
+          <span className="tg-kpi__hint">تمت التسوية والاعتماد</span>
         </button>
       </section>
 
@@ -651,16 +797,34 @@ export const UnifiedReturnsView: React.FC = () => {
                           </span>
                         )}
                         <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                          className={`px-2.5 py-0.5 rounded-full text-[11px] font-black ${
                             isClosed
                               ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
                               : isAtWarehouse
-                              ? 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)] animate-pulse'
-                              : 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)] animate-pulse'
+                              ? 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)]'
+                              : 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)]'
                           }`}
                         >
-                          {status === 'عند العميل' ? '📍 عميل لديه مرتجع (عند العميل)' : status}
+                          {status === 'عند العميل' ? 'عميل لديه مرتجع (عند العميل)' : status}
                         </span>
+                        {visit.geoVerification?.status && (() => {
+                          const gMeta = geoStatusBadgeMeta(visit.geoVerification.status);
+                          const gCls =
+                            gMeta.tone === 'ok'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : gMeta.tone === 'warn'
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              : gMeta.tone === 'risk'
+                              ? 'bg-rose-50 text-rose-800 border-rose-200'
+                              : 'bg-slate-100 text-slate-600 border-slate-200';
+                          return (
+                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border ${gCls}`}>
+                              <MapPin className="w-3 h-3" />
+                              {gMeta.label}
+                              {visit.geoVerification.distanceMeters !== undefined && ` (${formatDistance(visit.geoVerification.distanceMeters)})`}
+                            </span>
+                          );
+                        })()}
                       </div>
                       <div className="text-[11px] text-slate-500 font-medium flex items-center gap-2 mt-0.5 flex-wrap">
                         <span>المندوب: <strong className="text-slate-800">{visit.repName}</strong></span>
@@ -789,19 +953,15 @@ export const UnifiedReturnsView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          if (window.confirm(`هل أنت متأكد من اعتماد وإغلاق مرتجع العميل (${visit.customerName}) نهائياً؟`)) {
-                            handleUpdateReturnStage(
-                              visit.id,
-                              'مغلق',
-                              'تم اعتماد المرتجع وفحص البضاعة وإغلاق الطلب وتعديل حساب العميل والمخزن'
-                            );
-                          }
+                          setActionVisit(visit);
+                          setActionMode('close');
+                          setActionNote('تم اعتماد المرتجع وفحص البضاعة وإغلاق الطلب وتعديل حساب العميل والمخزن');
                         }}
-                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black text-[11px] shadow-xs transition cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-[var(--app-ok)] text-white font-black text-xs shadow-xs transition cursor-pointer hover:brightness-110"
                         title="إغلاق وتسوية إذن المرتجع نهائياً وتحديث الحسابات والمخزن"
                       >
                         <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>إغلاق واعتماد المرتجع نهائياً ✓</span>
+                        <span>إغلاق واعتماد المرتجع نهائياً</span>
                       </button>
                     )}
 
@@ -810,12 +970,11 @@ export const UnifiedReturnsView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => {
-                          const reason = prompt('يرجى كتابة سبب رفض المرتجع:');
-                          if (reason) {
-                            handleUpdateReturnStage(visit.id, 'مرفوض', `تم رفض المرتجع: ${reason}`);
-                          }
+                          setActionVisit(visit);
+                          setActionMode('reject');
+                          setActionNote('');
                         }}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-[var(--app-risk-line)] text-[var(--app-risk-text)] hover:bg-[var(--app-risk-tint)] font-black text-[11px] transition cursor-pointer"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-[var(--app-risk-line)] text-[var(--app-risk-text)] hover:bg-[var(--app-risk-tint)] font-black text-xs transition cursor-pointer"
                         title="رفض إذن المرتجع"
                       >
                         <XCircle className="w-3.5 h-3.5" />
@@ -985,6 +1144,72 @@ export const UnifiedReturnsView: React.FC = () => {
                   </div>
                 )}
               </div>
+
+              {/* التحقق الحي من GPS العميل عند المرتجع */}
+              {selectedCustomer && (() => {
+                const badge = geoStatusBadgeMeta(returnGeoCheck?.status);
+                const toneClass =
+                  badge.tone === 'ok'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                    : badge.tone === 'warn'
+                    ? 'border-amber-200 bg-amber-50 text-amber-900'
+                    : badge.tone === 'risk'
+                    ? 'border-rose-200 bg-rose-50 text-rose-900'
+                    : 'border-slate-200 bg-slate-50 text-slate-800';
+                return (
+                  <div className={`rounded-2xl border p-3 space-y-2 ${toneClass}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-black text-xs flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 shrink-0" />
+                        <span>
+                          {returnGpsLoading ? 'جاري التحقق من موقعك الحي...' : returnGeoCheck?.label || 'فحص الموقع'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void captureReturnGps()}
+                        disabled={returnGpsLoading}
+                        className="inline-flex items-center gap-1 rounded-lg border border-current/25 bg-white/80 px-2 py-1 text-[11px] font-black cursor-pointer hover:bg-white"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${returnGpsLoading ? 'animate-spin' : ''}`} />
+                        تحديث GPS
+                      </button>
+                    </div>
+                    {returnRepGps && (
+                      <div className="text-[11px] font-bold opacity-85 flex flex-wrap gap-x-3 gap-y-1">
+                        <span className="font-mono">{returnRepGps.latitude.toFixed(5)}, {returnRepGps.longitude.toFixed(5)}</span>
+                        {returnRepGps.accuracy !== undefined && <span>دقة: ±{returnRepGps.accuracy}م</span>}
+                        {returnGeoCheck?.distanceMeters !== undefined && (
+                          <span>البعد عن العميل: {formatDistance(returnGeoCheck.distanceMeters)}</span>
+                        )}
+                      </div>
+                    )}
+                    {returnGpsError && <div className="text-[11px] font-bold text-rose-700">{returnGpsError}</div>}
+                    {selectedCustomer.locationLocked && (
+                      <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-800">
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>موقع العميل الأساسي معتمد ومقفول</span>
+                      </div>
+                    )}
+                    {!selectedCustomer.latitude && !selectedCustomer.longitude && !selectedCustomer.locationLocked && returnRepGps && (
+                      <label className="flex items-center gap-2 text-[11px] font-black cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={returnPinInitialLocation}
+                          onChange={(e) => setReturnPinInitialLocation(e.target.checked)}
+                          className="rounded border-slate-300"
+                        />
+                        <span>تثبيت هذا الموقع كإحداثي مبدئي للعميل (لعدم وجود موقع سابق)</span>
+                      </label>
+                    )}
+                    {returnGeoCheck?.requiresLivePhoto && attachedPhotos.length === 0 && (
+                      <div className="text-[11px] font-black">
+                        تنبيه: يجب التقاط صورة واحدة على الأقل بالكاميرا في الخطوة (٤) بالأسفل لاعتماد المرتجع خارج النطاق.
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* 2. General Reason */}
               <div className="space-y-1.5">
@@ -1169,20 +1394,21 @@ export const UnifiedReturnsView: React.FC = () => {
                 </label>
 
                 <div className="flex items-center gap-2 flex-wrap">
-                  <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-[var(--app-warn)] bg-[var(--app-warn-tint)] hover:bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] font-black text-xs transition cursor-pointer">
-                    <Upload className="w-4 h-4" />
-                    <span>اختيار أو التقاط صور (متعدد)</span>
+                  <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-[var(--app-warn)] bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] font-black text-xs transition cursor-pointer">
+                    {isUploadingPhotos ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    <span>{isUploadingPhotos ? 'جاري ضغط ورفع الصور...' : 'اختيار أو التقاط صور (متعدد)'}</span>
                     <input
                       type="file"
                       accept="image/*"
                       multiple
                       capture="environment"
+                      disabled={isUploadingPhotos}
                       onChange={handleImageUpload}
                       className="hidden"
                     />
                   </label>
-                  <span className="text-[11px] text-slate-400">
-                    يمكنك التقاط عدة صور للبضاعة، التلفيات، أو الكراتين
+                  <span className="text-[11px] font-bold text-slate-500">
+                    تُضغط الصور وتُرفع على Cloudinary تلقائياً لتوفير المساحة والباقة
                   </span>
                 </div>
 
@@ -1453,6 +1679,101 @@ export const UnifiedReturnsView: React.FC = () => {
                 className="px-5 py-2 rounded-xl bg-slate-300 hover:bg-slate-400 text-slate-800 font-bold text-xs cursor-pointer"
               >
                 إغلاق المعاينة
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ================= Inline Close / Reject Confirmation Modal ================= */}
+      {actionVisit && actionMode && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4"
+          dir="rtl"
+          onClick={() => {
+            setActionVisit(null);
+            setActionMode(null);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-white border border-slate-200 p-5 sm:p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                    actionMode === 'close' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
+                  }`}
+                >
+                  {actionMode === 'close' ? <CheckCircle2 className="w-5 h-5" /> : <XCircle className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="font-black text-base text-slate-900">
+                    {actionMode === 'close' ? 'تأكيد إغلاق واعتماد المرتجع' : 'تأكيد رفض إذن المرتجع'}
+                  </h3>
+                  <p className="text-xs font-bold text-slate-600">{actionVisit.customerName}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setActionVisit(null);
+                  setActionMode(null);
+                }}
+                className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <label className="block font-black text-slate-800">
+                {actionMode === 'close' ? 'ملاحظات الاعتماد والإغلاق (اختياري):' : 'سبب رفض المرتجع (مطلوب):'}
+              </label>
+              <textarea
+                rows={3}
+                value={actionNote}
+                onChange={(e) => setActionNote(e.target.value)}
+                placeholder={
+                  actionMode === 'close'
+                    ? 'ملاحظة اعتماد المخزن والحسابات...'
+                    : 'اكتب سبب الرفض بوضوح للمندوب...'
+                }
+                className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:border-blue-500 outline-none"
+              />
+            </div>
+
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setActionVisit(null);
+                  setActionMode(null);
+                }}
+                className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={actionMode === 'reject' && !actionNote.trim()}
+                onClick={() => {
+                  if (actionMode === 'close') {
+                    handleUpdateReturnStage(
+                      actionVisit.id,
+                      'مغلق',
+                      actionNote.trim() || 'تم اعتماد المرتجع وفحص البضاعة وإغلاق الطلب وتعديل حساب العميل والمخزن'
+                    );
+                  } else {
+                    handleUpdateReturnStage(actionVisit.id, 'مرفوض', `تم رفض المرتجع: ${actionNote.trim()}`);
+                  }
+                }}
+                className={`flex-1 rounded-xl px-4 py-2.5 text-xs font-black text-white shadow-sm cursor-pointer disabled:opacity-50 ${
+                  actionMode === 'close' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'
+                }`}
+              >
+                {actionMode === 'close' ? 'اعتماد وإغلاق نهائياً' : 'تأكيد الرفض'}
               </button>
             </div>
           </div>

@@ -8,8 +8,7 @@ interface UserProfileAvatarModalProps {
   onClose: () => void;
 }
 
-const DEFAULT_EXECUTIVE_AVATAR =
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80';
+const DEFAULT_EXECUTIVE_AVATAR = '/assets/rep-avatar.jpg';
 
 export const UserProfileAvatarModal: React.FC<UserProfileAvatarModalProps> = ({ isOpen, onClose }) => {
   const { currentUser, updateCurrentUserAvatar, cloudinaryConfig } = useApp();
@@ -144,6 +143,7 @@ export const UserProfileAvatarModal: React.FC<UserProfileAvatarModalProps> = ({ 
               <img
                 src={previewUrl || currentAvatar}
                 alt={currentUser.name}
+                referrerPolicy="no-referrer"
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = DEFAULT_EXECUTIVE_AVATAR;

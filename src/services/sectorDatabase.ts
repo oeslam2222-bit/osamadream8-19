@@ -13,23 +13,36 @@ export interface SectorDatabaseConfig {
   anonKey: string;
 }
 
+function isValidSupabaseConfig(url?: string, anonKey?: string): boolean {
+  const trimmedUrl = (url || '').trim();
+  const trimmedKey = (anonKey || '').trim();
+  return Boolean(
+    trimmedUrl &&
+    trimmedKey &&
+    /^https?:\/\//i.test(trimmedUrl) &&
+    !trimmedUrl.includes('YOUR-PROJECT') &&
+    !trimmedUrl.includes('offline-local.supabase.co')
+  );
+}
+
 // قراءة إعدادات قواعد البيانات من متغيرات البيئة
 // إذا لم توجد، نستخدم قاعدة واحدة لكل شيء (الافتراضي)
 function getSectorConfig(sector: Sector): SectorDatabaseConfig | null {
   if (sector === 'home') {
     const url = import.meta.env.VITE_SUPABASE_HOME_URL;
     const anonKey = import.meta.env.VITE_SUPABASE_HOME_ANON_KEY;
-    if (url && anonKey) return { url, anonKey };
+    if (isValidSupabaseConfig(url, anonKey)) return { url: url!.trim(), anonKey: anonKey!.trim() };
   }
   if (sector === 'electrical') {
     const url = import.meta.env.VITE_SUPABASE_ELECTRICAL_URL;
     const anonKey = import.meta.env.VITE_SUPABASE_ELECTRICAL_ANON_KEY;
-    if (url && anonKey) return { url, anonKey };
+    if (isValidSupabaseConfig(url, anonKey)) return { url: url!.trim(), anonKey: anonKey!.trim() };
   }
   // sector === 'both' || sector === 'all' → استخدم القاعدة الافتراضية
   const url = import.meta.env.VITE_SUPABASE_URL || '';
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-  return { url, anonKey };
+  if (!isValidSupabaseConfig(url, anonKey)) return null;
+  return { url: url.trim(), anonKey: anonKey.trim() };
 }
 
 // ذاكرة تخزين مؤقت للعملاء لكل قطاع (تجنب إعادة إنشاء العميل لكل عملية)
@@ -41,7 +54,7 @@ export function getSupabaseClientForSector(sector: Sector): any {
   }
 
   const config = getSectorConfig(sector);
-  if (!config) {
+  if (!config || !isValidSupabaseConfig(config.url, config.anonKey)) {
     sectorClients.set(sector, defaultSupabase);
     return defaultSupabase;
   }

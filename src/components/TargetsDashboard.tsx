@@ -2,10 +2,37 @@ import React, { useMemo, useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import { Target, TrendingUp, Wallet, Award, Filter, Users, Calendar, ChevronDown } from 'lucide-react';
+import {
+  Target, TrendingUp, Wallet, Award, Filter, Users, Calendar, ChevronDown,
+  ChevronLeft, X, MapPin, UserCheck, BarChart3, Activity, AlertTriangle, CreditCard,
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { ARABIC_MONTHS, formatEGP, QUARTER_LABELS } from '../services/targetService';
-import type { TargetQuarter, TargetRecord } from '../types';
+import { ARABIC_MONTHS, formatEGP, inferTargetSector, QUARTER_LABELS } from '../services/targetService';
+import { normalizeArabicText } from '../services/arabicMatchingService';
+import type { TargetQuarter, TargetRecord, User } from '../types';
+
+function repMatchKey(raw?: string | null): string {
+  return normalizeArabicText(String(raw || '').trim())
+    .replace(/^(المندوب|مندوب|كود|الاستاذ|استاذ)\s+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function findRepUser(users: User[], repName: string): User | undefined {
+  const key = repMatchKey(repName);
+  if (!key) return undefined;
+  return (
+    users.find((u) => u?.name && repMatchKey(u.name) === key) ||
+    users.find((u) => u?.username && repMatchKey(u.username) === key)
+  );
+}
+
+function getSectorLabel(s?: string): string {
+  if (!s || s === 'all' || s === 'both') return 'كلاهما';
+  if (s === 'home') return 'منزلي';
+  if (s === 'electrical') return 'كهربائي';
+  return s;
+}
 
 const QUARTERS: TargetQuarter[] = ['Q1', 'Q2', 'Q3', 'Q4'];
 
@@ -74,14 +101,18 @@ const StatCard: React.FC<{
 };
 
 export const TargetsDashboard: React.FC = () => {
-  const { getVisibleTargets } = useApp();
+  const { getVisibleTargets, users, getVisibleCustomers, getVisibleVisits, visits: ctxVisits } = useApp();
   const allTargets = useMemo(() => getVisibleTargets(), [getVisibleTargets]);
+  const allCustomers = useMemo(() => getVisibleCustomers(), [getVisibleCustomers]);
+  const allVisits = useMemo(() => (getVisibleVisits ? getVisibleVisits() : (ctxVisits || [])), [getVisibleVisits, ctxVisits]);
 
   const now = new Date();
   const [selectedRep, setSelectedRep] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1);
   const [selectedQuarter, setSelectedQuarter] = useState<TargetQuarter | 'all'>('all');
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
+  const [openRepName, setOpenRepName] = useState<string | null>(null);
+  const [repModalTab, setRepModalTab] = useState<'overview' | 'monthly' | 'customers' | 'visits'>('overview');
 
   const repNames = useMemo(() => {
     const set = new Set<string>();
@@ -183,23 +214,100 @@ export const TargetsDashboard: React.FC = () => {
         },
         { salesTarget: 0, salesAchieved: 0, collectionTarget: 0, collectionAchieved: 0 }
       );
-      return { rep, ...agg, records };
+      const user = findRepUser(users, rep);
+      const supervisor =
+        user?.supervisorName ||
+        (user?.supervisorId ? users.find((u) => u.id === user.supervisorId)?.name : '') ||
+        'بدون مشرف';
+      const branch = records.find((r) => r.branch)?.branch || user?.branchName || 'غير محدد';
+      const sector = records.map((r) => inferTargetSector(r, users)).find(Boolean) || user?.sector;
+      return {
+        rep,
+        ...agg,
+        records,
+        avatar: user?.avatar || '/assets/rep-avatar.jpg',
+        branch,
+        supervisor,
+        sector,
+      };
     }).sort((a, b) => b.salesAchieved - a.salesAchieved);
-  }, [filtered]);
+  }, [filtered, users]);
+
+  const activeRepProfile = useMemo(() => {
+    if (!openRepName) return null;
+    const key = repMatchKey(openRepName);
+    const inPeriod = groupedByRep.find((r) => repMatchKey(r.rep) === key);
+    const user = findRepUser(users, openRepName);
+    const repYearTargets = allTargets.filter(
+      (t) => repMatchKey(t.repName) === key && (!selectedYear || t.year === selectedYear)
+    );
+    const repCustomers = allCustomers.filter(
+      (c) => repMatchKey(c.salesRepName || c.repName) === key
+    );
+    const repVisits = allVisits
+      .filter((v) => repMatchKey(v.repName) === key || (user?.id && v.repId === user.id))
+      .sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+
+    const monthlyRows = ARABIC_MONTHS.map((label, idx) => {
+      const m = idx + 1;
+      const rows = repYearTargets.filter((t) => Number(t.month) === m);
+      const salesTarget = rows.reduce((s, t) => s + Number(t.salesTarget || 0), 0);
+      const salesAchieved = rows.reduce((s, t) => s + Number(t.salesAchieved || 0), 0);
+      const collectionTarget = rows.reduce((s, t) => s + Number(t.collectionTarget || 0), 0);
+      const collectionAchieved = rows.reduce((s, t) => s + Number(t.collectionAchieved || 0), 0);
+      return { month: m, label, salesTarget, salesAchieved, collectionTarget, collectionAchieved };
+    }).filter((r) => r.salesTarget > 0 || r.salesAchieved > 0 || r.collectionTarget > 0 || r.collectionAchieved > 0);
+
+    const salesTarget = inPeriod?.salesTarget ?? repYearTargets.reduce((s, t) => s + Number(t.salesTarget || 0), 0);
+    const salesAchieved = inPeriod?.salesAchieved ?? repYearTargets.reduce((s, t) => s + Number(t.salesAchieved || 0), 0);
+    const collectionTarget = inPeriod?.collectionTarget ?? repYearTargets.reduce((s, t) => s + Number(t.collectionTarget || 0), 0);
+    const collectionAchieved = inPeriod?.collectionAchieved ?? repYearTargets.reduce((s, t) => s + Number(t.collectionAchieved || 0), 0);
+
+    const totalDebt = repCustomers.reduce((s, c) => s + Number(c.currentBalance ?? c.balance ?? 0), 0);
+    const customersWithDebt = repCustomers.filter((c) => Number(c.currentBalance ?? c.balance ?? 0) > 0);
+
+    return {
+      repName: inPeriod?.rep || openRepName,
+      avatar: inPeriod?.avatar || user?.avatar || '/assets/rep-avatar.jpg',
+      branch: inPeriod?.branch || user?.branchName || 'غير محدد',
+      supervisor: inPeriod?.supervisor || user?.supervisorName || 'بدون مشرف',
+      sector: inPeriod?.sector || user?.sector,
+      username: user?.username,
+      salesTarget,
+      salesAchieved,
+      collectionTarget,
+      collectionAchieved,
+      totalDebt,
+      repCustomers,
+      customersWithDebt,
+      repVisits,
+      monthlyRows,
+    };
+  }, [openRepName, groupedByRep, users, allTargets, selectedYear, allCustomers, allVisits]);
 
   return (
-    <div className="space-y-5 font-arabic" dir="rtl">
+    <div className="tg-dash space-y-5 font-arabic" dir="rtl">
       {/* Header */}
-      <section className="rounded-2xl border border-slate-200 bg-gradient-to-l from-[#0f2f52] to-[#173f68] p-5 text-white shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-white/15 flex items-center justify-center">
-              <Target className="w-6 h-6" />
+      <section className="ds-pagehead">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+          <div>
+            <div className="text-[11px] font-bold text-[#a9c8e4] mb-1 tracking-wider uppercase">
+              رئيسية <span className="mx-1 text-[#7fc0ff]">›</span> التارجت والمحققات
             </div>
-            <div>
-              <h1 className="text-xl sm:text-2xl font-black">لوحة التارجت والمحققات</h1>
-              <p className="text-xs text-blue-100 mt-0.5">متابعة أهداف البيع والتحصيل مع الفلاتر والربع السنوي</p>
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-white/15 border border-white/25 flex items-center justify-center text-white shrink-0">
+                <Target className="w-6 h-6" />
+              </div>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-black text-white">لوحة التارجت وبروفايل المناديب</h1>
+                <p className="text-xs text-[#c3d9ec] mt-0.5">متابعة أهداف البيع والتحصيل وفتح بروفايل كل مندوب بالفترة والربع السنوي</p>
+              </div>
             </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-black">
+            <span className="px-3 py-1.5 rounded-xl bg-white/15 border border-white/25 text-white tabular-nums">
+              {groupedByRep.length} مندوب بالفترة المحددة
+            </span>
           </div>
         </div>
       </section>
@@ -340,15 +448,95 @@ export const TargetsDashboard: React.FC = () => {
         </div>
       </section>
 
+      {/* Rep Profile Cards Strip */}
+      {groupedByRep.length > 0 && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
+                <UserCheck className="w-4 h-4" />
+              </span>
+              <div>
+                <h2 className="text-base font-black text-slate-900">بروفايل المناديب</h2>
+                <p className="text-xs font-bold text-slate-600">اضغط على أي مندوب لفتح ملفه الكامل وتحليل الشهور</p>
+              </div>
+            </div>
+            <span className="text-xs font-black text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full tabular-nums">
+              {groupedByRep.length} مندوب
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {groupedByRep.slice(0, 8).map((row) => {
+              const sPct = pct(row.salesAchieved, row.salesTarget);
+              const cPct = pct(row.collectionAchieved, row.collectionTarget);
+              return (
+                <button
+                  key={row.rep}
+                  type="button"
+                  onClick={() => {
+                    setRepModalTab('overview');
+                    setOpenRepName(row.rep);
+                  }}
+                  className="text-right rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50/80 p-3.5 hover:border-blue-400 hover:shadow-md transition cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <img
+                        src={row.avatar}
+                        alt={row.rep}
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const img = e.currentTarget;
+                          if (!img.dataset.fallback) {
+                            img.dataset.fallback = '1';
+                            img.src = '/assets/rep-avatar.jpg';
+                          }
+                        }}
+                        className="w-11 h-11 rounded-2xl object-cover object-top border-2 border-blue-200 shrink-0 shadow-xs"
+                      />
+                      <div className="min-w-0">
+                        <div className="font-black text-sm text-[#0b2337] truncate group-hover:text-blue-700">{row.rep}</div>
+                        <div className="text-[11px] font-bold text-slate-600 truncate">{row.branch}</div>
+                      </div>
+                    </div>
+                    <ChevronLeft className="w-4 h-4 text-slate-400 group-hover:text-blue-600 shrink-0" />
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-xl bg-blue-50/80 border border-blue-200/70 px-2.5 py-2">
+                      <div className="text-[11px] font-extrabold text-blue-900 flex items-center justify-between">
+                        <span>البيع</span>
+                        <span className="tabular-nums">{sPct}%</span>
+                      </div>
+                      <div className="font-black text-blue-800 tabular-nums mt-0.5">{fmt(row.salesAchieved)}</div>
+                    </div>
+                    <div className="rounded-xl bg-emerald-50/80 border border-emerald-200/70 px-2.5 py-2">
+                      <div className="text-[11px] font-extrabold text-emerald-900 flex items-center justify-between">
+                        <span>التحصيل</span>
+                        <span className="tabular-nums">{cPct}%</span>
+                      </div>
+                      <div className="font-black text-emerald-800 tabular-nums mt-0.5">{fmt(row.collectionAchieved)}</div>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
       {/* Details Table */}
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        <div className="p-4 border-b border-slate-200 bg-slate-50/60">
-          <h2 className="text-base font-black text-slate-800">تفاصيل المحققات والمتبقي</h2>
-          <p className="text-xs text-slate-500 mt-0.5">عرض تفصيلي حسب المندوب للفترة المحددة</p>
+        <div className="p-4 border-b border-slate-200 bg-slate-50/60 flex items-center justify-between gap-2">
+          <div>
+            <h2 className="text-base font-black text-slate-800">تفاصيل المحققات والمتبقي</h2>
+            <p className="text-xs font-bold text-slate-600 mt-0.5">اضغط على أي صف لفتح بروفايل المندوب بالتفصيل</p>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-100 text-slate-700">
+            <thead className="bg-slate-100 text-slate-800">
               <tr>
                 <th className="p-3 text-right font-black whitespace-nowrap">المندوب</th>
                 <th className="p-3 text-center font-black whitespace-nowrap">هدف البيع</th>
@@ -364,7 +552,7 @@ export const TargetsDashboard: React.FC = () => {
             <tbody className="divide-y divide-slate-100">
               {groupedByRep.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="p-8 text-center text-slate-400 font-bold">لا توجد بيانات للفلاتر المحددة</td>
+                  <td colSpan={9} className="p-8 text-center text-slate-500 font-bold">لا توجد بيانات للفلاتر المحددة</td>
                 </tr>
               ) : (
                 groupedByRep.map((row) => {
@@ -373,8 +561,32 @@ export const TargetsDashboard: React.FC = () => {
                   const sPct = pct(row.salesAchieved, row.salesTarget);
                   const cPct = pct(row.collectionAchieved, row.collectionTarget);
                   return (
-                    <tr key={row.rep} className="hover:bg-slate-50/70">
-                      <td className="p-3 font-bold text-slate-800 whitespace-nowrap">{row.rep}</td>
+                    <tr
+                      key={row.rep}
+                      onClick={() => {
+                        setRepModalTab('overview');
+                        setOpenRepName(row.rep);
+                      }}
+                      className="hover:bg-blue-50/50 cursor-pointer transition"
+                    >
+                      <td className="p-3 font-bold text-slate-900 whitespace-nowrap">
+                        <div className="flex items-center gap-2.5">
+                          <img
+                            src={row.avatar}
+                            alt={row.rep}
+                            referrerPolicy="no-referrer"
+                            onError={(e) => {
+                              const img = e.currentTarget;
+                              if (!img.dataset.fallback) {
+                                img.dataset.fallback = '1';
+                                img.src = '/assets/rep-avatar.jpg';
+                              }
+                            }}
+                            className="w-8 h-8 rounded-xl object-cover object-top border border-slate-200 shrink-0"
+                          />
+                          <span>{row.rep}</span>
+                        </div>
+                      </td>
                       <td className="p-3 text-center tabular-nums text-slate-700">{fmt(row.salesTarget)}</td>
                       <td className="p-3 text-center tabular-nums font-bold text-blue-700">{fmt(row.salesAchieved)}</td>
                       <td className="p-3 text-center tabular-nums font-bold text-rose-600">{fmt(sRem)}</td>
@@ -399,6 +611,229 @@ export const TargetsDashboard: React.FC = () => {
           </table>
         </div>
       </section>
+
+      {/* Rep Profile Modal (tg-cp style) */}
+      {activeRepProfile && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 md:p-6 overflow-hidden"
+          dir="rtl"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setOpenRepName(null)}
+        >
+          <div className="fixed inset-0 bg-[#071726]/80 backdrop-blur-sm" />
+          <div
+            className="tg-cp relative z-10 w-full sm:max-w-3xl max-h-[92vh] bg-[#f4f7fb] rounded-[28px] shadow-[0_25px_70px_rgba(0,0,0,0.55)] border border-slate-200 flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="shrink-0 bg-gradient-to-l from-[#0b2337] via-[#12385d] to-[#155a80] text-white px-4 sm:px-6 pt-4 pb-4 sm:pt-5 sm:pb-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <img
+                    src={activeRepProfile.avatar}
+                    alt={activeRepProfile.repName}
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      const img = e.currentTarget;
+                      if (!img.dataset.fallback) {
+                        img.dataset.fallback = '1';
+                        img.src = '/assets/rep-avatar.jpg';
+                      }
+                    }}
+                    className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover object-top border-2 border-white/40 bg-slate-800 shadow-md shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <div className="font-black text-lg sm:text-xl text-white truncate">{activeRepProfile.repName}</div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-extrabold">
+                      <span className="px-2.5 py-0.5 rounded-lg bg-white/15 border border-white/25 text-white">{activeRepProfile.branch}</span>
+                      <span className="px-2.5 py-0.5 rounded-lg bg-blue-500/30 border border-blue-300/45 text-white">{getSectorLabel(activeRepProfile.sector)}</span>
+                      <span className="px-2.5 py-0.5 rounded-lg bg-amber-400/25 border border-amber-200/45 text-amber-100">مشرف: {activeRepProfile.supervisor}</span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOpenRepName(null)}
+                  className="w-9 h-9 rounded-xl bg-white/15 hover:bg-white/25 border border-white/25 text-white flex items-center justify-center shrink-0 cursor-pointer"
+                  aria-label="إغلاق"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="rounded-xl bg-[#0d2a44]/85 border border-white/20 px-3 py-2.5">
+                  <div className="text-xs font-extrabold text-[#dbeafe]">محقق البيع</div>
+                  <div className="font-black text-base text-white tabular-nums mt-0.5">{fmt(activeRepProfile.salesAchieved)}</div>
+                </div>
+                <div className="rounded-xl bg-[#0d2a44]/85 border border-white/20 px-3 py-2.5">
+                  <div className="text-xs font-extrabold text-[#dbeafe]">محقق التحصيل</div>
+                  <div className="font-black text-base text-white tabular-nums mt-0.5">{fmt(activeRepProfile.collectionAchieved)}</div>
+                </div>
+                <div className="rounded-xl bg-[#0d2a44]/85 border border-white/20 px-3 py-2.5">
+                  <div className="text-xs font-extrabold text-[#dbeafe]">نسبة البيع / التحصيل</div>
+                  <div className="font-black text-base text-white tabular-nums mt-0.5">
+                    {pct(activeRepProfile.salesAchieved, activeRepProfile.salesTarget)}% / {pct(activeRepProfile.collectionAchieved, activeRepProfile.collectionTarget)}%
+                  </div>
+                </div>
+                <div className="rounded-xl bg-[#0d2a44]/85 border border-white/20 px-3 py-2.5">
+                  <div className="text-xs font-extrabold text-[#dbeafe]">العملاء / الزيارات</div>
+                  <div className="font-black text-base text-white tabular-nums mt-0.5">
+                    {activeRepProfile.repCustomers.length} / {activeRepProfile.repVisits.length}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="shrink-0 bg-white border-b border-slate-200 px-4 pt-3">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2.5">
+                {[
+                  { key: 'overview' as const, label: 'نظرة عامة', icon: <Activity className="w-4 h-4" /> },
+                  { key: 'monthly' as const, label: `شهور ${selectedYear}`, icon: <BarChart3 className="w-4 h-4" /> },
+                  { key: 'customers' as const, label: `العملاء (${activeRepProfile.repCustomers.length})`, icon: <Users className="w-4 h-4" /> },
+                  { key: 'visits' as const, label: `الزيارات (${activeRepProfile.repVisits.length})`, icon: <MapPin className="w-4 h-4" /> },
+                ].map((t) => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => setRepModalTab(t.key)}
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black whitespace-nowrap shrink-0 transition border cursor-pointer ${
+                      repModalTab === t.key
+                        ? 'bg-[#12385d] text-white border-[#12385d]'
+                        : 'bg-slate-100 text-slate-800 border-slate-300 hover:bg-slate-200'
+                    }`}
+                  >
+                    {t.icon}
+                    <span>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 space-y-4">
+              {repModalTab === 'overview' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-black text-sm text-slate-900">تارجت المبيعات</span>
+                        <span className="text-xs font-black px-2 py-0.5 rounded-lg bg-blue-100 text-blue-800 tabular-nums">
+                          {pct(activeRepProfile.salesAchieved, activeRepProfile.salesTarget)}%
+                        </span>
+                      </div>
+                      <div className="text-xs space-y-1.5">
+                        <div className="flex justify-between"><span className="font-bold text-slate-600">المستهدف</span><span className="font-black tabular-nums text-slate-900">{formatEGP(activeRepProfile.salesTarget)}</span></div>
+                        <div className="flex justify-between"><span className="font-bold text-slate-600">المحقق</span><span className="font-black tabular-nums text-blue-700">{formatEGP(activeRepProfile.salesAchieved)}</span></div>
+                        <div className="flex justify-between"><span className="font-bold text-slate-600">المتبقي</span><span className="font-black tabular-nums text-rose-700">{formatEGP(Math.max(0, activeRepProfile.salesTarget - activeRepProfile.salesAchieved))}</span></div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl bg-white border border-slate-200 p-4 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-black text-sm text-slate-900">تارجت التحصيل</span>
+                        <span className="text-xs font-black px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 tabular-nums">
+                          {pct(activeRepProfile.collectionAchieved, activeRepProfile.collectionTarget)}%
+                        </span>
+                      </div>
+                      <div className="text-xs space-y-1.5">
+                        <div className="flex justify-between"><span className="font-bold text-slate-600">المستهدف</span><span className="font-black tabular-nums text-slate-900">{formatEGP(activeRepProfile.collectionTarget)}</span></div>
+                        <div className="flex justify-between"><span className="font-bold text-slate-600">المحقق</span><span className="font-black tabular-nums text-emerald-700">{formatEGP(activeRepProfile.collectionAchieved)}</span></div>
+                        <div className="flex justify-between"><span className="font-bold text-slate-600">المتبقي</span><span className="font-black tabular-nums text-rose-700">{formatEGP(Math.max(0, activeRepProfile.collectionTarget - activeRepProfile.collectionAchieved))}</span></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl bg-white border border-slate-200 p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <CreditCard className="w-5 h-5 text-amber-600" />
+                      <span className="font-black text-sm text-slate-900">إجمالي مديونية عملاء المندوب</span>
+                    </div>
+                    <span className="font-black text-base text-rose-700 tabular-nums">{formatEGP(activeRepProfile.totalDebt)}</span>
+                  </div>
+                </div>
+              )}
+
+              {repModalTab === 'monthly' && (
+                <div className="space-y-3">
+                  {activeRepProfile.monthlyRows.length === 0 ? (
+                    <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-sm font-bold text-slate-600">
+                      لا توجد بيانات شهرية لعام {selectedYear}
+                    </div>
+                  ) : (
+                    activeRepProfile.monthlyRows.map((m) => (
+                      <div key={m.month} className="rounded-2xl bg-white border border-slate-200 p-4 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-black text-sm text-slate-900">{m.label}</span>
+                          <div className="flex items-center gap-2 text-xs font-black">
+                            <span className="px-2 py-0.5 rounded-lg bg-blue-100 text-blue-800 tabular-nums">بيع {pct(m.salesAchieved, m.salesTarget)}%</span>
+                            <span className="px-2 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 tabular-nums">تحصيل {pct(m.collectionAchieved, m.collectionTarget)}%</span>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs font-bold text-slate-700 tabular-nums">
+                          <div className="rounded-xl bg-slate-50 border border-slate-200 p-2.5 flex justify-between">
+                            <span>المبيعات: <b className="text-blue-700">{fmt(m.salesAchieved)}</b></span>
+                            <span>التارجت: {fmt(m.salesTarget)}</span>
+                          </div>
+                          <div className="rounded-xl bg-slate-50 border border-slate-200 p-2.5 flex justify-between">
+                            <span>التحصيل: <b className="text-emerald-700">{fmt(m.collectionAchieved)}</b></span>
+                            <span>التارجت: {fmt(m.collectionTarget)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {repModalTab === 'customers' && (
+                <div className="space-y-2">
+                  {activeRepProfile.repCustomers.length === 0 ? (
+                    <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-sm font-bold text-slate-600">لا يوجد عملاء مسجلين</div>
+                  ) : (
+                    activeRepProfile.repCustomers.slice(0, 40).map((c) => {
+                      const bal = Number(c.currentBalance ?? c.balance ?? 0);
+                      return (
+                        <div key={c.id} className="rounded-2xl bg-white border border-slate-200 p-3 flex items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-black text-sm text-slate-900 truncate">{c.name}</div>
+                            <div className="text-xs font-bold text-slate-600 font-mono">{c.code}</div>
+                          </div>
+                          <div className={`font-black text-sm tabular-nums ${bal > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>
+                            {fmt(bal)} ج.م
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+
+              {repModalTab === 'visits' && (
+                <div className="space-y-2">
+                  {activeRepProfile.repVisits.length === 0 ? (
+                    <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-sm font-bold text-slate-600">لا توجد زيارات مسجلة</div>
+                  ) : (
+                    activeRepProfile.repVisits.slice(0, 40).map((v, idx) => (
+                      <div key={v.id || idx} className="rounded-2xl bg-white border border-slate-200 p-3 flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="font-black text-sm text-slate-900 truncate">{v.customerName || 'عميل'}</div>
+                          <div className="text-xs font-bold text-slate-600 mt-0.5">{v.date} • {v.outcome || v.type || 'زيارة'}</div>
+                        </div>
+                        {Number(v.collectedAmount || 0) > 0 && (
+                          <div className="font-black text-sm text-emerald-700 tabular-nums shrink-0">{fmt(v.collectedAmount || 0)} ج.م</div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

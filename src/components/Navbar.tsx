@@ -67,7 +67,7 @@ interface NavbarProps {
   onGlobalNavigate?: (tab: string, query?: string) => void;
 }
 
-const DEFAULT_EXECUTIVE_AVATAR = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80';
+const DEFAULT_EXECUTIVE_AVATAR = '/assets/rep-avatar.jpg';
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
@@ -188,6 +188,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'invoices', label: 'أوامر البيع والاعتمادات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
+    { id: 'reps', label: 'المناديب', icon: UserCheck, roles: ['admin', 'branch_manager', 'supervisor', 'developer'] },
     { id: 'collection', label: 'تحصيل', icon: Wallet, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'returns', label: 'المرتجعات', icon: RotateCcw, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'inventory', label: 'المخزون', icon: Layers, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
@@ -225,6 +226,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     collection: { bg: 'bg-emerald-100', text: 'text-[#16A34A]', darkBg: 'dark:bg-emerald-950/60', darkText: 'dark:text-emerald-300' },
     customers: { bg: 'bg-indigo-100', text: 'text-[#4F46E5]', darkBg: 'dark:bg-indigo-950/60', darkText: 'dark:text-indigo-300' },
     all_customers: { bg: 'bg-indigo-100', text: 'text-[#4F46E5]', darkBg: 'dark:bg-indigo-950/60', darkText: 'dark:text-indigo-300' },
+    reps: { bg: 'bg-sky-100', text: 'text-[#0284C7]', darkBg: 'dark:bg-sky-950/60', darkText: 'dark:text-sky-300' },
     visits: { bg: 'bg-purple-100', text: 'text-[#7C3AED]', darkBg: 'dark:bg-purple-950/60', darkText: 'dark:text-purple-300' },
     returns: { bg: 'bg-rose-100', text: 'text-[#DC2626]', darkBg: 'dark:bg-rose-950/60', darkText: 'dark:text-rose-300' },
     returns_customers: { bg: 'bg-rose-100', text: 'text-[#DC2626]', darkBg: 'dark:bg-rose-950/60', darkText: 'dark:text-rose-300' },
@@ -256,6 +258,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <img
               src={currentUser.avatar || DEFAULT_EXECUTIVE_AVATAR}
               alt={displayName}
+              referrerPolicy="no-referrer"
               className="w-full h-full object-cover rounded-[10px]"
               onError={(e) => {
                 (e.target as HTMLElement).style.display = 'none';
@@ -384,17 +387,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* بحث ذكي (موبايل) */}
-            <button
-              type="button"
-              onClick={() => setIsGlobalSearchOpen(true)}
-              className="ds-iconbtn ds-vis-lt-lg"
-              title="بحث ذكي"
-              aria-label="بحث ذكي"
-            >
-              <Search aria-hidden="true" />
-            </button>
-
             {/* فلتر الفرع (أدمن / مطور) */}
             {(currentUser.role === 'admin' || currentUser.role === 'developer') && (
               <select
@@ -469,6 +461,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <img
                     src={currentUser.avatar || DEFAULT_EXECUTIVE_AVATAR}
                     alt={displayName}
+                    referrerPolicy="no-referrer"
                     className="w-full h-full object-cover rounded-full"
                     onError={(e) => {
                       (e.target as HTMLElement).style.display = 'none';
@@ -491,6 +484,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                         <img
                           src={currentUser.avatar || DEFAULT_EXECUTIVE_AVATAR}
                           alt={displayName}
+                          referrerPolicy="no-referrer"
                           className="w-full h-full object-cover rounded-2xl"
                           onError={(e) => {
                             (e.target as HTMLElement).style.display = 'none';

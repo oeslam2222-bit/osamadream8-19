@@ -74,11 +74,15 @@ export const InventoryStockView: React.FC = () => {
   // Stock Transfer Modal
   const [stockTransferModal, setStockTransferModal] = useState<Product | null>(null);
   const [transferAmount, setTransferAmount] = useState<number>(10);
+  const [transferError, setTransferError] = useState<string | null>(null);
   
   // Quick Supply / Replenish Modal
   const [supplyModal, setSupplyModal] = useState<Product | null>(null);
   const [supplyCartons, setSupplyCartons] = useState<number>(10);
   const [supplyReason, setSupplyReason] = useState<string>('توريد واستلام شحنة جديدة من المصنع');
+
+  // Inline Delete Confirmation Modal
+  const [deleteConfirmProduct, setDeleteConfirmProduct] = useState<Product | null>(null);
 
   // Success Notification Toast
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
@@ -196,7 +200,7 @@ export const InventoryStockView: React.FC = () => {
 
       return true;
     });
-  }, [products, searchTerm, selectedCategory, stockLevelFilter, visibleBranch, currentActiveBranch, effectiveSector]);
+  }, [visibleProducts, searchTerm, selectedCategory, stockLevelFilter, visibleBranch, currentActiveBranch, effectiveSector]);
 
   // Paginated products
   const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
@@ -215,7 +219,7 @@ export const InventoryStockView: React.FC = () => {
     let totalCartonsActual = 0;
     let totalCartonsReserved = 0;
 
-    products.forEach((p) => {
+    visibleProducts.filter(matchesSector).forEach((p) => {
       const bStock = getProductBranchStock(p);
       const oStock = p.mainWarehouseActual || 0;
 
@@ -246,7 +250,7 @@ export const InventoryStockView: React.FC = () => {
       totalCartonsActual,
       totalCartonsReserved,
     };
-  }, [products, currentActiveBranch]);
+  }, [visibleProducts, effectiveSector, currentActiveBranch]);
 
   const handleSaveProduct = (e: React.FormEvent) => {
     e.preventDefault();
@@ -290,15 +294,16 @@ export const InventoryStockView: React.FC = () => {
     if (!stockTransferModal || transferAmount <= 0) return;
 
     if (currentUser?.role === 'sales_rep') {
-      alert('عذراً، طلبات التحويل من مخزن أكتوبر هي مسؤولية مدير الفرع ومشرف المناديب فقط.');
+      setTransferError('عذراً، طلبات التحويل من مخزن أكتوبر هي مسؤولية مدير الفرع ومشرف المناديب فقط.');
       return;
     }
 
     if (stockTransferModal.mainWarehouseActual < transferAmount) {
-      alert('الكمية المطلوبة تتجاوز مخزون الكراتين الفعلي المتاح بالمخزن المركزي!');
+      setTransferError('الكمية المطلوبة تتجاوز مخزون الكراتين الفعلي المتاح بالمخزن المركزي!');
       return;
     }
 
+    setTransferError(null);
     // Move from main warehouse to branch
     adjustStock(
       stockTransferModal.id,
@@ -321,7 +326,31 @@ export const InventoryStockView: React.FC = () => {
 
   return (
     <div className="tantawy-screen space-y-4 pb-24 md:pb-8">
-      
+      {/* Page Banner */}
+      <section className="ds-pagehead">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+          <div>
+            <div className="text-[11px] font-bold text-[#a9c8e4] mb-1 tracking-wider uppercase">
+              رئيسية <span className="mx-1 text-[#7fc0ff]">›</span> المخزون والتوافر
+            </div>
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-white/15 text-white flex items-center justify-center shrink-0 shadow-xs border border-white/25">
+                <Warehouse className="w-5 h-5" />
+              </div>
+              <div>
+                <h1 className="text-xl sm:text-2xl font-black text-white">إدارة المخزون والتوافر</h1>
+                <p className="text-xs text-[#c3d9ec] mt-0.5">متابعة أرصدة الفروع والمخزن الرئيسي وطلبات التحويل والتوريد المباشر</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs font-black">
+            <span className="px-3 py-1.5 rounded-xl bg-white/15 border border-white/25 text-white tabular-nums">
+              الإجمالي: {stockMetrics.totalCartonsActual.toLocaleString('en-US')} كرتونة بالفرع
+            </span>
+          </div>
+        </div>
+      </section>
+
       {/* Toast Notification */}
       {actionSuccessMsg && (
         <div className="bg-[var(--app-ok)] text-white p-3.5 rounded-2xl shadow-xl flex items-center justify-between text-xs animate-in fade-in sticky top-20 z-30">
@@ -859,12 +888,8 @@ export const InventoryStockView: React.FC = () => {
                       {/* Delete (Admin & Developer Only) */}
                       {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
                         <button
-                          onClick={() => {
-                            if (window.confirm(`هل أنت متأكد من حذف الصنف (${p.name}) نهائياً من قاعدة البيانات؟`)) {
-                              deleteProduct(p.id);
-                            }
-                          }}
-                          className="chip-btn danger p-2"
+                          onClick={() => setDeleteConfirmProduct(p)}
+                          className="chip-btn danger p-2 cursor-pointer"
                           title="حذف الصنف نهائياً"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -998,7 +1023,7 @@ export const InventoryStockView: React.FC = () => {
                                 <span>متوفر بالفرع (صرف مباشر)</span>
                               </span>
                             ) : needsTransfer ? (
-                              <span className="app-badge neutral animate-pulse">
+                              <span className="app-badge neutral">
                                 <Truck className="w-3 h-3" />
                                 <span>طلب تحويل من أكتوبر</span>
                               </span>
@@ -1100,12 +1125,8 @@ export const InventoryStockView: React.FC = () => {
                               {/* Delete (Admin & Developer Only) */}
                               {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (
                                 <button
-                                  onClick={() => {
-                                    if (window.confirm(`هل أنت متأكد من حذف الصنف (${p.name}) نهائياً من قاعدة البيانات؟`)) {
-                                      deleteProduct(p.id);
-                                    }
-                                  }}
-                                  className="chip-btn danger p-1.5"
+                                  onClick={() => setDeleteConfirmProduct(p)}
+                                  className="chip-btn danger p-1.5 cursor-pointer"
                                   title="حذف الصنف نهائياً"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1291,25 +1312,36 @@ export const InventoryStockView: React.FC = () => {
                   min="1"
                   max={stockTransferModal.mainWarehouseActual}
                   value={transferAmount}
-                  onChange={(e) => setTransferAmount(Math.max(1, parseInt(e.target.value) || 1))}
+                  onChange={(e) => {
+                    setTransferError(null);
+                    setTransferAmount(Math.max(1, parseInt(e.target.value) || 1));
+                  }}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-black text-base text-slate-900 app-num"
                 />
-                <div className="text-[10px] text-slate-400 mt-1 tabular-nums">
+                <div className="text-[11px] text-slate-500 mt-1 tabular-nums">
                   إجمالي القطع المعبأة داخل الكراتين: <strong>{transferAmount * (stockTransferModal.cartonQuantity || 1)} قطعة</strong>
                 </div>
+                {transferError && (
+                  <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">
+                    {transferError}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="flex items-center gap-2 pt-2">
               <button
                 onClick={handleExecuteTransfer}
-                className="btn-primary flex-1 py-2.5 text-xs"
+                className="btn-primary flex-1 py-2.5 text-xs cursor-pointer"
               >
                 تأكيد التحويل المخزني
               </button>
               <button
-                onClick={() => setStockTransferModal(null)}
-                className="app-btn app-btn-ghost px-4 py-2.5 text-xs"
+                onClick={() => {
+                  setTransferError(null);
+                  setStockTransferModal(null);
+                }}
+                className="app-btn app-btn-ghost px-4 py-2.5 text-xs cursor-pointer"
               >
                 إلغاء
               </button>
@@ -1483,12 +1515,10 @@ export const InventoryStockView: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        if (window.confirm(`هل أنت متأكد من حذف الصنف (${editingProduct.name}) نهائياً من قاعدة البيانات؟`)) {
-                          deleteProduct(editingProduct.id);
-                          setShowAddModal(false);
-                        }
+                        setShowAddModal(false);
+                        setDeleteConfirmProduct(editingProduct);
                       }}
-                      className="app-btn app-btn-risk-soft px-3.5 py-2 flex items-center gap-1.5"
+                      className="app-btn app-btn-risk-soft px-3.5 py-2 flex items-center gap-1.5 cursor-pointer"
                     >
                       <Trash2 className="w-4 h-4" />
                       <span>حذف الصنف نهائياً</span>
@@ -1512,6 +1542,54 @@ export const InventoryStockView: React.FC = () => {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Inline Product Delete Confirmation Modal */}
+      {deleteConfirmProduct && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4"
+          dir="rtl"
+          onClick={() => setDeleteConfirmProduct(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl bg-white border border-slate-200 p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <Trash2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="font-black text-base text-slate-900">تأكيد حذف الصنف نهائياً</h3>
+                <p className="text-xs font-bold text-slate-600 mt-0.5">{deleteConfirmProduct.name}</p>
+              </div>
+            </div>
+            <p className="text-xs font-bold text-slate-700 bg-rose-50 border border-rose-200 rounded-2xl p-3">
+              سيتم حذف هذا الصنف من قاعدة البيانات ولا يمكن التراجع عن هذا الإجراء.
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmProduct(null)}
+                className="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-black text-slate-700 hover:bg-slate-100 cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteProduct(deleteConfirmProduct.id);
+                  setActionSuccessMsg(`تم حذف الصنف (${deleteConfirmProduct.name}) بنجاح`);
+                  setDeleteConfirmProduct(null);
+                  setTimeout(() => setActionSuccessMsg(null), 4000);
+                }}
+                className="flex-1 rounded-xl bg-rose-600 hover:bg-rose-700 px-4 py-2.5 text-xs font-black text-white shadow-sm cursor-pointer"
+              >
+                نعم، حذف نهائي
+              </button>
+            </div>
           </div>
         </div>
       )}

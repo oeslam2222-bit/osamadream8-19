@@ -56,7 +56,8 @@ import {
   getSupabaseCustomerItemSalesCount,
   MONTH_NAMES_MAP,
   pushCustomerItemSalesToSupabase,
-  saveCustomerItemSales
+  saveCustomerItemSales,
+  CustomerItemSalesFetchScope,
 } from '../services/customerItemSalesService';
 import { Customer, CustomerItemSaleRecord, CustomerItemSalesSummary } from '../types';
 import { CustomerDossiers } from './customerSales/CustomerDossiers';
@@ -91,6 +92,47 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 }) => {
   const { currentUser, users, customers, products, activeSectorFilter } = useApp();
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+
+  const itemSalesScope = React.useMemo<CustomerItemSalesFetchScope | undefined>(() => {
+    if (!currentUser || isAdminOrDev) return undefined;
+    const cleanName = (value?: string) =>
+      (value || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+    const role = currentUser.role;
+    const branch = String(currentUser.branchName || '').trim();
+    const shortBranch = branch.replace(/فرع/g, '').replace(/\([^)]*\)/g, '').trim();
+    const warehouses = shortBranch.length >= 2 ? [shortBranch] : branch ? [branch] : [];
+
+    if (role === 'sales_rep') {
+      const fullName = cleanName(currentUser.name);
+      const shortName = fullName.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
+      const repNames = Array.from(new Set([fullName, shortName].filter((n) => n.length >= 3)));
+      return repNames.length > 0
+        ? { repNames }
+        : warehouses.length > 0
+          ? { warehouses }
+          : undefined;
+    }
+
+    if (role === 'supervisor') {
+      const repNames = users
+        .filter((u) => u.supervisorId === currentUser.id)
+        .flatMap((u) => {
+          const fn = cleanName(u.name);
+          const sn = fn.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
+          return [fn, sn];
+        })
+        .filter((n) => n.length >= 3);
+      return {
+        repNames: repNames.length > 0 ? Array.from(new Set(repNames)) : undefined,
+        warehouses: warehouses.length > 0 ? warehouses : undefined,
+      };
+    }
+
+    if (role === 'branch_manager' && warehouses.length > 0) {
+      return { warehouses };
+    }
+    return undefined;
+  }, [currentUser, users, isAdminOrDev]);
 
   const [salesRecords, setSalesRecords] = useState<CustomerItemSaleRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -137,10 +179,10 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         await saveCustomerItemSales(localBackup);
       }
 
-      // 2. قراءة عدد السجلات في Supabase فقط (استعلام خفيف) للمقارنة والتنبيه
+      // 2. قراءة عدد السجلات في Supabase فقط (استعلام خفيف مفلتر بالنطاق) للمقارنة والتنبيه
       let remoteCount = -1;
       try {
-        remoteCount = await getSupabaseCustomerItemSalesCount();
+        remoteCount = await getSupabaseCustomerItemSalesCount(itemSalesScope);
         if (remoteCount >= 0) setSupabaseCount(remoteCount);
       } catch {
         remoteCount = -1;
@@ -163,11 +205,11 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         return;
       }
 
-      // 3. جلب كامل فقط عند طلب المستخدم صراحةً (forceRemote)
+      // 3. جلب مفلتر بالنطاق فقط عند طلب المستخدم صراحةً (forceRemote)
       let supabaseSales: CustomerItemSaleRecord[] = [];
       let supabaseError: string | null = null;
       try {
-        const fetchRes = await fetchCustomerItemSalesFromSupabase();
+        const fetchRes = await fetchCustomerItemSalesFromSupabase(undefined, itemSalesScope);
         if (fetchRes.error) {
           supabaseError = fetchRes.error;
         } else if (fetchRes.sales && fetchRes.sales.length > 0) {
@@ -250,7 +292,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     setSyncErrorMsg(null);
     setSyncSuccessMsg(null);
     try {
-      const res = await fetchCustomerItemSalesFromSupabase();
+      const res = await fetchCustomerItemSalesFromSupabase(undefined, itemSalesScope);
       if (res.error) {
         setSyncErrorMsg(res.error);
       } else {

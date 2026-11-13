@@ -1047,14 +1047,40 @@ export async function saveCustomerItemSales(sales: CustomerItemSaleRecord[], mod
   } catch {}
 }
 
+export interface CustomerItemSalesFetchScope {
+  repNames?: string[];
+  warehouses?: string[];
+}
+
+function quotePostgrestFilterValue(value: string): string {
+  const clean = String(value).replace(/["(),]/g, ' ').trim();
+  return `"${clean}"`;
+}
+
+function applyItemSalesScope(query: any, scope?: CustomerItemSalesFetchScope): any {
+  if (!scope) return query;
+  const clauses: string[] = [];
+  (scope.repNames || []).map((n) => String(n).trim()).filter((n) => n.length >= 2).forEach((name) => {
+    clauses.push(`rep_name.ilike.${quotePostgrestFilterValue(`*${name}*`)}`);
+  });
+  (scope.warehouses || []).map((w) => String(w).trim()).filter((w) => w.length >= 2).forEach((wh) => {
+    clauses.push(`warehouse.ilike.${quotePostgrestFilterValue(`*${wh}*`)}`);
+  });
+  return clauses.length > 0 ? query.or(clauses.join(',')) : query;
+}
+
 /**
- * Get current exact record count from Supabase `customer_item_sales` table
+ * Get current exact record count from Supabase `customer_item_sales` table (scoped when provided)
  */
-export async function getSupabaseCustomerItemSalesCount(): Promise<number> {
+export async function getSupabaseCustomerItemSalesCount(
+  scope?: CustomerItemSalesFetchScope
+): Promise<number> {
   try {
-    const { count, error } = await supabase
+    let query = supabase
       .from('customer_item_sales')
       .select('id', { count: 'exact', head: true });
+    query = applyItemSalesScope(query, scope);
+    const { count, error } = await query;
     if (error) {
       console.warn('Error fetching Supabase customer_item_sales count:', error);
       return -1;
@@ -1240,11 +1266,37 @@ export function mapSupabaseRowToCustomerItemSale(row: any): CustomerItemSaleReco
   };
 }
 
+const CUSTOMER_ITEM_SALES_SELECT_COLUMNS = [
+  'id',
+  'customer_account',
+  'invoicing_name',
+  'sales_order',
+  'sale_date',
+  'rep_name',
+  'month',
+  'warehouse',
+  'item_code',
+  'item_name',
+  'unified_code',
+  'unit',
+  'factor',
+  'unit_price',
+  'discount',
+  'quantity',
+  'amount',
+  'item_group',
+  'definitions',
+  'family_dimension',
+  'created_at',
+].join(',');
+
 /**
  * Fetch Customer Item Sales from Supabase table `customer_item_sales` with complete pagination (fetching all 10,000+ rows)
  */
 export async function fetchCustomerItemSalesFromSupabase(
-  onProgress?: (loaded: number) => void
+  onProgress?: (loaded: number) => void,
+  scope?: CustomerItemSalesFetchScope,
+  options?: { updatedSince?: string }
 ): Promise<{
   sales: CustomerItemSaleRecord[];
   error?: string;
@@ -1254,13 +1306,42 @@ export async function fetchCustomerItemSalesFromSupabase(
     let from = 0;
     let allData: any[] = [];
     let hasMore = true;
+    let selectCols = CUSTOMER_ITEM_SALES_SELECT_COLUMNS;
+    let updatedSince = options?.updatedSince?.trim() || '';
 
     while (hasMore) {
-      const { data, error } = await supabase
-        .from('customer_item_sales')
-        .select('*')
-        .range(from, from + pageSize - 1)
-        .order('month', { ascending: true });
+      const buildQuery = (cols: string, since: string) => {
+        let q = supabase
+          .from('customer_item_sales')
+          .select(cols)
+          .order('month', { ascending: true })
+          .order('id', { ascending: true });
+        q = applyItemSalesScope(q, scope);
+        if (since) q = q.gte('updated_at', since);
+        return q.range(from, from + pageSize - 1);
+      };
+
+      let { data, error } = await buildQuery(selectCols, updatedSince);
+
+      if (
+        error &&
+        updatedSince &&
+        String(error.message || '').toLowerCase().includes('updated_at')
+      ) {
+        updatedSince = '';
+        ({ data, error } = await buildQuery(selectCols, ''));
+      }
+
+      if (
+        error &&
+        selectCols !== '*' &&
+        (String(error.code || '') === '42703' ||
+          String(error.code || '') === 'PGRST204' ||
+          /column|does not exist|could not find/i.test(String(error.message || '')))
+      ) {
+        selectCols = '*';
+        ({ data, error } = await buildQuery('*', updatedSince));
+      }
 
       if (error) {
         console.warn('Error fetching chunk from Supabase:', error);
@@ -1284,15 +1365,20 @@ export async function fetchCustomerItemSalesFromSupabase(
     }
 
     if (allData.length === 0) {
+      if (options?.updatedSince) {
+        const existing = await getSavedCustomerItemSales();
+        return { sales: existing };
+      }
       return { sales: [] };
     }
 
     const mapped: CustomerItemSaleRecord[] = allData.map(mapSupabaseRowToCustomerItemSale);
 
-    // Cache into memory & IndexedDB
-    await saveCustomerItemSales(mapped);
+    // Cache into memory & IndexedDB (merge when incremental, replace when full)
+    await saveCustomerItemSales(mapped, updatedSince ? 'merge' : 'replace');
+    const finalSaved = updatedSince ? await getSavedCustomerItemSales() : mapped;
 
-    return { sales: mapped };
+    return { sales: finalSaved };
   } catch (err: any) {
     return { sales: [], error: err?.message || 'فشل الاتصال بـ Supabase' };
   }

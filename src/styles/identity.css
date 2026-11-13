@@ -604,15 +604,15 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
 }
 
 .tg-kpi__label {
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 800;
-  opacity: 0.92;
+  opacity: 1;
 }
 
 .tg-kpi__hint {
-  font-size: 10.5px;
+  font-size: 11.5px;
   font-weight: 700;
-  opacity: 0.72;
+  opacity: 0.9;
 }
 
 /* هوية التطبيق: Navy #0F2B38 · Primary #2563EB · Teal #0D9488 (تحويف Light) */
@@ -1013,9 +1013,9 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
 
 .tg-cp__meta {
   margin-top: 3px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  color: #a9c8e4;
+  color: #dbeafe;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -1023,7 +1023,7 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
 }
 
 .tg-cp__badge {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 900;
   padding: 3px 9px;
   border-radius: 999px;
@@ -1046,17 +1046,17 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
 }
 
 .tg-cp__stat {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 14px;
   padding: 8px 9px;
   min-width: 0;
 }
 
 .tg-cp__stat-label {
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 800;
-  color: #a9c8e4;
+  color: #dbeafe;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1140,13 +1140,13 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
   justify-content: space-between;
   gap: 12px;
   padding: 8px 0;
-  border-bottom: 1px dashed #e8eef6;
-  font-size: 11.5px;
+  border-bottom: 1px dashed #e2e8f0;
+  font-size: 12.5px;
 }
 
 .tg-cp__row:last-child { border-bottom: 0; }
-.tg-cp__row-label { font-weight: 700; color: #64748b; white-space: nowrap; }
-.tg-cp__row-value { font-weight: 900; color: #0b2337; text-align: start; min-width: 0; }
+.tg-cp__row-label { font-weight: 800; color: #334155; white-space: nowrap; }
+.tg-cp__row-value { font-weight: 900; color: #0f172a; text-align: start; min-width: 0; }
 
 /* أعمدة الشهر */
 .tg-cp__months {

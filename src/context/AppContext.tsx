@@ -45,10 +45,15 @@ import {
   fetchVisitContentStamp,
   CustomerFetchScope,
   VisitFetchScope,
+  TargetFetchScope,
   saveTargetsToSupabase,
   saveVisitsToSupabase,
   fetchForecastsByMonthFromSupabase,
   fetchForecastsByYearFromSupabase,
+  fetchForecastMonthStamp,
+  fetchForecastPlansStamp,
+  fetchCustomerCommentsStamp,
+  ForecastFetchScope,
   InvoiceFetchScope,
   saveForecastsToSupabase,
   fetchForecastMonthPlansFromSupabase,
@@ -76,6 +81,7 @@ import {
   supabase,
   SupabaseSyncStatus,
   testSupabaseConnection,
+  isSupabaseConfigured,
   USER_SYNC_STORE_ID,
 } from '../services/supabaseService';
 import { currentMonthKey } from '../services/forecastService';
@@ -233,9 +239,19 @@ function saveVisitContentStamp(stamp: { count: number | null; maxUpdatedAt: stri
  */
 const TARGET_CONTENT_STAMP_KEY = 'tantawy_target_content_stamp_v1';
 
-function readTargetContentStamp(): { count: number | null; maxUpdatedAt: string | null } | null {
+function targetScopeKey(scope?: TargetFetchScope): string {
+  if (!scope) return 'all';
+  const parts = [
+    ...(scope.branchNames || []).map((b) => `b:${b}`).sort(),
+    ...(scope.repNames || []).map((r) => `r:${r}`).sort(),
+  ];
+  return parts.length > 0 ? parts.join(',') : 'all';
+}
+
+function readTargetContentStamp(scope?: TargetFetchScope): { count: number | null; maxUpdatedAt: string | null } | null {
   try {
-    const raw = localStorage.getItem(TARGET_CONTENT_STAMP_KEY);
+    const key = `${TARGET_CONTENT_STAMP_KEY}::${targetScopeKey(scope)}`;
+    const raw = localStorage.getItem(key) || (!scope ? localStorage.getItem(TARGET_CONTENT_STAMP_KEY) : null);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed && (parsed.count !== undefined || parsed.maxUpdatedAt !== undefined)) {
@@ -248,16 +264,19 @@ function readTargetContentStamp(): { count: number | null; maxUpdatedAt: string 
   return null;
 }
 
-function saveTargetContentStamp(stamp: { count: number | null; maxUpdatedAt: string | null }): void {
+function saveTargetContentStamp(
+  stamp: { count: number | null; maxUpdatedAt: string | null },
+  scope?: TargetFetchScope
+): void {
   try {
-    safeLocalStorageSet(TARGET_CONTENT_STAMP_KEY, JSON.stringify(stamp));
+    safeLocalStorageSet(`${TARGET_CONTENT_STAMP_KEY}::${targetScopeKey(scope)}`, JSON.stringify(stamp));
   } catch {}
 }
 
 /** وقت آخر مزامنة ناجحة للمستخدمين — عشان ما نطلبش الجدول مع كل فتح. */
 const USERS_LAST_SYNC_KEY = 'tantawy_users_last_sync_v1';
-// المستخدمون بيتغيروا نادرًا؛ 6 ساعات توازن بين الحداثة وتوفير الـ egress.
-const USERS_SYNC_TTL_MS = 6 * 60 * 60 * 1000;
+// المستخدمون بيتغيروا نادرًا؛ 12 ساعة توازن بين الحداثة وتوفير الـ egress لـ 500 موظف.
+const USERS_SYNC_TTL_MS = 12 * 60 * 60 * 1000;
 
 /**
  * بصمة الفواتير محفوظة لكل نطاق قراءة على حدة (مندوب/مشرف/مدير فرع/أدمن)
@@ -293,6 +312,49 @@ function saveInvoiceContentStamp(
   try {
     safeLocalStorageSet(`${INVOICE_CONTENT_STAMP_PREFIX}${scopeKey}`, JSON.stringify(stamp));
   } catch {}
+}
+
+const FORECAST_MONTH_STAMP_PREFIX = 'tantawy_forecast_month_stamp_v1::';
+const FORECAST_PLANS_STAMP_KEY = 'tantawy_forecast_plans_stamp_v1';
+const CUSTOMER_COMMENTS_STAMP_KEY = 'tantawy_customer_comments_stamp_v1';
+
+function forecastScopeKey(monthKey: string, scope?: ForecastFetchScope): string {
+  if (!scope) return `${monthKey}::all`;
+  const parts = [
+    ...(scope.branchNames || []).map((b) => `b:${b}`).sort(),
+    ...(scope.repIds || []).map((r) => `r:${r}`).sort(),
+  ];
+  return `${monthKey}::${parts.join(',') || 'all'}`;
+}
+
+function readContentStamp(storageKey: string): { count: number | null; maxUpdatedAt: string | null } | null {
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && (parsed.count !== undefined || parsed.maxUpdatedAt !== undefined)) {
+      return {
+        count: typeof parsed.count === 'number' ? parsed.count : null,
+        maxUpdatedAt: parsed.maxUpdatedAt ?? null,
+      };
+    }
+  } catch {}
+  return null;
+}
+
+function saveContentStamp(storageKey: string, stamp: { count: number | null; maxUpdatedAt: string | null }): void {
+  try {
+    safeLocalStorageSet(storageKey, JSON.stringify(stamp));
+  } catch {}
+}
+
+function areContentStampsEqual(
+  a: { count: number | null; maxUpdatedAt: string | null } | null,
+  b: { count: number | null; maxUpdatedAt: string | null } | null
+): boolean {
+  if (!a || !b) return false;
+  if (a.count === null && a.maxUpdatedAt === null) return false;
+  return a.count === b.count && a.maxUpdatedAt === b.maxUpdatedAt;
 }
 
 function resolveEffectiveSector(user: User | null, activeSector: ActiveSector, fallbackSector?: string): ActiveSector {
@@ -367,23 +429,23 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
  * في كل إقلاع على كل جهاز).
  */
 function buildInvoiceFetchScope(currentUser: User | null, users: User[]): InvoiceFetchScope {
-  if (!currentUser) return { limit: 150 };
+  if (!currentUser) return { limit: 60 };
   if (currentUser.role === 'sales_rep') {
-    return { repIds: [currentUser.id], limit: 150 };
+    return { repIds: [currentUser.id], limit: 60 };
   }
   if (currentUser.role === 'supervisor') {
     const repIds = users
       .filter((u) => u.id === currentUser.id || u.supervisorId === currentUser.id)
       .map((u) => u.id);
-    return { repIds: repIds.length > 0 ? repIds : undefined, limit: 300 };
+    return { repIds: repIds.length > 0 ? repIds : undefined, limit: 100 };
   }
   if (currentUser.role === 'branch_manager') {
     const repIds = users
       .filter((u) => u.branchName === currentUser.branchName)
       .map((u) => u.id);
-    return { repIds: repIds.length > 0 ? repIds : undefined, limit: 300 };
+    return { repIds: repIds.length > 0 ? repIds : undefined, limit: 120 };
   }
-  return { limit: 500 };
+  return { limit: 200 };
 }
 
 /**
@@ -417,9 +479,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Auth and Session Notice
   const [authTerminationNotice, setAuthTerminationNotice] = useState<string | null>(null);
 
-  // Keep-Alive: ping Supabase every 10 minutes (only when visible) to prevent free-tier auto-pause
-  // while keeping egress usage near zero. بيستخدم جدول `targets` الموجود فعلاً —
-  // `branches` مش موجود على السيرفر وكان بيرجّع 404 في الكونسول كل 10 دقائق.
+  // Keep-Alive: ping Supabase every 30 minutes (only when visible) to prevent free-tier auto-pause
+  // while keeping egress near zero at 500 concurrent users (initial auth/stamps already wake DB).
   useEffect(() => {
     const ping = () => {
       if (typeof document !== 'undefined' && document.hidden) return;
@@ -429,8 +490,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         .limit(1)
         .then(() => {}, () => {});
     };
-    ping();
-    const id = window.setInterval(ping, 10 * 60 * 1000);
+    const id = window.setInterval(ping, 30 * 60 * 1000);
     return () => window.clearInterval(id);
   }, []);  // فحص اتصال Supabase Auth: بيقول للإدارة هل الـ migration اتنفّذ ولا لأ.
   // بيتحدّث مرة واحدة عند الإقلاع وخلاص — مفيش أي طلبات متكررة.
@@ -517,6 +577,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return null;
     }
   });
+
+  const currentUserRef = useRef<User | null>(currentUser);
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
 
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(() => {
     const saved = localStorage.getItem('dream_dist_company_info_v1');
@@ -636,6 +701,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  const forecastsRef = useRef<CollectionForecastRecord[]>(forecasts);
+  useEffect(() => { forecastsRef.current = forecasts; }, [forecasts]);
+
+  const customerCommentsRef = useRef<CustomerCommentRecord[]>(customerComments);
+  useEffect(() => { customerCommentsRef.current = customerComments; }, [customerComments]);
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEYS.FORECASTS, JSON.stringify(forecasts));
@@ -660,32 +731,129 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [customerComments]);
 
+  const forecastFetchScope = useMemo<ForecastFetchScope | undefined>(() => {
+    if (!currentUser) return undefined;
+    const role = currentUser.role;
+    const branchNames = Array.from(
+      new Set([currentUser.branchName].filter((b): b is string => Boolean(b && b.trim())))
+    );
+    const cleanName = (value?: string) =>
+      (value || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+    if (role === 'sales_rep') {
+      const fullName = cleanName(currentUser.name);
+      const shortName = fullName.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
+      const repIds = Array.from(new Set([currentUser.id, currentUser.username].filter(Boolean) as string[]));
+      const repNames = Array.from(new Set([fullName, shortName].filter((n) => n.length >= 3)));
+      // لا نُضمّن branchNames للمندوب طالما له معرّف/اسم؛ لأن الفلتر OR كان يسحب توقعات وتعليقات الفرع كله.
+      return {
+        ...(repIds.length === 0 && repNames.length === 0 ? { branchNames } : {}),
+        repIds,
+        repNames,
+      };
+    }
+    if (role === 'supervisor') {
+      const repUsers = users.filter((u) => u.supervisorId === currentUser.id);
+      const repNames = repUsers
+        .flatMap((u) => {
+          const fn = cleanName(u.name);
+          const sn = fn.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
+          return [fn, sn];
+        })
+        .filter((n) => n.length >= 3);
+      const repIds = repUsers.flatMap((u) => [u.id, u.username]).filter(Boolean) as string[];
+      if (branchNames.length > 0 || repNames.length > 0 || repIds.length > 0) {
+        return {
+          branchNames,
+          repIds: Array.from(new Set(repIds)),
+          repNames: Array.from(new Set(repNames)),
+        };
+      }
+      return undefined;
+    }
+    if (role === 'branch_manager') {
+      return branchNames.length > 0 ? { branchNames } : undefined;
+    }
+    return undefined;
+  }, [currentUser?.id, currentUser?.name, currentUser?.username, currentUser?.branchName, currentUser?.role, users]);
+
+  const targetFetchScope = useMemo<TargetFetchScope | undefined>(() => {
+    if (!currentUser) return undefined;
+    const role = currentUser.role;
+    if (role === 'admin' || role === 'developer' || role === 'technical_support' || role === 'legal_advisor') {
+      return undefined;
+    }
+    const cleanName = (value?: string) =>
+      (value || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+    const branchNames = Array.from(
+      new Set([currentUser.branchName].filter((b): b is string => Boolean(b && b.trim())))
+    );
+    if (role === 'sales_rep') {
+      const fullName = cleanName(currentUser.name);
+      const shortName = fullName.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
+      const repNames = Array.from(new Set([fullName, shortName].filter((n) => n.length >= 3)));
+      return {
+        ...(repNames.length === 0 ? { branchNames } : {}),
+        repNames,
+      };
+    }
+    if (role === 'supervisor') {
+      const repNames = users
+        .filter((u) => u.supervisorId === currentUser.id)
+        .flatMap((u) => {
+          const fn = cleanName(u.name);
+          const sn = fn.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
+          return [fn, sn];
+        })
+        .filter((n) => n.length >= 3);
+      return {
+        branchNames,
+        repNames: Array.from(new Set(repNames)),
+      };
+    }
+    return branchNames.length > 0 ? { branchNames } : undefined;
+  }, [currentUser?.id, currentUser?.name, currentUser?.branchName, currentUser?.role, users]);
+
   // Load the shared copy so every device and every role sees the same numbers.
-  // التوقعات: الشهر الحالي بس من السيرفر — الجلب الكامل كان
-  // بيصل لـ 50 ألف سطر في 50 طلب متتالي. باقي الشهور بتتحمل
-  // لما المستخدم يفتحها (loadForecastsForMonth).
-  // كومنتات العملاء (حتى 20 ألف سطر) مش بتتحمل هنا —
-  // بتتحمل لما الفيوهات اللي بتستخدمها تفتح (loadCustomerComments).
+  // التوقعات: الشهر الحالي بس من السيرفر مع بصمة محتوى من صف واحد لتفادي إعادة التنزيل عند عدم التغيير.
   useEffect(() => {
     let cancelled = false;
     const bootMonth = currentMonthKey();
     loadedForecastMonthsRef.current?.add(bootMonth);
+    const fStampKey = `${FORECAST_MONTH_STAMP_PREFIX}${forecastScopeKey(bootMonth, forecastFetchScope)}`;
+
     (async () => {
-      const [fRes, pRes] = await Promise.all([
-        fetchForecastsByMonthFromSupabase(bootMonth),
-        fetchForecastMonthPlansFromSupabase(),
+      const [fStamp, pStamp] = await Promise.all([
+        fetchForecastMonthStamp(bootMonth, forecastFetchScope),
+        fetchForecastPlansStamp(),
       ]);
       if (cancelled) return;
-      if (fRes.success) {
+
+      const storedFStamp = readContentStamp(fStampKey);
+      const storedPStamp = readContentStamp(FORECAST_PLANS_STAMP_KEY);
+
+      const localHasBootMonth = forecasts.some((f) => f.monthKey === bootMonth);
+      const skipForecasts =
+        areContentStampsEqual(fStamp, storedFStamp) && (localHasBootMonth || fStamp?.count === 0);
+
+      const skipPlans =
+        areContentStampsEqual(pStamp, storedPStamp) && (forecastPlans.length > 0 || pStamp?.count === 0);
+
+      const [fRes, pRes] = await Promise.all([
+        skipForecasts ? Promise.resolve(null) : fetchForecastsByMonthFromSupabase(bootMonth, forecastFetchScope),
+        skipPlans ? Promise.resolve(null) : fetchForecastMonthPlansFromSupabase(),
+      ]);
+      if (cancelled) return;
+
+      if (fRes && fRes.success) {
+        if (fStamp) saveContentStamp(fStampKey, fStamp);
         const mapped = mapForecastRows(fRes.forecasts || []);
-        // استبدال صفوف الشهر الحالي بس — الشهور المحفوظة محلياً
-        // بتفضل مكانها (أوفلاين) لحد ما تُفتح من السيرفر.
         setForecasts((prev) => [
           ...prev.filter((f) => f.monthKey !== bootMonth),
           ...mapped,
         ]);
       }
-      if (pRes.success && pRes.plans) {
+      if (pRes && pRes.success && pRes.plans) {
+        if (pStamp) saveContentStamp(FORECAST_PLANS_STAMP_KEY, pStamp);
         const mappedPlans: ForecastMonthPlan[] = pRes.plans.map((r: any) => ({
           id: r.id,
           year: Number(r.year),
@@ -705,33 +873,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [forecastFetchScope]);
 
   /**
-   * تحميل توقعات شهر من السيرفر ودمجها في الحالة. الشهر
-   * اللي اتحمل قبل كده ميتعاودش — ده اللي بيخلي الفتح
-   * خفيف بدل تحميل كل الشهور من أول ما التطبيق يشتغل.
+   * تحميل توقعات شهر من السيرفر ودمجها في الحالة.
    */
   const loadForecastsForMonth = useCallback(async (monthKey: string) => {
     if (!monthKey || loadedForecastMonthsRef.current?.has(monthKey)) return;
-    const res = await fetchForecastsByMonthFromSupabase(monthKey);
+    const fStampKey = `${FORECAST_MONTH_STAMP_PREFIX}${forecastScopeKey(monthKey, forecastFetchScope)}`;
+    const stamp = await fetchForecastMonthStamp(monthKey, forecastFetchScope);
+    const storedStamp = readContentStamp(fStampKey);
+    const localMonthRows = forecastsRef.current.filter((f) => f.monthKey === monthKey);
+
+    if (
+      areContentStampsEqual(stamp, storedStamp) &&
+      (localMonthRows.length > 0 || stamp?.count === 0)
+    ) {
+      loadedForecastMonthsRef.current?.add(monthKey);
+      return;
+    }
+
+    const canIncremental =
+      stamp !== null &&
+      storedStamp !== null &&
+      !!storedStamp.maxUpdatedAt &&
+      typeof stamp.count === 'number' &&
+      typeof storedStamp.count === 'number' &&
+      stamp.count >= storedStamp.count &&
+      localMonthRows.length > 0;
+
+    const res = canIncremental
+      ? await fetchForecastsByMonthFromSupabase(monthKey, forecastFetchScope, {
+          updatedSince: storedStamp!.maxUpdatedAt!,
+        })
+      : await fetchForecastsByMonthFromSupabase(monthKey, forecastFetchScope);
+
     if (!res.success) return;
+    if (stamp) saveContentStamp(fStampKey, stamp);
     loadedForecastMonthsRef.current?.add(monthKey);
     const mapped = mapForecastRows(res.forecasts || []);
-    setForecasts((prev) => [
-      ...prev.filter((f) => f.monthKey !== monthKey),
-      ...mapped,
-    ]);
-  }, []);
+    setForecasts((prev) => {
+      if (canIncremental) {
+        const map = new Map<string, CollectionForecastRecord>();
+        prev.forEach((f) => map.set(f.id, f));
+        mapped.forEach((f) => map.set(f.id, f));
+        return Array.from(map.values());
+      }
+      return [...prev.filter((f) => f.monthKey !== monthKey), ...mapped];
+    });
+  }, [forecastFetchScope]);
 
   /**
-   * توقعات سنة كاملة (لوحة الإدارة). السيرفر بيرجع السنة
-   * كلها في نطاق واحد، فكل شهورها بتتحدّث محلياً وتتعمل
-   * loaded — حتى الشهور الفاضية عشان ما تُعاد جلبتها.
+   * توقعات سنة كاملة (لوحة الإدارة).
    */
   const loadForecastsForYear = useCallback(async (year: number) => {
     if (!year) return;
-    const res = await fetchForecastsByYearFromSupabase(year);
+    const res = await fetchForecastsByYearFromSupabase(year, forecastFetchScope);
     if (!res.success) return;
     const mapped = mapForecastRows(res.forecasts || []);
     const prefix = `${year}-`;
@@ -743,43 +940,77 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prev.filter((f) => !f.monthKey?.startsWith(prefix)),
       ...mapped,
     ]);
-  }, []);
+  }, [forecastFetchScope]);
 
   /**
    * كومنتات العملاء (حتى 20 ألف سطر) مش بتتحمل
-   * في الإقلاع — بتتحمل مرة واحدة لما الفيوهات
-   * اللي بتستخدمها تفتح. الكاش المحلي بيكون
-   * بذرة عشان الأوفلاين.
+   * في الإقلاع — بتتحمل عند فتح الفيوهات مع فحص بصمة صف واحد + مزامنة تدريجية.
    */
-  const customerCommentsLoadedRef = useRef<boolean | null>(null);
-  if (customerCommentsLoadedRef.current === null) {
-    customerCommentsLoadedRef.current = false;
-    try {
-      const raw = localStorage.getItem(STORAGE_KEYS.CUSTOMER_COMMENTS);
-      const parsed = raw ? JSON.parse(raw) : [];
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        customerCommentsLoadedRef.current = true;
-      }
-    } catch { /* ignore */ }
-  }
+  const commentsStampCheckedRef = useRef<boolean>(false);
+  const commentsStampScopeRef = useRef<string>('');
 
   const loadCustomerComments = useCallback(async () => {
-    if (customerCommentsLoadedRef.current) return;
-    customerCommentsLoadedRef.current = true;
-    const res = await fetchCustomerCommentsFromSupabase();
-    if (!res.success) {
-      // فشل الشبكة — نسمح بإعادة المحاولة عند الفتح التالي
-      customerCommentsLoadedRef.current = false;
+    const scopeKey = `${CUSTOMER_COMMENTS_STAMP_KEY}::${forecastScopeKey('comments', forecastFetchScope)}`;
+    if (commentsStampCheckedRef.current && commentsStampScopeRef.current === scopeKey) return;
+    commentsStampCheckedRef.current = true;
+    commentsStampScopeRef.current = scopeKey;
+
+    const stamp = await fetchCustomerCommentsStamp(forecastFetchScope);
+    const storedStamp = readContentStamp(scopeKey);
+    const localCount = customerCommentsRef.current.length;
+    if (
+      areContentStampsEqual(stamp, storedStamp) &&
+      (localCount > 0 || stamp?.count === 0)
+    ) {
       return;
     }
-    setCustomerComments(mapCommentRows(res.comments || []));
-  }, []);
+
+    const canIncremental =
+      stamp !== null &&
+      storedStamp !== null &&
+      !!storedStamp.maxUpdatedAt &&
+      typeof stamp.count === 'number' &&
+      typeof storedStamp.count === 'number' &&
+      stamp.count >= storedStamp.count &&
+      localCount > 0;
+
+    const res = canIncremental
+      ? await fetchCustomerCommentsFromSupabase(forecastFetchScope, {
+          updatedSince: storedStamp!.maxUpdatedAt!,
+        })
+      : await fetchCustomerCommentsFromSupabase(forecastFetchScope);
+
+    if (!res.success) {
+      commentsStampCheckedRef.current = false;
+      return;
+    }
+    if (stamp) saveContentStamp(scopeKey, stamp);
+    const incoming = mapCommentRows(res.comments || []);
+    if (canIncremental) {
+      if (incoming.length === 0) return;
+      setCustomerComments((prev) => {
+        const merged = new Map<string, CustomerCommentRecord>();
+        prev.forEach((c) => merged.set(c.id, c));
+        incoming.forEach((c) => merged.set(c.id, c));
+        return Array.from(merged.values());
+      });
+    } else {
+      setCustomerComments(incoming);
+    }
+  }, [forecastFetchScope]);
 
 
   // Load targets from the shared database so every device and role sees the same sheet update.
   // If Google Sheets read mode is enabled, prefer published sheet URLs to save Supabase egress.
   useEffect(() => {
     let cancelled = false;
+    const isAdminLevel =
+      !currentUser ||
+      currentUser.role === 'admin' ||
+      currentUser.role === 'developer' ||
+      currentUser.role === 'technical_support';
+    const monthsWindow = isAdminLevel ? 24 : 12;
+
     const loadTargetsFromSheets = async (): Promise<boolean> => {
       const savedSources = getPublishedDataSources();
       const keys = ['targets', 'targets_electrical'] as const;
@@ -809,31 +1040,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (ok || cancelled) return;
       }
 
-      const stamp = await fetchTargetContentStamp();
-      const stored = readTargetContentStamp();
+      const stamp = await fetchTargetContentStamp(targetFetchScope);
+      const stored = readTargetContentStamp(targetFetchScope);
       const localCount = targets.length;
       const unchanged =
         stamp !== null &&
         stored !== null &&
         stamp.count === stored.count &&
         stamp.maxUpdatedAt === stored.maxUpdatedAt &&
-        localCount >= (stamp.count ?? 0);
+        (localCount >= (stamp.count ?? 0) || stamp.count === 0);
       if (unchanged) return;
 
-      const result = await fetchTargetsRecentMonths(24);
+      const result = await fetchTargetsRecentMonths(monthsWindow, targetFetchScope);
       if (cancelled) return;
       if (result.success && result.targets && result.targets.length > 0) {
         const mapped: TargetRecord[] = result.targets.map(mapTargetRowToRecord);
         setTargets(mapped);
         if (stamp && (stamp.count !== null || stamp.maxUpdatedAt !== null)) {
-          saveTargetContentStamp(stamp);
+          saveTargetContentStamp(stamp, targetFetchScope);
+        }
+      } else if (result.success && result.targets && result.targets.length === 0) {
+        if (stamp && (stamp.count !== null || stamp.maxUpdatedAt !== null)) {
+          saveTargetContentStamp(stamp, targetFetchScope);
         }
       } else {
         await loadTargetsFromSheets();
       }
     })().catch(() => {});
     return () => { cancelled = true; };
-  }, []);
+  }, [targetFetchScope, currentUser?.role]);
 
   const getVisibleTargets = () => {
     const scoped = filterBySector(targets, currentUser?.sector, (record) => inferTargetSector(record, users));
@@ -1370,10 +1605,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Supabase State & Sync
+  // Supabase State & Sync (on-demand probe inside DatabaseConnectionModal saves boot roundtrips for 500 users)
   const [supabaseStatus, setSupabaseStatus] = useState<SupabaseSyncStatus>({
-    connected: false,
-    tableFound: 'جاري الفحص والاتصال...',
+    connected: isSupabaseConfigured,
+    tableFound: isSupabaseConfigured ? 'جاهز (اضغط للفحص)' : 'وضع التخزين المحلي',
   });
   const [isSupabaseSyncing, setIsSupabaseSyncing] = useState<boolean>(false);
   const [pendingInvoicesCount, setPendingInvoicesCount] = useState<number>(0);
@@ -1904,12 +2139,18 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     await refreshOfflineQueueCount();
 
     if (done.length > 0) {
-      // Tell every other device that the shared data moved, so admins and reps
-      // repaint instead of showing a stale local cache.
-      publishDataVersionUpdate({
-        scope: resolveFlushScope(),
-        notes: `مزامنة تلقائية بعد العمل بدون إنترنت (${done.length} تغيير)`,
-      }).catch(() => {});
+      // المناديب عند مزامنة زيارات/فواتير أوفلاين ماينشروش ختم إصدار عام لكل 500 جهاز؛
+      // التحديثات الفورية بتوصل للمشرفين والمديرين عبر Realtime وبصمات المحتوى.
+      const flushScope = resolveFlushScope();
+      const isFieldRepRoutineFlush =
+        currentUserRef.current?.role === 'sales_rep' &&
+        (flushScope === 'visits' || flushScope === 'invoices');
+      if (!isFieldRepRoutineFlush) {
+        publishDataVersionUpdate({
+          scope: flushScope,
+          notes: `مزامنة تلقائية بعد العمل بدون إنترنت (${done.length} تغيير)`,
+        }).catch(() => {});
+      }
     }
 
     return { success: failed.length === 0, syncedCount: done.length };
@@ -1997,7 +2238,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         branchNames,
         repNames: Array.from(new Set([fullName, shortName].filter((name) => name.length >= 3))),
         repIds: Array.from(new Set([currentUser.id, currentUser.username].filter(Boolean) as string[])),
-        includeUnassignedBranch: true,
+        includeUnassignedBranch: false,
+        strictNoFullFallback: true,
+        slimFieldColumns: true,
       };
     }
 
@@ -2015,27 +2258,66 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   ]);
 
   /**
-   * scope القراءة من جدول الزيارات، على نفس نمط العملاء.
-   *
-   * الزيارات كانت بتتنزل كاملة على كل جهاز، وده كان أكبر بند في فاتورة
-   * الاستضافة على الخطة المجانية: كل مندوب بينزّل سجل الشركة كله عشان
-   * يشوف زيارات فرعه، والواجهة كانت بتخفي الباقي بعد ما يتحمّل.
-   *
-   * المندوب ومدير الفرع بس هما اللي بيتضيّقوا — وهما أصعب الأدوار صرامة في
-   * `getVisibleVisits` أصلاً. المشرف سايب من غير scope عمداً لأن صلاحيته
-   * مربوطة بمندوبين معيّنين مش بفرع واحد.
-   *
-   * `sinceDate` بيقفل القراءة على 18 شهر: التقارير الشهرية بتغطي السنة
-   * اللي فاتت، وأقدم من كده مش بيتنزل على موبايل. الأدمن والمطور من غير
-   * حد، عشان تقرير المرتجعات على مستوى الشركة محتاج السجل كامل.
+   * scope القراءة من جدول الزيارات:
+   * - المندوب: آخر 90 يوماً فقط + نطاقه الخاص (مع منع سحب الجدول كله كبديل).
+   * - المشرف: آخر 180 يوماً + مندوبيه التابعين + فرعه (بدلاً من سحب كل الشركة بلا حدود).
+   * - مدير الفرع: آخر 180 يوماً + فرعه.
+   * - الأدمن والمطور والدعم الفني: السجل كامل للتقارير الشاملة.
    */
   const visitFetchScope = useMemo<VisitFetchScope | undefined>(() => {
     const role = currentUser?.role;
-    if (!currentUser || (role !== 'sales_rep' && role !== 'branch_manager')) return undefined;
-    const scope = customerFetchScope;
-    if (!scope) return undefined;
+    if (!currentUser || (role !== 'sales_rep' && role !== 'branch_manager' && role !== 'supervisor')) {
+      return undefined;
+    }
+
     const since = new Date();
-    since.setMonth(since.getMonth() - 18);
+    if (role === 'sales_rep') {
+      since.setDate(since.getDate() - 90);
+      if (!customerFetchScope) return { sinceDate: since.toISOString().slice(0, 10) };
+      return {
+        branchNames: customerFetchScope.branchNames,
+        repNames: customerFetchScope.repNames,
+        repIds: customerFetchScope.repIds,
+        includeUnassignedBranch: false,
+        strictNoFullFallback: true,
+        sinceDate: since.toISOString().slice(0, 10),
+      };
+    }
+
+    since.setDate(since.getDate() - 180);
+    if (role === 'supervisor') {
+      const cleanName = (value?: string) =>
+        (value || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+      const repUsers = users.filter((u) => u.supervisorId === currentUser.id);
+      const supFull = cleanName(currentUser.name);
+      const repNames = [
+        supFull,
+        ...repUsers.flatMap((u) => {
+          const fn = cleanName(u.name);
+          const sn = fn.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
+          return [fn, sn];
+        }),
+      ].filter((n) => n.length >= 3);
+      const repIds = [
+        currentUser.id,
+        currentUser.username,
+        ...repUsers.flatMap((u) => [u.id, u.username]),
+      ].filter(Boolean) as string[];
+      const branchNames = Array.from(
+        new Set([currentUser.branchName].filter((b): b is string => Boolean(b && b.trim())))
+      );
+      return {
+        branchNames,
+        repNames: Array.from(new Set(repNames)),
+        repIds: Array.from(new Set(repIds)),
+        includeUnassignedBranch: false,
+        sinceDate: since.toISOString().slice(0, 10),
+      };
+    }
+
+    // branch_manager
+    const scope = customerFetchScope;
+    if (!scope) return { sinceDate: since.toISOString().slice(0, 10) };
     return {
       branchNames: scope.branchNames,
       repNames: scope.repNames,
@@ -2043,7 +2325,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       includeUnassignedBranch: scope.includeUnassignedBranch,
       sinceDate: since.toISOString().slice(0, 10),
     };
-  }, [currentUser?.id, currentUser?.branchName, currentUser?.role, customerFetchScope]);
+  }, [currentUser?.id, currentUser?.name, currentUser?.username, currentUser?.branchName, currentUser?.role, customerFetchScope, users]);
 
   const checkDatabaseConnection = useCallback(async (): Promise<SupabaseSyncStatus> => {
     const conn = await testSupabaseConnection();
@@ -2294,18 +2576,150 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       let freshInvoices: Invoice[] | null = null;
       let freshVisits: CustomerVisit[] | null = null;
 
-      // الجلبات الخمسة دي مستقلة عن بعض — بتنزل
-      // متوازية عشان الإقلاع يستنى أطول جلب بس
-      // بدل مجموع الأوقات (الكتالوج والعملاء والفواتير
-      // والزيارات كانت بتنزل ورا بعض متسلسلة).
-      const [prodRes, custRes, trgRes, invRes, visRes, visStamp, custStamp] = await Promise.all([
-        inScope('products') ? pullProductsForVersionSync() : Promise.resolve(null),
-        inScope('customers') ? fetchCustomersFromSupabase(customerFetchScope) : Promise.resolve(null),
-        inScope('targets') ? fetchTargetsFromSupabase() : Promise.resolve(null),
-        inScope('invoices') ? fetchInvoicesFromSupabase(buildInvoiceFetchScope(currentUser, users)) : Promise.resolve(null),
-        inScope('visits') ? fetchVisitsFromSupabase(visitFetchScope) : Promise.resolve(null),
+      // الجلبات الخمسة دي بتسحب التغييرات تدريجياً أولاً لما يكون فيه بصمة وكاش محلي
+      // لتقليل الـ egress على 500 جهاز عند نشر تحديث جديد، وترجع للجدول الكامل فقط عند الحاجة.
+      const isAdminOrDev =
+        !currentUser ||
+        currentUser.role === 'admin' ||
+        currentUser.role === 'developer' ||
+        currentUser.role === 'technical_support';
+
+      const invScope = buildInvoiceFetchScope(currentUser, users);
+      const invScopeKey = invoiceScopeKey(invScope);
+
+      const [visStamp, custStamp, trgStamp, invStamp] = await Promise.all([
         inScope('visits') ? fetchVisitContentStamp(visitFetchScope) : Promise.resolve(null),
         inScope('customers') ? fetchCustomerContentStamp(customerFetchScope) : Promise.resolve(null),
+        inScope('targets') ? fetchTargetContentStamp(targetFetchScope) : Promise.resolve(null),
+        inScope('invoices') ? fetchInvoiceContentStamp(invScope) : Promise.resolve(null),
+      ]);
+
+      const pullCustomersForVersionSync = async (): Promise<Awaited<ReturnType<typeof fetchCustomersFromSupabase>> | null> => {
+        if (!inScope('customers')) return null;
+        const storedCustStamp = readCustomerContentStamp();
+        if (
+          custStamp &&
+          storedCustStamp?.maxUpdatedAt &&
+          typeof custStamp.count === 'number' &&
+          typeof storedCustStamp.count === 'number' &&
+          custStamp.count >= storedCustStamp.count &&
+          customersRef.current.length > 0
+        ) {
+          if (custStamp.count === storedCustStamp.count && custStamp.maxUpdatedAt === storedCustStamp.maxUpdatedAt) {
+            return { success: true, customers: customersRef.current };
+          }
+          const inc = await fetchCustomersFromSupabase(customerFetchScope, {
+            updatedSince: storedCustStamp.maxUpdatedAt,
+          }).catch(() => null);
+          if (inc?.success) {
+            const incoming = sanitizeCustomers(inc.customers || []);
+            const linkedInc = linkCustomersToUsers(incoming, users);
+            const merged = deduplicateCustomersArray(mergeCustomersIncremental(customersRef.current, linkedInc));
+            if (merged.length >= custStamp.count) {
+              return { success: true, customers: merged };
+            }
+          }
+        }
+        return fetchCustomersFromSupabase(customerFetchScope);
+      };
+
+      const pullVisitsForVersionSync = async (): Promise<Awaited<ReturnType<typeof fetchVisitsFromSupabase>> | null> => {
+        if (!inScope('visits')) return null;
+        const storedVisStamp = readVisitContentStamp();
+        if (
+          visStamp &&
+          storedVisStamp?.maxUpdatedAt &&
+          typeof visStamp.count === 'number' &&
+          typeof storedVisStamp.count === 'number' &&
+          visStamp.count >= storedVisStamp.count &&
+          visitsRef.current.length > 0
+        ) {
+          if (visStamp.count === storedVisStamp.count && visStamp.maxUpdatedAt === storedVisStamp.maxUpdatedAt) {
+            return { success: true, visits: visitsRef.current };
+          }
+          const inc = await fetchVisitsFromSupabase(visitFetchScope, {
+            updatedSince: storedVisStamp.maxUpdatedAt,
+          }).catch(() => null);
+          if (inc?.success) {
+            const map = new Map<string, CustomerVisit>();
+            visitsRef.current.forEach((v) => map.set(v.id, v));
+            (inc.visits || []).forEach((v) => map.set(v.id, { ...v, syncStatus: 'synced' }));
+            if (map.size >= visStamp.count) {
+              return { success: true, visits: Array.from(map.values()) };
+            }
+          }
+        }
+        return fetchVisitsFromSupabase(visitFetchScope);
+      };
+
+      const pullTargetsForVersionSync = async (): Promise<Awaited<ReturnType<typeof fetchTargetsRecentMonths>> | null> => {
+        if (!inScope('targets')) return null;
+        const storedTrgStamp = readTargetContentStamp(targetFetchScope);
+        if (
+          trgStamp &&
+          storedTrgStamp &&
+          trgStamp.count === storedTrgStamp.count &&
+          trgStamp.maxUpdatedAt === storedTrgStamp.maxUpdatedAt &&
+          targetsRef.current.length > 0
+        ) {
+          return null;
+        }
+        const inc = await fetchTargetsIncremental(targetFetchScope).catch(() => null);
+        if (inc?.success && !inc.isFullFetch && targetsRef.current.length > 0) {
+          if (!inc.targets || inc.targets.length === 0) {
+            return null;
+          }
+          return {
+            success: true,
+            targets: mergeTargetsIncremental(targetsRef.current, inc.targets.map(mapTargetRowToRecord)),
+          };
+        }
+        return fetchTargetsRecentMonths(isAdminOrDev ? 24 : 12, targetFetchScope);
+      };
+
+      const pullInvoicesForVersionSync = async (): Promise<Awaited<ReturnType<typeof fetchInvoicesFromSupabase>> | null> => {
+        if (!inScope('invoices')) return null;
+        const storedInvStamp = readInvoiceContentStamp(invScopeKey);
+        if (
+          invStamp &&
+          storedInvStamp &&
+          invStamp.count === storedInvStamp.count &&
+          invStamp.maxCreatedAt === storedInvStamp.maxCreatedAt &&
+          invStamp.table === storedInvStamp.table &&
+          invoicesRef.current.length > 0
+        ) {
+          return { success: true, invoices: invoicesRef.current };
+        }
+        const canIncInv =
+          invStamp !== null &&
+          storedInvStamp !== null &&
+          !!storedInvStamp.maxCreatedAt &&
+          typeof invStamp.count === 'number' &&
+          typeof storedInvStamp.count === 'number' &&
+          invStamp.count >= storedInvStamp.count &&
+          invStamp.table === storedInvStamp.table &&
+          invoicesRef.current.length > 0;
+        if (canIncInv) {
+          const inc = await fetchInvoicesFromSupabase(invScope, {
+            updatedSince: storedInvStamp!.maxCreatedAt!,
+            stampColumn: invStamp!.stampColumn,
+          }).catch(() => null);
+          if (inc?.success && inc.invoices) {
+            const map = new Map<string, Invoice>();
+            invoicesRef.current.forEach((inv) => map.set(inv.id, inv));
+            inc.invoices.forEach((inv) => map.set(inv.id, inv));
+            return { success: true, invoices: Array.from(map.values()) };
+          }
+        }
+        return fetchInvoicesFromSupabase(invScope);
+      };
+
+      const [prodRes, custRes, trgRes, invRes, visRes] = await Promise.all([
+        inScope('products') ? pullProductsForVersionSync() : Promise.resolve(null),
+        pullCustomersForVersionSync(),
+        pullTargetsForVersionSync(),
+        pullInvoicesForVersionSync(),
+        pullVisitsForVersionSync(),
       ]);
 
       if (prodRes?.success) {
@@ -2315,25 +2729,27 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (custRes?.success) {
         const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers || []), users);
         freshCustomers = deduplicateCustomersArray(linked);
-        // نحفظ بصمة الجدول بعد التنزيل الكامل، وإلا نبضة المحتوى (checkCustomersContent)
-        // هتلاقي مفيش بصمة محفوظة وتنزّل نفس الجدول تاني بعد شوية.
         if (custStamp && (custStamp.count !== null || custStamp.maxUpdatedAt !== null)) {
           saveCustomerContentStamp(custStamp);
         }
       }
 
       if (trgRes?.success) {
-        freshTargets = (trgRes.targets || []).map(mapTargetRowToRecord);
+        freshTargets = (trgRes.targets || []).map((t: any) =>
+          t && typeof t.repName === 'string' ? t : mapTargetRowToRecord(t)
+        );
+        if (trgStamp && (trgStamp.count !== null || trgStamp.maxUpdatedAt !== null)) {
+          saveTargetContentStamp(trgStamp, targetFetchScope);
+        }
       }
 
       if (invRes?.success && invRes.invoices) {
         freshInvoices = invRes.invoices;
+        if (invStamp) saveInvoiceContentStamp(invScopeKey, invStamp);
       }
 
       if (visRes?.success && visRes.visits) {
         freshVisits = visRes.visits;
-        // بصمة الزيارات بنحفظها بعد أي تحميل ناجح، عشان فتح التطبيق الجاي
-        // ما يعملش نفس التنزيل تاني لو مفيش جديد.
         if (visStamp && (visStamp.count !== null || visStamp.maxUpdatedAt !== null)) {
           saveVisitContentStamp(visStamp);
         }
@@ -2526,6 +2942,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
    * `event.persisted` هو اللي بيفرق: true يعني الصفحة مرجّعة من الكاش، false
    * يعني تحميل عادي أو إغلاق — وفي الحالة التانية مش بنعمل حاجة.
    */
+  const realtimeCheckRef = useRef<(() => void) | null>(null);
+  const realtimeCheckCustomersRef = useRef<(() => void) | null>(null);
+  const shouldUseRealtimeRef = useRef<boolean>(false);
+  shouldUseRealtimeRef.current = Boolean(currentUser && currentUser.role !== 'sales_rep');
+
   useEffect(() => {
     let lastRestoreAt = 0;
     /**
@@ -2549,9 +2970,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const now = Date.now();
       if (now - lastRestoreAt < 3000) return;
       lastRestoreAt = now;
-      // لو الجهاز أوفلاين، connect هيفضل يحاول ويرمي timeout في الكونسول.
-      // أول ما الشبكة ترجع حدث online بيتكفّل بإعادة المزامنة.
-      if (typeof navigator === 'undefined' || navigator.onLine !== false) {
+      // لو الجهاز أوفلاين أو الدور مندوب مبيعات، مش بنفتح اتصال Realtime دائم.
+      if (shouldUseRealtimeRef.current && (typeof navigator === 'undefined' || navigator.onLine !== false)) {
         try {
           supabase.realtime.connect();
         } catch (error) {
@@ -2568,13 +2988,17 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     };
   }, []);
 
+  // Deduplicate immediate boot checks across [users, isLocalDataHydrated, dataEpoch] updates
+  const lastBootHeartbeatAtRef = useRef<number>(0);
+  const lastBootCustScopeSigRef = useRef<string>('');
+
   // Re-check on focus, tab visibility, realtime version broadcasts, and as a short heartbeat.
   // The heartbeat is intentionally defensive: realtime can be disconnected on mobile networks.
   useEffect(() => {
     if (!isLocalDataHydrated) return;
     let checkInFlight = false;
-    let lastHeartbeatCheck = 0;
-    const HEARTBEAT_INTERVAL_MS = 10 * 60 * 1000;
+    let lastHeartbeatCheck = Date.now();
+    const HEARTBEAT_INTERVAL_MS = 25 * 60 * 1000;
     // شبكة أمان: لو استعلام البصمة نفسه فشل (عمود updated_at مش موجود أو
     // الشبكة وقعت) بنعمل تحميل كامل مرة كل ساعة. البصمة المحفوظة على الجهاز
     // بتغطي الحالة الطبيعية، فمش محتاجين نعيد تنزيل الجدول عند كل فتح.
@@ -2723,7 +3147,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     };
 
     let lastFocusOrVisibilityCheck = 0;
-    const FOCUS_SYNC_COOLDOWN_MS = 10 * 60 * 1000;
+    const FOCUS_SYNC_COOLDOWN_MS = 25 * 60 * 1000;
+    let realtimeJitterTimer: number | null = null;
 
     const handleFocusOrVisibility = () => {
       if (document.visibilityState === 'hidden') return;
@@ -2745,27 +3170,34 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     window.addEventListener('focus', handleFocusOrVisibility);
     document.addEventListener('visibilitychange', handleFocusOrVisibility);
-    // Heartbeat كل 10 دقائق لتقليل egress؛ Realtime + بصمة المحتوى تغطي التحديثات.
-    const interval = window.setInterval(heartbeat, 10 * 60 * 1000);
-    const versionChannel = supabase
-      .channel('global-data-version-sync')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${GLOBAL_VERSION_RECORD_ID}` },
-        () => {
-          checkCustomersContent();
-          check();
-        }
-      )
-      .subscribe();
+    // Heartbeat كل 25 دقيقة لتقليل egress؛ القناة الموحدة للـ Realtime + بصمة المحتوى تغطي التحديثات.
+    const interval = window.setInterval(heartbeat, 25 * 60 * 1000);
+    realtimeCheckCustomersRef.current = checkCustomersContent;
+    realtimeCheckRef.current = check;
 
-    checkCustomersContent();
-    check();
+    const custScopeSig = customerFetchScope ? JSON.stringify(customerFetchScope) : 'all';
+    const nowBoot = Date.now();
+    const shouldRunImmediateCheck =
+      lastBootCustScopeSigRef.current !== custScopeSig ||
+      nowBoot - lastBootHeartbeatAtRef.current >= 15_000;
+    if (shouldRunImmediateCheck) {
+      lastBootCustScopeSigRef.current = custScopeSig;
+      lastBootHeartbeatAtRef.current = nowBoot;
+      checkCustomersContent();
+      // checkAndSyncDataVersion(false) is already invoked on boot by the next effect;
+      // only run `check()` here when triggered by a real scope change or subsequent epoch.
+      if (dataEpoch > 0) {
+        check();
+      }
+    }
+
     return () => {
       window.removeEventListener('focus', handleFocusOrVisibility);
       document.removeEventListener('visibilitychange', handleFocusOrVisibility);
       window.clearInterval(interval);
-      supabase.removeChannel(versionChannel);
+      if (realtimeJitterTimer !== null) window.clearTimeout(realtimeJitterTimer);
+      realtimeCheckCustomersRef.current = null;
+      realtimeCheckRef.current = null;
     };
   }, [users, isLocalDataHydrated, dataEpoch]);
 
@@ -2775,14 +3207,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     // late hydration can restore the stale snapshot immediately after it is purged.
     if (!isLocalDataHydrated) return;
 
-    testSupabaseConnection().then(setSupabaseStatus).catch(() => {});
-
-    // 1) المستخدمون بيتغيروا نادرًا — بنسأل السيرفر مرة كل 6 ساعات بدل كل فتح.
-    // (7KB مع كل فتح كانت بتتكرر 400 مرة على نفس القاعدة).
+    // 1) المستخدمون بيتغيروا نادرًا — 24 ساعة للمناديب و 12 ساعة لباقي الأدوار، ومن غير كلمات مرور للأجهزة غير الإدارية.
     const lastUsersSync = Number(localStorage.getItem(USERS_LAST_SYNC_KEY) || 0);
-    const usersAreFresh = users.length > 0 && Date.now() - lastUsersSync < USERS_SYNC_TTL_MS;
+    const isAdminAccount =
+      currentUserRef.current?.role === 'admin' || currentUserRef.current?.role === 'developer';
+    const effectiveUsersTtl =
+      currentUserRef.current?.role === 'sales_rep' ? USERS_SYNC_TTL_MS * 2 : USERS_SYNC_TTL_MS;
+    const usersAreFresh = users.length > 0 && Date.now() - lastUsersSync < effectiveUsersTtl;
     if (!usersAreFresh) {
-    fetchUsersFromSupabase(true).then((res) => {
+    fetchUsersFromSupabase(true, { includeCredentials: isAdminAccount }).then((res) => {
           if (res.success) {
             try { localStorage.setItem(USERS_LAST_SYNC_KEY, String(Date.now())); } catch {}
           }
@@ -2932,10 +3365,53 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           }
         });
 
-        // 3. Fetch Invoices from Supabase (source of truth; keeps only genuinely pending offline invoices)
+        // 3. Fetch Invoices from Supabase (with 1-row content stamp check to cut boot egress)
         const deletedInvoiceIds = getDeletedInvoiceIds();
-        fetchInvoicesFromSupabase(buildInvoiceFetchScope(currentUser, users)).then(async (res) => {
+        const loadInitialInvoices = async () => {
+          const activeUser = currentUserRef.current || currentUser;
+          const activeUsers = usersRef.current.length > 0 ? usersRef.current : users;
+          const invScope = buildInvoiceFetchScope(activeUser, activeUsers);
+          const invScopeKey = invoiceScopeKey(invScope);
+          const stamp = await fetchInvoiceContentStamp(invScope);
+          const storedStamp = readInvoiceContentStamp(invScopeKey);
+          const stampMatches =
+            stamp !== null &&
+            storedStamp !== null &&
+            stamp.count === storedStamp.count &&
+            stamp.maxCreatedAt === storedStamp.maxCreatedAt &&
+            stamp.table === storedStamp.table;
+
+          const cachedLocalInvoices =
+            invoicesRef.current.length > 0
+              ? invoicesRef.current
+              : (await idbGet<Invoice[]>(STORAGE_KEYS.INVOICES)) || [];
+
+          if (stampMatches && (cachedLocalInvoices.length > 0 || stamp?.count === 0)) {
+            if (invoicesRef.current.length === 0 && cachedLocalInvoices.length > 0) {
+              setInvoices(cachedLocalInvoices);
+            }
+            return;
+          }
+
+          const canIncrementalInv =
+            stamp !== null &&
+            storedStamp !== null &&
+            !!storedStamp.maxCreatedAt &&
+            typeof stamp.count === 'number' &&
+            typeof storedStamp.count === 'number' &&
+            stamp.count >= storedStamp.count &&
+            stamp.table === storedStamp.table &&
+            cachedLocalInvoices.length > 0;
+
+          const res = canIncrementalInv
+            ? await fetchInvoicesFromSupabase(invScope, {
+                updatedSince: storedStamp!.maxCreatedAt!,
+                stampColumn: stamp!.stampColumn,
+              })
+            : await fetchInvoicesFromSupabase(invScope);
+
           if (res.success && res.invoices) {
+            if (stamp) saveInvoiceContentStamp(invScopeKey, stamp);
             const remoteInvoices = res.invoices.filter(
               (inv) => !deletedInvoiceIds.has(inv.id) && !deletedInvoiceIds.has(inv.invoiceNumber)
             );
@@ -2947,22 +3423,31 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             const pendingIds = new Set([...pendingList.map((i) => i.id), ...pendingMutations]);
 
             setInvoices((previous) => {
+              const baseList = previous.length > 0 ? previous : cachedLocalInvoices;
               const merged = new Map<string, Invoice>();
-              // Start with remote invoices as source of truth
-              remoteInvoices.forEach((inv) => merged.set(inv.id, inv));
-              // Add ONLY local invoices that are genuinely pending offline upload
-              previous.forEach((inv) => {
-                if (pendingIds.has(inv.id) && !merged.has(inv.id) && !deletedInvoiceIds.has(inv.id) && !deletedInvoiceIds.has(inv.invoiceNumber)) {
-                  merged.set(inv.id, inv);
-                }
-              });
+              if (canIncrementalInv) {
+                baseList.forEach((inv) => {
+                  if (!deletedInvoiceIds.has(inv.id) && !deletedInvoiceIds.has(inv.invoiceNumber)) {
+                    merged.set(inv.id, inv);
+                  }
+                });
+                remoteInvoices.forEach((inv) => merged.set(inv.id, inv));
+              } else {
+                remoteInvoices.forEach((inv) => merged.set(inv.id, inv));
+                baseList.forEach((inv) => {
+                  if (pendingIds.has(inv.id) && !merged.has(inv.id) && !deletedInvoiceIds.has(inv.id) && !deletedInvoiceIds.has(inv.invoiceNumber)) {
+                    merged.set(inv.id, inv);
+                  }
+                });
+              }
               const next = Array.from(merged.values());
               idbSet(STORAGE_KEYS.INVOICES, next);
               safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(next));
               return next;
             });
           }
-        });
+        };
+        loadInitialInvoices().catch(() => {});
 
         // 5. Fetch Visits from Supabase (narrowed by the role scope)
         const deletedVisitIds = getDeletedVisitIds();
@@ -3070,21 +3555,48 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           });
         };
         loadInitialVisits().catch(() => {});
+  }, [isLocalDataHydrated, dataEpoch]);
 
-    // Setup Supabase Realtime subscriptions for data tables.
+  // Consolidated single Realtime WebSocket channel (saves 50% connections + exempts sales_rep to protect Supabase Free 200-connection limit)
+  useEffect(() => {
+    if (!isLocalDataHydrated) return;
+
+    if (!currentUser || currentUser.role === 'sales_rep') {
+      try {
+        supabase.realtime.disconnect();
+      } catch {
+        // Already disconnected
+      }
+      return;
+    }
+
+    let versionJitterTimer: number | null = null;
     try {
       const channel = supabase
-        .channel('schema-db-changes')
-        // Realtime بيبث كل فاتورة جديدة/معدّلة لكل جهاز موصول — أكبر سبب نقل بيانات.
-        // المندوب بيستقبل فواتيره بس عبر فلتر سيرفر؛ باقي الأدوار تحتاج الكل للموافقات.
+        .channel('app-realtime-sync')
+        // 1) إشعار نشر نسخة بيانات جديدة (مدمج داخل نفس القناة بدل قناة ثانية)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${GLOBAL_VERSION_RECORD_ID}` },
+          () => {
+            if (versionJitterTimer !== null) window.clearTimeout(versionJitterTimer);
+            const jitterMs = 1500 + Math.floor(Math.random() * 5000);
+            versionJitterTimer = window.setTimeout(() => {
+              versionJitterTimer = null;
+              realtimeCheckCustomersRef.current?.();
+              realtimeCheckRef.current?.();
+            }, jitterMs);
+          }
+        )
+        // 2) الفواتير — مفلترة بالفرع للمشرف ومدير الفرع، والكل للإدارة وأمين المخزن
         .on(
           'postgres_changes',
           {
             event: '*',
             schema: 'public',
             table: 'invoices',
-            ...(currentUser?.role === 'sales_rep' && currentUser.id
-              ? { filter: `rep_id=eq.${currentUser.id}` }
+            ...((currentUser.role === 'supervisor' || currentUser.role === 'branch_manager') && currentUser.branchName
+              ? { filter: `branch_name=eq.${currentUser.branchName}` }
               : {}),
           },
           (payload) => {
@@ -3148,8 +3660,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             }
           }
         )
-        // DELETE-only لتقليل egress: إدراج/تعديل العملاء والأهداف والزيارات والتوقعات
-        // تُجلب عبر بصمة/فحص دوري أو عند الطلب بدل بث الحمولة الكاملة لكل الأجهزة.
+        // 3) DELETE-only لتقليل egress
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'customers' }, (payload) => {
           const deleted = payload.old as any;
           if (deleted?.id) {
@@ -3202,12 +3713,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         .subscribe();
 
       return () => {
+        if (versionJitterTimer !== null) window.clearTimeout(versionJitterTimer);
         supabase.removeChannel(channel);
       };
     } catch (e) {
       console.warn('Realtime channel error:', e);
     }
-  }, [isLocalDataHydrated, dataEpoch]);
+  }, [isLocalDataHydrated, dataEpoch, currentUser?.id, currentUser?.role, currentUser?.branchName]);
 
   useEffect(() => {
     const handleOnlineSync = () => {
@@ -3260,18 +3772,18 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     const refreshInvoicesSafely = async () => {
       if (typeof document !== 'undefined' && document.hidden) return;
+      const activeUser = currentUserRef.current;
+      if (!activeUser) return;
       const now = Date.now();
-      // Cooldown: at least 5 minutes between background focus syncs
-      if (now - lastSyncTimestamp < 5 * 60 * 1000) return;
+      // Cooldown: at least 15 minutes between background focus syncs
+      if (now - lastSyncTimestamp < 15 * 60 * 1000) return;
       lastSyncTimestamp = now;
 
       try {
-        const scope = buildInvoiceFetchScope(currentUser, users);
+        const scope = buildInvoiceFetchScope(activeUser, usersRef.current);
         const scopeKey = invoiceScopeKey(scope);
 
-        // 1) بصمة صف واحد بدل تنزيل الفواتير: لو العدد وأحدث created_at
-        // ما اتغيّروش، مفيش حاجة ننزّلها. تعديلات الحالة الفورية بتيجي
-        // من Realtime، وزر التحديث اليدوي بيعمل قراءة كاملة لو احتاج.
+        // 1) بصمة صف واحد بدل تنزيل الفواتير: لو العدد وآخر تعديل/إنشاء ماتغيّروش مفيش تنزيل.
         const stamp = await fetchInvoiceContentStamp(scope);
         const stored = readInvoiceContentStamp(scopeKey);
         if (
@@ -3284,16 +3796,36 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           return;
         }
 
-        const result = await fetchInvoicesFromSupabase(scope);
+        const canIncremental =
+          stamp !== null &&
+          stored !== null &&
+          !!stored.maxCreatedAt &&
+          typeof stamp.count === 'number' &&
+          typeof stored.count === 'number' &&
+          stamp.count >= stored.count &&
+          stamp.table === stored.table &&
+          invoicesRef.current.length > 0;
+
+        const result = canIncremental
+          ? await fetchInvoicesFromSupabase(scope, {
+              updatedSince: stored!.maxCreatedAt!,
+              stampColumn: stamp!.stampColumn,
+            })
+          : await fetchInvoicesFromSupabase(scope);
         if (cancelled || !result.success || !result.invoices) return;
         if (stamp) saveInvoiceContentStamp(scopeKey, stamp);
         setInvoices((prev) => {
-          const remoteById = new Map<string, Invoice>();
-          result.invoices!.forEach((inv) => {
-            remoteById.set(inv.id, inv);
-          });
-          const localOnly = prev.filter((inv) => !remoteById.has(inv.id));
-          const next = [...Array.from(remoteById.values()), ...localOnly];
+          const merged = new Map<string, Invoice>();
+          if (canIncremental) {
+            prev.forEach((inv) => merged.set(inv.id, inv));
+            result.invoices!.forEach((inv) => merged.set(inv.id, inv));
+          } else {
+            result.invoices!.forEach((inv) => merged.set(inv.id, inv));
+            prev.forEach((inv) => {
+              if (!merged.has(inv.id)) merged.set(inv.id, inv);
+            });
+          }
+          const next = Array.from(merged.values());
           idbSet(STORAGE_KEYS.INVOICES, next);
           return next;
         });
@@ -3326,34 +3858,76 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const refreshInvoicesNow = async (force = false): Promise<{ success: boolean; count: number; message: string }> => {
     try {
       const now = Date.now();
-      if (!force && now - lastManualRefreshRef.current < 120_000 && invoices.length > 0) {
+      if (!force && now - lastManualRefreshRef.current < 120_000 && invoicesRef.current.length > 0) {
         return {
           success: true,
-          count: invoices.length,
-          message: `الفواتير محدثة بالفعل ومحفوظة محلياً (${invoices.length} فاتورة).`,
+          count: invoicesRef.current.length,
+          message: `الفواتير محدثة بالفعل ومحفوظة محلياً (${invoicesRef.current.length} فاتورة).`,
         };
       }
       lastManualRefreshRef.current = now;
 
-      const result = await fetchInvoicesFromSupabase(
-        buildInvoiceFetchScope(currentUser, users)
-      );
+      const invScope = buildInvoiceFetchScope(currentUserRef.current || currentUser, usersRef.current);
+      const scopeKey = invoiceScopeKey(invScope);
+      const stamp = await fetchInvoiceContentStamp(invScope);
+      const stored = readInvoiceContentStamp(scopeKey);
+      if (
+        stamp &&
+        stored &&
+        stamp.count === stored.count &&
+        stamp.maxCreatedAt === stored.maxCreatedAt &&
+        stamp.table === stored.table &&
+        invoicesRef.current.length > 0
+      ) {
+        return {
+          success: true,
+          count: invoicesRef.current.length,
+          message: `الفواتير محدثة بالفعل (${invoicesRef.current.length} فاتورة).`,
+        };
+      }
+
+      const canIncremental =
+        stamp !== null &&
+        stored !== null &&
+        !!stored.maxCreatedAt &&
+        typeof stamp.count === 'number' &&
+        typeof stored.count === 'number' &&
+        stamp.count >= stored.count &&
+        stamp.table === stored.table &&
+        invoicesRef.current.length > 0;
+
+      const result = canIncremental
+        ? await fetchInvoicesFromSupabase(invScope, {
+            updatedSince: stored!.maxCreatedAt!,
+            stampColumn: stamp!.stampColumn,
+          })
+        : await fetchInvoicesFromSupabase(invScope);
       if (!result.success || !result.invoices) {
         return { success: false, count: 0, message: result.error || 'تعذر الاتصال بقاعدة البيانات لجلب الفواتير' };
       }
+      if (stamp) saveInvoiceContentStamp(scopeKey, stamp);
       const remoteInvoices = result.invoices;
       setInvoices((prev) => {
-        const remoteById = new Map<string, Invoice>();
-        remoteInvoices.forEach((inv) => remoteById.set(inv.id, inv));
-        const localOnly = prev.filter((inv) => !remoteById.has(inv.id));
-        const next = [...Array.from(remoteById.values()), ...localOnly];
+        const merged = new Map<string, Invoice>();
+        if (canIncremental) {
+          prev.forEach((inv) => merged.set(inv.id, inv));
+          remoteInvoices.forEach((inv) => merged.set(inv.id, inv));
+        } else {
+          remoteInvoices.forEach((inv) => merged.set(inv.id, inv));
+          prev.forEach((inv) => {
+            if (!merged.has(inv.id)) merged.set(inv.id, inv);
+          });
+        }
+        const next = Array.from(merged.values());
         idbSet(STORAGE_KEYS.INVOICES, next);
         return next;
       });
       return {
         success: true,
         count: remoteInvoices.length,
-        message: `تم تحديث أحدث ${remoteInvoices.length} فاتورة من السيرفر بنجاح.`,
+        message: canIncremental
+          ? `تمت مزامنة ${remoteInvoices.length} فاتورة محدثة بنجاح.`
+          : `تم تحديث أحدث ${remoteInvoices.length} فاتورة من السيرفر بنجاح.`,
       };
     } catch (err: any) {
       return { success: false, count: 0, message: err?.message || 'خطأ غير متوقع أثناء تحديث الفواتير' };
@@ -3907,11 +4481,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   useEffect(() => {
     const handleOnline = () => {
       setIsOffline(false);
-      // رجوع الشبكة = السوكيت غالبًا مات وهو أوفلاين؛ connect() آمن لو متوصّل.
-      try {
-        supabase.realtime.connect();
-      } catch {
-        // تجاهل: إعادة المحاولة بتحصل تلقائيًا
+      // رجوع الشبكة = السوكيت غالبًا مات وهو أوفلاين؛ نعيد الاتصال فقط لغير مناديب المبيعات.
+      if (shouldUseRealtimeRef.current) {
+        try {
+          supabase.realtime.connect();
+        } catch {
+          // تجاهل: إعادة المحاولة بتحصل تلقائيًا
+        }
       }
     };
     const handleOffline = () => setIsOffline(true);
@@ -7319,10 +7895,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
   const loadAllTargets = async (): Promise<{ success: boolean; message?: string; count?: number }> => {
     try {
-      const res = await fetchTargetsFromSupabase();
+      const res = await fetchTargetsFromSupabase(targetFetchScope);
       if (!res.success) return { success: false, message: res.error || 'فشل تحميل كل الأهداف' };
       const incoming = res.targets || [];
-      const merged = mergeTargetsIncremental(targets, incoming.map(mapTargetRowToRecord));
+      const merged = mergeTargetsIncremental(targetsRef.current, incoming.map(mapTargetRowToRecord));
       setTargets(merged);
       try { localStorage.setItem(STORAGE_KEYS.TARGETS, JSON.stringify(merged)); } catch {}
       return { success: true, message: `تم تحميل ${merged.length} هدف`, count: merged.length };
@@ -7333,7 +7909,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
   const syncTargetsIncrementally = async (): Promise<{ success: boolean; message?: string; added?: number; updated?: number }> => {
     try {
-      const res = await fetchTargetsIncremental();
+      const res = await fetchTargetsIncremental(targetFetchScope);
       if (!res.success) {
         return { success: false, message: res.error || 'فشل جلب الأهداف من السيرفر' };
       }
@@ -7341,7 +7917,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (incoming.length === 0) {
         return { success: true, message: 'لا توجد أهداف جديدة للتحديث', added: 0, updated: 0 };
       }
-      const merged = mergeTargetsIncremental(targets, incoming.map(mapTargetRowToRecord));
+      const merged = mergeTargetsIncremental(targetsRef.current, incoming.map(mapTargetRowToRecord));
       setTargets(merged);
       try { localStorage.setItem(STORAGE_KEYS.TARGETS, JSON.stringify(merged)); } catch {}
       return {
@@ -7367,7 +7943,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (incoming.length === 0) {
         return { success: true, message: 'لا توجد أصناف جديدة للتحديث', added: 0, updated: 0 };
       }
-      const merged = mergeProductsIncremental(products, incoming);
+      const merged = mergeProductsIncremental(productsRef.current, incoming);
       setProducts(merged);
       idbSet(STORAGE_KEYS.PRODUCTS, merged).catch(() => {});
       return {
@@ -7385,7 +7961,37 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
   const syncCustomerItemSalesIncrementally = async (): Promise<{ success: boolean; message?: string; added?: number; updated?: number }> => {
     try {
-      const res = await fetchCustomerItemSalesIncremental();
+      let scope: { repNames?: string[]; warehouses?: string[] } | undefined;
+      const role = currentUser?.role;
+      if (currentUser && role !== 'admin' && role !== 'developer' && role !== 'technical_support') {
+        const cleanName = (value?: string) =>
+          (value || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+        const branch = String(currentUser.branchName || '').trim();
+        const shortBranch = branch.replace(/فرع/g, '').replace(/\([^)]*\)/g, '').trim();
+        const warehouses = shortBranch.length >= 2 ? [shortBranch] : branch ? [branch] : [];
+        if (role === 'sales_rep') {
+          const fullName = cleanName(currentUser.name);
+          const shortName = fullName.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
+          const repNames = Array.from(new Set([fullName, shortName].filter((n) => n.length >= 3)));
+          scope = repNames.length > 0 ? { repNames } : warehouses.length > 0 ? { warehouses } : undefined;
+        } else if (role === 'supervisor') {
+          const repNames = users
+            .filter((u) => u.supervisorId === currentUser.id)
+            .flatMap((u) => {
+              const fn = cleanName(u.name);
+              const sn = fn.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
+              return [fn, sn];
+            })
+            .filter((n) => n.length >= 3);
+          scope = {
+            ...(repNames.length > 0 ? { repNames: Array.from(new Set(repNames)) } : {}),
+            ...(warehouses.length > 0 ? { warehouses } : {}),
+          };
+        } else if (role === 'branch_manager' && warehouses.length > 0) {
+          scope = { warehouses };
+        }
+      }
+      const res = await fetchCustomerItemSalesIncremental(scope);
       if (!res.success) {
         return { success: false, message: res.error || 'فشل جلب مبيعات الأصناف من السيرفر' };
       }

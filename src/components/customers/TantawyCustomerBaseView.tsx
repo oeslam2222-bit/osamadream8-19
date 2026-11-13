@@ -39,6 +39,7 @@ import {
   isBranchMatch,
   normalizeArabicText,
 } from '../../services/arabicMatchingService';
+import { canManageLocationLock, requestLiveGps } from '../../services/geoVerificationService';
 
 interface TantawyCustomerBaseViewProps {
   onOpenNewOrderForCustomer?: (customer: Customer) => void;
@@ -901,54 +902,77 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
               )}
 
               {/* GPS Location Pin Section */}
-              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-[#26364D]">
-                <div className="flex items-center justify-between text-xs">
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-[#26364D] space-y-2">
+                <div className="flex items-center justify-between text-xs gap-2 flex-wrap">
                   {selectedCustomer.latitude && selectedCustomer.longitude ? (
-                    <div className="flex items-center justify-between w-full">
-                      <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold">
+                    <div className="flex items-center justify-between w-full gap-2 flex-wrap">
+                      <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-bold">
                         <MapPin className="w-3.5 h-3.5 text-emerald-500" />
-                        <span>موقع المتجر موثق GPS</span>
+                        <span>{selectedCustomer.locationLocked ? 'موقع المتجر معتمد ومقفل 🔒' : 'موقع المتجر مسجل GPS (غير مقفل)'}</span>
                       </span>
-                      <a
-                        href={`https://www.google.com/maps?q=${selectedCustomer.latitude},${selectedCustomer.longitude}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-bold text-[11px] flex items-center gap-1 transition"
-                      >
-                        <MapPin className="w-3 h-3" />
-                        <span>فتح في خرائط Google</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                      <div className="flex items-center gap-1.5">
+                        <a
+                          href={`https://www.google.com/maps?q=${selectedCustomer.latitude},${selectedCustomer.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 font-bold text-[11px] flex items-center gap-1 transition"
+                        >
+                          <MapPin className="w-3 h-3" />
+                          <span>خرائط Google</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                        {canManageLocationLock(currentUser?.role) && !selectedCustomer.locationLocked && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const locked = {
+                                ...selectedCustomer,
+                                locationLocked: true,
+                                locationApprovedBy: currentUser?.name || 'المشرف',
+                                locationApprovedAt: new Date().toISOString(),
+                              };
+                              updateCustomer(locked);
+                              setSelectedCustomer(locked);
+                              setUploadNotice('تم اعتماد وقفل موقع العميل 🔒');
+                              setTimeout(() => setUploadNotice(null), 3500);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[11px] cursor-pointer transition"
+                          >
+                            اعتماد وقفل
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <div className="flex items-center justify-between w-full">
-                      <span className="text-slate-400 text-[11px]">لم يتم تثبيت الموقع بعد</span>
+                      <span className="text-slate-500 text-[11px] font-bold">لم يتم تثبيت الموقع بعد</span>
                       <button
-                        onClick={() => {
-                          if (!navigator.geolocation) {
-                            alert('متصفحك لا يدعم نظام تحديد المواقع GPS');
+                        type="button"
+                        onClick={async () => {
+                          setIsPinningGps(true);
+                          const res = await requestLiveGps(10000);
+                          setIsPinningGps(false);
+                          if (!res.ok) {
+                            setUploadNotice('error' in res ? res.error : 'تعذر التقاط الموقع');
+                            setTimeout(() => setUploadNotice(null), 4000);
                             return;
                           }
-                          setIsPinningGps(true);
-                          navigator.geolocation.getCurrentPosition(
-                            (pos) => {
-                              const updated = {
-                                ...selectedCustomer,
-                                latitude: pos.coords.latitude,
-                                longitude: pos.coords.longitude,
-                                locationCapturedAt: new Date().toISOString(),
-                                locationCapturedBy: currentUser?.name || 'مندوب المبيعات',
-                              };
-                              updateCustomer(updated);
-                              setSelectedCustomer(updated);
-                              setIsPinningGps(false);
-                            },
-                            (err) => {
-                              setIsPinningGps(false);
-                              alert('تعذر تحديد الموقع. يرجى تفعيل إذن الموقع GPS على هاتفك.');
-                            },
-                            { enableHighAccuracy: true, timeout: 8000 }
-                          );
+                          const isSup = canManageLocationLock(currentUser?.role);
+                          const updated = {
+                            ...selectedCustomer,
+                            latitude: res.coords.latitude,
+                            longitude: res.coords.longitude,
+                            locationAccuracy: res.coords.accuracy,
+                            locationCapturedAt: res.coords.timestamp,
+                            locationCapturedBy: currentUser?.name || 'مندوب المبيعات',
+                            locationLocked: isSup,
+                            locationApprovedBy: isSup ? (currentUser?.name || 'المشرف') : undefined,
+                            locationApprovedAt: isSup ? res.coords.timestamp : undefined,
+                          };
+                          updateCustomer(updated);
+                          setSelectedCustomer(updated);
+                          setUploadNotice('تم تثبيت الموقع الأساسي للعميل بنجاح ✅');
+                          setTimeout(() => setUploadNotice(null), 3500);
                         }}
                         disabled={isPinningGps}
                         className="px-3 py-1.5 rounded-xl bg-[#0D9488] hover:bg-teal-700 text-white font-bold text-[11px] flex items-center gap-1.5 shadow-xs transition disabled:opacity-50 cursor-pointer"

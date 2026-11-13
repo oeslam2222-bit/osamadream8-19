@@ -517,11 +517,12 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               <div className="relative">
                 <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-white dark:border-[#1E4D63] shadow-md ring-2 ring-blue-500/30 dark:ring-teal-400/40 bg-slate-100 dark:bg-[#153847]">
                   <img
-                    src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80'}
+                    src={currentUser?.avatar || '/assets/rep-avatar.jpg'}
                     alt={displayName}
+                    referrerPolicy="no-referrer"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                     onError={(e) => {
-                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80';
+                      (e.target as HTMLImageElement).src = '/assets/rep-avatar.jpg';
                     }}
                   />
                 </div>
@@ -722,11 +723,12 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                 >
                   <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-white dark:border-[#26364D] shadow-sm ring-2 ring-blue-500/20 bg-slate-100 dark:bg-[#17243A]">
                     <img
-                      src={currentUser?.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80'}
+                      src={currentUser?.avatar || '/assets/rep-avatar.jpg'}
                       alt={displayName}
+                      referrerPolicy="no-referrer"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&auto=format&fit=crop&q=80';
+                        (e.target as HTMLImageElement).src = '/assets/rep-avatar.jpg';
                       }}
                     />
                   </div>
