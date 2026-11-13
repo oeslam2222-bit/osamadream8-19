@@ -29,41 +29,40 @@ import { EncouragementProvider } from './components/EncouragementSystem';
 import { AuthProvider } from './context/authContext';
 import { InvoiceProvider } from './context/invoiceContext';
 import { CustomerProvider } from './context/customerContext';
-import { InventoryProvider } from './context/inventoryContext';
 import { SyncProvider } from './context/syncContext';
 import { Customer, Invoice, UserRole } from './types';
 
 export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
     'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'reps',
-    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'stock', 'excel', 'users', 'guide', 'permissions'
+    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices',
+    'excel', 'users', 'guide', 'permissions'
   ],
   admin: [
     'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'reps',
-    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'stock', 'excel', 'users', 'guide', 'permissions'
+    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices',
+    'excel', 'users', 'guide', 'permissions'
   ],
   branch_manager: [
     'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'reps',
-    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'stock', 'users', 'guide'
+    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices',
+    'users', 'guide'
   ],
   supervisor: [
     'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'reps',
-    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'stock', 'users'
+    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices',
+    'users'
   ],
   sales_rep: [
     'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'collection'
   ],
   technical_support: [
     'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'reps',
-    'dashboard', 'targets', 'collection', 'visits', 'returns', 'returns_customers', 'invoices',
-    'inventory', 'stock', 'excel', 'users', 'guide', 'permissions'
+    'dashboard', 'targets', 'collection', 'visits', 'invoices',
+    'excel', 'users', 'guide', 'permissions'
   ],
-  legal_advisor: ["home"],
-  warehouse_keeper: ["home", "catalog", "offers", "returns", "inventory", "stock", "guide"],
+  legal_advisor: ["home", "legal_advisor"],
+  warehouse_keeper: ["home", "returns", "guide"],
 };
 
 // Lightweight Skeleton for tab transitions
@@ -105,18 +104,18 @@ const UnifiedRepPerformanceView = lazyNamed(() => import('./components/UnifiedRe
 const CustomerItemSalesView = lazyNamed(() => import('./components/CustomerItemSalesView'), 'CustomerItemSalesView');
 const SupervisorDashboard = lazyNamed(() => import('./components/SupervisorDashboard'), 'SupervisorDashboard');
 const InvoicesManager = lazyNamed(() => import('./components/InvoicesManager'), 'InvoicesManager');
-const InventoryStockView = lazyNamed(() => import('./components/InventoryStockView'), 'InventoryStockView');
 const ExcelImportExport = lazyNamed(() => import('./components/ExcelImportExport'), 'ExcelImportExport');
 const UserManager = lazyNamed(() => import('./components/UserManager'), 'UserManager');
 const SystemWorkflowGuide = lazyNamed(() => import('./components/SystemWorkflowGuide'), 'SystemWorkflowGuide');
 const VisitsDashboard = lazyNamed(() => import('./components/VisitsDashboard'), 'VisitsDashboard');
 const CollectionRecoveryDashboard = lazyNamed(() => import('./components/CollectionRecoveryDashboard'), 'CollectionRecoveryDashboard');
+const LegalAdvisorDashboard = lazyNamed(() => import('./components/LegalAdvisorDashboard'), 'LegalAdvisorDashboard');
+const RoleLimitedHome = lazyNamed(() => import('./components/RoleLimitedHome'), 'RoleLimitedHome');
 const UnifiedReturnsView = lazyNamed(() => import('./components/UnifiedReturnsView'), 'UnifiedReturnsView');
 const PermissionManagerModal = lazyNamed(() => import('./components/PermissionManagerModal'), 'PermissionManagerModal');
 const OrderBuilderModal = lazyNamed(() => import('./components/OrderBuilderModal'), 'OrderBuilderModal');
 const PromotionsOffersView = lazyNamed(() => import('./components/PromotionsOffersView'), 'PromotionsOffersView');
 const RealProductSalesDashboard = lazyNamed(() => import('./components/RealProductSalesDashboard'), 'RealProductSalesDashboard');
-const RealInventoryDashboard = lazyNamed(() => import('./components/RealInventoryDashboard'), 'RealInventoryDashboard');
 
 const MainLayout: React.FC = () => {
   const { isDark } = useTheme();
@@ -257,7 +256,7 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className={`tantawy-shell ${isSidebarCollapsed ? 'sidebar-collapsed' : ''} min-h-[100dvh] bg-[var(--app-bg)] flex flex-col text-[var(--app-text)] font-sans antialiased selection:bg-[var(--app-warn)] selection:text-slate-950`} dir="rtl">
+    <div data-role={currentUser.role} className={`tantawy-shell ${isSidebarCollapsed ? 'sidebar-collapsed' : ''} min-h-[100dvh] bg-[var(--app-bg)] flex flex-col text-[var(--app-text)] font-sans antialiased selection:bg-[var(--app-warn)] selection:text-slate-950`} dir="rtl">
       {/* Splash Screen - shown on first app load */}
       <SplashScreen
         isOpen={splashOpen}
@@ -293,10 +292,14 @@ const MainLayout: React.FC = () => {
           <Suspense fallback={<TabLoadingSkeleton />}>
 
           {activeTab === 'home' && allowedTabs.includes('home') && (
-            <DreamDeliveryDashboard
-              onNavigate={handleDashboardNavigate}
-              onNewOrder={() => setIsOrderModalOpen(true)}
-            />
+            currentUser?.role === 'legal_advisor' || currentUser?.role === 'warehouse_keeper' ? (
+              <RoleLimitedHome onGoTab={(tab) => setActiveTab(tab)} />
+            ) : (
+              <DreamDeliveryDashboard
+                onNavigate={handleDashboardNavigate}
+                onNewOrder={() => setIsOrderModalOpen(true)}
+              />
+            )
           )}
           {activeTab === 'catalog' && allowedTabs.includes('catalog') && (
             <ProductCatalog
@@ -330,6 +333,8 @@ const MainLayout: React.FC = () => {
           )}
 
           {activeTab === 'collection' && allowedTabs.includes('collection') && <CollectionRecoveryDashboard />}
+
+          {activeTab === 'legal_advisor' && allowedTabs.includes('legal_advisor') && <LegalAdvisorDashboard />}
 
           {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
           {(activeTab === 'all_customers' || activeTab === 'customers') && (allowedTabs.includes('all_customers') || allowedTabs.includes('customers')) && (
@@ -368,11 +373,7 @@ const MainLayout: React.FC = () => {
             />
           )}
 
-          {activeTab === 'inventory' && allowedTabs.includes('inventory') && <InventoryStockView />}
-
-          {activeTab === 'product_sales' && allowedTabs.includes('product_sales') && <RealProductSalesDashboard isDark={isDark} />}
-
-          {activeTab === 'stock' && allowedTabs.includes('stock') && <RealInventoryDashboard isDark={isDark} />}
+          {activeTab === 'product_sales' && allowedTabs.includes('product_sales') && <RealProductSalesDashboard isDark={isDark} onOpenCustomer={(customerId) => { setProfileFocusCustomerId(customerId); setActiveTab('customers'); }} />}
 
           {activeTab === 'excel' && allowedTabs.includes('excel') && (
             <ExcelImportExport onNavigateToItemSales={() => setActiveTab('customer_item_sales')} />
@@ -511,17 +512,15 @@ export function App() {
       <AuthProvider>
         <InvoiceProvider>
           <CustomerProvider>
-            <InventoryProvider>
-              <SyncProvider>
-                <AppProvider>
-                  <ThemeProvider>
-                    <EncouragementProvider>
-                      <MainLayout />
-                    </EncouragementProvider>
-                  </ThemeProvider>
-                </AppProvider>
-              </SyncProvider>
-            </InventoryProvider>
+            <SyncProvider>
+              <AppProvider>
+                <ThemeProvider>
+                  <EncouragementProvider>
+                    <MainLayout />
+                  </EncouragementProvider>
+                </ThemeProvider>
+              </AppProvider>
+            </SyncProvider>
           </CustomerProvider>
         </InvoiceProvider>
       </AuthProvider>

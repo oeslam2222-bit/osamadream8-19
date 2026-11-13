@@ -10,6 +10,8 @@ import './components/mobile-styles.css';
 import './styles/beautiful-cards.css';
 import './styles/app-shell.css';
 import './styles/identity.css';
+// هوية البراند v2 (مطابقة المرجع المعتمد) — آخر ملف فيثبّت القيم فوق الكل
+import './styles/brand-v2.css';
 
 // Template preview (?template in the URL — captured before AppContext strips
 // the query string as a security measure).
@@ -21,6 +23,17 @@ if (!TEMPLATE_PREVIEW) {
   try {
     document.documentElement.classList.remove('dark');
   } catch {}
+}
+
+// كثافة العرض: مصغّر افتراضياً — بيتحكم فيه من زر (مصغّر/مريح) في التوب بار
+try {
+  if (localStorage.getItem('tantawy_density') !== 'comfortable') {
+    document.documentElement.classList.add('tg-compact');
+  } else {
+    document.documentElement.classList.remove('tg-compact');
+  }
+} catch {
+  document.documentElement.classList.add('tg-compact');
 }
 
 const CHUNK_RECOVERY_KEY = 'tantawy:chunk-recovery';
