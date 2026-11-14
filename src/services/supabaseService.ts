@@ -140,6 +140,15 @@ export async function testSupabaseConnection(): Promise<SupabaseSyncStatus> {
       pingMs: 0,
       error: 'لم يتم ضبط إعدادات الاتصال بـ Supabase (يعمل النظام محلياً)',
     };
+
+    const dedupeByCode = <T extends { id: string; code: string | null }>(payload: T[]): T[] => {
+      const byKey = new Map<string, T>();
+      payload.forEach((product) => {
+        const key = product.code ? `code:${product.code.toLowerCase()}` : `id:${product.id}`;
+        byKey.set(key, product);
+      });
+      return Array.from(byKey.values());
+    };
   }
   const startTime = Date.now();
   try {
@@ -1803,6 +1812,12 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
       const results = await Promise.allSettled(
         batch.map(async ({ targetId, payload }) => {
           const { id: _ignoredId, ...changes } = pickUserColumns('users', payload);
+          // لا نكتب باسورد فاضي فوق باسورد موجود على السيرفر: أي مزامنة من
+          // جلسة/جهاز من غير صلاحية قراءة الباسورد كانت بتمسح كلمة سر الحساب
+          // نهائيًا، وبعدها الرسالة تصبح "لا توجد كلمة مرور معينة له".
+          if (!String((changes as any).password || '').trim()) {
+            delete (changes as any).password;
+          }
           if (!targetId || Object.keys(changes).length === 0) return null;
           // .select('id') مقصود: تحديث مقفول بسياسة RLS بيرجع 204 من غير أي error،
           // فبنشوف الصفوف الراجعة عشان نعرف إن الكتابة عدّت فعلاً.
@@ -2948,12 +2963,21 @@ export async function saveProductsToSupabase(
     const dedupePayload = <T extends { id: string; code: string | null }>(payload: T[]): T[] => {
       const productsByKey = new Map<string, T>();
       payload.forEach((product) => {
-        const key = product.code
-          ? `code:${product.code.toLowerCase()}`
-          : `id:${product.id}`;
+        // المفتاح = id: نفس الكود بيتكرر بمتغيرات مختلفة وكلها لازم تتحفظ.
+        const key = `id:${product.id}`;
         productsByKey.set(key, product);
       });
       return Array.from(productsByKey.values());
+    };
+
+    /** دمج بالكود — احتياط فقط لو جدول السيرفر عنده قيد unique على الكود. */
+    const dedupeByCode = <T extends { id: string; code: string | null }>(payload: T[]): T[] => {
+      const byKey = new Map<string, T>();
+      payload.forEach((product) => {
+        const k = product.code ? `code:${product.code.toLowerCase()}` : `id:${product.id}`;
+        byKey.set(k, product);
+      });
+      return Array.from(byKey.values());
     };
 
     let saveError: string | undefined;
@@ -2981,17 +3005,25 @@ export async function saveProductsToSupabase(
     const richRows = dedupePayload(buildPayload(true));
     const richWithCode = richRows.filter((product) => product.code);
     const richWithoutCode = richRows.filter((product) => !product.code);
-    const richOk =
-      (await saveChunks(richWithCode, 'code')) &&
+    let richOk =
+      (await saveChunks(richWithCode, 'id')) &&
       (await saveChunks(richWithoutCode, 'id')) &&
       !saveError;
+
+    // لو الجدول عنده unique على code، upsert بالـ id هيرفض المتغيرات المتكررة.
+    // في الحالة دي بنحفظ نسخة مدموجة بالكود بدل ما الكتالوج كله يفشل.
+    if (!richOk && saveError && /duplicate key|unique constraint|23505/i.test(saveError)) {
+      console.warn('products table enforces unique code — collapsing duplicate-code variants.');
+      saveError = undefined;
+      richOk = await saveChunks(dedupeByCode(richRows), 'code');
+    }
 
     if (!richOk && saveError && isMissingColumn(saveError)) {
       saveError = undefined;
       const minimalRows = dedupePayload(buildPayload(false));
       const minimalWithCode = minimalRows.filter((product) => product.code);
       const minimalWithoutCode = minimalRows.filter((product) => !product.code);
-      await saveChunks(minimalWithCode, 'code');
+      await saveChunks(minimalWithCode, 'id');
       await saveChunks(minimalWithoutCode, 'id');
     } else if (richOk) {
       usedRichPayload = true;
@@ -4825,3 +4857,45 @@ export async function fetchPromotionsFromSupabase(): Promise<{
   });
 }
 
+
+/**
+ * روابط شيتات جوجل — صف واحد داخل orders بنفس نمط كتالوج الماني فست،
+ * عشان الروابط تفضل محفوظة على كل الأجهزة ومن غير إعادة إدخال كل مرة.
+ */
+const DATA_SOURCES_ROW_ID = 'published_data_sources_v1';
+
+export async function saveDataSourcesToSupabase(
+  sources: unknown
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.from('orders').upsert({
+      id: DATA_SOURCES_ROW_ID,
+      status: 'published_data_sources',
+      items: sources as any,
+    });
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'failed' };
+  }
+}
+
+export async function fetchDataSourcesFromSupabase(): Promise<{
+  success: boolean;
+  sources?: Record<string, any> | null;
+  error?: string;
+}> {
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('items')
+      .eq('id', DATA_SOURCES_ROW_ID)
+      .limit(1);
+    if (error) return { success: false, error: error.message };
+    const raw = data?.[0]?.items;
+    const sources = typeof raw === 'string' ? JSON.parse(raw) : raw ?? null;
+    return { success: true, sources };
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'failed' };
+  }
+}

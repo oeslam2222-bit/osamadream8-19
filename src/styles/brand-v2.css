@@ -1332,6 +1332,193 @@ body footer span.font-black {
 }
 
 /* ==========================================================================
+   v2.1 — أرضية القراءة واللمس على الموبايل
+   --------------------------------------------------------------------------
+   * كانت أوامر التصغير فوق بتنزّل نص الكروت لـ 8–10px، والعربي بالحجم ده
+     غير مقروء في الشارع. القسم ده بيتحمّل آخر حاجة فبيثبّت حد أدنى واضح:
+       - نص ثانوي: 11–11.5px   • نص عادي: 12px   • قيم/أرقام: 13–18px
+   * الوضع المصغّر (tg-compact) للجداول على الديسكتوب فقط؛ على الموبايل
+     بيرجّع 16px عشان نقاط rem متتصغّرش 6% إضافية.
+   * أهداف اللمس (أزرار/إنبتس) 44px حد أدنى زي توصيات iOS/Android.
+   ========================================================================== */
+@media (max-width: 767px) {
+  /* كثافة: القراءة أهم من التصغير على الموبايل */
+  html.tg-compact {
+    font-size: 16px;
+  }
+
+  /* حد أدنى عام لكل النصوص المصغّرة في الصفحات */
+  .text-\[9px\],
+  .text-\[9\.5px\] {
+    font-size: 11px !important;
+  }
+  .text-\[10px\],
+  .text-\[10\.5px\] {
+    font-size: 11.5px !important;
+  }
+  .text-\[11px\] {
+    font-size: 12px !important;
+  }
+
+  /* أهداف اللمس */
+  .tg-btn,
+  .tg-input,
+  .tg-iconbtn,
+  .ds-iconbtn,
+  .ds-drawer__item,
+  .cust-cta a,
+  .cust-cta > div {
+    min-height: 44px !important;
+  }
+
+  html.tg-compact .tg-btn,
+  html.tg-compact .tg-input {
+    min-height: 44px !important;
+    font-size: 13px !important;
+    padding-inline: 14px !important;
+  }
+
+  /* شريط سفلي أعلى شوية عشان يستوعب هدف لمس 44px + اللابل */
+  :root {
+    --ds-bottom-h: 64px;
+  }
+
+  .ds-bottom__item {
+    min-height: 44px;
+    font-size: 11.5px;
+  }
+  .ds-bottom__label {
+    font-size: 11.5px;
+  }
+}
+
+/* تراص الأرقام في الجداول والكروت */
+.tg-table td,
+.tg-table th,
+.tg-kpi__value,
+.tg-target__value,
+.tg-q__value,
+.tg-stat__value,
+.tg-pill__value,
+.ds-count,
+.ds-bottom__badge {
+  font-variant-numeric: tabular-nums;
+}
+
+/* فوكس واضح بالكيبورد: كان فيه 160 outline-none مقابل 9 focus-visible */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 3px solid var(--tg-blue, #2563eb) !important;
+  outline-offset: 2px !important;
+}
+
+/* ==========================================================================
+   كروت الموبايل: رفع أحجام النص المكبوسة (بتتغلّب على أوامر التصغير فوق)
+   ========================================================================== */
+@media (max-width: 640px) {
+  /* --- كارت العميل --- */
+  .cust-card .text-base,
+  .cust-card .text-sm,
+  .cust-card .text-xs,
+  .cust-row .text-xs,
+  .cust-row .text-sm {
+    font-size: 12px !important;
+  }
+  .cust-card .text-\[17px\] {
+    font-size: 15px !important;
+  }
+  .cust-row .text-\[11px\],
+  .cust-row .text-xs.font-extrabold,
+  .cust-cta a .font-mono {
+    font-size: 11.5px !important;
+  }
+  .cust-row .text-base,
+  .cust-row .sm\:text-lg {
+    font-size: 14px !important;
+  }
+  .cust-cta a,
+  .cust-cta > div {
+    min-height: 44px !important;
+    font-size: 12px !important;
+  }
+
+  /* --- كارت المندوب --- */
+  .rep-card .text-base {
+    font-size: 13.5px !important;
+  }
+  .rep-mini .text-\[11px\],
+  .rep-card .inline-flex.px-2,
+  .rep-card .text-xs.font-black.px-2\.5,
+  .rep-card .pt-3 .text-xs {
+    font-size: 11.5px !important;
+  }
+  .rep-mini .text-sm {
+    font-size: 12px !important;
+  }
+
+  /* --- كارت الصنف --- */
+  .cat-card h3,
+  .cat-card .text-sm.font-black {
+    font-size: 13px !important;
+  }
+  .cat-card .ml-1,
+  .cat-card .grid.grid-cols-2 .text-xs,
+  .cat-card .grid.grid-cols-2 .text-\[10px\],
+  .cat-card .px-2\.5.py-1 {
+    font-size: 11px !important;
+  }
+  .cat-card button.h-9.w-9 {
+    height: 40px !important;
+    width: 40px !important;
+  }
+
+  /* --- المرتجعات --- */
+  .ret-card .text-sm.sm\:text-base {
+    font-size: 13px !important;
+  }
+  .ret-card .text-base.sm\:text-lg {
+    font-size: 14.5px !important;
+  }
+  .ret-card .text-xs,
+  .ret-card .px-2\.5.py-0\.5 {
+    font-size: 12px !important;
+  }
+  .ret-card .text-\[11px\] {
+    font-size: 11.5px !important;
+  }
+
+  /* --- التحصيل --- */
+  .coll-card h4 {
+    font-size: 13.5px !important;
+  }
+  .coll-card .text-xs {
+    font-size: 12px !important;
+  }
+  .coll-card .text-base.sm\:text-lg {
+    font-size: 14.5px !important;
+  }
+  .coll-card .text-xs.font-extrabold {
+    font-size: 11.5px !important;
+  }
+
+  /* --- الزيارات --- */
+  .visit-card h3 {
+    font-size: 13.5px !important;
+  }
+  .visit-card .text-xs {
+    font-size: 12px !important;
+  }
+  .visit-card .text-\[11px\],
+  .visit-card .text-\[10px\] {
+    font-size: 11px !important;
+  }
+
+  /* أرقام الكروت الصغيرة أكبر شوية */
+  .kpi-grid .tg-kpi__value {
+    font-size: 18px !important;
+  }
+}
+
+/* ==========================================================================
    طباعة نظيفة
    ========================================================================== */
 @media print {

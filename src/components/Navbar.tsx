@@ -229,13 +229,27 @@ export const Navbar: React.FC<NavbarProps> = ({
   const roleLabel = roleNames[currentUser.role]?.label || currentUser.role;
   const activeItem = filteredNavItems.find((i) => i.id === activeTab || (i.id === 'customers' && activeTab === 'all_customers'));
 
-  const bottomItems = [
+  /**
+   * الشريط السفلي: 4 أقسام + "المزيد" = 5 عناصر كحد أقصى.
+   * أكتر من كده على شاشة 320–390px بيزحم اللابلز ويصغّر أهداف اللمس.
+   * الأولوية للتحت بتتحدد بالترتيب، والفلترة بصلاحيات الدور — فأمين المخزن
+   * مثلاً بياخد (الرئيسية + المرتجعات) والباقي من درج "المزيد".
+   */
+  const bottomCandidates = [
     { id: 'home', navId: 'home', label: 'الرئيسية', icon: Home, badge: 0 },
     { id: 'invoices', navId: 'invoices', label: 'الطلبات', icon: Receipt, badge: pendingOrdersCount },
     { id: 'customers', navId: 'all_customers', label: 'العملاء', icon: Users, badge: 0 },
     { id: 'targets', navId: 'targets', label: 'التقارير', icon: BarChart3, badge: 0 },
     { id: 'returns', navId: 'returns', label: 'المرتجعات', icon: RotateCcw, badge: 0 },
-  ].filter((b) => filteredNavItems.some((n) => n.id === b.id || (b.id === 'targets' && filteredNavItems.some(f => f.id === 'targets' || f.id === 'dashboard'))));
+    { id: 'catalog', navId: 'catalog', label: 'الكتالوج', icon: Boxes, badge: 0 },
+  ];
+
+  const canOpenTab = (navId: string) =>
+    filteredNavItems.some(
+      (n) => n.id === navId || (navId === 'all_customers' && n.id === 'customers')
+    );
+
+  const bottomItems = bottomCandidates.filter((b) => canOpenTab(b.navId)).slice(0, 4);
 
   const sectionBadgeTheme: Record<string, { bg: string; text: string; darkBg: string; darkText: string }> = {
     home: { bg: 'bg-blue-100', text: 'text-[#2563EB]', darkBg: 'dark:bg-blue-950/60', darkText: 'dark:text-blue-300' },

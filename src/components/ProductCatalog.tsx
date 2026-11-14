@@ -1845,6 +1845,25 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 عرض كل الأصناف شاملة المنتهية (رصيد = 0)
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                // الفلاتر محفوظة على الجهاز — فلتر قطاع/مخزون قديم كان بيخلي
+                // الصفحة تفضل فاضية بعد رفع الشيت من غير ما حد يفهم السبب.
+                setActiveSectorFilter('all');
+                setSelectedDept('الكل');
+                setSelectedBrand('الكل');
+                setSelectedStatus('الكل');
+                setMinPrice('');
+                setMaxPrice('');
+                setOnlyPromos(false);
+                setOnlyInStock(false);
+                setSearchTerm('');
+              }}
+              className="text-xs bg-[#0f2b38] text-white px-4 py-2.5 rounded-xl font-black block mx-auto cursor-pointer"
+            >
+              إظهار كل الأصناف (مسح كل الفلاتر)
+            </button>
           </div>
         )}
       </div>

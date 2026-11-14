@@ -86,6 +86,7 @@ import {
   testSupabaseConnection,
   isSupabaseConfigured,
   USER_SYNC_STORE_ID,
+  SUPABASE_URL,
 } from '../services/supabaseService';
 import {
   applyPromotionsToProducts,
@@ -4707,6 +4708,18 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const normInput = normalizeArabicText(identifier).replace(/\s+/g, '');
     const authMode = getAuthMode();
 
+    // بيئة من غير مفاتيح Supabase (زي المعاينة السحابية): الدخول مستحيل
+    // لأن مفيش قاعدة بيانات أصلًا — رسالة صريحة أفضل من "الحساب غير مسجل".
+    if (!SUPABASE_URL) {
+      // التفاصيل التقنية بتتسجل في الكونسول بس، والمستخدم يشوف رسالة واحدة بسيطة.
+      console.warn('[login] Supabase env is missing: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY');
+      return {
+        success: false,
+        errorType: 'wrong_password',
+        message: 'اسم المستخدم أو كلمة المرور غير صحيحة.',
+      };
+    }
+
     let serverAuthUserId: string | null = null;
     if (authMode === 'server' && isServerAuthEnabled()) {
       const outcome = await tryServerSignIn(identifier, cleanPass);
@@ -4722,7 +4735,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     let found = users.find(
       (u) =>
         (u.email && sanitizeEmail(u.email) === cleanEmail) ||
-        (u.email && u.email.toLowerCase().startsWith(cleanId)) ||
         (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanId) ||
         (u.username && normalizeArabicText(u.username).replace(/\s+/g, '') === normInput) ||
         (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanId) ||
@@ -4730,6 +4742,17 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         (u.phone && (sanitizeIdentifier(u.phone) === rawTrim || sanitizeIdentifier(u.phone) === asciiDigits)) ||
         (u.id && String(u.id).toLowerCase() === cleanId)
     );
+    // احتياط: مطابقة بالبادئة لكن فقط لو نتيجتها **وحيدة** — عشان ما نختارش حساب
+    // تاني بيبدأ بنفس الحروف وندي "كلمة المرور غير صحيحة" على الحساب الصح.
+    if (!found) {
+      const partial = users.filter(
+        (u) =>
+          (u.email && u.email.toLowerCase().startsWith(cleanId)) ||
+          (u.username && sanitizeIdentifier(u.username).toLowerCase().startsWith(cleanId)) ||
+          (u.name && normalizeArabicText(u.name).replace(/\s+/g, '').startsWith(normInput))
+      );
+      if (partial.length === 1) found = partial[0];
+    }
 
     // 2. Single-roundtrip Supabase lookup when not cached locally (handles email, username, name, normalized Arabic & phone)
     if (!found) {
@@ -4807,11 +4830,34 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     if (serverAuthUserId) {
       // Authenticated via Supabase Auth
     } else if (storedCredential.length > 0) {
-      const check = await verifyPassword(cleanPass, storedCredential);
+      let check = await verifyPassword(cleanPass, storedCredential);
+      // الكاش المحلي ممكن يكون فيه بصمة قديمة (كلمة السر اتغيرت من جهاز تاني).
+      // قبل ما نقول "كلمة المرور غير صحيحة" بنجيب البصمة الحالية من السيرفر
+      // ونعيد المقارنة مرة واحدة.
+      if (!check.valid && found.id) {
+        try {
+          const { data: freshRows } = await supabase
+            .from('users')
+            .select('password')
+            .eq('id', found.id)
+            .limit(1);
+          const fresh = String(freshRows?.[0]?.password || '').trim();
+          if (fresh && fresh !== storedCredential) {
+            const recheck = await verifyPassword(cleanPass, fresh);
+            if (recheck.valid) {
+              found = { ...found, password: fresh };
+              storedCredential = fresh;
+              check = recheck;
+            }
+          }
+        } catch (refreshErr) {
+          console.warn('Credential refresh notice:', refreshErr);
+        }
+      }
       if (!check.valid) {
         // Fallback to Supabase Auth only if server mode is active OR this account is explicitly linked to Supabase Auth
         let serverFallbackOk = false;
-        if ((authMode === 'server' || (authMode === 'hybrid' && hasLinkedAuthUser)) && isServerAuthEnabled()) {
+        if (isServerAuthEnabled()) {
           const outcome = await tryServerSignIn(identifier, cleanPass);
           if (outcome.kind === 'success') {
             serverFallbackOk = true;
@@ -4824,7 +4870,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           return {
             success: false,
             errorType: 'wrong_password',
-            message: `كلمة المرور غير صحيحة لحساب (${found.name}). يرجى التأكد من كتابة كلمة المرور بدقة والتأكد من لغة لوحة المفاتيح.`
+            message: 'اسم المستخدم أو كلمة المرور غير صحيحة.'
           };
         }
       } else if (check.legacy) {
@@ -4838,20 +4884,22 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         }
         saveUserToSupabase(found).catch((e) => console.warn('Password upgrade sync notice:', e));
       }
-    } else if ((authMode === 'server' || (authMode === 'hybrid' && hasLinkedAuthUser)) && isServerAuthEnabled()) {
+    } else if (isServerAuthEnabled()) {
+      // حتى لو الحساب مش مربوط بـ auth_user_id: Supabase Auth بيتحقق على
+      // السيرفر، وده المسار الوحيد المتاح لو عمود الباسورد مش مقروء بالـ anon key.
       const outcome = await tryServerSignIn(identifier, cleanPass);
       if (outcome.kind !== 'success') {
         return {
           success: false,
           errorType: 'no_password',
-          message: `الحساب (${found.name}) مسجل في قاعدة البيانات ولكن لا توجد كلمة مرور معينة له. يرجى مراجعة إدارة النظام لتعيين كلمة المرور قبل تسجيل الدخول.`
+          message: 'اسم المستخدم أو كلمة المرور غير صحيحة.'
         };
       }
     } else {
       return {
         success: false,
         errorType: 'no_password',
-        message: `الحساب (${found.name}) مسجل في قاعدة البيانات ولكن لا توجد كلمة مرور معينة له. يرجى مراجعة إدارة النظام لتعيين كلمة المرور قبل تسجيل الدخول.`
+        message: 'اسم المستخدم أو كلمة المرور غير صحيحة.'
       };
     }
 
@@ -5387,7 +5435,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     scheduleProductSync();
   };
 
-  const importProductsList = (newProducts: Product[], mode: 'merge' | 'replace' = 'replace') => {
+  const importProductsList = async (
+    newProducts: Product[],
+    mode: 'merge' | 'replace' = 'replace'
+  ): Promise<{ success: boolean; error?: string }> => {
     // الأدمن/المطور بيرفعوا كتالوج الشركة كامل، فمينفعش نفلتر لهم قطاع واحد:
     // الفلتر ده كان بيرمي أصناف قطاع الكهرباء كلها وقت الاستيراد.
     const isAdminLevel = currentUser?.role === 'admin' || currentUser?.role === 'developer';
@@ -5510,21 +5561,33 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     // Persist full catalog to Supabase so reps & branch supervisors instantly receive it on all devices
     // استيراد كامل → snapshot الـ chunks بيتحدث كمان (للأجهزة القديمة/الاحتياط).
-    saveProductsToSupabase(finalUpdated, { snapshot: true }).then((result) => {
-      if (!result.success) {
-        console.warn('Supabase catalog auto-sync warning:', result.error || 'Product save failed.');
-        return;
-      }
-      publishNewDataVersion({
+    // الحفظ على السيرفر لازم يتأكد قبل ما نقول "تم الرفع": قبل كده كان
+    // fire-and-forget، فالشيت يقول 5000 صنف والجدول فاضي والكتالوج يختفي
+    // بعد أول إعادة تحميل.
+    let saveResult: { success: boolean; error?: string };
+    try {
+      saveResult = await saveProductsToSupabase(finalUpdated, { snapshot: true });
+    } catch (err: any) {
+      saveResult = { success: false, error: err?.message || 'تعذر الاتصال بقاعدة البيانات' };
+    }
+    if (!saveResult.success) {
+      console.warn('Supabase catalog save failed:', saveResult.error);
+      return {
+        success: false,
+        error: saveResult.error || 'تعذر حفظ الكتالوج على السيرفر',
+      };
+    }
+    try {
+      await publishNewDataVersion({
         scope: 'products',
         updatedBy: currentUser?.name || 'مدير النظام',
         notes: `تحديث كتالوج الأصناف والأسعار (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'})`,
         productsCount: finalUpdated.length,
         forcePurge: true,
-      }).catch(() => {});
-    }).catch((err) => {
-      console.warn('Supabase catalog auto-sync warning:', err);
-    });
+      });
+    } catch (versionErr) {
+      console.warn('Data version publish notice:', versionErr);
+    }
 
     recordAuditLog({
       userId: currentUser?.id || 'admin',
@@ -5536,6 +5599,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       details: `تم حفظ ${sectorFilteredIncoming.length} صنف من الشيت${duplicatedCodes.length > 0 ? ` (${duplicatedCodes.length} كود مكرر: ${duplicatedCodes.slice(0,5).join('، ')}${duplicatedCodes.length>5?'…':''})` : ''} مع الحفاظ على حجوزات المناديب النشطة.`,
       badgeType: 'info',
     });
+
+    return { success: true };
   };
 
   const adjustStock = (productId: string, branchChange: number, mainWarehouseChange: number, reason?: string) => {

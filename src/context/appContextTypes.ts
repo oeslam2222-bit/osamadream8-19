@@ -138,7 +138,10 @@ export interface AppContextType {
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
   deleteProduct: (productId: string) => void;
-  importProductsList: (newProducts: Product[], mode: 'merge' | 'replace') => void;
+  importProductsList: (
+    newProducts: Product[],
+    mode: 'merge' | 'replace'
+  ) => Promise<{ success: boolean; error?: string }>;
 
   // Incremental cloud sync (يجلب فقط السجلات اللي اتعدلوا منذ آخر مزامنة)
   syncTargetsIncrementally: () => Promise<{ success: boolean; message?: string; added?: number; updated?: number }>;

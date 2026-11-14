@@ -43,6 +43,10 @@ import {
 } from '../services/customerDeduplicationService';
 import { normalizeArabicText } from '../services/arabicMatchingService';
 import {
+  fetchDataSourcesFromSupabase,
+  saveDataSourcesToSupabase,
+} from '../services/supabaseService';
+import {
   downloadCustomerAnalyticsTemplate,
   exportCustomerAnalyticsToExcel
 } from '../services/customerAnalyticsService';
@@ -52,6 +56,7 @@ import {
   isValidPublishedSource,
   PublishedDataSources,
   saveSingleSourceUrl,
+  savePublishedDataSources,
   setDataReadMode,
   type DataReadMode
 } from '../services/dataSourceService';
@@ -117,6 +122,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
     customersRef.current = customers;
   }, [customers]);
 
+
   // Active sector tab (قطاع الأدوات المنزلية / قطاع الكهرباء)
   const [activeSectorTab, setActiveSectorTab] = useState<'home' | 'electrical'>('home');
   const [dataReadMode, setDataReadModeState] = useState<DataReadMode>(() => getDataReadMode());
@@ -142,6 +148,48 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       offers_electrical: s.offers_electrical?.url || '',
     };
   });
+
+  // حفظ تلقائي لروابط الشيتات: تتكتب محليًا فورًا (حتى لو ما ضغطتش مزامنة)،
+  // وترفع نسخة للسحابة عشان تلاقيها من أي جهاز من غير ما تدور عليها كل مرة.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      (Object.keys(sourceUrls) as SheetKey[]).forEach((key) => {
+        const url = (sourceUrls[key] || '').trim();
+        if (url) saveSingleSourceUrl(key, url);
+      });
+      saveDataSourcesToSupabase(getPublishedDataSources()).catch(() => {});
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [sourceUrls]);
+
+  // استرجاع الروابط المحفوظة على السيرفر عند فتح الصفحة (جهاز جديد أو كاش متمسوح).
+  useEffect(() => {
+    let active = true;
+    fetchDataSourcesFromSupabase()
+      .then((res) => {
+        if (!active || !res.success || !res.sources) return;
+        const local = getPublishedDataSources();
+        const merged = { ...local };
+        (Object.keys(local) as SheetKey[]).forEach((key) => {
+          const remote = (res.sources as any)?.[key];
+          if (!remote?.url) return;
+          const localStamp = Date.parse(local[key]?.updatedAt || '') || 0;
+          const remoteStamp = Date.parse(remote.updatedAt || '') || 0;
+          if (!local[key]?.url || remoteStamp > localStamp) merged[key] = { ...local[key], ...remote };
+        });
+        savePublishedDataSources(merged);
+        setSources(merged);
+        const next = {} as Record<SheetKey, string>;
+        (Object.keys(merged) as SheetKey[]).forEach((key) => {
+          next[key] = merged[key]?.url || '';
+        });
+        setSourceUrls(next);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // UI state per sheet
   const [syncingKey, setSyncingKey] = useState<SheetKey | 'all' | null>(null);
@@ -465,7 +513,14 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         sector: p.sector || activeSectorTab,
       }));
 
-      importProductsList(productsToImport, 'replace');
+      const saveResult = await importProductsList(productsToImport, 'replace');
+      if (!saveResult.success) {
+        throw new Error(
+          `تم قراءة ${productsToImport.length.toLocaleString('ar-EG')} صنف من الشيت لكن حفظهم في قاعدة البيانات فشل: ` +
+            `${saveResult.error || 'خطأ غير معروف'}. الأصناف ظاهرة على الجهاز ده فقط وهتختفي بعد إعادة التحميل — ` +
+            'راجع اتصال Supabase وصلاحيات جدول products.'
+        );
+      }
 
       const sectorCounts = productsToImport.reduce(
         (acc, p) => {
