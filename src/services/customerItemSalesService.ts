@@ -1136,18 +1136,16 @@ export async function pushCustomerItemSalesToSupabase(
       (record) => parseNumericValue(record.amount) > 0 || parseNumericValue(record.quantity) > 0
     );
 
-    if (hasRealValues) {
-      try {
-        const { count, error: pruneError } = await supabase
-          .from('customer_item_sales')
-          .delete({ count: 'exact' })
-          .eq('amount', 0)
-          .eq('quantity', 0);
-        if (!pruneError) prunedCount = count ?? 0;
-      } catch {
-        // التنظيف تحسيني فقط — فشله لا يمنع الحفظ
-      }
-    }
+    /**
+     * ملاحظة أمان (اتشالت):
+     *
+     * كان هنا `delete().eq('amount',0).eq('quantity',0)` على الجدول كله.
+     * أي جهاز بيعمل مزامنة كان بيقدر يمسح صفوف مش بتاعته — بما فيها صفوف
+     * صحيحة بكمية صفر (مرتجع/هدية/عينة). المسح العام من عميل مفتاحه
+     * publishable خطر ومش مضمون، فاتشال. لو محتاج تنظيف فعلاً، يتعمل
+     * بسكربت إداري بصلاحية service role.
+     */
+    void hasRealValues;
 
     for (let i = 0; i < sales.length; i += batchSize) {
       const slice = sales.slice(i, i + batchSize);

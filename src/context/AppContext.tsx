@@ -4861,7 +4861,24 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     if (serverAuthUserId) {
       // Authenticated via Supabase Auth
     } else if (storedCredential.length > 0) {
-      let check = await verifyPassword(cleanPass, storedCredential);
+      // تحقّق عبر دالة السيرفر أولًا (supabase/harden_login_rpc.sql). لما تكون
+      // منشورة، البصمة نفسها مش محتاجة تبقى قابلة للقراءة بالمفتاح العام.
+      let serverVerified = false;
+      try {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('verify_user_credentials', {
+          p_username: rawTrim || cleanId || asciiDigits,
+          p_password: cleanPass,
+        });
+        if (!rpcErr && Array.isArray(rpcData) && rpcData.length > 0) {
+          serverVerified = Boolean((rpcData[0] as any)?.matched);
+        }
+      } catch {
+        // الدالة مش منشورة بعد — بنكمل بالتحقق المحلي زي الأول.
+      }
+
+      let check = serverVerified
+        ? ({ valid: true, legacy: false } as Awaited<ReturnType<typeof verifyPassword>>)
+        : await verifyPassword(cleanPass, storedCredential);
       // الكاش المحلي ممكن يكون فيه بصمة قديمة (كلمة السر اتغيرت من جهاز تاني).
       // قبل ما نقول "كلمة المرور غير صحيحة" بنجيب البصمة الحالية من السيرفر
       // ونعيد المقارنة مرة واحدة.

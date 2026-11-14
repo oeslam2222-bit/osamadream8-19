@@ -66,7 +66,8 @@ export const MonthlyAggregateCard: React.FC<MonthlyAggregateCardProps> = ({ sect
     try {
       const built = buildItemSalesAggregates(records, {
         resolveSector,
-        maxCustomers: 400,
+        // الكارت بيعرض إجماليات بس — منخزّنش أسماء ومبالغ العملاء في صف مشترك.
+        maxCustomers: 0,
       });
       const filtered = sector === 'all' ? built : built.filter((doc) => doc.sector === sector);
       const res = await saveItemSalesAggregates(filtered);

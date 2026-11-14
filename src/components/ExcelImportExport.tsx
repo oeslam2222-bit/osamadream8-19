@@ -348,6 +348,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         // الملخص الشهري بيتجمع هنا مرة واحدة — كل الأجهزة بتقرأه بدل الجدول.
         void saveItemSalesAggregates(
           buildItemSalesAggregates(finalSales, {
+            maxCustomers: 0,
             resolveSector: (record) =>
               (record as any).sector === 'electrical' || activeSectorTab === 'electrical' ? 'electrical' : 'home',
           })

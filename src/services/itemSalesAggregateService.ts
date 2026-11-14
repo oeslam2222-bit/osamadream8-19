@@ -188,6 +188,9 @@ export function buildItemSalesAggregates(
 
   const docs: ItemSalesAggDoc[] = [];
   buckets.forEach((bucket) => {
+    // maxCustomers = 0 يعني مايتحفظش أي تفصيل بأسماء العملاء ومبالغهم في
+    // صف بيتقرأ بمفتاح publishable — بنحفظ إجماليات بس.
+
     bucket.doc.totals.cu = bucket.totalsCustomers.size;
     bucket.doc.totals.p = round(bucket.doc.totals.p);
     bucket.doc.totals.a = round(bucket.doc.totals.a);
@@ -208,7 +211,7 @@ export function buildItemSalesAggregates(
         items: itemSet.size,
       }))
       .sort((left, right) => right.a - left.a)
-      .slice(0, maxCustomers);
+      .slice(0, Math.max(0, maxCustomers));
     docs.push(bucket.doc);
   });
 
