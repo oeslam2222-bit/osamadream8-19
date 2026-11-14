@@ -1,5 +1,5 @@
-import { BarChart3, Loader2, RefreshCw } from 'lucide-react';
-import React, { useCallback, useEffect, useState } from 'react';
+import { BarChart3, Loader2 } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { formatCurrency } from '../../services/invoiceService';
 import {
   buildItemSalesAggregates,
@@ -29,6 +29,7 @@ export const MonthlyAggregateCard: React.FC<MonthlyAggregateCardProps> = ({ sect
   const [isLoading, setIsLoading] = useState(true);
   const [isBuilding, setIsBuilding] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const autoBuildDoneForRef = useRef<number>(-1);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -44,6 +45,16 @@ export const MonthlyAggregateCard: React.FC<MonthlyAggregateCardProps> = ({ sect
   useEffect(() => {
     void load();
   }, [load]);
+
+  // تجميع تلقائي بدل زر: أول ما الصفوف تكون متاحة والملخص مش موجود، يتبني.
+  useEffect(() => {
+    if (isLoading || isBuilding || docs.length > 0) return;
+    if (records.length === 0) return;
+    if (autoBuildDoneForRef.current === records.length) return;
+    autoBuildDoneForRef.current = records.length;
+    void handleBuild();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docs.length, isLoading, isBuilding, records.length]);
 
   const handleBuild = async () => {
     if (records.length === 0) {
@@ -93,15 +104,16 @@ export const MonthlyAggregateCard: React.FC<MonthlyAggregateCardProps> = ({ sect
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleBuild}
-          disabled={isBuilding || isLoading}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black border border-[var(--tg-line)] bg-slate-50 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isBuilding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-          <span>تحديث الملخص من البيانات المحلية</span>
-        </button>
+        <span className="inline-flex items-center gap-1.5 text-[10.5px] font-bold text-[var(--tg-muted)]">
+          {isBuilding ? (
+            <>
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              <span>جارٍ تجميع الشهور…</span>
+            </>
+          ) : (
+            <span>تلقائي — بيتحدّث بعد كل تحديث للشيتات</span>
+          )}
+        </span>
       </div>
 
       {isLoading ? (

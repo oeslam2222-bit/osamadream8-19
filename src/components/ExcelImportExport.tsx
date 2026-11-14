@@ -47,6 +47,10 @@ import {
   saveDataSourcesToSupabase,
 } from '../services/supabaseService';
 import {
+  buildItemSalesAggregates,
+  saveItemSalesAggregates,
+} from '../services/itemSalesAggregateService';
+import {
   downloadCustomerAnalyticsTemplate,
   exportCustomerAnalyticsToExcel
 } from '../services/customerAnalyticsService';
@@ -334,10 +338,20 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         }));
         await saveCustomerItemSales(finalSales, 'merge');
 
-        // Auto sync to Supabase so data is immediately saved in cloud customer_item_sales table
-        pushCustomerItemSalesToSupabase(finalSales).catch((err) => {
-          console.warn('Auto cloud sync notice:', err);
-        });
+        // المزامنة السحابية بقت منتظرة: الأجهزة التانية بتنزّل بعد نشر نسخة
+        // البيانات، فلو سبناها fire-and-forget كانت هتنزل قبل ما الصفوف توصل.
+        const pushRes = await pushCustomerItemSalesToSupabase(finalSales).catch((err) => ({
+          syncedCount: 0,
+          error: err?.message || 'فشل رفع مبيعات الأصناف للسحابة',
+        }));
+
+        // الملخص الشهري بيتجمع هنا مرة واحدة — كل الأجهزة بتقرأه بدل الجدول.
+        void saveItemSalesAggregates(
+          buildItemSalesAggregates(finalSales, {
+            resolveSector: (record) =>
+              (record as any).sector === 'electrical' || activeSectorTab === 'electrical' ? 'electrical' : 'home',
+          })
+        ).catch(() => {});
 
         // Extract and deduplicate customer profiles from sales records
         const codeMap = new Map<string, Customer>();
@@ -413,7 +427,8 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
         setSheetSuccess((prev) => ({
           ...prev,
-          [key]: `تم بنجاح مزامنة ${finalSales.length.toLocaleString('ar-EG')} حركة مبيعات صنف لـ (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'})، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) لاستخراج فروعهم ومناديبهم تلقائياً بدون تكرار! البيانات متاحة الآن في قسم "مبيعات الأصناف".`
+          [key]: `تم بنجاح مزامنة ${finalSales.length.toLocaleString('ar-EG')} حركة مبيعات صنف لـ (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'})، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) لاستخراج فروعهم ومناديبهم تلقائياً بدون تكرار! البيانات متاحة الآن في قسم "مبيعات الأصناف".` +
+            (pushRes && (pushRes as any).error ? ` — تنبيه: المزامنة السحابية (${(pushRes as any).error})` : '')
         }));
         return { ok: true, message: `تم مزامنة ${finalSales.length} حركة مبيعات صنف` };
       }

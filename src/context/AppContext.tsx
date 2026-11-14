@@ -2581,6 +2581,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
    */
   const NO_STAMP_PULL_INTERVAL_MS = 60 * 60 * 1000;
 
+  // مبيعات الأصناف بتتغذّى من صفحة الإكسل فقط. خلاصة بيانات جديدة = تنزيل
+  // التغييرات المقيّدة بنطاق المستخدم تلقائياً، من غير أي زر على الشاشات.
+  const itemSalesSyncRef = useRef<null | (() => Promise<unknown>)>(null);
+
   const checkAndSyncDataVersion = async (force: boolean = false): Promise<{ updated: boolean; version?: number; message: string }> => {
     try {
       // Never purge and re-pull while our own authoritative write is still
@@ -2899,6 +2903,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       for (const one of purgedScopes) {
         await purgeLocalDataCaches(one);
       }
+
+      // مبيعات الأصناف: مش جزء من نطاقات النسخة، وبتتحدّث من صفحة الإكسل.
+      // بننزّل التغييرات (المقيّدة بالمندوب/الفرع) في الخلفية بعد أي نسخة جديدة.
+      void itemSalesSyncRef.current?.().catch(() => {});
 
       // Commit: everything below writes the fresh lists into React state and
       // back into IndexedDB, so it runs strictly after the purge.
@@ -8376,6 +8384,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       return { success: false, message: err?.message || 'حدث خطأ أثناء مزامنة مبيعات الأصناف' };
     }
   };
+
+  // مرجع حيّ للدالة — بيتنادى من مزامنة نسخة البيانات بدون أي زر.
+  itemSalesSyncRef.current = syncCustomerItemSalesIncrementally;
 
   return (
     <AppContext.Provider

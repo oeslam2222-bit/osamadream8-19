@@ -107,6 +107,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
    */
   const resolveItemSaleSector = React.useCallback(
     (record: CustomerItemSaleRecord): ItemSalesSector => {
+      const ownSector = (record as any).sector;
+      if (ownSector === 'electrical' || ownSector === 'home') return ownSector;
       if (record.linkedCustomerId) {
         const linked = customers.find((customer) => customer.id === record.linkedCustomerId);
         if (linked?.sector === 'electrical') return 'electrical';
@@ -232,7 +234,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         remoteCount = -1;
       }
 
-      if (!forceRemote) {
+      const shouldAutoPull = localBackup.length === 0 && remoteCount > 0;
+      if (!forceRemote && !shouldAutoPull) {
         // عرض الكاش المحلي فوراً بدون تنزيل كامل لجدول مبيعات الأصناف (قد يكون ضخم جداً)
         setSalesRecords(localBackup);
         if (remoteCount > 0 && localBackup.length === 0) {
@@ -862,19 +865,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap shrink-0">
-            {['admin', 'developer', 'branch_manager', 'technical_support'].includes(currentUser?.role || '') && (
-              <label
-                htmlFor="cis-monthly-excel-input"
-                className={`inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl bg-[#059669] hover:bg-[#047857] text-white font-black text-[11px] shadow-xs transition cursor-pointer whitespace-nowrap shrink-0 ${
-                  isImportingExcel ? 'opacity-60 pointer-events-none' : ''
-                }`}
-                title="رفع شيت مبيعات الأصناف لدمجه مع التحليل الشهري"
-              >
-                <Upload className={`w-4 h-4 ${isImportingExcel ? 'animate-bounce' : ''}`} />
-                <span>{isImportingExcel ? 'جاري استيراد الشيت...' : 'رفع شيت مبيعات الشهر (Excel)'}</span>
-              </label>
-            )}
-
             <button
               type="button"
               onClick={() => loadSalesData({ forceRemote: true })}
@@ -900,23 +890,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             {salesRecords.length > 0 && (
               <button
                 type="button"
-                onClick={handlePushToSupabase}
-                disabled={isSupabasePushing}
-                title="مزامنة حركات الأصناف مع جدول customer_item_sales في Supabase"
-                className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl border border-[var(--app-navy-line)] bg-[var(--app-navy-tint)] hover:bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] font-black text-[11px] shadow-2xs transition cursor-pointer disabled:opacity-50"
-              >
-                <CloudUpload className={`w-4 h-4 text-[var(--app-navy-text)] ${isSupabasePushing ? 'animate-bounce' : ''}`} />
-                <span>
-                  {isSupabasePushing
-                    ? `جاري المزامنة (${supabasePushProgress ? `${supabasePushProgress.synced}/${supabasePushProgress.total}` : '...'})`
-                    : 'مزامنة Supabase'}
-                </span>
-              </button>
-            )}
-
-            {salesRecords.length > 0 && (
-              <button
-                type="button"
                 onClick={handleExportExcel}
                 className="inline-flex items-center gap-2 h-10 px-3.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition cursor-pointer"
               >
@@ -925,17 +898,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               </button>
             )}
 
-            {salesRecords.length > 0 && (
-              <button
-                type="button"
-                onClick={handleClearSales}
-                title="تصفير ومسح مبيعات الأصناف"
-                className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-[var(--app-risk-line)] hover:bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] font-bold text-[11px] transition cursor-pointer"
-              >
-                <Trash2 className="w-4 h-4 text-[var(--app-risk-text)]" />
-                <span className="hidden sm:inline">مسح الداتا</span>
-              </button>
-            )}
           </div>
         </div>
 
@@ -1474,11 +1436,13 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             </div>
           )}
 
-          <MonthlyAggregateCard
-            sector={activeSectorFilter}
-            records={salesRecords}
-            resolveSector={resolveItemSaleSector}
-          />
+          {isAdminOrDev && (
+            <MonthlyAggregateCard
+              sector={activeSectorFilter}
+              records={salesRecords}
+              resolveSector={resolveItemSaleSector}
+            />
+          )}
 
           <ItemSalesKpiCards
             comparison={comparison}
