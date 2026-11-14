@@ -1568,6 +1568,52 @@ body footer span.font-black {
   flex-shrink: 0;
 }
 
+
+/* ===== v2.3 — الجداول على الموبايل =====
+ *
+ * 38 شاشة فيها <table> جوه غلاف overflow-x-auto، وكل واحدة بتحدد حشو
+ * الخلية بنفسها (10-14px) فالصفوف بتسحب أفقي من غير داعي على الموبايل،
+ * والخط بيفضل بحجم الديسكتوب. هنا تخفيف موحّد تحت 640px — الحشو والخط
+ * بس، من غير أي تغيير في ترتيب الأعمدة أو المحتوى.
+ */
+@media (max-width: 639px) {
+  .tg-dash table,
+  .tg-cp table,
+  .tg-card table {
+    font-size: 11.5px;
+    width: 100%;
+  }
+  .tg-dash table thead th,
+  .tg-cp table thead th,
+  .tg-card table thead th {
+    font-size: 10.5px;
+    padding: 8px 7px;
+    line-height: 1.35;
+    white-space: nowrap;
+  }
+  .tg-dash table tbody td,
+  .tg-cp table tbody td,
+  .tg-card table tbody td {
+    padding: 9px 7px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+  /* الأرقام والمبالغ تفضل في سطر واحد بدل ما تتكسر */
+  .tg-dash table td .tg-num,
+  .tg-dash table td.tg-num,
+  .tg-cp table td .tg-num,
+  .tg-cp table td.tg-num {
+    white-space: nowrap;
+  }
+  /* إحساس بالسكرول الأفقي لما الجدول أوسع من الشاشة */
+  .tg-dash .overflow-x-auto,
+  .tg-cp .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--tg-line-strong) transparent;
+  }
+}
+
 /* ===== v2.2 — توحيد كروت المؤشرات على كل الشاشات =====
  *
  * .tg-kpi اتعرّفت في 4 ملفات بشكلين مختلفين: صف أفقي (brand-v2) وعمود
