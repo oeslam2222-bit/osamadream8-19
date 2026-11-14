@@ -74,6 +74,12 @@ import { ItemSalesKpiCards } from './itemSales/ItemSalesKpiCards';
 import { MonthlyPerformanceCard } from './itemSales/MonthlyPerformanceCard';
 import { RepPerformanceCard } from './itemSales/RepPerformanceCard';
 import { SlowMoversCard } from './itemSales/SlowMoversCard';
+import { MonthlyAggregateCard } from './itemSales/MonthlyAggregateCard';
+import {
+  buildItemSalesAggregates,
+  ItemSalesSector,
+  saveItemSalesAggregates,
+} from '../services/itemSalesAggregateService';
 
 interface CustomerItemSalesViewProps {
   onOpenNewOrderForCustomer?: (customer: Customer, prefilledItemCode?: string) => void;
@@ -94,6 +100,39 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 }) => {
   const { currentUser, users, customers, products, activeSectorFilter } = useApp();
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+
+  /**
+   * القطاع مش عمود في جدول مبيعات الأصناف — بنستنتجه من كتالوج المنتجات
+   * (الكود/الكود الموحد). اللي مش موجود في الكتالوج بيتحسب منزلي افتراضيًا.
+   */
+  const resolveItemSaleSector = React.useCallback(
+    (record: CustomerItemSaleRecord): ItemSalesSector => {
+      if (record.linkedCustomerId) {
+        const linked = customers.find((customer) => customer.id === record.linkedCustomerId);
+        if (linked?.sector === 'electrical') return 'electrical';
+        if (linked?.sector === 'home') return 'home';
+      }
+      const code = String(record.itemCode || '').trim();
+      const unified = String(record.unifiedCode || '').trim();
+      const match =
+        (code && products.find((product) => String(product.code || '').trim() === code)) ||
+        (unified && products.find((product) => String(product.unifiedCode || '').trim() === unified)) ||
+        null;
+      return match?.sector === 'electrical' ? 'electrical' : 'home';
+    },
+    [customers, products]
+  );
+
+  /** يحدّث ملخص الشهور في الخلفية بعد أي استيراد/جلب — بدون ما يعطّل الواجهة. */
+  const publishItemSalesAggregates = React.useCallback(
+    (rows: CustomerItemSaleRecord[]) => {
+      if (!rows || rows.length === 0) return;
+      void saveItemSalesAggregates(buildItemSalesAggregates(rows, { resolveSector: resolveItemSaleSector })).catch(
+        () => {}
+      );
+    },
+    [resolveItemSaleSector]
+  );
 
   const itemSalesScope = React.useMemo<CustomerItemSalesFetchScope | undefined>(() => {
     if (!currentUser || isAdminOrDev) return undefined;
@@ -304,6 +343,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         setSalesRecords(res.sales);
         setSupabaseCount(res.sales.length);
         await saveCustomerItemSales(res.sales);
+        publishItemSalesAggregates(res.sales);
         setSyncSuccessMsg(`تم بنجاح جلب ${res.sales.length.toLocaleString('ar-EG')} حركة من Supabase وحفظها محلياً.`);
       }
     } finally {
@@ -342,6 +382,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       await saveCustomerItemSales(enriched, 'merge');
       const allSaved = await getSavedCustomerItemSales();
       setSalesRecords(allSaved);
+      publishItemSalesAggregates(allSaved);
 
       const importedMonths = Array.from(new Set(enriched.map((r) => Number(r.month)).filter((m) => m >= 1 && m <= 12))).sort((a, b) => a - b);
       if (importedMonths.length === 1) {
@@ -1432,6 +1473,12 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               </div>
             </div>
           )}
+
+          <MonthlyAggregateCard
+            sector={activeSectorFilter}
+            records={salesRecords}
+            resolveSector={resolveItemSaleSector}
+          />
 
           <ItemSalesKpiCards
             comparison={comparison}
