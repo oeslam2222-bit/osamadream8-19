@@ -10,11 +10,34 @@
 export const IMAGE_CACHE_NAME = 'tantawy-group-images-v5';
 const CACHE_NAME = IMAGE_CACHE_NAME;
 const IDB_NAME = 'DreamDistributionImageCache';
-const IDB_VERSION = 1;
 const IDB_STORE = 'image_blobs';
 
 /** حدّ أقصى للصّور اللي تُخزّن في IndexedDB عشان ما يملىءش مساحة الهاتف. */
 const MAX_CACHED_IMAGES = 300;
+const IDB_VERSION = 2; // v2: إضافة index على cachedAt عشان القص التلقائي
+
+/** قصّ أقدم الصور لو عدّى السقف — نفس الـtransaction بتاع الكتابة. */
+function pruneOldImageBlobs(store: IDBObjectStore, tx: IDBTransaction): void {
+  try {
+    const countReq = store.count();
+    countReq.onsuccess = () => {
+      const overflow = countReq.result - MAX_CACHED_IMAGES;
+      if (overflow <= 0) return;
+      let deleted = 0;
+      const cursorReq = store.index('cachedAt').openCursor();
+      cursorReq.onsuccess = () => {
+        const cursor = cursorReq.result;
+        if (!cursor || deleted >= overflow) return;
+        cursor.delete();
+        deleted++;
+        cursor.continue();
+      };
+    };
+  } catch {
+    // القص اختياري — فشله ما يمنعش تخزين الصورة نفسها.
+  }
+  void tx;
+}
 
 /** ---------------------------------------------------------------
  *  Cache API helpers
@@ -135,6 +158,12 @@ function openImageDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(IDB_STORE)) {
         db.createObjectStore(IDB_STORE, { keyPath: 'url' });
       }
+      // index على cachedAt عشان القص التلقائي (أقدم صورة تتمسح الأول).
+      // إنشاؤه بيتبني تلقائياً من كل السجلات الموجودة — فما محتاجينش backfill.
+      const store = request.transaction?.objectStore(IDB_STORE);
+      if (store && !store.indexNames.contains('cachedAt')) {
+        store.createIndex('cachedAt', 'cachedAt', { unique: false });
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -149,7 +178,11 @@ export async function storeImageBlob(url: string, blob: Blob): Promise<boolean> 
       const tx = db.transaction(IDB_STORE, 'readwrite');
       const store = tx.objectStore(IDB_STORE);
       const req = store.put({ url, blob, cachedAt: Date.now() });
-      req.onsuccess = () => resolve(true);
+      req.onsuccess = () => {
+        // سقف المساحة: نحذف أقدم الصور لو عدّينا الحد.
+        pruneOldImageBlobs(store, tx);
+        resolve(true);
+      };
       req.onerror = () => resolve(false);
     });
   } catch {

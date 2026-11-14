@@ -494,9 +494,12 @@ export function filterTargetsForUser(
 
         const normR = normalizeArabicText(cleanRepName);
         const normA = normalizeArabicText(alias);
-        if (normR.length >= 3 && normA.length >= 3) {
-          if (normR.includes(normA) || normA.includes(normR)) return true;
-        }
+        // احتواء بالاسم الكامل فقط لما الجانب الأقصر اسم متعدد الكلمات
+        // (زي "أحمد سيد" ⊂ "أحمد سيد محمد"). الـ substring الأعمى كان بيسمح
+        // لـ "أحمد" (اسم مفرد) ياخد صف "أحمد سيد" بتاع زميله.
+        const shorter = normA.length <= normR.length ? normA : normR;
+        const longer = normA.length <= normR.length ? normR : normA;
+        if (shorter.includes(' ') && longer.includes(shorter)) return true;
 
         // Compact spaces
         if (normR.replace(/\s+/g, '') === normA.replace(/\s+/g, '')) return true;
@@ -523,10 +526,17 @@ export function filterTargetsForUser(
         if (tokensR.length >= 2 && tokensU.length >= 2) {
           const matchCount = tokensR.filter((tr) => tokensU.some((tu) => tr === tu || isArabicNameMatch(tr, tu))).length;
           if (matchCount >= 2) return true;
-        } else if (tokensR.length >= 1 && tokensU.length >= 1) {
-          if (tokensR[0] === tokensU[0] || isArabicNameMatch(tokensR[0], tokensU[0])) {
-            return true;
-          }
+        } else if (tokensR.length === 1 && tokensU.length === 1) {
+          // اسما من كلمة واحدة للطرفين: تطابق تام فقط.
+          if (tokensR[0] === tokensU[0]) return true;
+        } else {
+          // كلمة واحدة مقابل اسم متعدد: نسمح فقط لو الكلمة المفردة مميزة
+          // (طويلة — 6 حروف فأكثر) ومطابقة تماماً لأحد كلمات الطرف الآخر.
+          // "أحمد" مش هتضبط مع "أحمد سيد" بتاع الزميل، لكن "عبدالرحمن"
+          // هتضبط مع "عبدالرحمن حسن" لأنها كلمة نادرة ومميزة.
+          const single = tokensR.length === 1 ? tokensR[0] : tokensU[0];
+          const multiTokens = tokensR.length === 1 ? tokensU : tokensR;
+          if (single && single.length >= 6 && multiTokens.some((t) => t === single)) return true;
         }
       }
 

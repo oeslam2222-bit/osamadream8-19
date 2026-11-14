@@ -46,6 +46,7 @@ import {
   CustomerFetchScope,
   VisitFetchScope,
   TargetFetchScope,
+  ProductSectorScope,
   saveTargetsToSupabase,
   saveVisitsToSupabase,
   fetchForecastsByMonthFromSupabase,
@@ -279,6 +280,14 @@ const USERS_LAST_SYNC_KEY = 'tantawy_users_last_sync_v1';
 const USERS_SYNC_TTL_MS = 12 * 60 * 60 * 1000;
 
 /**
+ * فرملة الـ thundering-herd: لما 500 مندوب يفتحوا التطبيق في نفس نافذة الصبح،
+ * أول نبضة مزامنة على الجهاز اللي عنده كاش محلي بتتوزع عشوائيًا على 90 ثانية
+ * بدل ما توصل كضربة واحدة. الأجهزة الفاضية (أول لوجين) ما بتتأخرش عشان
+ * المستخدم لازم يشوف البيانات على طول.
+ */
+const BOOT_SYNC_JITTER_MAX_MS = 90 * 1000;
+
+/**
  * بصمة الفواتير محفوظة لكل نطاق قراءة على حدة (مندوب/مشرف/مدير فرع/أدمن)
  * عشان تبديل الحساب على نفس الجهاز ما يخلطش البصمات.
  */
@@ -437,13 +446,15 @@ function buildInvoiceFetchScope(currentUser: User | null, users: User[]): Invoic
     const repIds = users
       .filter((u) => u.id === currentUser.id || u.supervisorId === currentUser.id)
       .map((u) => u.id);
-    return { repIds: repIds.length > 0 ? repIds : undefined, limit: 100 };
+    // فاضي = صفر فواتير للمشرف (مفيش مناديب متعاقبين — الأمان الأهم)
+    return { repIds, limit: 100 };
   }
   if (currentUser.role === 'branch_manager') {
     const repIds = users
       .filter((u) => u.branchName === currentUser.branchName)
       .map((u) => u.id);
-    return { repIds: repIds.length > 0 ? repIds : undefined, limit: 120 };
+    // فاضي = صفر فواتير للمدير (مفيش مناديب في الفريق — ممنوع سحب كل الشركة)
+    return { repIds, limit: 120 };
   }
   return { limit: 200 };
 }
@@ -484,6 +495,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const ping = () => {
       if (typeof document !== 'undefined' && document.hidden) return;
+      // أجهزة المناديب (الأغلبية — 500 جهاز) ما بتبعتش ping: الأجهزة
+      // الإدارية/المديرين (عدد قليل) بتحافظ على دفاءة المشروع، وأي طلب حقيقي
+      // بيفيق قاعدة البيانات لو حصل pause بأول طلب بس.
+      if (currentUserRef.current?.role === 'sales_rep') return;
       supabase
         .from('targets')
         .select('id')
@@ -2258,6 +2273,20 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   ]);
 
   /**
+   * نطاق قطاع الكتالوج على مستوى السيرفر (مطابق لفلتر القطاع في الواجهة):
+   * المندوب ومدير الفرع والمشرف بينزّلوا كتالوج قطاعهم بس — منزلي أو كهربا —
+   * بدل الكتالوج الكامل. الأدمن/المطوير/الدعم محتاجين الكتالوج الكامل عشان
+   * تبديل القطاعات في شاشات الاستيراد والتقارير، فبنسيبهم من غير قيد.
+   * المستخدم اللي القطاع بتاعه «both»/«all» أو مش مسجّل بياخد الكل برضه.
+   */
+  const productSectorScope = useMemo<ProductSectorScope>(() => {
+    const role = currentUser?.role;
+    if (role !== 'sales_rep' && role !== 'branch_manager' && role !== 'supervisor') return undefined;
+    const sector = currentUser?.sector;
+    return sector === 'home' || sector === 'electrical' ? sector : undefined;
+  }, [currentUser?.role, currentUser?.sector]);
+
+  /**
    * scope القراءة من جدول الزيارات:
    * - المندوب: آخر 90 يوماً فقط + نطاقه الخاص (مع منع سحب الجدول كله كبديل).
    * - المشرف: آخر 180 يوماً + مندوبيه التابعين + فرعه (بدلاً من سحب كل الشركة بلا حدود).
@@ -2352,7 +2381,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       // 2. Fetch remote users and invoices if requested
       if (direction === 'fetch' || direction === 'both') {
-        const fetchRes = await fetchUsersFromSupabase();
+        // بنفس منطق مسار الإقلاع: كلمات المرور للأجهزة الإدارية فقط — المسار
+        // القديم كان بيسحب عمود password لأي حد يفتح صفحة العملاء ويدوس مزامنة.
+        const credentialsForRole =
+          currentUser.role === 'admin' || currentUser.role === 'developer';
+        const fetchRes = await fetchUsersFromSupabase(true, { includeCredentials: credentialsForRole });
         if (fetchRes.success && fetchRes.users && fetchRes.users.length > 0) {
           fetchedUsersCount = fetchRes.users.length;
           setUsers(sanitizeAndDeduplicateUsers(fetchRes.users).deduplicated);
@@ -2374,7 +2407,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           });
         }
 
-        const productRes = await fetchProductsFromSupabase();
+        const productRes = await fetchProductsFromSupabase({ sector: productSectorScope });
         if (productRes.success) {
           const validProducts = sanitizeProducts(productRes.products || []);
           setProducts(validProducts);
@@ -2456,6 +2489,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const noStampPulledAtRef = useRef(0);
   /** امتى آخر مرة نزّلنا جدول العملاء بالكامل (على مستوى الجلسة). */
   const customerFullFetchAtRef = useRef(0);
+  /** مؤقتات الـ boot jitter — بتتمسح لو الإيفكت اتحمّل تاني قبل ما النبضة توصل. */
+  const bootJitterTimersRef = useRef<Set<number>>(new Set());
   /** يمنع تنزيلين متوازيين لنفس جدول العملاء (نبضة الإصدار + نبضة المحتوى). */
   const customerDownloadInFlightRef = useRef(false);
   /**
@@ -2554,7 +2589,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const pullProductsForVersionSync = async (): Promise<{ success: boolean; products?: Product[]; error?: string } | null> => {
         if (!inScope('products')) return null;
         if (await isProductsTableAuthoritative()) {
-          const inc = await fetchProductsIncremental().catch(() => null);
+          const inc = await fetchProductsIncremental(productSectorScope).catch(() => null);
           if (inc?.success) {
             const incoming = inc.products || [];
             if (!inc.isFullFetch && incoming.length === 0) {
@@ -2566,7 +2601,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             return { success: true, products: merged };
           }
         }
-        return fetchProductsFromSupabase();
+        return fetchProductsFromSupabase({ sector: productSectorScope });
       };
 
       // Fresh payloads, held until we know which ones actually arrived.
@@ -3183,11 +3218,33 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     if (shouldRunImmediateCheck) {
       lastBootCustScopeSigRef.current = custScopeSig;
       lastBootHeartbeatAtRef.current = nowBoot;
-      checkCustomersContent();
-      // checkAndSyncDataVersion(false) is already invoked on boot by the next effect;
-      // only run `check()` here when triggered by a real scope change or subsequent epoch.
-      if (dataEpoch > 0) {
-        check();
+      // فرملة الـ thundering-herd: مندوب عنده كاش محلي بيتأخر عشوائيًا (0-90 ث)
+      // قبل أول نبضة بصمة — عشان 500 جهاز ميوصلوش للسيرفر في نفس اللحظة.
+      // الجهاز الفاضي (أول لوجين) ينطلاق فورًا، والشاشة المخفية تتخطى
+      // (الـ focus handler هيتكفل بيها بعدها).
+      const bootHasLocalCache =
+        (productsRef.current?.length || 0) > 0 || (customersRef.current?.length || 0) > 0;
+      const bootStampCheckDelay =
+        currentUserRef.current?.role === 'sales_rep' && bootHasLocalCache
+          ? Math.floor(Math.random() * BOOT_SYNC_JITTER_MAX_MS)
+          : 0;
+      const runBootStampCheck = () => {
+        if (document.visibilityState === 'hidden') return;
+        checkCustomersContent();
+        // checkAndSyncDataVersion(false) is already invoked on boot by the next effect;
+        // only run `check()` here when triggered by a real scope change or subsequent epoch.
+        if (dataEpoch > 0) {
+          check();
+        }
+      };
+      if (bootStampCheckDelay > 0) {
+        if (realtimeJitterTimer !== null) window.clearTimeout(realtimeJitterTimer);
+        realtimeJitterTimer = window.setTimeout(() => {
+          realtimeJitterTimer = null;
+          runBootStampCheck();
+        }, bootStampCheckDelay);
+      } else {
+        runBootStampCheck();
       }
     }
 
@@ -3221,7 +3278,20 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           }
           if (res.success && res.users && res.users.length > 0) {
             setUsers((prev) => {
-              const dedup = sanitizeAndDeduplicateUsers(res.users!);
+              // جهاز المندوب بيسحب قائمة المستخدمين من غير عمود password
+              // (مش إداري)، والاستبدال الكامل كان بيتمسح بالهاش المحفوظ
+              // محليًا — فبعد أول تحديث للمستخدمين، اللوجين أوف لاين كان
+              // بيرجع «لا توجد كلمة مرور». بنرجّع الهاش المخزّن لأي مستخدم
+              // جاء من السيرفر من غير هاش.
+              const cachedHashes = new Map<string, string>();
+              prev.forEach((u) => {
+                if (u.id && u.password) cachedHashes.set(u.id, u.password);
+              });
+              const dedup = sanitizeAndDeduplicateUsers(
+                res.users!.map((u) =>
+                  !u.password && cachedHashes.has(u.id) ? { ...u, password: cachedHashes.get(u.id) } : u
+                )
+              );
               // If duplicate IDs were detected and cleaned, delete them permanently from Supabase
               if (dedup.removedUserIds.length > 0) {
                 dedup.removedUserIds.forEach((remId) => {
@@ -3261,6 +3331,23 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         // 2 & 4. Automatic Data Version Sync & Clean Fetch:
         // Checks if server has a newer version or if client data is unversioned.
         // If newer, cleanly purges old cache and loads fresh data without duplicates!
+        //
+        // نفس فرملة الـ thundering-herd: جهاز مندوب فيه كاش محلي بيستنى
+        // تأخير عشوائي (0-90 ث) قبل ما يلمس السيرفر، والجهاز الفاضي
+        // (أول لوجين) ينطلق فورًا عشان المستخدم يشوف البيانات على طول.
+        const bootHasLocalCache =
+          (productsRef.current?.length || 0) > 0 || (customersRef.current?.length || 0) > 0;
+        const bootJitterWait: Promise<void> =
+          currentUserRef.current?.role === 'sales_rep' && bootHasLocalCache
+            ? new Promise<void>((resolve) => {
+                const t = window.setTimeout(() => {
+                  bootJitterTimersRef.current.delete(t);
+                  resolve();
+                }, Math.floor(Math.random() * BOOT_SYNC_JITTER_MAX_MS));
+                bootJitterTimersRef.current.add(t);
+              })
+            : Promise.resolve();
+        bootJitterWait.then(() => {
         checkAndSyncDataVersion(false).then((syncRes) => {
           if (!syncRes.updated) {
             // Fallback: If version wasn't newer, ensure products and customers are loaded from Supabase if empty
@@ -3289,7 +3376,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                   }
                 })().catch(() => {});
               } else {
-                fetchProductsFromSupabase().then((pRes) => {
+                fetchProductsFromSupabase({ sector: productSectorScope }).then((pRes) => {
                   if (pRes.success && pRes.products && pRes.products.length > 0) {
                     setProducts((curr) => {
                       if (curr.length === 0) {
@@ -3363,6 +3450,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
               });
             }
           }
+        });
         });
 
         // 3. Fetch Invoices from Supabase (with 1-row content stamp check to cut boot egress)
@@ -3555,6 +3643,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           });
         };
         loadInitialVisits().catch(() => {});
+        // لو الإيفكت اتحمّل تاني (scope/epoch اتغيّر) قبل ما الـ jitter يخلص،
+        // نلغي المؤقتات عشان ما تفضلش نبضة قديمة بتنطلق بعد ما الحالة اتغيرت.
+        return () => {
+          bootJitterTimersRef.current.forEach((t) => window.clearTimeout(t));
+          bootJitterTimersRef.current.clear();
+        };
   }, [isLocalDataHydrated, dataEpoch]);
 
   // Consolidated single Realtime WebSocket channel (saves 50% connections + exempts sales_rep to protect Supabase Free 200-connection limit)
@@ -3957,10 +4051,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     syncOrQueue('customers', 'upsert', updatedCust.id, updatedCust, () =>
       saveCustomersToSupabase([updatedCust])
     ).catch((e) => console.warn('Supabase customer update error:', e));
-    publishDataVersionUpdate({
-      scope: 'customers',
-      notes: `تعديل بيانات العميل ${updatedCust.name || updatedCust.code}`,
-    }).catch(() => {});
+    // تعديل مندوب روتيني ما بينشرش نسخة جديدة: كل broadcast كان بيسبب فحص
+    // إصدار على كل الأجهزة الموصولة + حدث Realtime لكل مشرف/مدير. البصمة
+    // المحتوى (25 دقيقة) بتوصل التحديث لباقي الأجهزة برضه من غير كل ده.
+    if (currentUser?.role !== 'sales_rep') {
+      publishDataVersionUpdate({
+        scope: 'customers',
+        notes: `تعديل بيانات العميل ${updatedCust.name || updatedCust.code}`,
+      }).catch(() => {});
+    }
   };
 
   const deleteCustomer = (customerId: string) => {
@@ -3970,7 +4069,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     syncOrQueue('customers', 'delete', customerId, undefined, () =>
       deleteCustomerFromSupabase(customerId)
     ).catch((e) => console.warn('Supabase customer delete error:', e));
-    publishDataVersionUpdate({ scope: 'customers', notes: 'حذف عميل من قاعدة العملاء' }).catch(() => {});
+    // نفس منطق updateCustomer: الحذف من المندوب بيمشيه بصمة المحتوى.
+    if (currentUser?.role !== 'sales_rep') {
+      publishDataVersionUpdate({ scope: 'customers', notes: 'حذف عميل من قاعدة العملاء' }).catch(() => {});
+    }
   };
 
   const cleanAndDeduplicateCustomers = () => {
@@ -4753,6 +4855,39 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_DATA);
     clearCart();
+
+    // عزل الأجهزة المشتركة: كانت بيانات العرض (فواتير/عملاء/زيارات/تارجت/كتالوج)
+    // بتفضل على الجهاز بعد الخروج، والمستخدم اللي بعده بيرثها من الـ IndexedDB
+    // وسحب الفواتير الجديد كان بيدمج فوقها بدل ما يستبدلها. بنمسحها كلها.
+    // مهم ما يتمسحش:
+    //   - PENDING_INVOICES وطابور المزامنة (طلبية أوف لاين معلقة متضيعش —
+    //     بتترفع أول ما النت يرجع حتى بعد اللوجين الجديد).
+    //   - USERS (فيها هاشات كلمات المرور اللازمة للوجين أوف لاين).
+    //   - DELETED_INVOICE/VISIT_IDS (tombstones ضد رجوع عناصر اتحذفت).
+    [STORAGE_KEYS.PRODUCTS, STORAGE_KEYS.INVOICES, STORAGE_KEYS.CUSTOMERS, STORAGE_KEYS.VISITS, STORAGE_KEYS.TARGETS].forEach(
+      (k) => {
+        try {
+          localStorage.removeItem(k);
+        } catch {
+          /* تجاهل */
+        }
+      }
+    );
+    idbSet(STORAGE_KEYS.PRODUCTS, []).catch(() => {});
+    idbSet(STORAGE_KEYS.INVOICES, []).catch(() => {});
+    idbSet(STORAGE_KEYS.CUSTOMERS, []).catch(() => {});
+    idbSet(STORAGE_KEYS.VISITS, []).catch(() => {});
+    // بصمات المحتوى العامة (مش لكل-مستخدم) لازم تتشال كمان — وإلا المستخدم
+    // الجديد ممكن يتخطى سحب مهم لأن البصمة بتاعة المستخدم القديم لسه مطابقة.
+    try { localStorage.removeItem(CUSTOMER_CONTENT_STAMP_KEY); } catch { /* تجاهل */ }
+    try { localStorage.removeItem(VISIT_CONTENT_STAMP_KEY); } catch { /* تجاهل */ }
+    try { localStorage.removeItem(TARGET_CONTENT_STAMP_KEY); } catch { /* تجاهل */ }
+    setProducts([]);
+    setInvoices([]);
+    setCustomers([]);
+    setVisits([]);
+    setTargets([]);
+
     // لو الجلسة كانت على Supabase Auth، اقفلها هناك كمان. لو مفيش جلسة
     // (وضع legacy) أو فيه مشكلة شبكة، سيبتها بهدوء — حالة العميل المحلية
     // اتقفلت فوق في كل الأحوال.
@@ -5744,7 +5879,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       });
     });
 
-    setInvoices((prev) => [primaryInvoice, ...prev]);
+    setInvoices((prev) => {
+      const next = [primaryInvoice, ...prev];
+      // كتابة الفاتورة في IndexedDB هنا مش تحسين شكلي: بدونها الفاتورة اللي
+      // اتعملت أوف لاين بتتخزن في PENDING_INVOICES بس، والدمج في الحالة
+      // بيحصل بس بعد جلب ناجح من السيرفر — يعني reload والجهاز لسه
+      // أوف لاين = الفاتورة بتختفي من الشاشة (وبتفضل في الـoutbox بس).
+      idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
+      return next;
+    });
 
     // Auto-detect and register new customer or link to representative
     if (orderData.customerName && orderData.customerName.trim() !== 'عميل تجزئة عام') {
@@ -7935,7 +8078,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
   const syncProductsIncrementally = async (): Promise<{ success: boolean; message?: string; added?: number; updated?: number }> => {
     try {
-      const res = await fetchProductsIncremental();
+      const res = await fetchProductsIncremental(productSectorScope);
       if (!res.success) {
         return { success: false, message: res.error || 'فشل جلب الأصناف من السيرفر' };
       }

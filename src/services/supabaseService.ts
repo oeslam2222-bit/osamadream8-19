@@ -2185,6 +2185,13 @@ async function fetchInvoicesFromSupabaseImpl(
     const updatedSince = options?.updatedSince?.trim() || '';
     const sinceCol: 'updated_at' | 'created_at' = options?.stampColumn || 'created_at';
 
+    // لو السكوب سدّي طلب فواتير على مجموعة مندوبين فاضية (مثلاً مدير فرع
+    // مسجل من غير مناديب في الفريق بعد تحديث دورة المستخدمين) — ما نسترجعش
+    // فواتير بدون فلتر (اللي كانت بتجيب آخر limit فواتيرة من كل الشركة).
+    if (Array.isArray(scope.repIds) && repIds.length === 0) {
+      return { success: true, invoices: [] };
+    }
+
     const INVOICES_SELECT_COLUMNS = [
       'id', 'invoice_number', 'customer_code', 'customer_name', 'customer_phone',
       'customer_address', 'customer_tax_number', 'date', 'time', 'created_at',
@@ -2792,11 +2799,56 @@ export async function isProductsTableAuthoritative(): Promise<boolean> {
  * Fetch products catalog from Supabase
  * Safely fetches all products without being capped at Supabase's default 1,000 row limit
  */
-export function fetchProductsFromSupabase(): Promise<{ success: boolean; products?: Product[]; error?: string }> {
-  return dedupeInFlightRequest('products:all', () => fetchProductsFromSupabaseImpl());
+/**
+ * نطاق قطاع الكتالوج على مستوى السيرفر.
+ *
+ * جدول products فيه عمود sector («home» منزلي / «electrical» كهربا) وبيتعبّى
+ * من سكربت backfill_products_sector.mjs من قيم كتالوج الـ chunks المصدرية.
+ * قبل كده الفلترة كانت بتتم في الواجهة بعد نزّول الكتالوج كامل — دلوقتي
+ * القيد بيتنقل لاستعلام PostgREST نفسه فالجهاز بينزّل قطاعه بس.
+ */
+export type ProductSectorScope = 'home' | 'electrical' | undefined;
+
+/**
+ * يطبّق قيد القطاع على استعلام products.
+ *
+ * الصفوف اللي الـ sector فيها فاضي/مجهول بنسيبها تعدي للجميع احتياط —
+ * حجب صنف المندوب محتاجه أخطر من تنزيل صف زيادة (نفس مبدأ `matchesSector`
+ * في الواجهة: القيمة الفاضية شفافة للكل).
+ */
+export function applyProductSectorScope(query: any, sector: ProductSectorScope): any {
+  if (!sector) return query;
+  // القيم المسموحة: قطاع الجهاز + «both» (القطاعين) + «all» + الفاضي (مجهول).
+  return query.or(`sector.in.(${sector},both,all),sector.is.null`);
 }
 
-async function fetchProductsFromSupabaseImpl(): Promise<{ success: boolean; products?: Product[]; error?: string }> {
+/** فلترة القطاع على الـ client — للمسارات اللي بترجّع JSON جاهز (chunks) مش استعلام صفوف. */
+export function filterProductsBySectorClient(products: Product[], sector: ProductSectorScope): Product[] {
+  if (!sector) return products;
+  return products.filter((p) => {
+    const s = (p as any)?.sector;
+    return !s || s === sector || s === 'both' || s === 'all';
+  });
+}
+
+/** نفس قاعدة القطاع لكن على الصفوف الخام (snake_case) قبل الـ mapping. */
+function sectorRowOk(sector: NonNullable<ProductSectorScope>) {
+  return (row: any) => {
+    const s = row?.sector;
+    return !s || s === sector || s === 'both' || s === 'all';
+  };
+}
+
+export function fetchProductsFromSupabase(
+  options?: { sector?: ProductSectorScope }
+): Promise<{ success: boolean; products?: Product[]; error?: string }> {
+  const sector = options?.sector;
+  return dedupeInFlightRequest(`products:${sector ?? 'all'}`, () => fetchProductsFromSupabaseImpl(sector));
+}
+
+async function fetchProductsFromSupabaseImpl(
+  sector?: ProductSectorScope
+): Promise<{ success: boolean; products?: Product[]; error?: string }> {
   try {
     // 0. بصمة الماني فست — بتحدد المصدر المتفق عليه. items.mode='products_table_v2'
     //    يعني الجدول الرسمي الغني هو المصدر (بيتكتب مع أول استيراد/مزامنة كاملة
@@ -2812,7 +2864,7 @@ async function fetchProductsFromSupabaseImpl(): Promise<{ success: boolean; prod
 
     // 1. الجدول الرسمي الغني: ~416KB بدل ~3.5MB من صفوف catalog_sync_chunk.
     if (snapshotMode === 'products_table_v2') {
-      const rich = await readRichProductsTable();
+      const rich = await readRichProductsTable(sector);
       if (rich.ok) return { success: true, products: rich.products };
       // أعمدة ناقصة (الميجريشن ما اتنفذش) أو جدول فاضي → نكمل بالمسار القديم كشبكة أمان.
     }
@@ -2841,7 +2893,7 @@ async function fetchProductsFromSupabaseImpl(): Promise<{ success: boolean; prod
           }
         });
         if (allItems.length > 0) {
-          return { success: true, products: allItems };
+          return { success: true, products: filterProductsBySectorClient(allItems, sector) };
         }
     }
 
@@ -2860,7 +2912,7 @@ async function fetchProductsFromSupabaseImpl(): Promise<{ success: boolean; prod
         ? JSON.parse(rawItems)
         : [];
       if (itemsList.length > 0) {
-        return { success: true, products: itemsList };
+        return { success: true, products: filterProductsBySectorClient(itemsList, sector) };
       }
     }
 
@@ -2885,7 +2937,9 @@ async function fetchProductsFromSupabaseImpl(): Promise<{ success: boolean; prod
       }
 
       if (pErr || !chunk || chunk.length === 0) break;
-      allProdData.push(...chunk);
+      // قيد القطاع على الصفوف الخام (عمود sector) قبل الـ mapping — عشان
+      // pipeline الـ mapping في الآخر ما يتكررش مرتين.
+      allProdData.push(...(sector ? chunk.filter(sectorRowOk(sector)) : chunk));
       if (chunk.length < pageSize) break;
       page++;
       // The old `if (page >= 35) break` cut the catalog off at 35,000 rows with
@@ -2961,15 +3015,17 @@ function mapProductTableRow(p: any): Product {
 }
 
 /** قراءة جدول products الغني (بعد ميجريشن add_products_rich_columns.sql) على دفعات. */
-async function readRichProductsTable(): Promise<{ ok: boolean; products: Product[] }> {
+async function readRichProductsTable(sector?: ProductSectorScope): Promise<{ ok: boolean; products: Product[] }> {
   const pageSize = 1000;
   const rows: any[] = [];
   for (let page = 0; page < MAX_PRODUCT_PAGES; page++) {
-    const { data, error } = await supabase
+    let query = supabase
       .from('products')
       .select(PRODUCTS_SELECT_COLUMNS)
       .order('id', { ascending: true })
       .range(page * pageSize, page * pageSize + pageSize - 1);
+    query = applyProductSectorScope(query, sector);
+    const { data, error } = await query;
     if (error) return { ok: false, products: [] };
     if (!data || data.length === 0) break;
     rows.push(...data);
@@ -4247,7 +4303,9 @@ const PRODUCTS_SELECT_COLUMNS = [
   'barcode', 'unified_code', 'branch_stocks', 'sector', 'branch_name', 'updated_at', 'created_at',
 ].join(',');
 
-export async function fetchProductsIncremental(): Promise<{
+export async function fetchProductsIncremental(
+  sector?: ProductSectorScope
+): Promise<{
   success: boolean;
   products?: any[];
   error?: string;
@@ -4257,27 +4315,35 @@ export async function fetchProductsIncremental(): Promise<{
   entity?: string;
 }> {
   try {
-    const cursor = getSyncCursor('products');
+    // مؤشر المزامنة محفوظ لكل قطاع على حدة، بس المؤشر القديم (غير المقيّد)
+    // صالح فورًا: الترتيب بيتم على updated_at على مستوى الجدول كله، فأي صف
+    // جديد في أي قطاع كان هيبقى بعد المؤشر برضه. بنهجّر الكتالوج الكامل
+    // اللي كان هيحصل لو غيّرنا المفتاح من غير ما ننقل المؤشر.
+    const scopeKey = sector ? `products::${sector}` : 'products';
+    const cursor = getSyncCursor(scopeKey) || (sector ? getSyncCursor('products') : null);
     const isFullFetch = !cursor;
-    const read = await readRowsPaged('products', PRODUCTS_SELECT_COLUMNS, cursor?.ts);
+    const read = await readRowsPaged('products', PRODUCTS_SELECT_COLUMNS, cursor?.ts, (q) =>
+      applyProductSectorScope(q, sector)
+    );
     if (read.error) {
       if (String(read.error.message || '').includes('updated_at')) {
         const all: any[] = [];
         let fallbackCols = PRODUCTS_SELECT_COLUMNS.replace(',updated_at', '');
         for (let page = 0; page < INCREMENTAL_MAX_PAGES; page++) {
           const from = page * INCREMENTAL_PAGE_SIZE;
-          let { data, error: allErr } = await supabase
+          let baseQuery = supabase
             .from('products')
             .select(fallbackCols)
-            .order('id', { ascending: true })
-            .range(from, from + INCREMENTAL_PAGE_SIZE - 1);
+            .order('id', { ascending: true });
+          baseQuery = applyProductSectorScope(baseQuery, sector);
+          let { data, error: allErr } = await baseQuery.range(from, from + INCREMENTAL_PAGE_SIZE - 1);
           if (allErr && fallbackCols !== '*' && isMissingColumnError(allErr)) {
-            fallbackCols = '*';
-            ({ data, error: allErr } = await supabase
+            let fbQuery = supabase
               .from('products')
               .select('*')
-              .order('id', { ascending: true })
-              .range(from, from + INCREMENTAL_PAGE_SIZE - 1));
+              .order('id', { ascending: true });
+            fbQuery = applyProductSectorScope(fbQuery, sector);
+            ({ data, error: allErr } = await fbQuery.range(from, from + INCREMENTAL_PAGE_SIZE - 1));
           }
           if (allErr) {
             if (all.length === 0) {
@@ -4301,7 +4367,7 @@ export async function fetchProductsIncremental(): Promise<{
     }
     let nextCursor: SyncCursor | null = cursor;
     for (const r of rows) nextCursor = advanceSyncCursor(nextCursor, r);
-    if (nextCursor) setSyncCursor('products', nextCursor.ts, nextCursor.id);
+    if (nextCursor) setSyncCursor(scopeKey, nextCursor.ts, nextCursor.id);
     return {
       success: true,
       // صفوف الـ snake_case من قاعدة البيانات بتتحول لـ Product الغني قبل الدمج —
