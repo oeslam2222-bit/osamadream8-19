@@ -1042,7 +1042,7 @@ function onEdit(e) {
   }
 
   return (
-    <div className="tantawy-screen space-y-6 pb-20" dir="rtl">
+    <div className="tg-dash space-y-4 pb-20" dir="rtl">
       
       {/* Hidden File Inputs */}
       <input
@@ -1075,7 +1075,7 @@ function onEdit(e) {
       />
 
       {/* Top Hero Banner & Controls */}
-      <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-[#12283e] text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 space-y-6">
+      <div className="ds-pagehead space-y-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 border border-white/15 text-[#7fc0ff] rounded-xl text-xs font-black">

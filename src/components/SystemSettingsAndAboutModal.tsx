@@ -71,7 +71,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                 الإعدادات ومعلومات المنظومة
               </h2>
               <p className="text-xs text-slate-500 font-medium">
-                إدارة القطاع المنزلي لمجموعة دريم طنطاوي • TANTAWY GROUP
+                إعدادات منظومة مجموعة الطنطاوي للتجارة والتوزيع • TANTAWY GROUP
               </p>
             </div>
           </div>
@@ -87,10 +87,10 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
         <div className="flex items-center gap-1.5 border-b border-[var(--app-line)] pb-2 overflow-x-auto shrink-0">
           <button
             onClick={() => setActiveTab('team')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
+            className={`ds-tab ${
               activeTab === 'team'
-                ? 'bg-navy-panel text-[#2dd4bf] shadow-xs'
-                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                ? 'is-active'
+                : ''
             }`}
           >
             <Users className="w-4 h-4" />
@@ -99,10 +99,10 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
 
           <button
             onClick={() => setActiveTab('about')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
+            className={`ds-tab ${
               activeTab === 'about'
-                ? 'bg-navy-panel text-[#2dd4bf] shadow-xs'
-                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                ? 'is-active'
+                : ''
             }`}
           >
             <Info className="w-4 h-4" />
@@ -111,10 +111,10 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
 
           <button
             onClick={() => setActiveTab('settings')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
+            className={`ds-tab ${
               activeTab === 'settings'
-                ? 'bg-navy-panel text-[#2dd4bf] shadow-xs'
-                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                ? 'is-active'
+                : ''
             }`}
           >
             <Settings className="w-4 h-4" />
@@ -123,10 +123,10 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
 
           <button
             onClick={() => setActiveTab('install')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
+            className={`ds-tab ${
               activeTab === 'install'
-                ? 'bg-navy-panel text-[#2dd4bf] shadow-xs'
-                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                ? 'is-active'
+                : ''
             }`}
           >
             <Smartphone className="w-4 h-4" />
@@ -135,10 +135,10 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
 
           <button
             onClick={() => setActiveTab('privacy')}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap ${
+            className={`ds-tab ${
               activeTab === 'privacy'
-                ? 'bg-navy-panel text-[#2dd4bf] shadow-xs'
-                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                ? 'is-active'
+                : ''
             }`}
           >
             <Shield className="w-4 h-4" />

@@ -1521,6 +1521,30 @@ body footer span.font-black {
 /* ==========================================================================
    طباعة نظيفة
    ========================================================================== */
+
+/* ===== توحيد تبويبات المودالات (الإعدادات وغيرها) ===== */
+.ds-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid transparent;
+  transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+}
+.ds-tab:hover { background: #e8eef5; color: #0f172a; }
+.ds-tab.is-active { background: var(--tg-navy, #0f2b38); color: #fff; border-color: var(--tg-navy, #0f2b38); }
+.ds-tab:focus-visible { outline: 2px solid var(--tg-navy, #0f2b38); outline-offset: 2px; }
+@media (max-width: 640px) {
+  .ds-tab { padding: 8px 10px; font-size: 11.5px; }
+}
+
 @media print {
   .ds-sidebar,
   .ds-topbar,
