@@ -31,6 +31,8 @@ import {
   mergeCustomersIncremental,
   fetchCustomerContentStamp,
   fetchInvoicesFromSupabase,
+  fetchInvoiceRowById,
+  INVOICE_SIGNAL_ID,
   fetchInvoiceContentStamp,
   fetchProductsFromSupabase,
   fetchProductsIncremental,
@@ -3729,6 +3731,87 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       return;
     }
 
+    // سحب الفواتير المعلَّمة بإشارة — دفعة واحدة بعد jitter قصير.
+    const pendingInvoiceIds = new Set<string>();
+    let invoicePullTimer: number | null = null;
+
+    const mapInvoiceRow = (raw: any): Invoice => ({
+      id: raw.id,
+      invoiceNumber: raw.invoice_number || raw.invoiceNumber || 'DRM-INV',
+      customerName: raw.customer_name || raw.customerName || 'عميل',
+      customerCode: raw.customer_code || raw.customerCode || undefined,
+      customerPhone: raw.customer_phone || raw.customerPhone || '',
+      customerAddress: raw.customer_address || raw.customerAddress || '',
+      customerTaxNumber: raw.customer_tax_number || raw.customerTaxNumber || '',
+      date: raw.date || (raw.created_at ? raw.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10)),
+      time: raw.time || (raw.created_at ? raw.created_at.slice(11, 19) : ''),
+      repId: raw.rep_id || raw.repId || 'u-rep',
+      repName: raw.rep_name || raw.repName || 'مندوب المبيعات',
+      supervisorName: raw.supervisor_name || raw.supervisorName || 'مشرف الفرع',
+      branchName: raw.branch_name || raw.branchName || 'الفرع الرئيسي',
+      items: Array.isArray(raw.items) ? raw.items : typeof raw.items === 'string' ? JSON.parse(raw.items) : [],
+      totalCartons: raw.total_cartons || raw.totalCartons || 0,
+      totalPieces: raw.total_pieces || raw.totalPieces || 0,
+      subtotal: raw.subtotal || raw.estimated_grand_total || 0,
+      discountPercentage: raw.discount_percentage || 0,
+      discountAmount: raw.discount_amount || raw.discountAmount || 0,
+      taxPercentage: 0,
+      taxAmount: 0,
+      estimatedGrandTotal: raw.estimated_grand_total || raw.estimatedGrandTotal || 0,
+      paymentMethod: raw.payment_method || raw.paymentMethod || 'نقدي (كاش)',
+      status: raw.status || 'قيد مراجعة المشرف',
+      notes: raw.notes || '',
+      syncedToAccounting: raw.synced_to_accounting || false,
+      hasShortageSplit: raw.has_shortage_split || false,
+      shortageInvoiceNumber: raw.shortage_invoice_number,
+      isShortageInvoice: raw.is_shortage_invoice || false,
+      parentInvoiceId: raw.parent_invoice_id,
+      parentInvoiceNumber: raw.parent_invoice_number,
+      qrPayload: raw.qr_payload,
+    });
+
+    const flushInvoiceSignals = async () => {
+      invoicePullTimer = null;
+      const ids = Array.from(pendingInvoiceIds).slice(0, 25);
+      ids.forEach((queuedId) => pendingInvoiceIds.delete(queuedId));
+      for (const invoiceId of ids) {
+        const row = await fetchInvoiceRowById(invoiceId).catch(() => null);
+        if (!row) continue;
+        // نفس نطاق البث القديم: مشرف الفرع مايشوفش فواتير فرع تاني.
+        const rowBranch = String((row as any).branch_name || (row as any).branchName || '');
+        const scopedToBranch = currentUser.role === 'supervisor' || currentUser.role === 'branch_manager';
+        if (scopedToBranch && currentUser.branchName && rowBranch && rowBranch !== currentUser.branchName) continue;
+        const mappedInv = mapInvoiceRow(row);
+        setInvoices((prev) => {
+          const map = new Map<string, Invoice>();
+          prev.forEach((inv) => map.set(inv.id, inv));
+          map.set(mappedInv.id, mappedInv);
+          const next = Array.from(map.values());
+          idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
+          return next;
+        });
+      }
+      if (pendingInvoiceIds.size > 0) {
+        invoicePullTimer = window.setTimeout(() => { void flushInvoiceSignals(); }, 1500);
+      }
+    };
+
+    const queueInvoicePull = (raw: any) => {
+      try {
+        const parsed = typeof raw?.items === 'string' ? JSON.parse(raw.items) : raw?.items;
+        const ids: string[] = Array.isArray(parsed?.ids) ? parsed.ids : parsed?.invoiceId ? [parsed.invoiceId] : [];
+        ids.forEach((id) => {
+          if (id) pendingInvoiceIds.add(String(id));
+        });
+      } catch {
+        // إشارة مش مقروءة — النبضة الدورية هتغطيها
+      }
+      if (pendingInvoiceIds.size === 0 || invoicePullTimer !== null) return;
+      invoicePullTimer = window.setTimeout(() => {
+        void flushInvoiceSignals();
+      }, 1200 + Math.floor(Math.random() * 2500));
+    };
+
     let versionJitterTimer: number | null = null;
     try {
       const channel = supabase
@@ -3747,76 +3830,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             }, jitterMs);
           }
         )
-        // 2) الفواتير — مفلترة بالفرع للمشرف ومدير الفرع، والكل للإدارة وأمين المخزن
+        // 2) الفواتير — إشارة صغيرة بدل بث الصف كامل لكل المشرفين.
+        //    كل عملية حفظ بتكتب صف إشارة (~200 بايت) فيه ids الفواتير اللي
+        //    اتغيرت، والمشرف بيجيب الفاتورة المطلوبة لوحدها. البث القديم كان
+        //    بيبعت الصف كامل (items + QR) لكل مشرف مع كل فاتورة.
         .on(
           'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'invoices',
-            ...((currentUser.role === 'supervisor' || currentUser.role === 'branch_manager') && currentUser.branchName
-              ? { filter: `branch_name=eq.${currentUser.branchName}` }
-              : {}),
-          },
+          { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${INVOICE_SIGNAL_ID}` },
           (payload) => {
-            if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
-              const raw = payload.new as any;
-              if (raw && raw.id) {
-                const mappedInv: Invoice = {
-                  id: raw.id,
-                  invoiceNumber: raw.invoice_number || raw.invoiceNumber || 'DRM-INV',
-                  customerName: raw.customer_name || raw.customerName || 'عميل',
-                  customerCode: raw.customer_code || raw.customerCode || undefined,
-                  customerPhone: raw.customer_phone || raw.customerPhone || '',
-                  customerAddress: raw.customer_address || raw.customerAddress || '',
-                  customerTaxNumber: raw.customer_tax_number || raw.customerTaxNumber || '',
-                  date: raw.date || (raw.created_at ? raw.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10)),
-                  time: raw.time || (raw.created_at ? raw.created_at.slice(11, 19) : ''),
-                  repId: raw.rep_id || raw.repId || 'u-rep',
-                  repName: raw.rep_name || raw.repName || 'مندوب المبيعات',
-                  supervisorName: raw.supervisor_name || raw.supervisorName || 'مشرف الفرع',
-                  branchName: raw.branch_name || raw.branchName || 'الفرع الرئيسي',
-                  items: Array.isArray(raw.items) ? raw.items : typeof raw.items === 'string' ? JSON.parse(raw.items) : [],
-                  totalCartons: raw.total_cartons || raw.totalCartons || 0,
-                  totalPieces: raw.total_pieces || raw.totalPieces || 0,
-                  subtotal: raw.subtotal || raw.estimated_grand_total || 0,
-                  discountPercentage: raw.discount_percentage || 0,
-                  discountAmount: raw.discount_amount || raw.discountAmount || 0,
-                  taxPercentage: 0,
-                  taxAmount: 0,
-                  estimatedGrandTotal: raw.estimated_grand_total || raw.estimatedGrandTotal || 0,
-                  paymentMethod: raw.payment_method || raw.paymentMethod || 'نقدي (كاش)',
-                  status: raw.status || 'قيد مراجعة المشرف',
-                  notes: raw.notes || '',
-                  syncedToAccounting: raw.synced_to_accounting || false,
-                  hasShortageSplit: raw.has_shortage_split || false,
-                  shortageInvoiceNumber: raw.shortage_invoice_number,
-                  isShortageInvoice: raw.is_shortage_invoice || false,
-                  parentInvoiceId: raw.parent_invoice_id,
-                  parentInvoiceNumber: raw.parent_invoice_number,
-                  qrPayload: raw.qr_payload,
-                };
-                setInvoices((prev) => {
-                  const map = new Map<string, Invoice>();
-                  prev.forEach((i) => map.set(i.id, i));
-                  map.set(mappedInv.id, mappedInv);
-                  const next = Array.from(map.values());
-                  idbSet(STORAGE_KEYS.INVOICES, next);
-                  return next;
-                });
-              }
-            } else if (payload.eventType === 'DELETE') {
-              const deleted = payload.old as any;
-              if (deleted?.id) {
-                markInvoiceAsDeletedInStorage(deleted.id);
-                setInvoices((prev) => {
-                  const next = prev.filter((invoice) => invoice.id !== deleted.id);
-                  idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
-                  safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(next));
-                  return next;
-                });
-              }
-            }
+            queueInvoicePull(payload.new as any);
           }
         )
         // 3) DELETE-only لتقليل egress
@@ -3873,6 +3895,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       return () => {
         if (versionJitterTimer !== null) window.clearTimeout(versionJitterTimer);
+        if (invoicePullTimer !== null) window.clearTimeout(invoicePullTimer);
         supabase.removeChannel(channel);
       };
     } catch (e) {

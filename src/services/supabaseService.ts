@@ -2162,6 +2162,85 @@ export async function deleteUserFromSupabase(userId: string): Promise<{ success:
 /**
  * Save invoice / order into Supabase with automatic schema tolerance
  */
+/**
+ * إشارة فاتورة جديدة.
+ *
+ * البث القديم كان بيبعت صف الفاتورة كامل (items + QR + كل الأعمدة) لكل مشرف
+ * متصل مع كل فاتورة — أتقل بند في الـ egress مع 500 مندوب. دلوقتي بيتكتب صف
+ * إشارة صغير في `orders` (نفس نمط ختم الإصدار) والمشرف بيجيب الفاتورة
+ * المطلوبة لوحدها لما الإشارة توصل.
+ */
+export const INVOICE_SIGNAL_ID = 'dream_invoice_signal_v1';
+
+/**
+ * محاولة الكتابة في جدول `invoices` بتفشل بـ42501 على السيرفرات اللي عليه
+ * RLS مربوط بـauth.uid() والتطبيق شغال بمفتاح publishable. كنا بنحاول كل
+ * فاتورة وبعدين نرجع لـ`orders` — طلب ضايع لكل فاتورة على 500 جهاز.
+ * بنفتكر الفشل مرة واحدة في الجلسة وبعدها بنروح على `orders` على طول.
+ */
+let invoicesTableBlocked = false;
+
+export function areInvoicesTableWritesBlocked(): boolean {
+  return invoicesTableBlocked;
+}
+
+function noteInvoicesTableError(err: any): void {
+  const code = String(err?.code || '');
+  const msg = String(err?.message || '');
+  if (code === '42501' || /row-level security|permission denied/i.test(msg)) {
+    invoicesTableBlocked = true;
+  }
+}
+
+/** يكتب صف الإشارة الصغير (بايتات) بدل ما الفاتورة تتبعت لكل مشرف. */
+export async function publishInvoiceSignal(
+  ids: string[],
+  sample?: { repId?: string; repName?: string; branchName?: string }
+): Promise<void> {
+  const clean = (ids || []).filter(Boolean);
+  if (clean.length === 0) return;
+  try {
+    await supabase.from('orders').upsert(
+      {
+        id: INVOICE_SIGNAL_ID,
+        invoice_number: INVOICE_SIGNAL_ID,
+        customer_name: 'إشارة فاتورة',
+        customer_phone: '',
+        rep_id: sample?.repId || null,
+        rep_name: sample?.repName || '',
+        branch_name: sample?.branchName || '',
+        status: 'signal',
+        total_cartons: 0,
+        total_pieces: 0,
+        estimated_grand_total: 0,
+        items: JSON.stringify({ ids: clean.slice(0, 50), at: Date.now() }),
+        created_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+  } catch {
+    // الإشارة تحسين أداء — فشلها مايوقفش حفظ الفاتورة.
+  }
+}
+
+/** يجيب فاتورة واحدة بالـid من الجدول اللي فيه البيانات فعلاً. */
+export async function fetchInvoiceRowById(id: string): Promise<any | null> {
+  if (!id) return null;
+  try {
+    const { data } = await supabase.from('orders').select('*').eq('id', id).limit(1);
+    if (data && data[0]) return data[0];
+  } catch {
+    // جرّب الجدول التاني
+  }
+  try {
+    const { data } = await supabase.from('invoices').select('*').eq('id', id).limit(1);
+    if (data && data[0]) return data[0];
+  } catch {
+    // مفيش
+  }
+  return null;
+}
+
 export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success: boolean; error?: string }> {
   try {
     const payload = {
@@ -2213,11 +2292,21 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
      *      ما نخسرش بيانات لو جدول invoices رجع يوم.
      *   3. orders بأقل أعمدة — للشيمات اللي مالهاش الأعمدة الحديثة دي.
      */
-    const { error: invErr } = await supabase.from('invoices').upsert(payload);
-    if (!invErr) return { success: true };
+    let invErr: any = null;
+    if (!invoicesTableBlocked) {
+      ({ error: invErr } = await supabase.from('invoices').upsert(payload));
+      if (!invErr) {
+        await publishInvoiceSignal([invoice.id], invoice);
+        return { success: true };
+      }
+      noteInvoicesTableError(invErr);
+    }
 
     const { error: ordFullErr } = await supabase.from('orders').upsert(payload);
-    if (!ordFullErr) return { success: true };
+    if (!ordFullErr) {
+      await publishInvoiceSignal([invoice.id], invoice);
+      return { success: true };
+    }
 
     // 3. orders بأقل الأعمدة (fallback لشيم قديم مالهاش الأعمدة الحديثة).
     const minimalPayload = {
@@ -2236,7 +2325,10 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
     };
 
     const { error: ordMinErr } = await supabase.from('orders').upsert(minimalPayload);
-    if (!ordMinErr) return { success: true };
+    if (!ordMinErr) {
+      await publishInvoiceSignal([invoice.id], invoice);
+      return { success: true };
+    }
 
     console.warn('Supabase Invoice Save Notice:', invErr?.message || ordFullErr?.message || ordMinErr?.message);
     return { success: false, error: invErr?.message || ordFullErr?.message || ordMinErr?.message };
@@ -2297,16 +2389,24 @@ export async function saveInvoicesToSupabase(
       // invoices الأول بالـpayload الكامل. على السيرفر الحالي ده بيفشل بـ42501
       // (RLS مربوط بـauth.uid() والمفتاح publishable)، بس بنحاوله عادي: لو
       // الجدول رجع يوم، ده بيبقى المسار الغني صح.
-      const { error: invErr } = await supabase.from('invoices').upsert(payload, { onConflict: 'id' });
-      if (!invErr) {
-        savedCount += chunk.length;
-      } else {
+      let invErr: any = null;
+      if (!invoicesTableBlocked) {
+        ({ error: invErr } = await supabase.from('invoices').upsert(payload, { onConflict: 'id' }));
+        if (!invErr) {
+          savedCount += chunk.length;
+          await publishInvoiceSignal(chunk.map((inv) => inv.id), chunk[0]);
+          continue;
+        }
+        noteInvoicesTableError(invErr);
+      }
+      {
         // Fallback: نفس الـpayload الكامل على orders مش الحقول المصغّرة.
         // الحقول المصغّرة كانت بتضيّع QR والنواقص والفاتورة الأم لو الجدول
         // الغني ميت — يعني البيانات بتتسجل ناقصة من غير ما حد ياخد باله.
         const { error: ordFullErr } = await supabase.from('orders').upsert(payload, { onConflict: 'id' });
         if (!ordFullErr) {
           savedCount += chunk.length;
+          await publishInvoiceSignal(chunk.map((inv) => inv.id), chunk[0]);
           continue;
         }
         // آخر محاولة: أقل الأعمدة، للشيم اللي مالهاش الأعمدة الحديثة.
@@ -2328,7 +2428,7 @@ export async function saveInvoicesToSupabase(
         if (!ordErr) {
           savedCount += chunk.length;
         } else {
-          console.warn('Batch invoice save notice:', invErr.message || ordFullErr.message || ordErr.message);
+          console.warn('Batch invoice save notice:', invErr?.message || ordFullErr?.message || ordErr?.message);
         }
       }
     }
