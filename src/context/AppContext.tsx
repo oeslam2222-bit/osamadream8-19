@@ -65,6 +65,8 @@ import {
   deleteForecastFromSupabase,
   fetchUsersFromSupabase,
   findUserInSupabase,
+  fetchPromotionsFromSupabase,
+  savePromotionsToSupabase,
   sanitizeEmail,
   sanitizeIdentifier,
   saveCustomersToSupabase,
@@ -85,6 +87,13 @@ import {
   isSupabaseConfigured,
   USER_SYNC_STORE_ID,
 } from '../services/supabaseService';
+import {
+  applyPromotionsToProducts,
+  getSavedPromotions,
+  filterPromotionsForUser,
+  resolveProductPromotion,
+  savePromotions,
+} from '../services/promotionService';
 import { currentMonthKey } from '../services/forecastService';
 import { sendOrderToMicrosoft365 } from '../services/microsoftSyncService';
 import { sendInvoiceToPowerAutomate } from '../services/powerAutomateService';
@@ -99,6 +108,7 @@ import { fetchDetailedCustomersFromGoogleSheet } from '../services/customerAnaly
 import { fetchAndParseGoogleSheet } from '../services/excelService';
 import { saveSingleSourceUrl, getPublishedDataSources, getSavedSourceUrl, isGoogleSheetsReadMode } from '../services/dataSourceService';
 import {
+  clearLocalDataVersion,
   fetchRemoteDataVersion,
   getLocalDataVersion,
   saveLocalDataVersion,
@@ -125,6 +135,8 @@ import {
   Invoice,
   OrderStatus,
   Product,
+  PromoAnnouncement,
+  PromotionOffer,
   ReturnedItem,
   ReturnRecord,
   TargetRecord,
@@ -286,6 +298,52 @@ const USERS_SYNC_TTL_MS = 12 * 60 * 60 * 1000;
  * المستخدم لازم يشوف البيانات على طول.
  */
 const BOOT_SYNC_JITTER_MAX_MS = 90 * 1000;
+const ANNOUNCEMENTS_STORAGE_KEY = 'tantawy_announcements_v1';
+
+/**
+ * استخراج جذور اسم الفرع بدون كلمة «فرع» وبمعالجة الهمزات والتاء المربوطة
+ * حتى تنجح مطابقة `ILIKE` في PostgreSQL للمناديب مهما اختلف تنسيق الاسم في الشيت.
+ */
+function extractBranchStems(branchName?: string): string[] {
+  const resolved = resolveBranchName(branchName) || branchName || '';
+  const clean = resolved
+    .replace(/فرع/g, ' ')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const stems = new Set<string>();
+  if (clean.length >= 3) stems.add(clean);
+  const normalized = normalizeArabicText(clean);
+  if (normalized.length >= 3) stems.add(normalized);
+  const withoutAl = clean.replace(/^ال/g, '').trim();
+  if (withoutAl.length >= 3) stems.add(withoutAl);
+  clean.split(/\s+/).forEach((word) => {
+    const bare = word.replace(/^ال/, '').trim();
+    const bareNorm = normalizeArabicText(bare);
+    if (bare.length >= 4) stems.add(bare);
+    if (bareNorm.length >= 4) stems.add(bareNorm);
+  });
+  if (normalized.includes('قاهر') || normalized.includes('15')) stems.add('قاهر');
+  if (normalized.includes('اكتوبر') || normalized.includes('كتوبر') || normalized.includes('رئيس')) stems.add('كتوبر');
+  if (normalized.includes('فيوم')) stems.add('فيوم');
+  if (normalized.includes('منوف')) stems.add('منوف');
+  if (normalized.includes('ديمشلت')) stems.add('ديمشلت');
+  if (normalized.includes('بحير')) stems.add('بحير');
+  if (normalized.includes('قمح')) stems.add('قمح');
+  if (normalized.includes('منيا') && !normalized.includes('قمح')) stems.add('منيا');
+  return Array.from(stems).filter((s) => s.length >= 3).slice(0, 4);
+}
+
+function expandRepNameVariants(names: string[]): string[] {
+  const result = new Set<string>();
+  names.forEach((raw) => {
+    const trimmed = String(raw || '').trim();
+    if (trimmed.length >= 3) result.add(trimmed);
+    const norm = normalizeArabicText(trimmed);
+    if (norm.length >= 3) result.add(norm);
+  });
+  return Array.from(result);
+}
 
 /**
  * بصمة الفواتير محفوظة لكل نطاق قراءة على حدة (مندوب/مشرف/مدير فرع/أدمن)
@@ -706,6 +764,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  const [dataEpoch, setDataEpoch] = useState(0);
+
   const [customerComments, setCustomerComments] = useState<CustomerCommentRecord[]>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.CUSTOMER_COMMENTS);
@@ -799,13 +859,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     const cleanName = (value?: string) =>
       (value || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+    const resolvedBranch = resolveBranchName(currentUser.branchName) || currentUser.branchName || '';
     const branchNames = Array.from(
-      new Set([currentUser.branchName].filter((b): b is string => Boolean(b && b.trim())))
+      new Set([currentUser.branchName, resolvedBranch].filter((b): b is string => Boolean(b && b.trim())))
     );
     if (role === 'sales_rep') {
       const fullName = cleanName(currentUser.name);
       const shortName = fullName.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
-      const repNames = Array.from(new Set([fullName, shortName].filter((n) => n.length >= 3)));
+      const repNames = expandRepNameVariants([fullName, shortName]);
       return {
         ...(repNames.length === 0 ? { branchNames } : {}),
         repNames,
@@ -818,11 +879,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const fn = cleanName(u.name);
           const sn = fn.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
           return [fn, sn];
-        })
-        .filter((n) => n.length >= 3);
+        });
       return {
         branchNames,
-        repNames: Array.from(new Set(repNames)),
+        repNames: expandRepNameVariants(repNames),
       };
     }
     return branchNames.length > 0 ? { branchNames } : undefined;
@@ -1018,9 +1078,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Load targets from the shared database so every device and role sees the same sheet update.
   // If Google Sheets read mode is enabled, prefer published sheet URLs to save Supabase egress.
   useEffect(() => {
+    if (!currentUser) return;
     let cancelled = false;
     const isAdminLevel =
-      !currentUser ||
       currentUser.role === 'admin' ||
       currentUser.role === 'developer' ||
       currentUser.role === 'technical_support';
@@ -1057,7 +1117,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const stamp = await fetchTargetContentStamp(targetFetchScope);
       const stored = readTargetContentStamp(targetFetchScope);
-      const localCount = targets.length;
+      const localCount = targetsRef.current.length;
       const unchanged =
         stamp !== null &&
         stored !== null &&
@@ -1083,7 +1143,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     })().catch(() => {});
     return () => { cancelled = true; };
-  }, [targetFetchScope, currentUser?.role]);
+  }, [targetFetchScope, currentUser?.id, currentUser?.role, dataEpoch]);
 
   const getVisibleTargets = () => {
     const scoped = filterBySector(targets, currentUser?.sector, (record) => inferTargetSector(record, users));
@@ -1333,19 +1393,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [isLocalDataHydrated, setIsLocalDataHydrated] = useState(false);
 
-  /**
-   * عدّاد جيل الاشتراكات اللحظية.
-   *
-   * بتزيده مرة واحدة بس لما الصفحة ترجع من الـBack-Forward Cache. المتصفح
-   * بيكسر أي WebSocket مفتوح لما يدخل الـBFCache، والصفحة بتترجم حالتها
-   * وجواها الكانال لسه فاكر نفسه «متوصّل» — فبيفضل ميت من غير ما يعمل
-   * rejoin تلقائي. زيادة العدّاد بتخلّي الـeffects بتاعت الـrealtime تتشال
-   * وتتبني من جديد بقنوات سليمة.
-   *
-   * ليه state في React مش استدعاء مباشر: عشان إعادة الاشتراك متبقاش شغل
-   * جوار الـimperative، ونفس الـcleanup بتاع الـchannels بيشتغل عادي.
-   */
-  const [dataEpoch, setDataEpoch] = useState(0);
+  const justLoggedInRef = useRef<boolean>(false);
+
+  const [promotions, setPromotions] = useState<PromotionOffer[]>(() => getSavedPromotions());
+  const promotionsRef = useRef<PromotionOffer[]>(promotions);
+  useEffect(() => {
+    promotionsRef.current = promotions;
+  }, [promotions]);
+
+  const [announcements, setAnnouncements] = useState<PromoAnnouncement[]>(() => {
+    try {
+      const raw = localStorage.getItem(ANNOUNCEMENTS_STORAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+  const announcementsRef = useRef<PromoAnnouncement[]>(announcements);
+  useEffect(() => {
+    announcementsRef.current = announcements;
+  }, [announcements]);
 
   const [cart, setCart] = useState<CartItem[]>([]);
 
@@ -2244,14 +2313,17 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     // أول كلمتين بتغطي الأسماء المختصرة في الشيتات («شهاب الدين» بدل الاسم الكامل).
     const shortName = nameTokens.slice(0, 2).join(' ');
 
+    const resolvedBranch = resolveBranchName(currentUser.branchName) || currentUser.branchName || '';
     const branchNames = Array.from(
-      new Set([currentUser.branchName].filter((branch): branch is string => Boolean(branch && branch.trim())))
+      new Set([currentUser.branchName, resolvedBranch].filter((branch): branch is string => Boolean(branch && branch.trim())))
     );
+    const branchNameContains = extractBranchStems(currentUser.branchName);
 
     if (role === 'sales_rep') {
       return {
         branchNames,
-        repNames: Array.from(new Set([fullName, shortName].filter((name) => name.length >= 3))),
+        branchNameContains,
+        repNames: expandRepNameVariants([fullName, shortName]),
         repIds: Array.from(new Set([currentUser.id, currentUser.username].filter(Boolean) as string[])),
         includeUnassignedBranch: false,
         strictNoFullFallback: true,
@@ -2262,6 +2334,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     // مدير الفرع والمشرف: نطاق الفرع، وبعده الفلترة الدقيقة في الواجهة.
     return {
       branchNames,
+      branchNameContains,
       includeUnassignedBranch: true,
     };
   }, [
@@ -2305,6 +2378,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (!customerFetchScope) return { sinceDate: since.toISOString().slice(0, 10) };
       return {
         branchNames: customerFetchScope.branchNames,
+        branchNameContains: customerFetchScope.branchNameContains,
         repNames: customerFetchScope.repNames,
         repIds: customerFetchScope.repIds,
         includeUnassignedBranch: false,
@@ -2524,10 +2598,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         if (customerDownloadInFlightRef.current) {
           return { updated: false, message: 'جارٍ تحميل أحدث بيانات العملاء' };
         }
-        // لو البصمة المحفوظة مطابقة للي على السيرفر، مفيش داعي للتنزيل الكامل.
+        // لو البصمة المحفوظة مطابقة للي على السيرفر والعملاء موجودين محلياً، مفيش داعي للتنزيل الكامل.
         const stampNow = await fetchCustomerContentStamp(customerFetchScope);
         const storedStampNow = readCustomerContentStamp();
+        const hasCustomersLoaded = (customersRef.current?.length || 0) > 0 || stampNow?.count === 0;
         if (
+          hasCustomersLoaded &&
           stampNow &&
           storedStampNow &&
           stampNow.count === storedStampNow.count &&
@@ -2762,7 +2838,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
 
       if (custRes?.success) {
-        const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers || []), users);
+        const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers || []), usersRef.current);
         freshCustomers = deduplicateCustomersArray(linked);
         if (custStamp && (custStamp.count !== null || custStamp.maxUpdatedAt !== null)) {
           saveCustomerContentStamp(custStamp);
@@ -2901,7 +2977,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       // Record a fingerprint of the data we just accepted. The heartbeat compares
       // against it so an admin edit lands on every client even if the version
       // stamp did not change.
-      saveLocalCustomersFingerprint(customers);
+      saveLocalCustomersFingerprint(freshCustomers || customersRef.current);
 
       const noticeMsg = `تم تحديث البيانات تلقائياً ومسح الذاكرة المؤقتة القديمة بنجاح! (${remoteMeta.notes || 'تحديث تلقائي'})`;
       setLastVersionSyncNotice(noticeMsg);
@@ -3213,17 +3289,17 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const custScopeSig = customerFetchScope ? JSON.stringify(customerFetchScope) : 'all';
     const nowBoot = Date.now();
     const shouldRunImmediateCheck =
-      lastBootCustScopeSigRef.current !== custScopeSig ||
-      nowBoot - lastBootHeartbeatAtRef.current >= 15_000;
+      Boolean(currentUserRef.current) &&
+      (justLoggedInRef.current ||
+        lastBootCustScopeSigRef.current !== custScopeSig ||
+        nowBoot - lastBootHeartbeatAtRef.current >= 15_000);
     if (shouldRunImmediateCheck) {
       lastBootCustScopeSigRef.current = custScopeSig;
       lastBootHeartbeatAtRef.current = nowBoot;
-      // فرملة الـ thundering-herd: مندوب عنده كاش محلي بيتأخر عشوائيًا (0-90 ث)
-      // قبل أول نبضة بصمة — عشان 500 جهاز ميوصلوش للسيرفر في نفس اللحظة.
-      // الجهاز الفاضي (أول لوجين) ينطلاق فورًا، والشاشة المخفية تتخطى
-      // (الـ focus handler هيتكفل بيها بعدها).
       const bootHasLocalCache =
-        (productsRef.current?.length || 0) > 0 || (customersRef.current?.length || 0) > 0;
+        !justLoggedInRef.current &&
+        (productsRef.current?.length || 0) > 0 &&
+        (customersRef.current?.length || 0) > 0;
       const bootStampCheckDelay =
         currentUserRef.current?.role === 'sales_rep' && bootHasLocalCache
           ? Math.floor(Math.random() * BOOT_SYNC_JITTER_MAX_MS)
@@ -3231,8 +3307,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const runBootStampCheck = () => {
         if (document.visibilityState === 'hidden') return;
         checkCustomersContent();
-        // checkAndSyncDataVersion(false) is already invoked on boot by the next effect;
-        // only run `check()` here when triggered by a real scope change or subsequent epoch.
         if (dataEpoch > 0) {
           check();
         }
@@ -3256,13 +3330,29 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       realtimeCheckCustomersRef.current = null;
       realtimeCheckRef.current = null;
     };
-  }, [users, isLocalDataHydrated, dataEpoch]);
+  }, [users, isLocalDataHydrated, dataEpoch, currentUser?.id]);
 
   // Initial Supabase connection check, fetch users, products, invoices & real-time sync
   useEffect(() => {
-    // Wait for IndexedDB hydration before checking the remote version. Otherwise a
-    // late hydration can restore the stale snapshot immediately after it is purged.
-    if (!isLocalDataHydrated) return;
+    // Wait for IndexedDB hydration and an active logged-in account before syncing heavy domain data.
+    if (!isLocalDataHydrated || !currentUserRef.current) return;
+
+    const isFreshLogin = justLoggedInRef.current;
+    justLoggedInRef.current = false;
+
+    // Fetch cloud-synced Promotions & Announcements so sales reps receive live special offers
+    fetchPromotionsFromSupabase().then((promoRes) => {
+      if (promoRes.success) {
+        if (promoRes.promotions.length > 0 || promotionsRef.current.length === 0) {
+          setPromotions(promoRes.promotions);
+          savePromotions(promoRes.promotions);
+        }
+        if (promoRes.announcements.length > 0 || announcementsRef.current.length === 0) {
+          setAnnouncements(promoRes.announcements);
+          safeLocalStorageSet(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(promoRes.announcements));
+        }
+      }
+    }).catch(() => {});
 
     // 1) المستخدمون بيتغيروا نادرًا — 24 ساعة للمناديب و 12 ساعة لباقي الأدوار، ومن غير كلمات مرور للأجهزة غير الإدارية.
     const lastUsersSync = Number(localStorage.getItem(USERS_LAST_SYNC_KEY) || 0);
@@ -3278,11 +3368,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           }
           if (res.success && res.users && res.users.length > 0) {
             setUsers((prev) => {
-              // جهاز المندوب بيسحب قائمة المستخدمين من غير عمود password
-              // (مش إداري)، والاستبدال الكامل كان بيتمسح بالهاش المحفوظ
-              // محليًا — فبعد أول تحديث للمستخدمين، اللوجين أوف لاين كان
-              // بيرجع «لا توجد كلمة مرور». بنرجّع الهاش المخزّن لأي مستخدم
-              // جاء من السيرفر من غير هاش.
               const cachedHashes = new Map<string, string>();
               prev.forEach((u) => {
                 if (u.id && u.password) cachedHashes.set(u.id, u.password);
@@ -3292,12 +3377,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                   !u.password && cachedHashes.has(u.id) ? { ...u, password: cachedHashes.get(u.id) } : u
                 )
               );
-              // If duplicate IDs were detected and cleaned, delete them permanently from Supabase
               if (dedup.removedUserIds.length > 0) {
                 dedup.removedUserIds.forEach((remId) => {
                   deleteUserFromSupabase(remId).catch(() => {});
                 });
-                // Remap customer references
                 setCustomers((prevCusts) => {
                   let changed = false;
                   const updated = prevCusts.map((c) => {
@@ -3309,7 +3392,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                   });
                   return changed ? updated : prevCusts;
                 });
-                // Remap invoice references
                 setInvoices((prevInvs) => {
                   let changed = false;
                   const updated = prevInvs.map((inv) => {
@@ -3328,15 +3410,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         });
     }
 
-        // 2 & 4. Automatic Data Version Sync & Clean Fetch:
-        // Checks if server has a newer version or if client data is unversioned.
-        // If newer, cleanly purges old cache and loads fresh data without duplicates!
-        //
-        // نفس فرملة الـ thundering-herd: جهاز مندوب فيه كاش محلي بيستنى
-        // تأخير عشوائي (0-90 ث) قبل ما يلمس السيرفر، والجهاز الفاضي
-        // (أول لوجين) ينطلق فورًا عشان المستخدم يشوف البيانات على طول.
         const bootHasLocalCache =
-          (productsRef.current?.length || 0) > 0 || (customersRef.current?.length || 0) > 0;
+          !isFreshLogin &&
+          (productsRef.current?.length || 0) > 0 &&
+          (customersRef.current?.length || 0) > 0;
         const bootJitterWait: Promise<void> =
           currentUserRef.current?.role === 'sales_rep' && bootHasLocalCache
             ? new Promise<void>((resolve) => {
@@ -3350,8 +3427,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         bootJitterWait.then(() => {
         checkAndSyncDataVersion(false).then((syncRes) => {
           if (!syncRes.updated) {
-            // Fallback: If version wasn't newer, ensure products and customers are loaded from Supabase if empty
-            if (products.length === 0) {
+            if (productsRef.current.length === 0) {
               if (isGoogleSheetsReadMode()) {
                 const savedSources = getPublishedDataSources();
                 const prodKeys = ['products', 'products_electrical'] as const;
@@ -3390,10 +3466,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                 });
               }
             }
-            const hasLocalCusts = (customersRef.current?.length || 0) > 0 || customers.length > 0;
+            const hasLocalCusts = (customersRef.current?.length || 0) > 0;
             if (!hasLocalCusts) {
               idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS).then((cached) => {
-                if (cached && cached.length > 0) {
+                if (!isFreshLogin && cached && cached.length > 0) {
+                  customersRef.current = cached;
                   setCustomers(cached);
                   return;
                 }
@@ -3412,7 +3489,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                       }
                     }
                     if (allCustomers.length > 0) {
-                      const linked = linkCustomersToUsers(sanitizeCustomers(allCustomers), users);
+                      const linked = linkCustomersToUsers(sanitizeCustomers(allCustomers), usersRef.current);
                       const valid = deduplicateCustomersArray(linked);
                       setCustomers((curr) => {
                         if (curr.length > 0) return curr;
@@ -3426,7 +3503,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                 }
                 fetchCustomersFromSupabase(customerFetchScope).then(async (cRes) => {
                   if (cRes.success && cRes.customers && cRes.customers.length > 0) {
-                    const linked = linkCustomersToUsers(sanitizeCustomers(cRes.customers!), users);
+                    const linked = linkCustomersToUsers(sanitizeCustomers(cRes.customers!), usersRef.current);
                     const valid = deduplicateCustomersArray(linked);
                     const queued = await getQueuedMutations();
                     const pendingCustIds = new Set(
@@ -3546,34 +3623,28 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           const comparable =
             stamp !== null && (stamp.count !== null || stamp.maxUpdatedAt !== null);
           const stored = readVisitContentStamp();
+          const currentVisits = visitsRef.current;
           const unchanged =
             comparable &&
             stored !== null &&
             stamp!.count === stored.count &&
             stamp!.maxUpdatedAt === stored.maxUpdatedAt;
           if (unchanged) {
-            // الحالة (`visits`) ممكن تكون لسه فاضية في الريندر اللي شغّل
-            // الإيفكت ده، فبنقرأ نسخة IndexedDB قبل ما نقرر ننزّل الجدول.
             const localVisits =
-              visits.length > 0 ? visits : (await idbGet<CustomerVisit[]>(STORAGE_KEYS.VISITS)) || [];
+              currentVisits.length > 0 ? currentVisits : (await idbGet<CustomerVisit[]>(STORAGE_KEYS.VISITS)) || [];
             if (localVisits.length > 0) {
-              if (visits.length === 0) setVisits(localVisits);
+              if (currentVisits.length === 0) setVisits(localVisits);
               return;
             }
           }
 
-          /**
-           * مزامنة تدريجية: لو الزيادات بس (العدد ما نقصش) بنجيب الصفوف
-           * اللي `updated_at` بتاعها أحدث من آخر بصمة. الحذف (نقص العدد)
-           * بيرجع للتنزيل الكامل.
-           */
           const canIncremental =
             comparable &&
             !!stored?.maxUpdatedAt &&
             typeof stamp?.count === 'number' &&
             typeof stored?.count === 'number' &&
             stamp!.count! >= stored!.count! &&
-            visits.length > 0;
+            currentVisits.length > 0;
 
           if (canIncremental) {
             try {
@@ -3583,9 +3654,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
               if (inc.success) {
                 saveVisitContentStamp({ count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt });
                 const changedVisits = (inc.visits || []).filter((v) => !deletedVisitIds.has(v.id));
-                // شبكة أمان: لو إجمالي الزيارات بعد الدمج لسه أقل من عدد السيرفر
-                // يبقى فيه صفوف ما وصلتش → نكمل بالتنزيل الكامل.
-                const projectedIds = new Set(visits.map((v) => v.id));
+                const projectedIds = new Set(currentVisits.map((v) => v.id));
                 changedVisits.forEach((v) => projectedIds.add(v.id));
                 const countStillShort =
                   typeof stamp?.count === 'number' && projectedIds.size < stamp.count;
@@ -3599,7 +3668,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                       const merged = new Map<string, CustomerVisit>();
                       previous.forEach((v) => merged.set(v.id, v));
                       changedVisits.forEach((v) => merged.set(v.id, { ...v, syncStatus: 'synced' }));
-                      // أي زيارة محلية لسه في الـoutbox تفضل موجودة
                       previous.forEach((v) => {
                         if (pendingVisitIds.has(v.id) && !merged.has(v.id)) merged.set(v.id, v);
                       });
@@ -3612,7 +3680,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                 }
               }
             } catch {
-              // فشل التنزيل التدريجي → التنزيل الكامل تحت.
+              // fallback to full fetch below
             }
           }
 
@@ -3629,9 +3697,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           );
           setVisits((previous) => {
             const merged = new Map<string, CustomerVisit>();
-            // Start with remote visits as source of truth
             remoteVisits.forEach((visit) => merged.set(visit.id, { ...visit, syncStatus: 'synced' }));
-            // Add only local visits that are genuinely pending offline in outbox
             previous.forEach((visit) => {
               if (pendingVisitIds.has(visit.id) && !merged.has(visit.id) && !deletedVisitIds.has(visit.id)) {
                 merged.set(visit.id, visit);
@@ -3643,13 +3709,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           });
         };
         loadInitialVisits().catch(() => {});
-        // لو الإيفكت اتحمّل تاني (scope/epoch اتغيّر) قبل ما الـ jitter يخلص،
-        // نلغي المؤقتات عشان ما تفضلش نبضة قديمة بتنطلق بعد ما الحالة اتغيرت.
         return () => {
           bootJitterTimersRef.current.forEach((t) => window.clearTimeout(t));
           bootJitterTimersRef.current.clear();
         };
-  }, [isLocalDataHydrated, dataEpoch]);
+  }, [isLocalDataHydrated, dataEpoch, currentUser?.id]);
 
   // Consolidated single Realtime WebSocket channel (saves 50% connections + exempts sales_rep to protect Supabase Free 200-connection limit)
   useEffect(() => {
@@ -4602,6 +4666,30 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   }, []);
 
   // --- Authentication System ---
+  const clearScopedContentStamps = useCallback(() => {
+    try {
+      localStorage.removeItem(CUSTOMER_CONTENT_STAMP_KEY);
+      localStorage.removeItem(VISIT_CONTENT_STAMP_KEY);
+      localStorage.removeItem(TARGET_CONTENT_STAMP_KEY);
+      Object.keys(localStorage).forEach((key) => {
+        if (
+          key.startsWith(`${TARGET_CONTENT_STAMP_KEY}::`) ||
+          key.startsWith(INVOICE_CONTENT_STAMP_PREFIX) ||
+          key.startsWith(FORECAST_MONTH_STAMP_PREFIX)
+        ) {
+          localStorage.removeItem(key);
+        }
+      });
+    } catch {
+      /* ignore */
+    }
+    noStampPulledAtRef.current = 0;
+    customerFullFetchAtRef.current = 0;
+    lastBootCustScopeSigRef.current = '';
+    lastBootHeartbeatAtRef.current = 0;
+    customerDownloadInFlightRef.current = false;
+  }, []);
+
   const login = async (
     identifier: string,
     password?: string
@@ -4617,18 +4705,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const asciiDigits = identifier.replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()).trim();
     const cleanPass = (password || '').replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()).trim();
     const normInput = normalizeArabicText(identifier).replace(/\s+/g, '');
+    const authMode = getAuthMode();
 
-    /**
-     * Supabase Auth (اختياري، بيشتغل لو اتنفّذ migration الـ SQL).
-     *
-     * بنحاوله الأول عشان التحقق يبقى على السيرفر مش في المتصفح. لو رجّع
-     * anything غير 'success' بنكمل عادي في التحقق القديم بالظبط — يعني
-     * قبل ما حد يفعّل الحسابات على السيرفر، الـ login بيشتغل زي ما هو
-     * من غير أي تغيير. لو نجح، بنكمل باقي فحص الحساب (الموافقة، الإيقاف)
-     * بنفس القواعد القديمة بالظبط، فالأدوار مش بتتغير خالص.
-     */
     let serverAuthUserId: string | null = null;
-    if (isServerAuthEnabled()) {
+    if (authMode === 'server' && isServerAuthEnabled()) {
       const outcome = await tryServerSignIn(identifier, cleanPass);
       if (outcome.kind === 'success') {
         serverAuthUserId = outcome.authUserId;
@@ -4636,9 +4716,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           linkAuthUserToProfile(outcome.authUserId, outcome.email).catch(() => {});
         }
       }
-      // 'unavailable' و 'no-server-account' و 'wrong-credentials' كلهم
-      // بيروحوا لل(old) تحقق — فالحساب اللي لسه على الوضع القديم
-      // بيفضل يدخل عادي.
     }
 
     // 1. Search in local memory first with rich identifier matching
@@ -4654,22 +4731,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         (u.id && String(u.id).toLowerCase() === cleanId)
     );
 
-    // 2. If not found locally, query Supabase directly (essential for fresh sessions, mobile, and tablet users)
-    let supabaseLookupError: string | null = null;
+    // 2. Single-roundtrip Supabase lookup when not cached locally (handles email, username, name, normalized Arabic & phone)
     if (!found) {
       try {
-        // Try raw identifier first (username, name, email, or phone)
-        let supRes = await findUserInSupabase(rawTrim);
-        if (!supRes.success && cleanId && cleanId !== rawTrim.toLowerCase()) {
-          supRes = await findUserInSupabase(cleanId);
-        }
-        if (!supRes.success && !cleanEmail.includes('@') && cleanId) {
-          supRes = await findUserInSupabase(`${cleanId}@dream.com`);
-        }
-        if (!supRes.success && asciiDigits && asciiDigits.length >= 7) {
-          supRes = await findUserInSupabase(asciiDigits);
-        }
-
+        const supRes = await findUserInSupabase(rawTrim || cleanId || asciiDigits);
         if (supRes.success && supRes.user) {
           found = supRes.user;
           setUsers((prev) => {
@@ -4680,17 +4745,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(updated));
             return updated;
           });
-        } else if (supRes.error) {
-          supabaseLookupError = supRes.error;
         }
-      } catch (e: any) {
-        supabaseLookupError = e?.message || 'خطأ في الاتصال بقاعدة البيانات';
+      } catch (e) {
         console.warn('Direct Supabase login lookup failed:', e);
       }
     }
 
     if (!found) {
-      if (isOffline || (supabaseStatus.connected === false)) {
+      if (isOffline || supabaseStatus.connected === false) {
         return {
           success: false,
           errorType: 'connection',
@@ -4720,7 +4782,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
     }
 
-    // Verify the credential with immediate remote recovery if local password is empty
+    // Verify the credential locally first to avoid blocking every login on a remote Supabase Auth roundtrip
     let storedCredential = (found.password || '').trim();
     if (!storedCredential && found.id) {
       try {
@@ -4740,18 +4802,32 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
     }
 
+    const hasLinkedAuthUser = Boolean((found as any).authUserId || (found as any).auth_user_id);
+
     if (serverAuthUserId) {
-      // Authenticated on server already
+      // Authenticated via Supabase Auth
     } else if (storedCredential.length > 0) {
       const check = await verifyPassword(cleanPass, storedCredential);
       if (!check.valid) {
-        return {
-          success: false,
-          errorType: 'wrong_password',
-          message: `كلمة المرور غير صحيحة لحساب (${found.name}). يرجى التأكد من كتابة كلمة المرور بدقة والتأكد من لغة لوحة المفاتيح.`
-        };
-      }
-      if (check.legacy) {
+        // Fallback to Supabase Auth only if server mode is active OR this account is explicitly linked to Supabase Auth
+        let serverFallbackOk = false;
+        if ((authMode === 'server' || (authMode === 'hybrid' && hasLinkedAuthUser)) && isServerAuthEnabled()) {
+          const outcome = await tryServerSignIn(identifier, cleanPass);
+          if (outcome.kind === 'success') {
+            serverFallbackOk = true;
+            if (outcome.email) {
+              linkAuthUserToProfile(outcome.authUserId, outcome.email).catch(() => {});
+            }
+          }
+        }
+        if (!serverFallbackOk) {
+          return {
+            success: false,
+            errorType: 'wrong_password',
+            message: `كلمة المرور غير صحيحة لحساب (${found.name}). يرجى التأكد من كتابة كلمة المرور بدقة والتأكد من لغة لوحة المفاتيح.`
+          };
+        }
+      } else if (check.legacy) {
         const upgraded = await withHashedCredential(found);
         found = { ...found, password: upgraded.password };
         setUsers((prev) => prev.map((u) => (u.id === found!.id ? { ...u, password: upgraded.password } : u)));
@@ -4762,6 +4838,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         }
         saveUserToSupabase(found).catch((e) => console.warn('Password upgrade sync notice:', e));
       }
+    } else if ((authMode === 'server' || (authMode === 'hybrid' && hasLinkedAuthUser)) && isServerAuthEnabled()) {
+      const outcome = await tryServerSignIn(identifier, cleanPass);
+      if (outcome.kind !== 'success') {
+        return {
+          success: false,
+          errorType: 'no_password',
+          message: `الحساب (${found.name}) مسجل في قاعدة البيانات ولكن لا توجد كلمة مرور معينة له. يرجى مراجعة إدارة النظام لتعيين كلمة المرور قبل تسجيل الدخول.`
+        };
+      }
     } else {
       return {
         success: false,
@@ -4770,21 +4855,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
     }
 
+    justLoggedInRef.current = true;
+    clearScopedContentStamps();
+    currentUserRef.current = found;
     setCurrentUser(found);
     setIsAuthenticated(true);
     localStorage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, found.id);
-
-    recordAuditLog({
-      userId: found.id,
-      userName: found.name,
-      userRole: found.role,
-      branchName: found.branchName,
-      action: 'user_login',
-      actionTitle: `تسجيل دخول (${found.name})`,
-      details: `تم تسجيل الدخول بصلاحية (${found.role === 'admin' ? 'مدير النظام (الإدارة)' : found.role === 'branch_manager' ? 'مدير فرع' : found.role === 'supervisor' ? 'مشرف مبيعات' : found.role === 'developer' ? 'مطور تقني' : 'مندوب مبيعات'}) لـ ${found.branchName}.`,
-      badgeType: 'info',
-    });
+    safeLocalStorageSet(STORAGE_KEYS.CURRENT_USER_DATA, JSON.stringify(found));
+    setDataEpoch((n) => n + 1);
 
     return { success: true, message: `مرحباً بك ${found.name}`, user: found };
   };
@@ -4849,6 +4928,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const logout = () => {
+    currentUserRef.current = null;
     setCurrentUser(null);
     setIsAuthenticated(false);
     localStorage.removeItem(STORAGE_KEYS.IS_AUTH);
@@ -4856,14 +4936,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_DATA);
     clearCart();
 
-    // عزل الأجهزة المشتركة: كانت بيانات العرض (فواتير/عملاء/زيارات/تارجت/كتالوج)
-    // بتفضل على الجهاز بعد الخروج، والمستخدم اللي بعده بيرثها من الـ IndexedDB
-    // وسحب الفواتير الجديد كان بيدمج فوقها بدل ما يستبدلها. بنمسحها كلها.
-    // مهم ما يتمسحش:
-    //   - PENDING_INVOICES وطابور المزامنة (طلبية أوف لاين معلقة متضيعش —
-    //     بتترفع أول ما النت يرجع حتى بعد اللوجين الجديد).
-    //   - USERS (فيها هاشات كلمات المرور اللازمة للوجين أوف لاين).
-    //   - DELETED_INVOICE/VISIT_IDS (tombstones ضد رجوع عناصر اتحذفت).
     [STORAGE_KEYS.PRODUCTS, STORAGE_KEYS.INVOICES, STORAGE_KEYS.CUSTOMERS, STORAGE_KEYS.VISITS, STORAGE_KEYS.TARGETS].forEach(
       (k) => {
         try {
@@ -4877,20 +4949,16 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     idbSet(STORAGE_KEYS.INVOICES, []).catch(() => {});
     idbSet(STORAGE_KEYS.CUSTOMERS, []).catch(() => {});
     idbSet(STORAGE_KEYS.VISITS, []).catch(() => {});
-    // بصمات المحتوى العامة (مش لكل-مستخدم) لازم تتشال كمان — وإلا المستخدم
-    // الجديد ممكن يتخطى سحب مهم لأن البصمة بتاعة المستخدم القديم لسه مطابقة.
-    try { localStorage.removeItem(CUSTOMER_CONTENT_STAMP_KEY); } catch { /* تجاهل */ }
-    try { localStorage.removeItem(VISIT_CONTENT_STAMP_KEY); } catch { /* تجاهل */ }
-    try { localStorage.removeItem(TARGET_CONTENT_STAMP_KEY); } catch { /* تجاهل */ }
+    idbSet(STORAGE_KEYS.TARGETS, []).catch(() => {});
+    clearLocalDataVersion();
+    setGlobalDataVersion(null);
+    clearScopedContentStamps();
     setProducts([]);
     setInvoices([]);
     setCustomers([]);
     setVisits([]);
     setTargets([]);
 
-    // لو الجلسة كانت على Supabase Auth، اقفلها هناك كمان. لو مفيش جلسة
-    // (وضع legacy) أو فيه مشكلة شبكة، سيبتها بهدوء — حالة العميل المحلية
-    // اتقفلت فوق في كل الأحوال.
     signOutServer().catch(() => {});
   };
 
@@ -5100,22 +5168,35 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
     }
 
+    const scopedPromos = filterPromotionsForUser(promotionsRef.current, currentUserRef.current, products);
+    const promoInfo = resolveProductPromotion(latestProd, scopedPromos);
     const effectivePiecePrice = Number(latestProd.piecePrice || latestProd.salesPrice || 0);
     let calculatedCartonPrice = Number(latestProd.cartonPrice || 0);
     if (effectivePiecePrice > 0) {
       calculatedCartonPrice = Math.round(effectivePiecePrice * cartonQty * 100) / 100;
     }
 
-    const hasValidPromo = Boolean(
-      latestProd.promoPrice &&
-      Number(latestProd.promoPrice) > effectivePiecePrice &&
-      Number(latestProd.promoPrice) < calculatedCartonPrice
-    );
+    const appliedCartonPrice =
+      promoInfo.hasPromo && promoInfo.promoCartonPrice > 0
+        ? promoInfo.promoCartonPrice
+        : calculatedCartonPrice;
+    const piecePrice =
+      promoInfo.hasPromo && promoInfo.promoPiecePrice > 0
+        ? promoInfo.promoPiecePrice
+        : effectivePiecePrice > 0
+          ? effectivePiecePrice
+          : (cartonQty > 0 ? Math.round((appliedCartonPrice / cartonQty) * 100) / 100 : appliedCartonPrice);
 
-    const appliedCartonPrice = hasValidPromo ? Number(latestProd.promoPrice) : calculatedCartonPrice;
-    const piecePrice = effectivePiecePrice > 0
-      ? effectivePiecePrice
-      : (cartonQty > 0 ? Math.round((appliedCartonPrice / cartonQty) * 100) / 100 : appliedCartonPrice);
+    const enrichedProd: Product = promoInfo.hasPromo
+      ? {
+          ...latestProd,
+          promoPrice: promoInfo.promoCartonPrice,
+          promoPiecePrice: promoInfo.promoPiecePrice,
+          offerPrice: promoInfo.promoCartonPrice,
+          discountPercent: promoInfo.discountPercentage,
+          discountPercentage: promoInfo.discountPercentage,
+        }
+      : latestProd;
 
     setCart((prev) => {
       const existingInCart = prev.find((item) => item.product.id === latestProd.id);
@@ -5135,6 +5216,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           item.product.id === latestProd.id
             ? {
                 ...item,
+                product: enrichedProd,
                 cartonCount: newCartonCount,
                 pieceCount: newPieceCount,
                 totalPieces: totalUnits,
@@ -5144,8 +5226,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                 totalPrice,
                 orderType: 'carton',
                 quantityDescription: newCartonCount > 0 && newPieceCount > 0 ? `${newCartonCount} كرتونة و ${newPieceCount} قطعة` : newCartonCount > 0 ? `${newCartonCount} كرتونة` : `${newPieceCount} قطعة`,
-                // Re-evaluate the source: the same line can cross from branch
-                // stock into a deficit once more cartons are added.
                 fulfillFromMainWarehouse:
                   availableInBranch < newCartonCount + newPieceCount / cartonQty &&
                   availableInWarehouse > 0,
@@ -5159,7 +5239,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         return [
           ...prev,
           {
-            product: latestProd,
+            product: enrichedProd,
             orderType: 'carton',
             cartonCount: cartonsToAdd,
             pieceCount: piecesToAdd,
@@ -5169,10 +5249,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             pricePerPiece: piecePrice,
             totalPrice,
             quantityDescription: cartonsToAdd > 0 && piecesToAdd > 0 ? `${cartonsToAdd} كرتونة و ${piecesToAdd} قطعة` : cartonsToAdd > 0 ? `${cartonsToAdd} كرتونة` : `${piecesToAdd} قطعة`,
-            // Split by the actual shortfall. The old test only asked whether the
-            // branch was completely empty, so a rep asking for 5 cartons when
-            // the branch holds 3 was tagged as fully available at the branch and
-            // the shortage vanished from the deficit report.
             fulfillFromMainWarehouse:
               availableInBranch < totalRequiredCartonFraction && availableInWarehouse > 0,
           },
@@ -5189,11 +5265,18 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         if (item.product.id !== productId) return item;
         const merged = { ...item, ...updates };
         const cartonQty = merged.product.cartonQuantity && merged.product.cartonQuantity > 0 ? merged.product.cartonQuantity : 1;
+        const scopedPromos = filterPromotionsForUser(promotionsRef.current, currentUserRef.current, products);
+        const promoInfo = resolveProductPromotion(merged.product, scopedPromos);
         const appliedCartonPrice =
-          merged.product.promoPrice && merged.product.promoPrice > 0
-            ? merged.product.promoPrice
+          promoInfo.hasPromo && promoInfo.promoCartonPrice > 0
+            ? promoInfo.promoCartonPrice
             : merged.product.cartonPrice;
-        const piecePrice = merged.product.piecePrice && merged.product.piecePrice > 0 ? merged.product.piecePrice : (cartonQty > 0 ? Math.round((appliedCartonPrice / cartonQty) * 100) / 100 : appliedCartonPrice);
+        const piecePrice =
+          promoInfo.hasPromo && promoInfo.promoPiecePrice > 0
+            ? promoInfo.promoPiecePrice
+            : merged.product.piecePrice && merged.product.piecePrice > 0
+              ? merged.product.piecePrice
+              : (cartonQty > 0 ? Math.round((appliedCartonPrice / cartonQty) * 100) / 100 : appliedCartonPrice);
 
         let safeCartonCount = Math.max(0, merged.cartonCount ?? 0);
         let safePieceCount = Math.max(0, merged.pieceCount ?? 0);
@@ -7961,12 +8044,17 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const electricalTerms = ['كهربا', 'لمبه', 'مفتاح', 'كابل', 'سلك', 'شاسيه', 'قاطع', 'فيشه', 'لقمه', 'دوايه', 'وش', 'سبوت', 'كشاف', 'electrical', 'electric', 'cable', 'wire', 'switch', 'bulb', 'lamp', 'socket', 'plug', 'breaker', 'fuse'];
       return electricalTerms.some((term) => text.includes(normalizeArabicText(term))) ? 'electrical' : 'home';
     });
+
+    const promoEnriched = promotions.length > 0
+      ? applyPromotionsToProducts(sectorFiltered, promotions).updatedProducts
+      : sectorFiltered;
+
     if (!currentUser || currentUser.role === 'admin' || currentUser.role === 'developer') {
-      return sectorFiltered;
+      return promoEnriched;
     }
 
     const branchName = currentUser.branchName;
-    return sectorFiltered.map((product) => {
+    return promoEnriched.map((product) => {
       const branchStock = branchName ? getBranchStockForProduct(product, branchName) : (product.branchStockActual || 0);
       return {
         ...product,
@@ -7992,14 +8080,59 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     return users.filter(u => u.role === 'sales_rep' && u.supervisorId === supervisorId);
   };
 
+  const saveAndSyncPromotions = async (
+    nextPromotions: PromotionOffer[],
+    customAnnouncements?: PromoAnnouncement[]
+  ): Promise<{ success: boolean }> => {
+    promotionsRef.current = nextPromotions;
+    setPromotions(nextPromotions);
+    savePromotions(nextPromotions);
+    const activeAnnouncements = customAnnouncements ?? announcementsRef.current;
+    if (customAnnouncements) {
+      announcementsRef.current = customAnnouncements;
+      setAnnouncements(customAnnouncements);
+      safeLocalStorageSet(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(customAnnouncements));
+    }
+    if (!navigator.onLine) return { success: true };
+    try {
+      return await savePromotionsToSupabase({
+        promotions: nextPromotions,
+        announcements: activeAnnouncements,
+      });
+    } catch {
+      return { success: false };
+    }
+  };
+
+  const saveAndSyncAnnouncements = async (
+    nextAnnouncements: PromoAnnouncement[]
+  ): Promise<{ success: boolean }> => {
+    announcementsRef.current = nextAnnouncements;
+    setAnnouncements(nextAnnouncements);
+    safeLocalStorageSet(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(nextAnnouncements));
+    if (!navigator.onLine) return { success: true };
+    try {
+      return await savePromotionsToSupabase({
+        promotions: promotionsRef.current,
+        announcements: nextAnnouncements,
+      });
+    } catch {
+      return { success: false };
+    }
+  };
+
   const loginAs = (userId: string) => {
     const found = users.find((u) => u.id === userId);
     if (found) {
+      justLoggedInRef.current = true;
+      clearScopedContentStamps();
+      currentUserRef.current = found;
       setCurrentUser(found);
       setIsAuthenticated(true);
       localStorage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
       localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, found.id);
       safeLocalStorageSet(STORAGE_KEYS.CURRENT_USER_DATA, JSON.stringify(found));
+      setDataEpoch((n) => n + 1);
     }
   };
 
@@ -8319,6 +8452,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         checkAndSyncDataVersion,
         publishDataVersionUpdate,
         forcePurgeCacheAndReload,
+        promotions,
+        saveAndSyncPromotions,
+        announcements,
+        saveAndSyncAnnouncements,
       }}
     >
       {children}

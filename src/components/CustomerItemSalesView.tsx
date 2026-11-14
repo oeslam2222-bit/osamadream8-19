@@ -20,6 +20,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Trash2,
+  Upload,
   UserRound,
   Users,
   X
@@ -55,6 +56,7 @@ import {
   getSavedCustomerItemSales,
   getSupabaseCustomerItemSalesCount,
   MONTH_NAMES_MAP,
+  parseExcelCustomerItemSales,
   pushCustomerItemSalesToSupabase,
   saveCustomerItemSales,
   CustomerItemSalesFetchScope,
@@ -145,6 +147,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const [isSupabasePushing, setIsSupabasePushing] = useState(false);
   const [supabasePushProgress, setSupabasePushProgress] = useState<{ synced: number; total: number } | null>(null);
   const [isSupabaseFetching, setIsSupabaseFetching] = useState(false);
+  const [isImportingExcel, setIsImportingExcel] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
@@ -161,6 +165,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
   const initialExpandDone = useRef(false);
   const loadSalesInProgress = useRef(false);
+  const excelFileInputRef = useRef<HTMLInputElement>(null);
 
   const loadSalesData = async (options?: { forceRemote?: boolean }) => {
     // منع تكرار التحميل بسبب حدث الحفظ (save event) الذي يُطلق عند المزامنة/الجلب من Supabase
@@ -307,11 +312,56 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   };
 
   const handleClearSales = () => {
-    if (window.confirm('هل أنت متأكد من رغبتك في مسح كافة سجلات مبيعات الأصناف نهائياً؟')) {
-      clearCustomerItemSales();
-      setSalesRecords([]);
-      setSyncSuccessMsg('تم مسح وتصفير كافة سجلات مبيعات الأصناف بنجاح.');
-      setSyncErrorMsg(null);
+    setShowClearConfirm(true);
+  };
+
+  const executeClearSales = async () => {
+    await clearCustomerItemSales();
+    setSalesRecords([]);
+    setShowClearConfirm(false);
+    setSyncSuccessMsg('تم مسح وتصفير كافة سجلات مبيعات الأصناف بنجاح.');
+    setSyncErrorMsg(null);
+  };
+
+  const handleExcelFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsImportingExcel(true);
+    setSyncErrorMsg(null);
+    setSyncSuccessMsg(null);
+    try {
+      const parsed = await parseExcelCustomerItemSales(file);
+      if (parsed.errors.length > 0 && parsed.sales.length === 0) {
+        setSyncErrorMsg(parsed.errors[0]);
+        return;
+      }
+      const enriched =
+        customers.length > 0
+          ? enrichCustomerItemSalesWithDirectory(parsed.sales, customers).enriched
+          : parsed.sales;
+      await saveCustomerItemSales(enriched, 'merge');
+      const allSaved = await getSavedCustomerItemSales();
+      setSalesRecords(allSaved);
+
+      const importedMonths = Array.from(new Set(enriched.map((r) => Number(r.month)).filter((m) => m >= 1 && m <= 12))).sort((a, b) => a - b);
+      if (importedMonths.length === 1) {
+        setSelectedMonth(importedMonths[0]);
+      }
+
+      const monthText = importedMonths.length > 0 ? importedMonths.map((m) => MONTH_NAMES_MAP[m] || m).join('، ') : 'غير محدد';
+      setSyncSuccessMsg(`تم استيراد ${enriched.length.toLocaleString('ar-EG')} سجل من شيت مبيعات الأصناف (${monthText}) ودمجها مع السجل الشهري.`);
+
+      // مزامنة الدفعة المرفوعة مع قاعدة البيانات السحابية بالخلفية عند الإمكان
+      pushCustomerItemSalesToSupabase(enriched)
+        .then((res) => {
+          if (res.success) setSupabaseCount((prev) => Math.max(prev ?? 0, res.syncedCount));
+        })
+        .catch(() => {});
+    } catch (err: any) {
+      setSyncErrorMsg(`تعذر قراءة شيت مبيعات الأصناف: ${err?.message || 'خطأ غير معروف'}`);
+    } finally {
+      setIsImportingExcel(false);
+      if (excelFileInputRef.current) excelFileInputRef.current.value = '';
     }
   };
 
@@ -432,6 +482,18 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         : baseSales.filter((record) => Number(record.month) === selectedMonth),
     [baseSales, selectedMonth]
   );
+
+  const monthBreakdown = useMemo(() => {
+    const map = new Map<number, { month: number; name: string; count: number; amount: number }>();
+    baseSales.forEach((record) => {
+      const m = Number(record.month) || 1;
+      const cur = map.get(m) || { month: m, name: MONTH_NAMES_MAP[m] || `شهر ${m}`, count: 0, amount: 0 };
+      cur.count += 1;
+      cur.amount += Number(record.amount || 0);
+      map.set(m, cur);
+    });
+    return Array.from(map.values()).sort((a, b) => a.month - b.month);
+  }, [baseSales]);
 
   const computedDiagnostics = useMemo(() => {
     const numericValuesCount = salesRecords.filter(
@@ -670,29 +732,71 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
   return (
     <div className="space-y-4 pb-20" dir="rtl">
+      <input
+        ref={excelFileInputRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        onChange={handleExcelFileImport}
+        className="hidden"
+        id="cis-monthly-excel-input"
+      />
+
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-white rounded-2xl w-full max-w-md p-5 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-black text-slate-900 text-base">مسح سجلات مبيعات الأصناف</h3>
+                <p className="text-xs font-medium text-slate-600 mt-1 leading-relaxed">
+                  هل أنت متأكد من مسح كافة سجلات مبيعات الأصناف المخزنة محلياً؟
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={executeClearSales}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
+              >
+                تأكيد المسح
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Page header */}
       <section className="bg-white rounded-3xl border border-slate-200 shadow-[0_4px_18px_rgba(15,43,56,0.05)] p-5 sm:p-6">
         <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
           <div className="space-y-2 min-w-0">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] text-[var(--app-warn-text)] rounded-xl text-[11px] font-black">
               <Sparkles className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
-              لوحة تحليل مبيعات الأصناف الحقيقية
+              تحليل مبيعات الأصناف الفعلية شهر بشهر (من قاعدة البيانات/الشيت المستقلة عن أوامر البيع)
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
               <BarChart3 className="w-6 h-6 text-[#c99a43]" />
-              تحليل مبيعات الأصناف
+              تحليل مبيعات الأصناف (شهر بشهر)
             </h1>
             <p className="text-[11px] sm:text-xs text-slate-500 max-w-3xl leading-relaxed">
-              لوحة تحليل صنفية شاملة: المبيعات والكميات، توزيع الفئات، أعلى وأقل الأصناف حركة، أداء المناديب،
-              وتحليل شهري للعملاء. كل المبالغ تُحسب من عمود <strong>Amount</strong> كما هو، والتجميع/الفئات من
-              عمود <strong>التعريفات</strong> — وكل الأرقام محسوبة من حركات البيع الفعلية وبنفس نطاق صلاحيات المستخدم.
+              لوحة تحليل مبيعات الأصناف الفعلية المنفصلة كلياً عن أوامر البيع قيد التنفيذ — تُحمَّل وتُحلَّل <strong>شهر بشهر</strong> من شيت وقاعدة بيانات مبيعات الأصناف
+              (<strong>Amount</strong> و<strong>التعريفات</strong>) بنفس نطاق صلاحيات الفرع والمندوب والقطاع لتفادي ثقل البيانات الضخمة.
             </p>
 
             <div className="pt-1 flex items-center gap-2 flex-wrap text-[10px]">
               {salesRecords.length > 0 && (
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--app-warn-tint)] rounded-lg text-[var(--app-warn-text)] font-bold border border-[var(--app-warn-line)]">
                   <CheckCircle2 className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
-                  {salesRecords.length.toLocaleString('ar-EG')} حركة بيع معتمدة
+                  {salesRecords.length.toLocaleString('ar-EG')} حركة بيع منفذة
                 </span>
               )}
               {supabaseCount !== null && supabaseCount > 0 && (
@@ -717,10 +821,23 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap shrink-0">
+            {['admin', 'developer', 'branch_manager', 'technical_support'].includes(currentUser?.role || '') && (
+              <label
+                htmlFor="cis-monthly-excel-input"
+                className={`inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl bg-[#059669] hover:bg-[#047857] text-white font-black text-[11px] shadow-xs transition cursor-pointer whitespace-nowrap shrink-0 ${
+                  isImportingExcel ? 'opacity-60 pointer-events-none' : ''
+                }`}
+                title="رفع شيت مبيعات الأصناف لدمجه مع التحليل الشهري"
+              >
+                <Upload className={`w-4 h-4 ${isImportingExcel ? 'animate-bounce' : ''}`} />
+                <span>{isImportingExcel ? 'جاري استيراد الشيت...' : 'رفع شيت مبيعات الشهر (Excel)'}</span>
+              </label>
+            )}
+
             <button
               type="button"
-              onClick={() => loadSalesData()}
-              title="تحديث البيانات من الذاكرة وقاعدة البيانات"
+              onClick={() => loadSalesData({ forceRemote: true })}
+              title="تحديث البيانات وجلب السجل من قاعدة البيانات"
               className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition cursor-pointer"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isLoading ? 'animate-spin' : ''}`} />
@@ -982,8 +1099,18 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             تم مسح البيانات التجريبية نهائياً. يتم قراءة وتحليل بيانات المبيعات الحقيقية فور رفع الملفات المعتمدة، أو جلبها مباشرة من السحابة إذا كانت مرفوعة مسبقاً.
           </p>
 
-          {supabaseCount !== null && supabaseCount > 0 && (
-            <div className="mt-5">
+          <div className="mt-5 flex items-center justify-center gap-3 flex-wrap">
+            {['admin', 'developer', 'branch_manager', 'technical_support'].includes(currentUser?.role || '') && (
+              <label
+                htmlFor="cis-monthly-excel-input"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#059669] hover:bg-[#047857] text-white font-black text-xs shadow-md transition cursor-pointer"
+              >
+                <Upload className="w-4 h-4" />
+                <span>رفع شيت مبيعات الشهر (Excel)</span>
+              </label>
+            )}
+
+            {supabaseCount !== null && supabaseCount > 0 && (
               <button
                 type="button"
                 onClick={handleFetchFromSupabase}
@@ -997,8 +1124,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                     : `جلب (${supabaseCount.toLocaleString('ar-EG')}) حركة محفوظة في Supabase السحابي`}
                 </span>
               </button>
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="mt-8 pt-6 border-t border-slate-100 max-w-2xl mx-auto text-right">
             <h4 className="text-[11px] font-black text-slate-700 mb-2">الأعمدة المدعومة في الملف (Excel / Google Sheet):</h4>
@@ -1018,6 +1145,51 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         </section>
       ) : (
         <>
+          {/* Month-by-Month Strip */}
+          {monthBreakdown.length > 0 && (
+            <section className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-3.5 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-black text-[#0F2B38]">تحليل شهر بشهر (اختر الشهر لاستعراض مبيعاته)</span>
+                <span className="text-[10.5px] font-bold text-slate-500">
+                  {monthBreakdown.length} شهر متاح في قاعدة البيانات
+                </span>
+              </div>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectedMonth('all')}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black border transition cursor-pointer whitespace-nowrap shrink-0 ${
+                    selectedMonth === 'all'
+                      ? 'bg-[#0F2B38] text-white border-[#0F2B38] shadow-xs'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  كل الشهور ({baseSales.length.toLocaleString('en-US')})
+                </button>
+                {monthBreakdown.map((mb) => {
+                  const active = selectedMonth === mb.month;
+                  return (
+                    <button
+                      key={mb.month}
+                      type="button"
+                      onClick={() => setSelectedMonth(mb.month)}
+                      className={`px-3 py-1.5 rounded-xl border text-right transition cursor-pointer whitespace-nowrap shrink-0 ${
+                        active
+                          ? 'bg-[#2563EB] text-white border-[#2563EB] shadow-xs'
+                          : 'bg-slate-50 text-slate-800 border-slate-200 hover:bg-blue-50/70'
+                      }`}
+                    >
+                      <div className="text-[11px] font-black">{mb.name}</div>
+                      <div className={`text-[10px] font-mono tabular-nums ${active ? 'text-blue-100' : 'text-slate-500'}`}>
+                        {formatCurrency(mb.amount)}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* Filters */}
           <section className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-3.5 sm:p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">

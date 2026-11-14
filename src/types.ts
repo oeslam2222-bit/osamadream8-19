@@ -165,22 +165,44 @@ export interface ParentProduct {
 export interface PromotionOffer {
   id: string;
   title: string;
-  productCode: string;               // كود الصنف
+  productCode: string;               // كود الصنف (Item number)
   unifiedCode?: string;              // الكود الموحد (#)
-  productName: string;               // اسم المنتج
+  productName: string;               // اسم المنتج (Product name)
+  salesPriority?: string;            // أولوية البيع
+  supplyPlan?: string;               // خطة التوريد
+  itemStatus?: string;               // حالة الصنف
+  factor?: number;                   // شدة الكرتونة (Factor)
+  size?: string;                     // المقاس / الحجم (Size)
+  color?: string;                    // اللون (Color)
+  itemGroup?: string;                // مجموعة الصنف (Item group)
+  familyName?: string;               // العائلة (Family Name)
   category?: string;                 // التصنيف
   discountPercentage: number;        // نسبة الخصم %
-  promoPrice?: number;               // سعر العرض للكرتونة
+  promoPrice?: number;               // سعر العرض للكرتونة (سعر العرض)
   promoPiecePrice?: number;          // سعر العرض للقطعة
-  originalPrice?: number;            // السعر الأصلي للكرتونة
+  originalPrice?: number;            // السعر الأصلي للكرتونة (سعر اللستة)
   startDate?: string;                // تاريخ البداية
   endDate?: string;                  // تاريخ النهاية
   branchName?: string;               // الفرع المشمول أو 'كل الفروع'
+  branchStocks?: Record<string, number>; // توفر العرض بكل فرع (متاح اكتوبر، الفيوم، ديمشلت، منوف، منيا القمح، القاهرة، البحيرة، المنيا)
+  eligibleBranches?: string[];       // أسماء الفروع المتاح بها العرض
+  repName?: string;                  // المندوب المخصص أو 'كل المناديب'
+  repId?: string;                    // معرّف المندوب المخصص إن وجد
   sector?: SectorType;               // القطاع (منزلي / كهربائي)
   status: 'نشط' | 'منتهي' | 'مجدول';
   notes?: string;                    // تفاصيل وشروط العرض
   createdAt?: string;
   sourceSheet?: string;              // اسم الشيت المستورد منه
+}
+
+export interface PromoAnnouncement {
+  id: string;
+  title: string;
+  content: string;
+  author: string;
+  role: string;
+  date: string;
+  priority: 'عاجل' | 'هام' | 'عادي';
 }
 
 export type CustomerTier = 'مميز' | 'راقي' | 'متوسط' | 'عادي';

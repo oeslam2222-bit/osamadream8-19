@@ -204,13 +204,13 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const navItems = [
     { id: 'home', label: 'الرئيسية', icon: Home, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper', 'legal_advisor'] },
-    { id: 'product_sales', label: 'مبيعات الصناف', icon: ShoppingBag, roles: ['admin', 'developer', 'branch_manager', 'supervisor'] },
+    { id: 'product_sales', label: 'مبيعات الأصناف', icon: ShoppingBag, roles: ['admin', 'developer', 'branch_manager', 'supervisor'] },
     { id: 'invoices', label: 'أوامر البيع والاعتمادات', icon: Receipt, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], badge: pendingOrdersCount },
     { id: 'catalog', label: 'الكتالوج', icon: Boxes, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'customers', label: 'العملاء', icon: Users, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'reps', label: 'المناديب', icon: UserCheck, roles: ['admin', 'branch_manager', 'supervisor', 'developer'] },
     { id: 'collection', label: 'تحصيل', icon: Wallet, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
-    { id: 'returns', label: 'المرتجعات', icon: RotateCcw, roles: ['warehouse_keeper'] },
+    { id: 'returns', label: 'المرتجعات', icon: RotateCcw, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
     { id: 'legal_advisor', label: 'المستشار القانوني', icon: ShieldCheck, roles: ['legal_advisor'] },
     { id: 'offers', label: 'العروض', icon: Percent, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], promo: true },
     { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },

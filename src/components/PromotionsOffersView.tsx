@@ -1,19 +1,19 @@
 import React, { useMemo, useState, useRef } from 'react';
 import {
   AlertCircle,
+  ArrowLeft,
   ArrowRight,
   Boxes,
-  Calendar,
   CheckCircle2,
+  Download,
   Edit2,
   FileSpreadsheet,
-  Filter,
   Flame,
-  Layers,
   Percent,
+  Plus,
   RefreshCw,
   Search,
-  Sparkles,
+  ShoppingCart,
   Tag,
   Trash2,
   Upload,
@@ -21,23 +21,47 @@ import {
   Zap,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { Product, PromotionOffer } from '../types';
+import { PromotionOffer } from '../types';
 import {
-  getSavedPromotions,
-  savePromotions,
   parsePromotionsFromExcelBuffer,
   applyPromotionsToProducts,
+  filterPromotionsForUser,
+  doesOfferApplyToBranch,
+  doesOfferApplyToRep,
+  inferOfferSector,
+  exportPromotionsToExcel,
+  OFFER_BRANCH_STOCK_COLUMNS,
 } from '../services/promotionService';
 import { formatCurrency } from '../services/invoiceService';
 import { cleanProductCode } from '../services/excelService';
 import { ProductImage } from './ProductImage';
 
-export const PromotionsOffersView: React.FC = () => {
-  const { products, updateProduct, cloudinaryConfig, currentUser, branches } = useApp();
+interface PromotionsOffersViewProps {
+  onOpenProductInCatalog?: (productCode: string) => void;
+}
 
-  const [promotions, setPromotions] = useState<PromotionOffer[]>(() => getSavedPromotions());
+export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
+  onOpenProductInCatalog,
+}) => {
+  const {
+    products,
+    cloudinaryConfig,
+    currentUser,
+    users,
+    branches,
+    promotions,
+    saveAndSyncPromotions,
+    announcements,
+    saveAndSyncAnnouncements,
+  } = useApp();
+
+  const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+  const canManageOffers = ['admin', 'developer', 'branch_manager'].includes(currentUser?.role || '');
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('الكل');
+  const [selectedSectorFilter, setSelectedSectorFilter] = useState<'all' | 'home' | 'electrical'>('all');
+  const [selectedRepFilter, setSelectedRepFilter] = useState('الكل');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'expired'>('all');
 
   // Modal/Page States
@@ -45,6 +69,13 @@ export const PromotionsOffersView: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPromo, setEditingPromo] = useState<PromotionOffer | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    kind: 'clear_all' | 'delete_one';
+    id?: string;
+    title: string;
+    description: string;
+  } | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [activeOffersTab, setActiveOffersTab] = useState<'promotions' | 'announcements'>('promotions');
   const [googleSheetUrl, setGoogleSheetUrl] = useState('');
@@ -56,41 +87,6 @@ export const PromotionsOffersView: React.FC = () => {
     title: '',
     content: '',
     priority: 'عاجل' as 'عاجل' | 'هام' | 'عادي'
-  });
-
-  const [announcements, setAnnouncements] = useState<Array<{
-    id: string;
-    title: string;
-    content: string;
-    author: string;
-    role: string;
-    date: string;
-    priority: 'عاجل' | 'هام' | 'عادي';
-  }>>(() => {
-    try {
-      const saved = localStorage.getItem('tantawy_announcements_v1');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return [
-      {
-        id: 'ann-1',
-        title: '📢 تعميم هام: عروض الأسبوع وتطبيق الخصومات الفورية',
-        content: 'تم تفعيل خصومات وعروض ترويجية تصل إلى 20% على أصناف البسكويت والويفر، يرجى من جميع المناديب تطبيق العروض لعملائهم لتحقيق التارجت.',
-        author: 'الإدارة العامة',
-        role: 'admin',
-        date: new Date().toISOString().slice(0, 10),
-        priority: 'عاجل'
-      },
-      {
-        id: 'ann-2',
-        title: '📦 تنبيه: مسحوبات ونواقص مخزن 6 أكتوبر المركزي',
-        content: 'أصناف العجز المطلوبة في الفواتير أصبحت متاحة للسحب المباشر من صفحة المخزون وتوريدها للفرع بضغطة زر واحدة.',
-        author: 'إدارة المخازن واللوجستيات',
-        role: 'branch_manager',
-        date: new Date().toISOString().slice(0, 10),
-        priority: 'هام'
-      }
-    ];
   });
 
   // File input ref
@@ -108,30 +104,56 @@ export const PromotionsOffersView: React.FC = () => {
     startDate: new Date().toISOString().slice(0, 10),
     endDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
     branchName: 'كل الفروع',
+    sector: undefined,
+    repName: '',
+    salesPriority: '',
+    supplyPlan: '',
+    itemStatus: '',
+    factor: undefined,
+    size: '',
+    color: '',
+    itemGroup: '',
+    familyName: '',
     status: 'نشط',
     notes: '',
   });
 
   const showToast = (msg: string) => {
+    setErrorToast(null);
     setSuccessToast(msg);
     setTimeout(() => setSuccessToast(null), 4500);
   };
 
-  // Filtered promotions list
-  // عزل القطاع: المندوب الكهربا يشوف عروض قطاعه بس (وكل صف بلا قطاع =
-  // للجميع حسب سياسة الأمان الافتراضية، نفسها في الكتالوج). المشرف والإدارة
-  // لهم sector 'both'/'all' فبيطلعوا الكل.
-  const sectorAllowsOffer = (offerSector?: string): boolean => {
-    const me = (currentUser?.sector || '').toLowerCase();
-    const s = (offerSector || '').toLowerCase();
-    if (!me || me === 'all' || me === 'both') return true;
-    if (!s || s === 'all') return true;
-    return s === me;
+  const showError = (msg: string) => {
+    setSuccessToast(null);
+    setErrorToast(msg);
+    setTimeout(() => setErrorToast(null), 5000);
   };
 
+  // نطاق العروض المسموح للمستخدم حسب القطاع والفرع والمندوب
+  const scopedPromotions = useMemo(
+    () => filterPromotionsForUser(promotions, currentUser, products),
+    [promotions, currentUser, products]
+  );
+
+  const repFilterOptions = useMemo(() => {
+    const set = new Set<string>();
+    scopedPromotions.forEach((p) => {
+      if (p.repName && p.repName.trim() && p.repName !== 'كل المناديب') set.add(p.repName.trim());
+    });
+    users
+      .filter((u) => u.role === 'sales_rep' && u.name)
+      .forEach((u) => set.add(u.name.trim()));
+    return ['الكل', ...Array.from(set).sort()];
+  }, [scopedPromotions, users]);
+
+  const branchFilterOptions = useMemo(() => {
+    const set = new Set<string>(['متاح اكتوبر', ...branches.map((b) => b.name), ...OFFER_BRANCH_STOCK_COLUMNS.filter((b) => b !== 'متاح اكتوبر')]);
+    return ['الكل', ...Array.from(set).filter(Boolean)];
+  }, [branches]);
+
   const filteredPromotions = useMemo(() => {
-    const sectorFiltered = promotions.filter((p) => sectorAllowsOffer(p.sector));
-    return sectorFiltered.filter((p) => {
+    return scopedPromotions.filter((p) => {
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase().trim();
         const codeMatch = p.productCode.toLowerCase().includes(q);
@@ -139,11 +161,23 @@ export const PromotionsOffersView: React.FC = () => {
         const nameMatch = p.productName.toLowerCase().includes(q);
         const titleMatch = p.title.toLowerCase().includes(q);
         const branchMatch = p.branchName?.toLowerCase().includes(q);
-        if (!codeMatch && !unifiedMatch && !nameMatch && !titleMatch && !branchMatch) return false;
+        const groupMatch = p.itemGroup?.toLowerCase().includes(q) || p.familyName?.toLowerCase().includes(q);
+        const repMatch = p.repName?.toLowerCase().includes(q);
+        if (!codeMatch && !unifiedMatch && !nameMatch && !titleMatch && !branchMatch && !groupMatch && !repMatch) return false;
       }
 
-      if (selectedBranchFilter !== 'الكل' && p.branchName !== 'كل الفروع' && p.branchName !== selectedBranchFilter) {
+      if (selectedSectorFilter !== 'all') {
+        const inferred = inferOfferSector(p, products);
+        if (inferred && inferred !== selectedSectorFilter) return false;
+      }
+
+      if (selectedBranchFilter !== 'الكل' && !doesOfferApplyToBranch(p, selectedBranchFilter)) {
         return false;
+      }
+
+      if (selectedRepFilter !== 'الكل') {
+        const targetRep = users.find((u) => u.name === selectedRepFilter) || { name: selectedRepFilter };
+        if (!doesOfferApplyToRep(p, targetRep)) return false;
       }
 
       if (statusFilter === 'active' && p.status !== 'نشط') return false;
@@ -151,7 +185,7 @@ export const PromotionsOffersView: React.FC = () => {
 
       return true;
     });
-  }, [promotions, searchTerm, selectedBranchFilter, statusFilter, currentUser, sectorAllowsOffer]);
+  }, [scopedPromotions, searchTerm, selectedSectorFilter, selectedBranchFilter, selectedRepFilter, statusFilter, products, users]);
 
   // Statistics (بناءً على القائمة المتقيدة بالقطاع والفلترات الحالية)
   const stats = useMemo(() => {
@@ -190,21 +224,13 @@ export const PromotionsOffersView: React.FC = () => {
         }
       });
 
-      setPromotions(updatedList);
-      savePromotions(updatedList);
+      const { updatedCount } = applyPromotionsToProducts(products, updatedList);
+      await saveAndSyncPromotions(updatedList);
 
-      // Automatically apply discounts to products in memory and AppContext
-      const { updatedProducts, updatedCount } = applyPromotionsToProducts(products, updatedList);
-      updatedProducts.forEach((p) => {
-        if (p.promoPrice || p.offerPrice) {
-          updateProduct(p);
-        }
-      });
-
-      showToast(`تم استيراد ${result.matchedCount} عرض بنجاح، وتطبيق الخصومات الترويجية على ${updatedCount} صنف في الكتالوج ونظام الفواتير! 🎉`);
+      showToast(`تم استيراد ومزامنة ${result.matchedCount} عرض بنجاح، وتطبيق الخصم الخاص على ${updatedCount} صنف في الكتالوج والفواتير!`);
       setShowUploadPage(false);
     } catch (err: any) {
-      alert(`خطأ أثناء قراءة شيت العروض: ${err?.message || ''}`);
+      showError(`خطأ أثناء قراءة شيت العروض: ${err?.message || ''}`);
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -214,7 +240,7 @@ export const PromotionsOffersView: React.FC = () => {
   // Handle Google Sheet URL Fetch
   const handleFetchGoogleSheet = async () => {
     if (!googleSheetUrl.trim()) {
-      alert('يرجى إدخال رابط شيت جوجل (Google Sheets URL)');
+      showError('يرجى إدخال رابط شيت جوجل (Google Sheets URL)');
       return;
     }
     setIsFetchingSheet(true);
@@ -243,25 +269,20 @@ export const PromotionsOffersView: React.FC = () => {
         }
       });
 
-      setPromotions(updatedList);
-      savePromotions(updatedList);
-      const { updatedProducts, updatedCount } = applyPromotionsToProducts(products, updatedList);
-      updatedProducts.forEach((p) => {
-        if (p.promoPrice || p.offerPrice) {
-          updateProduct(p);
-        }
-      });
-      showToast(`تم بنجاح جلب ${result.matchedCount} عرض من شيت جوجل وتطبيق الخصم على ${updatedCount} صنف في الكتالوج والفواتير! ⚡`);
+      const { updatedCount } = applyPromotionsToProducts(products, updatedList);
+      await saveAndSyncPromotions(updatedList);
+
+      showToast(`تم جلب ومزامنة ${result.matchedCount} عرض وتطبيق الخصم الخاص على ${updatedCount} صنف في الكتالوج والفواتير!`);
       setShowUploadPage(false);
       setGoogleSheetUrl('');
     } catch (err: any) {
-      alert(`خطأ أثناء جلب شيت جوجل: ${err?.message || ''}`);
+      showError(`خطأ أثناء جلب شيت جوجل: ${err?.message || ''}`);
     } finally {
       setIsFetchingSheet(false);
     }
   };
 
-  const handleSaveAnnouncement = (e: React.FormEvent) => {
+  const handleSaveAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!announcementForm.title.trim() || !announcementForm.content.trim()) return;
     const newAnn = {
@@ -274,25 +295,23 @@ export const PromotionsOffersView: React.FC = () => {
       date: new Date().toISOString().slice(0, 10),
     };
     const next = [newAnn, ...announcements];
-    setAnnouncements(next);
-    try { localStorage.setItem('tantawy_announcements_v1', JSON.stringify(next)); } catch {}
+    await saveAndSyncAnnouncements(next);
     setShowAddAnnouncementModal(false);
     setAnnouncementForm({ title: '', content: '', priority: 'عاجل' });
-    showToast('تم نشر التعميم والإشعار الإداري لجميع مناديب وفروع الشركة بنجاح 📢');
+    showToast('تم نشر ومزامنة التعميم الإداري لجميع المناديب والفروع بنجاح.');
   };
 
-  const handleDeleteAnnouncement = (id: string) => {
+  const handleDeleteAnnouncement = async (id: string) => {
     const next = announcements.filter((a) => a.id !== id);
-    setAnnouncements(next);
-    try { localStorage.setItem('tantawy_announcements_v1', JSON.stringify(next)); } catch {}
+    await saveAndSyncAnnouncements(next);
     showToast('تم حذف التعميم الإداري.');
   };
 
   // Handle Save Manual Offer
-  const handleSaveOffer = (e: React.FormEvent) => {
+  const handleSaveOffer = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title || (!formData.productCode && !formData.productName)) {
-      alert('يرجى كتابة عنوان العرض وكود الصنف أو اسمه.');
+      showError('يرجى كتابة عنوان العرض وكود الصنف أو اسمه.');
       return;
     }
 
@@ -302,9 +321,13 @@ export const PromotionsOffersView: React.FC = () => {
              p.name.trim().toLowerCase() === (formData.productName || '').trim().toLowerCase()
     );
 
-    const originalPrice = matchedProduct?.cartonPrice || formData.originalPrice || 200;
-    const discount = Number(formData.discountPercentage) || 0;
-    const promoPrice = formData.promoPrice || (discount > 0 ? Number((originalPrice * (1 - discount / 100)).toFixed(2)) : originalPrice);
+    const originalPrice = formData.originalPrice || matchedProduct?.cartonPrice || 200;
+    const promoPriceInput = Number(formData.promoPrice) || 0;
+    let discount = Number(formData.discountPercentage) || 0;
+    if (promoPriceInput > 0 && originalPrice > 0 && discount <= 0 && promoPriceInput < originalPrice) {
+      discount = Number((((originalPrice - promoPriceInput) / originalPrice) * 100).toFixed(1));
+    }
+    const promoPrice = promoPriceInput > 0 ? promoPriceInput : (discount > 0 ? Number((originalPrice * (1 - discount / 100)).toFixed(2)) : originalPrice);
 
     const newOffer: PromotionOffer = {
       id: editingPromo ? editingPromo.id : `promo-manual-${Date.now()}`,
@@ -312,13 +335,25 @@ export const PromotionsOffersView: React.FC = () => {
       productCode: formData.productCode || matchedProduct?.code || '---',
       unifiedCode: formData.unifiedCode || matchedProduct?.unifiedCode?.replace(/^#/, '') || undefined,
       productName: formData.productName || matchedProduct?.name || 'صنف غير محدد',
-      category: matchedProduct?.category || formData.category,
+      salesPriority: formData.salesPriority || undefined,
+      supplyPlan: formData.supplyPlan || undefined,
+      itemStatus: formData.itemStatus || undefined,
+      factor: formData.factor ? Number(formData.factor) : matchedProduct?.factor || matchedProduct?.cartonQuantity,
+      size: formData.size || undefined,
+      color: formData.color || undefined,
+      itemGroup: formData.itemGroup || undefined,
+      familyName: formData.familyName || undefined,
+      category: formData.itemGroup || matchedProduct?.category || formData.category,
+      sector: formData.sector || (matchedProduct?.sector === 'home' || matchedProduct?.sector === 'electrical' ? matchedProduct.sector : undefined),
       discountPercentage: discount,
       originalPrice,
       promoPrice,
       startDate: formData.startDate,
       endDate: formData.endDate,
       branchName: formData.branchName || 'كل الفروع',
+      branchStocks: editingPromo?.branchStocks,
+      eligibleBranches: formData.branchName && formData.branchName !== 'كل الفروع' ? [formData.branchName] : undefined,
+      repName: formData.repName && formData.repName !== 'كل المناديب' ? formData.repName : undefined,
       status: (formData.status as any) || 'نشط',
       notes: formData.notes,
       createdAt: editingPromo ? editingPromo.createdAt : new Date().toISOString(),
@@ -327,57 +362,48 @@ export const PromotionsOffersView: React.FC = () => {
     let updatedList: PromotionOffer[];
     if (editingPromo) {
       updatedList = promotions.map((p) => (p.id === editingPromo.id ? newOffer : p));
-      showToast('تم تعديل العرض الترويجي بنجاح ✅');
     } else {
       updatedList = [newOffer, ...promotions];
-      showToast('تمت إضافة العرض الترويجي الجديد بنجاح 🎉');
     }
 
-    setPromotions(updatedList);
-    savePromotions(updatedList);
-
-    // Apply to product if matched
-    if (matchedProduct) {
-      updateProduct({
-        ...matchedProduct,
-        promoPrice,
-        discountPercent: discount,
-        discountPercentage: discount,
-        status: 'عرض ترويجي',
-      });
-    }
+    await saveAndSyncPromotions(updatedList);
+    showToast(editingPromo ? 'تم تعديل العرض الترويجي ومزامنته بنجاح.' : 'تمت إضافة العرض الترويجي وتطبيق الخصم الخاص بنجاح.');
 
     setIsEditModalOpen(false);
     setEditingPromo(null);
   };
 
-  // Clear all offers
-  const handleClearAllOffers = () => {
-    if (!window.confirm('هل أنت متأكد من مسح كافة العروض والخصومات المعتمدة وإرجاع أسعار الأصناف لحالتها الطبيعية؟')) return;
-    setPromotions([]);
-    savePromotions([]);
-    const { updatedProducts, revertedCount } = applyPromotionsToProducts(products, []);
-    const changed = updatedProducts.filter((p, i) => {
-      const orig = products[i];
-      return orig && (orig.promoPrice !== p.promoPrice || orig.status !== p.status || orig.offerPrice !== p.offerPrice);
+  // Clear all offers (React confirmation modal instead of window.confirm)
+  const requestClearAllOffers = () => {
+    setConfirmAction({
+      kind: 'clear_all',
+      title: 'مسح كافة العروض الترويجية',
+      description: 'هل أنت متأكد من مسح كافة العروض والخصومات المعتمدة وإرجاع أسعار الأصناف لحالتها الطبيعية على جميع الأجهزة؟',
     });
-    changed.forEach((p) => updateProduct(p));
-    showToast(`تم مسح كافة العروض بنجاح وإرجاع أسعار ${revertedCount} صنف لوضعها الطبيعي ✅`);
   };
 
-  // Delete offer
-  const handleDeleteOffer = (id: string) => {
-    if (!window.confirm('هل أنت متأكد من حذف هذا العرض الترويجي وإلغاء الخصم عن الصنف؟')) return;
-    const updated = promotions.filter((p) => p.id !== id);
-    setPromotions(updated);
-    savePromotions(updated);
-    const { updatedProducts } = applyPromotionsToProducts(products, updated);
-    const changed = updatedProducts.filter((p, i) => {
-      const orig = products[i];
-      return orig && (orig.promoPrice !== p.promoPrice || orig.status !== p.status || orig.offerPrice !== p.offerPrice);
+  // Delete single offer (React confirmation modal instead of window.confirm)
+  const requestDeleteOffer = (id: string) => {
+    setConfirmAction({
+      kind: 'delete_one',
+      id,
+      title: 'حذف العرض الترويجي',
+      description: 'هل أنت متأكد من حذف هذا العرض الترويجي وإلغاء الخصم الخاص عن الصنف؟',
     });
-    changed.forEach((p) => updateProduct(p));
-    showToast('تم حذف العرض الترويجي بنجاح وإرجاع سعر الصنف لوضعه الطبيعي.');
+  };
+
+  const executeConfirmAction = async () => {
+    if (!confirmAction) return;
+    if (confirmAction.kind === 'clear_all') {
+      const { revertedCount } = applyPromotionsToProducts(products, []);
+      await saveAndSyncPromotions([]);
+      showToast(`تم مسح كافة العروض ومزامنتها وإرجاع أسعار ${revertedCount} صنف لوضعها الطبيعي.`);
+    } else if (confirmAction.kind === 'delete_one' && confirmAction.id) {
+      const updated = promotions.filter((p) => p.id !== confirmAction.id);
+      await saveAndSyncPromotions(updated);
+      showToast('تم حذف العرض الترويجي ومزامنته بنجاح.');
+    }
+    setConfirmAction(null);
   };
 
   if (showUploadPage) {
@@ -416,7 +442,7 @@ export const PromotionsOffersView: React.FC = () => {
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"><FileSpreadsheet className="w-4 h-4" /></span>
               رفع ملف Excel / CSV
             </h3>
-            <p className="text-[11px] font-bold text-[var(--tg-muted)] mb-4">الأعمدة الموصى بها: كود الصنف، الكود الموحد (#)، نسبة الخصم، سعر العرض.</p>
+            <p className="text-[11px] font-bold text-[var(--tg-muted)] mb-4">الأعمدة المدعومة: Item number, Product name, اولوية البيع, خطة التوريد, حالة الصنف, Factor, Size, Color, Item group, Family Name, سعر اللستة, سعر العرض, متاح اكتوبر, الفيوم, ديمشلت, منوف, منيا القمح, القاهرة, البحيرة, المنيا, القطاع (+ المندوب إن وجد).</p>
 
             <div className="border-2 border-dashed border-emerald-200 bg-emerald-50/40 rounded-2xl p-6 text-center space-y-3">
               <Upload className="w-10 h-10 text-emerald-600 mx-auto" />
@@ -472,12 +498,12 @@ export const PromotionsOffersView: React.FC = () => {
         <div className="tg-card p-4 sm:p-5 border border-[var(--tg-line)]">
           <h3 className="tg-card__title flex items-center gap-2 text-[#0b2337] mb-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><Tag className="w-4 h-4" /></span>
-            ملاحظات الربط التلقائي
+            ملاحظات الربط التلقائي وتوجيه العروض حسب الفرع والمندوب والقطاع
           </h3>
           <ul className="text-sm font-medium text-slate-700 space-y-1.5 list-disc pr-5 leading-6">
-            <li>يتم مطابقة الأصناف عبر <strong>كود الصنف</strong> أو <strong>الكود الموحد (#)</strong> أو <strong>اسم المنتج</strong>.</li>
-            <li>يدعم الأعمدة: <strong>سعر العرض</strong> / <strong>سعر الكرتونة بالعرض</strong> أو <strong>نسبة الخصم %</strong>.</li>
-            <li>بعد الاستيراد تُطبَّق الخصومات على الأصناف المطابقة وتُحفظ العروض تلقائياً.</li>
+            <li>يتم مطابقة الأصناف عبر <strong>Item number / كود الصنف</strong> أو <strong>الكود الموحد (#)</strong> أو <strong>Product name</strong>.</li>
+            <li>يُحسب الخصم تلقائياً من <strong>سعر اللستة</strong> و<strong>سعر العرض</strong> (أو نسبة الخصم إن وُجدت).</li>
+            <li>يُخصَّص ظهور العرض وتطبيقه تلقائياً حسب <strong>القطاع</strong> وأعمدة الإتاحة للفروع (<strong>متاح اكتوبر، الفيوم، ديمشلت، منوف، منيا القمح، القاهرة، البحيرة، المنيا</strong>) واسم <strong>المندوب</strong>.</li>
           </ul>
         </div>
       </div>
@@ -485,16 +511,60 @@ export const PromotionsOffersView: React.FC = () => {
   }
 
   return (
-    <div className="tg-dash space-y-4 pb-16">
-      {/* Toast (توحيد مع tg-toast) */}
+    <div className="tg-dash space-y-4 pb-16" dir="rtl">
+      {/* Toasts */}
       {successToast && (
         <div className="tg-toast">
           <div className="tg-toast-item tg-toast--ok">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
             <span>{successToast}</span>
-            <button onClick={() => setSuccessToast(null)} className="ml-auto text-white/80 hover:text-white" aria-label="إغلاق">
+            <button type="button" onClick={() => setSuccessToast(null)} className="ml-auto text-white/80 hover:text-white" aria-label="إغلاق">
               <X className="w-3 h-3" />
             </button>
+          </div>
+        </div>
+      )}
+      {errorToast && (
+        <div className="tg-toast">
+          <div className="tg-toast-item tg-toast--err">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{errorToast}</span>
+            <button type="button" onClick={() => setErrorToast(null)} className="ml-auto text-white/80 hover:text-white" aria-label="إغلاق">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* React Confirmation Dialog */}
+      {confirmAction && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-white rounded-2xl w-full max-w-md p-5 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-black text-slate-900 text-base">{confirmAction.title}</h3>
+                <p className="text-xs font-medium text-slate-600 mt-1 leading-relaxed">{confirmAction.description}</p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setConfirmAction(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={executeConfirmAction}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
+              >
+                تأكيد التنفيذ
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -504,46 +574,98 @@ export const PromotionsOffersView: React.FC = () => {
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
           <div>
             <div className="text-[11px] font-bold text-[#a9c8e4] mb-1 tracking-wider uppercase">
-              رئيسية <span className="mx-1 text-[#7fc0ff]">›</span> العروض والخصومات
+              رئيسية <span className="mx-1 text-[#7fc0ff]">›</span> عروض دريم طنطاوي والخصومات
             </div>
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 shadow-xs border border-white/20">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-200 flex items-center justify-center shrink-0 shadow-xs border border-amber-300/30">
                 <Flame className="w-5 h-5" />
               </div>
               <div>
                 <h1 className="text-xl sm:text-2xl font-black text-white flex items-center gap-2 flex-wrap">
-                  مركز العروض الترويجية
-                  <span className="inline-flex items-center rounded-full bg-amber-400/20 border border-amber-300/30 px-2.5 py-0.5 text-[11px] font-black text-amber-100">
+                  عروض دريم طنطاوي
+                  <span className="tg-special-discount-badge">
+                    <Tag className="w-3 h-3" />
+                    خصم خاص
+                  </span>
+                  <span className="inline-flex items-center rounded-full bg-white/15 border border-white/25 px-2.5 py-0.5 text-[11px] font-black text-blue-100">
                     {stats.active} عرض نشط
                   </span>
                 </h1>
-                <p className="text-xs text-[#c3d9ec] mt-0.5">إدارة العروض من شيتات Excel/Google Sheets ومتابعة الخصومات المطبّقة على الأصناف.</p>
+                <p className="text-xs text-[#c3d9ec] mt-0.5">عروض مرتبطة مباشرة بكود المنتج — الخصم الخاص يطبق تلقائياً في الكتالوج وأمر البيع.</p>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap shrink-0">
-            {['admin', 'developer', 'branch_manager'].includes(currentUser?.role || '') && promotions.length > 0 && (
+            {filteredPromotions.length > 0 && (
               <button
                 type="button"
-                onClick={handleClearAllOffers}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black px-3.5 py-2.5 text-xs shadow-sm transition cursor-pointer"
+                onClick={() => exportPromotionsToExcel(filteredPromotions)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-white/15 hover:bg-white/25 border border-white/25 text-white font-black px-3.5 py-2.5 text-xs shadow-sm transition cursor-pointer whitespace-nowrap shrink-0"
+                title="تصدير كشف العروض بصيغة Excel بنفس الفلاتر"
+              >
+                <Download className="w-4 h-4" />
+                <span>تصدير Excel</span>
+              </button>
+            )}
+            {canManageOffers && promotions.length > 0 && (
+              <button
+                type="button"
+                onClick={requestClearAllOffers}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black px-3.5 py-2.5 text-xs shadow-sm transition cursor-pointer whitespace-nowrap shrink-0"
                 title="مسح كافة العروض وإلغاء الخصومات عن كافة الأصناف"
               >
                 <Trash2 className="w-4 h-4" />
                 <span>مسح كافة العروض</span>
               </button>
             )}
-            {['admin', 'developer', 'branch_manager'].includes(currentUser?.role || '') && (
-              <button
-                type="button"
-                onClick={() => setShowUploadPage(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-[#0D9488] hover:bg-[#0F766E] text-white font-black px-3.5 py-2.5 text-xs shadow-sm transition cursor-pointer"
-                title="فتح صفحة رفع شيت العروض"
-              >
-                <Upload className="w-4 h-4" />
-                <span>رفع شيت العروض</span>
-              </button>
+            {canManageOffers && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingPromo(null);
+                    setFormData({
+                      title: '',
+                      productCode: '',
+                      unifiedCode: '',
+                      productName: '',
+                      discountPercentage: 10,
+                      promoPrice: undefined,
+                      originalPrice: undefined,
+                      startDate: new Date().toISOString().slice(0, 10),
+                      endDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+                      branchName: currentUser?.role === 'branch_manager' ? (currentUser.branchName || 'كل الفروع') : 'كل الفروع',
+                      sector: undefined,
+                      repName: '',
+                      salesPriority: '',
+                      supplyPlan: '',
+                      itemStatus: '',
+                      factor: undefined,
+                      size: '',
+                      color: '',
+                      itemGroup: '',
+                      familyName: '',
+                      status: 'نشط',
+                      notes: '',
+                    });
+                    setIsEditModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#2563EB] hover:bg-[#1E3A8A] text-white font-black px-3.5 py-2.5 text-xs shadow-sm transition cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>إضافة عرض بالكود</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowUploadPage(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-[#059669] hover:bg-[#047857] text-white font-black px-3.5 py-2.5 text-xs shadow-sm transition cursor-pointer whitespace-nowrap shrink-0"
+                  title="فتح صفحة رفع شيت العروض"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>رفع شيت العروض</span>
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -555,7 +677,7 @@ export const PromotionsOffersView: React.FC = () => {
           <div className="tg-kpi__top"><span className="tg-kpi__icon"><Flame size={20} /></span></div>
           <span className="tg-kpi__value tabular-nums">{stats.active.toLocaleString('en-US')}</span>
           <span className="tg-kpi__label">العروض النشطة</span>
-          <span className="tg-kpi__hint">سارية حالياً</span>
+          <span className="tg-kpi__hint">المخصصة لنطاقك</span>
         </div>
         <div className="tg-kpi tg-kpi--red">
           <div className="tg-kpi__top"><span className="tg-kpi__icon"><Percent size={20} /></span></div>
@@ -573,24 +695,24 @@ export const PromotionsOffersView: React.FC = () => {
           <div className="tg-kpi__top"><span className="tg-kpi__icon"><Zap size={20} /></span></div>
           <span className="tg-kpi__value" style={{ fontSize: 22 }}>مفعّل</span>
           <span className="tg-kpi__label">تطبيق على الفاتورة</span>
-          <span className="tg-kpi__hint">تلقائي حسب العرض</span>
+          <span className="tg-kpi__hint">تلقائي حسب الفرع والقطاع</span>
         </div>
       </div>
 
       {/* البحث والفلاتر */}
       <div className="tg-card !flex-row !flex-wrap !items-center !justify-between !gap-3 !p-3.5">
-        <div className="relative w-full sm:max-w-md">
+        <div className="relative w-full lg:max-w-sm">
           <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="ابحث بكود الصنف، الكود الموحد (#)، أو اسم المنتج..."
+            placeholder="ابحث بكود الصنف، الاسم، العائلة، أو المندوب..."
             className="w-full bg-slate-50 border border-slate-200 rounded-xl pr-9 pl-3 py-2.5 text-sm font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
           />
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+        <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto">
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
             <button
               type="button"
@@ -612,16 +734,44 @@ export const PromotionsOffersView: React.FC = () => {
             </button>
           </div>
 
-          <select
-            value={selectedBranchFilter}
-            onChange={(e) => setSelectedBranchFilter(e.target.value)}
-            className="bg-white border border-slate-200 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 outline-none cursor-pointer focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
-          >
-            <option value="الكل">كل الفروع</option>
-            {branches.map((b) => (
-              <option key={b.id} value={b.name}>{b.name}</option>
-            ))}
-          </select>
+          {(isAdminOrDev || !currentUser?.sector || currentUser.sector === 'all' || currentUser.sector === 'both') && (
+            <select
+              value={selectedSectorFilter}
+              onChange={(e) => setSelectedSectorFilter(e.target.value as 'all' | 'home' | 'electrical')}
+              className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-slate-700 outline-none cursor-pointer focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+              aria-label="فلترة القطاع"
+            >
+              <option value="all">كل القطاعات</option>
+              <option value="home">قطاع المنزلي</option>
+              <option value="electrical">قطاع الكهربائي</option>
+            </select>
+          )}
+
+          {(isAdminOrDev || currentUser?.role === 'supervisor') && (
+            <select
+              value={selectedBranchFilter}
+              onChange={(e) => setSelectedBranchFilter(e.target.value)}
+              className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-slate-700 outline-none cursor-pointer focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+              aria-label="فلترة الفرع"
+            >
+              {branchFilterOptions.map((b) => (
+                <option key={b} value={b}>{b === 'الكل' ? 'كل الفروع' : b}</option>
+              ))}
+            </select>
+          )}
+
+          {canManageOffers && (
+            <select
+              value={selectedRepFilter}
+              onChange={(e) => setSelectedRepFilter(e.target.value)}
+              className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-slate-700 outline-none cursor-pointer focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
+              aria-label="فلترة المندوب"
+            >
+              {repFilterOptions.map((r) => (
+                <option key={r} value={r}>{r === 'الكل' ? 'كل المناديب' : r}</option>
+              ))}
+            </select>
+          )}
         </div>
       </div>
 
@@ -645,21 +795,46 @@ export const PromotionsOffersView: React.FC = () => {
                      p.name.trim().toLowerCase() === promo.productName.trim().toLowerCase()
             );
 
+            const cartonQty = promo.factor || matchedProduct?.cartonQuantity || 1;
             const cartonPrice = promo.originalPrice || matchedProduct?.cartonPrice || 200;
             const promoPrice = promo.promoPrice || (promo.discountPercentage > 0 ? Number((cartonPrice * (1 - promo.discountPercentage / 100)).toFixed(2)) : cartonPrice);
+            const promoPiecePrice = cartonQty > 1 ? Math.round((promoPrice / cartonQty) * 100) / 100 : promoPrice;
+            const offerSector = inferOfferSector(promo, products);
+            const sectorLabel = offerSector === 'electrical' ? 'كهربائي' : offerSector === 'home' ? 'منزلي' : '';
+            const jumpCode = (promo.productCode && promo.productCode !== '---')
+              ? promo.productCode
+              : (promo.unifiedCode || promo.productName || '');
 
             return (
               <div
                 key={promo.id}
-                className="tg-card relative overflow-hidden !gap-3 p-4 border border-[var(--tg-line)] hover:border-blue-300/60 hover:shadow-md transition"
+                className="tg-card relative overflow-hidden !gap-3 p-4 border border-[var(--tg-line)] hover:border-blue-400/70 hover:shadow-md transition"
               >
-                {/* Promo Badge */}
-                <div className="absolute top-0 left-0 bg-gradient-to-l from-[#0D9488] to-[#0F2B38] text-white font-black text-[11px] px-3 py-1.5 rounded-br-2xl shadow-sm flex items-center gap-1.5">
-                  <Flame className="w-3.5 h-3.5" />
-                  <span>خصم {promo.discountPercentage}%</span>
+                {/* Top Promo Ribbons */}
+                <div className="flex items-center justify-between gap-2 pb-1 flex-wrap">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="tg-special-discount-badge">
+                      <Tag className="w-3 h-3" />
+                      خصم خاص
+                    </span>
+                    {promo.salesPriority && (
+                      <span className="rounded-lg bg-amber-50 border border-amber-200 text-amber-800 px-2 py-0.5 text-[10px] font-black">
+                        أولوية: {promo.salesPriority}
+                      </span>
+                    )}
+                    {sectorLabel && (
+                      <span className="rounded-lg bg-blue-50 border border-blue-200 text-[#1E3A8A] px-2 py-0.5 text-[10px] font-black">
+                        {sectorLabel}
+                      </span>
+                    )}
+                  </div>
+                  <div className="inline-flex items-center gap-1 rounded-full bg-[#0F2B38] text-white font-black text-[11px] px-2.5 py-1 shadow-xs">
+                    <Flame className="w-3.5 h-3.5 text-amber-400" />
+                    <span>خصم {promo.discountPercentage}%</span>
+                  </div>
                 </div>
 
-                <div className="flex items-start gap-3 pt-4">
+                <div className="flex items-start gap-3">
                   {matchedProduct ? (
                     <ProductImage
                       product={matchedProduct}
@@ -670,41 +845,99 @@ export const PromotionsOffersView: React.FC = () => {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-16 h-16 rounded-xl bg-[#F1F5F9] text-[#0F2B38] border border-[#CBD5E1] flex items-center justify-center font-black shrink-0 text-xl">
-                      🎁
+                    <div className="w-16 h-16 rounded-xl bg-[#EEF4FB] text-[#1E3A8A] border border-blue-200 flex items-center justify-center font-black shrink-0">
+                      <Tag className="w-6 h-6" />
                     </div>
                   )}
 
                   <div className="min-w-0 flex-1 space-y-1">
-                    <h3 className="font-black text-[#0b2337] text-sm leading-snug line-clamp-2">
+                    <h3 className="font-black text-[#0F2B38] text-sm leading-snug line-clamp-2">
                       {promo.title}
                     </h3>
                     <div className="text-[11px] text-slate-600 font-bold truncate">
                       {promo.productName}
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="bg-slate-100 text-slate-700 font-mono text-[10px] font-black px-1.5 py-0.5 rounded-md border border-slate-200">
-                        كود: {promo.productCode}
+                      <span className="bg-slate-100 text-slate-800 font-mono text-[10px] font-black px-1.5 py-0.5 rounded-md border border-slate-200">
+                        {promo.productCode}
                       </span>
                       {promo.unifiedCode && (
-                        <span className="bg-blue-50 text-blue-800 font-mono text-[10px] font-black px-1.5 py-0.5 rounded-md border border-blue-200">
+                        <span className="bg-blue-50 text-[#1E3A8A] font-mono text-[10px] font-black px-1.5 py-0.5 rounded-md border border-blue-200">
                           #{promo.unifiedCode}
+                        </span>
+                      )}
+                      {promo.itemStatus && (
+                        <span className="bg-slate-100 text-slate-700 text-[10px] font-bold px-1.5 py-0.5 rounded-md">
+                          {promo.itemStatus}
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex items-end justify-between gap-3">
-                  <div>
-                    <div className="text-[10px] font-bold text-slate-500 line-through">السعر الأصلي: {formatCurrency(cartonPrice)}</div>
-                    <div className="text-base font-black text-[#0F766E] tabular-nums">سعر العرض: {formatCurrency(promoPrice)}</div>
+                {/* Spec Grid from Sheet */}
+                {(promo.factor || promo.size || promo.color || promo.itemGroup || promo.familyName || promo.supplyPlan) && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 rounded-xl bg-slate-50 border border-slate-200/80 p-2 text-[10.5px]">
+                    {promo.itemGroup && (
+                      <div className="truncate"><span className="text-slate-500 font-bold">المجموعة: </span><strong className="text-slate-800">{promo.itemGroup}</strong></div>
+                    )}
+                    {promo.familyName && (
+                      <div className="truncate"><span className="text-slate-500 font-bold">العائلة: </span><strong className="text-slate-800">{promo.familyName}</strong></div>
+                    )}
+                    {promo.factor ? (
+                      <div><span className="text-slate-500 font-bold">Factor: </span><strong className="font-mono text-slate-800">{promo.factor}</strong></div>
+                    ) : null}
+                    {promo.size && (
+                      <div className="truncate"><span className="text-slate-500 font-bold">المقاس: </span><strong className="text-slate-800">{promo.size}</strong></div>
+                    )}
+                    {promo.color && (
+                      <div className="truncate"><span className="text-slate-500 font-bold">اللون: </span><strong className="text-slate-800">{promo.color}</strong></div>
+                    )}
+                    {promo.supplyPlan && (
+                      <div className="truncate"><span className="text-slate-500 font-bold">التوريد: </span><strong className="text-slate-800">{promo.supplyPlan}</strong></div>
+                    )}
                   </div>
-                  <div className="text-left">
-                    <div className="text-[10px] font-bold text-slate-500">الفرع</div>
-                    <div className="text-[11px] font-black text-[#0b2337]">{promo.branchName}</div>
+                )}
+
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 flex items-end justify-between gap-3">
+                  <div>
+                    <div className="text-[10px] font-bold text-slate-500 line-through">سعر اللستة: {formatCurrency(cartonPrice)}</div>
+                    <div className="text-base font-black text-[#047857] tabular-nums">سعر العرض: {formatCurrency(promoPrice)}</div>
+                    {cartonQty > 1 && (
+                      <div className="text-[10px] font-bold text-emerald-800">سعر القطعة بالعرض: {formatCurrency(promoPiecePrice)}</div>
+                    )}
+                  </div>
+                  <div className="text-left min-w-0">
+                    <div className="text-[10px] font-bold text-slate-500">الفرع / المندوب</div>
+                    <div className="text-[11px] font-black text-[#0F2B38] truncate max-w-[140px]">{promo.branchName}</div>
+                    {promo.repName && (
+                      <div className="text-[10px] font-bold text-blue-800 truncate max-w-[140px]">مندوب: {promo.repName}</div>
+                    )}
                   </div>
                 </div>
+
+                {/* 8-Branch Stock Availability Grid */}
+                {promo.branchStocks && Object.keys(promo.branchStocks).length > 0 && (
+                  <div className="grid grid-cols-4 gap-1 text-[9.5px] bg-slate-50/90 border border-slate-200 rounded-xl p-2">
+                    {OFFER_BRANCH_STOCK_COLUMNS.map((bCol) => {
+                      const qty = promo.branchStocks?.[bCol] ?? 0;
+                      const available = qty > 0;
+                      return (
+                        <div
+                          key={bCol}
+                          className={`rounded-lg px-1.5 py-1 text-center border ${
+                            available
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-900 font-black'
+                              : 'bg-white border-slate-200/80 text-slate-400 font-semibold'
+                          }`}
+                        >
+                          <div className="truncate">{bCol.replace('متاح ', '')}</div>
+                          <div className="font-mono tabular-nums">{qty}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <div className="text-[11px] font-medium text-slate-600 space-y-1 border-t border-slate-100 pt-2">
                   <div className="flex items-center justify-between gap-2">
@@ -712,11 +945,11 @@ export const PromotionsOffersView: React.FC = () => {
                     <span>إلى: <strong className="font-mono text-slate-800">{promo.endDate}</strong></span>
                   </div>
                   {promo.notes && (
-                    <div className="text-slate-600 truncate" title={promo.notes}>💡 {promo.notes}</div>
+                    <div className="text-slate-600 truncate" title={promo.notes}>{promo.notes}</div>
                   )}
                 </div>
 
-                <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100">
                   <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black border ${
                     promo.status === 'نشط'
                       ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
@@ -725,30 +958,45 @@ export const PromotionsOffersView: React.FC = () => {
                     {promo.status === 'نشط' ? 'ساري ونشط' : 'منتهي الصلاحية'}
                   </span>
 
-                  {['admin', 'developer', 'branch_manager'].includes(currentUser?.role || '') && (
-                    <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5">
+                    {onOpenProductInCatalog && jumpCode && (
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditingPromo(promo);
-                          setFormData(promo);
-                          setIsEditModalOpen(true);
-                        }}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-blue-700 hover:border-blue-300 hover:bg-blue-50 transition cursor-pointer"
-                        title="تعديل العرض"
+                        onClick={() => onOpenProductInCatalog(jumpCode)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#2563EB] hover:bg-[#1E3A8A] text-white font-black px-2.5 py-1.5 text-[11px] transition cursor-pointer whitespace-nowrap shrink-0"
+                        title="فتح الصنف بالكتالوج وتطبيق الخصم الخاص"
                       >
-                        <Edit2 className="w-3.5 h-3.5" />
+                        <ShoppingCart className="w-3.5 h-3.5" />
+                        <span>اطلب بالكود</span>
+                        <ArrowLeft className="w-3 h-3" />
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteOffer(promo.id)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-rose-700 hover:border-rose-300 hover:bg-rose-50 transition cursor-pointer"
-                        title="حذف العرض"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
+                    )}
+
+                    {['admin', 'developer', 'branch_manager'].includes(currentUser?.role || '') && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingPromo(promo);
+                            setFormData(promo);
+                            setIsEditModalOpen(true);
+                          }}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-blue-700 hover:border-blue-300 hover:bg-blue-50 transition cursor-pointer"
+                          title="تعديل العرض"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => requestDeleteOffer(promo.id)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-rose-700 hover:border-rose-300 hover:bg-rose-50 transition cursor-pointer"
+                          title="حذف العرض"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -821,7 +1069,29 @@ export const PromotionsOffersView: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">سعر اللستة (ج.م):</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={formData.originalPrice || ''}
+                    onChange={(e) => setFormData({ ...formData, originalPrice: Number(e.target.value) || undefined })}
+                    placeholder="سعر اللستة"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">سعر العرض (ج.م):</label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={formData.promoPrice || ''}
+                    onChange={(e) => setFormData({ ...formData, promoPrice: Number(e.target.value) || undefined })}
+                    placeholder="سعر العرض"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold"
+                  />
+                </div>
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">نسبة الخصم (%):</label>
                   <input
@@ -833,15 +1103,88 @@ export const PromotionsOffersView: React.FC = () => {
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">سعر العرض للكرتونة (ج.م):</label>
+                  <label className="block font-bold text-slate-700 mb-1">القطاع:</label>
+                  <select
+                    value={formData.sector || ''}
+                    onChange={(e) => setFormData({ ...formData, sector: (e.target.value || undefined) as any })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold"
+                  >
+                    <option value="">كل القطاعات</option>
+                    <option value="home">منزلي</option>
+                    <option value="electrical">كهربائي</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">الفرع:</label>
+                  <select
+                    value={formData.branchName || 'كل الفروع'}
+                    onChange={(e) => setFormData({ ...formData, branchName: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold"
+                  >
+                    <option value="كل الفروع">كل الفروع</option>
+                    {branchFilterOptions.filter((b) => b !== 'الكل').map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">المندوب:</label>
+                  <select
+                    value={formData.repName || ''}
+                    onChange={(e) => setFormData({ ...formData, repName: e.target.value || undefined })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold"
+                  >
+                    <option value="">كل المناديب</option>
+                    {repFilterOptions.filter((r) => r !== 'الكل').map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Factor:</label>
                   <input
                     type="number"
-                    step="0.5"
-                    value={formData.promoPrice || ''}
-                    onChange={(e) => setFormData({ ...formData, promoPrice: Number(e.target.value) || undefined })}
-                    placeholder="اتركه فارغاً للحساب من النسبة"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold"
+                    value={formData.factor || ''}
+                    onChange={(e) => setFormData({ ...formData, factor: Number(e.target.value) || undefined })}
+                    placeholder="الشدة"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-900 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Size:</label>
+                  <input
+                    type="text"
+                    value={formData.size || ''}
+                    onChange={(e) => setFormData({ ...formData, size: e.target.value })}
+                    placeholder="المقاس"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-900 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Color:</label>
+                  <input
+                    type="text"
+                    value={formData.color || ''}
+                    onChange={(e) => setFormData({ ...formData, color: e.target.value })}
+                    placeholder="اللون"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-900 font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">أولوية البيع:</label>
+                  <input
+                    type="text"
+                    value={formData.salesPriority || ''}
+                    onChange={(e) => setFormData({ ...formData, salesPriority: e.target.value })}
+                    placeholder="عالية..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2 text-xs text-slate-900 font-bold"
                   />
                 </div>
               </div>

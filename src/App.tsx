@@ -34,31 +34,32 @@ import { Customer, Invoice, UserRole } from './types';
 
 export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
-    'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'reps',
-    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices',
+    'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
+    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers',
     'excel', 'users', 'guide', 'permissions'
   ],
   admin: [
-    'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'reps',
-    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices',
+    'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
+    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers',
     'excel', 'users', 'guide', 'permissions'
   ],
   branch_manager: [
-    'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'reps',
-    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices',
+    'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
+    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers',
     'users', 'guide'
   ],
   supervisor: [
-    'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'reps',
-    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices',
+    'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
+    'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers',
     'users'
   ],
   sales_rep: [
-    'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'collection'
+    'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers',
+    'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers'
   ],
   technical_support: [
-    'home', 'catalog', 'offers', 'customer_item_sales', 'all_customers', 'customers', 'reps',
-    'dashboard', 'targets', 'collection', 'visits', 'invoices',
+    'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
+    'dashboard', 'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers',
     'excel', 'users', 'guide', 'permissions'
   ],
   legal_advisor: ["home", "legal_advisor"],
@@ -115,7 +116,7 @@ const UnifiedReturnsView = lazyNamed(() => import('./components/UnifiedReturnsVi
 const PermissionManagerModal = lazyNamed(() => import('./components/PermissionManagerModal'), 'PermissionManagerModal');
 const OrderBuilderModal = lazyNamed(() => import('./components/OrderBuilderModal'), 'OrderBuilderModal');
 const PromotionsOffersView = lazyNamed(() => import('./components/PromotionsOffersView'), 'PromotionsOffersView');
-const RealProductSalesDashboard = lazyNamed(() => import('./components/RealProductSalesDashboard'), 'RealProductSalesDashboard');
+const ElectronicInvoiceModal = lazyNamed(() => import('./components/ElectronicInvoiceModal'), 'ElectronicInvoiceModal');
 
 const MainLayout: React.FC = () => {
   const { isDark } = useTheme();
@@ -131,6 +132,7 @@ const MainLayout: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>('home');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
+  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
   const [appToastMsg, setAppToastMsg] = useState<string | null>(null);
   const [customerViewMode, setCustomerViewMode] = useState<'cards' | 'analytics'>('cards');
   /** مرجع عميل يُفتح بروفايله من شاشة التحليلات (مبيعات باليوم). */
@@ -230,9 +232,10 @@ const MainLayout: React.FC = () => {
       customers: 'all_customers',
       orders: 'invoices',
       collections: 'collection',
-      reports: 'dashboard',
+      reports: currentUser?.role === 'sales_rep' ? 'targets' : 'dashboard',
       settings: 'guide',
       sync: 'excel',
+      promotions: 'offers',
     };
     const target = tabAliases[tab] || tab;
     const permitted = allowedTabs.includes(target);
@@ -244,9 +247,10 @@ const MainLayout: React.FC = () => {
       customers: 'all_customers',
       orders: 'invoices',
       collections: 'collection',
-      reports: 'dashboard',
+      reports: currentUser?.role === 'sales_rep' ? 'targets' : 'dashboard',
       settings: 'guide',
       sync: 'excel',
+      promotions: 'offers',
     };
     const target = tabAliases[tab] || tab;
     const permitted = allowedTabs.includes(target);
@@ -307,14 +311,22 @@ const MainLayout: React.FC = () => {
               selectedCustomer={orderInitialCustomer}
               onClearSelectedCustomer={() => setOrderInitialCustomer(null)}
               onNavigateToTab={(tab) => setActiveTab(tab)}
-              onNavigateToInvoices={(inv) => {
+              initialSearchQuery={globalSearchQuery}
+              searchSeq={globalSearchSeq}
+              onNavigateToInvoices={() => {
                 setActiveTab('invoices');
               }}
             />
           )}
 
           {(activeTab === 'offers' || activeTab === 'promotions') && (
-            <PromotionsOffersView />
+            <PromotionsOffersView
+              onOpenProductInCatalog={(code) => {
+                setGlobalSearchQuery(code);
+                setGlobalSearchSeq((s) => s + 1);
+                setActiveTab('catalog');
+              }}
+            />
           )}
 
           {activeTab === 'customer_item_sales' && (allowedTabs.includes('customer_item_sales') || allowedTabs.includes('catalog')) && (
@@ -366,14 +378,22 @@ const MainLayout: React.FC = () => {
           {activeTab === 'invoices' && allowedTabs.includes('invoices') && (
             <InvoicesManager
               onOpenNewOrder={() => setIsOrderModalOpen(true)}
-              onViewInvoice={() => {}}
+              onViewInvoice={(invoice) => setViewingInvoice(invoice)}
               onEditInvoice={handleEditInvoice}
               initialSearchQuery={globalSearchQuery}
               searchSeq={globalSearchSeq}
             />
           )}
 
-          {activeTab === 'product_sales' && allowedTabs.includes('product_sales') && <RealProductSalesDashboard isDark={isDark} onOpenCustomer={(customerId) => { setProfileFocusCustomerId(customerId); setActiveTab('customers'); }} />}
+          {activeTab === 'product_sales' && allowedTabs.includes('product_sales') && (
+            <CustomerItemSalesView
+              onOpenNewOrderForCustomer={(cust) => {
+                setOrderInitialCustomer(cust);
+                setActiveTab('catalog');
+              }}
+              onNavigateToExcel={() => setActiveTab('excel')}
+            />
+          )}
 
           {activeTab === 'excel' && allowedTabs.includes('excel') && (
             <ExcelImportExport onNavigateToItemSales={() => setActiveTab('customer_item_sales')} />
@@ -410,6 +430,18 @@ const MainLayout: React.FC = () => {
               // البقاء في نفس الصفحة (كتالوج / عملاء / رئيسية) مع تأكيد الحفظ المحلي والأوفلاين
               setAppToastMsg(`تم حفظ أمر البيع #${inv.invoiceNumber} محلياً بنجاح في وضع الأوفلاين! المزامنة مستمرة بالخلفية.`);
               setTimeout(() => setAppToastMsg(null), 4500);
+            }}
+          />
+        )}
+
+        {viewingInvoice && (
+          <ElectronicInvoiceModal
+            isOpen={!!viewingInvoice}
+            invoice={viewingInvoice}
+            onClose={() => setViewingInvoice(null)}
+            onEditInvoice={(inv) => {
+              setViewingInvoice(null);
+              handleEditInvoice(inv);
             }}
           />
         )}

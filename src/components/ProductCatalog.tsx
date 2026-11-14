@@ -51,6 +51,7 @@ import {
 } from '../services/cloudinaryService';
 import { formatCurrency } from '../services/invoiceService';
 import { resolveDisplayPrice, stripPlaceholderText } from '../services/productPricing';
+import { filterPromotionsForUser, resolveProductPromotion } from '../services/promotionService';
 import { cacheProductImages, getCachedImagesStats } from '../services/imageCacheService';
 import { parseExcelProducts, fetchAndParseGoogleSheet } from '../services/excelService';
 import {
@@ -78,6 +79,9 @@ interface ProductCatalogProps {
   onNavigateToInvoices?: (invoice?: any) => void;
   /** تنقل بين تابات التطبيق من كروت المؤشرات العلوية (مرتجعات / تحصيلات) */
   onNavigateToTab?: (tab: string) => void;
+  /** بحث تلقائي ممرر من صفحة العروض أو الشريط العلوي */
+  initialSearchQuery?: string;
+  searchSeq?: number;
 }
 
 export const ProductCatalog: React.FC<ProductCatalogProps> = ({
@@ -85,10 +89,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   selectedCustomer,
   onClearSelectedCustomer,
   onNavigateToTab,
+  initialSearchQuery,
+  searchSeq,
 }) => {
   const {
     products,
     getVisibleProducts,
+    promotions: rawPromotions,
     currentUser,
     branches,
     addToCart,
@@ -104,11 +111,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setActiveSectorFilter,
   } = useApp();
 
+  const promotions = useMemo(
+    () => filterPromotionsForUser(rawPromotions, currentUser, products),
+    [rawPromotions, currentUser, products]
+  );
+
   const { isDark } = useTheme();
 
   // Search & Filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState(initialSearchQuery || '');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(initialSearchQuery || '');
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -130,6 +142,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [maxPrice, setMaxPrice] = useState<string>('');
   // إخفاء الأصناف ذات الرصيد الصفري (المخزن الرئيسي ومخزن الفرع = 0) افتراضياً
   const [onlyInStock, setOnlyInStock] = useState<boolean>(true);
+  // فلتر عرض الأصناف التي عليها عروض خصم خاص فقط
+  const [onlyPromos, setOnlyPromos] = useState<boolean>(false);
   // عرض أرصدة كافة المخازن الـ 8 تفصيلياً (7 فروع + مخزن أكتوبر)
   const [showAllWarehouses, setShowAllWarehouses] = useState<boolean>(false);
   // لوحة "المزيد من الفلتر" — مطوية افتراضياً عشان الشريط يفضل زي التصميم
@@ -237,6 +251,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [cardQuantities, setCardQuantities] = useState<Record<string, number>>({});
   const [cardOrderTypes, setCardOrderTypes] = useState<Record<string, 'carton' | 'piece'>>({});
 
+  // Sync external search query triggered from PromotionsOffersView or Navbar search
+  useEffect(() => {
+    if (searchSeq && searchSeq > 0 && initialSearchQuery !== undefined) {
+      setSearchTerm(initialSearchQuery);
+      setDebouncedSearchTerm(initialSearchQuery);
+      setOnlyInStock(false);
+      setOnlyPromos(false);
+      setShowSearchSuggestions(false);
+      setCurrentPage(1);
+    }
+  }, [initialSearchQuery, searchSeq]);
+
   // Debounce search input
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -253,7 +279,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   // Reset page when search or filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, selectedDept, selectedBrand, selectedStatus, onlyInStock, sortBy, activeSectorFilter]);
+  }, [searchTerm, selectedDept, selectedBrand, selectedStatus, onlyInStock, onlyPromos, sortBy, activeSectorFilter]);
 
   // Active branch context
   const currentActiveBranch = useMemo(() => {
@@ -404,6 +430,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         if (price < min || price > max) return false;
       }
 
+      // 8. Promotions filter (خصم خاص)
+      if (onlyPromos && !resolveProductPromotion(p, promotions).hasPromo) {
+        return false;
+      }
+
       return true;
     });
 
@@ -423,9 +454,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     return result;
   }, [
     getVisibleProducts,
+    promotions,
     currentUser,
     activeSectorFilter,
     onlyInStock,
+    onlyPromos,
     debouncedSearchTerm,
     selectedDept,
     selectedBrand,
@@ -538,6 +571,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         factor: selectedProductForModal.cartonQuantity ?? selectedProductForModal.factor,
       })
     : null;
+  const modalPromoInfo = selectedProductForModal
+    ? resolveProductPromotion(selectedProductForModal, promotions)
+    : null;
 
   // Add item to cart with quantity (ذكي: لو الشدة = 1 يضاف كقطع، ولو أكبر يضاف ككرتونة)
   const handleAddToCart = (product: Product) => {
@@ -641,7 +677,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
   // عدد الفلاتر المتقدمة المفعّلة — بيظهر كشعار على زر "المزيد من الفلتر"
   const activeAdvancedCount =
-    (onlyInStock ? 0 : 1) + (isAdminOrDev && activeSectorFilter !== 'all' ? 1 : 0);
+    (onlyInStock ? 0 : 1) + (onlyPromos ? 1 : 0) + (isAdminOrDev && activeSectorFilter !== 'all' ? 1 : 0);
 
   const handleResetFilters = () => {
     setSearchTerm('');
@@ -649,6 +685,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setSelectedBrand('الكل');
     setSelectedStatus('الكل');
     setOnlyInStock(true);
+    setOnlyPromos(false);
     setSortBy('default');
     setActiveSectorFilter('all');
     saveCatalogFilters();
@@ -715,6 +752,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   const bStock = getProductBranchStock(prod);
                   const oStock = prod.mainWarehouseActual || 0;
                   const isAvailable = bStock > 0 || oStock > 0;
+                  const promoInfo = resolveProductPromotion(prod, promotions);
 
                   return (
                     <button
@@ -743,6 +781,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                           <span className="text-xs font-black text-primary group-hover:text-blue-700 transition truncate">
                             {prod.name}
                           </span>
+                          {promoInfo.hasPromo && (
+                            <span className="tg-special-discount-badge shrink-0">
+                              <Flame className="w-3 h-3" />
+                              خصم خاص -{promoInfo.discountPercentage}%
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2 mt-1 flex-wrap text-[11px]">
@@ -754,9 +798,20 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                               #{prod.unifiedCode.replace('#', '')}
                             </span>
                           )}
-                          <span className="text-light text-[10px]">
-                            {prod.cartonPrice.toLocaleString()} ج.م
-                          </span>
+                          {promoInfo.hasPromo ? (
+                            <span className="flex items-center gap-1.5 text-[10px] font-black">
+                              <span className="line-through text-slate-400">
+                                {promoInfo.originalCartonPrice.toLocaleString()} ج.م
+                              </span>
+                              <span className="text-emerald-700">
+                                {promoInfo.promoCartonPrice.toLocaleString()} ج.م
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-light text-[10px]">
+                              {prod.cartonPrice.toLocaleString()} ج.م
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -941,7 +996,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           <button
             type="button"
             onClick={() => setShowAllWarehouses((v) => !v)}
-            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap shrink-0 ${
               showAllWarehouses
                 ? 'bg-emerald-600 text-white shadow-xs'
                 : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'
@@ -950,6 +1005,21 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           >
             <Building className="w-4 h-4" />
             <span>{showAllWarehouses ? 'عرض مختصر (فرعك + أكتوبر)' : 'عرض أرصدة الـ 8 مخازن'}</span>
+          </button>
+
+          {/* زر فلترة أصناف عروض دريم طنطاوي (خصم خاص) */}
+          <button
+            type="button"
+            onClick={() => setOnlyPromos((v) => !v)}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap shrink-0 border ${
+              onlyPromos
+                ? 'bg-[#fef3c7] border-[#f59e0b] text-[#92400e] shadow-xs'
+                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-amber-50/70'
+            }`}
+            title="تصفية الأصناف المربوطة بعروض دريم طنطاوي"
+          >
+            <Flame className={`w-4 h-4 ${onlyPromos ? 'text-amber-600' : 'text-amber-500'}`} />
+            <span>عروض خصم خاص</span>
           </button>
 
           {/* المزيد من الفلتر (يفتح لوحة الفلاتر المتقدمة) */}
@@ -1332,6 +1402,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 cartonPrice: p.cartonPrice,
                 factor: p.cartonQuantity ?? p.factor,
               });
+              const promoInfo = resolveProductPromotion(p, promotions);
               const displayName = stripPlaceholderText(p.name);
               const globalIdx = (currentPage - 1) * itemsPerPage + rowIdx + 1;
               const isOutOfStock = branchStock <= 0 && octoberStock <= 0;
@@ -1372,8 +1443,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   <td className="p-3 text-right text-xs font-mono font-extrabold text-[#1e3a8a] truncate">
                     {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
                   </td>
-                  <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white truncate max-w-[240px]" title={displayName}>
-                    {displayName || `صنف ${p.code}`}
+                  <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white max-w-[260px]" title={displayName}>
+                    <div className="truncate">{displayName || `صنف ${p.code}`}</div>
+                    {promoInfo.hasPromo && (
+                      <span className="tg-special-discount-badge mt-1 inline-flex">
+                        <Flame className="w-3 h-3" />
+                        خصم خاص -{promoInfo.discountPercentage}%
+                      </span>
+                    )}
                   </td>
                   <td className="p-3 text-center">
                     <span className={`inline-block px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold shrink-0 ${
@@ -1383,7 +1460,16 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </span>
                   </td>
                   <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white">
-                    {priceInfo.piecePrice > 0 ? (
+                    {promoInfo.hasPromo && promoInfo.promoPiecePrice > 0 ? (
+                      <div>
+                        <span className="line-through text-[10px] text-slate-400 font-mono block">
+                          {formatCurrency(promoInfo.originalPiecePrice)}
+                        </span>
+                        <span className="font-black font-mono text-emerald-700">
+                          {formatCurrency(promoInfo.promoPiecePrice)}
+                        </span>
+                      </div>
+                    ) : priceInfo.piecePrice > 0 ? (
                       <span className="font-extrabold font-mono">{formatCurrency(priceInfo.piecePrice)}</span>
                     ) : (
                       <span className="text-slate-400">—</span>
@@ -1392,7 +1478,18 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </td>
                   <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white">
                     {priceInfo.factor > 1 && priceInfo.cartonPrice > 0 ? (
-                      <span className="font-extrabold font-mono">{formatCurrency(priceInfo.cartonPrice)}</span>
+                      promoInfo.hasPromo ? (
+                        <div>
+                          <span className="line-through text-[10px] text-slate-400 font-mono block">
+                            {formatCurrency(promoInfo.originalCartonPrice)}
+                          </span>
+                          <span className="font-black font-mono text-emerald-700">
+                            {formatCurrency(promoInfo.promoCartonPrice)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-extrabold font-mono">{formatCurrency(priceInfo.cartonPrice)}</span>
+                      )
                     ) : (
                       <span className="text-slate-400 text-xs font-normal">فردي</span>
                     )}
@@ -1506,6 +1603,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             cartonPrice: p.cartonPrice,
             factor: p.cartonQuantity ?? p.factor,
           });
+          const promoInfo = resolveProductPromotion(p, promotions);
+          const displayOrig = priceInfo.isSinglePiece ? promoInfo.originalPiecePrice : promoInfo.originalCartonPrice;
+          const displayPromo = priceInfo.isSinglePiece ? promoInfo.promoPiecePrice : promoInfo.promoCartonPrice;
           const displayName = stripPlaceholderText(p.name);
 
           let statusBadge = (
@@ -1534,10 +1634,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           return (
             <div
               key={p.id}
-              className="cat-card group tg-card tg-card--hover flex flex-col justify-between gap-3 p-3.5 select-none"
+              className={`cat-card group tg-card tg-card--hover flex flex-col justify-between gap-3 p-3.5 select-none ${
+                promoInfo.hasPromo ? 'ring-1 ring-amber-400/70' : ''
+              }`}
             >
               <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                   <span className="shrink-0">{statusBadge}</span>
                   {isElectrical ? (
                     <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-2 py-0.5 text-[10px] font-black text-[#1E3A8A] dark:border-[#3B82F6]/40 dark:bg-[#1E3A8A]/25 dark:text-[#93C5FD]">
@@ -1546,6 +1648,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   ) : (
                     <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap rounded-lg border border-[#99F6E4] bg-[#F0FDFA] px-2 py-0.5 text-[10px] font-black text-[#0F766E] dark:border-[#2DD4BF]/40 dark:bg-[#0D9488]/15 dark:text-[#5EEAD4]">
                       🏠 منزلي
+                    </span>
+                  )}
+                  {promoInfo.hasPromo && (
+                    <span className="tg-special-discount-badge shrink-0">
+                      <Flame className="w-3 h-3" />
+                      خصم خاص -{promoInfo.discountPercentage}%
                     </span>
                   )}
                 </div>
@@ -1597,7 +1705,19 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   {displayName || `صنف ${p.code}`}
                 </h3>
                 <div className="flex flex-wrap items-center justify-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
-                  {priceInfo.displayPrice > 0 ? (
+                  {promoInfo.hasPromo && displayPromo > 0 ? (
+                    <div className="flex flex-wrap items-center justify-center gap-1.5">
+                      {displayOrig > displayPromo && (
+                        <span className="text-[11px] font-bold line-through text-slate-400">
+                          {formatCurrency(displayOrig)}
+                        </span>
+                      )}
+                      <span className="text-sm font-black text-[#047857] dark:text-emerald-400">
+                        {formatCurrency(displayPromo)}
+                        <span className="ml-1 text-[11px] font-normal text-slate-500 dark:text-slate-400">/ {priceInfo.unitLabel}</span>
+                      </span>
+                    </div>
+                  ) : priceInfo.displayPrice > 0 ? (
                     <span className="text-sm font-black text-slate-900 dark:text-white">
                       {formatCurrency(priceInfo.displayPrice)}
                       <span className="ml-1 text-[11px] font-normal text-slate-500 dark:text-slate-400">/ {priceInfo.unitLabel}</span>
@@ -1864,15 +1984,33 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 </span>
               </div>
               <div className="p-3 bg-slate-50 rounded-xl">
-                <span className="text-[10px] text-light block font-bold">
-                  سعر {modalPricing?.unitLabel}
-                </span>
-                <span className="font-black text-blue-600 text-sm">
-                  {formatCurrency(modalPricing?.displayPrice || 0)}
-                </span>
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[10px] text-light block font-bold">
+                    سعر {modalPricing?.unitLabel}
+                  </span>
+                  {modalPromoInfo?.hasPromo && (
+                    <span className="tg-special-discount-badge">
+                      خصم خاص -{modalPromoInfo.discountPercentage}%
+                    </span>
+                  )}
+                </div>
+                {modalPromoInfo?.hasPromo ? (
+                  <div className="mt-1 flex items-center gap-2 flex-wrap">
+                    <span className="text-xs line-through text-slate-400 font-bold">
+                      {formatCurrency(modalPricing?.isSinglePiece ? modalPromoInfo.originalPiecePrice : modalPromoInfo.originalCartonPrice)}
+                    </span>
+                    <span className="font-black text-[#047857] text-sm">
+                      {formatCurrency(modalPricing?.isSinglePiece ? modalPromoInfo.promoPiecePrice : modalPromoInfo.promoCartonPrice)}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="font-black text-blue-600 text-sm">
+                    {formatCurrency(modalPricing?.displayPrice || 0)}
+                  </span>
+                )}
                 <span className="block text-[10px] text-light font-bold mt-1">
                   {modalPricing && !modalPricing.isSinglePiece
-                    ? `القطعة: ${formatCurrency(modalPricing.piecePrice)} • الشدة: ${modalPricing.factor} ق/ك`
+                    ? `القطعة: ${formatCurrency(modalPromoInfo?.hasPromo ? modalPromoInfo.promoPiecePrice : modalPricing.piecePrice)} • الشدة: ${modalPricing.factor} ق/ك`
                     : 'يُباع بالقطعة (الشدة 1)'}
                 </span>
               </div>

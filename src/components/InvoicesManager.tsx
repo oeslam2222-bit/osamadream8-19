@@ -109,6 +109,30 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
+  const [overrideConfirmInvoice, setOverrideConfirmInvoice] = useState<Invoice | null>(null);
+
+  const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+
+  const ORDER_STATUS_OPTIONS: OrderStatus[] = [
+    'مسودة',
+    'قيد مراجعة المشرف',
+    'معلقة بانتظار اعتماد الفرع',
+    'قيد المراجعة',
+    'في انتظار اعتماد الإدارة',
+    'معتمدة ومصروفة من المخزن',
+    'جاري التجهيز',
+    'قيد التوصيل',
+    'تم التسليم',
+    'إغلاق الطلبية',
+    'مرفوضة / ملغاة',
+    'مرتجع',
+  ];
+
+  const notifyError = (msg: string) => {
+    setErrorToast(msg);
+    setTimeout(() => setErrorToast(null), 5000);
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -316,7 +340,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       setSuccessToast(`تم اعتماد المشرف (1/3) بنجاح وتوجيه الطلبية لمدير الفرع.`);
       setTimeout(() => setSuccessToast(null), 4000);
     } else {
-      alert(res.message);
+      notifyError(res.message);
     }
   };
 
@@ -326,7 +350,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       setSuccessToast(`تم اعتماد مدير الفرع (2/3) بنجاح وتوجيه الطلبية للإدارة العامة.`);
       setTimeout(() => setSuccessToast(null), 4000);
     } else {
-      alert(res.message);
+      notifyError(res.message);
     }
   };
 
@@ -336,19 +360,55 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       setSuccessToast(`تم الاعتماد النهائي للإدارة (3/3) بنجاح واكتمال الفاتورة رسمياً!`);
       setTimeout(() => setSuccessToast(null), 4000);
     } else {
-      alert(res.message);
+      notifyError(res.message);
     }
   };
 
   const handleAdminOverrideApprove = (invoice: Invoice) => {
-    if (window.confirm(`هل أنت متأكد من تجاوز قرار الرفض السابق واعتماد الفاتورة #${invoice.invoiceNumber} نهائياً بقرار الإدارة العامة؟`)) {
-      const res = approveOrder(invoice.id, `تم تجاوز قرار الرفض السابق واعتماد الفاتورة نهائياً بواسطة الإدارة العامة (${currentUser?.name || 'الإدارة'}).`);
+    setOverrideConfirmInvoice(invoice);
+  };
+
+  const executeAdminOverrideApprove = () => {
+    if (!overrideConfirmInvoice) return;
+    const res = approveOrder(
+      overrideConfirmInvoice.id,
+      `تم تجاوز قرار الرفض السابق واعتماد الفاتورة نهائياً بواسطة الإدارة العامة (${currentUser?.name || 'الإدارة'}).`
+    );
+    if (res.success) {
+      setSuccessToast(`تم بنجاح تجاوز الرفض واعتماد الفاتورة #${overrideConfirmInvoice.invoiceNumber} نهائياً واكتمال أمر البيع!`);
+      setTimeout(() => setSuccessToast(null), 5000);
+    } else {
+      notifyError(res.message);
+    }
+    setOverrideConfirmInvoice(null);
+  };
+
+  const handleAdminDirectStatusChange = (invoice: Invoice, nextStatus: OrderStatus) => {
+    if (nextStatus === invoice.status) return;
+    if (nextStatus === 'معتمدة ومصروفة من المخزن' || nextStatus === 'معتمدة') {
+      const res = approveOrder(invoice.id, `تغيير الحالة إلى "${nextStatus}" بواسطة ${currentUser?.name || 'الإدارة'}`);
       if (res.success) {
-        setSuccessToast(`تم بنجاح تجاوز الرفض واعتماد الفاتورة #${invoice.invoiceNumber} نهائياً واكتمال أمر البيع!`);
-        setTimeout(() => setSuccessToast(null), 5000);
+        setSuccessToast(`تم تحديث حالة الفاتورة #${invoice.invoiceNumber} إلى "${nextStatus}" بنجاح.`);
+        setTimeout(() => setSuccessToast(null), 4000);
       } else {
-        alert(res.message);
+        notifyError(res.message);
       }
+      return;
+    }
+    if (nextStatus === 'مرفوضة / ملغاة' || nextStatus === 'ملغاة') {
+      setRejectModalInvoiceId(invoice.id);
+      return;
+    }
+    if (nextStatus === 'مرتجع') {
+      setReturnModalInvoice(invoice);
+      return;
+    }
+    const res = updateOrderStatus(invoice.id, nextStatus, `تعديل الحالة مباشرة بواسطة ${currentUser?.name || 'الإدارة'}`);
+    if (res.success) {
+      setSuccessToast(`تم تغيير حالة أمر البيع #${invoice.invoiceNumber} إلى "${nextStatus}".`);
+      setTimeout(() => setSuccessToast(null), 4000);
+    } else {
+      notifyError(res.message);
     }
   };
 
@@ -380,11 +440,13 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
     const pendingStatuses = ['قيد مراجعة المشرف', 'معلقة بانتظار اعتماد الفرع', 'قيد المراجعة', 'مسودة'];
     const res = selectedInvoice && pendingStatuses.includes(selectedInvoice.status)
       ? rejectOrder(rejectModalInvoiceId, rejectReason)
-      : updateOrderStatus(rejectModalInvoiceId, 'ملغاة', rejectReason);
+      : updateOrderStatus(rejectModalInvoiceId, 'مرفوضة / ملغاة', rejectReason);
     if (res.success) {
       setSuccessToast(res.message);
       setRejectModalInvoiceId(null);
       setTimeout(() => setSuccessToast(null), 4000);
+    } else {
+      notifyError(res.message);
     }
   };
 
@@ -397,6 +459,8 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         setSuccessToast(`تم تسجيل الفاتورة #${returnModalInvoice.invoiceNumber} كمرتجع بنجاح! تمت إعادة ${returnModalInvoice.totalCartons} كرتونة إلى رصيد المخزن، وخصم ${formatCurrency(returnModalInvoice.estimatedGrandTotal)} من حساب ومديونية العميل.`);
         setReturnModalInvoice(null);
         setTimeout(() => setSuccessToast(null), 5000);
+      } else {
+        notifyError(res.message);
       }
     } finally {
       setIsSubmittingReturn(false);
@@ -406,13 +470,24 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
   return (
     <div className="tg-dash space-y-4" dir="rtl">
 
-      {/* Success Notification Toast (الهوية الموحدة) */}
+      {/* Success / Error Notification Toasts (الهوية الموحدة) */}
       {successToast && (
         <div className="tg-toast">
           <div className="tg-toast-item tg-toast--ok">
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
             <span>{successToast}</span>
             <button onClick={() => setSuccessToast(null)} className="ml-auto text-white/80 hover:text-white">
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
+      )}
+      {errorToast && (
+        <div className="tg-toast">
+          <div className="tg-toast-item tg-toast--err">
+            <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            <span>{errorToast}</span>
+            <button onClick={() => setErrorToast(null)} className="ml-auto text-white/80 hover:text-white">
               <X className="w-3 h-3" />
             </button>
           </div>
@@ -800,9 +875,25 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           </span>
                         )}
                       </div>
-                      <span className={`tg-badge tg-badge--${style.variant}`}>
-                        {style.label || invoice.status}
-                      </span>
+                      {isAdminOrDev ? (
+                        <select
+                          value={invoice.status}
+                          onChange={(e) => handleAdminDirectStatusChange(invoice, e.target.value as OrderStatus)}
+                          aria-label={`تغيير حالة الفاتورة ${invoice.invoiceNumber}`}
+                          className="rounded-xl border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-black text-[#0F2B38] cursor-pointer focus:border-blue-500 focus:outline-none"
+                        >
+                          {ORDER_STATUS_OPTIONS.map((st) => (
+                            <option key={st} value={st}>{st}</option>
+                          ))}
+                          {!ORDER_STATUS_OPTIONS.includes(invoice.status) && (
+                            <option value={invoice.status}>{invoice.status}</option>
+                          )}
+                        </select>
+                      ) : (
+                        <span className={`tg-badge tg-badge--${style.variant}`}>
+                          {style.label || invoice.status}
+                        </span>
+                      )}
                     </div>
 
                     {/* Customer & Rep Details */}
@@ -840,11 +931,11 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                     </div>
 
                     {/* Actions Strip */}
-                    <div className="flex items-center justify-between gap-1.5 pt-3 border-t border-[var(--tg-line)]">
+                    <div className="flex items-center justify-between gap-1.5 pt-3 border-t border-[var(--tg-line)] flex-wrap">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <button
                           type="button"
-                          onClick={() => onViewInvoice(invoice)}
+                          onClick={() => onViewInvoice?.(invoice)}
                           className="h-9 px-3.5 rounded-xl bg-[#0D9488] hover:bg-[#007a70] text-white font-black text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0"
                         >
                           <Eye className="w-4 h-4 text-white shrink-0" />
@@ -872,9 +963,37 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                             <span>اعتماد</span>
                           </button>
                         )}
+
+                        {canApprove && (
+                          <button
+                            type="button"
+                            onClick={() => setRejectModalInvoiceId(invoice.id)}
+                            className="h-9 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-black text-xs flex items-center gap-1 transition cursor-pointer shrink-0"
+                          >
+                            <XCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>رفض</span>
+                          </button>
+                        )}
                       </div>
 
                       <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => exportElectronicInvoiceToExcel(invoice)}
+                          className="h-9 px-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-black text-[11px] flex items-center gap-1 transition cursor-pointer shrink-0"
+                          title="تحميل الفاتورة Excel"
+                        >
+                          <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                          <span>إكسل</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPreviewExcelInvoice(invoice)}
+                          className="w-9 h-9 rounded-xl bg-[#f1f5f9] hover:bg-[#e2e8f0] text-slate-700 border border-[var(--tg-line)] flex items-center justify-center transition cursor-pointer"
+                          title="معاينة إكسل"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </button>
                         <button
                           type="button"
                           onClick={() => downloadInvoicePDF(invoice)}
@@ -882,14 +1001,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           title="تحميل PDF"
                         >
                           <Download className="w-4 h-4 text-slate-600" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPreviewExcelInvoice(invoice)}
-                          className="w-9 h-9 rounded-xl bg-[#f1f5f9] hover:bg-[#e2e8f0] text-emerald-600 border border-[var(--tg-line)] flex items-center justify-center transition cursor-pointer"
-                          title="معاينة إكسل"
-                        >
-                          <FileSpreadsheet className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -899,20 +1010,20 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
 
             {/* Desktop Table View */}
-            <div className="hidden md:block overflow-hidden rounded-[28px] border border-[var(--tg-line)] bg-white shadow-sm">
+            <div className="hidden md:block overflow-x-auto rounded-[28px] border border-[var(--tg-line)] bg-white shadow-sm">
               <table className="tg-table w-full text-right text-xs">
-                <thead className="bg-[var(--tg-card-2)] text-[#0f172a] font-black sticky top-0 z-10">
+                <thead className="!bg-[#0F2B38] !text-white font-black sticky top-0 z-10">
                   <tr>
-                    <th className="font-black whitespace-nowrap uppercase tracking-tighter">رقم الفاتورة</th>
-                    <th className="whitespace-nowrap">العميل</th>
-                    <th className="whitespace-nowrap">المندوب</th>
-                    <th className="whitespace-nowrap">الفرع</th>
-                    <th className="whitespace-nowrap">التاريخ</th>
-                    <th className="text-center whitespace-nowrap">الكميات</th>
-                    <th className="text-left whitespace-nowrap">الإجمالي</th>
-                    <th className="text-center whitespace-nowrap">طريقة الدفع</th>
-                    <th className="text-center whitespace-nowrap">الحالة</th>
-                    <th className="text-center whitespace-nowrap">الإجراءات</th>
+                    <th className="!bg-[#0F2B38] !text-white font-black whitespace-nowrap uppercase tracking-tighter">رقم الفاتورة</th>
+                    <th className="!bg-[#0F2B38] !text-white whitespace-nowrap">العميل</th>
+                    <th className="!bg-[#0F2B38] !text-white whitespace-nowrap">المندوب</th>
+                    <th className="!bg-[#0F2B38] !text-white whitespace-nowrap">الفرع</th>
+                    <th className="!bg-[#0F2B38] !text-white whitespace-nowrap">التاريخ</th>
+                    <th className="!bg-[#0F2B38] !text-white text-center whitespace-nowrap">الكميات</th>
+                    <th className="!bg-[#0F2B38] !text-white text-left whitespace-nowrap">الإجمالي</th>
+                    <th className="!bg-[#0F2B38] !text-white text-center whitespace-nowrap">طريقة الدفع</th>
+                    <th className="!bg-[#0F2B38] !text-white text-center whitespace-nowrap">الحالة</th>
+                    <th className="!bg-[#0F2B38] !text-white text-center whitespace-nowrap">الإجراءات</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -922,6 +1033,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                       invoice.status === 'قيد مراجعة المشرف' ||
                       invoice.status === 'معلقة بانتظار اعتماد الفرع' ||
                       invoice.status === 'قيد المراجعة' ||
+                      invoice.status === 'في انتظار اعتماد الإدارة' ||
                       invoice.status === 'مسودة';
 
                     const isOwnerRep = currentUser?.role === 'sales_rep' && (invoice.repId === currentUser.id || invoice.repName === currentUser.name);
@@ -979,17 +1091,33 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           <span className="text-xs font-bold text-slate-500">{invoice.paymentMethod}</span>
                         </td>
                         <td className="text-center">
-                          <span className={`tg-badge tg-badge--${style.variant}`}>
-                            {style.label || invoice.status}
-                          </span>
+                          {isAdminOrDev ? (
+                            <select
+                              value={invoice.status}
+                              onChange={(e) => handleAdminDirectStatusChange(invoice, e.target.value as OrderStatus)}
+                              aria-label={`تغيير حالة الفاتورة ${invoice.invoiceNumber}`}
+                              className="rounded-xl border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-black text-[#0F2B38] cursor-pointer focus:border-blue-500 focus:outline-none max-w-[175px]"
+                            >
+                              {ORDER_STATUS_OPTIONS.map((st) => (
+                                <option key={st} value={st}>{st}</option>
+                              ))}
+                              {!ORDER_STATUS_OPTIONS.includes(invoice.status) && (
+                                <option value={invoice.status}>{invoice.status}</option>
+                              )}
+                            </select>
+                          ) : (
+                            <span className={`tg-badge tg-badge--${style.variant}`}>
+                              {style.label || invoice.status}
+                            </span>
+                          )}
                         </td>
                         <td className="text-center">
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               type="button"
-                              onClick={() => onViewInvoice(invoice)}
+                              onClick={() => onViewInvoice?.(invoice)}
                               className="w-8 h-8 rounded-xl bg-[#0D9488] hover:bg-[#007a70] text-white flex items-center justify-center transition shadow-xs cursor-pointer"
-                              title="عرض الفاتورة"
+                              title="عرض الفاتورة الإلكترونية"
                             >
                               <Eye className="w-4 h-4 text-white" />
                             </button>
@@ -1015,6 +1143,35 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                                 <CheckCircle2 className="w-4 h-4 text-white" />
                               </button>
                             )}
+
+                            {canApprove && (
+                              <button
+                                type="button"
+                                onClick={() => setRejectModalInvoiceId(invoice.id)}
+                                className="w-8 h-8 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 flex items-center justify-center transition cursor-pointer"
+                                title="رفض / إلغاء"
+                              >
+                                <XCircle className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => exportElectronicInvoiceToExcel(invoice)}
+                              className="w-8 h-8 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center justify-center transition cursor-pointer"
+                              title="تحميل الفاتورة Excel"
+                            >
+                              <FileSpreadsheet className="w-4 h-4" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setPreviewExcelInvoice(invoice)}
+                              className="w-8 h-8 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 flex items-center justify-center transition cursor-pointer"
+                              title="معاينة شيت الفاتورة"
+                            >
+                              <FileText className="w-4 h-4" />
+                            </button>
 
                             <button
                               type="button"
@@ -1097,6 +1254,87 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         isOpen={!!previewExcelInvoice}
         onClose={() => setPreviewExcelInvoice(null)}
       />
+
+      {/* Reject Reason Modal */}
+      {rejectModalInvoiceId && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-white rounded-2xl w-full max-w-md p-5 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <XCircle className="w-5 h-5 text-rose-600" />
+                <h3 className="font-black text-slate-900 text-base">رفض / إلغاء أمر البيع</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRejectModalInvoiceId(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">سبب الرفض أو الإلغاء:</label>
+              <textarea
+                rows={3}
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs font-bold text-slate-900 focus:border-rose-500 focus:outline-none"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setRejectModalInvoiceId(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+              >
+                تراجع
+              </button>
+              <button
+                type="button"
+                onClick={handleRejectConfirm}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
+              >
+                تأكيد الرفض
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Override Approve Confirmation Modal */}
+      {overrideConfirmInvoice && (
+        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4" dir="rtl">
+          <div className="bg-white rounded-2xl w-full max-w-md p-5 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-black text-slate-900 text-base">تجاوز قرار الرفض السابق</h3>
+                <p className="text-xs font-medium text-slate-600 mt-1 leading-relaxed">
+                  هل أنت متأكد من تجاوز قرار الرفض السابق واعتماد الفاتورة #{overrideConfirmInvoice.invoiceNumber} نهائياً بقرار الإدارة العامة؟
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setOverrideConfirmInvoice(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={executeAdminOverrideApprove}
+                className="px-4 py-2 rounded-xl text-xs font-black bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+              >
+                اعتماد نهائي
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

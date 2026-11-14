@@ -119,16 +119,11 @@ export function buildGoogleDriveCompressedUrls(urlOrId: string, size = 550): str
   const fileId = extractGoogleDriveFileId(urlOrId);
   if (!fileId) return [];
 
-  // Produce ordered candidate URLs from fastest compressed CDN to standard fallback
+  // Prefer drive.google.com/thumbnail first to avoid lh3.googleusercontent.com ERR_FAILED blocks in sandboxes
   return [
-    // 1. Google High-Speed Content CDN with dynamic size constraint (WebP/JPEG auto-compressed)
-    `https://lh3.googleusercontent.com/d/${fileId}=s${size}`,
-    `https://lh3.googleusercontent.com/d/${fileId}=w${size}-h${size}-c`,
-    // 2. Google Drive Thumbnail API with dynamic width/height parameter
     `https://drive.google.com/thumbnail?id=${fileId}&sz=w${size}-h${size}`,
-    `https://drive.google.com/thumbnail?id=${fileId}&s=${size}`,
-    // 3. Fallback direct export view
-    `https://drive.google.com/uc?export=view&id=${fileId}`
+    `https://drive.google.com/uc?export=view&id=${fileId}`,
+    `https://lh3.googleusercontent.com/d/${fileId}=s${size}`,
   ];
 }
 
@@ -149,7 +144,7 @@ export function optimizeImageUrl(rawUrl: string, targetSize = 550, isDataSaver =
   const driveId = extractGoogleDriveFileId(trimmed);
   if (driveId) {
     const size = isDataSaver ? Math.min(targetSize, 240) : targetSize;
-    return `https://lh3.googleusercontent.com/d/${driveId}=s${size}`;
+    return `https://drive.google.com/thumbnail?id=${driveId}&sz=w${size}-h${size}`;
   }
 
   return trimmed;

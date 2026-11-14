@@ -207,8 +207,10 @@ export const ProductImage: React.FC<ProductImageProps> = ({
   const handleLoad = () => {
     if (currentSrc) {
       verifiedImageCache.set(productKey, currentSrc);
-      // خزّن الصورة للكاش الدائم لما تُحمّل من الشبكة (إلا لو كانت أصلاً من الكاش).
-      if (!cachedSrc) {
+      // خزّن الصورة للكاش الدائم لما تُحمّل من الشبكة (تجاهل روابط Google Drive لتجنب أخطاء CORS fetch).
+      const isGoogleHost =
+        currentSrc.includes('googleusercontent.com') || currentSrc.includes('drive.google.com');
+      if (!cachedSrc && !isGoogleHost) {
         void fetchAndCacheImage(currentSrc);
       }
     }

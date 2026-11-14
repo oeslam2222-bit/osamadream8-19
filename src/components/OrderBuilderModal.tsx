@@ -41,6 +41,7 @@ import { formatCurrency } from '../services/invoiceService';
 import { findCustomerMatch, getBranchStockForProduct } from '../services/arabicMatchingService';
 import { getDepartmentMeta } from '../data/departmentMeta';
 import { resolveCustomerDuesValue } from '../services/customerDues';
+import { filterPromotionsForUser, resolveProductPromotion } from '../services/promotionService';
 
 interface OrderBuilderModalProps {
   isOpen: boolean;
@@ -58,6 +59,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const {
     cart,
     products: rawProducts,
+    promotions: rawPromotions,
     customers,
     users,
     getVisibleCustomers,
@@ -83,8 +85,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     } catch {
       return rawProducts;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawProducts]);
+  }, [rawProducts, rawPromotions, getVisibleProducts]);
 
   // 1-step-at-a-time Stepper: Step 1 (Products & Cart) -> Step 2 (Customer & Financials) -> Step 3 (Review & Save)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(() => {
@@ -101,6 +102,11 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const activeBranch = useMemo(() => {
     return activeRepUser?.branchName || currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
   }, [activeRepUser, currentUser]);
+
+  const promotions = useMemo(
+    () => filterPromotionsForUser(rawPromotions, activeRepUser || currentUser, products),
+    [rawPromotions, activeRepUser, currentUser, products]
+  );
 
   // Customer Management - Bound to "All Customers"
   const [activeCustomer, setActiveCustomer] = useState<Customer | null>(initialCustomer || null);
@@ -209,6 +215,34 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   const summary = useMemo(() => {
     return getCartSummary(0);
   }, [getCartSummary]);
+
+  // Special promo savings summary across cart items
+  const promoSavingsSummary = useMemo(() => {
+    let originalTotal = 0;
+    let discountedItemsCount = 0;
+    cart.forEach((item) => {
+      const info = resolveProductPromotion(item.product, promotions);
+      const factor =
+        item.cartonQuantity && item.cartonQuantity > 0
+          ? item.cartonQuantity
+          : item.product.cartonQuantity || 1;
+      const qty = (item.cartonCount || 0) * factor + (item.pieceCount || 0);
+      const origUnitPiece =
+        info.originalPiecePrice > 0
+          ? info.originalPiecePrice
+          : factor > 0
+            ? info.originalCartonPrice / factor
+            : 0;
+      if (info.hasPromo && origUnitPiece > 0) {
+        discountedItemsCount += 1;
+        originalTotal += Math.round(origUnitPiece * qty * 100) / 100;
+      } else {
+        originalTotal += item.totalPrice;
+      }
+    });
+    const totalSaved = Math.max(0, Math.round((originalTotal - summary.grandTotal) * 100) / 100);
+    return { discountedItemsCount, totalSaved, originalTotal };
+  }, [cart, promotions, summary.grandTotal]);
 
   if (!isOpen) return null;
 
@@ -571,6 +605,12 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   <div className="text-base sm:text-lg font-black text-blue-600 font-mono">
                     {formatCurrency(summary.grandTotal)}
                   </div>
+                  {promoSavingsSummary.totalSaved > 0 && (
+                    <div className="tg-special-discount-badge mt-1 inline-flex">
+                      <Flame className="w-3 h-3" />
+                      <span>خصم خاص مطبق (توفير {formatCurrency(promoSavingsSummary.totalSaved)})</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -613,9 +653,10 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     {cart.map((item, idx) => {
                       const branchStock = getBranchStockForProduct(item.product, activeBranch);
                       const octoberStock = item.product.mainWarehouseActual || 0;
+                      const itemPromo = resolveProductPromotion(item.product, promotions);
 
                       return (
-                        <div key={idx} className="ord-card p-3 sm:p-3.5 space-y-2.5">
+                        <div key={idx} className={`ord-card p-3 sm:p-3.5 space-y-2.5 ${itemPromo.hasPromo ? 'ring-1 ring-amber-400/70' : ''}`}>
                           {/* Item Header: Image, Title, Codes, Delete */}
                           <div className="flex items-start justify-between gap-2.5">
                             <div className="flex items-start gap-2.5 min-w-0 flex-1">
@@ -647,6 +688,12 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                                   <span className="app-badge neutral text-[10px]">
                                     الشدة: {item.cartonQuantity} ق
                                   </span>
+                                  {itemPromo.hasPromo && (
+                                    <span className="tg-special-discount-badge">
+                                      <Flame className="w-3 h-3" />
+                                      <span>خصم خاص -{itemPromo.discountPercentage}%</span>
+                                    </span>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -840,15 +887,28 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                     {filteredCatalogProducts.map((p) => {
                       const branchStock = getBranchStockForProduct(p, activeBranch);
                       const octoberStock = p.mainWarehouseActual || 0;
+                      const pPromo = resolveProductPromotion(p, promotions);
 
                       return (
                         <div
                           key={p.id}
-                          className="p-3 bg-white dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-teal-400 transition"
+                          className={`p-3 bg-white dark:bg-slate-800/80 border rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-teal-400 transition ${
+                            pPromo.hasPromo
+                              ? 'border-amber-300 bg-amber-50/30 dark:border-amber-700/60'
+                              : 'border-slate-200 dark:border-slate-700'
+                          }`}
                         >
                           <div className="min-w-0 flex-1">
-                            <div className="font-bold text-slate-900 dark:text-white text-xs truncate" title={p.name}>
-                              {p.name}
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <div className="font-bold text-slate-900 dark:text-white text-xs truncate" title={p.name}>
+                                {p.name}
+                              </div>
+                              {pPromo.hasPromo && (
+                                <span className="tg-special-discount-badge shrink-0">
+                                  <Flame className="w-3 h-3" />
+                                  خصم خاص -{pPromo.discountPercentage}%
+                                </span>
+                              )}
                             </div>
                             <div className="flex items-center gap-2 text-[11px] mt-1 flex-wrap">
                               <span className="font-mono text-amber-700 dark:text-amber-400 font-bold whitespace-nowrap">
@@ -859,13 +919,24 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                                   #{p.unifiedCode.replace('#', '')}
                                 </span>
                               )}
-                              <span className="text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
-                                ({formatCurrency(
-                                  p.piecePrice && p.piecePrice > 0
-                                    ? Math.round(p.piecePrice * (p.cartonQuantity || 1) * 100) / 100
-                                    : p.cartonPrice
-                                )})
-                              </span>
+                              {pPromo.hasPromo ? (
+                                <span className="flex items-center gap-1 whitespace-nowrap font-bold">
+                                  <span className="line-through text-slate-400 text-[10px]">
+                                    {formatCurrency(pPromo.originalCartonPrice)}
+                                  </span>
+                                  <span className="text-emerald-700 dark:text-emerald-400 font-black">
+                                    {formatCurrency(pPromo.promoCartonPrice)}
+                                  </span>
+                                </span>
+                              ) : (
+                                <span className="text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
+                                  ({formatCurrency(
+                                    p.piecePrice && p.piecePrice > 0
+                                      ? Math.round(p.piecePrice * (p.cartonQuantity || 1) * 100) / 100
+                                      : p.cartonPrice
+                                  )})
+                                </span>
+                              )}
                             </div>
                             <div className="text-[10px] text-slate-500 font-bold mt-1 flex items-center gap-2 whitespace-nowrap">
                               <span>الفرع: <strong className={branchStock > 0 ? 'text-emerald-600 font-black' : 'text-slate-400'}>{branchStock} ك</strong></span>
@@ -903,8 +974,15 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <div className="text-[11px] text-slate-500 font-bold">إجمالي الفاتورة:</div>
-                  <div className="text-base sm:text-lg font-black text-blue-700 font-mono">
-                    {formatCurrency(summary.grandTotal)}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="text-base sm:text-lg font-black text-blue-700 font-mono">
+                      {formatCurrency(summary.grandTotal)}
+                    </div>
+                    {promoSavingsSummary.totalSaved > 0 && (
+                      <span className="tg-special-discount-badge">
+                        خصم خاص: وفر {formatCurrency(promoSavingsSummary.totalSaved)}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -1246,15 +1324,22 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   <div className="max-h-44 overflow-y-auto divide-y divide-slate-border-soft bg-slate-light rounded-[var(--app-btn-radius)] p-2 border border-[var(--app-line)]">
                     {cart.map((item, i) => {
                       const bStock = getBranchStockForProduct(item.product, activeBranch);
-                      const oStock = item.product.mainWarehouseActual || 0;
                       const isShortage = (item.cartonCount || 0) > bStock;
                       const shortageQty = isShortage ? (item.cartonCount || 0) - Math.max(0, bStock) : 0;
+                      const itemPromo = resolveProductPromotion(item.product, promotions);
 
                       return (
                         <div key={i} className="py-2 flex items-center justify-between gap-2 text-xs">
                           <div className="truncate flex-1 min-w-0">
-                            <div className="font-bold text-[var(--app-ink)] truncate">{item.product.name}</div>
-                            <div className="flex items-center gap-1.5 text-[10px] t-muted font-mono mt-0.5">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <div className="font-bold text-[var(--app-ink)] truncate">{item.product.name}</div>
+                              {itemPromo.hasPromo && (
+                                <span className="tg-special-discount-badge shrink-0">
+                                  خصم خاص -{itemPromo.discountPercentage}%
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px] t-muted font-mono mt-0.5 flex-wrap">
                               <span>كود: {item.product.code}</span>
                               {item.product.unifiedCode && (
                                 <span className="t-navy">#{item.product.unifiedCode.replace('#', '')}</span>
@@ -1342,6 +1427,17 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
               {/* Final Financial Totals Box */}
               <div className="bg-slate-soft rounded-[var(--app-radius)] border border-[var(--app-line)] p-4 space-y-2 text-xs">
+                {promoSavingsSummary.totalSaved > 0 && (
+                  <div className="flex items-center justify-between pb-1 text-[11px]">
+                    <span className="font-bold text-amber-800 flex items-center gap-1.5">
+                      <Flame className="w-3.5 h-3.5 text-amber-600" />
+                      <span>خصم خاص — عروض دريم طنطاوي ({promoSavingsSummary.discountedItemsCount} صنف):</span>
+                    </span>
+                    <span className="dream-amt text-emerald-700 font-black">
+                      -{formatCurrency(promoSavingsSummary.totalSaved)}
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-center justify-between pt-2 border-t border-[var(--app-line)]">
                   <span className="text-sm font-black text-[var(--app-ink)]">الصافي المطلوب سداده:</span>
                   <span className="dream-amt app-ink-brass text-xl sm:text-2xl">{formatCurrency(summary.grandTotal)}</span>

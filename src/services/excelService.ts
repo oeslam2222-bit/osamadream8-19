@@ -183,29 +183,29 @@ export function cleanGoogleSheetImageUrl(raw: string): string {
     clean = `https://${clean}`;
   }
 
-  // 5. Drive sharing URLs: drive.google.com/file/d/{ID}/view -> Google Direct CDN Thumbnail
+  // 5. Drive sharing URLs: drive.google.com/file/d/{ID}/view -> Google Drive Thumbnail API
   const driveFileMatch = clean.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i);
   if (driveFileMatch) {
-    return `https://lh3.googleusercontent.com/d/${driveFileMatch[1]}=w800`;
+    return `https://drive.google.com/thumbnail?id=${driveFileMatch[1]}&sz=w800`;
   }
 
   // 6. Drive open?id={ID} or uc?id={ID} or thumbnail?id={ID}
   const driveIdMatch = clean.match(/[?&]id=([a-zA-Z0-9_-]+)/i);
   if (driveIdMatch) {
-    return `https://lh3.googleusercontent.com/d/${driveIdMatch[1]}=w800`;
+    return `https://drive.google.com/thumbnail?id=${driveIdMatch[1]}&sz=w800`;
   }
 
   // 7. If raw contains googleusercontent /d/{ID}
   const lhMatch = clean.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/i);
   if (lhMatch) {
-    return `https://lh3.googleusercontent.com/d/${lhMatch[1]}=w800`;
+    return `https://drive.google.com/thumbnail?id=${lhMatch[1]}&sz=w800`;
   }
 
   // 8. If raw is a naked Google ID (with or without leading slash or =w800 parameter)
   // e.g. "m6Z0e9dq9HwKa_AkEBbVhO0=w800" or "/dMJZNZDpeeZC1UcU19OX0zcdQ=w800"
   const nakedIdMatch = clean.match(/^(\/)?([a-zA-Z0-9_-]{20,})(=w\d+)?$/i);
   if (nakedIdMatch) {
-    return `https://lh3.googleusercontent.com/d/${nakedIdMatch[2]}=w800`;
+    return `https://drive.google.com/thumbnail?id=${nakedIdMatch[2]}&sz=w800`;
   }
 
   // 9. If someone has multiple space-separated or comma-separated URLs, take the first valid one

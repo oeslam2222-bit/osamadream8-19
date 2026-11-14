@@ -53,6 +53,18 @@ export function saveLocalDataVersion(meta: GlobalDataVersionMeta): void {
 }
 
 /**
+ * Clear client's saved data version stamp (e.g. on logout so next login cleanly syncs scoped data)
+ */
+export function clearLocalDataVersion(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.removeItem(CLIENT_VERSION_STORAGE_KEY);
+  } catch {
+    // ignore storage errors
+  }
+}
+
+/**
  * Fetch latest global data version published on the server
  */
 export async function fetchRemoteDataVersion(): Promise<GlobalDataVersionMeta | null> {

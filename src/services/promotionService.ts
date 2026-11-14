@@ -1,10 +1,22 @@
 import * as XLSX from 'xlsx-js-style';
-import { Product, PromotionOffer } from '../types';
+import { Product, PromotionOffer, User } from '../types';
 import { cleanProductCode, buildGoogleSheetsPublicCsvUrl } from './excelService';
 import { extractBaseProductCode } from './productVariantService';
-import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
+import { parseExcelOrCsvBuffer } from './encodingService';
+import { isBranchMatch, normalizeArabicText } from './arabicMatchingService';
 
 const PROMOTIONS_STORAGE_KEY = 'tantawy_promotions_offers_v1';
+
+export const OFFER_BRANCH_STOCK_COLUMNS = [
+  'متاح اكتوبر',
+  'الفيوم',
+  'ديمشلت',
+  'منوف',
+  'منيا القمح',
+  'القاهرة',
+  'البحيرة',
+  'المنيا',
+] as const;
 
 export const INITIAL_PROMOTIONS: PromotionOffer[] = [];
 
@@ -180,32 +192,95 @@ export async function parsePromotionsFromExcelBuffer(
       return 0;
     };
 
-    // Detect product code, unified code, name, discount % and promo price flexibly
+    // Detect all 21 requested offer sheet columns + rep/branch/dates flexibly
     const rawCode = cleanProductCode(
-      getVal('كود الصنف', 'كود المنتج', 'الكود', 'كود', 'رقم الصنف', 'الموديل', 'Code', 'code', 'SKU', 'Item Code', 'ItemNo')
+      getVal(
+        'Item number', 'Item Number', 'item_number', 'ItemCode', 'Item Code', 'ItemNo',
+        'كود الصنف', 'كود المنتج', 'الكود', 'كود', 'رقم الصنف', 'الموديل', 'Code', 'code', 'SKU'
+      )
     );
 
     const rawUnified = cleanProductCode(
       getVal('الكود الموحد', 'كود موحد', 'الموحد', 'كود موضح', 'UnifiedCode', 'unified_code').replace(/^#/, '')
     );
 
-    const rawName = getVal('اسم المنتج', 'اسم الصنف', 'المنتج', 'الصنف', 'الاسم', 'البيان', 'Name', 'name');
+    const rawName = getVal(
+      'Product name', 'Product Name', 'product_name',
+      'اسم المنتج', 'اسم الصنف', 'المنتج', 'الصنف', 'الاسم', 'البيان', 'Name', 'name'
+    );
 
     if (!rawCode && !rawUnified && !rawName) return;
 
+    const rawPriority = getVal('اولوية البيع', 'أولوية البيع', 'الاولوية', 'SalesPriority');
+    const rawSupplyPlan = getVal('خطة التوريد', 'خطه التوريد', 'SupplyPlan');
+    const rawItemStatus = getVal('حالة الصنف', 'حاله الصنف', 'ItemStatus');
+    const rawFactor = getNum('Factor', 'factor', 'شدة الكرتونة', 'الشدة');
+    const rawSize = getVal('Size', 'size', 'المقاس', 'الحجم');
+    const rawColor = getVal('Color', 'color', 'اللون');
+    const rawItemGroup = getVal('Item group', 'Item Group', 'item_group', 'التصنيف', 'المجموعة', 'Category');
+    const rawFamilyName = getVal('Family Name', 'Family name', 'family_name', 'العائلة', 'الفئة');
+
     const rawDiscount = getNum('نسبة الخصم', 'نسبة الخصم %', 'الخصم %', 'الخصم', 'نسبه الخصم', 'Discount', 'discount');
-    const rawPromoPrice = getNum('سعر العرض', 'سعر العرض للكرتونة', 'سعر الخصم', 'سعر ترويجي', 'السعر الجديد', 'سعر العرض كرتونة', 'PromoPrice', 'offer_price');
-    const rawOriginalPrice = getNum('السعر الأصلي', 'سعر الكرتونة', 'السعر', 'السعر قبل الخصم', 'Price', 'original_price');
+    const rawPromoPrice = getNum(
+      'سعر العرض', 'سعر العرض للكرتونة', 'سعر الخصم', 'سعر ترويجي', 'السعر الجديد', 'سعر العرض كرتونة', 'PromoPrice', 'offer_price'
+    );
+    const rawOriginalPrice = getNum(
+      'سعر اللستة', 'سعر اللسته', 'السعر الأصلي', 'سعر الكرتونة', 'السعر', 'السعر قبل الخصم', 'ListPrice', 'Price', 'original_price'
+    );
     const rawPromoPiecePrice = getNum('سعر القطعة بالعرض', 'سعر العرض للقطعة', 'سعر القطعة ترويجي', 'سعر القطعة جديد');
 
-    const rawTitle = getVal('عنوان العرض', 'اسم العرض', 'العرض', 'Title') || `عرض خاص: ${rawName || rawCode}`;
+    // Auto-calculate discount % if سعر اللستة & سعر العرض are provided without explicit %
+    const computedDiscount =
+      rawDiscount > 0
+        ? rawDiscount
+        : rawOriginalPrice > 0 && rawPromoPrice > 0 && rawPromoPrice < rawOriginalPrice
+          ? Number((((rawOriginalPrice - rawPromoPrice) / rawOriginalPrice) * 100).toFixed(1))
+          : 0;
+
+    // Parse 8 branch stock availability columns
+    const branchStocks: Record<string, number> = {};
+    const availableBranches: string[] = [];
+    const branchColumnAliases: Record<(typeof OFFER_BRANCH_STOCK_COLUMNS)[number], string[]> = {
+      'متاح اكتوبر': ['متاح اكتوبر', 'متاح أكتوبر', 'اكتوبر', 'أكتوبر', 'مخزن اكتوبر', 'مخزن أكتوبر'],
+      'الفيوم': ['الفيوم', 'فرع الفيوم'],
+      'ديمشلت': ['ديمشلت', 'فرع ديمشلت', 'دمشلت'],
+      'منوف': ['منوف', 'فرع منوف'],
+      'منيا القمح': ['منيا القمح', 'فرع منيا القمح'],
+      'القاهرة': ['القاهرة', 'فرع القاهرة', 'القاهره'],
+      'البحيرة': ['البحيرة', 'فرع البحيرة', 'البحيره'],
+      'المنيا': ['المنيا', 'فرع المنيا'],
+    };
+
+    OFFER_BRANCH_STOCK_COLUMNS.forEach((bKey) => {
+      const valStr = getVal(...branchColumnAliases[bKey]);
+      if (valStr !== '') {
+        const num = getNum(...branchColumnAliases[bKey]);
+        branchStocks[bKey] = num;
+        if (num > 0) {
+          availableBranches.push(bKey);
+        } else if (/^(نعم|متاح|yes|true|available|✓)$/i.test(valStr)) {
+          branchStocks[bKey] = 1;
+          availableBranches.push(bKey);
+        }
+      }
+    });
+
+    const explicitBranch = getVal('الفرع', 'الفروع المشمولة', 'Branch');
+    const explicitRep = getVal('المندوب', 'اسم المندوب', 'مندوب المبيعات', 'Rep', 'SalesRep');
+    const rawTitle = getVal('عنوان العرض', 'اسم العرض', 'العرض', 'Title') || `${rawName || rawCode}`;
     const rawStart = getVal('تاريخ البداية', 'من تاريخ', 'StartDate') || todayIso;
     const rawEnd = getVal('تاريخ النهاية', 'إلى تاريخ', 'EndDate') || nextMonthIso;
-    const rawBranch = getVal('الفرع', 'الفروع المشمولة', 'Branch') || 'كل الفروع';
     const rawNotes = getVal('ملاحظات', 'شروط العرض', 'Notes');
-    const rawCategory = getVal('التصنيف', 'المجموعة', 'Category');
     const rawSector = getVal('القطاع', 'Sector', 'sector', 'نوع القطاع');
     const parsedSector = normalizeOfferSector(rawSector);
+
+    const resolvedBranchName = explicitBranch
+      ? explicitBranch
+      : availableBranches.length === 1
+        ? availableBranches[0]
+        : availableBranches.length > 1
+          ? availableBranches.slice(0, 3).join('، ') + (availableBranches.length > 3 ? ` (+${availableBranches.length - 3})` : '')
+          : 'كل الفروع';
 
     parsedPromos.push({
       id: `promo-imported-${Date.now()}-${idx}`,
@@ -213,15 +288,35 @@ export async function parsePromotionsFromExcelBuffer(
       productCode: rawCode,
       unifiedCode: rawUnified || undefined,
       productName: rawName || (rawCode ? `صنف كود ${rawCode}` : 'صنف ترويجي'),
-      category: rawCategory || undefined,
+      salesPriority: rawPriority || undefined,
+      supplyPlan: rawSupplyPlan || undefined,
+      itemStatus: rawItemStatus || undefined,
+      factor: rawFactor > 0 ? rawFactor : undefined,
+      size: rawSize || undefined,
+      color: rawColor || undefined,
+      itemGroup: rawItemGroup || undefined,
+      familyName: rawFamilyName || undefined,
+      category: rawItemGroup || rawFamilyName || undefined,
       sector: parsedSector,
-      discountPercentage: rawDiscount,
+      discountPercentage: computedDiscount,
       promoPrice: rawPromoPrice > 0 ? rawPromoPrice : undefined,
-      promoPiecePrice: rawPromoPiecePrice > 0 ? rawPromoPiecePrice : undefined,
+      promoPiecePrice:
+        rawPromoPiecePrice > 0
+          ? rawPromoPiecePrice
+          : rawPromoPrice > 0 && rawFactor > 0
+            ? Number((rawPromoPrice / rawFactor).toFixed(2))
+            : undefined,
       originalPrice: rawOriginalPrice > 0 ? rawOriginalPrice : undefined,
       startDate: rawStart,
       endDate: rawEnd,
-      branchName: rawBranch || 'كل الفروع',
+      branchName: resolvedBranchName,
+      branchStocks: Object.keys(branchStocks).length > 0 ? branchStocks : undefined,
+      eligibleBranches: explicitBranch && explicitBranch !== 'كل الفروع'
+        ? explicitBranch.split(/[،,/]/).map((s) => s.trim()).filter(Boolean)
+        : availableBranches.length > 0
+          ? availableBranches
+          : undefined,
+      repName: explicitRep || undefined,
       status: 'نشط',
       notes: rawNotes || undefined,
       createdAt: new Date().toISOString(),
@@ -256,6 +351,222 @@ export async function parsePromotionsFromGoogleSheet(
   return parsePromotionsFromExcelBuffer(buffer, 'GoogleSheets');
 }
 
+/** التحقق من أن العرض يشمل فرعاً محدداً (يدعم أعمدة أرصدة الفروع + الفرع الصريح) */
+export function doesOfferApplyToBranch(offer: PromotionOffer, targetBranch?: string | null): boolean {
+  if (!targetBranch || targetBranch === 'الكل' || targetBranch === 'كل الفروع') return true;
+
+  if (offer.eligibleBranches && offer.eligibleBranches.length > 0) {
+    return offer.eligibleBranches.some((b) => isBranchMatch(b, targetBranch, { allowUnassigned: false }));
+  }
+
+  if (offer.branchStocks && Object.keys(offer.branchStocks).length > 0) {
+    const entries = Object.entries(offer.branchStocks);
+    const hasAnyStockInfo = entries.some(([, val]) => Number(val) > 0);
+    if (hasAnyStockInfo) {
+      const matched = entries.find(([bKey]) => {
+        const cleanKey = bKey === 'متاح اكتوبر' ? 'أكتوبر' : bKey;
+        return isBranchMatch(cleanKey, targetBranch, { allowUnassigned: false });
+      });
+      if (matched) return Number(matched[1]) > 0;
+      return false;
+    }
+  }
+
+  const branchStr = (offer.branchName || '').trim();
+  if (!branchStr || branchStr === 'كل الفروع' || branchStr === 'الكل') return true;
+  const parts = branchStr.split(/[،,/]/).map((s) => s.trim()).filter(Boolean);
+  return parts.some((b) => isBranchMatch(b, targetBranch, { allowUnassigned: false }));
+}
+
+/** التحقق من أن العرض مخصص للمندوب (أو متاح لكل المناديب) */
+export function doesOfferApplyToRep(
+  offer: PromotionOffer,
+  rep?: { id?: string; name?: string; username?: string; role?: string } | null
+): boolean {
+  const offerRep = (offer.repName || '').trim();
+  if (!offerRep || offerRep === 'كل المناديب' || offerRep === 'الكل') return true;
+  if (!rep) return true;
+  if (offer.repId && rep.id && offer.repId === rep.id) return true;
+  const normOfferRep = normalizeArabicText(offerRep);
+  const normName = normalizeArabicText(rep.name || '');
+  const normUser = normalizeArabicText(rep.username || '');
+  return Boolean(
+    (normName && (normOfferRep === normName || normName.includes(normOfferRep) || normOfferRep.includes(normName))) ||
+    (normUser && normOfferRep === normUser)
+  );
+}
+
+/** التحقق الموحد من أن العرض ينطبق على قطاع وفرع ومندوب المستخدم */
+export function doesOfferApplyToUser(
+  offer: PromotionOffer,
+  user?: Pick<User, 'id' | 'name' | 'username' | 'role' | 'branchName' | 'sector'> | null,
+  products: Product[] = []
+): boolean {
+  if (!user) return true;
+  const role = user.role;
+  const isAdminOrDev = role === 'admin' || role === 'developer';
+
+  // 1. عزل القطاع
+  const meSector = (user.sector || '').toLowerCase();
+  if (meSector && meSector !== 'all' && meSector !== 'both') {
+    const offerSector = inferOfferSector(offer, products);
+    if (offerSector && offerSector !== meSector) return false;
+  }
+
+  if (isAdminOrDev) return true;
+
+  // 2. عزل الفرع للأدوار الميدانية ومديري الفروع
+  if (user.branchName && !doesOfferApplyToBranch(offer, user.branchName)) {
+    return false;
+  }
+
+  // 3. عزل المندوب (للمندوب يرى عروضه الشخصية أو العامة؛ للمشرف يرى عروض فرعه)
+  if (role === 'sales_rep' && !doesOfferApplyToRep(offer, user)) {
+    return false;
+  }
+
+  return true;
+}
+
+export function filterPromotionsForUser(
+  promotions: PromotionOffer[],
+  user?: Pick<User, 'id' | 'name' | 'username' | 'role' | 'branchName' | 'sector'> | null,
+  products: Product[] = []
+): PromotionOffer[] {
+  if (!promotions || promotions.length === 0) return [];
+  if (!user || user.role === 'admin' || user.role === 'developer') return promotions;
+  return promotions.filter((offer) => doesOfferApplyToUser(offer, user, products));
+}
+
+/**
+ * Find the matching active promotion for a product by code, baseCode, unifiedCode, or clean name
+ */
+export function findPromotionForProduct(
+  prod: Pick<Product, 'code' | 'unifiedCode' | 'name'>,
+  promotions: PromotionOffer[]
+): PromotionOffer | undefined {
+  if (!prod || !promotions || promotions.length === 0) return undefined;
+  const prodCode = cleanProductCode(prod.code).toLowerCase();
+  const prodUnified = cleanProductCode(prod.unifiedCode?.replace(/^#/, '')).toLowerCase();
+  const prodBase = extractBaseProductCode(prod.code).toLowerCase();
+  const prodName = (prod.name || '').trim().toLowerCase();
+
+  return promotions.find((promo) => {
+    if (promo.status && promo.status !== 'نشط') return false;
+    const pCode = cleanProductCode(promo.productCode).toLowerCase();
+    const pUnified = cleanProductCode(promo.unifiedCode?.replace(/^#/, '')).toLowerCase();
+    const pBase = extractBaseProductCode(promo.productCode).toLowerCase();
+    const pName = (promo.productName || '').trim().toLowerCase();
+
+    // 1. Direct code match
+    if (pCode && (pCode === prodCode || pCode === prodBase)) return true;
+    // 2. Base code match (e.g. promo on 8009 applies to all variants of 8009!)
+    if (pBase && (pBase === prodBase || pBase === prodCode)) return true;
+    // 3. Unified code match
+    if (pUnified && (pUnified === prodUnified || pUnified === prodCode)) return true;
+    // 4. Exact or clean name match
+    if (
+      pName &&
+      prodName &&
+      (pName === prodName ||
+        (prodName.length > 5 && pName.includes(prodName)) ||
+        (pName.length > 5 && prodName.includes(pName)))
+    ) {
+      return true;
+    }
+    return false;
+  });
+}
+
+export interface ResolvedProductPromoInfo {
+  hasPromo: boolean;
+  promo?: PromotionOffer;
+  discountPercentage: number;
+  originalCartonPrice: number;
+  promoCartonPrice: number;
+  originalPiecePrice: number;
+  promoPiecePrice: number;
+}
+
+/**
+ * Resolve effective promotional discount & before/after prices for a product
+ */
+export function resolveProductPromotion(
+  prod: Product,
+  promotions: PromotionOffer[] = []
+): ResolvedProductPromoInfo {
+  const factor = prod.cartonQuantity && prod.cartonQuantity > 0 ? prod.cartonQuantity : prod.factor || 1;
+  const rawPiece = Number(prod.piecePrice || prod.salesPrice || 0);
+  const originalCartonPrice =
+    rawPiece > 0
+      ? Math.round(rawPiece * factor * 100) / 100
+      : Number(prod.cartonPrice || 0);
+  const originalPiecePrice =
+    rawPiece > 0
+      ? rawPiece
+      : factor > 0
+        ? Math.round((originalCartonPrice / factor) * 100) / 100
+        : originalCartonPrice;
+
+  const matchedPromo = findPromotionForProduct(prod, promotions);
+  const inlinePromoPrice = Number(prod.promoPrice || prod.offerPrice || 0);
+  const inlineDiscount = Number(prod.discountPercent || prod.discountPercentage || 0);
+
+  if (!matchedPromo && !(inlinePromoPrice > 0 && inlinePromoPrice < originalCartonPrice)) {
+    return {
+      hasPromo: false,
+      discountPercentage: 0,
+      originalCartonPrice,
+      promoCartonPrice: originalCartonPrice,
+      originalPiecePrice,
+      promoPiecePrice: originalPiecePrice,
+    };
+  }
+
+  let promoCartonPrice = matchedPromo?.promoPrice && matchedPromo.promoPrice > 0
+    ? Number(matchedPromo.promoPrice)
+    : inlinePromoPrice;
+  let discountPct = matchedPromo?.discountPercentage && matchedPromo.discountPercentage > 0
+    ? Number(matchedPromo.discountPercentage)
+    : inlineDiscount;
+
+  if ((!promoCartonPrice || promoCartonPrice <= 0) && discountPct > 0 && originalCartonPrice > 0) {
+    promoCartonPrice = Number((originalCartonPrice * (1 - discountPct / 100)).toFixed(2));
+  } else if (promoCartonPrice > 0 && discountPct <= 0 && originalCartonPrice > 0 && promoCartonPrice < originalCartonPrice) {
+    discountPct = Number((((originalCartonPrice - promoCartonPrice) / originalCartonPrice) * 100).toFixed(1));
+  }
+
+  if (!promoCartonPrice || promoCartonPrice <= 0 || (originalCartonPrice > 0 && promoCartonPrice >= originalCartonPrice)) {
+    return {
+      hasPromo: false,
+      discountPercentage: 0,
+      originalCartonPrice,
+      promoCartonPrice: originalCartonPrice,
+      originalPiecePrice,
+      promoPiecePrice: originalPiecePrice,
+    };
+  }
+
+  const promoPiecePrice =
+    matchedPromo?.promoPiecePrice && matchedPromo.promoPiecePrice > 0
+      ? Number(matchedPromo.promoPiecePrice)
+      : prod.promoPiecePrice && prod.promoPiecePrice > 0
+        ? Number(prod.promoPiecePrice)
+        : factor > 0
+          ? Number((promoCartonPrice / factor).toFixed(2))
+          : promoCartonPrice;
+
+  return {
+    hasPromo: true,
+    promo: matchedPromo,
+    discountPercentage: discountPct,
+    originalCartonPrice,
+    promoCartonPrice,
+    originalPiecePrice,
+    promoPiecePrice,
+  };
+}
+
 /**
  * Applies active promotions to the master product list.
  * Matches by productCode, baseCode, unifiedCode, or name.
@@ -270,30 +581,7 @@ export function applyPromotionsToProducts(
   let revertedCount = 0;
 
   const updatedProducts = products.map((prod) => {
-    const prodCode = cleanProductCode(prod.code).toLowerCase();
-    const prodUnified = cleanProductCode(prod.unifiedCode?.replace(/^#/, '')).toLowerCase();
-    const prodBase = extractBaseProductCode(prod.code).toLowerCase();
-    const prodName = prod.name.trim().toLowerCase();
-
-    // Find matching active promo
-    const matchedPromo = activePromos.find((promo) => {
-      const pCode = cleanProductCode(promo.productCode).toLowerCase();
-      const pUnified = cleanProductCode(promo.unifiedCode?.replace(/^#/, '')).toLowerCase();
-      const pBase = extractBaseProductCode(promo.productCode).toLowerCase();
-      const pName = promo.productName.trim().toLowerCase();
-
-      // 1. Direct code match
-      if (pCode && (pCode === prodCode || pCode === prodBase)) return true;
-      // 2. Base code match (e.g. promo on 8009 applies to all variants of 8009!)
-      if (pBase && (pBase === prodBase || pBase === prodCode)) return true;
-      // 3. Unified code match
-      if (pUnified && (pUnified === prodUnified || pUnified === prodCode)) return true;
-      // 4. Exact or clean name match
-      if (pName && (pName === prodName || (prodName.length > 5 && pName.includes(prodName)) || (pName.length > 5 && prodName.includes(pName)))) {
-        return true;
-      }
-      return false;
-    });
+    const matchedPromo = findPromotionForProduct(prod, activePromos);
 
     if (!matchedPromo) {
       // Revert any leftover promotional fields if product has no matching active promotion
@@ -321,18 +609,24 @@ export function applyPromotionsToProducts(
 
     updatedCount++;
     const factor = prod.cartonQuantity || prod.factor || 1;
-    const originalCartonPrice = prod.cartonPrice || (prod.piecePrice ? prod.piecePrice * factor : 200);
+    const basePiecePrice = Number(prod.piecePrice || prod.salesPrice || 0);
+    const originalCartonPrice =
+      basePiecePrice > 0
+        ? Math.round(basePiecePrice * factor * 100) / 100
+        : (prod.cartonPrice || 200);
 
     let promoCartonPrice = matchedPromo.promoPrice;
     let discountPct = matchedPromo.discountPercentage;
 
-    if (!promoCartonPrice && discountPct > 0) {
+    if ((!promoCartonPrice || promoCartonPrice <= 0) && discountPct > 0) {
       promoCartonPrice = Number((originalCartonPrice * (1 - discountPct / 100)).toFixed(2));
     } else if (promoCartonPrice && discountPct <= 0 && originalCartonPrice > 0) {
       discountPct = Number((((originalCartonPrice - promoCartonPrice) / originalCartonPrice) * 100).toFixed(1));
     }
 
-    const promoPiecePrice = matchedPromo.promoPiecePrice || (promoCartonPrice ? Number((promoCartonPrice / factor).toFixed(2)) : undefined);
+    const promoPiecePrice =
+      matchedPromo.promoPiecePrice ||
+      (promoCartonPrice && factor > 0 ? Number((promoCartonPrice / factor).toFixed(2)) : undefined);
 
     return {
       ...prod,
@@ -359,20 +653,30 @@ export function exportPromotionsToExcel(promotions: PromotionOffer[]): void {
   const dateRow = [`تاريخ الاستخراج: ${new Date().toLocaleDateString('ar-EG')}`, `إجمالي العروض: ${promotions.length} عرض`];
 
   const headers = [
-    'م',
-    'عنوان العرض',
-    'اسم المنتج',
-    'كود الصنف',
-    'الكود الموحد (#)',
-    'التصنيف',
-    'السعر الأصلي (ج.م)',
+    'Item number',
+    'Product name',
+    'اولوية البيع',
+    'خطة التوريد',
+    'حالة الصنف',
+    'Factor',
+    'Size',
+    'Color',
+    'Item group',
+    'Family Name',
+    'سعر اللستة',
+    'سعر العرض',
     'نسبة الخصم %',
-    'سعر العرض للكرتونة (ج.م)',
-    'تاريخ البداية',
-    'تاريخ النهاية',
-    'الفروع المشمولة',
+    'متاح اكتوبر',
+    'الفيوم',
+    'ديمشلت',
+    'منوف',
+    'منيا القمح',
+    'القاهرة',
+    'البحيرة',
+    'المنيا',
+    'القطاع',
+    'المندوب',
     'حالة العرض',
-    'ملاحظات والشروط',
   ];
 
   const rows: any[][] = [
@@ -382,42 +686,63 @@ export function exportPromotionsToExcel(promotions: PromotionOffer[]): void {
     headers,
   ];
 
-  promotions.forEach((p, idx) => {
+  promotions.forEach((p) => {
+    const sectorText = p.sector === 'electrical' ? 'كهربائي' : p.sector === 'home' ? 'منزلي' : 'الكل';
     rows.push([
-      idx + 1,
-      p.title,
-      p.productName,
       p.productCode,
-      p.unifiedCode ? `#${p.unifiedCode}` : '---',
-      p.category || 'عام',
-      p.originalPrice || '---',
+      p.productName,
+      p.salesPriority || '',
+      p.supplyPlan || '',
+      p.itemStatus || '',
+      p.factor ?? '',
+      p.size || '',
+      p.color || '',
+      p.itemGroup || p.category || '',
+      p.familyName || '',
+      p.originalPrice ?? '',
+      p.promoPrice ?? '',
       `${p.discountPercentage}%`,
-      p.promoPrice || '---',
-      p.startDate || '---',
-      p.endDate || '---',
-      p.branchName || 'كل الفروع',
+      p.branchStocks?.['متاح اكتوبر'] ?? '',
+      p.branchStocks?.['الفيوم'] ?? '',
+      p.branchStocks?.['ديمشلت'] ?? '',
+      p.branchStocks?.['منوف'] ?? '',
+      p.branchStocks?.['منيا القمح'] ?? '',
+      p.branchStocks?.['القاهرة'] ?? '',
+      p.branchStocks?.['البحيرة'] ?? '',
+      p.branchStocks?.['المنيا'] ?? '',
+      sectorText,
+      p.repName || 'كل المناديب',
       p.status,
-      p.notes || '---',
     ]);
   });
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
 
   ws['!cols'] = [
-    { wch: 6 },
-    { wch: 30 },
+    { wch: 15 },
     { wch: 35 },
-    { wch: 15 },
-    { wch: 16 },
-    { wch: 20 },
+    { wch: 14 },
     { wch: 18 },
-    { wch: 15 },
-    { wch: 22 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 18 },
+    { wch: 14 },
+    { wch: 10 },
     { wch: 12 },
-    { wch: 40 },
+    { wch: 12 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 14 },
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 12 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 10 },
+    { wch: 12 },
+    { wch: 20 },
+    { wch: 12 },
   ];
 
   (ws as any)['!views'] = [{ RTL: true }];

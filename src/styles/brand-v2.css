@@ -1209,6 +1209,129 @@ body footer span.font-black {
 }
 
 /* ==========================================================================
+   توحيد عرض التحليلات بعد إزالة تصنيف العملاء + بانر عروض دريم طنطاوي + شارة خصم خاص
+   ========================================================================== */
+@media (min-width: 1180px) {
+  .tg-analytics {
+    grid-template-columns: 1.65fr 1fr !important;
+  }
+  .tg-analytics__wide {
+    grid-column: auto !important;
+  }
+}
+
+.tg-offers-banner {
+  width: 100%;
+  display: block;
+  text-align: right;
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--tg-radius-lg);
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #0f2b38 0%, #1e3a8a 62%, #2563eb 100%);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  box-shadow: 0 12px 28px rgba(15, 43, 56, 0.22);
+  color: #ffffff;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.tg-offers-banner:hover {
+  transform: translateY(-2px);
+  border-color: rgba(251, 191, 36, 0.65);
+  box-shadow: 0 16px 34px rgba(30, 58, 138, 0.3);
+}
+
+.tg-offers-banner__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.tg-offers-banner__icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(217, 119, 6, 0.38);
+  flex-shrink: 0;
+}
+
+.tg-offers-banner__body {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.tg-offers-banner__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.tg-offers-banner__title {
+  font-size: 16px;
+  font-weight: 900;
+  color: #ffffff;
+  letter-spacing: -0.2px;
+}
+
+.tg-offers-banner__count {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  font-size: 11px;
+  font-weight: 800;
+  color: #eff6ff;
+}
+
+.tg-offers-banner__sub {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #dbeafe;
+  line-height: 1.5;
+}
+
+.tg-offers-banner__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 15px;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #0f2b38;
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: 0 4px 12px rgba(7, 23, 38, 0.2);
+}
+
+.tg-special-discount-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* ==========================================================================
    طباعة نظيفة
    ========================================================================== */
 @media print {

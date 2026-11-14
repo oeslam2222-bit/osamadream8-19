@@ -14,6 +14,8 @@ import type {
   Invoice,
   OrderStatus,
   Product,
+  PromoAnnouncement,
+  PromotionOffer,
   ReturnedItem,
   ReturnRecord,
   TargetRecord,
@@ -282,4 +284,10 @@ export interface AppContextType {
     forcePurge?: boolean;
   }) => Promise<{ success: boolean; version: number; message: string }>;
   forcePurgeCacheAndReload: (scope?: SyncScope) => Promise<void>;
+
+  // Promotions & Announcements (Cloud-Synced across all devices)
+  promotions: PromotionOffer[];
+  saveAndSyncPromotions: (nextPromotions: PromotionOffer[], customAnnouncements?: PromoAnnouncement[]) => Promise<{ success: boolean }>;
+  announcements: PromoAnnouncement[];
+  saveAndSyncAnnouncements: (nextAnnouncements: PromoAnnouncement[]) => Promise<{ success: boolean }>;
 }

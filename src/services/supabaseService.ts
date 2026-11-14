@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { Branch, Customer, Invoice, Product, User, UserRole, CustomerVisit } from '../types';
+import { Branch, Customer, Invoice, Product, PromoAnnouncement, PromotionOffer, User, UserRole, CustomerVisit } from '../types';
 import { withHashedCredential } from './passwordService';
 import { pickUserColumns, sanitizeSupervisorId } from './userRowPayload';
 import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from './customerDues';
@@ -751,6 +751,15 @@ export async function fetchTargetContentStamp(
  * وده كان أكبر بند استهلاك بعد العملاء. البصمة دي بتخلّي الجهاز يسأل
  * «في جديد؟» بس، وما ينزّلش الجدول غير لما يكون فيه تغيير فعلي.
  */
+let cachedVisitsSupportsUpdatedAt: boolean | null = (() => {
+  try {
+    const v = typeof localStorage !== 'undefined' ? localStorage.getItem('tantawy_visits_has_updated_at') : null;
+    return v === 'true' ? true : v === 'false' ? false : null;
+  } catch {
+    return null;
+  }
+})();
+
 export async function fetchVisitContentStamp(
   scope?: VisitFetchScope
 ): Promise<VisitContentStamp | null> {
@@ -768,12 +777,17 @@ export async function fetchVisitContentStamp(
       return query;
     };
 
-    let result = await buildQuery('updated_at');
-    let column: 'updated_at' | 'created_at' = 'updated_at';
-    if (result.error) {
-      // الجدول القديم ممكن يكون من غير updated_at — بنستخدم created_at.
-      result = await buildQuery('created_at');
+    let column: 'updated_at' | 'created_at' =
+      cachedVisitsSupportsUpdatedAt === false ? 'created_at' : 'updated_at';
+    let result = await buildQuery(column);
+    if (result.error && column === 'updated_at') {
+      cachedVisitsSupportsUpdatedAt = false;
+      try { localStorage.setItem('tantawy_visits_has_updated_at', 'false'); } catch {}
       column = 'created_at';
+      result = await buildQuery('created_at');
+    } else if (!result.error && column === 'updated_at' && cachedVisitsSupportsUpdatedAt === null) {
+      cachedVisitsSupportsUpdatedAt = true;
+      try { localStorage.setItem('tantawy_visits_has_updated_at', 'true'); } catch {}
     }
     if (result.error) return null;
 
@@ -799,16 +813,99 @@ export function resolveCustomerDues(c: Customer): number {
   return resolveCustomerDuesValue(c);
 }
 
-/**
- * Save / Upsert Customers into Supabase
- */
-export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ success: boolean; error?: string }> {
-  try {
-    const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+function stableJsonSig(val: any): string {
+  if (!val || typeof val !== 'object') return '';
+  if (Array.isArray(val)) return JSON.stringify(val);
+  const keys = Object.keys(val).sort();
+  const out: Record<string, any> = {};
+  for (const k of keys) out[k] = val[k];
+  return JSON.stringify(out);
+}
 
-    const payload = customers.map((c) => {
-      const stableSeed = c.code ? `cust-${c.code}` : `cust-${c.name}-${c.phone || ''}`;
-      const safeId = c.id && isUuid(c.id) ? c.id : stringToUuid(stableSeed);
+function resolveSafeCustomerId(c: Customer): string {
+  const isUuid = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  const stableSeed = c.code ? `cust-${c.code}` : `cust-${c.name}-${c.phone || ''}`;
+  return c.id && isUuid(c.id) ? c.id : stringToUuid(stableSeed);
+}
+
+function buildCustomerComparableSig(c: Customer): string {
+  return JSON.stringify([
+    c.code || '',
+    c.name || '',
+    c.storeName || c.name || '',
+    c.phone || '',
+    c.address || '',
+    c.governorate || '',
+    c.branchName || '',
+    c.sector || '',
+    c.repName || c.salesRepName || '',
+    c.repId || '',
+    c.taxNumber || '',
+    c.tier || 'متوسط',
+    Number(c.creditLimit || 0),
+    resolveCustomerBalanceValue(c),
+    c.notes || '',
+    c.latitude ?? null,
+    c.longitude ?? null,
+    c.lastVisitDate || '',
+    Number(c.visitCount2026 || 0),
+    Number(c.sales2026 || 0),
+    Number(c.totalMonthlySales || 0),
+    Number(c.totalOverallSales || 0),
+    Number(c.collections2026 || 0),
+    Number(c.totalMonthlyCollections || 0),
+    Number(c.totalOverallCollections || 0),
+    stableJsonSig(c.monthlySales2026),
+    stableJsonSig(c.monthlyCollections2026),
+    c.sales2025 ?? null,
+    c.collections2025 ?? null,
+    c.overdue2025 ?? null,
+    c.overdue2026 ?? null,
+    c.dueUntilPeriod ?? null,
+    c.openingBalance2026 ?? null,
+    Boolean(c.hasDealtIn2026),
+    resolveCustomerDues(c),
+    c.dueBalance ?? null,
+    c.dealEligibility || '',
+    c.dealt2026 || '',
+    c.activityType || '',
+    c.clientType || '',
+    c.paymentTerms || '',
+    c.guaranteeDocs || '',
+    Number(c.guaranteeAmount || 0),
+    c.region || c.district || c.route || '',
+    c.lastCollectionDate || '',
+    Number(c.lastCollectionAmount || 0),
+  ]);
+}
+
+/**
+ * Save / Upsert Customers into Supabase (supports delta-only upserts so unchanged rows keep their updated_at)
+ */
+export async function saveCustomersToSupabase(
+  customers: Customer[],
+  options?: { previousCustomers?: Customer[]; forceFull?: boolean }
+): Promise<{ success: boolean; changedCount?: number; changedIds?: string[]; error?: string }> {
+  try {
+    let customersToWrite = customers;
+    if (!options?.forceFull && options?.previousCustomers && options.previousCustomers.length > 0) {
+      const prevSigById = new Map<string, string>();
+      options.previousCustomers.forEach((prev) => {
+        prevSigById.set(resolveSafeCustomerId(prev), buildCustomerComparableSig(prev));
+      });
+      customersToWrite = customers.filter((c) => {
+        const sid = resolveSafeCustomerId(c);
+        const prevSig = prevSigById.get(sid);
+        if (!prevSig) return true;
+        return prevSig !== buildCustomerComparableSig(c);
+      });
+      if (customersToWrite.length === 0) {
+        return { success: true, changedCount: 0, changedIds: [] };
+      }
+    }
+
+    const payload = customersToWrite.map((c) => {
+      const safeId = resolveSafeCustomerId(c);
       // Persist a concrete dues number. Writing null made every other role fall
       // back to the debt balance, which is why المديونية and المستحقات matched.
       const persistedDues = resolveCustomerDues(c);
@@ -881,7 +978,7 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
 
     for (let i = 0; i < dedupedPayload.length; i += 100) {
       const chunk = dedupedPayload.slice(i, i + 100);
-      // tyto أعمدة قد تكون غير موجودة في جدول العملاء لدى العميل (لا يوجد migration)،
+      // هذه الأعمدة قد تكون غير موجودة في جدول العملاء لدى العميل (لا يوجد migration)،
       // لذلك تُحذف قبل الإرسال لمنع خطأ 400 وتكمل عملية الرفع بالأعمدة المتاحة فقط.
       const cleanChunk = chunk.map((row: any) => {
         const rest: any = { ...row };
@@ -903,7 +1000,11 @@ export async function saveCustomersToSupabase(customers: Customer[]): Promise<{ 
         error: `فشل حفظ ${failures.length} من المجموعات: ${failures[0]}`,
       };
     }
-    return { success: true };
+    return {
+      success: true,
+      changedCount: dedupedPayload.length,
+      changedIds: dedupedPayload.map((r) => r.id),
+    };
   } catch (e: any) {
     console.error('Supabase customer save exception:', e);
     const { message } = handleSupabaseError(e, "saveUsersToSupabase");
@@ -954,32 +1055,52 @@ export async function deleteCustomerFromSupabase(
  * numbers with zero duplicates.
  */
 export async function replaceCustomersInSupabase(
-  customers: Customer[]
-): Promise<{ success: boolean; removed: number; error?: string; verified?: boolean }> {
+  customers: Customer[],
+  options?: { previousCustomers?: Customer[] }
+): Promise<{ success: boolean; removed: number; changedCount?: number; error?: string; verified?: boolean }> {
   try {
     if (!customers || customers.length === 0) {
       return { success: false, removed: 0, error: 'قائمة العملاء فارغة - تم إيقاف المزامنة لمنع حذف البيانات' };
     }
 
-    const saveRes = await saveCustomersToSupabase(customers);
+    const saveRes = await saveCustomersToSupabase(customers, options);
     if (!saveRes.success) {
       return { success: false, removed: 0, error: saveRes.error };
     }
 
-    const keepIds = new Set(
-      customers.map((c) => (c.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.id)
-        ? c.id
-        : stringToUuid(c.code ? `cust-${c.code}` : `cust-${c.name}-${c.phone || ''}`)))
-    );
+    const keepIds = new Set(customers.map((c) => resolveSafeCustomerId(c)));
 
-    const { data: remoteRows, error: readErr } = await fetchAllRows('customers');
-    if (readErr || !remoteRows) {
-      return { success: true, removed: 0, verified: false, error: 'تم التحديث لكن تعذر تنظيف السجلات القديمة' };
+    // Fetch ONLY 'id' column (instead of all 60 columns) to detect orphan rows with minimal egress
+    const remoteIdRows: string[] = [];
+    let idReadErr: any = null;
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id')
+        .order('id', { ascending: true })
+        .range(from, from + 999);
+      if (error) {
+        idReadErr = error;
+        break;
+      }
+      if (!data || data.length === 0) break;
+      data.forEach((r: any) => {
+        if (r?.id) remoteIdRows.push(String(r.id));
+      });
+      if (data.length < 1000) break;
     }
 
-    const orphans = remoteRows
-      .map((r: any) => String(r.id || ''))
-      .filter((id: string) => id && !keepIds.has(id));
+    if (idReadErr) {
+      return {
+        success: true,
+        removed: 0,
+        changedCount: saveRes.changedCount ?? customers.length,
+        verified: false,
+        error: 'تم التحديث لكن تعذر تنظيف السجلات القديمة',
+      };
+    }
+
+    const orphans = remoteIdRows.filter((id) => id && !keepIds.has(id));
 
     let removed = 0;
     for (let i = 0; i < orphans.length; i += 200) {
@@ -992,37 +1113,40 @@ export async function replaceCustomersInSupabase(
       }
     }
 
-    // Verify the server really holds the numbers we just sent. Without this the
-    // client showed "synced" while the server kept the previous values, and the
-    // next heartbeat silently restored the old figures.
-    const { data: verifyRows } = await supabase
-      .from('customers')
-      .select('id, balance, current_balance, total_overdue_and_due')
-      .limit(5000);
-    const expectedById = new Map(
-      customers.map((c) => [
-        c.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(c.id)
-          ? c.id
-          : stringToUuid(c.code ? `cust-${c.code}` : `cust-${c.name}-${c.phone || ''}`),
-        Number(c.currentBalance ?? c.balance ?? 0),
-      ])
-    );
-    const mismatches = (verifyRows || []).filter((r: any) => {
-      const expected = expectedById.get(String(r.id));
-      if (expected === undefined) return false;
-      return Math.abs(Number(r.current_balance ?? r.balance ?? 0) - expected) > 0.5;
-    }).length;
+    // Verify only changed customer IDs (up to 200) instead of reading 5,000 rows on every sync
+    const changedIds = saveRes.changedIds || [];
+    if (changedIds.length > 0) {
+      const verifySampleIds = changedIds.slice(0, 200);
+      const { data: verifyRows } = await supabase
+        .from('customers')
+        .select('id, balance, current_balance')
+        .in('id', verifySampleIds);
+      const expectedById = new Map(
+        customers.map((c) => [resolveSafeCustomerId(c), resolveCustomerBalanceValue(c)])
+      );
+      const mismatches = (verifyRows || []).filter((r: any) => {
+        const expected = expectedById.get(String(r.id));
+        if (expected === undefined) return false;
+        return Math.abs(Number(r.current_balance ?? r.balance ?? 0) - expected) > 0.5;
+      }).length;
 
-    if (mismatches > 0) {
-      return {
-        success: false,
-        removed,
-        verified: false,
-        error: `تعذر تأكيد الحفظ على السيرفر (${mismatches} عميل مختلف). راجع صلاحيات الجدول customers في Supabase.`,
-      };
+      if (mismatches > 0) {
+        return {
+          success: false,
+          removed,
+          changedCount: saveRes.changedCount ?? customers.length,
+          verified: false,
+          error: `تعذر تأكيد الحفظ على السيرفر (${mismatches} عميل مختلف). راجع صلاحيات الجدول customers في Supabase.`,
+        };
+      }
     }
 
-    return { success: true, removed, verified: true };
+    return {
+      success: true,
+      removed,
+      changedCount: saveRes.changedCount ?? customers.length,
+      verified: true,
+    };
   } catch (e: any) {
     console.error('Supabase customer replace exception:', e);
     return { success: false, removed: 0, error: e?.message };
@@ -1039,6 +1163,7 @@ const CATALOG_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000001';
  * dataVersionService بيعمل re-export للاسم فأي حد مستورده من هناك بيفضل شغال.
  */
 export const GLOBAL_SYNC_VERSION_RECORD_ID = 'dream_app_global_sync_version_v1';
+export const PROMOTIONS_SYNC_STORE_ID = 'dream_promotions_store_v1';
 
 /**
  * أقصى عدد صفحات (1,000 صف كل صفحة) بنجيبه من جدول products.
@@ -1171,9 +1296,49 @@ async function fetchTargetsFromSupabaseImpl(
   }
 }
 
-export async function saveTargetsToSupabase(targets: any[]): Promise<{ success: boolean; error?: string }> {
+function buildTargetComparableSig(target: any): string {
+  return JSON.stringify([
+    target.branch || '',
+    target.repName || '',
+    Number(target.salesTarget || 0),
+    Number(target.salesAchieved || 0),
+    Number(target.salesPercentage || 0),
+    Number(target.collectionTarget || 0),
+    Number(target.collectionAchieved || 0),
+    Number(target.collectionPercentage || 0),
+    target.date || '',
+    Number(target.month || 0),
+    Number(target.year || 0),
+    target.quarter || '',
+    Number(target.remainingSales || 0),
+    Number(target.remainingCollection || 0),
+    target.notes || '',
+  ]);
+}
+
+export async function saveTargetsToSupabase(
+  targets: any[],
+  options?: { previousTargets?: any[] }
+): Promise<{ success: boolean; changedCount?: number; error?: string }> {
   try {
-    const payload = targets.map((target) => ({
+    let targetsToWrite = targets;
+    if (options?.previousTargets && options.previousTargets.length > 0) {
+      const prevSigById = new Map<string, string>();
+      options.previousTargets.forEach((t) => {
+        if (t?.id) prevSigById.set(String(t.id), buildTargetComparableSig(t));
+      });
+      targetsToWrite = targets.filter((t) => {
+        const prevSig = prevSigById.get(String(t.id));
+        if (!prevSig) return true;
+        return prevSig !== buildTargetComparableSig(t);
+      });
+      if (targetsToWrite.length === 0) {
+        return { success: true, changedCount: 0 };
+      }
+    }
+
+    const nowIso = new Date().toISOString();
+    const payload = targetsToWrite.map((target) => ({
       id: target.id,
       branch: target.branch,
       rep_name: target.repName,
@@ -1190,13 +1355,13 @@ export async function saveTargetsToSupabase(targets: any[]): Promise<{ success: 
       remaining_sales: Number(target.remainingSales || 0),
       remaining_collection: Number(target.remainingCollection || 0),
       notes: target.notes || null,
-      updated_at: new Date().toISOString(),
+      updated_at: nowIso,
     }));
     for (let i = 0; i < payload.length; i += 500) {
       const { error } = await supabase.from('targets').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
       if (error) return { success: false, error: error.message };
     }
-    return { success: true };
+    return { success: true, changedCount: payload.length };
   } catch (error: any) {
     return { success: false, error: error?.message || 'فشل حفظ التارجت المشترك' };
   }
@@ -1412,44 +1577,67 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
       return { success: false, error: 'المعرف فارغ' };
     }
 
-    // 1. Direct targeted 1-row lookup on 'users' / 'app_users' / 'profiles' FIRST
-    // Saves fetching all 500 user rows on every employee login.
+    // 1. Direct single-query OR lookup on 'users' FIRST (fast 1-roundtrip path for login)
     const targetTables = ['users', 'app_users', 'profiles'] as const;
-    const escapedClean = cleanLower.replace(/[,()]/g, ' ').trim();
+    const escapedClean = cleanLower.replace(/[,()"]/g, ' ').trim();
+    const normSpaceInput = normalizeArabicText(identifier).replace(/[,()"]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const buildOrClauses = (isProfilesTable: boolean): string[] => {
+      const clauses: string[] = [];
+      if (cleanEmail.includes('@')) {
+        clauses.push(`email.ilike.${quoteOrValue(cleanEmail)}`);
+      } else if (escapedClean) {
+        clauses.push(`email.ilike.${quoteOrValue(`${escapedClean}@dream.com`)}`);
+        clauses.push(`email.ilike.${quoteOrValue(`${escapedClean}@%`)}`);
+        clauses.push(`username.ilike.${quoteOrValue(escapedClean)}`);
+        const nameCol = isProfilesTable ? 'full_name' : 'name';
+        clauses.push(`${nameCol}.ilike.${quoteOrValue(`*${escapedClean}*`)}`);
+        if (normSpaceInput && normSpaceInput.length >= 2 && normSpaceInput !== escapedClean) {
+          clauses.push(`${nameCol}.ilike.${quoteOrValue(`*${normSpaceInput}*`)}`);
+        }
+      }
+      if (asciiDigits.length >= 7) {
+        clauses.push(`phone.ilike.${quoteOrValue(`*${asciiDigits.slice(-8)}*`)}`);
+      }
+      return Array.from(new Set(clauses));
+    };
+
     for (const tbl of targetTables) {
       try {
         let selectCols = USER_SELECT_BY_TABLE[tbl] || '*';
-        const buildUserLookupQuery = (cols: string) => {
-          let qb = supabase.from(tbl).select(cols);
-          if (cleanEmail.includes('@')) {
-            qb = qb.ilike('email', cleanEmail);
-          } else if (asciiDigits.length >= 8) {
-            qb = qb.ilike('phone', `%${asciiDigits.slice(-8)}%`);
-          } else if (escapedClean) {
-            qb = qb.or(
-              `username.ilike.${quoteOrValue(escapedClean)},email.ilike.${quoteOrValue(`${escapedClean}%`)},name.ilike.${quoteOrValue(`*${escapedClean}*`)}`
-            );
-          } else {
-            return null;
-          }
-          return qb.limit(1);
-        };
+        const orClauses = buildOrClauses(tbl === 'profiles');
+        if (orClauses.length === 0) continue;
 
-        const firstQuery = buildUserLookupQuery(selectCols);
-        if (!firstQuery) continue;
-        let { data: rows, error: qErr } = await firstQuery;
+        const buildUserLookupQuery = (cols: string) =>
+          supabase.from(tbl).select(cols).or(orClauses.join(',')).limit(5);
+
+        let { data: rows, error: qErr } = await buildUserLookupQuery(selectCols);
         if (qErr && selectCols !== '*' && isMissingColumnError(qErr)) {
-          const fbQuery = buildUserLookupQuery('*');
-          if (fbQuery) ({ data: rows, error: qErr } = await fbQuery);
+          ({ data: rows, error: qErr } = await buildUserLookupQuery('*'));
         }
 
         if (!qErr && rows && rows.length > 0) {
-          const rawRow = rows[0] as any;
+          // Pick best match when multiple candidates return
+          const matchedRow =
+            rows.find((r: any) => {
+              const rEmail = sanitizeEmail(r.email || '');
+              const rUser = sanitizeIdentifier(r.username || r.user_name || '').toLowerCase();
+              const rName = normalizeArabicText(r.name || r.full_name || r.display_name || '').replace(/\s+/g, '');
+              const rPhone = String(r.phone || r.mobile || r.tel || '').replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()).replace(/\D/g, '');
+              return (
+                (cleanEmail && rEmail === cleanEmail) ||
+                (!cleanEmail.includes('@') && rEmail === `${cleanLower}@dream.com`) ||
+                (cleanLower && rUser === cleanLower) ||
+                (normInput && rName === normInput) ||
+                (asciiDigits.length >= 7 && rPhone.endsWith(asciiDigits.slice(-8)))
+              );
+            }) || rows[0];
+
+          const rawRow = matchedRow as any;
           const rawEmail = String(rawRow.email || '').trim();
           const emailPrefix = rawEmail ? rawEmail.split('@')[0] : '';
           let password = String(rawRow.password || rawRow.pass || '').trim();
 
-          // If profiles was matched and has no password, attempt immediate lookup from users
           if (!password && tbl === 'profiles' && rawRow.id) {
             try {
               const { data: uRows } = await supabase.from('users').select('password').eq('id', rawRow.id).limit(1);
@@ -1478,7 +1666,7 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
       }
     }
 
-    // 2. Fallback to cached/directory match ONLY if targeted 1-row lookup missed (e.g., Arabic normalized name or snapshot)
+    // 2. Fallback to cached/directory match ONLY if targeted lookup missed
     const remoteRes = await fetchUsersFromSupabase(false, { includeCredentials: true });
     if (remoteRes.success && remoteRes.users && remoteRes.users.length > 0) {
       const found = remoteRes.users.find((u) => {
@@ -2390,10 +2578,24 @@ export async function fetchSalesSummaryFromSupabase(
   }
 }
 
+let cachedOrdersSupportsUpdatedAt: boolean | null = (() => {
+  try {
+    const v = typeof localStorage !== 'undefined' ? localStorage.getItem('tantawy_orders_has_updated_at') : null;
+    return v === 'true' ? true : v === 'false' ? false : null;
+  } catch {
+    return null;
+  }
+})();
+let sessionInvoicesCheckedEmpty = false;
+
 export async function fetchInvoiceContentStamp(
   scope?: InvoiceFetchScope
 ): Promise<InvoiceContentStamp | null> {
   const repIds = (scope?.repIds || []).map((r) => String(r).trim()).filter(Boolean);
+  if (Array.isArray(scope?.repIds) && repIds.length === 0) {
+    return { count: 0, maxCreatedAt: null, table: 'orders', stampColumn: 'created_at' };
+  }
+
   const probe = async (table: 'orders' | 'invoices', col: 'updated_at' | 'created_at') => {
     let query = supabase
       .from(table)
@@ -2409,19 +2611,27 @@ export async function fetchInvoiceContentStamp(
 
   try {
     let table: 'orders' | 'invoices' = 'orders';
-    let stampColumn: 'updated_at' | 'created_at' = 'updated_at';
-    let res = await probe('orders', 'updated_at');
-    if (res.error) {
+    let stampColumn: 'updated_at' | 'created_at' =
+      cachedOrdersSupportsUpdatedAt === false ? 'created_at' : 'updated_at';
+    let res = await probe('orders', stampColumn);
+    if (res.error && stampColumn === 'updated_at') {
+      cachedOrdersSupportsUpdatedAt = false;
+      try { localStorage.setItem('tantawy_orders_has_updated_at', 'false'); } catch {}
       stampColumn = 'created_at';
       res = await probe('orders', 'created_at');
+    } else if (!res.error && stampColumn === 'updated_at' && cachedOrdersSupportsUpdatedAt === null) {
+      cachedOrdersSupportsUpdatedAt = true;
+      try { localStorage.setItem('tantawy_orders_has_updated_at', 'true'); } catch {}
     }
-    if (res.error || !res.data || res.data.length === 0) {
-      table = 'invoices';
-      stampColumn = 'updated_at';
-      res = await probe('invoices', 'updated_at');
-      if (res.error) {
+
+    if ((res.error || ((res.data?.length ?? 0) === 0 && !sessionInvoicesCheckedEmpty))) {
+      const invRes = await probe('invoices', 'created_at');
+      if (!invRes.error && invRes.data && invRes.data.length > 0) {
+        table = 'invoices';
         stampColumn = 'created_at';
-        res = await probe('invoices', 'created_at');
+        res = invRes;
+      } else if (!res.error) {
+        sessionInvoicesCheckedEmpty = true;
       }
     }
     if (res.error) return null;
@@ -2491,6 +2701,7 @@ export const NON_INVOICE_ORDER_IDS: readonly string[] = [
   GLOBAL_SYNC_VERSION_RECORD_ID,
   USER_SYNC_STORE_ID,
   CATALOG_SYNC_STORE_ID,
+  PROMOTIONS_SYNC_STORE_ID,
 ];
 
 /** بادئات صفحات الكتالوج في جدول orders (manifest + chunks). */
@@ -2580,12 +2791,49 @@ const CHUNK_SIZE = 400;
  * Uses chunked snapshot in shared store for 100% full rich sync (including Fayoum & all branch stocks)
  * + standard products table upsert
  */
+function resolveSafeProductId(p: Product): string {
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.id);
+  return isUuid ? p.id : stringToUuid(p.id);
+}
+
+function buildProductComparableSig(p: Product): string {
+  const cartonQuantity = Math.max(1, Number(p.cartonQuantity || p.factor) || 1);
+  const piecePrice = Number(p.piecePrice || p.salesPrice || 0) ||
+    (Number(p.cartonPrice || 0) > 0 ? Math.round((Number(p.cartonPrice) / cartonQuantity) * 100) / 100 : 0);
+  return JSON.stringify([
+    p.code?.trim() || '',
+    p.name || '',
+    p.salesPriority || 'عادي',
+    p.status || 'متاح',
+    cartonQuantity,
+    p.size || '',
+    p.color || '',
+    Number(p.branchStockActual) || 0,
+    typeof p.branchStockReserved === 'number' ? p.branchStockReserved : (Number(p.branchStockActual) || 0),
+    Number(p.mainWarehouseActual) || 0,
+    typeof p.mainWarehouseReserved === 'number' ? p.mainWarehouseReserved : (Number(p.mainWarehouseActual) || 0),
+    p.itemGroup || p.department || p.category || 'عام',
+    p.department || 'عام',
+    p.familyName || 'أصناف عامة',
+    p.classification || 'أصناف عامة',
+    piecePrice,
+    Number(p.cartonPrice) || Math.round(piecePrice * cartonQuantity * 100) / 100,
+    p.imageUrl || '',
+    p.cloudinaryPublicId || '',
+    p.barcode || '',
+    p.unifiedCode || '',
+    stableJsonSig(p.branchStocks || {}),
+    p.sector || '',
+    p.branchName || '',
+  ]);
+}
+
 export async function saveProductsToSupabase(
   products: Product[],
-  options?: { snapshot?: boolean }
-): Promise<{ success: boolean; error?: string }> {
+  options?: { snapshot?: boolean; previousProducts?: Product[] }
+): Promise<{ success: boolean; changedCount?: number; error?: string }> {
   try {
-    if (!products || products.length === 0) return { success: true };
+    if (!products || products.length === 0) return { success: true, changedCount: 0 };
 
     // Index products by their unique ID to preserve all 5500+ rows
     const idMap = new Map<string, Product>();
@@ -2594,14 +2842,33 @@ export async function saveProductsToSupabase(
     });
     const uniqueProducts = Array.from(idMap.values());
 
-    // 1. (اختياري) كتالوج الـ snapshot الغني داخل orders — للمستندين القدامى بس.
-    //    كان بيتكتب على كل تعديل (‏~3.5MB رفع لكل دفعة) — دلوقتي بيتكتب فقط
-    //    مع الاستيراد الكامل/المزامنة اليدوية الكاملة (options.snapshot === true).
-    //    القراءة الحديثة بتفضّل جدول products الغني (انظر fetchProductsFromSupabase).
+    let productsToWrite = uniqueProducts;
+    if (options?.previousProducts && options.previousProducts.length > 0) {
+      const prevSigByKey = new Map<string, string>();
+      options.previousProducts.forEach((prev) => {
+        const sig = buildProductComparableSig(prev);
+        prevSigByKey.set(`id:${resolveSafeProductId(prev)}`, sig);
+        if (prev.code?.trim()) {
+          prevSigByKey.set(`code:${prev.code.trim().toLowerCase()}`, sig);
+        }
+      });
+      productsToWrite = uniqueProducts.filter((p) => {
+        const keyByCode = p.code?.trim() ? `code:${p.code.trim().toLowerCase()}` : '';
+        const prevSig = (keyByCode && prevSigByKey.get(keyByCode)) || prevSigByKey.get(`id:${resolveSafeProductId(p)}`);
+        if (!prevSig) return true;
+        return prevSig !== buildProductComparableSig(p);
+      });
+      if (productsToWrite.length === 0) {
+        return { success: true, changedCount: 0 };
+      }
+    }
+
+    // 1. (اختياري) كتالوج الـ snapshot الغني داخل orders — للأجهزة القديمة فقط عند الاستيراد الكامل الأول.
+    //    لو جدول products الغني مفعّل بالفعل، نحدّث صف الماني فست فقط بدون إعادة رفع 14 chunk.
     if (options?.snapshot === true) {
       const totalChunks = Math.ceil(uniqueProducts.length / CHUNK_SIZE);
       try {
-        // Save manifest first — mode=products_table_v2 يعني القراء الجدد يفضلوا الجدول.
+        const alreadyV2 = await isProductsTableAuthoritative();
         await supabase.from('orders').upsert({
           id: CATALOG_MANIFEST_ID,
           status: 'catalog_sync_manifest',
@@ -2614,30 +2881,26 @@ export async function saveProductsToSupabase(
           } as any,
         });
 
-        // Save each chunk
-        for (let i = 0; i < totalChunks; i++) {
-          const chunk = uniqueProducts.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
-          await supabase.from('orders').upsert({
-            id: `${CATALOG_CHUNK_PREFIX}${i}`,
-            status: 'catalog_sync_chunk',
-            total: chunk.length,
-            items: chunk as any,
-          });
+        if (!alreadyV2 || productsToWrite.length === uniqueProducts.length) {
+          for (let i = 0; i < totalChunks; i++) {
+            const chunk = uniqueProducts.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+            await supabase.from('orders').upsert({
+              id: `${CATALOG_CHUNK_PREFIX}${i}`,
+              status: 'catalog_sync_chunk',
+              total: chunk.length,
+              items: chunk as any,
+            });
+          }
         }
       } catch (storeErr) {
         console.warn('Catalog snapshot chunk store fallback:', storeErr);
       }
     }
 
-    /**
-     * بناء الـ payload: غني (كل أعمدة add_products_rich_columns.sql) أو
-     * قديم (7 أعمدة) — المحاولة الغنية الأول، ولو أعمدة الجدول ناقصة
-     * (الميجريشن لسه ما اتنفذش) نرجع للقديم بدل ما فشل الحفظ كله.
-     */
+    const nowIso = new Date().toISOString();
     const buildPayload = (rich: boolean) =>
-      uniqueProducts.map((p) => {
-        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p.id);
-        const safeId = isUuid ? p.id : stringToUuid(p.id);
+      productsToWrite.map((p) => {
+        const safeId = resolveSafeProductId(p);
         const cartonQuantity = Math.max(1, Number(p.cartonQuantity || p.factor) || 1);
         const piecePrice = Number(p.piecePrice || p.salesPrice || 0) ||
           (Number(p.cartonPrice || 0) > 0 ? Math.round((Number(p.cartonPrice) / cartonQuantity) * 100) / 100 : 0);
@@ -2678,11 +2941,10 @@ export async function saveProductsToSupabase(
           branch_stocks: p.branchStocks ?? {},
           sector: p.sector ?? null,
           branch_name: p.branchName || null,
+          updated_at: nowIso,
         };
       });
 
-    // The products table treats a normalized code as unique, even when imported
-    // rows have different IDs. Keep only the last row for each code in this save.
     const dedupePayload = <T extends { id: string; code: string | null }>(payload: T[]): T[] => {
       const productsByKey = new Map<string, T>();
       payload.forEach((product) => {
@@ -2716,7 +2978,6 @@ export async function saveProductsToSupabase(
     const isMissingColumn = (msg: string) =>
       /does not exist|could not find the|schema cache/i.test(msg);
 
-    // محاولة غنية أولًا — وبعد فشل "عمود مش موجود" نرجع للـ payload القديم.
     const richRows = dedupePayload(buildPayload(true));
     const richWithCode = richRows.filter((product) => product.code);
     const richWithoutCode = richRows.filter((product) => !product.code);
@@ -2738,16 +2999,13 @@ export async function saveProductsToSupabase(
 
     if (saveError) return { success: false, error: saveError };
 
-    // كتالوج snapshot قديم مش متحدث + الجدول الرسمي اتحدث غني → القراء القدامى
-    // بيشوفوا بيانات قديمة لحد ما الجهاز ده يتحدث — مقبول (تحديث موحد للفريق)
-    // ومن غير الدي كان كل تعديل بيدفع 3.5MB رفع.
     if (usedRichPayload) {
       console.info(
-        `Supabase rich products save: ${richRows.length} rows (no snapshot rewrite).`
+        `Supabase rich products save: ${richRows.length} changed rows (out of ${uniqueProducts.length}).`
       );
     }
 
-    return { success: true };
+    return { success: true, changedCount: richRows.length };
   } catch (e: any) {
     console.error('Supabase products save error:', e);
     const { message } = handleSupabaseError(e, "saveUsersToSupabase");
@@ -3018,14 +3276,25 @@ function mapProductTableRow(p: any): Product {
 async function readRichProductsTable(sector?: ProductSectorScope): Promise<{ ok: boolean; products: Product[] }> {
   const pageSize = 1000;
   const rows: any[] = [];
+  let selectCols = PRODUCTS_SELECT_COLUMNS;
   for (let page = 0; page < MAX_PRODUCT_PAGES; page++) {
     let query = supabase
       .from('products')
-      .select(PRODUCTS_SELECT_COLUMNS)
+      .select(selectCols)
       .order('id', { ascending: true })
       .range(page * pageSize, page * pageSize + pageSize - 1);
     query = applyProductSectorScope(query, sector);
-    const { data, error } = await query;
+    let { data, error } = await query;
+    if (error && selectCols !== '*' && isMissingColumnError(error)) {
+      selectCols = '*';
+      let fbQuery = supabase
+        .from('products')
+        .select('*')
+        .order('id', { ascending: true })
+        .range(page * pageSize, page * pageSize + pageSize - 1);
+      fbQuery = applyProductSectorScope(fbQuery, sector);
+      ({ data, error } = await fbQuery);
+    }
     if (error) return { ok: false, products: [] };
     if (!data || data.length === 0) break;
     rows.push(...data);
@@ -3078,8 +3347,7 @@ async function fetchVisitsFromSupabaseImpl(
       'store_stock_status', 'competitor_notes', 'customer_rating', 'next_visit_date',
       'order_created_id', 'order_amount', 'is_return', 'return_value', 'return_reason',
       'return_status', 'return_handled_by', 'return_handled_at', 'return_note',
-      'created_by', 'created_at', 'updated_at', 'review_status',
-      'reviewed_by_name', 'review_note', 'reviewed_at',
+      'created_by', 'created_at', 'updated_at',
     ].join(',');
 
     const readPages = async (useScope: boolean) => {
@@ -3287,10 +3555,14 @@ export async function saveVisitsToSupabase(visits: CustomerVisit[]): Promise<{ s
         return_handled_by: v.returnHandledBy || null,
         return_handled_at: v.returnHandledAt || null,
         return_note: v.returnNote || null,
-        review_status: v.reviewStatus || null,
-        reviewed_by_name: v.reviewedByName || null,
-        review_note: v.reviewNote || null,
-        reviewed_at: v.reviewedAt || null,
+        ...(v.reviewStatus
+          ? {
+              review_status: v.reviewStatus,
+              reviewed_by_name: v.reviewedByName || null,
+              review_note: v.reviewNote || null,
+              reviewed_at: v.reviewedAt || null,
+            }
+          : {}),
         created_by: v.createdBy || '',
         created_at: v.createdAt || new Date().toISOString(),
         updated_at: v.updatedAt || new Date().toISOString(),
@@ -4464,3 +4736,92 @@ export function mergeCustomerItemSalesIncremental(existing: any[], incoming: any
   incoming.forEach((s) => { if (s && s.id) byId.set(String(s.id), s); });
   return Array.from(byId.values());
 }
+
+/* ---------- Promotions & Announcements Sync Store (عروض دريم طنطاوي والتعميمات) ---------- */
+export interface PromotionsStampMeta {
+  updatedAt: string | null;
+  total: number | null;
+}
+
+export async function fetchPromotionsStamp(): Promise<PromotionsStampMeta | null> {
+  try {
+    if (!isSupabaseConfigured) return null;
+    const { data, error } = await supabase
+      .from('orders')
+      .select('updated_at, total')
+      .eq('id', PROMOTIONS_SYNC_STORE_ID)
+      .limit(1);
+    if (error) return null;
+    const row = data?.[0] as any;
+    if (!row) return { updatedAt: null, total: 0 };
+    return {
+      updatedAt: row.updated_at ? String(row.updated_at) : null,
+      total: typeof row.total === 'number' ? row.total : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function savePromotionsToSupabase(payload: {
+  promotions: PromotionOffer[];
+  announcements?: PromoAnnouncement[];
+  updatedAt?: string;
+}): Promise<{ success: boolean; updatedAt?: string; error?: string }> {
+  try {
+    const nowIso = payload.updatedAt || new Date().toISOString();
+    if (!isSupabaseConfigured) return { success: true, updatedAt: nowIso };
+    const record = {
+      id: PROMOTIONS_SYNC_STORE_ID,
+      status: 'promotions_sync_store',
+      total: payload.promotions.length,
+      updated_at: nowIso,
+      items: {
+        promotions: payload.promotions,
+        announcements: payload.announcements || [],
+        updatedAt: nowIso,
+      } as any,
+    };
+    const { error } = await supabase.from('orders').upsert(record, { onConflict: 'id' });
+    if (error) return { success: false, error: error.message };
+    return { success: true, updatedAt: nowIso };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'تعذر حفظ العروض في السحابة' };
+  }
+}
+
+export async function fetchPromotionsFromSupabase(): Promise<{
+  success: boolean;
+  promotions?: PromotionOffer[];
+  announcements?: PromoAnnouncement[];
+  updatedAt?: string;
+  error?: string;
+}> {
+  return dedupeInFlightRequest('promotions_store_v1', async () => {
+    try {
+      if (!isSupabaseConfigured) return { success: false, error: 'offline' };
+      const { data, error } = await supabase
+        .from('orders')
+        .select('items, updated_at')
+        .eq('id', PROMOTIONS_SYNC_STORE_ID)
+        .limit(1);
+      if (error) return { success: false, error: error.message };
+      const rawItems = data?.[0]?.items as any;
+      const rowUpdatedAt = (data?.[0] as any)?.updated_at ? String((data?.[0] as any).updated_at) : undefined;
+      if (!rawItems) return { success: true, promotions: [], announcements: [], updatedAt: rowUpdatedAt };
+      const parsed = typeof rawItems === 'string' ? JSON.parse(rawItems) : rawItems;
+      if (Array.isArray(parsed)) {
+        return { success: true, promotions: parsed, updatedAt: rowUpdatedAt };
+      }
+      return {
+        success: true,
+        promotions: Array.isArray(parsed?.promotions) ? parsed.promotions : [],
+        announcements: Array.isArray(parsed?.announcements) ? parsed.announcements : undefined,
+        updatedAt: rowUpdatedAt || (typeof parsed?.updatedAt === 'string' ? parsed.updatedAt : undefined),
+      };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'تعذر جلب العروض من السحابة' };
+    }
+  });
+}
+

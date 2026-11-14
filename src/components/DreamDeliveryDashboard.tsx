@@ -1,12 +1,13 @@
 import React, { useMemo } from 'react';
 import {
   ShoppingCart, Wallet, PackageSearch, MapPin, RotateCcw, TrendingUp,
-  Users, ArrowUpRight, Target, CalendarCheck, ReceiptText,
-  CircleDollarSign, Activity, Boxes, ClipboardList, BarChart3, Flame,
-  Sparkles, CreditCard, AlertTriangle, Coins, FileText, Building2,
+  Users, Target, CalendarCheck, ReceiptText,
+  Activity, Boxes, Flame,
+  Sparkles, CreditCard, AlertTriangle, Coins, ArrowLeft, Tag,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import type { Invoice, Customer } from '../types';
+import { filterPromotionsForUser } from '../services/promotionService';
+import type { Invoice } from '../types';
 
 interface DreamDeliveryDashboardProps {
   onNavigate?: (tab: string) => void;
@@ -33,43 +34,6 @@ function invoiceValue(invoice: Invoice): number {
   return Number(invoice.totalAmount ?? invoice.estimatedGrandTotal ?? 0) || 0;
 }
 
-function isDealingCustomer(c: Customer): boolean {
-  const raw = String((c as any).dealStatus ?? (c as any).isDealing ?? (c as any).customerType ?? (c as any).status ?? '').trim();
-  const lower = raw.toLowerCase();
-  if (lower === 'متعامل' || lower === 'dealing' || lower === 'active' || lower === 'نشط' || lower === 'true') return true;
-  if (lower === 'غير متعامل' || lower === 'non-dealing' || lower === 'inactive' || lower === 'غير نشط' || lower === 'false') return false;
-  const dealCol = String((c as any).قابل ?? (c as any).isEligible ?? (c as any).eligible ?? '').trim();
-  const dealLower = dealCol.toLowerCase();
-  if (dealLower === 'قابل' || dealLower === 'yes' || dealLower === 'true' || dealLower === '1') return true;
-  if (dealLower === 'غير قابل' || dealLower === 'no' || dealLower === 'false' || dealLower === '0') return false;
-  return Number(c.currentBalance ?? c.balance ?? 0) > 0 || Number(c.totalSpent ?? c.totalOverallSales ?? 0) > 0;
-}
-
-function classifyCustomer(c: Customer): 'dealing' | 'eligible' | 'notEligible' {
-  const dealCol = String((c as any).قابل ?? (c as any).dealStatus ?? (c as any).isDealing ?? (c as any).customerType ?? (c as any).status ?? '').trim();
-  const lower = dealCol.toLowerCase();
-
-  // غير قابل للتعامل
-  if (lower === 'غير قابل' || lower === 'no' || lower === 'false' || lower === '0' || lower === 'غير نشط' || lower === 'inactive') {
-    return 'notEligible';
-  }
-
-  // قابل للتعامل (مؤهل للتعامل)
-  if (lower === 'قابل' || lower === 'yes' || lower === 'true' || lower === '1') {
-    return 'eligible';
-  }
-
-  // متعامل - لديه نشاط حقيقي (مبيعات أو طلبات أو رصيد)
-  const hasActivity = Number(c.totalSpent ?? c.totalOverallSales ?? 0) > 0 ||
-    Number(c.totalOrdersCount ?? 0) > 0 ||
-    Number(c.currentBalance ?? c.balance ?? 0) > 0;
-
-  if (hasActivity) return 'dealing';
-
-  // افتراضياً قابل للتعامل إذا لم يُحدد بوضوح وغير نشط
-  return 'eligible';
-}
-
 export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ onNavigate }) => {
   const {
     currentUser,
@@ -77,6 +41,8 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
     customers,
     visibleVisits,
     targets,
+    promotions,
+    products,
     getVisibleInvoices,
     getVisibleCustomers,
     getVisibleTargets,
@@ -167,18 +133,15 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
 
   const maxSeries = Math.max(1, ...monthlySeries.map((m) => Math.max(m.sales, m.collection)));
 
-  const customerCounts = useMemo(() => {
-    let dealing = 0;
-    let notEligible = 0;
-    let eligible = 0;
-    for (const c of visibleCustomers) {
-      const cls = classifyCustomer(c);
-      if (cls === 'dealing') dealing++;
-      else if (cls === 'notEligible') notEligible++;
-      else eligible++;
-    }
-    return { dealing, notEligible, eligible, total: visibleCustomers.length };
-  }, [visibleCustomers]);
+  const promoSummary = useMemo(() => {
+    const scoped = filterPromotionsForUser(promotions, currentUser, products);
+    const active = scoped.filter((p) => p.status !== 'منتهي');
+    const maxDiscount = active.reduce((mx, p) => Math.max(mx, Number(p.discountPercentage || 0)), 0);
+    return {
+      count: active.length,
+      maxDiscount: Math.round(maxDiscount),
+    };
+  }, [promotions, currentUser, products]);
 
   const totalDebt = visibleCustomers.reduce((sum, c) => sum + (Number(c.currentBalance ?? c.balance ?? 0) || 0), 0);
   const totalReceivable = visibleCustomers.reduce((sum, c) => sum + (Number(c.creditLimit ?? 0) || 0), 0);
@@ -317,6 +280,44 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
         </div>
       </section>
 
+      {/* ---------- بانر عروض دريم طنطاوي ---------- */}
+      <button
+        type="button"
+        onClick={() => onNavigate?.('offers')}
+        className="tg-offers-banner"
+      >
+        <div className="tg-offers-banner__inner">
+          <div className="tg-offers-banner__icon" aria-hidden="true">
+            <Flame size={22} />
+          </div>
+          <div className="tg-offers-banner__body">
+            <div className="tg-offers-banner__top">
+              <span className="tg-offers-banner__title">عروض دريم طنطاوي</span>
+              <span className="tg-special-discount-badge">
+                <Tag size={11} />
+                خصم خاص
+              </span>
+              {promoSummary.count > 0 && (
+                <span className="tg-offers-banner__count">
+                  {promoSummary.count} عرض نشط
+                  {promoSummary.maxDiscount > 0 ? ` • حتى ${promoSummary.maxDiscount}%` : ''}
+                </span>
+              )}
+            </div>
+            <p className="tg-offers-banner__sub">
+              {promoSummary.count > 0
+                ? 'اضغط هنا لفتح صفحة العروض واستعراض الأصناف المشمولة بالخصم الخاص المرتبط بأكواد المنتجات'
+                : 'اضغط لفتح مركز العروض والخصومات لمتابعة أحدث عروض دريم طنطاوي المربوطة بكود الصنف'}
+            </p>
+          </div>
+          <span className="tg-offers-banner__cta whitespace-nowrap shrink-0">
+            <Sparkles size={14} />
+            تصفح العروض
+            <ArrowLeft size={14} />
+          </span>
+        </div>
+      </button>
+
       {/* ---------- كروت الأهداف الأربعة (مديونيات، مستحقات، تارجت بيع، تارجت تحصيل) ---------- */}
       <section className="tg-target-row">
         <div className="tg-target-card tg-target-card--debt">
@@ -429,37 +430,6 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
           </div>
         </div>
 
-        {/* تصنيف العملاء (3 تصنيفات) */}
-        <div className="tg-card">
-          <div className="tg-card__head">
-            <span className="tg-card__title">تصنيف العملاء</span>
-            <span className="tg-card__hint">{fmt(customerCounts.total)} عميل</span>
-          </div>
-          <div className="tg-class-grid">
-            <div className="tg-class-item tg-class-item--dealing">
-              <Users size={20} className="text-emerald-600" />
-              <div className="tg-class__info">
-                <div className="tg-class__label">العملاء المتعاملين</div>
-                <div className="tg-class__value">{fmt(customerCounts.dealing)}</div>
-              </div>
-            </div>
-            <div className="tg-class-item tg-class-item--eligible">
-              <Flame size={20} className="text-amber-500" />
-              <div className="tg-class__info">
-                <div className="tg-class__label">قابل للتعامل</div>
-                <div className="tg-class__value">{fmt(customerCounts.eligible)}</div>
-              </div>
-            </div>
-            <div className="tg-class-item tg-class-item--noteligible">
-              <UserOfflineIcon size={20} />
-              <div className="tg-class__info">
-                <div className="tg-class__label">غير قابل للتعامل</div>
-                <div className="tg-class__value">{fmt(customerCounts.notEligible)}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* معلومات سريعة إضافية */}
         <div className="tg-card">
           <div className="tg-card__head">
@@ -544,15 +514,5 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
     </div>
   );
 };
-
-function UserOfflineIcon({ size = 20 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-      <circle cx="8.5" cy="7" r="4" />
-      <line x1="18" x2="18" y1="1" y2="9" />
-    </svg>
-  );
-}
 
 export default DreamDeliveryDashboard;

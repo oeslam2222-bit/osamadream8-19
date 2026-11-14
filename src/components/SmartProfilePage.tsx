@@ -21,6 +21,20 @@ import { CustomerProfileDrawer } from './CustomerProfileDrawer';
 
 const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
+const QUARTER_MONTHS: Record<1 | 2 | 3 | 4, number[]> = {
+  1: [1, 2, 3],
+  2: [4, 5, 6],
+  3: [7, 8, 9],
+  4: [10, 11, 12],
+};
+
+const QUARTER_LABELS: Record<1 | 2 | 3 | 4, string> = {
+  1: 'الربع الأول Q1 (يناير - مارس)',
+  2: 'الربع الثاني Q2 (إبريل - يونيو)',
+  3: 'الربع الثالث Q3 (يوليو - سبتمبر)',
+  4: 'الربع الرابع Q4 (أكتوبر - ديسمبر)',
+};
+
 function fmt(value: number): string {
   return (Number.isFinite(value) ? value : 0).toLocaleString('en-US', { maximumFractionDigits: 0 });
 }
@@ -112,11 +126,17 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
   const [selectedBranch, setSelectedBranch] = useState('الكل');
   const [selectedSupervisor, setSelectedSupervisor] = useState('الكل');
   const [selectedEligibility, setSelectedEligibility] = useState<'all' | 'eligible' | 'ineligible'>('all');
+  const [repPeriodMode, setRepPeriodMode] = useState<'all' | 'month' | 'quarter'>('all');
+  const [selectedRepMonth, setSelectedRepMonth] = useState<number>(() => new Date().getMonth() + 1);
+  const [selectedRepQuarter, setSelectedRepQuarter] = useState<1 | 2 | 3 | 4>(
+    () => (Math.floor(new Date().getMonth() / 3) + 1) as 1 | 2 | 3 | 4
+  );
+  const [selectedRepYear, setSelectedRepYear] = useState<number | 'all'>('all');
   const [visibleCustomersCount, setVisibleCustomersCount] = useState(12);
   const [visibleRepsCount, setVisibleRepsCount] = useState(5);
   const [openCustomerId, setOpenCustomerId] = useState<string | null>(null);
   const [openRepId, setOpenRepId] = useState<string | null>(null);
-  const [repAnalysisTab, setRepAnalysisTab] = useState<'overview' | 'monthly' | 'customers' | 'visits'>('overview');
+  const [repAnalysisTab, setRepAnalysisTab] = useState<'overview' | 'monthly' | 'visits'>('overview');
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
@@ -132,7 +152,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     setVisibleRepsCount(5);
     setOpenCustomerId(null);
     setOpenRepId(null);
-  }, [searchQuery, selectedSector, selectedBranch, selectedSupervisor, selectedEligibility, activeTab]);
+  }, [searchQuery, selectedSector, selectedBranch, selectedSupervisor, selectedEligibility, repPeriodMode, selectedRepMonth, selectedRepQuarter, selectedRepYear, activeTab]);
 
   /* ---------- البيانات ---------- */
   const allTargets = useMemo(() => getVisibleTargets(), [targets, currentUser, users, customers, getVisibleTargets]);
@@ -174,6 +194,22 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     monthlySales: Record<string, number>;
     monthlyCollection: Record<string, number>;
   };
+
+  const repYearOptions = useMemo(() => {
+    const years = new Set<number>();
+    allTargets.forEach((t) => {
+      const y = Number(t.year);
+      if (y > 2000) years.add(y);
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [allTargets]);
+
+  const activePeriodLabel = useMemo(() => {
+    const yearSuffix = selectedRepYear === 'all' ? '' : ` ${selectedRepYear}`;
+    if (repPeriodMode === 'month') return `${MONTHS_AR[selectedRepMonth - 1]}${yearSuffix}`;
+    if (repPeriodMode === 'quarter') return `Q${selectedRepQuarter} (${QUARTER_MONTHS[selectedRepQuarter].map((m) => MONTHS_AR[m - 1]).join(' - ')})${yearSuffix}`;
+    return selectedRepYear === 'all' ? 'كل الفترات' : `سنة ${selectedRepYear}`;
+  }, [repPeriodMode, selectedRepMonth, selectedRepQuarter, selectedRepYear]);
 
   const repsMap = useMemo(() => {
     const map = new Map<string, RepProfile>();
@@ -221,6 +257,14 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
       return entry;
     };
 
+    const matchesSelectedPeriod = (t: TargetRecord): boolean => {
+      if (selectedRepYear !== 'all' && Number(t.year) !== selectedRepYear) return false;
+      const m = Number(t.month);
+      if (repPeriodMode === 'month') return m === selectedRepMonth;
+      if (repPeriodMode === 'quarter') return QUARTER_MONTHS[selectedRepQuarter].includes(m);
+      return true;
+    };
+
     for (const t of allTargets) {
       const entry = upsertRep(t.repName, {
         branch: t.branch || '—',
@@ -230,13 +274,17 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
       const y = String(t.year);
       const m = String(t.month).padStart(2, '0');
       const monthKey = `${y}-${m}`;
-      entry.monthlySales[monthKey] = (entry.monthlySales[monthKey] || 0) + Number(t.salesAchieved || 0);
-      entry.monthlyCollection[monthKey] = (entry.monthlyCollection[monthKey] || 0) + Number(t.collectionAchieved || 0);
+      if (selectedRepYear === 'all' || Number(t.year) === selectedRepYear) {
+        entry.monthlySales[monthKey] = (entry.monthlySales[monthKey] || 0) + Number(t.salesAchieved || 0);
+        entry.monthlyCollection[monthKey] = (entry.monthlyCollection[monthKey] || 0) + Number(t.collectionAchieved || 0);
+      }
 
-      entry.salesTarget += Number(t.salesTarget || 0);
-      entry.salesAchieved += Number(t.salesAchieved || 0);
-      entry.collectionTarget += Number(t.collectionTarget || 0);
-      entry.collectionAchieved += Number(t.collectionAchieved || 0);
+      if (matchesSelectedPeriod(t)) {
+        entry.salesTarget += Number(t.salesTarget || 0);
+        entry.salesAchieved += Number(t.salesAchieved || 0);
+        entry.collectionTarget += Number(t.collectionTarget || 0);
+        entry.collectionAchieved += Number(t.collectionAchieved || 0);
+      }
     }
 
     for (const c of allCustomers) {
@@ -250,7 +298,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     }
 
     return Array.from(map.values()).sort((a, b) => b.salesAchieved - a.salesAchieved);
-  }, [allTargets, allCustomers, users]);
+  }, [allTargets, allCustomers, users, repPeriodMode, selectedRepMonth, selectedRepQuarter, selectedRepYear]);
 
   const branchOptions = useMemo(() => {
     const set = new Set<string>();
@@ -550,6 +598,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     if (openRepId === id) {
       setOpenRepId(null);
     } else {
+      setRepAnalysisTab('overview');
       setOpenRepId(id);
     }
   };
@@ -684,28 +733,10 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('reps')}
-                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
-                  activeTab === 'reps'
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
-                    : 'bg-white/15 border border-white/25 text-white hover:bg-white/25'
-                }`}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black bg-blue-600 text-white shadow-sm shadow-blue-500/25 cursor-pointer"
               >
                 <UserCheck size={16} />
                 <span>المناديب</span>
-              </button>
-            )}
-            {mode === 'reps' && (
-              <button
-                type="button"
-                onClick={() => setActiveTab('customers')}
-                className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
-                  activeTab === 'customers'
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25'
-                    : 'bg-white/15 border border-white/25 text-white hover:bg-white/25'
-                }`}
-              >
-                <Users size={16} />
-                <span>العملاء</span>
               </button>
             )}
             <button
@@ -1167,11 +1198,19 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
 
               {/* توب 10 مناديب */}
               <div className="tg-card p-4 sm:p-5 lg:col-span-2">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="h-8 w-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
-                    <Trophy className="h-4.5 w-4.5" />
-                  </span>
-                  <h3 className="text-sm font-black text-slate-900">أعلى 10 مناديب في المبيعات</h3>
+                <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <span className="h-8 w-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                      <Trophy className="h-4.5 w-4.5" />
+                    </span>
+                    <h3 className="text-sm font-black text-slate-900">أعلى 10 مناديب في المبيعات</h3>
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap text-[11px] font-black">
+                    <span className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 border border-blue-200">{activePeriodLabel}</span>
+                    {selectedBranch !== 'الكل' && (
+                      <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">فرع: {selectedBranch}</span>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2.5">
                   {repAnalytics.top10.map((rep, i) => {
@@ -1246,8 +1285,79 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
             </section>
           )}
 
-          {/* فلاتر المندوبين */}
+          {/* فلاتر المندوبين (بالشهر / بالربع سنوي 3 شهور / بالفرع) */}
           <section className="tg-card p-5 sm:p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black text-[#0F2B38] flex items-center gap-1.5">
+                  <CalendarCheck className="w-4 h-4 text-blue-700" />
+                  الفترة التحليلية:
+                </span>
+                <div className="inline-flex p-1 rounded-xl bg-slate-100 border border-slate-200 gap-1">
+                  {[
+                    { key: 'all' as const, label: 'الكل' },
+                    { key: 'month' as const, label: 'بالشهر' },
+                    { key: 'quarter' as const, label: 'ربع سنوي (3 شهور)' },
+                  ].map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setRepPeriodMode(item.key)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
+                        repPeriodMode === item.key
+                          ? 'bg-[#0F2B38] text-white shadow-xs'
+                          : 'text-slate-700 hover:bg-white'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-wrap">
+                {repPeriodMode === 'month' && (
+                  <select
+                    value={selectedRepMonth}
+                    onChange={(e) => setSelectedRepMonth(Number(e.target.value))}
+                    aria-label="اختيار الشهر"
+                    className="bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 text-xs sm:text-sm font-black text-[#0b2337] cursor-pointer focus:outline-none"
+                  >
+                    {MONTHS_AR.map((mName, idx) => (
+                      <option key={mName} value={idx + 1}>{mName}</option>
+                    ))}
+                  </select>
+                )}
+
+                {repPeriodMode === 'quarter' && (
+                  <select
+                    value={selectedRepQuarter}
+                    onChange={(e) => setSelectedRepQuarter(Number(e.target.value) as 1 | 2 | 3 | 4)}
+                    aria-label="اختيار الربع السنوي"
+                    className="bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 text-xs sm:text-sm font-black text-[#0b2337] cursor-pointer focus:outline-none"
+                  >
+                    {([1, 2, 3, 4] as const).map((q) => (
+                      <option key={q} value={q}>{QUARTER_LABELS[q]}</option>
+                    ))}
+                  </select>
+                )}
+
+                {repYearOptions.length > 0 && (
+                  <select
+                    value={selectedRepYear}
+                    onChange={(e) => setSelectedRepYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+                    aria-label="اختيار السنة"
+                    className="bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 text-xs sm:text-sm font-black text-[#0b2337] cursor-pointer focus:outline-none"
+                  >
+                    <option value="all">كل السنوات</option>
+                    {repYearOptions.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div className="relative flex-1 min-w-[240px]">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
@@ -1520,7 +1630,6 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                 {[
                   { key: 'overview' as const, label: 'نظرة عامة', icon: <Activity className="w-4 h-4" /> },
                   { key: 'monthly' as const, label: 'أداء الشهور', icon: <BarChart3 className="w-4 h-4" /> },
-                  { key: 'customers' as const, label: `العملاء (${repCustomers.length})`, icon: <Users className="w-4 h-4" /> },
                   { key: 'visits' as const, label: `الزيارات (${repMonthlyVisitsCount})`, icon: <MapPin className="w-4 h-4" /> },
                 ].map((t) => {
                   const active = repAnalysisTab === t.key;
@@ -1606,7 +1715,6 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                   <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2"><AlertTriangle className="w-4 h-4 text-rose-600" /><span className="font-black text-sm text-slate-900">عملاء عليهم مديونية</span><span className="text-xs font-extrabold text-slate-700">({repCustomersWithDebt.length})</span></div>
-                      <button type="button" onClick={() => setRepAnalysisTab('customers')} className="text-xs font-black text-blue-700 hover:text-blue-900 cursor-pointer">عرض الكل</button>
                     </div>
                     <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
                       {repCustomersWithDebt.length === 0 ? (
@@ -1672,41 +1780,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                 </div>
               )}
 
-              {/* تبويب 3: العملاء */}
-              {repAnalysisTab === 'customers' && (
-                <div className="space-y-3">
-                  <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-black text-base text-slate-900">عملاء المندوب ({repCustomers.length})</div>
-                    <div className="flex gap-2 text-xs font-black">
-                      <span className="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-800">عليهم مديونية: {repCustomersWithDebt.length}</span>
-                      <span className="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-800">خالص: {Math.max(0, repCustomers.length - repCustomersWithDebt.length)}</span>
-                    </div>
-                  </div>
-                  <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
-                    {repCustomers.length === 0 ? (
-                      <div className="rounded-2xl bg-white border border-slate-200 p-8 text-center text-sm font-extrabold text-slate-700">لا يوجد عملاء مسجلين لهذا المندوب</div>
-                    ) : (
-                      repCustomers.map((c) => (
-                        <div key={c.id} onClick={() => { setOpenRepId(null); setOpenCustomerId(c.id); }} className="rounded-2xl bg-white border border-slate-200 p-3.5 flex items-center justify-between gap-3 cursor-pointer hover:border-blue-300 hover:shadow-sm transition group">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 ${c.balance > 0 ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'}`}>{c.name.charAt(0)}</div>
-                            <div className="min-w-0">
-                              <div className="font-black text-sm text-slate-900 truncate group-hover:text-blue-700">{c.name}</div>
-                              <div className="text-xs font-bold text-slate-700 truncate"><span className="font-mono">{c.code}</span>{c.branch && c.branch !== '—' ? ` • ${c.branch}` : ''}{c.phone && c.phone !== '—' ? ` • ${c.phone}` : ''}</div>
-                            </div>
-                          </div>
-                          <div className="text-left shrink-0">
-                            <div className={`font-black text-sm tabular-nums ${c.balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{fmt(c.balance)} ج.م</div>
-                            <div className={`text-xs font-extrabold ${c.balance > 0 ? 'text-rose-700' : 'text-emerald-700'}`}>{c.balance > 0 ? 'مديونية' : 'خالص'}</div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* تبويب 4: الزيارات */}
+              {/* تبويب 3: الزيارات */}
               {repAnalysisTab === 'visits' && (
                 <div className="space-y-3">
                   <div className="rounded-2xl bg-white border border-slate-200 p-4 shadow-sm flex items-center justify-between gap-2">
