@@ -18,11 +18,44 @@ export default defineConfig(() => {
           // على نفس الشبكة. بنستثنيها من الـprecache من غير ما نمسح ملفات المستخدم.
           globIgnores: ['assets/aistudio/**', '**/*.apk'],
           maximumFileSizeToCacheInBytes: 20 * 1024 * 1024,
+          // الكاش الـruntime ده كان في sw.js اليدوي القديم، بس المولّد من
+          // vite-plugin-pwa كان بيكتب فوقه بنفس الاسم فيبقى ميت في الإنتاج.
+          // النتيجة: كل تشغيل بارد كان بينزّل خطوط Google تاني، وصور
+          // Cloudinary/Drive ما كانتش بتتخزن على مستوى الـSW.
+          runtimeCaching: [
+            {
+              // خطوط Google: نادرة التغيير — stale-while-revalidate كافي.
+              urlPattern: ({ url }: { url: URL }) =>
+                url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com',
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'google-fonts-runtime',
+                expiration: { maxEntries: 40, maxAgeSeconds: 60 * 60 * 24 * 180 },
+                cacheableResponse: { statuses: [0, 200] }, // 0 = استجابة opaque (بدون CORS)
+              },
+            },
+            {
+              // صور المنتجات من Cloudinary و Google Drive — cache-first مع سقف.
+              urlPattern: ({ url }: { url: URL }) =>
+                url.hostname === 'res.cloudinary.com' ||
+                url.hostname === 'lh3.googleusercontent.com' ||
+                url.hostname === 'drive.google.com',
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'product-images-runtime',
+                expiration: { maxEntries: 300, maxAgeSeconds: 60 * 60 * 24 * 60 },
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
+          ],
         },
         manifest: {
+          id: '/',
           name: 'مجموعة الطنطاوي - مندوب دريم',
           short_name: 'الطنطاوي',
           description: 'نظام إدارة المبيعات والمخزون وقاعدة العملاء',
+          dir: 'rtl',
+          lang: 'ar',
           theme_color: '#1e3a8a',
           background_color: '#ffffff',
           display: 'standalone',
@@ -41,6 +74,15 @@ export default defineConfig(() => {
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any',
+            },
+            {
+              // أيقونة maskable: لازمها أندرويد عشان الأيقونة تتقص بشكل
+              // دائري/مطابق للنظام من غير ما يتقص محتواها — بتخلي التطبيق
+              // المثبت شكله مطابق لأي تطبيق من المتجر.
+              src: '/pwa-maskable-512x512.png',
+              sizes: '512x512',
+              type: 'image/png',
+              purpose: 'maskable',
             },
           ],
         },
