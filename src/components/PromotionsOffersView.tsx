@@ -118,8 +118,20 @@ export const PromotionsOffersView: React.FC = () => {
   };
 
   // Filtered promotions list
+  // عزل القطاع: المندوب الكهربا يشوف عروض قطاعه بس (وكل صف بلا قطاع =
+  // للجميع حسب سياسة الأمان الافتراضية، نفسها في الكتالوج). المشرف والإدارة
+  // لهم sector 'both'/'all' فبيطلعوا الكل.
+  const sectorAllowsOffer = (offerSector?: string): boolean => {
+    const me = (currentUser?.sector || '').toLowerCase();
+    const s = (offerSector || '').toLowerCase();
+    if (!me || me === 'all' || me === 'both') return true;
+    if (!s || s === 'all') return true;
+    return s === me;
+  };
+
   const filteredPromotions = useMemo(() => {
-    return promotions.filter((p) => {
+    const sectorFiltered = promotions.filter((p) => sectorAllowsOffer(p.sector));
+    return sectorFiltered.filter((p) => {
       if (searchTerm.trim()) {
         const q = searchTerm.toLowerCase().trim();
         const codeMatch = p.productCode.toLowerCase().includes(q);
@@ -139,20 +151,20 @@ export const PromotionsOffersView: React.FC = () => {
 
       return true;
     });
-  }, [promotions, searchTerm, selectedBranchFilter, statusFilter]);
+  }, [promotions, searchTerm, selectedBranchFilter, statusFilter, currentUser, sectorAllowsOffer]);
 
-  // Statistics
+  // Statistics (بناءً على القائمة المتقيدة بالقطاع والفلترات الحالية)
   const stats = useMemo(() => {
-    const active = promotions.filter((p) => p.status === 'نشط');
+    const active = filteredPromotions.filter((p) => p.status === 'نشط');
     const avgDiscount = active.length > 0
       ? Math.round(active.reduce((acc, p) => acc + (p.discountPercentage || 0), 0) / active.length)
       : 0;
     return {
-      total: promotions.length,
+      total: filteredPromotions.length,
       active: active.length,
       avgDiscount,
     };
-  }, [promotions]);
+  }, [filteredPromotions]);
 
   // Handle Excel Upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -553,7 +565,7 @@ export const PromotionsOffersView: React.FC = () => {
         </div>
         <div className="tg-kpi tg-kpi--blue">
           <div className="tg-kpi__top"><span className="tg-kpi__icon"><Boxes size={20} /></span></div>
-          <span className="tg-kpi__value tabular-nums">{promotions.length.toLocaleString('en-US')}</span>
+          <span className="tg-kpi__value tabular-nums">{stats.total.toLocaleString('en-US')}</span>
           <span className="tg-kpi__label">أصناف مشمولة</span>
           <span className="tg-kpi__hint">إجمالي العروض</span>
         </div>
@@ -587,7 +599,7 @@ export const PromotionsOffersView: React.FC = () => {
                 statusFilter === 'all' ? 'bg-[#0b2337] text-white shadow-sm' : 'text-slate-700 hover:bg-white'
               }`}
             >
-              الكل ({promotions.length})
+              الكل ({filteredPromotions.length})
             </button>
             <button
               type="button"

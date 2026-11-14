@@ -57,10 +57,11 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 }) => {
   const {
     cart,
-    products,
+    products: rawProducts,
     customers,
     users,
     getVisibleCustomers,
+    getVisibleProducts,
     updateCartItem,
     removeFromCart,
     clearCart,
@@ -71,6 +72,19 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     cloudinaryConfig,
     updateCustomer,
   } = useApp();
+
+  // عزل القطاع: الموديل كان بياخد قائمة المنتجات الخام مباشرة، فمندوب قطاع
+  // كهربا (لو الكاش المحلي فيه صفوف منزلي — جهاز مشترك أو مسار fallback قديم)
+  // كان يقدر يتصفح ويضيف أصناف منزلي للطلبية رغم إن الكتالوج نفسه متقيد.
+  // getVisibleProducts هي نفس الفلتر بتاع شاشة الكتالوج (sector + صلاحيات).
+  const products = useMemo(() => {
+    try {
+      return getVisibleProducts();
+    } catch {
+      return rawProducts;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawProducts]);
 
   // 1-step-at-a-time Stepper: Step 1 (Products & Cart) -> Step 2 (Customer & Financials) -> Step 3 (Review & Save)
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(() => {

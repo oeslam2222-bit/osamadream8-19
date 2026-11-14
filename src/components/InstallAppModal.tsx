@@ -181,30 +181,6 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
             </button>
           )}
 
-          {/* Direct APK Download & External APK Section */}
-          <div className="bg-gradient-to-r from-[#0f2b38] via-[#0a1c30] to-[#15345c] p-4 rounded-2xl border border-[#1b4676] space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-[#60a5fa] font-black text-xs sm:text-sm">
-                <Smartphone className="w-4 h-4 text-[#60a5fa]" />
-                <span>ملف تطبيق أندرويد مباشر (APK) 📱</span>
-              </div>
-              <span className="text-[10px] bg-[#1b4676] text-[#60a5fa] px-2 py-0.5 rounded-full font-bold border border-[#1b4676]">
-                Direct APK
-              </span>
-            </div>
-            <p className="text-[11px] text-[#60a5fa]/90 leading-relaxed font-bold bg-[#1b4676]/40 border border-[#1b4676]/40 p-2 rounded-xl">
-              التنزيل المباشر لملف التطبيق لهواتف أندرويد، وسيتم التطوير بشكل أفضل مستمراً بإذن الله.
-            </p>
-            <a
-              href="/tantawy-sales.apk"
-              download="tantawy-sales.apk"
-              className="w-full py-2.5 px-3 bg-[#1b4676] hover:bg-[#15345c] text-white rounded-xl text-xs font-black transition flex items-center justify-center gap-2 shadow-md cursor-pointer"
-            >
-              <Download className="w-4 h-4" />
-              <span>تنزيل ملف APK للأندرويد</span>
-            </a>
-          </div>
-
           {/* Detailed Step-by-Step Instructions based on Device */}
           <div className="space-y-3">
             <div className="text-xs font-black text-slate-300 flex items-center justify-between">

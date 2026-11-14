@@ -476,6 +476,50 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
     );
   };
 
+  // بانر عروض وتخفيضات دريم — نسخة واحدة بتنسيقين (موبايل مدمج / ديسكتوب عريض).
+  // الضغط عليه يفتح صفحة العروض مباشرة (تاب 'offers' متاح لكل الأدوار).
+  const renderOffersBanner = (isMobileView: boolean) => (
+    <button
+      type="button"
+      onClick={() => onNavigateToTab('offers')}
+      className={`group relative w-full overflow-hidden rounded-3xl text-start bg-gradient-to-l from-amber-50 via-orange-50 to-rose-50 dark:from-[#2A1806] dark:via-[#3D2408] dark:to-[#2B1408] border border-amber-200 dark:border-amber-500/30 shadow-[0_4px_16px_rgba(245,158,11,0.12)] dark:shadow-[0_4px_20px_rgba(245,158,11,0.15)] hover:border-amber-400 dark:hover:border-amber-400/60 active:scale-[0.98] transition-all cursor-pointer ${isMobileView ? 'p-3.5' : 'p-4 sm:p-5'}`}
+    >
+      {/* زخارف ضبابية دافئة */}
+      <div className="absolute top-0 left-0 w-24 h-24 bg-amber-400/20 dark:bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-24 h-24 bg-rose-400/20 dark:bg-rose-500/10 rounded-full blur-2xl pointer-events-none" />
+
+      <div className={`relative z-10 flex items-center gap-3 ${isMobileView ? '' : 'sm:gap-4'}`}>
+        {/* أيقونة نار ترويجية */}
+        <div className={`shrink-0 rounded-2xl bg-gradient-to-br from-amber-100 to-rose-100 dark:from-amber-500/20 dark:to-rose-500/20 text-amber-600 dark:text-amber-300 border border-amber-300/60 dark:border-amber-400/30 flex items-center justify-center shadow-xs ${isMobileView ? 'w-11 h-11' : 'w-13 h-13 sm:w-14 sm:h-14'}`}>
+          <Flame className={`${isMobileView ? 'w-5 h-5' : 'w-6 h-6 sm:w-7 sm:h-7'} stroke-[2.2] group-hover:scale-110 transition-transform`} />
+        </div>
+
+        {/* النصوص */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className={`font-black text-amber-950 dark:text-amber-50 ${isMobileView ? 'text-sm' : 'text-base sm:text-lg'}`}>
+              عروض وتخفيضات دريم
+            </h3>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-red-500 text-white shadow-sm">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+              <span>جديد</span>
+            </span>
+          </div>
+          <p className={`text-amber-800/80 dark:text-amber-200/70 font-bold leading-snug mt-0.5 ${isMobileView ? 'text-[10px]' : 'text-xs sm:text-sm'}`}>
+            خصومات حصرية على أصناف مختارة — الكميات محدودة والعرض لفترة قصيرة
+          </p>
+        </div>
+
+        {/* CTA */}
+        <div className={`shrink-0 flex items-center gap-1.5 bg-amber-500 group-hover:bg-amber-600 text-white rounded-full font-black shadow-sm group-hover:shadow-md transition-colors ${isMobileView ? 'px-3 py-1.5 text-[11px]' : 'px-4 py-2.5 text-xs sm:text-sm'}`}>
+          <Percent className="w-3.5 h-3.5 stroke-[2.5]" />
+          <span>شوف العروض</span>
+          <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5] group-hover:-translate-x-0.5 transition-transform" />
+        </div>
+      </div>
+    </button>
+  );
+
   return (
     <div className="space-y-4 sm:space-y-6" dir="rtl">
       
@@ -534,7 +578,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           </div>
         </div>
 
-        {/* 2. 4 Squircle Action Cards (2x2 Grid) - ألوان مبهجة ومتناسقة للوضع النهاري والليلي */}
+        {/* 2. Offers Banner: عروض وتخفيضات دريم — يفتح صفحة العروض */}
+        {renderOffersBanner(true)}
+
+        {/* 3. 4 Squircle Action Cards (2x2 Grid) - ألوان مبهجة ومتناسقة للوضع النهاري والليلي */}
         <div className="grid grid-cols-2 gap-3">
           
           {/* Card 1: الطلبات (سماوي مبهج) */}
@@ -940,6 +987,11 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
       </div>
 
+      {/* Offers Banner (للشاشات الكبيرة) — عروض وتخفيضات دريم */}
+      <div className="hidden lg:block">
+        {renderOffersBanner(false)}
+      </div>
+
       {/* لوحة مؤشرات التارجت الشهرية للمندوب (للشاشات الكبيرة واللابتوب) */}
       <div className="hidden lg:block">
         {renderRepTargetDashboard(false)}
@@ -1077,7 +1129,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
 
       {/* ========================================================================= */}
-      {/* 3. BRANDING & MOBILE APK DOWNLOAD BAR */}
+      {/* 3. BRANDING & MOBILE APP INSTALL BAR */}
       {/* ========================================================================= */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch" dir="ltr">
         
@@ -1096,9 +1148,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               <Smartphone className="w-7 h-7 stroke-[2.2]" />
             </div>
             <div>
-              <h3 className="font-black text-base sm:text-lg text-[var(--app-text)]">تطبيق الجوال (APK)</h3>
+              <h3 className="font-black text-base sm:text-lg text-[var(--app-text)]">تثبيت تطبيق الجوال</h3>
               <p className="text-xs text-[var(--app-text-muted)] leading-relaxed mt-0.5">
-                يمكنك تحميل ملف الـ APK وتثبيته مباشرة على أي هاتف أندرويد للمناديب للعمل الميداني السريع
+                ثبّت التطبيق كبرنامج حقيقي على أي هاتف أو كمبيوتر من المتصفح نفسه — بأيقونة الطنطاوي وشاشة كاملة بدون توزيع ملفات خارجية
               </p>
             </div>
           </div>
@@ -1110,18 +1162,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               className="flex-1 bg-[#2563EB] hover:bg-blue-700 text-white font-black py-2.5 px-4 rounded-xl text-xs transition cursor-pointer shadow-sm flex items-center justify-center gap-2 active:scale-95"
             >
               <Download className="w-4 h-4" />
-              <span>تحميل وتثبيت التطبيق</span>
+              <span>تثبيت التطبيق الآن</span>
             </button>
-            
-            <a
-              href="/tantawy-sales.apk"
-              download="tantawy-sales.apk"
-              className="bg-[var(--app-card-secondary)] hover:bg-[var(--app-card-hover)] text-[var(--app-text)] font-bold py-2.5 px-3 rounded-xl text-xs transition border border-[var(--app-border)] flex items-center justify-center gap-1.5 cursor-pointer"
-              title="تحميل ملف APK مباشر إذا قمت بوضعه في مجلد public"
-            >
-              <Smartphone className="w-3.5 h-3.5" />
-              <span>ملف APK</span>
-            </a>
           </div>
         </div>
 
