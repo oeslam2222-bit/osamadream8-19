@@ -2724,15 +2724,15 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] shadow-2xs">
-                  <div className="text-xs font-black text-[var(--app-navy-text)] flex items-center justify-between">
+                <div className="p-3.5 rounded-2xl bg-[var(--app-violet-tint)] border border-[var(--app-violet-line)] shadow-2xs">
+                  <div className="text-xs font-black text-[var(--app-violet-text)] flex items-center justify-between">
                     <span>المديونية الحالية</span>
-                    <span className="w-2 h-2 rounded-full bg-[var(--app-navy)]" />
+                    <span className="w-2 h-2 rounded-full bg-[var(--app-violet)]" />
                   </div>
-                  <div className="text-lg sm:text-2xl font-black font-mono text-[var(--app-navy-text)] mt-1">
+                  <div className="text-lg sm:text-2xl font-black font-mono text-[var(--app-violet-text)] mt-1">
                     {formatMoney(selectedCustomer.currentBalance ?? selectedCustomer.balance ?? 0)}
                   </div>
-                  <div className="text-[11px] font-bold text-[var(--app-navy-text)] mt-1 border-t border-[var(--app-navy-line)] pt-1 flex items-center justify-between">
+                  <div className="text-[11px] font-bold text-[var(--app-violet-text)] mt-1 border-t border-[var(--app-violet-line)] pt-1 flex items-center justify-between">
                     <span>الحد الائتماني:</span>
                     <span className="font-mono">{formatMoney(selectedCustomer.creditLimit || 0)}</span>
                   </div>

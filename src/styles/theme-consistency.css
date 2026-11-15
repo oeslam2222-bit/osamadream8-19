@@ -433,3 +433,45 @@ html.dark .app-main .text-violet-600, html.dark .app-main .text-violet-700, html
 html.dark .app-main .text-pink-600, html.dark .app-main .text-pink-700, html.dark .app-main .text-pink-800, html.dark .app-main .text-pink-900 {
   color: #fbcfe8 !important;
 }
+
+/* ============================================================
+   هيدر صفحة موحّد (بانر الهوية) — نفس شكل رأس صفحة الإعدادات
+   ============================================================ */
+.brand-hero {
+  border-radius: 22px;
+  padding: 16px 18px;
+  color: #fff;
+  background: linear-gradient(120deg, #0f2b38 0%, #14384a 55%, #0d9488 135%);
+  box-shadow: 0 14px 34px rgba(15, 43, 56, 0.24);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.brand-hero h1,
+.brand-hero h2,
+.brand-hero .text-slate-900,
+.brand-hero .text-slate-800 {
+  color: #ffffff !important;
+}
+
+.brand-hero p,
+.brand-hero .text-slate-500,
+.brand-hero .text-slate-600,
+.brand-hero .text-slate-400 {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+.brand-hero .text-slate-700,
+.brand-hero .text-slate-300 {
+  color: rgba(255, 255, 255, 0.9) !important;
+}
+
+.brand-hero input,
+.brand-hero select {
+  background-color: rgba(255, 255, 255, 0.94);
+  color: #0f2b38;
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.brand-hero .rounded-full.border {
+  border-color: rgba(255, 255, 255, 0.35) !important;
+}

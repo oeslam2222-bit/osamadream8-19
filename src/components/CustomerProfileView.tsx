@@ -197,7 +197,7 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
   return (
     <div className="tantawy-screen space-y-4 pb-24 min-h-screen">
       {/* رأس الصفحة + البحث */}
-      <div className="cust-hero rounded-2xl p-4 sm:p-5 border border-[var(--app-line)] bg-[var(--app-surface)] shadow-sm">
+      <div className="brand-hero cust-hero rounded-2xl p-4 sm:p-5">
         <div className="flex items-center justify-between gap-3 mb-3 sm:mb-0">
           <div className="flex items-center gap-2">
             <button
