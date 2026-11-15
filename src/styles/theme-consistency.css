@@ -146,3 +146,77 @@ html.dark .app-main .bg-rose-50 {
   background-color: rgba(225, 29, 72, 0.16) !important;
   color: #fecdd3 !important;
 }
+
+/* ============================================================
+   كروت المؤشرات الملوّنة (tg-kpi / tg-stat) في الوضعين
+   ============================================================ */
+
+/* الوضع النهاري: سطح ملوّن + حدود واضحة + شريط لون جانبي */
+.tg-kpi {
+  position: relative;
+  overflow: hidden;
+}
+
+.tg-kpi::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: transparent;
+}
+
+.tg-kpi--blue::before { background: #2563eb; }
+.tg-kpi--emerald::before,
+.tg-kpi--green::before { background: #059669; }
+.tg-kpi--amber::before,
+.tg-kpi--orange::before { background: #d97706; }
+.tg-kpi--violet::before { background: #7c3aed; }
+.tg-kpi--red::before { background: #dc2626; }
+
+/* معلومات سريعة (tg-stat--colored) */
+.tg-stat--colored {
+  border-radius: 14px;
+  border: 1px solid transparent;
+  padding: 10px 12px;
+}
+
+.tg-stat--colored.tg-stat--blue { background: #eef4ff; border-color: #c7d9f9; color: #1e3a8a; }
+.tg-stat--colored.tg-stat--emerald { background: #e8f9f2; border-color: #bfe9d7; color: #047857; }
+.tg-stat--colored.tg-stat--amber { background: #fdf4e4; border-color: #f4dfb7; color: #b45309; }
+.tg-stat--colored.tg-stat--violet { background: #f3efff; border-color: #ded3fb; color: #6d28d9; }
+.tg-stat--colored.tg-stat--red { background: #fdeeee; border-color: #f7cfcf; color: #b91c1c; }
+
+/* الوضع الليلي: نفس الألوان بدرجات مشبعة ونصوص فاتحة (مش أسود على أسود) */
+html.dark .tg-kpi--blue { background: rgba(37, 99, 235, 0.16); border-color: rgba(96, 165, 250, 0.42); }
+html.dark .tg-kpi--blue .tg-kpi__value { color: #bfdbfe; }
+html.dark .tg-kpi--blue .tg-kpi__icon { color: #60a5fa; }
+
+html.dark .tg-kpi--emerald,
+html.dark .tg-kpi--green { background: rgba(5, 150, 105, 0.18); border-color: rgba(45, 212, 191, 0.4); }
+html.dark .tg-kpi--emerald .tg-kpi__value,
+html.dark .tg-kpi--green .tg-kpi__value { color: #a7f3d0; }
+html.dark .tg-kpi--emerald .tg-kpi__icon,
+html.dark .tg-kpi--green .tg-kpi__icon { color: #2dd4bf; }
+
+html.dark .tg-kpi--amber,
+html.dark .tg-kpi--orange { background: rgba(217, 119, 6, 0.18); border-color: rgba(251, 191, 36, 0.4); }
+html.dark .tg-kpi--amber .tg-kpi__value,
+html.dark .tg-kpi--orange .tg-kpi__value { color: #fde68a; }
+html.dark .tg-kpi--amber .tg-kpi__icon,
+html.dark .tg-kpi--orange .tg-kpi__icon { color: #fbbf24; }
+
+html.dark .tg-kpi--violet { background: rgba(124, 58, 237, 0.2); border-color: rgba(167, 139, 250, 0.42); }
+html.dark .tg-kpi--violet .tg-kpi__value { color: #ddd6fe; }
+html.dark .tg-kpi--violet .tg-kpi__icon { color: #a78bfa; }
+
+html.dark .tg-kpi--red { background: rgba(220, 38, 38, 0.18); border-color: rgba(248, 113, 113, 0.42); }
+html.dark .tg-kpi--red .tg-kpi__value { color: #fecaca; }
+html.dark .tg-kpi--red .tg-kpi__icon { color: #f87171; }
+
+html.dark .tg-stat--colored.tg-stat--blue { background: rgba(37, 99, 235, 0.16); border-color: rgba(96, 165, 250, 0.4); color: #bfdbfe; }
+html.dark .tg-stat--colored.tg-stat--emerald { background: rgba(5, 150, 105, 0.18); border-color: rgba(45, 212, 191, 0.38); color: #a7f3d0; }
+html.dark .tg-stat--colored.tg-stat--amber { background: rgba(217, 119, 6, 0.18); border-color: rgba(251, 191, 36, 0.38); color: #fde68a; }
+html.dark .tg-stat--colored.tg-stat--violet { background: rgba(124, 58, 237, 0.2); border-color: rgba(167, 139, 250, 0.4); color: #ddd6fe; }
+html.dark .tg-stat--colored.tg-stat--red { background: rgba(220, 38, 38, 0.18); border-color: rgba(248, 113, 113, 0.4); color: #fecaca; }
