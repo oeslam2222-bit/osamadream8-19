@@ -475,3 +475,38 @@ html.dark .app-main .text-pink-600, html.dark .app-main .text-pink-700, html.dar
 .brand-hero .rounded-full.border {
   border-color: rgba(255, 255, 255, 0.35) !important;
 }
+
+/* ============================================================
+   الكروت ذات التدرّجات الفاتحة المكتوبة يدويًا (from-[#...])
+   كانت تفضل فاتحة في الليلي ونصها فاتح = غير مقروءة
+   ============================================================ */
+html.dark .app-main [class*="from-[#ECFDF5]"] {
+  background-image: none !important;
+  background-color: rgba(5, 150, 105, 0.18) !important;
+  border-color: rgba(45, 212, 191, 0.42) !important;
+}
+
+html.dark .app-main [class*="from-[#EFF6FF]"],
+html.dark .app-main [class*="from-[#eff6ff]"] {
+  background-image: none !important;
+  background-color: rgba(37, 99, 235, 0.16) !important;
+  border-color: rgba(96, 165, 250, 0.42) !important;
+}
+
+html.dark .app-main [class*="from-[#FFFBEB]"] {
+  background-image: none !important;
+  background-color: rgba(217, 119, 6, 0.18) !important;
+  border-color: rgba(251, 191, 36, 0.42) !important;
+}
+
+html.dark .app-main [class*="from-[#FEF2F2]"] {
+  background-image: none !important;
+  background-color: rgba(220, 38, 38, 0.18) !important;
+  border-color: rgba(248, 113, 113, 0.42) !important;
+}
+
+html.dark .app-main [class*="from-[#f4fbfd]"] {
+  background-image: none !important;
+  background-color: var(--app-card-secondary) !important;
+  border-color: var(--app-border) !important;
+}
