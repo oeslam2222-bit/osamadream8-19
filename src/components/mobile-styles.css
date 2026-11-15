@@ -441,7 +441,6 @@
   table td {
     font-size: 0.85rem !important;
     font-weight: 500 !important;
-    color: #0f172a !important;
   }
   
   /* خلايا čísل */
@@ -680,13 +679,11 @@
   label, .font-bold.text-xs, .font-bold.text-sm {
     font-size: 0.75rem !important;
     font-weight: 700 !important;
-    color: #64748b !important;
   }
   
   /* النصوص الأساسية */
   .text-sm, .text-base {
     font-size: 0.875rem !important;
-    color: #0f172a !important;
   }
   
   /* النص الثانوي */

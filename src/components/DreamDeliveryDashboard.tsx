@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ShoppingCart, Wallet, PackageSearch, MapPin, RotateCcw, TrendingUp,
   Users, Target, CalendarCheck, ReceiptText,
@@ -193,6 +193,15 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
   const AVATAR_COLORS = ['#3b82f6', '#059669', '#d97706', '#7c3aed', '#e11d48'];
   const avatarBg = AVATAR_COLORS[displayName.length % AVATAR_COLORS.length];
 
+  // Primary KPIs stay on top; the rest of the dashboard is split into tabs so
+  // the first screen shows numbers, not a wall of cards.
+  const [activeSection, setActiveSection] = useState<'today' | 'performance' | 'activity'>('today');
+  const dashboardSections = [
+    { id: 'today' as const, label: 'ملخص اليوم', icon: CalendarCheck },
+    { id: 'performance' as const, label: 'الأداء', icon: TrendingUp },
+    { id: 'activity' as const, label: 'الأنشطة والاختصارات', icon: Activity },
+  ];
+
   return (
     <div className="tg-dash" dir="rtl">
       {/* ---------- كارت مبيعات اليوم (موبايل) — زي المرجع ---------- */}
@@ -280,6 +289,44 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
         </div>
       </section>
 
+      {/* ---------- 4 مؤشرات أساسية ---------- */}
+      <section className="tg-target-row">
+        <div className="tg-target-card tg-target-card--sales">
+          <div className="tg-target__icon"><ShoppingCart size={20} className="text-blue-500" /></div>
+          <div className="tg-target__value">{fmt(monthSales)} ج.م</div>
+          <div className="tg-target__label">مبيعات الشهر — المحقق</div>
+          <div className="tg-target__sub">
+            من {fmt(monthSalesTarget)} ج.م — {salesPercent}%
+            <span className={`tg-target__pct ${salesPercent >= 80 ? 'text-emerald-600' : salesPercent >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+              {salesPercent >= 80 ? 'ممتاز' : salesPercent >= 50 ? 'جيد' : 'يحتاج تحسين'}
+            </span>
+          </div>
+        </div>
+        <div className="tg-target-card tg-target-card--collection">
+          <div className="tg-target__icon"><Wallet size={20} className="text-purple-500" /></div>
+          <div className="tg-target__value">{fmt(monthCollection)} ج.م</div>
+          <div className="tg-target__label">تحصيل الشهر — المحقق</div>
+          <div className="tg-target__sub">
+            من {fmt(monthCollectionTarget)} ج.م — {collectionPercent}%
+            <span className={`tg-target__pct ${collectionPercent >= 80 ? 'text-emerald-600' : collectionPercent >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
+              {collectionPercent >= 80 ? 'ممتاز' : collectionPercent >= 50 ? 'جيد' : 'يحتاج تحسين'}
+            </span>
+          </div>
+        </div>
+        <div className="tg-target-card tg-target-card--debt">
+          <div className="tg-target__icon"><CreditCard size={20} className="text-red-500" /></div>
+          <div className="tg-target__value">{fmt(totalDebt)} ج.م</div>
+          <div className="tg-target__label">مديونيات العملاء</div>
+          <div className="tg-target__sub">إجمالي الرصيد القائم على العملاء</div>
+        </div>
+        <div className="tg-target-card tg-target-card--receivable">
+          <div className="tg-target__icon"><Coins size={20} className="text-emerald-500" /></div>
+          <div className="tg-target__value">{fmt(totalReceivable)} ج.م</div>
+          <div className="tg-target__label">مستحقات العملاء</div>
+          <div className="tg-target__sub">إجمالي سقف الائتمان الممنوح</div>
+        </div>
+      </section>
+
       {/* ---------- بانر عروض دريم طنطاوي ---------- */}
       <button
         type="button"
@@ -318,45 +365,37 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
         </div>
       </button>
 
-      {/* ---------- كروت الأهداف الأربعة (مديونيات، مستحقات، تارجت بيع، تارجت تحصيل) ---------- */}
-      <section className="tg-target-row">
-        <div className="tg-target-card tg-target-card--debt">
-          <div className="tg-target__icon"><CreditCard size={20} className="text-red-500" /></div>
-          <div className="tg-target__value">{fmt(totalDebt)} ج.م</div>
-          <div className="tg-target__label">مديونيات العملاء</div>
-          <div className="tg-target__sub">إجمالي الرصيد القائم على العملاء</div>
-        </div>
-        <div className="tg-target-card tg-target-card--receivable">
-          <div className="tg-target__icon"><Coins size={20} className="text-emerald-500" /></div>
-          <div className="tg-target__value">{fmt(totalReceivable)} ج.م</div>
-          <div className="tg-target__label">مستحقات العملاء</div>
-          <div className="tg-target__sub">إجمالي سقف الائتمان الممنوح</div>
-        </div>
-        <div className="tg-target-card tg-target-card--sales">
-          <div className="tg-target__icon"><ShoppingCart size={20} className="text-blue-500" /></div>
-          <div className="tg-target__value">{fmt(monthSales)} ج.م</div>
-          <div className="tg-target__label">تارجت البيع — المحقق</div>
-          <div className="tg-target__sub">
-            من {fmt(monthSalesTarget)} ج.م — {salesPercent}%
-            <span className={`tg-target__pct ${salesPercent >= 80 ? 'text-emerald-600' : salesPercent >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-              {salesPercent >= 80 ? 'ممتاز' : salesPercent >= 50 ? 'جيد' : 'يحتاج تحسين'}
-            </span>
-          </div>
-        </div>
-        <div className="tg-target-card tg-target-card--collection">
-          <div className="tg-target__icon"><Wallet size={20} className="text-purple-500" /></div>
-          <div className="tg-target__value">{fmt(monthCollection)} ج.م</div>
-          <div className="tg-target__label">تارجت التحصيل — المحقق</div>
-          <div className="tg-target__sub">
-            من {fmt(monthCollectionTarget)} ج.م — {collectionPercent}%
-            <span className={`tg-target__pct ${collectionPercent >= 80 ? 'text-emerald-600' : collectionPercent >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-              {collectionPercent >= 80 ? 'ممتاز' : collectionPercent >= 50 ? 'جيد' : 'يحتاج تحسين'}
-            </span>
-          </div>
-        </div>
-      </section>
+      {/* ---------- تلقيم التبويبات ---------- */}
+      <div
+        role="tablist"
+        aria-label="أقسام لوحة التحكم"
+        className="flex items-center gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] overflow-x-auto"
+      >
+        {dashboardSections.map((section) => {
+          const Icon = section.icon;
+          const isActive = activeSection === section.id;
+          return (
+            <button
+              key={section.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => setActiveSection(section.id)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                isActive
+                  ? 'bg-white dark:bg-[#0F1E36] text-[#2563EB] dark:text-[#93C5FD] shadow-xs'
+                  : 'text-slate-600 dark:text-[#94A3B8] hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Icon className="w-4 h-4" aria-hidden="true" />
+              <span>{section.label}</span>
+            </button>
+          );
+        })}
+      </div>
 
       {/* ---------- كروت الأداء السريع (أداء اليوم) ---------- */}
+      {activeSection === 'today' && (
       <section className="tg-quick-row">
         <div className="tg-quick-card">
           <div className="tg-q__icon"><CalendarCheck size={18} className="text-blue-500" /></div>
@@ -391,8 +430,10 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
           </div>
         </div>
       </section>
+      )}
 
       {/* ---------- تحليلات ---------- */}
+      {activeSection === 'performance' && (
       <section className="tg-analytics">
         {/* أداء المبيعات والتحصيلات — آخر 6 شهور */}
         <div className="tg-card tg-analytics__wide">
@@ -458,8 +499,10 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
           </div>
         </div>
       </section>
+      )}
 
       {/* ---------- الأنشطة + اختصارات ---------- */}
+      {activeSection === 'activity' && (
       <section className="tg-dash-bottom">
         <div className="tg-card">
           <div className="tg-card__head">
@@ -511,6 +554,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
           </div>
         </div>
       </section>
+      )}
     </div>
   );
 };

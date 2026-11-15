@@ -647,108 +647,110 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   return (
     <div className="user-manager-page tantawy-screen space-y-6 pb-20 max-w-7xl mx-auto px-2 sm:px-4">
       
-      {/* Header Banner */}
-      <div className="ds-pagehead">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center font-black shrink-0 shadow-lg shadow-black/20 border border-white/20">
-              <ShieldCheck className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-lg sm:text-xl font-black text-white">
-                  إدارة الموظفين والصلاحيات والهيكل الإداري
-                </h2>
-                <span className="bg-white/20 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-white/30 app-num">
-                  {users.length} موظف مسجل
-                </span>
+      {/* Team & Permissions Command Header */}
+      <section className="relative overflow-hidden rounded-3xl border border-[rgba(201,154,67,.28)] bg-gradient-to-l from-[#0f233d] via-[#162f52] to-[#1a3861] text-white shadow-xl">
+        <div className="absolute -left-12 -bottom-12 w-56 h-56 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-1/4 -top-10 w-36 h-36 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+        <div className="relative p-5 sm:p-7 space-y-4">
+          <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-4">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-14 h-14 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-lg">
+                <ShieldCheck className="w-7 h-7" />
               </div>
-              <p className="text-xs sm:text-sm text-[#c3d9ec] mt-1 leading-relaxed">
-                إضافة المناديب والمشرفين • توزيع المناديب على المشرفين في كل فرع • سرية تامة وتحديد الصلاحيات
-              </p>
+              <div>
+                <div className="inline-flex items-center gap-2 text-[11px] font-extrabold text-[#e8c98c] bg-white/10 border border-white/15 rounded-lg px-2.5 py-1 mb-2">الفريق والصلاحيات · إدارة احترافية</div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-xl sm:text-2xl font-black text-white">مركز إدارة الفريق والصلاحيات</h2>
+                  <span className="bg-white/15 text-white text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-white/20 app-num">{users.length} موظف</span>
+                  <span className="bg-emerald-500/20 text-emerald-100 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-300/30 app-num">{users.filter(u=>u.approvalStatus==='active').length} مفعّل</span>
+                  {pendingUsers.length > 0 && <span className="bg-amber-500/25 text-amber-100 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-amber-300/30 app-num">{pendingUsers.length} بانتظار الاعتماد</span>}
+                </div>
+                <p className="text-xs sm:text-sm text-blue-100/90 mt-1.5 leading-relaxed max-w-3xl">
+                  إدارة الحسابات والأدوار والهيكل الإداري، ربط المناديب والعملاء، واعتماد الطلبات — مع تحكم بالصلاحيات لكل مستخدم من مركز الصلاحيات.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center flex-wrap gap-2">
+              {isSuperAdminOrDev && (
+                <button
+                  onClick={handleMergeDuplicates}
+                  disabled={isMergingDuplicates}
+                  className="bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
+                  title="فحص حسابات الموظفين والمناديب المكررة ودمجها وتوحيد السجلات"
+                >
+                  <Sparkles className={`w-3.5 h-3.5 text-amber-300 ${isMergingDuplicates ? 'animate-spin' : ''}`} />
+                  <span>{isMergingDuplicates ? 'جاري الفحص والدمج...' : 'فحص ودمج المكرر'}</span>
+                </button>
+              )}
+
+              {isSuperAdminOrDev && (
+                <button
+                  onClick={() => {
+                    const res = refreshCustomerRepLinks();
+                    setSyncModalData({ open: true, result: res });
+                    setSyncToast(`تم فحص ومزامنة العملاء بنجاح! تم تحديث وربط ${res.updatedCount} عميل بالمناديب.`);
+                    setTimeout(() => setSyncToast(null), 4000);
+                  }}
+                  className="bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                  title="إعادة فحص وربط العملاء بالمناديب"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-white" />
+                  <span>مزامنة ربط العملاء</span>
+                </button>
+              )}
+
+              {isSuperAdminOrDev ? (
+                <button
+                  onClick={handleOpenAddModal}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-5 py-2.5 rounded-xl shadow-lg transition active:scale-95 cursor-pointer flex items-center gap-2"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>إضافة موظف جديد</span>
+                </button>
+              ) : (
+                <div className="bg-white/10 border border-white/20 rounded-xl px-3.5 py-2.5 text-xs font-bold flex items-center gap-2 text-white/90">
+                  <Lock className="w-4 h-4 text-white" />
+                  <span>إضافة وتعديل الموظفين مقتصرة على الآدمن والمطور</span>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="flex items-center flex-wrap gap-2">
-            {isSuperAdminOrDev && (
+          {syncToast && (
+            <div className="p-3 rounded-xl text-xs font-bold flex items-center gap-2 bg-emerald-500/20 border border-emerald-300/30 text-emerald-50 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{syncToast}</span>
+            </div>
+          )}
+
+          {duplicateCheck.mergedCount > 0 && isSuperAdminOrDev && (
+            <div className="bg-white rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm border border-amber-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center font-black shrink-0 text-amber-700">
+                  <Sparkles className="w-5 h-5 animate-bounce" />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-slate-900">
+                    تم رصد <span className="app-num">{duplicateCheck.mergedCount}</span> حساب مكرر (مندوب/مشرف)
+                  </p>
+                  <p className="text-xs text-slate-600 mt-0.5 font-medium">
+                    {duplicateCheck.mergedPairs.map((p) => `[${p.keptUser.name} - ${p.keptUser.branchName || 'العام'}]`).join(' • ')}
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={handleMergeDuplicates}
                 disabled={isMergingDuplicates}
-                className="bg-white/10 hover:bg-white/20 text-white font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer active:scale-95 disabled:opacity-50"
-                title="فحص حسابات الموظفين والمناديب المكررة ودمجها وتوحيد السجلات"
+                className="app-btn app-btn-primary px-5 py-2.5 text-xs shrink-0 active:scale-95"
               >
-                <Sparkles className={`w-3.5 h-3.5 text-amber-300 ${isMergingDuplicates ? 'animate-spin' : ''}`} />
-                <span>{isMergingDuplicates ? 'جاري الفحص والدمج...' : 'فحص ودمج الحسابات المكررة'}</span>
+                <Check className="w-4 h-4" />
+                <span>{isMergingDuplicates ? 'جاري الدمج والتنظيف...' : 'دمج الحسابات المكررة الآن'}</span>
               </button>
-            )}
-
-            {isSuperAdminOrDev && (
-              <button
-                onClick={() => {
-                  const res = refreshCustomerRepLinks();
-                  setSyncModalData({ open: true, result: res });
-                  setSyncToast(`تم فحص ومزامنة العملاء بنجاح! تم تحديث وربط ${res.updatedCount} عميل بالمناديب.`);
-                  setTimeout(() => setSyncToast(null), 4000);
-                }}
-                className="bg-white/10 hover:bg-white/20 text-white font-bold px-3 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer active:scale-95"
-                title="إعادة فحص وربط العملاء بالمناديب وفقاً للأسماء والفروع وعرض تقرير المطابقة"
-              >
-                <RefreshCw className="w-3.5 h-3.5 text-white" />
-                <span>مزامنة وربط العملاء بالمناديب</span>
-              </button>
-            )}
-
-            {isSuperAdminOrDev ? (
-              <button
-                onClick={handleOpenAddModal}
-                className="bg-white text-[var(--app-navy)] font-black font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-navy/25 hover:bg-blue-50 active:scale-95 cursor-pointer"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>إضافة موظف جديد +</span>
-              </button>
-            ) : (
-              <div className="bg-white/10 border border-white/20 rounded-xl px-3.5 py-2.5 text-xs font-bold flex items-center gap-2 text-white/90">
-                <Lock className="w-4 h-4 text-white" />
-                <span>إضافة وتعديل الموظفين مقتصرة على الآدمن والمطور فقط</span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {syncToast && (
-          <div className="mt-3 p-3 panel-ok rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{syncToast}</span>
-          </div>
-        )}
-
-        {duplicateCheck.mergedCount > 0 && isSuperAdminOrDev && (
-          <div className="mt-4 panel-warn border rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-in fade-in">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl tint-brass border border-[rgba(201,154,67,.35)] flex items-center justify-center font-black shrink-0">
-                <Sparkles className="w-5 h-5 animate-bounce" />
-              </div>
-              <div>
-                <p className="text-sm font-black text-slate-900">
-                  تم رصد <span className="app-num">{duplicateCheck.mergedCount}</span> حساب مكرر في النظام (تكرار نفس المندوب أو المشرف)
-                </p>
-                <p className="text-xs text-slate-600 mt-0.5 font-medium">
-                  {duplicateCheck.mergedPairs.map((p) => `[${p.keptUser.name} - ${p.keptUser.branchName || 'العام'}]`).join(' • ')}
-                </p>
-              </div>
             </div>
-            <button
-              onClick={handleMergeDuplicates}
-              disabled={isMergingDuplicates}
-              className="app-btn app-btn-primary px-5 py-2.5 text-xs shrink-0 active:scale-95"
-            >
-              <Check className="w-4 h-4" />
-              <span>{isMergingDuplicates ? 'جاري الدمج والتنظيف...' : 'دمج الحسابات المكررة الآن'}</span>
-            </button>
-          </div>
-        )}
-      </div>
-
+          )}
+        </div>
+      </section>
 
       {/* PENDING APPROVALS SECTION (Requests from register page) */}
       {pendingUsers.length > 0 && (

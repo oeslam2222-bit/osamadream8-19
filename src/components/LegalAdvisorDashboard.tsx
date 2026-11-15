@@ -1,33 +1,45 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { CustomerSearchSelect } from './CustomerSearchSelect';
 import {
-  Scale,
-  ShieldAlert,
-  FileText,
   AlertTriangle,
+  BadgeCheck,
+  Briefcase,
+  Building2,
   CheckCircle2,
-  Clock,
-  Search,
-  Filter,
+  ChevronLeft,
+  Clock3,
   Download,
-  Printer,
-  ChevronDown,
-  Building,
-  User,
-  DollarSign,
-  Plus,
-  X,
+  Eye,
   FileCheck,
-  Send,
-  HelpCircle,
+  FileText,
+  Filter,
   FolderOpen,
-  Trash2
+  Gavel,
+  History,
+  Plus,
+  Printer,
+  Scale,
+  Search,
+  ShieldAlert,
+  ShieldCheck,
+  Trash2,
+  User,
+  Wallet,
+  X,
+  XCircle,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { Customer, Invoice } from '../types';
+import type { Customer } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { filterCustomersByRBAC } from '../services/customerAnalyticsService';
-import { getLegalCaseForCustomer, addLegalStatement, getLegalCases, subscribeToLegalCases, isCustomerReferredToLegal } from '../services/legalAffairsService';
-import type { LegalCase } from '../services/legalAffairsService';
+import {
+  addLegalStatement,
+  getLegalCaseForCustomer,
+  getLegalCases,
+  isCustomerReferredToLegal,
+  subscribeToLegalCases,
+  type LegalCase,
+} from '../services/legalAffairsService';
 
 interface LegalNotice {
   id: string;
@@ -54,15 +66,32 @@ interface GuaranteeCheck {
   status: 'ساري ومودع بالخزينة' | 'مرتد بدون رصيد' | 'قيد التحصيل القضائي' | 'مسدد بالكامل';
 }
 
-export const LegalAdvisorDashboard: React.FC = () => {
-  const { customers, invoices, branches, currentUser, users } = useApp();
+type TabKey = 'cases' | 'delinquents' | 'notices' | 'checks' | 'templates';
 
-  const [activeTab, setActiveTab] = useState<'delinquents' | 'checks' | 'notices' | 'templates'>('delinquents');
+const CASE_STATUS_META: Record<LegalCase['status'], { cls: string; tone: string }> = {
+  'بانتظار اعتماد مدير الفرع': { cls: 'bg-amber-50 text-amber-800 border-amber-200', tone: 'warn' },
+  'محال للشؤون القانونية': { cls: 'bg-blue-50 text-blue-800 border-blue-200', tone: 'info' },
+  'قيد المتابعة والتحقيق': { cls: 'bg-indigo-50 text-indigo-800 border-indigo-200', tone: 'info' },
+  'جدولة المديونية': { cls: 'bg-violet-50 text-violet-800 border-violet-200', tone: 'info' },
+  'تسوية ودية': { cls: 'bg-emerald-50 text-emerald-800 border-emerald-200', tone: 'ok' },
+  'إجراء قضائي ومحضر': { cls: 'bg-rose-50 text-rose-800 border-rose-200', tone: 'risk' },
+  'تم سداد كامل المديونية وإغلاق الملف': { cls: 'bg-slate-100 text-slate-700 border-slate-200', tone: 'muted' },
+};
+
+const fmt = (n: number) => formatCurrency(n || 0);
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+export const LegalAdvisorDashboard: React.FC = () => {
+  const { customers, branches, currentUser, users, recordAuditLog } = useApp();
+
+  const [activeTab, setActiveTab] = useState<TabKey>('cases');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBranch, setSelectedBranch] = useState('الكل');
   const [minDebtFilter, setMinDebtFilter] = useState<number>(5000);
+  const [caseStatusFilter, setCaseStatusFilter] = useState<'all' | 'open' | LegalCase['status']>('open');
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
 
-  // Legal Notices State (persisted locally, strictly purged of fake mock records)
+  // Notices (local)
   const [notices, setNotices] = useState<LegalNotice[]>(() => {
     const saved = localStorage.getItem('tantawy_legal_notices');
     if (saved) {
@@ -82,7 +111,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
     return [];
   });
 
-  // Guarantee Checks state (strictly purged of fake mock records)
+  // Checks (local)
   const [checks, setChecks] = useState<GuaranteeCheck[]>(() => {
     const saved = localStorage.getItem('tantawy_legal_checks');
     if (saved) {
@@ -102,8 +131,17 @@ export const LegalAdvisorDashboard: React.FC = () => {
     return [];
   });
 
+  const saveNotices = (updated: LegalNotice[]) => {
+    setNotices(updated);
+    try { localStorage.setItem('tantawy_legal_notices', JSON.stringify(updated)); } catch {}
+  };
+  const saveChecks = (updated: GuaranteeCheck[]) => {
+    setChecks(updated);
+    try { localStorage.setItem('tantawy_legal_checks', JSON.stringify(updated)); } catch {}
+  };
+
   const handleClearAllLegalMockData = () => {
-    if (window.confirm('هل تريد مسح وتصفير كافة الإنذارات والشيكات التجريبية نهائياً؟')) {
+    if (window.confirm('هل تريد مسح وتصفير الإنذارات والشيكات المحفوظة محليًا؟ (لا يحذف ملفات القضايا)')) {
       localStorage.removeItem('tantawy_legal_notices');
       localStorage.removeItem('tantawy_legal_checks');
       setNotices([]);
@@ -111,54 +149,85 @@ export const LegalAdvisorDashboard: React.FC = () => {
     }
   };
 
-  // Modals
+  // Legal cases (source of truth)
+  const [legalCases, setLegalCases] = useState<LegalCase[]>(() => getLegalCases());
+  useEffect(() => {
+    const unsub = subscribeToLegalCases((c) => setLegalCases(c || []));
+    setLegalCases(getLegalCases());
+    return unsub;
+  }, []);
+
+  // Privacy: legal advisor sees only referred customers
+  const accessibleCustomers = useMemo(() => {
+    const base = currentUser?.role === 'legal_advisor' ? customers : filterCustomersByRBAC(customers, currentUser, users);
+    const ids = new Set(legalCases.map((c) => c.customerId).filter(Boolean));
+    const codes = new Set(legalCases.map((c) => c.customerCode).filter(Boolean));
+    return base.filter((c) => ids.has(c.id) || (!!c.code && codes.has(c.code as string)) || isCustomerReferredToLegal(c));
+  }, [customers, currentUser, users, legalCases]);
+
+  // Modals / forms
   const [selectedCustomerForNotice, setSelectedCustomerForNotice] = useState<Customer | null>(null);
   const [noticeType, setNoticeType] = useState<LegalNotice['legalType']>('إنذار رسمي على يد محضر');
   const [noticeNotes, setNoticeNotes] = useState('');
   const [isNoticeModalOpen, setIsNoticeModalOpen] = useState(false);
   const [viewingNotice, setViewingNotice] = useState<LegalNotice | null>(null);
 
-  // New Check Modal
   const [isCheckModalOpen, setIsCheckModalOpen] = useState(false);
   const [newCheckCustomer, setNewCheckCustomer] = useState('');
+  const [newCheckCustomerId, setNewCheckCustomerId] = useState<string | null>(null);
   const [newCheckBank, setNewCheckBank] = useState('');
   const [newCheckNum, setNewCheckNum] = useState('');
   const [newCheckAmount, setNewCheckAmount] = useState<number>(0);
   const [newCheckDate, setNewCheckDate] = useState('');
   const [newCheckType, setNewCheckType] = useState<GuaranteeCheck['type']>('شيك بنكي');
+
   const [isFindingsModalOpen, setIsFindingsModalOpen] = useState(false);
   const [findingsCustomer, setFindingsCustomer] = useState<Customer | null>(null);
   const [findingsText, setFindingsText] = useState('');
   const [findingsStatus, setFindingsStatus] = useState<LegalCase['status']>('قيد المتابعة والتحقيق');
   const [findingsAction, setFindingsAction] = useState('إفادة استفسارية قانونية');
+  const [flash, setFlash] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
 
-  const saveNotices = (updated: LegalNotice[]) => {
-    setNotices(updated);
-    try { localStorage.setItem('tantawy_legal_notices', JSON.stringify(updated)); } catch {}
+  const flashMsg = (tone: 'ok' | 'err', text: string) => {
+    setFlash({ tone, text });
+    setTimeout(() => setFlash(null), 3500);
   };
 
-  const saveChecks = (updated: GuaranteeCheck[]) => {
-    setChecks(updated);
-    try { localStorage.setItem('tantawy_legal_checks', JSON.stringify(updated)); } catch {}
-  };
+  // Derived: cases visible (privacy-aligned)
+  const visibleCases = useMemo(() => {
+    const allowedIds = new Set(accessibleCustomers.map((c) => c.id));
+    const allowedCodes = new Set(accessibleCustomers.map((c) => c.code).filter(Boolean) as string[]);
+    return (legalCases || []).filter((c) => allowedIds.has(c.customerId) || (c.customerCode && allowedCodes.has(c.customerCode)));
+  }, [legalCases, accessibleCustomers]);
 
-  // الخصوصية: المستشار القانوني يشوف فقط العملاء المتحولين للشؤون القانونية (ملفاته) —
-  // مفيش وصول لمبيعات أو أرصدة باقي العملاء أو التارجت — سرية بيانات المنظومة أولاً.
-  const [legalCases, setLegalCases] = useState<LegalCase[]>(() => getLegalCases());
+  const filteredCases = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return visibleCases
+      .filter((c) => {
+        const open = c.status !== 'تم سداد كامل المديونية وإغلاق الملف';
+        if (caseStatusFilter === 'open' && !open) return false;
+        if (caseStatusFilter !== 'all' && caseStatusFilter !== 'open' && c.status !== caseStatusFilter) return false;
+        if (selectedBranch !== 'الكل' && c.branchName !== selectedBranch) return false;
+        if (q) {
+          const hit = [c.customerName, c.customerCode, c.id, c.repName, c.branchName, c.phone, c.referralReason]
+            .some((v) => String(v || '').toLowerCase().includes(q));
+          if (!hit) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => (b.totalDebt || 0) - (a.totalDebt || 0));
+  }, [visibleCases, searchTerm, caseStatusFilter, selectedBranch]);
+
   useEffect(() => {
-    const unsub = subscribeToLegalCases((c) => setLegalCases(c));
-    setLegalCases(getLegalCases());
-    return unsub;
-  }, []);
-  const accessibleCustomers = useMemo(() => {
-    // المستشار القانوني: يبدأ من القاعدة الكاملة ثم يتقطّع على العملاء المتحولين فقط (سرية تامة)
-    const base = currentUser?.role === 'legal_advisor' ? customers : filterCustomersByRBAC(customers, currentUser, users);
-    const ids = new Set(legalCases.map((c) => c.customerId).filter(Boolean));
-    const codes = new Set(legalCases.map((c) => c.customerCode).filter(Boolean));
-    return base.filter((c) => ids.has(c.id) || (!!c.code && codes.has(c.code)) || isCustomerReferredToLegal(c));
-  }, [customers, currentUser, users, legalCases]);
+    if (selectedCaseId && !filteredCases.some((c) => c.id === selectedCaseId)) {
+      setSelectedCaseId(filteredCases[0]?.id || null);
+    }
+    if (!selectedCaseId && filteredCases.length) setSelectedCaseId(filteredCases[0].id);
+  }, [filteredCases, selectedCaseId]);
 
-  // Filter delinquent customers (debt > minDebtFilter)
+  const selectedCase = useMemo(() => filteredCases.find((c) => c.id === selectedCaseId) || visibleCases.find((c) => c.id === selectedCaseId) || null, [filteredCases, visibleCases, selectedCaseId]);
+
+  // Delinquent customers (scoped)
   const delinquentCustomers = useMemo(() => {
     return accessibleCustomers
       .filter((c) => {
@@ -168,24 +237,15 @@ export const LegalAdvisorDashboard: React.FC = () => {
         if (selectedBranch !== 'الكل' && c.branchName !== selectedBranch) return false;
         if (searchTerm.trim()) {
           const q = searchTerm.toLowerCase().trim();
-          const matches =
-            (c.name && c.name.toLowerCase().includes(q)) ||
-            (c.code && String(c.code).toLowerCase().includes(q)) ||
-            (c.phone && String(c.phone).includes(q)) ||
-            (c.salesRepName && c.salesRepName.toLowerCase().includes(q)) ||
-            (c.repName && c.repName.toLowerCase().includes(q));
+          const matches = [c.name, c.code, c.phone, c.salesRepName, c.repName]
+            .some((v) => String(v || '').toLowerCase().includes(q));
           if (!matches) return false;
         }
         return true;
       })
-      .sort((a, b) => {
-        const debtA = a.currentBalance ?? a.balance ?? 0;
-        const debtB = b.currentBalance ?? b.balance ?? 0;
-        return debtB - debtA;
-      });
+      .sort((a, b) => (b.currentBalance ?? b.balance ?? 0) - (a.currentBalance ?? a.balance ?? 0));
   }, [accessibleCustomers, minDebtFilter, selectedBranch, searchTerm]);
 
-  // Overall Legal Stats
   const stats = useMemo(() => {
     let totalDelinquentDebt = 0;
     let highRiskCount = 0;
@@ -197,26 +257,29 @@ export const LegalAdvisorDashboard: React.FC = () => {
         highRiskCount++;
       }
     });
-
-    const activeCourtCases = notices.filter((n) => n.status === 'مرفوع دعوى قضائية').length;
+    const openCases = visibleCases.filter((c) => c.status !== 'تم سداد كامل المديونية وإغلاق الملف');
+    const court = openCases.filter((c) => c.status === 'إجراء قضائي ومحضر').length;
+    const totalCaseDebt = openCases.reduce((s, c) => s + (c.totalDebt || 0), 0);
     const bouncedChecks = checks.filter((c) => c.status === 'مرتد بدون رصيد').length;
-
+    const pendingApproval = visibleCases.filter((c) => c.status === 'بانتظار اعتماد مدير الفرع').length;
     return {
       totalDelinquentDebt,
       highRiskCount,
-      activeCourtCases,
+      activeCourtCases: court,
       bouncedChecks,
       totalNotices: notices.length,
-      totalChecks: checks.length
+      totalChecks: checks.length,
+      openCases: openCases.length,
+      totalCaseDebt,
+      pendingApproval,
     };
-  }, [accessibleCustomers, notices, checks]);
+  }, [accessibleCustomers, notices, checks, visibleCases]);
 
   const handleCreateNotice = () => {
     if (!selectedCustomerForNotice) return;
     const debt = selectedCustomerForNotice.currentBalance ?? selectedCustomerForNotice.balance ?? 0;
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayIso();
     const deadline = new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0];
-
     const newN: LegalNotice = {
       id: `NOT-2026-${String(notices.length + 1).padStart(3, '0')}`,
       customerName: selectedCustomerForNotice.name,
@@ -228,14 +291,24 @@ export const LegalAdvisorDashboard: React.FC = () => {
       deadlineDate: deadline,
       status: 'تم الإرسال على يد محضر',
       legalType: noticeType,
-      notes: noticeNotes || 'تم إصدار الإنذار القانوني الرسمي بعد استنفاد مهل السداد الودية.'
+      notes: noticeNotes || 'تم إصدار الإنذار القانوني الرسمي بعد استنفاد مهل السداد الودية.',
     };
-
     saveNotices([newN, ...notices]);
     setIsNoticeModalOpen(false);
     setSelectedCustomerForNotice(null);
     setNoticeNotes('');
     setViewingNotice(newN);
+    flashMsg('ok', 'تم إصدار الإنذار وحفظه محليًا');
+    recordAuditLog({
+      userId: currentUser?.id || 'legal',
+      userName: currentUser?.name || 'الشؤون القانونية',
+      userRole: (currentUser?.role || 'legal_advisor') as any,
+      branchName: currentUser?.branchName || newN.branch || '—',
+      action: 'update_invoice_status' as any,
+      actionTitle: 'إصدار إنذار/إجراء قانوني',
+      details: `عميل: ${newN.customerName} (${newN.customerCode}) | نوع: ${newN.legalType} | مديونية: ${newN.totalDebt} | مهلة: ${newN.deadlineDate}`,
+      badgeType: 'warning',
+    } as any);
   };
 
   const handleAddCheck = () => {
@@ -246,24 +319,35 @@ export const LegalAdvisorDashboard: React.FC = () => {
       bankName: newCheckBank || 'البنك الأهلي المصري',
       checkNumber: newCheckNum,
       amount: newCheckAmount,
-      dueDate: newCheckDate || new Date().toISOString().split('T')[0],
+      dueDate: newCheckDate || todayIso(),
       type: newCheckType,
-      status: 'ساري ومودع بالخزينة'
+      status: 'ساري ومودع بالخزينة',
     };
     saveChecks([newC, ...checks]);
     setIsCheckModalOpen(false);
     setNewCheckCustomer('');
+    setNewCheckCustomerId(null);
     setNewCheckBank('');
     setNewCheckNum('');
     setNewCheckAmount(0);
+    flashMsg('ok', 'تم تسجيل الضمانة بالخزينة');
+    recordAuditLog({
+      userId: currentUser?.id || 'legal',
+      userName: currentUser?.name || 'الشؤون القانونية',
+      userRole: (currentUser?.role || 'legal_advisor') as any,
+      branchName: currentUser?.branchName || '—',
+      action: 'update_user' as any,
+      actionTitle: 'تسجيل ضمانة/شيك قانوني',
+      details: `عميل: ${newC.customerName} | نوع: ${newC.type} | رقم: ${newC.checkNumber} | مبلغ: ${newC.amount} | استحقاق: ${newC.dueDate}`,
+      badgeType: 'warning',
+    } as any);
   };
 
-  /* ---------- تسجيل إفادة قانونية نهائية للمستشار القانوني ---------- */
   const handleSaveLegalFindings = () => {
     if (!findingsCustomer) return;
     const legalCase = getLegalCaseForCustomer(findingsCustomer);
     if (!legalCase) {
-      alert('لا يوجد ملف قانوني مسجل بعد لهذا العميل — يرجى إتمام عملية الإحالة للشؤون القانونية أولاً.');
+      alert('لا يوجد ملف قانوني مسجل لهذا العميل — يجب إحالة العميل للشؤون القانونية أولاً.');
       return;
     }
     const res = addLegalStatement(
@@ -275,872 +359,460 @@ export const LegalAdvisorDashboard: React.FC = () => {
       findingsAction
     );
     if (res.success) {
+      setLegalCases(getLegalCases());
       setIsFindingsModalOpen(false);
       setFindingsCustomer(null);
       setFindingsText('');
       setFindingsStatus('قيد المتابعة والتحقيق');
       setFindingsAction('إفادة استفسارية قانونية');
+      flashMsg('ok', res.message || 'تم حفظ الإفادة وتحديث الملف');
+      recordAuditLog({
+        userId: currentUser?.id || 'legal',
+        userName: currentUser?.name || 'الشؤون القانونية',
+        userRole: (currentUser?.role || 'legal_advisor') as any,
+        branchName: currentUser?.branchName || findingsCustomer.branchName || '—',
+        action: 'update_visit_status' as any,
+        actionTitle: 'تسجيل إفادة/إجراء على ملف قانوني',
+        details: `عميل: ${findingsCustomer.name} | إجراء: ${findingsAction} | حالة: ${findingsStatus} | نص: ${findingsText.trim().slice(0, 120)}`,
+        badgeType: 'info',
+      } as any);
+    } else {
+      flashMsg('err', res.message || 'تعذر الحفظ');
     }
   };
 
+  const openFindings = (customer: Customer) => {
+    setFindingsCustomer(customer);
+    setFindingsText('');
+    setFindingsStatus('قيد المتابعة والتحقيق');
+    setFindingsAction('إفادة استفسارية قانونية');
+    setIsFindingsModalOpen(true);
+  };
+
+  const StatusPill: React.FC<{ status: LegalCase['status'] }> = ({ status }) => {
+    const m = CASE_STATUS_META[status] || { cls: 'bg-slate-100 text-slate-700 border-slate-200' };
+    return <span className={`inline-flex items-center px-2.5 py-1 rounded-lg border text-[11px] font-black ${m.cls}`}>{status}</span>;
+  };
+
   return (
-    <div dir="rtl" className="space-y-5 animate-in fade-in duration-200">
-      {/* Header Banner */}
-      <div className="bg-gradient-to-l from-[#0f233d] via-[#162f52] to-[#1a3861] text-white rounded-3xl p-5 sm:p-7 shadow-xl border border-[rgba(201,154,67,.3)] relative overflow-hidden">
-        <div className="absolute -left-10 -bottom-10 w-48 h-48 bg-amber-500/10 rounded-full blur-2xl pointer-events-none" />
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-lg shrink-0">
-              <Scale className="w-8 h-8" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-                  الإدارة القانونية والتحصيل القضائي
-                </h1>
-                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-black px-2.5 py-0.5 rounded-full">
-                  المستشار القانوني
-                </span>
-              </div>
-              <p className="text-xs sm:text-sm text-slate-300 mt-1 font-medium max-w-2xl leading-relaxed">
-                متابعة مديونيات العملاء المتعثرة، إصدار الإنذارات الرسمية على يد محضر، إدارة محفظة الشيكات وإيصالات الأمانة، وإجراءات أوامر الأداء والمطالبات القضائية.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0 flex-wrap">
-            <button
-              onClick={handleClearAllLegalMockData}
-              title="مسح وتصفير كافة الإنذارات والشيكات التجريبية"
-              className="bg-white/10 hover:bg-white/20 text-rose-300 border border-rose-400/30 font-bold px-3 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-              <span>مسح الداتا التجريبية</span>
-            </button>
-            <button
-              onClick={() => setIsCheckModalOpen(true)}
-              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-md transition cursor-pointer active:scale-95"
-            >
-              <Plus className="w-4 h-4" />
-              <span>تسجيل شيك / إيصال أمانة</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* KPI Stats Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="bg-white rounded-2xl p-4 border border-[var(--app-line)] shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">إجمالي ديون المتابعة القانونية</span>
-            <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-black">
-              <DollarSign className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-rose-600 mt-2 tabular-nums">
-            {formatCurrency(stats.totalDelinquentDebt)} <span className="text-xs font-bold text-slate-400">ج.م</span>
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1 font-bold">
-            مديونيات تتجاوز 10,000 ج.م
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-[var(--app-line)] shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">عملاء مرحلة الخطر (أكثر من 90 يوم)</span>
-            <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-black">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 mt-2 tabular-nums">
-            {stats.highRiskCount} <span className="text-xs font-bold text-slate-400">عميل</span>
-          </div>
-          <div className="text-[11px] text-amber-600 mt-1 font-bold">
-            يتطلب إنذار رسمي أو تسوية
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-[var(--app-line)] shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">شيكات وإيصالات بالخزينة</span>
-            <div className="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black">
-              <FileCheck className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-blue-700 mt-2 tabular-nums">
-            {stats.totalChecks} <span className="text-xs font-bold text-slate-400">ضمانة</span>
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1 font-bold">
-            {stats.bouncedChecks} شيك مرتد بدون رصيد
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-[var(--app-line)] shadow-xs">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500">إنذارات وقضايا مرفوعة</span>
-            <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-black">
-              <Scale className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-xl sm:text-2xl font-black text-slate-900 mt-2 tabular-nums">
-            {stats.totalNotices} <span className="text-xs font-bold text-slate-400">إجراء</span>
-          </div>
-          <div className="text-[11px] text-emerald-600 mt-1 font-bold">
-            {stats.activeCourtCases} أوامر أداء منظورة
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs Bar */}
-      <div className="flex items-center gap-2 border-b border-[var(--app-line)] pb-2 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('delinquents')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
-            activeTab === 'delinquents'
-              ? 'bg-navy-panel text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <ShieldAlert className="w-4 h-4 text-amber-400" />
-          <span>كشف العملاء المتعثرين والمطالبات</span>
-          <span className="bg-rose-500 text-white text-[10px] px-1.5 py-0.2 rounded-full font-bold">
-            {delinquentCustomers.length}
-          </span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('notices')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
-            activeTab === 'notices'
-              ? 'bg-navy-panel text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <FileText className="w-4 h-4 text-amber-400" />
-          <span>سجل الإنذارات الرسمية والقضايا ({notices.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('checks')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
-            activeTab === 'checks'
-              ? 'bg-navy-panel text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <FileCheck className="w-4 h-4 text-amber-400" />
-          <span>محفظة الشيكات والضمانات ({checks.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('templates')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-black transition cursor-pointer whitespace-nowrap ${
-            activeTab === 'templates'
-              ? 'bg-navy-panel text-white shadow-sm'
-              : 'bg-white text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <FolderOpen className="w-4 h-4 text-amber-400" />
-          <span>صيغ العقود والنماذج القانونية</span>
-        </button>
-      </div>
-
-      {/* MODAL: تسجيل إفادة قانونية نهائية */}
-      {isFindingsModalOpen && findingsCustomer && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-[var(--app-line)] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[var(--app-line)]">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-navy-panel text-amber-400 flex items-center justify-center font-black">
-                  <FileCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-black text-slate-900 text-sm sm:text-base">تسجيل إفادة قانونية نهائية</h3>
-                  <p className="text-[11px] text-slate-500">العميل: {findingsCustomer.name}</p>
-                </div>
-              </div>
-              <button onClick={() => setIsFindingsModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="bg-slate-50 p-3 rounded-xl border border-[var(--app-line)] flex items-center justify-between">
-              <div>
-                <span className="text-slate-500 block text-[11px]">إجمالي المديونية:</span>
-                <span className="font-black text-base text-rose-600 tabular-nums">
-                  {formatCurrency(findingsCustomer.currentBalance ?? findingsCustomer.balance ?? 0)}
-                </span>
-              </div>
-              <div className="text-left">
-                <span className="text-slate-500 block text-[11px]">الفرع والمندوب:</span>
-                <span className="font-bold text-slate-800">
-                  {findingsCustomer.branchName || 'الفرع الرئيسي'} — {findingsCustomer.salesRepName || findingsCustomer.repName || 'غير مسند'}
-                </span>
-              </div>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 mb-1 block">الإفادة النهائية (توصية المستشار القانوني):</label>
-                <textarea
-                  value={findingsText}
-                  onChange={(e) => setFindingsText(e.target.value)}
-                  placeholder="أدخل ملخص الإفادة القانونية النهائية والتوصيات..."
-                  className="w-full min-h-[110px] p-3 rounded-xl border border-[var(--app-line)] font-bold text-slate-800 bg-white resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 mb-1 block">الإجراء القانوني التالي:</label>
-                  <select
-                    value={findingsStatus}
-                    onChange={(e) => setFindingsStatus(e.target.value as LegalCase['status'])}
-                    className="w-full h-10 px-3 rounded-xl border border-[var(--app-line)] font-bold text-slate-800 bg-white"
-                  >
-                    <option value="قيد المتابعة والتحقيق">قيد المتابعة والتحقيق</option>
-                    <option value="محال للشؤون القانونية">محال للشؤون القانونية</option>
-                    <option value="جدولة المديونية">جدولة المديونية</option>
-                    <option value="تسوية ودية">تسوية ودية</option>
-                    <option value="إجراء قضائي ومحضر">إجراء قضائي ومحضر</option>
-                    <option value="تم سداد كامل المديونية وإغلاق الملف">تم سداد كامل المديونية وإغلاق الملف</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 mb-1 block">الإجراء المتخذ:</label>
-                  <select
-                    value={findingsAction}
-                    onChange={(e) => setFindingsAction(e.target.value)}
-                    className="w-full h-10 px-3 rounded-xl border border-[var(--app-line)] font-bold text-slate-800 bg-white"
-                  >
-                    <option value="إفادة استفسارية قانونية">إفادة استفسارية قانونية</option>
-                    <option value="إنذار رسمي على يد محضر">إنذار رسمي على يد محضر</option>
-                    <option value="أمر أداء تجاري">أمر أداء تجاري</option>
-                    <option value="جنحة شيك بدون رصيد">جنحة شيك بدون رصيد</option>
-                    <option value="إقرار دين وجدولة">إقرار دين وجدولة</option>
-                    <option value="إجراء قضائي قيد المتابعة">إجراء قضائي قيد المتابعة</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleSaveLegalFindings}
-                  className="flex-1 min-h-[44px] inline-flex items-center justify-center gap-2 rounded-xl bg-[#0F2B38] hover:bg-[#123554] px-4 py-2.5 text-xs font-black text-white transition cursor-pointer"
-                >
-                  <FileCheck className="w-4 h-4" />
-                  <span>حفظ الإفادة وتحديث الملف</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsFindingsModalOpen(false)}
-                  className="min-h-[44px] px-4 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-700 font-black text-xs hover:bg-slate-50 transition cursor-pointer"
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    <X className="w-4 h-4" />
-                    <span>إلغاء</span>
-                  </span>
-                </button>
-              </div>
-            </div>
-          </div>
+    <div dir="rtl" className="space-y-4 animate-in fade-in duration-200 pb-10">
+      {flash && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[80] px-4 py-2.5 rounded-xl shadow-lg border text-sm font-extrabold ${flash.tone === 'ok' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+          {flash.text}
         </div>
       )}
 
-      {/* TAB 1: DELINQUENT CUSTOMERS */}
-      {activeTab === 'delinquents' && (
-        <div className="bg-white rounded-2xl border border-[var(--app-line)] shadow-sm p-4 sm:p-5 space-y-4">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="ابحث باسم العميل أو الكود أو المندوب..."
-                className="w-full h-10 pr-9 pl-3 text-xs rounded-xl border border-[var(--app-line)] focus:outline-none focus:border-navy-panel"
-              />
+      {/* Hero */}
+      <section className="relative overflow-hidden rounded-3xl border border-[rgba(201,154,67,.28)] bg-gradient-to-l from-[#0f233d] via-[#162f52] to-[#1a3861] text-white shadow-xl">
+        <div className="absolute -left-10 -bottom-10 w-56 h-56 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-1/3 -top-12 w-40 h-40 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+        <div className="relative p-5 sm:p-7 flex flex-col xl:flex-row xl:items-end justify-between gap-5">
+          <div className="space-y-2 max-w-3xl">
+            <div className="inline-flex items-center gap-2 text-[11px] font-extrabold text-[#e8c98c] bg-white/10 border border-white/15 rounded-lg px-2.5 py-1">
+              <Scale size={14} /> الشؤون القانونية والتحصيل القضائي · غرفة عمليات احترافية
             </div>
-
-            <div className="flex items-center gap-2">
-              <select
-                aria-label="الفرع"
-                value={selectedBranch}
-                onChange={(e) => setSelectedBranch(e.target.value)}
-                className="h-10 px-3 text-xs font-bold rounded-xl border border-[var(--app-line)] bg-slate-50 text-slate-700"
-              >
-                <option value="الكل">كل الفروع</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.name}>{b.name}</option>
-                ))}
-              </select>
-
-              <select
-                aria-label="حد المديونية"
-                value={minDebtFilter}
-                onChange={(e) => setMinDebtFilter(Number(e.target.value))}
-                className="h-10 px-3 text-xs font-bold rounded-xl border border-[var(--app-line)] bg-slate-50 text-slate-700"
-              >
-                <option value={0}>كل المديونيات</option>
-                <option value={5000}>أكبر من 5,000 ج</option>
-                <option value={15000}>أكبر من 15,000 ج</option>
-                <option value={30000}>أكبر من 30,000 ج (حرج)</option>
-              </select>
+            <h1 className="text-2xl sm:text-[30px] font-black tracking-tight">مركز القيادة القانونية</h1>
+            <p className="text-sm text-blue-100/90 leading-relaxed">
+              متابعة ملفات العملاء المحالة، الإفادات والإجراءات، الإنذارات والضمانات، ومسار التحصيل/التسوية/التقاضي — بخصوصية تامة لملفات الشؤون القانونية.
+            </p>
+            <div className="flex flex-wrap gap-2 pt-1">
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold bg-white/10 border border-white/15 rounded-lg px-2.5 py-1.5"><Briefcase size={13}/> ملفات مفتوحة: <b className="text-white">{stats.openCases}</b></span>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold bg-rose-500/20 border border-rose-300/30 rounded-lg px-2.5 py-1.5"><Gavel size={13}/> إجراء قضائي: <b className="text-white">{stats.activeCourtCases}</b></span>
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold bg-amber-500/20 border border-amber-300/30 rounded-lg px-2.5 py-1.5"><Clock3 size={13}/> بانتظار اعتماد الفرع: <b className="text-white">{stats.pendingApproval}</b></span>
             </div>
           </div>
+          <div className="flex flex-wrap items-center gap-3 bg-white/10 border border-white/15 rounded-2xl p-3 sm:p-4 backdrop-blur-[1px]">
+            <div className="text-center px-2"><div className="text-[11px] text-blue-200 font-bold">ديون الملفات المفتوحة</div><div className="text-xl font-black text-[#f3d59a]">{fmt(stats.totalCaseDebt)}</div></div>
+            <div className="w-px h-10 bg-white/20 hidden sm:block" />
+            <div className="text-center px-2"><div className="text-[11px] text-blue-200 font-bold">شيكات مرتدة</div><div className="text-xl font-black">{stats.bouncedChecks}</div></div>
+            <div className="w-px h-10 bg-white/20 hidden sm:block" />
+            <div className="flex gap-2">
+              <button onClick={() => setIsCheckModalOpen(true)} className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition">
+                <Plus size={15}/> ضمانة/شيك
+              </button>
+              <button onClick={handleClearAllLegalMockData} className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-rose-200 font-bold text-xs transition" title="مسح الإنذارات والشيكات المحلية">
+                <Trash2 size={14}/> تصفير محلي
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
-          <div className="overflow-x-auto rounded-xl border border-[var(--app-line)]">
-            <table className="w-full text-right text-xs">
-              <thead className="bg-slate-50 text-slate-700 border-b border-[var(--app-line)] font-black">
-                <tr>
-                  <th className="p-3">العميل</th>
-                  <th className="p-3">الفرع والمندوب</th>
-                  <th className="p-3">إجمالي المديونية</th>
-                  <th className="p-3">المستحق والمتأخر</th>
-                  <th className="p-3">السقف الائتماني</th>
-                  <th className="p-3">الإجراء القانوني</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--app-line)]">
-                {delinquentCustomers.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="text-center p-8 text-slate-400 font-bold">
-                      لا يوجد عملاء متعثرين يطابقون معايير التصفية المحددة.
-                    </td>
-                  </tr>
+      {/* KPIs */}
+      <section className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-500"><span>ملفات قانونية مفتوحة</span><span className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center"><Briefcase size={16}/></span></div>
+          <div className="mt-2 text-2xl font-black text-slate-900">{stats.openCases} <span className="text-xs font-bold text-slate-400">ملف</span></div>
+          <div className="text-[11px] font-bold text-indigo-700 mt-1">قيمة: {fmt(stats.totalCaseDebt)}</div>
+        </div>
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-500"><span>عملاء/مخاطر ضمن النطاق</span><span className="w-9 h-9 rounded-xl bg-rose-50 text-rose-700 flex items-center justify-center"><AlertTriangle size={16}/></span></div>
+          <div className="mt-2 text-2xl font-black text-slate-900">{stats.highRiskCount} <span className="text-xs font-bold text-slate-400">عميل</span></div>
+          <div className="text-[11px] font-bold text-rose-700 mt-1">ديون مرصودة: {fmt(stats.totalDelinquentDebt)}</div>
+        </div>
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-500"><span>محفظة الضمانات</span><span className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center"><FileCheck size={16}/></span></div>
+          <div className="mt-2 text-2xl font-black text-slate-900">{stats.totalChecks} <span className="text-xs font-bold text-slate-400">ضمانة</span></div>
+          <div className="text-[11px] font-bold text-amber-700 mt-1">{stats.bouncedChecks} مرتد/قيد تحصيل</div>
+        </div>
+        <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between text-xs font-bold text-slate-500"><span>الإنذارات والإجراءات</span><span className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center"><FileText size={16}/></span></div>
+          <div className="mt-2 text-2xl font-black text-slate-900">{stats.totalNotices} <span className="text-xs font-bold text-slate-400">إنذار</span></div>
+          <div className="text-[11px] font-bold text-slate-600 mt-1">سجل محلي قابل للطباعة</div>
+        </div>
+      </section>
+
+      {/* Controls + Tabs */}
+      <section className="bg-white rounded-2xl border border-slate-200 shadow-sm p-3 sm:p-4 space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {([
+              ['cases', 'ملفات القضايا', Briefcase],
+              ['delinquents', 'المتعثرون ضمن النطاق', ShieldAlert],
+              ['notices', 'الإنذارات', FileText],
+              ['checks', 'الشيكات والضمانات', FileCheck],
+              ['templates', 'النماذج والصيغ', FolderOpen],
+            ] as const).map(([k, label, Icon]) => (
+              <button key={k} onClick={() => setActiveTab(k)} className={`inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-black border transition ${activeTab === k ? 'bg-[#102b4e] text-white border-[#102b4e] shadow-sm' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>
+                <Icon size={15} className={activeTab === k ? 'text-[#e8c98c]' : 'text-slate-400'} /> {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="بحث (عميل/كود/ملف/مندوب)..."
+                className="h-10 pr-9 pl-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold w-60 focus:outline-none focus:border-[#102b4e]" />
+            </div>
+            <select aria-label="الفرع" value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} className="h-10 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold">
+              <option value="الكل">كل الفروع</option>
+              {branches.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* CASES TAB */}
+        {activeTab === 'cases' && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-extrabold text-slate-600 inline-flex items-center gap-1.5"><Filter size={14}/> حالة الملف:</span>
+              {([
+                ['open', 'مفتوحة'],
+                ['all', 'الكل'],
+                ['بانتظار اعتماد مدير الفرع', 'بانتظار اعتماد الفرع'],
+                ['إجراء قضائي ومحضر', 'قضائي/محضر'],
+                ['جدولة المديونية', 'جدولة'],
+                ['تم سداد كامل المديونية وإغلاق الملف', 'مغلقة'],
+              ] as const).map(([v, l]) => (
+                <button key={v} onClick={() => setCaseStatusFilter(v as any)} className={`px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold border ${caseStatusFilter === v ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>{l}</button>
+              ))}
+              <span className="mr-auto text-[11px] font-bold text-slate-500">{filteredCases.length} ملف</span>
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] gap-3">
+              <div className="space-y-2 max-h-[70vh] overflow-auto pr-1">
+                {filteredCases.length === 0 && (
+                  <div className="p-8 text-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 text-slate-500 font-bold">لا توجد ملفات قانونية مطابقة ضمن نطاق الصلاحية.</div>
+                )}
+                {filteredCases.map((c) => {
+                  const active = selectedCaseId === c.id;
+                  return (
+                    <button key={c.id} onClick={() => setSelectedCaseId(c.id)} className={`w-full text-right rounded-2xl border p-3.5 transition ${active ? 'border-[#102b4e] bg-[#f4f8fc] shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-lg leading-none">{c.transferIcon || '⚖️'}</span>
+                            <span className="font-black text-slate-900 text-sm truncate">{c.customerName}</span>
+                            <span className="font-mono text-[10px] text-slate-400">{c.id}</span>
+                          </div>
+                          <div className="text-[11px] text-slate-500 font-bold mt-0.5">كود: {c.customerCode} · {c.branchName} · المندوب: {c.repName}</div>
+                        </div>
+                        <StatusPill status={c.status} />
+                      </div>
+                      <div className="mt-2 grid grid-cols-3 gap-2 text-[11px]">
+                        <div className="bg-white/70 rounded-lg border border-slate-200 px-2 py-1.5"><div className="text-slate-400 font-bold">إجمالي الدين</div><div className="font-black text-rose-700 tabular-nums">{fmt(c.totalDebt)}</div></div>
+                        <div className="bg-white/70 rounded-lg border border-slate-200 px-2 py-1.5"><div className="text-slate-400 font-bold">متأخر</div><div className="font-black text-amber-700 tabular-nums">{fmt(c.overdueAmount)}</div></div>
+                        <div className="bg-white/70 rounded-lg border border-slate-200 px-2 py-1.5"><div className="text-slate-400 font-bold">ضمان</div><div className="font-black text-slate-800 truncate">{c.guaranteeType || '—'}</div></div>
+                      </div>
+                      {c.latestLegalStatement && <div className="mt-2 text-[11px] font-bold text-slate-600 line-clamp-2 bg-amber-50/60 border border-amber-100 rounded-lg px-2.5 py-2">آخر إفادة: {c.latestLegalStatement}</div>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Case detail */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 min-h-[420px]">
+                {!selectedCase ? (
+                  <div className="h-full flex items-center justify-center text-slate-400 font-bold">اختر ملفًا لعرض التفاصيل</div>
                 ) : (
-                  delinquentCustomers.slice(0, 50).map((c) => {
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2"><span className="text-xl">{selectedCase.transferIcon || '⚖️'}</span><h3 className="font-black text-slate-900 text-base">{selectedCase.customerName}</h3></div>
+                        <div className="text-[11px] text-slate-500 font-bold mt-0.5">{selectedCase.id} · كود {selectedCase.customerCode} · {selectedCase.phone}</div>
+                      </div>
+                      <StatusPill status={selectedCase.status} />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5"><div className="text-slate-500 font-bold text-[11px]">إجمالي/متأخر</div><div className="font-black text-rose-700 tabular-nums">{fmt(selectedCase.totalDebt)} / {fmt(selectedCase.overdueAmount)}</div></div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5"><div className="text-slate-500 font-bold text-[11px]">الفرع/المندوب</div><div className="font-black text-slate-800">{selectedCase.branchName} · {selectedCase.repName}</div></div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 col-span-2"><div className="text-slate-500 font-bold text-[11px]">سبب الإحالة</div><div className="font-bold text-slate-800 leading-relaxed">{selectedCase.referralReason}</div><div className="text-[10px] text-slate-500 mt-1">بواسطة: {selectedCase.referredByName} · {selectedCase.referredAt}</div></div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 col-span-2"><div className="text-slate-500 font-bold text-[11px]">الضمان</div><div className="font-bold text-slate-800">{selectedCase.guaranteeType || '—'} {selectedCase.guaranteeAmount ? `· ${fmt(selectedCase.guaranteeAmount)}` : ''}</div></div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 col-span-2 flex items-center gap-2">
+                        {selectedCase.branchManagerApproved ? <><ShieldCheck size={15} className="text-emerald-600"/><span className="text-[11px] font-bold text-emerald-800">معتمد من مدير الفرع: {selectedCase.branchManagerApprovedBy || '—'} ({selectedCase.branchManagerApprovedAt || ''})</span></> : <><Clock3 size={15} className="text-amber-600"/><span className="text-[11px] font-bold text-amber-800">بانتظار اعتماد مدير الفرع</span></>}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => {
+                        const cust = accessibleCustomers.find((x) => x.id === selectedCase.customerId) || customers.find((x) => x.id === selectedCase.customerId);
+                        if (cust) { setSelectedCustomerForNotice(cust); setIsNoticeModalOpen(true); }
+                        else flashMsg('err', 'تعذر العثور على بيانات العميل لإصدار الإنذار');
+                      }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#102b4e] text-white text-xs font-black hover:bg-[#16365f]"><Printer size={14}/> إصدار إنذار</button>
+                      <button onClick={() => {
+                        const cust = accessibleCustomers.find((x) => x.id === selectedCase.customerId) || customers.find((x) => x.id === selectedCase.customerId);
+                        if (cust) openFindings(cust); else flashMsg('err', 'تعذر العثور على العميل');
+                      }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500 text-slate-950 text-xs font-black hover:bg-amber-400"><FileCheck size={14}/> تسجيل إفادة/إجراء</button>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center gap-2 text-xs font-black text-slate-800 mb-2"><History size={14}/> سجل الإفادات والإجراءات ({selectedCase.statementsHistory?.length || 0})</div>
+                      <div className="space-y-2 max-h-56 overflow-auto pr-1">
+                        {(selectedCase.statementsHistory || []).slice().reverse().map((s) => (
+                          <div key={s.id} className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                            <div className="flex items-center justify-between gap-2 text-[11px]"><span className="font-black text-slate-800">{s.authorName} <span className="text-slate-400 font-bold">({s.authorRole})</span></span><span className="font-mono text-slate-400">{s.date}</span></div>
+                            <div className="text-xs font-bold text-slate-700 mt-1 leading-relaxed">{s.statement}</div>
+                            {s.actionTaken && <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-extrabold text-[#102b4e] bg-blue-50 border border-blue-100 rounded-md px-2 py-0.5"><BadgeCheck size={11}/> {s.actionTaken}</div>}
+                          </div>
+                        ))}
+                        {(!selectedCase.statementsHistory || selectedCase.statementsHistory.length === 0) && <div className="text-xs text-slate-400 font-bold">لا توجد إفادات مسجلة بعد.</div>}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* DELINQUENTS TAB */}
+        {activeTab === 'delinquents' && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-extrabold text-slate-600">حد المديونية:</span>
+              <select aria-label="حد المديونية" value={minDebtFilter} onChange={(e) => setMinDebtFilter(Number(e.target.value))} className="h-9 px-3 rounded-lg border border-slate-200 bg-slate-50 text-xs font-bold">
+                <option value={0}>الكل</option>
+                <option value={5000}>≥ 5,000 ج</option>
+                <option value={15000}>≥ 15,000 ج</option>
+                <option value={30000}>≥ 30,000 ج (حرج)</option>
+              </select>
+              <span className="text-[11px] font-bold text-slate-500 mr-auto">يُعرض فقط العملاء ضمن نطاق الشؤون القانونية/الصلاحية</span>
+            </div>
+            <div className="overflow-x-auto rounded-xl border border-slate-200">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-slate-50 text-slate-700 border-b border-slate-200 font-black">
+                  <tr><th className="p-3">العميل</th><th className="p-3">الفرع/المندوب</th><th className="p-3">إجمالي</th><th className="p-3">متأخر/مستحق</th><th className="p-3">السقف</th><th className="p-3">ملف قانوني</th><th className="p-3">إجراء</th></tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {delinquentCustomers.length === 0 ? (
+                    <tr><td colSpan={7} className="p-8 text-center text-slate-400 font-bold">لا يوجد عملاء مطابقون.</td></tr>
+                  ) : delinquentCustomers.slice(0, 60).map((c) => {
                     const debt = c.currentBalance ?? c.balance ?? 0;
                     const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
                     const limit = c.creditLimit || 0;
-                    const isExceeded = limit > 0 && debt > limit;
-
+                    const exceeded = limit > 0 && debt > limit;
+                    const lc = getLegalCaseForCustomer(c);
                     return (
-                      <tr key={c.id} className="hover:bg-slate-50/80 transition">
-                        <td className="p-3">
-                          <div className="font-black text-slate-900">{c.name}</div>
-                          <div className="text-[11px] text-slate-400 font-mono">كود: {c.code || c.id} • {c.phone || 'بدون هاتف'}</div>
-                        </td>
-                        <td className="p-3">
-                          <div className="font-bold text-slate-700">{c.branchName || 'الفرع الرئيسي'}</div>
-                          <div className="text-[11px] text-slate-500">المندوب: {c.salesRepName || c.repName || 'غير مسند'}</div>
-                        </td>
-                        <td className="p-3 font-black text-slate-900 tabular-nums">
-                          {formatCurrency(debt)} ج
-                        </td>
-                        <td className="p-3 font-black text-rose-600 tabular-nums">
-                          {formatCurrency(overdue)} ج
-                        </td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
-                            isExceeded ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-700'
-                          }`}>
-                            {limit > 0 ? `${formatCurrency(limit)} ج` : 'بدون سقف'}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <div className="flex flex-col sm:flex-row gap-1.5">
-                            <button
-                              onClick={() => {
-                                setSelectedCustomerForNotice(c);
-                                setIsNoticeModalOpen(true);
-                              }}
-                              className="bg-navy-panel hover:bg-navy-hover text-amber-300 font-black px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer active:scale-95"
-                            >
-                              <Scale className="w-3.5 h-3.5" />
-                              <span>إصدار إنذار قانوني</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setFindingsCustomer(c);
-                                setFindingsText('');
-                                setFindingsStatus('قيد المتابعة والتحقيق');
-                                setFindingsAction('إفادة استفسارية قانونية');
-                                setIsFindingsModalOpen(true);
-                              }}
-                              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-black px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 transition cursor-pointer active:scale-95"
-                            >
-                              <FileCheck className="w-3.5 h-3.5" />
-                              <span>تسجيل إفادة نهائية</span>
-                            </button>
-                          </div>
-                        </td>
+                      <tr key={c.id} className="hover:bg-slate-50/70">
+                        <td className="p-3"><div className="font-black text-slate-900">{c.name}</div><div className="text-[11px] text-slate-400 font-mono">كود: {c.code || c.id} · {c.phone || '—'}</div></td>
+                        <td className="p-3"><div className="font-bold text-slate-700">{c.branchName || '—'}</div><div className="text-[11px] text-slate-500">{c.salesRepName || c.repName || 'غير مسند'}</div></td>
+                        <td className="p-3 font-black tabular-nums text-slate-900">{fmt(debt)}</td>
+                        <td className="p-3 font-black tabular-nums text-rose-700">{fmt(overdue)}</td>
+                        <td className="p-3"><span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold ${exceeded ? 'bg-rose-100 text-rose-700' : 'bg-slate-100 text-slate-700'}`}>{limit > 0 ? fmt(limit) : 'بدون سقف'}</span></td>
+                        <td className="p-3">{lc ? <StatusPill status={lc.status} /> : <span className="text-[11px] font-bold text-slate-400">لا يوجد</span>}</td>
+                        <td className="p-3"><div className="flex flex-wrap gap-1.5">
+                          <button onClick={() => { setSelectedCustomerForNotice(c); setIsNoticeModalOpen(true); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#102b4e] text-white text-[11px] font-black"><Scale size={13}/> إنذار</button>
+                          <button onClick={() => openFindings(c)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-900 border border-amber-200 text-[11px] font-black"><FileCheck size={13}/> إفادة</button>
+                          {lc && <button onClick={() => { setActiveTab('cases'); setSelectedCaseId(lc.id); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-700 text-[11px] font-black"><Eye size={13}/> الملف</button>}
+                        </div></td>
                       </tr>
                     );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: NOTICES */}
-      {activeTab === 'notices' && (
-        <div className="bg-white rounded-2xl border border-[var(--app-line)] shadow-sm p-4 sm:p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-black text-slate-900 text-sm">
-              سجل الإنذارات الرسمية والدعاوى القضائية ({notices.length})
-            </h3>
-          </div>
-
-          {notices.length === 0 ? (
-            <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/50">
-              <FileText className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <h4 className="font-bold text-slate-700 text-sm">لا توجد إنذارات أو دعاوى مسجلة حالياً</h4>
-              <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                تم مسح وتصفير كافة السجلات التجريبية. يمكنك الآن إصدار إنذار قانوني حقيقي لأي عميل متعثر من تبويب "كشف العملاء المتعثرين والمطالبات".
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-xl border border-[var(--app-line)]">
-              <table className="w-full text-right text-xs">
-                <thead className="bg-slate-50 text-slate-700 border-b border-[var(--app-line)] font-black">
-                  <tr>
-                    <th className="p-3">رقم الإنذار</th>
-                    <th className="p-3">العميل</th>
-                    <th className="p-3">نوع الإجراء</th>
-                    <th className="p-3">المبلغ المطالب به</th>
-                    <th className="p-3">تاريخ الإرسال والمهلة</th>
-                    <th className="p-3">الحالة القانونية</th>
-                    <th className="p-3">معاينة وطباعة</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--app-line)]">
-                  {notices.map((n) => (
-                    <tr key={n.id} className="hover:bg-slate-50/80 transition">
-                      <td className="p-3 font-mono font-bold text-slate-900">{n.id}</td>
-                      <td className="p-3 font-black text-slate-900">{n.customerName}</td>
-                      <td className="p-3">
-                        <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[11px] font-bold">
-                          {n.legalType}
-                        </span>
-                      </td>
-                      <td className="p-3 font-black text-rose-600 tabular-nums">
-                        {formatCurrency(n.totalDebt)} ج
-                      </td>
-                      <td className="p-3 text-[11px] text-slate-600">
-                        <div>إصدار: {n.issueDate}</div>
-                        <div className="font-bold text-rose-600">انتهاء المهلة: {n.deadlineDate}</div>
-                      </td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded-full font-black text-[10px] ${
-                          n.status === 'مرفوع دعوى قضائية'
-                            ? 'bg-rose-100 text-rose-800'
-                            : n.status === 'تم الإرسال على يد محضر'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-emerald-100 text-emerald-800'
-                        }`}>
-                          {n.status}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <button
-                          onClick={() => setViewingNotice(n)}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-2.5 py-1 rounded text-xs flex items-center gap-1 cursor-pointer"
-                        >
-                          <Printer className="w-3.5 h-3.5" />
-                          <span>طباعة</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  })}
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 3: CHECKS */}
-      {activeTab === 'checks' && (
-        <div className="bg-white rounded-2xl border border-[var(--app-line)] shadow-sm p-4 sm:p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="font-black text-slate-900 text-sm">
-              محفظة الشيكات البنكية وإيصالات الأمانة المسجلة ({checks.length})
-            </h3>
-            <button
-              onClick={() => setIsCheckModalOpen(true)}
-              className="bg-navy-panel text-amber-300 font-black px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
-            >
-              <Plus className="w-4 h-4" />
-              <span>إضافة شيك / إيصال جديد</span>
-            </button>
           </div>
+        )}
 
-          {checks.length === 0 ? (
-            <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/50">
-              <FileCheck className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-              <h4 className="font-bold text-slate-700 text-sm">لا توجد شيكات أو إيصالات مسجلة حالياً</h4>
-              <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-                تم مسح وتصفير كافة السجلات التجريبية. يمكنك تسجيل شيكات بنكية وإيصالات أمانة حقيقية لعملاء الشركة عبر زر الإضافة أعلاه.
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-xl border border-[var(--app-line)]">
-              <table className="w-full text-right text-xs">
-                <thead className="bg-slate-50 text-slate-700 border-b border-[var(--app-line)] font-black">
-                  <tr>
-                    <th className="p-3">النوع</th>
-                    <th className="p-3">العميل / الساحب</th>
-                    <th className="p-3">البنك ورقم الشيك</th>
-                    <th className="p-3">قيمة الشيك</th>
-                    <th className="p-3">تاريخ الاستحقاق</th>
-                    <th className="p-3">الحالة بالخزينة</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--app-line)]">
-                  {checks.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-50/80 transition">
-                      <td className="p-3">
-                        <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-bold text-[11px]">
-                          {c.type}
-                        </span>
-                      </td>
-                      <td className="p-3 font-black text-slate-900">{c.customerName}</td>
-                      <td className="p-3">
-                        <div className="font-bold text-slate-700">{c.bankName}</div>
-                        <div className="text-[11px] text-slate-400 font-mono">#{c.checkNumber}</div>
-                      </td>
-                      <td className="p-3 font-black text-slate-900 tabular-nums">
-                        {formatCurrency(c.amount)} ج
-                      </td>
-                      <td className="p-3 font-bold text-slate-700 tabular-nums">{c.dueDate}</td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded-full font-black text-[10px] ${
-                          c.status === 'مرتد بدون رصيد'
-                            ? 'bg-rose-100 text-rose-800'
-                            : c.status === 'قيد التحصيل القضائي'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-emerald-100 text-emerald-800'
-                        }`}>
-                          {c.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 4: TEMPLATES */}
-      {activeTab === 'templates' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-white rounded-2xl border border-[var(--app-line)] p-5 shadow-sm space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-black">
-                <FileText className="w-5 h-5" />
+        {/* NOTICES TAB */}
+        {activeTab === 'notices' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between"><h3 className="font-black text-slate-900 text-sm">سجل الإنذارات الرسمية ({notices.length})</h3><span className="text-[11px] font-bold text-slate-500">محفوظ محليًا وقابل للطباعة</span></div>
+            {notices.length === 0 ? (
+              <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60"><FileText className="w-10 h-10 text-slate-300 mx-auto mb-2" /><div className="font-bold text-slate-700 text-sm">لا توجد إنذارات مسجلة</div><div className="text-xs text-slate-500 mt-1">أصدر إنذارًا من تبويب الملفات أو المتعثرين.</div></div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-slate-50 text-slate-700 border-b border-slate-200 font-black"><tr><th className="p-3">الرقم</th><th className="p-3">العميل</th><th className="p-3">النوع</th><th className="p-3">المبلغ</th><th className="p-3">الإصدار/المهلة</th><th className="p-3">الحالة</th><th className="p-3">عرض</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {notices.map((n) => (
+                      <tr key={n.id} className="hover:bg-slate-50/70">
+                        <td className="p-3 font-mono font-bold text-slate-900">{n.id}</td>
+                        <td className="p-3 font-black text-slate-900">{n.customerName}<div className="text-[10px] text-slate-400 font-bold">{n.branch} · {n.repName}</div></td>
+                        <td className="p-3"><span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded text-[11px] font-extrabold">{n.legalType}</span></td>
+                        <td className="p-3 font-black text-rose-700 tabular-nums">{fmt(n.totalDebt)}</td>
+                        <td className="p-3 text-[11px] font-bold text-slate-600"><div>إصدار: {n.issueDate}</div><div className="text-rose-700">مهلة: {n.deadlineDate}</div></td>
+                        <td className="p-3"><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${n.status === 'مرفوع دعوى قضائية' ? 'bg-rose-100 text-rose-800' : n.status === 'تم الإرسال على يد محضر' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>{n.status}</span></td>
+                        <td className="p-3"><button onClick={() => setViewingNotice(n)} className="inline-flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold px-2.5 py-1.5 rounded-lg"><Printer size={13}/> طباعة</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <div>
-                <h4 className="font-black text-slate-900 text-sm">إنذار سداد رسمي على يد محضر</h4>
-                <p className="text-[11px] text-slate-500">صيغة قانونية معتمدة وفقاً لقانون التجارة المصري</p>
-              </div>
-            </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              إنذار تكليف بالوفاء موجه للعميل لسداد المديونية المستحقة خلال مهلة 7 أيام قبل استصدار أمر أداء أو الحجز التحفظي.
-            </p>
-            <button
-              onClick={() => {
-                if (customers.length > 0) {
-                  setSelectedCustomerForNotice(customers[0]);
-                  setIsNoticeModalOpen(true);
-                }
-              }}
-              className="bg-navy-panel hover:bg-navy-hover text-amber-300 font-black px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer"
-            >
-              <Printer className="w-4 h-4" />
-              <span>توليد نموذج الإنذار</span>
-            </button>
+            )}
           </div>
+        )}
 
-          <div className="bg-white rounded-2xl border border-[var(--app-line)] p-5 shadow-sm space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center font-black">
-                <FileCheck className="w-5 h-5" />
+        {/* CHECKS TAB */}
+        {activeTab === 'checks' && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between"><h3 className="font-black text-slate-900 text-sm">محفظة الشيكات والضمانات ({checks.length})</h3><button onClick={() => setIsCheckModalOpen(true)} className="inline-flex items-center gap-1.5 bg-[#102b4e] text-[#e8c98c] font-black px-3.5 py-2 rounded-xl text-xs"><Plus size={14}/> إضافة ضمانة</button></div>
+            {checks.length === 0 ? (
+              <div className="text-center py-12 px-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50/60"><FileCheck className="w-10 h-10 text-slate-300 mx-auto mb-2" /><div className="font-bold text-slate-700 text-sm">لا توجد ضمانات مسجلة</div></div>
+            ) : (
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="w-full text-right text-xs">
+                  <thead className="bg-slate-50 text-slate-700 border-b border-slate-200 font-black"><tr><th className="p-3">النوع</th><th className="p-3">العميل</th><th className="p-3">البنك/الرقم</th><th className="p-3">القيمة</th><th className="p-3">الاستحقاق</th><th className="p-3">الحالة</th></tr></thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {checks.map((c) => (
+                      <tr key={c.id} className="hover:bg-slate-50/70">
+                        <td className="p-3"><span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded font-extrabold text-[11px]">{c.type}</span></td>
+                        <td className="p-3 font-black text-slate-900">{c.customerName}</td>
+                        <td className="p-3"><div className="font-bold text-slate-700">{c.bankName}</div><div className="text-[11px] text-slate-400 font-mono">#{c.checkNumber}</div></td>
+                        <td className="p-3 font-black text-slate-900 tabular-nums">{fmt(c.amount)}</td>
+                        <td className="p-3 font-bold text-slate-700 tabular-nums">{c.dueDate}</td>
+                        <td className="p-3"><span className={`px-2 py-0.5 rounded-full font-black text-[10px] ${c.status === 'مرتد بدون رصيد' ? 'bg-rose-100 text-rose-800' : c.status === 'قيد التحصيل القضائي' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>{c.status}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <div>
-                <h4 className="font-black text-slate-900 text-sm">عقد اتفاق تسوية وجدولة مديونية</h4>
-                <p className="text-[11px] text-slate-500">جدولة الأقساط الشهرية مع ضمانات تجارية</p>
-              </div>
+            )}
+          </div>
+        )}
+
+        {/* TEMPLATES TAB */}
+        {activeTab === 'templates' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
+              <div className="flex items-center gap-3"><div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-700 border border-amber-100 flex items-center justify-center"><FileText size={20}/></div><div><h4 className="font-black text-slate-900 text-sm">إنذار رسمي (تكليف بالوفاء)</h4><p className="text-[11px] text-slate-500">صيغة جاهزة للطباعة مع مهلة محددة</p></div></div>
+              <p className="text-xs text-slate-600 leading-relaxed">إنذار موجه للعميل لسداد المديونية خلال مهلة محددة تمهيدًا للإجراءات النظامية (أمر أداء/مطالبة) عند عدم السداد أو التسوية.</p>
+              <button onClick={() => { const c = accessibleCustomers[0] || customers[0]; if (c) { setSelectedCustomerForNotice(c); setIsNoticeModalOpen(true); } }} className="inline-flex items-center gap-1.5 bg-[#102b4e] text-[#e8c98c] font-black px-4 py-2.5 rounded-xl text-xs"><Printer size={14}/> توليد ومعاينة إنذار</button>
             </div>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              عقد صلح وتعهد سداد يتضمن إقرار العميل بصحة الرصيد وتقسيمه على دفعات دورية مع تقديم شيكات بنكية ضامنة.
-            </p>
-            <button
-              onClick={() => alert('تم تجهيز صيغة عقد التسوية المعتمدة، اضغط لطباعة النموذج الجاهز.')}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer"
-            >
-              <Download className="w-4 h-4" />
-              <span>تحميل صيغة التسوية</span>
-            </button>
+            <div className="bg-gradient-to-br from-white to-slate-50 rounded-2xl border border-slate-200 p-5 shadow-sm space-y-3">
+              <div className="flex items-center gap-3"><div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-700 border border-blue-100 flex items-center justify-center"><FileCheck size={20}/></div><div><h4 className="font-black text-slate-900 text-sm">إقرار تسوية/جدولة مديونية</h4><p className="text-[11px] text-slate-500">توثيق اتفاق السداد والضمانات</p></div></div>
+              <p className="text-xs text-slate-600 leading-relaxed">نموذج إقرار دين وجدولة أقساط مع توثيق الضمانات (شيكات/إيصالات أمانة) وشروط الالتزام — يُسجَّل أثره كإفادة/حالة ملف.</p>
+              <button onClick={() => { if (selectedCase) { const cust = accessibleCustomers.find(x=>x.id===selectedCase.customerId) || customers.find(x=>x.id===selectedCase.customerId); if (cust) openFindings(cust); else flashMsg('err','اختر ملفًا مرتبطًا بعميل'); } else { flashMsg('err','اختر ملف قضية أولًا لتسجيل التسوية/الجدولة'); } }} className="inline-flex items-center gap-1.5 bg-slate-900 text-white font-black px-4 py-2.5 rounded-xl text-xs"><FileCheck size={14}/> تسجيل تسوية/جدولة على ملف</button>
+            </div>
+            <div className="md:col-span-2 bg-[#f7f9fc] rounded-2xl border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-3"><div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-[#102b4e]"><ShieldAlert size={18}/></div><div><div className="font-black text-slate-900 text-sm">مبدأ التشغيل الاحترافي</div><div className="text-xs font-bold text-slate-600 mt-0.5">كل إجراء (إنذار، إفادة، جدولة، تصعيد قضائي) يُوثَّق على الملف مع الوقت والمسؤول والحالة — لضمان مسار قانوني واضح وقابل للمراجعة.</div></div></div>
+              <div className="text-[11px] font-extrabold text-[#102b4e] bg-white border border-slate-200 rounded-xl px-3 py-2">سرية البيانات: المستشار القانوني يطّلع على الملفات المحالة فقط</div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Findings Modal */}
+      {isFindingsModalOpen && findingsCustomer && (
+        <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3" onClick={(e) => { if (e.target === e.currentTarget) setIsFindingsModalOpen(false); }}>
+          <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2.5"><div className="w-10 h-10 rounded-xl bg-[#102b4e] text-[#e8c98c] flex items-center justify-center"><FileCheck size={18}/></div><div><h3 className="font-black text-slate-900 text-sm sm:text-base">تسجيل إفادة/إجراء قانوني</h3><p className="text-[11px] text-slate-500">{findingsCustomer.name}</p></div></div>
+              <button onClick={() => setIsFindingsModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1"><X size={18}/></button>
+            </div>
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs"><div><span className="text-slate-500 block">إجمالي المديونية</span><span className="font-black text-base text-rose-700 tabular-nums">{fmt(findingsCustomer.currentBalance ?? findingsCustomer.balance ?? 0)}</span></div><div className="text-left"><span className="text-slate-500 block">الفرع/المندوب</span><span className="font-bold text-slate-800">{findingsCustomer.branchName || '—'} · {findingsCustomer.salesRepName || findingsCustomer.repName || '—'}</span></div></div>
+            <div className="space-y-3 text-xs">
+              <div><label className="font-bold text-slate-700 mb-1 block">نص الإفادة/التوصية</label><textarea value={findingsText} onChange={(e) => setFindingsText(e.target.value)} placeholder="سجّل ما تم (تواصل، إنذار، محضر، اتفاق، تحصيل، تعذر...) والتوصية التالية..." className="w-full min-h-[110px] p-3 rounded-xl border border-slate-200 font-bold text-slate-800 bg-white resize-none focus:outline-none focus:border-[#102b4e]" /></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div><label className="font-bold text-slate-700 mb-1 block">حالة الملف بعد الإجراء</label><select value={findingsStatus} onChange={(e) => setFindingsStatus(e.target.value as LegalCase['status'])} className="w-full h-10 px-3 rounded-xl border border-slate-200 font-bold text-slate-800 bg-white">{(Object.keys(CASE_STATUS_META) as LegalCase['status'][]).map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                <div><label className="font-bold text-slate-700 mb-1 block">نوع الإجراء</label><select value={findingsAction} onChange={(e) => setFindingsAction(e.target.value)} className="w-full h-10 px-3 rounded-xl border border-slate-200 font-bold text-slate-800 bg-white"><option>إفادة استفسارية قانونية</option><option>إنذار رسمي على يد محضر</option><option>أمر أداء تجاري</option><option>جنحة شيك بدون رصيد</option><option>إقرار دين وجدولة</option><option>تسوية ودية</option><option>تحصيل جزئي/كلي</option><option>إجراء قضائي قيد المتابعة</option></select></div>
+              </div>
+              <div className="flex items-center gap-2 pt-1"><button type="button" onClick={handleSaveLegalFindings} className="flex-1 h-11 inline-flex items-center justify-center gap-2 rounded-xl bg-[#102b4e] hover:bg-[#16365f] text-white font-black"><CheckCircle2 size={16}/> حفظ وتحديث الملف</button><button type="button" onClick={() => setIsFindingsModalOpen(false)} className="h-11 px-4 rounded-xl border border-slate-200 bg-white text-slate-700 font-black">إلغاء</button></div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* CREATE NOTICE MODAL */}
+      {/* Create Notice Modal */}
       {isNoticeModalOpen && selectedCustomerForNotice && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-[var(--app-line)] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[var(--app-line)]">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-navy-panel text-amber-400 flex items-center justify-center font-black">
-                  <Scale className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="font-black text-slate-900 text-sm sm:text-base">إصدار إنذار قانوني رسمي</h3>
-                  <p className="text-[11px] text-slate-500">للعميل: {selectedCustomerForNotice.name}</p>
-                </div>
-              </div>
-              <button onClick={() => setIsNoticeModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+        <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3" onClick={(e) => { if (e.target === e.currentTarget) setIsNoticeModalOpen(false); }}>
+          <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200"><div className="flex items-center gap-2.5"><div className="w-10 h-10 rounded-xl bg-[#102b4e] text-[#e8c98c] flex items-center justify-center"><Scale size={18}/></div><div><h3 className="font-black text-slate-900 text-sm sm:text-base">إصدار إنذار/إجراء رسمي</h3><p className="text-[11px] text-slate-500">{selectedCustomerForNotice.name}</p></div></div><button onClick={() => setIsNoticeModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1"><X size={18}/></button></div>
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs"><div><span className="text-slate-500 block">إجمالي المديونية</span><span className="font-black text-base text-rose-700 tabular-nums">{fmt(selectedCustomerForNotice.currentBalance ?? selectedCustomerForNotice.balance ?? 0)}</span></div><div className="text-left"><span className="text-slate-500 block">الفرع</span><span className="font-bold text-slate-800">{selectedCustomerForNotice.branchName || 'الفرع الرئيسي'}</span></div></div>
             <div className="space-y-3 text-xs">
-              <div className="bg-slate-50 p-3 rounded-xl border border-[var(--app-line)] flex items-center justify-between">
-                <div>
-                  <span className="text-slate-500 block">إجمالي المديونية الحالية:</span>
-                  <span className="font-black text-base text-rose-600">
-                    {formatCurrency(selectedCustomerForNotice.currentBalance ?? selectedCustomerForNotice.balance ?? 0)}
-                  </span>
-                </div>
-                <div className="text-left">
-                  <span className="text-slate-500 block">الفرع والمندوب:</span>
-                  <span className="font-bold text-slate-800">
-                    {selectedCustomerForNotice.branchName || 'الفرع الرئيسي'}
-                  </span>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 mb-1 block">نوع الإجراء القانوني:</label>
-                <select
-                  value={noticeType}
-                  onChange={(e) => setNoticeType(e.target.value as any)}
-                  className="w-full h-10 px-3 rounded-xl border border-[var(--app-line)] font-bold text-slate-800 bg-white"
-                >
-                  <option value="إنذار رسمي على يد محضر">إنذار رسمي على يد محضر (تكليف بالوفاء خلال 7 أيام)</option>
-                  <option value="أمر أداء تجاري">استصدار أمر أداء تجاري من المحكمة المختصة</option>
-                  <option value="جنحة شيك بدون رصيد">شكوى جنحة شيك بنكي بدون رصيد كافٍ</option>
-                  <option value="إقرار دين وجدولة">إقرار دين وجدولة سداد ودية</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700 mb-1 block">ملاحظات المستشار القانوني وسند المطالبة:</label>
-                <textarea
-                  value={noticeNotes}
-                  onChange={(e) => setNoticeNotes(e.target.value)}
-                  placeholder="أدخل تفاصيل الفواتير، أسباب التعثر، أو شروط الجدولة المقترحة..."
-                  className="w-full h-24 p-3 rounded-xl border border-[var(--app-line)] font-medium text-slate-800 resize-none"
-                />
-              </div>
+              <div><label className="font-bold text-slate-700 mb-1 block">نوع الإجراء</label><select value={noticeType} onChange={(e) => setNoticeType(e.target.value as any)} className="w-full h-10 px-3 rounded-xl border border-slate-200 font-bold text-slate-800 bg-white"><option value="إنذار رسمي على يد محضر">إنذار رسمي على يد محضر (تكليف بالوفاء)</option><option value="أمر أداء تجاري">أمر أداء تجاري</option><option value="جنحة شيك بدون رصيد">جنحة شيك بدون رصيد</option><option value="إقرار دين وجدولة">إقرار دين وجدولة</option></select></div>
+              <div><label className="font-bold text-slate-700 mb-1 block">ملاحظات وسند المطالبة</label><textarea value={noticeNotes} onChange={(e) => setNoticeNotes(e.target.value)} placeholder="تفاصيل الفواتير/الضمانات/شروط التسوية..." className="w-full h-24 p-3 rounded-xl border border-slate-200 font-medium text-slate-800 resize-none focus:outline-none focus:border-[#102b4e]" /></div>
             </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--app-line)]">
-              <button
-                onClick={() => setIsNoticeModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
-              >
-                إلغاء
-              </button>
-              <button
-                onClick={handleCreateNotice}
-                className="bg-navy-panel hover:bg-navy-hover text-amber-300 font-black px-5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md"
-              >
-                <Printer className="w-4 h-4" />
-                <span>إصدار ومعاينة للطباعة</span>
-              </button>
-            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200"><button onClick={() => setIsNoticeModalOpen(false)} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100">إلغاء</button><button onClick={handleCreateNotice} className="bg-[#102b4e] hover:bg-[#16365f] text-[#e8c98c] font-black px-5 py-2.5 rounded-xl text-xs inline-flex items-center gap-1.5"><Printer size={14}/> إصدار ومعاينة</button></div>
           </div>
         </div>
       )}
 
-      {/* VIEW / PRINT NOTICE MODAL */}
+      {/* View/Print Notice */}
       {viewingNotice && (
-        <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-[var(--app-line)] space-y-5 my-8">
+        <div className="fixed inset-0 z-[70] bg-slate-950/75 backdrop-blur-sm flex items-center justify-center p-3 overflow-y-auto" onClick={(e) => { if (e.target === e.currentTarget) setViewingNotice(null); }}>
+          <div className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 space-y-5 my-8">
             <div className="flex items-center justify-between border-b border-slate-200 pb-4">
-              <div className="flex items-center gap-3">
-                <img src="/tantawy-brand-logo.svg" alt="Tantawy" className="w-12 h-12 object-contain" />
-                <div>
-                  <h2 className="font-black text-slate-900 text-lg">مجموعة الطنطاوي للتجارة والتوزيع</h2>
-                  <p className="text-xs text-amber-700 font-black">الإدارة القانونية والشؤون القضائية</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 print:hidden">
-                <button
-                  onClick={() => window.print()}
-                  className="bg-navy-panel text-amber-300 font-black px-3.5 py-1.5 rounded-lg text-xs flex items-center gap-1 cursor-pointer"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>طباعة رسمية</span>
-                </button>
-                <button
-                  onClick={() => setViewingNotice(null)}
-                  className="text-slate-400 hover:text-slate-700 p-1"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+              <div className="flex items-center gap-3"><img src="/tantawy-brand-logo.svg" alt="Tantawy" className="w-12 h-12 object-contain" onError={(e)=>{(e.currentTarget as HTMLImageElement).style.display='none';}}/><div><h2 className="font-black text-slate-900 text-lg">مجموعة الطنطاوي للتجارة والتوزيع</h2><p className="text-xs text-amber-700 font-black">الإدارة القانونية والشؤون القضائية</p></div></div>
+              <div className="flex items-center gap-2 print:hidden"><button onClick={() => window.print()} className="bg-[#102b4e] text-[#e8c98c] font-black px-3.5 py-1.5 rounded-lg text-xs inline-flex items-center gap-1"><Printer size={13}/> طباعة</button><button onClick={() => setViewingNotice(null)} className="text-slate-400 hover:text-slate-700 p-1"><X size={18}/></button></div>
             </div>
-
-            {/* Official Legal Document Body */}
-            <div className="space-y-4 text-xs text-slate-800 leading-relaxed border-2 border-slate-200 p-5 rounded-2xl bg-slate-very-pale">
-              <div className="text-center font-black text-base text-slate-deep pb-2 border-b border-slate-200">
-                {viewingNotice.legalType}
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-slate-700">
-                <div><strong>رقم الإجراء:</strong> {viewingNotice.id}</div>
-                <div><strong>تاريخ التحرير:</strong> {viewingNotice.issueDate}</div>
-                <div><strong>الموجه إليه السيد:</strong> {viewingNotice.customerName}</div>
-                <div><strong>الفرع المختص:</strong> {viewingNotice.branch}</div>
-              </div>
-
-              <p className="pt-2">
-                بناءً على فواتير المبيعات الإلكترونية وأذون استلام البضائع الصادرة من مجموعة الطنطاوي للتجارة والتوزيع،
-                وحيث أنه ترصد في ذمتكم المالية لصالح شركتنا مبلغ وقدره:
-              </p>
-
-              <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-center">
-                <span className="text-base font-black text-rose-700 tabular-nums">
-                  {formatCurrency(viewingNotice.totalDebt)} جنيه مصري لا غير
-                </span>
-              </div>
-
-              <p>
-                نحيط سيادتكم علماً بضرورة التوجه لخزينة الفرع وسداد المبلغ المذكور أعلاه كاملاً في موعد غايته:
-                <strong className="text-rose-700"> {viewingNotice.deadlineDate}</strong>.
-                وفي حال انقضاء هذه المهلة دون سداد أو تسوية معتمدة، ستتخذ الشركة كافة الإجراءات الجنائية والمدنية المقررة قانوناً بما فيها استصدار أمر أداء بالحجز التحفظي.
-              </p>
-
-              {viewingNotice.notes && (
-                <div className="text-[11px] text-slate-500 border-t border-slate-200 pt-2">
-                  <strong>ملاحظات:</strong> {viewingNotice.notes}
-                </div>
-              )}
-
-              <div className="pt-6 flex justify-between items-end text-center">
-                <div>
-                  <div className="font-bold text-slate-500 text-[11px]">مندوب ومحاسب الفرع</div>
-                  <div className="font-black text-slate-800 mt-4">{viewingNotice.repName}</div>
-                </div>
-                <div>
-                  <div className="font-bold text-slate-500 text-[11px]">المستشار القانوني للشركة</div>
-                  <div className="font-black text-slate-deep mt-4">أ. سامح عبد الرازق (المحامي بالنقض)</div>
-                  <div className="text-[10px] text-amber-700 font-bold">خاتم الإدارة القانونية المعتمد</div>
-                </div>
-              </div>
+            <div className="space-y-4 text-xs text-slate-800 leading-relaxed border-2 border-slate-200 p-5 rounded-2xl bg-[#fbfcfe]">
+              <div className="text-center font-black text-base text-[#102b4e] pb-2 border-b border-slate-200">{viewingNotice.legalType}</div>
+              <div className="grid grid-cols-2 gap-2 text-slate-700 font-bold"><div><span className="text-slate-500">رقم الإجراء:</span> {viewingNotice.id}</div><div><span className="text-slate-500">تاريخ التحرير:</span> {viewingNotice.issueDate}</div><div><span className="text-slate-500">الموجه إليه:</span> {viewingNotice.customerName}</div><div><span className="text-slate-500">الفرع:</span> {viewingNotice.branch}</div></div>
+              <p>بناءً على المستحقات والفواتير/Aذون الاستلام المعتمدة، وحيث إنه ترصد بذمتكم المالية لصالح الشركة مبلغًا قدره:</p>
+              <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-center"><span className="text-base font-black text-rose-700 tabular-nums">{fmt(viewingNotice.totalDebt)} جنيه مصري</span></div>
+              <p>نحيطكم علمًا بضرورة السداد أو التقدم بتسوية معتمدة في موعد أقصاه: <b className="text-rose-700">{viewingNotice.deadlineDate}</b>. وفي حال عدم السداد دون عذر مقبول، تحتفظ الشركة بحقها في اتخاذ الإجراءات النظامية والقانونية اللازمة وفقًا للمستندات والضمانات.</p>
+              {viewingNotice.notes && <div className="text-[11px] text-slate-600 border-t border-slate-200 pt-2"><b>ملاحظات/سند المطالبة:</b> {viewingNotice.notes}</div>}
+              <div className="pt-6 flex justify-between items-end text-center"><div><div className="font-bold text-slate-500 text-[11px]">مندوب/محاسب الفرع</div><div className="font-black text-slate-800 mt-4">{viewingNotice.repName}</div></div><div><div className="font-bold text-slate-500 text-[11px]">الإدارة القانونية</div><div className="font-black text-[#102b4e] mt-4">{currentUser?.name || 'المستشار القانوني'}</div><div className="text-[10px] text-amber-700 font-bold">ختم واعتماد الشؤون القانونية</div></div></div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ADD CHECK MODAL */}
+      {/* Add Check Modal */}
       {isCheckModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-[var(--app-line)] space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-[var(--app-line)]">
-              <h3 className="font-black text-slate-900 text-sm">تسجيل شيك بنكي أو إيصال أمانة ضامن</h3>
-              <button onClick={() => setIsCheckModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
+        <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3" onClick={(e) => { if (e.target === e.currentTarget) setIsCheckModalOpen(false); }}>
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200"><h3 className="font-black text-slate-900 text-sm">تسجيل شيك/إيصال أمانة/سند</h3><button onClick={() => setIsCheckModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1"><X size={18}/></button></div>
             <div className="space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-700 mb-1 block">اسم العميل / الساحب:</label>
-                <input
-                  type="text"
-                  value={newCheckCustomer}
-                  onChange={(e) => setNewCheckCustomer(e.target.value)}
-                  placeholder="مثال: مكتبة النور الحديثة"
-                  className="w-full h-10 px-3 rounded-xl border border-[var(--app-line)] font-bold text-slate-800"
-                />
-              </div>
-
+              <CustomerSearchSelect
+                label="العميل / الساحب"
+                customers={accessibleCustomers}
+                valueId={newCheckCustomerId}
+                onSelect={(c) => { setNewCheckCustomerId(c.id); setNewCheckCustomer(c.name); }}
+                onClear={() => { setNewCheckCustomerId(null); setNewCheckCustomer(''); }}
+                placeholder="ابحث واختر العميل المرتبط بالضمانة..."
+                compact
+                maxResults={30}
+              />
+              {!newCheckCustomerId && <input type="text" value={newCheckCustomer} onChange={(e) => setNewCheckCustomer(e.target.value)} placeholder="أو اكتب اسم العميل يدويًا" className="w-full h-10 px-3 rounded-xl border border-slate-200 font-bold text-slate-800" />}
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-slate-700 mb-1 block">نوع الضمانة:</label>
-                  <select
-                    value={newCheckType}
-                    onChange={(e) => setNewCheckType(e.target.value as any)}
-                    className="w-full h-10 px-3 rounded-xl border border-[var(--app-line)] font-bold text-slate-800"
-                  >
-                    <option value="شيك بنكي">شيك بنكي</option>
-                    <option value="إيصال أمانة">إيصال أمانة</option>
-                    <option value="سند إذني">سند إذني</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 mb-1 block">البنك المسحوب عليه:</label>
-                  <input
-                    type="text"
-                    value={newCheckBank}
-                    onChange={(e) => setNewCheckBank(e.target.value)}
-                    placeholder="البنك الأهلي، بنك مصر..."
-                    className="w-full h-10 px-3 rounded-xl border border-[var(--app-line)] font-bold text-slate-800"
-                  />
-                </div>
+                <div><label className="font-bold text-slate-700 mb-1 block">نوع الضمانة</label><select value={newCheckType} onChange={(e) => setNewCheckType(e.target.value as any)} className="w-full h-10 px-3 rounded-xl border border-slate-200 font-bold text-slate-800"><option value="شيك بنكي">شيك بنكي</option><option value="إيصال أمانة">إيصال أمانة</option><option value="سند إذني">سند إذني</option></select></div>
+                <div><label className="font-bold text-slate-700 mb-1 block">البنك/الجهة</label><input type="text" value={newCheckBank} onChange={(e) => setNewCheckBank(e.target.value)} placeholder="البنك..." className="w-full h-10 px-3 rounded-xl border border-slate-200 font-bold text-slate-800" /></div>
               </div>
-
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="font-bold text-slate-700 mb-1 block">رقم الشيك / الإيصال:</label>
-                  <input
-                    type="text"
-                    value={newCheckNum}
-                    onChange={(e) => setNewCheckNum(e.target.value)}
-                    placeholder="00192831"
-                    className="w-full h-10 px-3 rounded-xl border border-[var(--app-line)] font-mono font-bold text-slate-800"
-                  />
-                </div>
-                <div>
-                  <label className="font-bold text-slate-700 mb-1 block">المبلغ (ج.م):</label>
-                  <input
-                    type="number"
-                    value={newCheckAmount || ''}
-                    onChange={(e) => setNewCheckAmount(Number(e.target.value))}
-                    placeholder="50000"
-                    className="w-full h-10 px-3 rounded-xl border border-[var(--app-line)] font-bold text-slate-800"
-                  />
-                </div>
+                <div><label className="font-bold text-slate-700 mb-1 block">رقم الشيك/الإيصال</label><input type="text" value={newCheckNum} onChange={(e) => setNewCheckNum(e.target.value)} placeholder="رقم" className="w-full h-10 px-3 rounded-xl border border-slate-200 font-mono font-bold text-slate-800" /></div>
+                <div><label className="font-bold text-slate-700 mb-1 block">المبلغ (ج.م)</label><input type="number" value={newCheckAmount || ''} onChange={(e) => setNewCheckAmount(Number(e.target.value))} placeholder="0" className="w-full h-10 px-3 rounded-xl border border-slate-200 font-bold text-slate-800" /></div>
               </div>
-
-              <div>
-                <label className="font-bold text-slate-700 mb-1 block">تاريخ الاستحقاق:</label>
-                <input
-                  type="date"
-                  value={newCheckDate}
-                  onChange={(e) => setNewCheckDate(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-[var(--app-line)] font-bold text-slate-800"
-                />
-              </div>
+              <div><label className="font-bold text-slate-700 mb-1 block">تاريخ الاستحقاق</label><input type="date" value={newCheckDate} onChange={(e) => setNewCheckDate(e.target.value)} className="w-full h-10 px-3 rounded-xl border border-slate-200 font-bold text-slate-800" /></div>
             </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-[var(--app-line)]">
-              <button
-                onClick={() => setIsCheckModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
-              >
-                إلغاء
-              </button>
-              <button
-                onClick={handleAddCheck}
-                className="bg-navy-panel hover:bg-navy-hover text-amber-300 font-black px-5 py-2.5 rounded-xl text-xs flex items-center gap-1.5 shadow-md"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                <span>حفظ الضمانة بالخزينة</span>
-              </button>
-            </div>
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200"><button onClick={() => setIsCheckModalOpen(false)} className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100">إلغاء</button><button onClick={handleAddCheck} className="bg-[#102b4e] hover:bg-[#16365f] text-[#e8c98c] font-black px-5 py-2.5 rounded-xl text-xs inline-flex items-center gap-1.5"><CheckCircle2 size={14}/> حفظ الضمانة</button></div>
           </div>
         </div>
       )}
     </div>
   );
 };
+
+export default LegalAdvisorDashboard;

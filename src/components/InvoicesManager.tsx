@@ -92,7 +92,6 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       setDateTo('');
     }
   }, [initialSearchQuery, searchSeq]);
-  const [viewSegment, setViewSegment] = useState<'all' | 'invoices'>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('الكل');
   const [selectedRepFilter, setSelectedRepFilter] = useState<string>('الكل');
   const [dateFrom, setDateFrom] = useState<string>('');
@@ -224,7 +223,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
       return true;
     });
-  }, [userVisibleInvoices, searchTerm, selectedStatus, selectedRepFilter, viewSegment, dateFrom, dateTo]);
+  }, [userVisibleInvoices, searchTerm, selectedStatus, selectedRepFilter, dateFrom, dateTo]);
 
   const metrics = useMemo(() => {
     let totalRevenue = 0;
@@ -512,7 +511,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                     {accessibleInvoices.length} فاتورة
                   </span>
                 </h2>
-                <p className="text-xs text-[#c3d9ec] mt-0.5">
+                <p className="ds-pagehead__hint text-xs text-[#c3d9ec] mt-0.5">
                   إدارة أوامر البيع، حالات الاعتماد، وعرض فواتير المناديب حسب نطاق صلاحيتك.
                 </p>
               </div>
@@ -613,36 +612,36 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
       </section>
 
       {/* ---------- Filters Bar (فاتح مع حدود كحلية) ---------- */}
-      <section className="tg-card p-5 sm:p-6 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          {/* Left: Export + Search */}
-          <div className="flex items-center gap-4 flex-wrap min-w-0">
-            <button
-              type="button"
-              onClick={handleExportList}
-              title="تصدير الفواتير إلى ملف Excel"
-              className="flex items-center gap-2 bg-white border border-[var(--tg-line)] px-4 py-2.5 rounded-xl text-sm font-black text-[#0b2337] shadow-sm hover:bg-[#eef5fd] transition active:scale-95 cursor-pointer"
-            >
-              <Download className="w-4 h-4 text-[#0b2337]" />
-              <span>تصدير Excel</span>
-            </button>
-
-            <div className="relative flex-1 min-w-[220px]">
+      <section className="tg-card p-4 sm:p-6 space-y-3 sm:space-y-4">
+        <div className="flex flex-col gap-2.5 sm:gap-3">
+          {/* Search + export (icon only on phones, labelled from sm up) */}
+          <div className="flex items-center gap-2 w-full min-w-0">
+            <div className="relative flex-1 min-w-0">
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="ابحث برقم الفاتورة أو اسم العميل..."
-                className="tg-input"
+                className="tg-input tg-input--search"
               />
             </div>
+
+            <button
+              type="button"
+              onClick={handleExportList}
+              title="تصدير الفواتير إلى ملف Excel"
+              className="shrink-0 flex items-center justify-center gap-2 bg-white border border-[var(--tg-line)] w-11 h-11 sm:w-auto sm:h-[42px] sm:px-4 rounded-xl text-sm font-black text-[#0b2337] shadow-sm hover:bg-[#eef5fd] transition active:scale-95 cursor-pointer"
+            >
+              <Download className="w-4 h-4 text-[#0b2337]" />
+              <span className="hidden sm:inline">تصدير Excel</span>
+            </button>
           </div>
 
-          {/* Right filters */}
-          <div className="flex items-center gap-3 flex-wrap min-w-0">
+          {/* Filters: 2×2 on phones, single wrapping row from sm up */}
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3 sm:w-full min-w-0">
             {/* حالة الفاتورة */}
-            <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[150px]">
+            <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[150px]">
               <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">حالة الفاتورة</span>
               <select
                 value={selectedStatus}
@@ -661,7 +660,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             </div>
             {/* المندوب */}
             {currentUser?.role !== 'sales_rep' && (
-              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[150px]">
+              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[150px]">
                 <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">المندوب</span>
                 <select
                   value={selectedRepFilter}
@@ -678,7 +677,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
             )}
             {/* الفرع */}
             {(currentUser?.role === 'admin' || currentUser?.role === 'developer' || currentUser?.role === 'supervisor') && (
-              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[150px]">
+              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[150px]">
                 <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">الفرع</span>
                 <select
                   value={selectedBranchFilter}
@@ -695,34 +694,37 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
               </div>
             )}
             {/* التاريخ من / إلى */}
-            <div className="flex items-end gap-2 bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-1.5">
-              <Calendar className="w-4 h-4 text-slate-400 mb-1.5 shrink-0" />
-              <div className="flex flex-col">
-                <span className="text-[9px] text-slate-600 font-bold leading-none mb-0.5">من</span>
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  aria-label="من تاريخ"
-                  className="bg-transparent font-black text-[#0b2337] text-[11px] focus:outline-none cursor-pointer"
-                />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[9px] text-slate-600 font-bold leading-none mb-0.5">إلى</span>
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  aria-label="إلى تاريخ"
-                  className="bg-transparent font-black text-[#0b2337] text-[11px] focus:outline-none cursor-pointer"
-                />
+            <div className="col-span-2 flex items-center justify-between gap-2 bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-1.5 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[9px] text-slate-600 font-bold leading-none mb-0.5">من</span>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    aria-label="من تاريخ"
+                    className="w-full min-w-0 bg-transparent font-black text-[#0b2337] text-[11px] focus:outline-none cursor-pointer"
+                  />
+                </div>
+                <span className="text-slate-300 shrink-0">—</span>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-[9px] text-slate-600 font-bold leading-none mb-0.5">إلى</span>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    aria-label="إلى تاريخ"
+                    className="w-full min-w-0 bg-transparent font-black text-[#0b2337] text-[11px] focus:outline-none cursor-pointer"
+                  />
+                </div>
               </div>
               {(dateFrom || dateTo) && (
                 <button
                   type="button"
                   onClick={() => { setDateFrom(''); setDateTo(''); }}
                   title="مسح فلتر التاريخ"
-                  className="text-slate-500 hover:text-rose-500 mb-1 cursor-pointer"
+                  className="text-slate-500 hover:text-rose-500 cursor-pointer shrink-0"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -732,48 +734,28 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
         </div>
 
         {/* Quick filter tabs (باستيل الهوية) */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 w-full">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold scrollbar-none w-full sm:w-auto min-w-0">
-            {[
-              { key: 'الكل', label: 'كافة الفواتير', count: tabCounts.all },
-              { key: 'فواتير الأصناف المتوفرة', label: 'فواتير المتوفر', count: tabCounts.available },
-              { key: 'فواتير النواقص', label: 'فواتير النواقص', count: tabCounts.shortage },
-              { key: 'قيد مراجعة المشرف', label: 'بانتظار الاعتماد', count: tabCounts.pending },
-              { key: 'معتمدة ومصروفة من المخزن', label: 'معتمدة ومصروفة', count: tabCounts.approved },
-              { key: 'مرفوضة / ملغاة', label: 'الملغية والمرفوضة', count: tabCounts.cancelled },
-            ].map((tab) => (
-              <button
-                key={tab.key}
-                type="button"
-                onClick={() => setSelectedStatus(tab.key)}
-                className={`px-3.5 py-2 rounded-xl text-[11px] font-black transition cursor-pointer border whitespace-nowrap shrink-0 ${
-                  selectedStatus === tab.key
-                    ? 'bg-blue-600 text-white border-transparent shadow-sm shadow-blue-500/25'
-                    : 'bg-white border-[var(--tg-line)] text-[#0b2337] hover:border-blue-300 hover:bg-blue-50'
-                }`}
-              >
-                {tab.label} ({tab.count})
-              </button>
-            ))}
-          </div>
-
-          <div className="inline-flex p-1 rounded-xl border border-[var(--tg-line)] bg-white shrink-0 self-start sm:self-auto">
-            {[
-              { key: 'all' as const, label: 'عرض الكل' },
-              { key: 'invoices' as const, label: 'الفواتير' },
-            ].map((seg) => (
-              <button
-                key={seg.key}
-                type="button"
-                onClick={() => setViewSegment(seg.key)}
-                className={`px-3 py-1.5 rounded-lg text-[11px] font-black transition cursor-pointer whitespace-nowrap ${
-                  viewSegment === seg.key ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25' : 'text-[#0b2337] hover:text-blue-600'
-                }`}
-              >
-                {seg.label}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-bold scrollbar-none w-full min-w-0">
+          {[
+            { key: 'الكل', label: 'كافة الفواتير', count: tabCounts.all },
+            { key: 'فواتير الأصناف المتوفرة', label: 'فواتير المتوفر', count: tabCounts.available },
+            { key: 'فواتير النواقص', label: 'فواتير النواقص', count: tabCounts.shortage },
+            { key: 'قيد مراجعة المشرف', label: 'بانتظار الاعتماد', count: tabCounts.pending },
+            { key: 'معتمدة ومصروفة من المخزن', label: 'معتمدة ومصروفة', count: tabCounts.approved },
+            { key: 'مرفوضة / ملغاة', label: 'الملغية والمرفوضة', count: tabCounts.cancelled },
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setSelectedStatus(tab.key)}
+              className={`px-3.5 py-2 rounded-xl text-[11px] font-black transition cursor-pointer border whitespace-nowrap shrink-0 ${
+                selectedStatus === tab.key
+                  ? 'bg-blue-600 text-white border-transparent shadow-sm shadow-blue-500/25'
+                  : 'bg-white border-[var(--tg-line)] text-[#0b2337] hover:border-blue-300 hover:bg-blue-50'
+              }`}
+            >
+              {tab.label} ({tab.count})
+            </button>
+          ))}
         </div>
 
         {/* Summary metrics (باستيل identity) */}

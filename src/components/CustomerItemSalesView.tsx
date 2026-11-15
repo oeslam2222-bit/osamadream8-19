@@ -75,6 +75,7 @@ import { MonthlyPerformanceCard } from './itemSales/MonthlyPerformanceCard';
 import { RepPerformanceCard } from './itemSales/RepPerformanceCard';
 import { SlowMoversCard } from './itemSales/SlowMoversCard';
 import { MonthlyAggregateCard } from './itemSales/MonthlyAggregateCard';
+import SalesFocusV4 from './itemSales/SalesFocusV4';
 import {
   buildItemSalesAggregates,
   ItemSalesSector,
@@ -86,7 +87,7 @@ interface CustomerItemSalesViewProps {
   onNavigateToExcel?: () => void;
 }
 
-type SalesViewMode = 'overview' | 'customers';
+type SalesViewMode = 'overview' | 'customers' | 'focus';
 
 const initials = (name: string): string => {
   const parts = (name || '').trim().split(/\s+/).filter(Boolean);
@@ -767,9 +768,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-3xl border border-slate-200 p-10 flex flex-col items-center justify-center gap-3 min-h-[360px]">
+      <div className="tg-card p-10 flex flex-col items-center justify-center gap-3 min-h-[360px]">
         <Loader2 className="w-8 h-8 text-[var(--app-warn-text)] animate-spin" />
-        <p className="text-xs font-bold text-slate-500">جاري تحميل سجلات مبيعات الأصناف...</p>
+        <p className="text-xs font-bold text-[var(--tg-muted)]">جاري تحميل سجلات مبيعات الأصناف...</p>
       </div>
     );
   }
@@ -820,21 +821,53 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       )}
 
       {/* Page header */}
-      <section className="bg-white rounded-3xl border border-slate-200 shadow-[0_4px_18px_rgba(15,43,56,0.05)] p-5 sm:p-6">
-        <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4">
-          <div className="space-y-2 min-w-0">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] text-[var(--app-warn-text)] rounded-xl text-[11px] font-black">
-              <Sparkles className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
-              تحليل مبيعات الأصناف الفعلية شهر بشهر (من قاعدة البيانات/الشيت المستقلة عن أوامر البيع)
+      <section className="ds-pagehead">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="ds-crumb text-[11px] font-bold mb-1">التقارير <span className="mx-1">›</span> <strong>مبيعات الأصناف</strong></div>
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 border border-white/20"><BarChart3 className="w-4 h-4 sm:w-5 sm:h-5"/></div>
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-2xl font-black text-white leading-tight">تحليل مبيعات الأصناف (شهر بشهر)</h1>
+                <p className="ds-pagehead__hint text-xs mt-0.5 max-w-2xl leading-relaxed">مبيعات فعلية منفصلة عن أوامر البيع — من الشيت/قاعدة البيانات بنطاق صلاحياتك.</p>
+              </div>
             </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <BarChart3 className="w-6 h-6 text-[#c99a43]" />
-              تحليل مبيعات الأصناف (شهر بشهر)
-            </h1>
-            <p className="text-[11px] sm:text-xs text-slate-500 max-w-3xl leading-relaxed">
-              لوحة تحليل مبيعات الأصناف الفعلية المنفصلة كلياً عن أوامر البيع قيد التنفيذ — تُحمَّل وتُحلَّل <strong>شهر بشهر</strong> من شيت وقاعدة بيانات مبيعات الأصناف
-              (<strong>Amount</strong> و<strong>التعريفات</strong>) بنفس نطاق صلاحيات الفرع والمندوب والقطاع لتفادي ثقل البيانات الضخمة.
-            </p>
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap shrink-0 justify-end">
+            <button
+              type="button"
+              onClick={() => loadSalesData({ forceRemote: true })}
+              title="تحديث البيانات وجلب السجل من قاعدة البيانات"
+              className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] transition cursor-pointer"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+              <span>تحديث</span>
+            </button>
+
+            {salesRecords.length > 0 && customers.length > 0 && (
+              <button
+                type="button"
+                onClick={handleEnrichAndPersistSales}
+                title="مطابقة كود العميل بقاعدة العملاء المركزية وتحديد الفرع والمندوب لكل حركة"
+                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl border border-[var(--app-ok-line)] bg-[var(--app-ok)] text-white font-black text-[11px] transition cursor-pointer"
+              >
+                <Link2 className="w-4 h-4" />
+                <span>ربط الفروع والمناديب</span>
+              </button>
+            )}
+
+            {salesRecords.length > 0 && (
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="inline-flex items-center gap-2 h-9 px-3.5 rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] transition cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                تصدير Excel
+              </button>
+            )}
+          </div>
+        </div>
 
             <div className="pt-1 flex items-center gap-2 flex-wrap text-[10px]">
               {salesRecords.length > 0 && (
@@ -862,44 +895,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 </span>
               )}
             </div>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap shrink-0">
-            <button
-              type="button"
-              onClick={() => loadSalesData({ forceRemote: true })}
-              title="تحديث البيانات وجلب السجل من قاعدة البيانات"
-              className="inline-flex items-center gap-1.5 h-10 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition cursor-pointer"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isLoading ? 'animate-spin' : ''}`} />
-              <span>تحديث</span>
-            </button>
-
-            {salesRecords.length > 0 && customers.length > 0 && (
-              <button
-                type="button"
-                onClick={handleEnrichAndPersistSales}
-                title="مطابقة كود العميل بقاعدة العملاء المركزية وتحديد الفرع والمندوب لكل حركة"
-                className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-xl border border-[var(--app-ok-line)] bg-[var(--app-ok-tint)] hover:bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] font-black text-[11px] shadow-2xs transition cursor-pointer"
-              >
-                <Link2 className="w-4 h-4 text-[var(--app-ok-text)]" />
-                <span>ربط الفروع والمناديب</span>
-              </button>
-            )}
-
-            {salesRecords.length > 0 && (
-              <button
-                type="button"
-                onClick={handleExportExcel}
-                className="inline-flex items-center gap-2 h-10 px-3.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[11px] transition cursor-pointer"
-              >
-                <Download className="w-4 h-4 text-[var(--app-ok-text)]" />
-                تصدير Excel
-              </button>
-            )}
-
-          </div>
-        </div>
+      </section>
 
         {/* Directory linking info banner */}
         {salesRecords.length > 0 && customerLinkStats.linkedCustomers > 0 && (
@@ -943,7 +939,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             <span className="font-bold">{syncErrorMsg}</span>
           </div>
         )}
-      </section>
 
       {/* تشخيص عدد السجلات في كل مرحلة (لتعقب مصدر المشكلة) */}
       {salesRecords.length > 0 && (
@@ -1407,6 +1402,18 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             {customerSummaries.length}
           </span>
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveView('focus')}
+          className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black transition cursor-pointer ${
+            activeView === 'focus'
+              ? 'bg-[#102b4e] text-white shadow-sm'
+              : 'text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <BarChart3 className="w-3.5 h-3.5" />
+          عرض تحليلي (v4)
+        </button>
 
         <span className="ms-auto text-[9px] text-slate-400 font-bold px-2 hidden sm:inline-flex items-center gap-1">
           <ClipboardList className="w-3 h-3" />
@@ -1416,7 +1423,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         </span>
       </div>
 
-      {activeView === 'overview' ? (
+      {activeView === 'focus' ? (
+        <SalesFocusV4 records={rbacSales} baseRecords={baseSales} customers={customers} />
+      ) : activeView === 'overview' ? (
         <>
           {salesRecords.length > 0 && periodTotals.amount === 0 && (
             <div className="bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center gap-3">

@@ -41,16 +41,19 @@ import { getBranchStockForProduct } from '../services/arabicMatchingService';
 import { Invoice, Product, CustomerVisit } from '../types';
 
 interface HomeExecutiveDashboardProps {
-  onNavigateToTab: (tab: string) => void;
+  onNavigateToTab?: (tab: string) => void;
+  onNavigate?: (tab: string) => void;
   onOpenNewOrder?: () => void;
   onViewInvoice?: (invoice: Invoice) => void;
 }
 
 export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
   onNavigateToTab,
+  onNavigate,
   onOpenNewOrder,
   onViewInvoice,
 }) => {
+  const go = onNavigateToTab || onNavigate || (() => {});
   const {
     currentUser,
     users,

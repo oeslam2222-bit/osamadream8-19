@@ -47,6 +47,7 @@ import {
 } from '../services/geoVerificationService';
 import type { Customer, CustomerVisit } from '../types';
 import { EmptyState } from './ui/EmptyState';
+import { CustomerSearchSelect } from './CustomerSearchSelect';
 
 const resolveStoreAvatar = (customer?: Partial<Customer> | null): string => {
   const uploaded =
@@ -66,12 +67,16 @@ const onStoreAvatarError = (e: React.SyntheticEvent<HTMLImageElement>) => {
   }
 };
 
-const SIMPLE_VISIT_TYPES: { id: string; label: string; color: string }[] = [
-  { id: 'دورية', label: 'زيارة دورية', color: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800' },
-  { id: 'تحصيل', label: 'زيارة تحصيل', color: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' },
-  { id: 'طلب بيع', label: 'طلب بيع وتوريد', color: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800' },
-  { id: 'متابعة', label: 'متابعة حساب', color: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800' },
-];
+import { COMPLETION_STATUS_LABELS, FAILURE_REASONS, POSTPONEMENT_REASONS, VISIT_TYPE_CONFIG, getRequiredVisitFields, getVisitTypeHint } from '../services/visitFormConfig';
+
+const SIMPLE_VISIT_TYPES: { id: string; label: string; color: string }[] = VISIT_TYPE_CONFIG.map((t) => ({
+  id: t.id,
+  label: t.label,
+  color: t.id === 'تحصيل' ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+    : t.id === 'طلب بيع' ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800'
+    : t.id === 'متابعة' ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800'
+    : 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800',
+}));
 
 interface VisitForm {
   customerId: string;
@@ -83,6 +88,14 @@ interface VisitForm {
   type: string;
   collectedAmount: number;
   notes: string;
+  completionStatus: 'completed' | 'partial' | 'postponed' | 'failed';
+  postponementReason: string;
+  failureReason: string;
+  arrivalAt: string;
+  startedAt: string;
+  endedAt: string;
+  routePlanId: string;
+  routeStopOrder: string;
 }
 
 export const VisitsDashboard: React.FC = () => {
@@ -134,6 +147,9 @@ export const VisitsDashboard: React.FC = () => {
   const [gpsNotice, setGpsNotice] = useState<string | null>(null);
   const [proofPhotoUrl, setProofPhotoUrl] = useState<string>('');
   const [isUploadingProof, setIsUploadingProof] = useState(false);
+  const [productPhotos, setProductPhotos] = useState<string[]>([]);
+  const [isUploadingProductPhotos, setIsUploadingProductPhotos] = useState(false);
+  const [showGpsHistory, setShowGpsHistory] = useState(false);
 
   const canApproveLocations = canManageLocationLock(currentUser?.role);
 
@@ -147,6 +163,14 @@ export const VisitsDashboard: React.FC = () => {
     type: 'تحصيل',
     collectedAmount: 0,
     notes: '',
+    completionStatus: 'completed',
+    postponementReason: '',
+    failureReason: '',
+    arrivalAt: '',
+    startedAt: '',
+    endedAt: '',
+    routePlanId: '',
+    routeStopOrder: '',
   };
 
   const [form, setForm] = useState<VisitForm>(initialForm);
@@ -223,6 +247,7 @@ export const VisitsDashboard: React.FC = () => {
   useEffect(() => {
     if (showForm) {
       setProofPhotoUrl('');
+      setProductPhotos([]);
       setFormErrors([]);
       setGpsNotice(null);
       requestCurrentRepGps().catch(() => {});
@@ -263,6 +288,27 @@ export const VisitsDashboard: React.FC = () => {
     }
   };
 
+  const handleCaptureProductPhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0) return;
+    setIsUploadingProductPhotos(true);
+    setGpsNotice(null);
+    try {
+      const cfg = normalizeCloudinaryConfig(cloudinaryConfig);
+      const urls: string[] = [];
+      for (const file of files.slice(0, 6)) {
+        const uploaded = await uploadImageToCloudinary(file, cfg, 'tantawy_visit_products');
+        urls.push(uploaded.url);
+      }
+      setProductPhotos((prev) => [...prev, ...urls].slice(0, 10));
+    } catch (err: any) {
+      setGpsNotice(err?.message || 'تعذر رفع صور المنتجات');
+    } finally {
+      setIsUploadingProductPhotos(false);
+    }
+  };
+
   // Pin customer GPS into customer record (respecting supervisor lock)
   const handlePinCustomerLocation = async () => {
     if (!selectedCustomerObj) return;
@@ -273,6 +319,30 @@ export const VisitsDashboard: React.FC = () => {
     setGpsNotice('جاري قراءة الأقمار الصناعية وتحديد موقع المتجر بدقة...');
     const coords = await requestCurrentRepGps();
     if (!coords) return;
+
+    const prevLat = selectedCustomerObj.latitude;
+    const prevLng = selectedCustomerObj.longitude;
+    let movedMeters: number | null = null;
+    if (typeof prevLat === 'number' && typeof prevLng === 'number') {
+      const R = 6371000;
+      const dLat = ((coords.latitude - prevLat) * Math.PI) / 180;
+      const dLng = ((coords.longitude - prevLng) * Math.PI) / 180;
+      const a = Math.sin(dLat/2)**2 + Math.cos((prevLat*Math.PI)/180)*Math.cos((coords.latitude*Math.PI)/180)*Math.sin(dLng/2)**2;
+      movedMeters = Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+    }
+
+    const historyEntry = {
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      accuracy: coords.accuracy,
+      capturedAt: coords.timestamp,
+      capturedBy: currentUser?.name || 'المندوب',
+      capturedByRole: currentUser?.role || '',
+      previousLatitude: prevLat,
+      previousLongitude: prevLng,
+      reason: movedMeters != null ? `تحديث موقع (إزاحة تقريبية ${movedMeters}م)` : 'تثبيت موقع مبدئي',
+      source: 'visit' as const,
+    };
 
     const updatedCustomer: Customer = {
       ...selectedCustomerObj,
@@ -286,13 +356,17 @@ export const VisitsDashboard: React.FC = () => {
       locationLocked: canApproveLocations ? true : Boolean(selectedCustomerObj.locationLocked),
       locationApprovedBy: canApproveLocations ? (currentUser?.name || 'المشرف') : selectedCustomerObj.locationApprovedBy,
       locationApprovedAt: canApproveLocations ? coords.timestamp : selectedCustomerObj.locationApprovedAt,
+      locationPinHistory: [...(selectedCustomerObj.locationPinHistory || []), historyEntry].slice(-50),
     };
 
     updateCustomer(updatedCustomer);
+    const sudden = movedMeters != null && movedMeters > 1000;
     setGpsNotice(
-      canApproveLocations
+      (canApproveLocations
         ? `تم تثبيت واعتماد وقفل موقع ${selectedCustomerObj.name} بنجاح 🔒`
-        : `تم تثبيت موقع ${selectedCustomerObj.name} (${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}) — بانتظار اعتماد المشرف للقفل`
+        : `تم تثبيت موقع ${selectedCustomerObj.name} (${coords.latitude.toFixed(5)}, ${coords.longitude.toFixed(5)}) — بانتظار اعتماد المشرف للقفل`) +
+      (movedMeters != null ? ` | تغير عن السابق: ~${movedMeters}م` : '') +
+      (sudden ? ' ⚠️ تنبيه: تغيّر موقع مفاجئ/كبير — يُنصح بالمراجعة' : '')
     );
   };
 
@@ -301,7 +375,10 @@ export const VisitsDashboard: React.FC = () => {
   const validateForm = (): boolean => {
     const errors: string[] = [];
     if (!form.customerId) errors.push('يرجى اختيار العميل');
-    if (form.type === 'تحصيل' && form.collectedAmount <= 0) errors.push('يرجى إدخال مبلغ التحصيل');
+    const req = getRequiredVisitFields(form.type);
+    if (req.includes('collectedAmount') && form.collectedAmount <= 0) errors.push('يرجى إدخال مبلغ التحصيل');
+    if (form.completionStatus === 'postponed' && !form.postponementReason) errors.push('يرجى اختيار سبب التأجيل');
+    if (form.completionStatus === 'failed' && !form.failureReason) errors.push('يرجى اختيار سبب عدم الإتمام');
     if (selectedCustomerObj && !repGps && !proofPhotoUrl && currentUser?.role === 'sales_rep') {
       errors.push('يرجى تفعيل GPS لالتقاط موقعك الحي أو التقاط صورة حية لواجهة المحل بالكاميرا');
     }
@@ -345,6 +422,22 @@ export const VisitsDashboard: React.FC = () => {
       verifiedAt: liveGeoCheck.verifiedAt,
     };
 
+    const toIso = (hhmm: string) => {
+      if (!hhmm) return undefined;
+      const d = new Date(`${form.date}T${hhmm}:00`);
+      return isNaN(d.getTime()) ? undefined : d.toISOString();
+    };
+    const arrivalIso = toIso(form.arrivalAt);
+    const startedIso = toIso(form.startedAt);
+    const endedIso = toIso(form.endedAt);
+    const anchor = arrivalIso || startedIso;
+    let actualDurationMinutes: number | undefined;
+    if (anchor && endedIso) {
+      const diff = (new Date(endedIso).getTime() - new Date(anchor).getTime()) / 60000;
+      if (isFinite(diff) && diff >= 0) actualDurationMinutes = Math.round(diff);
+    }
+    const completionToStatus: Record<string, string> = { completed: 'منفذة', partial: 'منفذة', postponed: 'مجدولة', failed: 'لم تتم' };
+
     const result = addVisit({
       customerId: form.customerId,
       customerName: c?.name || form.customerName || '',
@@ -357,20 +450,35 @@ export const VisitsDashboard: React.FC = () => {
       sector: r?.sector || c?.sector || currentUser?.sector || undefined,
       supervisorId: r?.supervisorId,
       supervisorName: r?.supervisorName || '',
-      status: 'منفذة',
+      status: (completionToStatus[form.completionStatus] || 'منفذة') as any,
       type: form.type as any,
       outcome:
-        form.type === 'تحصيل'
-          ? 'تم التحصيل'
-          : form.type === 'طلب بيع'
-          ? 'تم عمل طلبية'
-          : 'متابعة فقط',
+        form.completionStatus === 'postponed' ? 'تأجيل سداد' :
+        form.completionStatus === 'failed' ? 'أخرى' :
+        form.type === 'تحصيل' ? 'تم التحصيل' :
+        form.type === 'طلب بيع' ? 'تم عمل طلبية' : 'متابعة فقط',
       collectedAmount: form.collectedAmount,
       notes: form.notes,
       location: visitLocation,
       geoVerification: finalGeoVerification,
       reviewStatus: liveGeoCheck.requiresSupervisorReview ? 'pending' : 'approved',
-    });
+      productPhotos: productPhotos.length ? productPhotos : undefined,
+      completionStatus: form.completionStatus,
+      postponementReason: form.completionStatus === 'postponed' ? form.postponementReason : undefined,
+      failureReason: form.completionStatus === 'failed' ? form.failureReason : undefined,
+      arrivalAt: arrivalIso,
+      startedAt: startedIso,
+      endedAt: endedIso,
+      actualDurationMinutes,
+      routePlanId: form.routePlanId || undefined,
+      routeStopOrder: form.routeStopOrder ? Number(form.routeStopOrder) : undefined,
+      dynamicFields: {
+        visitPurpose: form.type,
+        completionStatus: form.completionStatus,
+        postponementReason: form.postponementReason || undefined,
+        failureReason: form.failureReason || undefined,
+      },
+    } as any);
 
     if (!result.success) {
       setFlash({ tone: 'error', text: result.message });
@@ -389,6 +497,7 @@ export const VisitsDashboard: React.FC = () => {
     setForm(initialForm);
     setFormErrors([]);
     setProofPhotoUrl('');
+    setProductPhotos([]);
   };
 
   // Filter pipeline
@@ -1199,79 +1308,31 @@ export const VisitsDashboard: React.FC = () => {
             </div>
 
             <div className="space-y-4">
-              {/* Customer selection — بحث بالاسم/الكود + فلتر بالمندوب */}
-              <label className="block">
-                <span className="text-xs font-bold text-[#0b2337] block mb-1">
-                  العميل المستهدف *
-                </span>
-                <input
-                  type="text"
-                  value={customerSearch}
-                  onChange={(e) => setCustomerSearch(e.target.value)}
-                  placeholder="ابحث باسم العميل أو كود العميل..."
-                  className="tg-input mb-2"
-                />
-                <select
-                  value={customerRepFilter}
-                  onChange={(e) => setCustomerRepFilter(e.target.value)}
-                  className="tg-select mb-2"
-                  aria-label="فلترة العملاء حسب المندوب"
-                >
-                  <option value="all">كل المناديب</option>
-                  {customerRepOptions.map((rep) => (
-                    <option key={rep} value={rep}>{rep}</option>
-                  ))}
-                </select>
-                <div className="max-h-56 overflow-y-auto rounded-2xl border border-slate-300 divide-y divide-slate-100 bg-white">
-                  {filteredModalCustomers.length === 0 ? (
-                    <div className="p-4 text-center text-xs font-bold text-slate-500">
-                      لا يوجد عملاء مطابقون للبحث أو فلتر المندوب
-                    </div>
-                  ) : (
-                    filteredModalCustomers.slice(0, 40).map((c) => (
-                      <button
-                        type="button"
-                        key={c.id}
-                        onClick={() => {
-                          setForm({
-                            ...form,
-                            customerId: c.id,
-                            customerName: c.name || '',
-                            customerCode: c.code || '',
-                          });
-                        }}
-                        className={`w-full text-right px-3 py-2.5 flex items-center justify-between gap-2 transition ${
-                          form.customerId === c.id ? 'bg-[#eff6ff]' : 'hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="flex items-center gap-2.5 min-w-0 flex-1">
-                          <img
-                            src={resolveStoreAvatar(c)}
-                            alt={c.name || 'متجر العميل'}
-                            referrerPolicy="no-referrer"
-                            onError={onStoreAvatarError}
-                            className="w-9 h-9 rounded-xl object-cover border border-slate-200 bg-slate-50 shrink-0"
-                          />
-                          <span className="min-w-0">
-                            <span className={`block text-xs font-black truncate ${form.customerId === c.id ? 'text-[#1d4ed8]' : 'text-[#0b2337]'}`}>
-                              {c.name || 'عميل بدون اسم'}
-                            </span>
-                            <span className="block text-[10px] text-slate-500 font-bold mt-0.5 truncate">
-                              {c.code || 'بدون كود'} • {c.salesRepName || c.repName || '—'} • {c.branchName || '—'}
-                            </span>
-                          </span>
-                        </span>
-                        {form.customerId === c.id && <CheckCircle2 className="w-4 h-4 text-[#2563eb] shrink-0" />}
-                      </button>
-                    ))
-                  )}
-                </div>
-                {filteredModalCustomers.length > 40 && (
-                  <p className="text-[10px] font-bold text-slate-500 mt-1 text-center">
-                    يظهر أول 40 عميل — استخدم البحث أو فلتر المندوب لتضييق النتائج
-                  </p>
-                )}
-              </label>
+              {/* Customer selection — بحث موحّد بالاسم/الكود/الهاتف */}
+              <CustomerSearchSelect
+                label="العميل المستهدف"
+                required
+                customers={myCustomers}
+                valueId={form.customerId || null}
+                showRepFilter
+                placeholder="ابحث باسم العميل أو الكود أو الهاتف..."
+                onSelect={(c) => {
+                  setForm({
+                    ...form,
+                    customerId: c.id,
+                    customerName: c.name || '',
+                    customerCode: c.code || '',
+                  });
+                }}
+                onClear={() => {
+                  setForm({
+                    ...form,
+                    customerId: '',
+                    customerName: '',
+                    customerCode: '',
+                  });
+                }}
+              />
 
               {/* Customer financial standing if selected */}
               {form.customerId && (
@@ -1419,6 +1480,41 @@ export const VisitsDashboard: React.FC = () => {
                     </div>
                   )}
 
+                  {/* صور المنتجات (توثيق الرف/الأصناف) */}
+                  <div className="rounded-xl bg-white/90 border border-slate-200 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <span className="text-[11px] font-black text-slate-800 flex items-center gap-1.5">
+                        <Camera className="w-3.5 h-3.5 text-amber-600" />
+                        صور المنتجات (اختياري)
+                      </span>
+                      <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-black cursor-pointer transition">
+                        {isUploadingProductPhotos ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                        <span>{isUploadingProductPhotos ? 'جاري الرفع...' : 'إضافة صور منتجات'}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          multiple
+                          disabled={isUploadingProductPhotos}
+                          onChange={handleCaptureProductPhotos}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                    {productPhotos.length > 0 ? (
+                      <div className="grid grid-cols-4 gap-2">
+                        {productPhotos.map((url, idx) => (
+                          <div key={idx} className="relative h-16 rounded-lg overflow-hidden border border-slate-200 group">
+                            <img src={url} alt={`منتج ${idx + 1}`} className="w-full h-full object-cover" />
+                            <button type="button" onClick={() => setProductPhotos((p) => p.filter((_, i) => i !== idx))} className="absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition"><X className="w-3 h-3" /></button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-[10px] font-bold text-slate-500">يمكنك تصوير الرف/الأصناف لتوثيق حالة المنتجات أثناء الزيارة.</div>
+                    )}
+                  </div>
+
                   {/* Primary Customer Pinning (only if not yet pinned OR supervisor/manager override) */}
                   {!selectedCustomerObj.latitude || !selectedCustomerObj.longitude ? (
                     <button
@@ -1453,6 +1549,62 @@ export const VisitsDashboard: React.FC = () => {
                       {gpsNotice}
                     </div>
                   )}
+
+                  {/* سجل تاريخ GPS بسيط + اعتماد المشرف */}
+                  <div className="rounded-xl bg-white/90 border border-slate-200 p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <button type="button" onClick={() => setShowGpsHistory(v => !v)} className="text-[11px] font-black text-slate-800 inline-flex items-center gap-1.5 hover:text-[#1d4ed8]">
+                        <Clock className="w-3.5 h-3.5" /> {showGpsHistory ? 'إخفاء سجل تثبيتات الموقع' : 'عرض سجل تثبيتات الموقع'}
+                        <span className="text-[10px] font-bold text-slate-500">({(selectedCustomerObj.locationPinHistory || []).length})</span>
+                      </button>
+                      {canApproveLocations && selectedCustomerObj.latitude && selectedCustomerObj.longitude && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const now = new Date().toISOString();
+                            updateCustomer({
+                              ...selectedCustomerObj,
+                              locationLocked: true,
+                              locationApprovedBy: currentUser?.name || 'المشرف',
+                              locationApprovedAt: now,
+                            });
+                            setGpsNotice(`تم اعتماد وقفل موقع ${selectedCustomerObj.name} بواسطة ${currentUser?.name || 'المشرف'} ✅`);
+                          }}
+                          className="text-[11px] font-black px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                        >
+                          اعتماد/قفل الموقع الحالي
+                        </button>
+                      )}
+                    </div>
+                    {typeof selectedCustomerObj.latitude === 'number' && typeof selectedCustomerObj.longitude === 'number' && (selectedCustomerObj.locationPinHistory || []).length > 0 && (() => {
+                      const last = (selectedCustomerObj.locationPinHistory || []).slice(-1)[0];
+                      const prev = last?.previousLatitude != null && last?.previousLongitude != null ? { lat: last.previousLatitude, lng: last.previousLongitude } : null;
+                      if (!prev) return null;
+                      // simple alert indicator if last move recorded in reason text contains large meters is not needed; show last change summary
+                      return <div className="text-[10px] font-bold text-slate-600">آخر تثبيت: {last.capturedAt ? new Date(last.capturedAt).toLocaleString('ar-EG') : '—'} · بواسطة: {last.capturedBy || '—'} {last.reason ? `· ${last.reason}` : ''}</div>;
+                    })()}
+                    {showGpsHistory && (
+                      <div className="max-h-40 overflow-auto space-y-1.5 border-t border-slate-100 pt-2">
+                        {(selectedCustomerObj.locationPinHistory || []).length === 0 ? (
+                          <div className="text-[11px] font-bold text-slate-500">لا يوجد سجل تثبيتات سابق لهذا العميل.</div>
+                        ) : (
+                          [...(selectedCustomerObj.locationPinHistory || [])].reverse().slice(0, 10).map((h, idx) => {
+                            const moved = (typeof h.previousLatitude === 'number' && typeof h.previousLongitude === 'number')
+                              ? (() => { const R=6371000; const dLat=((h.latitude-h.previousLatitude)*Math.PI)/180; const dLng=((h.longitude-h.previousLongitude)*Math.PI)/180; const a=Math.sin(dLat/2)**2+Math.cos(h.previousLatitude*Math.PI/180)*Math.cos(h.latitude*Math.PI/180)*Math.sin(dLng/2)**2; return Math.round(R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))); })()
+                              : null;
+                            const big = moved != null && moved > 1000;
+                            return (
+                              <div key={idx} className={`rounded-lg border p-2 text-[10px] ${big ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}>
+                                <div className="font-black text-slate-800">{h.capturedAt ? new Date(h.capturedAt).toLocaleString('ar-EG') : '—'} · {h.capturedBy || '—'} ({h.capturedByRole || '—'})</div>
+                                <div className="text-slate-600 font-bold mt-0.5" dir="ltr">({h.latitude?.toFixed?.(5)}, {h.longitude?.toFixed?.(5)}) {h.accuracy ? `±${Math.round(h.accuracy)}m` : ''}</div>
+                                <div className={`mt-0.5 font-bold ${big ? 'text-amber-800' : 'text-slate-600'}`}>{moved != null ? `تغيّر تقريبي: ${moved}م` : 'تثبيت مبدئي'} {big ? '⚠️ تغيّر كبير' : ''}</div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1488,20 +1640,64 @@ export const VisitsDashboard: React.FC = () => {
                 </label>
               </div>
 
-              {/* Time & Collected Amount */}
+              {/* حالة الإتمام وأسباب موحّدة (ديناميكية حسب النتيجة) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-xs font-bold text-[#0b2337] block mb-1">
-                    توقيت الزيارة
-                  </span>
-                  <input
-                    type="time"
-                    value={form.time}
-                    onChange={(e) => setForm({ ...form, time: e.target.value })}
-                    className="w-full rounded-2xl border border-slate-300 px-3 py-2.5 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb]"
-                  />
+                  <span className="text-xs font-bold text-[#0b2337] block mb-1">حالة إتمام الزيارة</span>
+                  <select value={form.completionStatus} onChange={(e) => setForm({ ...form, completionStatus: e.target.value as any, postponementReason: '', failureReason: '' })} className="w-full rounded-2xl border border-slate-300 px-3 py-3 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb]">
+                    <option value="completed">منفذة/مكتملة</option>
+                    <option value="partial">منفذة جزئيًا</option>
+                    <option value="postponed">مؤجلة</option>
+                    <option value="failed">لم تتم</option>
+                  </select>
                 </label>
+                <label className="block">
+                  <span className="text-xs font-bold text-[#0b2337] block mb-1">توقيت الزيارة (مرجع)</span>
+                  <input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} className="w-full rounded-2xl border border-slate-300 px-3 py-2.5 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb]" />
+                </label>
+              </div>
 
+              {getVisitTypeHint(form.type) && (
+                <div className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2">إرشاد بسيط لنوع الزيارة: {getVisitTypeHint(form.type)}</div>
+              )}
+
+              {form.completionStatus === 'postponed' && (
+                <label className="block">
+                  <span className="text-xs font-bold text-amber-700 block mb-1">سبب التأجيل (موحّد) *</span>
+                  <select value={form.postponementReason} onChange={(e)=>setForm({...form, postponementReason:e.target.value})} className="w-full rounded-2xl border border-amber-300 px-3 py-2.5 text-xs sm:text-sm font-bold bg-amber-50/40">
+                    <option value="">اختر السبب...</option>
+                    {POSTPONEMENT_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </label>
+              )}
+              {form.completionStatus === 'failed' && (
+                <label className="block">
+                  <span className="text-xs font-bold text-rose-700 block mb-1">سبب عدم الإتمام (موحّد) *</span>
+                  <select value={form.failureReason} onChange={(e)=>setForm({...form, failureReason:e.target.value})} className="w-full rounded-2xl border border-rose-300 px-3 py-2.5 text-xs sm:text-sm font-bold bg-rose-50/40">
+                    <option value="">اختر السبب...</option>
+                    {FAILURE_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </label>
+              )}
+
+              {/* تتبع وقتي فعلي (وصول/بدء/إنهاء) ومسار */}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                <div className="text-xs font-black text-slate-800">تتبع زمني فعلي (وصول/بدء/إنهاء) ومسار اليوم</div>
+                <div className="grid grid-cols-3 gap-2">
+                  <label className="block"><span className="text-[10px] font-bold text-slate-600 block mb-1">وقت الوصول</span><input type="time" value={form.arrivalAt} onChange={e=>setForm({...form, arrivalAt:e.target.value})} className="w-full rounded-xl border border-slate-300 px-2 py-2 text-xs font-bold bg-white" /></label>
+                  <label className="block"><span className="text-[10px] font-bold text-slate-600 block mb-1">وقت البدء</span><input type="time" value={form.startedAt} onChange={e=>setForm({...form, startedAt:e.target.value})} className="w-full rounded-xl border border-slate-300 px-2 py-2 text-xs font-bold bg-white" /></label>
+                  <label className="block"><span className="text-[10px] font-bold text-slate-600 block mb-1">وقت الإنهاء</span><input type="time" value={form.endedAt} onChange={e=>setForm({...form, endedAt:e.target.value})} className="w-full rounded-xl border border-slate-300 px-2 py-2 text-xs font-bold bg-white" /></label>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block"><span className="text-[10px] font-bold text-slate-600 block mb-1">معرّف مسار اليوم (اختياري)</span><input type="text" value={form.routePlanId} onChange={e=>setForm({...form, routePlanId:e.target.value})} placeholder="ROUTE-..." className="w-full rounded-xl border border-slate-300 px-2.5 py-2 text-xs font-bold bg-white" /></label>
+                  <label className="block"><span className="text-[10px] font-bold text-slate-600 block mb-1">ترتيب المحطة (اختياري)</span><input type="number" value={form.routeStopOrder} onChange={e=>setForm({...form, routeStopOrder:e.target.value})} placeholder="1" className="w-full rounded-xl border border-slate-300 px-2.5 py-2 text-xs font-bold bg-white" /></label>
+                </div>
+                <div className="text-[10px] font-bold text-slate-500">تُحسب المدة الفعلية تلقائيًا عند إدخال أوقات الوصول/البدء/الإنهاء. عرض المسار على الخريطة يتطلب تفعيل طبقة الخرائط لاحقًا.</div>
+              </div>
+
+              {/* Time & Collected Amount */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="hidden sm:block" />
                 {form.type === 'تحصيل' && (
                   <label className="block">
                     <span className="text-xs text-emerald-700 dark:text-emerald-400 font-black block mb-1">
@@ -1711,7 +1907,20 @@ export const VisitsDashboard: React.FC = () => {
                     </div>
                   )}
 
-                  {canApproveLocations && selectedVisit.reviewStatus === 'pending' && (
+                  {!!(selectedVisit as any).productPhotos?.length && (
+                    <div className="space-y-2">
+                      <div className="text-[11px] font-black text-slate-700">صور المنتجات ({(selectedVisit as any).productPhotos.length})</div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {((selectedVisit as any).productPhotos as string[]).map((url: string, idx: number) => (
+                          <a key={idx} href={url} target="_blank" rel="noreferrer" className="block h-20 rounded-xl overflow-hidden border border-slate-200 bg-white">
+                            <img src={url} alt={`منتج ${idx + 1}`} className="w-full h-full object-cover" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {canApproveLocations && selectedVisit.reviewStatus && selectedVisit.reviewStatus !== 'approved' && (
                     <div className="flex gap-2 pt-1">
                       <button
                         type="button"

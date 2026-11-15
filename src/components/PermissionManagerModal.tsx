@@ -1,13 +1,25 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ShieldCheck, RotateCcw, RefreshCw, Save } from 'lucide-react';
+import {
+  Building2,
+  CheckCircle2,
+  Filter,
+  RotateCcw,
+  Save,
+  Search,
+  Shield,
+  ShieldCheck,
+  Sparkles,
+  User,
+  Users,
+  X,
+} from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
   ALL_AVAILABLE_TABS,
   DEFAULT_ROLE_TABS,
   getUserAllowedTabs,
-  setUserAllowedTabs,
   resetUserPermissions,
-  PermissionDefaults
+  setUserAllowedTabs,
 } from '../services/permissionService';
 
 interface PermissionManagerModalProps {
@@ -15,70 +27,121 @@ interface PermissionManagerModalProps {
   onClose: () => void;
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  developer: 'مطور',
+  admin: 'مدير نظام (آدمن)',
+  branch_manager: 'مدير فرع',
+  supervisor: 'مشرف',
+  sales_rep: 'مندوب مبيعات',
+  warehouse_keeper: 'أمين مخزن',
+  legal_advisor: 'مستشار قانوني',
+  technical_support: 'دعم فني',
+};
+
+const SECTOR_LABELS: Record<string, string> = {
+  home: 'منزلي',
+  electrical: 'كهربائي',
+  both: 'كلاهما',
+  all: 'الكل',
+};
+
+const TAB_GROUPS: { title: string; ids: string[] }[] = [
+  { title: 'الرئيسية والكتالوج', ids: ['home', 'catalog', 'offers', 'guide'] },
+  { title: 'العملاء والمبيعات الميدانية', ids: ['all_customers', 'customers', 'reps', 'customer_item_sales', 'visits', 'collection', 'targets'] },
+  { title: 'الطلبات والفواتير والمرتجعات', ids: ['invoices', 'returns', 'returns_customers'] },
+  { title: 'المخزون والتقارير والبيانات', ids: ['inventory', 'dashboard', 'excel', 'product_sales'] },
+  { title: 'الإدارة والصلاحيات', ids: ['users', 'permissions', 'legal_advisor'] },
+];
+
+const uniq = <T,>(arr: T[]) => Array.from(new Set(arr));
+
 export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ isOpen, onClose }) => {
-  const { users, currentUser } = useApp();
+  const { users, currentUser, recordAuditLog } = useApp();
   const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [allowedTabs, setAllowedTabs] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [saveMsg, setSaveMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('ALL');
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [sectorFilter, setSectorFilter] = useState('ALL');
 
+  const manageableUsers = useMemo(() => users.filter((u) => u.role !== 'developer'), [users]);
+
   const availableBranches = useMemo(() => {
     const s = new Set<string>();
-    users.forEach((u) => { if (u.branchName) s.add(u.branchName); });
-    return Array.from(s);
-  }, [users]);
+    manageableUsers.forEach((u) => { if (u.branchName) s.add(u.branchName); });
+    return Array.from(s).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [manageableUsers]);
 
-  const nonAdminUsers = useMemo(() => {
-    let list = users.filter((u) => u.role !== 'developer');
+  const filteredUsers = useMemo(() => {
+    let list = manageableUsers;
     if (searchTerm.trim()) {
       const q = searchTerm.trim().toLowerCase();
-      list = list.filter((u) => u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q));
+      list = list.filter((u) => u.name.toLowerCase().includes(q) || (u.username || '').toLowerCase().includes(q) || (u.phone || '').includes(q));
     }
-    if (branchFilter !== 'ALL') {
-      list = list.filter((u) => u.branchName === branchFilter);
-    }
-    if (roleFilter !== 'ALL') {
-      list = list.filter((u) => u.role === roleFilter);
-    }
-    if (sectorFilter !== 'ALL') {
-      list = list.filter((u) => (u.sector || 'all') === sectorFilter);
-    }
-    return list;
-  }, [users, searchTerm, branchFilter, roleFilter]);
+    if (branchFilter !== 'ALL') list = list.filter((u) => u.branchName === branchFilter);
+    if (roleFilter !== 'ALL') list = list.filter((u) => u.role === roleFilter);
+    if (sectorFilter !== 'ALL') list = list.filter((u) => (u.sector || 'all') === sectorFilter);
+    return [...list].sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+  }, [manageableUsers, searchTerm, branchFilter, roleFilter, sectorFilter]);
 
-  const selectedUser = useMemo(
-    () => users.find((u) => u.id === selectedUserId),
-    [users, selectedUserId]
-  );
+  const selectedUser = useMemo(() => users.find((u) => u.id === selectedUserId), [users, selectedUserId]);
+  const defaultTabs = useMemo(() => (selectedUser ? (DEFAULT_ROLE_TABS[selectedUser.role] || ['home']) : ['home']), [selectedUser]);
+  const knownTabIds = useMemo(() => new Set(ALL_AVAILABLE_TABS.map((t) => t.id)), []);
+
+  useEffect(() => {
+    if (!selectedUserId && filteredUsers.length) setSelectedUserId(filteredUsers[0].id);
+  }, [filteredUsers, selectedUserId]);
 
   useEffect(() => {
     if (!selectedUserId || !selectedUser) return;
     let active = true;
     getUserAllowedTabs(selectedUserId, selectedUser.role).then((tabs) => {
-      if (active) setAllowedTabs(tabs);
+      if (active) setAllowedTabs(uniq([...(tabs || []), 'home']));
     });
     return () => { active = false; };
   }, [selectedUserId, selectedUser]);
 
-  const handleToggle = (tabId: string) => {
-    setAllowedTabs((prev) =>
-      prev.includes(tabId) ? prev.filter((t) => t !== tabId) : [...prev, tabId]
-    );
+  useEffect(() => { setSaveMsg(null); }, [selectedUserId]);
+
+  const toggleTab = (tabId: string) => {
+    if (tabId === 'home') return; // keep home always available
+    setAllowedTabs((prev) => prev.includes(tabId) ? prev.filter((t) => t !== tabId) : [...prev, tabId]);
+  };
+
+  const setGroup = (ids: string[], on: boolean) => {
+    setAllowedTabs((prev) => {
+      const set = new Set(prev);
+      ids.forEach((id) => { if (id === 'home') return; if (on) set.add(id); else set.delete(id); });
+      set.add('home');
+      return Array.from(set);
+    });
   };
 
   const handleSave = async () => {
-    if (!selectedUserId) return;
+    if (!selectedUserId || !selectedUser) return;
     setIsSaving(true);
     setSaveMsg(null);
     try {
-      const ok = await setUserAllowedTabs(selectedUserId, allowedTabs);
-      setSaveMsg(ok ? 'تم حفظ الصلاحيات بنجاح' : 'فشل الحفظ، حاول مرة أخرى');
+      const before = await getUserAllowedTabs(selectedUserId, selectedUser.role as any);
+      const next = uniq([...allowedTabs, 'home']);
+      const ok = await setUserAllowedTabs(selectedUserId, next);
+      setSaveMsg(ok ? { tone: 'ok', text: 'تم حفظ الصلاحيات بنجاح' } : { tone: 'err', text: 'فشل الحفظ، حاول مرة أخرى' });
+      if (ok) {
+        recordAuditLog({
+          userId: currentUser?.id || 'admin',
+          userName: currentUser?.name || 'مدير النظام',
+          userRole: currentUser?.role || 'admin',
+          branchName: currentUser?.branchName || selectedUser.branchName || '—',
+          action: 'permission_change' as any,
+          actionTitle: 'تعديل صلاحيات مستخدم',
+          details: `المستخدم: ${selectedUser.name} (${selectedUser.username || selectedUser.id}) | الدور: ${selectedUser.role}\nقبل: ${before.join(', ')}\nبعد: ${next.join(', ')}`,
+          badgeType: 'warning',
+        });
+      }
     } catch {
-      setSaveMsg('حدث خطأ أثناء الحفظ');
+      setSaveMsg({ tone: 'err', text: 'حدث خطأ أثناء الحفظ' });
     } finally {
       setIsSaving(false);
     }
@@ -89,192 +152,164 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
     setIsSaving(true);
     setSaveMsg(null);
     try {
+      const before = await getUserAllowedTabs(selectedUserId, selectedUser.role as any);
       await resetUserPermissions(selectedUserId);
-      const defaults = DEFAULT_ROLE_TABS[selectedUser.role] || ['home'];
-      setAllowedTabs(defaults);
-      setSaveMsg('تم إعادة الصلاحيات إلى الوضع الافتراضي');
+      const next = uniq([...(DEFAULT_ROLE_TABS[selectedUser.role] || ['home']), 'home']);
+      setAllowedTabs(next);
+      setSaveMsg({ tone: 'ok', text: 'تمت إعادة الصلاحيات للوضع الافتراضي للدور' });
+      recordAuditLog({
+        userId: currentUser?.id || 'admin',
+        userName: currentUser?.name || 'مدير النظام',
+        userRole: currentUser?.role || 'admin',
+        branchName: currentUser?.branchName || selectedUser.branchName || '—',
+        action: 'permission_change' as any,
+        actionTitle: 'إعادة تعيين صلاحيات للوضع الافتراضي',
+        details: `المستخدم: ${selectedUser.name} (${selectedUser.username || selectedUser.id}) | الدور: ${selectedUser.role}\nقبل: ${before.join(', ')}\nبعد (افتراضي): ${next.join(', ')}`,
+        badgeType: 'info',
+      });
     } catch {
-      setSaveMsg('حدث خطأ');
+      setSaveMsg({ tone: 'err', text: 'تعذر إعادة التعيين' });
     } finally {
       setIsSaving(false);
     }
   };
 
+  const applyDefaultsLocally = () => {
+    if (!selectedUser) return;
+    setAllowedTabs(uniq([...(DEFAULT_ROLE_TABS[selectedUser.role] || ['home']), 'home']));
+  };
+
   if (!isOpen) return null;
 
+  const grouped = TAB_GROUPS.map((g) => ({
+    ...g,
+    tabs: g.ids.map((id) => ALL_AVAILABLE_TABS.find((t) => t.id === id)).filter(Boolean) as typeof ALL_AVAILABLE_TABS,
+  })).filter((g) => g.tabs.length);
+  const knownInGroups = new Set(grouped.flatMap((g) => g.tabs.map((t) => t.id)));
+  const extras = ALL_AVAILABLE_TABS.filter((t) => !knownInGroups.has(t.id));
+
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-4" dir="rtl">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" dir="rtl" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-6xl h-[92vh] overflow-hidden flex flex-col border border-slate-200">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-r from-[var(--app-navy)] to-blue-700 text-white">
-          <div>
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-5 h-5 text-white" />
-              <h2 className="font-black text-white text-lg">تخصيص صلاحيات المستخدمين</h2>
+        <div className="px-5 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-gradient-to-l from-[#0f233d] via-[#162f52] to-[#1a3861] text-white">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center shadow-lg"><ShieldCheck size={22} /></div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap"><h2 className="font-black text-lg sm:text-xl">مركز الصلاحيات والوصول</h2><span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-white/15 border border-white/20 text-[#e8c98c]">احترافي</span></div>
+              <p className="text-xs text-blue-100/90 mt-0.5">تحكم دقيق في شاشات كل مستخدم مع الحفاظ على افتراضيات الدور — حفظ فوري لكل حساب</p>
             </div>
-            <p className="text-xs text-blue-100 mt-0.5 opacity-90">المسؤول (Admin) يمكنه تخصيص الشاشات لكل مستخدم</p>
           </div>
-          <button type="button" onClick={onClose} className="bg-white/10 hover:bg-white/20 text-white p-2 rounded-lg backdrop-blur-sm transition active:scale-95">
-            <span className="text-xl">&times;</span>
-          </button>
+          <button type="button" onClick={onClose} className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition" aria-label="إغلاق"><X size={18} /></button>
         </div>
 
-        {/* Filters */}
-        <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="بحث بالاسم أو اسم المستخدم..."
-              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[var(--app-accent)] focus:outline-none transition"
-            />
-            <select
-              value={branchFilter}
-              onChange={(e) => setBranchFilter(e.target.value)}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[var(--app-accent)] focus:outline-none transition"
-            >
-              <option value="ALL">جميع الفروع</option>
-              {availableBranches.map((b) => (
-                <option key={b} value={b}>{b}</option>
-              ))}
-            </select>
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[var(--app-accent)] focus:outline-none transition"
-            >
-              <option value="ALL">جميع الأدوار</option>
-              <option value="admin">مسؤول (Admin)</option>
-              <option value="branch_manager">مدير فرع</option>
-              <option value="supervisor">مشرف</option>
-              <option value="sales_rep">مندوب</option>
-              <option value="warehouse_keeper">أمين مخزن</option>
-              <option value="legal_advisor">مستشار قانوني</option>
-            </select>
-            <select
-              value={sectorFilter}
-              onChange={(e) => setSectorFilter(e.target.value)}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[var(--app-accent)] focus:outline-none transition"
-            >
-              <option value="ALL">جميع القطاعات</option>
-              <option value="home">منزلي</option>
-              <option value="electrical">كهربائي</option>
-              <option value="both">كلاهما</option>
-              <option value="all">الكل (Admin)</option>
-            </select>
-          </div>
-        </div>
-
-        {/* User selector */}
-        <div className="px-5 py-3 border-b border-slate-100">
-          <label className="text-xs font-bold text-slate-600 block mb-1">اختر المستخدم ({nonAdminUsers.length})</label>
-          <select
-            value={selectedUserId}
-            onChange={(e) => setSelectedUserId(e.target.value)}
-            className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold"
-          >
-            <option value="">-- اختر مستخدم --</option>
-            {nonAdminUsers.map((u) => (
-              <option value={u.id}>
-                {u.name} ({u.role === 'developer' ? 'مسؤول (Admin)' : u.role === 'admin' ? 'مسؤول (Admin)' : u.role === 'branch_manager' ? 'مدير فرع' : u.role === 'supervisor' ? 'مشرف' : u.role === 'sales_rep' ? 'مندوب' : u.role === 'warehouse_keeper' ? 'أمين مخزن' : u.role === 'legal_advisor' ? 'مستشار قانوني' : u.role}) — {u.branchName || 'بدون فرع'} [{u.sector === 'home' ? 'منزلي' : u.sector === 'electrical' ? 'كهربائي' : u.sector === 'both' ? 'كلاهما' : 'الكل'}]
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Permission toggles */}
-        {selectedUser && (
-          <>
-            <div className="px-5 py-2 border-b border-slate-100 bg-slate-50">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-600">
-                  الدور الافتراضي: <span className="t-navy">{selectedUser.role === 'developer' ? 'مسؤول (Admin)' : selectedUser.role}</span>
-            </span>
-            <span className="text-xs font-bold text-slate-600">
-              القطاع: <span className="t-navy">{selectedUser.sector === 'home' ? 'منزلي' : selectedUser.sector === 'electrical' ? 'كهربائي' : selectedUser.sector === 'both' ? 'كلاهما' : 'الكل (Admin)'}</span>
-                </span>
-                <span className="text-xs text-slate-400">
-                  {allowedTabs.length} / {ALL_AVAILABLE_TABS.length} شاشة
-                </span>
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)]">
+          {/* Left: users */}
+          <aside className="border-b lg:border-b-0 lg:border-l border-slate-200 bg-[#f7f9fc] flex flex-col min-h-0">
+            <div className="p-3 sm:p-4 space-y-2 border-b border-slate-200">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="relative col-span-2"><Search size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" /><input value={searchTerm} onChange={(e)=>setSearchTerm(e.target.value)} placeholder="بحث بالاسم/المستخدم/الهاتف" className="w-full h-10 pr-9 pl-3 rounded-xl border border-slate-200 bg-white text-xs font-bold focus:outline-none focus:border-[#102b4e]" /></div>
+                <select value={branchFilter} onChange={(e)=>setBranchFilter(e.target.value)} className="h-9 px-2.5 rounded-xl border border-slate-200 bg-white text-[11px] font-bold"><option value="ALL">كل الفروع</option>{availableBranches.map(b=><option key={b} value={b}>{b}</option>)}</select>
+                <select value={roleFilter} onChange={(e)=>setRoleFilter(e.target.value)} className="h-9 px-2.5 rounded-xl border border-slate-200 bg-white text-[11px] font-bold"><option value="ALL">كل الأدوار</option>{Object.entries(ROLE_LABELS).filter(([k])=>k!=='developer').map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>
+                <select value={sectorFilter} onChange={(e)=>setSectorFilter(e.target.value)} className="h-9 px-2.5 rounded-xl border border-slate-200 bg-white text-[11px] font-bold col-span-2"><option value="ALL">كل القطاعات</option><option value="home">منزلي</option><option value="electrical">كهربائي</option><option value="both">كلاهما</option><option value="all">الكل</option></select>
               </div>
+              <div className="flex items-center justify-between text-[11px] font-extrabold text-slate-500"><span className="inline-flex items-center gap-1.5"><Users size={13}/> المستخدمون</span><span>{filteredUsers.length}</span></div>
             </div>
-            <div className="flex-1 overflow-y-auto px-5 py-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {ALL_AVAILABLE_TABS.map((tab) => {
-                  const isAllowed = allowedTabs.includes(tab.id);
-                  const isDefault = (DEFAULT_ROLE_TABS[selectedUser.role] || []).includes(tab.id);
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      onClick={() => handleToggle(tab.id)}
-                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all cursor-pointer group ${
-                        isAllowed
-                          ? 'bg-teal-50 border-teal-200 text-teal-800 font-bold shadow-sm'
-                          : 'bg-white border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600'
-                      }`}
-                    >
-                      <span>{tab.label}</span>
-                      <div className="flex items-center gap-1.5">
-                        {!isDefault && isAllowed && (
-                          <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-bold border border-amber-200">+مخصص</span>
-                        )}
-                        {isDefault && !isAllowed && (
-                          <span className="text-[9px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded font-bold border border-rose-200">-محذوف</span>
-                        )}
-                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${
-                          isAllowed ? 'bg-teal-600 text-white shadow-sm' : 'bg-slate-200 text-slate-400'
-                        }`}>
-                          {isAllowed ? '✓' : '✗'}
-                        </span>
+            <div className="flex-1 overflow-auto p-2 space-y-1.5">
+              {filteredUsers.length === 0 && <div className="p-6 text-center text-xs font-bold text-slate-400">لا يوجد مستخدمون مطابقون</div>}
+              {filteredUsers.map((u) => {
+                const active = selectedUserId === u.id;
+                return (
+                  <button key={u.id} onClick={()=>setSelectedUserId(u.id)} className={`w-full text-right rounded-xl border p-2.5 transition ${active ? 'bg-white border-[#102b4e] shadow-sm' : 'bg-white/70 border-slate-200 hover:bg-white'}`}>
+                    <div className="flex items-center justify-between gap-2"><span className="font-black text-slate-900 text-xs truncate">{u.name}</span><span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md border ${active ? 'bg-[#102b4e] text-white border-[#102b4e]' : 'bg-slate-50 text-slate-600 border-slate-200'}`}>{ROLE_LABELS[u.role] || u.role}</span></div>
+                    <div className="mt-1 text-[10px] font-bold text-slate-500 truncate">@{u.username} · {u.branchName || 'بدون فرع'} · {SECTOR_LABELS[u.sector || 'all'] || 'الكل'}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+
+          {/* Right: permissions */}
+          <main className="flex flex-col min-h-0">
+            {!selectedUser ? (
+              <div className="flex-1 flex items-center justify-center text-slate-400 font-bold">اختر مستخدمًا لإدارة صلاحياته</div>
+            ) : (
+              <>
+                <div className="p-4 sm:p-5 border-b border-slate-200 space-y-3 bg-white">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-2xl bg-[#102b4e] text-white flex items-center justify-center font-black">{selectedUser.name.charAt(0)}</div>
+                      <div>
+                        <div className="font-black text-slate-900">{selectedUser.name}</div>
+                        <div className="text-[11px] font-bold text-slate-500">@{selectedUser.username} · {selectedUser.branchName || 'بدون فرع'}</div>
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </>
-        )}
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-[11px] font-extrabold">
+                      <span className="px-2.5 py-1.5 rounded-lg bg-slate-100 border border-slate-200 text-slate-700">الدور: {ROLE_LABELS[selectedUser.role] || selectedUser.role}</span>
+                      <span className="px-2.5 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">القطاع: {SECTOR_LABELS[selectedUser.sector || 'all'] || 'الكل'}</span>
+                      <span className="px-2.5 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-blue-800">مفعّل: {allowedTabs.length} / {ALL_AVAILABLE_TABS.length}</span>
+                      <span className="px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800">افتراضي الدور: {defaultTabs.length}</span>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button onClick={applyDefaultsLocally} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-black text-slate-700"><Sparkles size={14}/> تطبيق افتراضي الدور (محليًا)</button>
+                    <button onClick={handleReset} disabled={isSaving} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-black text-slate-700 disabled:opacity-50"><RotateCcw size={14}/> إعادة تعيين وحفظ الافتراضي</button>
+                    <span className="text-[11px] font-bold text-slate-500">تلميح: شاشة «الرئيسية» تبقى مفعّلة دائمًا. العلامات توضح الاختلاف عن افتراضي الدور.</span>
+                  </div>
+                  {saveMsg && <div className={`text-xs font-extrabold px-3 py-2 rounded-xl border inline-flex items-center gap-1.5 ${saveMsg.tone==='ok' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'}`}>{saveMsg.tone==='ok' ? <CheckCircle2 size={14}/> : <Shield size={14}/>} {saveMsg.text}</div>}
+                </div>
 
-        {/* Footer */}
-        {selectedUser && (
-          <div className="px-5 py-3 border-t border-slate-200 flex items-center justify-between gap-3 bg-white">
-            <button
-              type="button"
-              onClick={handleReset}
-              disabled={isSaving}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-sm font-bold transition hover:bg-slate-50 disabled:opacity-50 active:scale-95"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
-              <span>إعادة تعيين (افتراضي)</span>
-            </button>
-            <div className="flex items-center gap-3">
-              {saveMsg && (
-                <span className="text-xs font-bold text-emerald-600">{saveMsg}</span>
-              )}
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={isSaving}
-                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-[var(--app-navy)] text-white font-bold shadow-lg shadow-navy/25 hover:bg-blue-deep5 transition active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isSaving ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
-                    <span>جاري الحفظ...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-3.5 h-3.5 text-white" />
-                    <span>حفظ الصلاحيات</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        )}
+                <div className="flex-1 overflow-auto p-4 sm:p-5 space-y-4 bg-[#fbfcfe]">
+                  {[...grouped, ...(extras.length ? [{ title: 'شاشات إضافية', ids: extras.map(e=>e.id), tabs: extras }] : [])].map((g) => {
+                    const allOn = g.tabs.every((t) => allowedTabs.includes(t.id));
+                    const someOn = g.tabs.some((t) => allowedTabs.includes(t.id));
+                    return (
+                      <section key={g.title} className="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between gap-2 bg-slate-50/70">
+                          <div className="flex items-center gap-2"><span className={`w-2.5 h-2.5 rounded-full ${allOn ? 'bg-emerald-500' : someOn ? 'bg-amber-500' : 'bg-slate-300'}`} /><h3 className="font-black text-slate-900 text-sm">{g.title}</h3><span className="text-[10px] font-bold text-slate-400">{g.tabs.filter(t=>allowedTabs.includes(t.id)).length}/{g.tabs.length}</span></div>
+                          <div className="flex items-center gap-1.5"><button onClick={()=>setGroup(g.tabs.map(t=>t.id), true)} className="text-[11px] font-extrabold px-2.5 py-1 rounded-lg border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100">تفعيل الكل</button><button onClick={()=>setGroup(g.tabs.map(t=>t.id), false)} className="text-[11px] font-extrabold px-2.5 py-1 rounded-lg border border-slate-200 text-slate-600 bg-white hover:bg-slate-50">إيقاف الكل</button></div>
+                        </div>
+                        <div className="p-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+                          {g.tabs.map((tab) => {
+                            const isAllowed = allowedTabs.includes(tab.id);
+                            const isDefault = defaultTabs.includes(tab.id);
+                            const isHome = tab.id === 'home';
+                            const customOn = !isDefault && isAllowed;
+                            const customOff = isDefault && !isAllowed;
+                            return (
+                              <button key={tab.id} type="button" onClick={() => toggleTab(tab.id)} className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border transition text-right ${isAllowed ? 'bg-[#f4f8fc] border-[#bfd3ea] text-[#102b4e]' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'} ${isHome ? 'opacity-90 cursor-default' : 'cursor-pointer'}`}>
+                                <div className="min-w-0">
+                                  <div className="font-extrabold text-xs truncate">{tab.label}</div>
+                                  <div className="text-[10px] font-bold text-slate-400 mt-0.5">{isHome ? 'أساسية (دائمًا مفعّلة)' : isAllowed ? 'وصول مفعّل' : 'غير متاح'}</div>
+                                </div>
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {customOn && <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200">+مخصص</span>}
+                                  {customOff && <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 border border-rose-200">−مقيّد</span>}
+                                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black ${isAllowed ? 'bg-[#102b4e] text-white' : 'bg-slate-200 text-slate-500'}`}>{isAllowed ? '✓' : '—'}</span>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
+
+                <div className="px-4 sm:px-5 py-3 border-t border-slate-200 bg-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="text-[11px] font-bold text-slate-500 flex items-center gap-2"><Building2 size={14}/> يتم تطبيق الصلاحيات على حساب <b className="text-slate-800">{selectedUser.name}</b> فور الحفظ (قد يلزم إعادة فتح الجلسة عند المستخدم).</div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={handleReset} disabled={isSaving} className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 text-sm font-black hover:bg-slate-50 disabled:opacity-50"><RotateCcw size={15}/> افتراضي الدور</button>
+                    <button onClick={handleSave} disabled={isSaving} className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#102b4e] text-white font-black shadow-lg shadow-blue-900/20 hover:bg-[#16365f] disabled:opacity-50"><Save size={15}/> {isSaving ? 'جارٍ الحفظ...' : 'حفظ الصلاحيات'}</button>
+                  </div>
+                </div>
+              </>
+            )}
+          </main>
+        </div>
       </div>
     </div>
   );
 };
+
+export default PermissionManagerModal;

@@ -45,10 +45,13 @@ import {
   Camera,
   Percent,
   Minimize2,
-  Maximize2
+  Maximize2,
+  Moon,
+  Sun
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useTheme } from '../context/themeContext';
 import { GlobalSearch } from './GlobalSearch';
 import { formatCurrency } from '../services/invoiceService';
 import { UserRole } from '../types';
@@ -57,6 +60,7 @@ import { SystemSettingsAndAboutModal } from './SystemSettingsAndAboutModal';
 import { InternalNotificationCenter } from './InternalNotificationCenter';
 import { UserProfileAvatarModal } from './UserProfileAvatarModal';
 import { DatabaseConnectionModal } from './DatabaseConnectionModal';
+import { SyncStatusCenter } from './SyncStatusCenter';
 
 interface NavbarProps {
   activeTab: string;
@@ -114,6 +118,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [isDbModalOpen, setIsDbModalOpen] = useState(false);
+  const [isSyncCenterOpen, setIsSyncCenterOpen] = useState(false);
+  const { isDark, toggleTheme } = useTheme();
 
   // كثافة العرض: مصغّر (المحتوى الأكتر على الشاشة) / مريح — بيتم الحفظ محلياً
   const [density, setDensity] = useState<'compact' | 'comfortable'>(() => {
@@ -222,7 +228,24 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   ];
 
+  const navGroups: Array<{ id: string; label: string; items: string[] }> = [
+    { id: 'main', label: 'الرئيسية', items: ['home'] },
+    { id: 'selling', label: 'البيع والكتالوج', items: ['invoices', 'catalog', 'product_sales', 'offers'] },
+    { id: 'field', label: 'العملاء والتحصيل', items: ['customers', 'collection', 'returns', 'visits'] },
+    { id: 'reports', label: 'التقارير والأهداف', items: ['targets', 'reps', 'excel'] },
+    { id: 'admin', label: 'الإدارة والنظام', items: ['users', 'permissions', 'guide', 'legal_advisor'] },
+  ];
+
   const filteredNavItems = navItems.filter((item) => item.roles.includes(currentUser.role));
+
+  const groupedNav = navGroups
+    .map((group) => ({
+      ...group,
+      items: group.items
+        .map((id) => filteredNavItems.find((item) => item.id === id))
+        .filter((item): item is (typeof navItems)[number] => Boolean(item)),
+    }))
+    .filter((group) => group.items.length > 0);
 
   const displayName = (currentUser.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'مستخدم';
   const initial = displayName.charAt(0);
@@ -305,33 +328,36 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        <div className="ds-sidebar__section">أقسام المنظومة</div>
-
-        {/* Nav List with colored icon badges */}
-        <nav className="ds-sidebar__nav">
-          {filteredNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = activeTab === item.id || (item.id === 'customers' && activeTab === 'all_customers');
-            const theme = sectionBadgeTheme[item.id] || sectionBadgeTheme.home;
-            return (
-              <button
-                key={`sidebar-${item.id}`}
-                type="button"
-                onClick={() => setActiveTab(item.id)}
-                aria-current={isActive ? 'page' : undefined}
-                className="ds-sidebar__item"
-              >
-                <div className={`ds-sidebar__icon-badge ${theme.bg} ${theme.text} ${theme.darkBg} ${theme.darkText}`}>
-                  <Icon className="w-4 h-4 stroke-[2.2]" aria-hidden="true" />
-                </div>
-                <span className="ds-sidebar__label">{item.label}</span>
-                {item.promo && <span className="ds-sidebar__promo">مميز</span>}
-                {item.badge && item.badge > 0 ? (
-                  <span className="ds-count">{item.badge}</span>
-                ) : null}
-              </button>
-            );
-          })}
+        {/* Nav List with colored icon badges, grouped by workflow */}
+        <nav className="ds-sidebar__nav" aria-label="أقسام المنظومة">
+          {groupedNav.map((group) => (
+            <div className="ds-sidebar__group" key={`nav-group-${group.id}`}>
+              <div className="ds-sidebar__group-label">{group.label}</div>
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeTab === item.id || (item.id === 'customers' && activeTab === 'all_customers');
+                const theme = sectionBadgeTheme[item.id] || sectionBadgeTheme.home;
+                return (
+                  <button
+                    key={`sidebar-${item.id}`}
+                    type="button"
+                    onClick={() => setActiveTab(item.id)}
+                    aria-current={isActive ? 'page' : undefined}
+                    className="ds-sidebar__item"
+                  >
+                    <div className={`ds-sidebar__icon-badge ${theme.bg} ${theme.text} ${theme.darkBg} ${theme.darkText}`}>
+                      <Icon className="w-4 h-4 stroke-[2.2]" aria-hidden="true" />
+                    </div>
+                    <span className="ds-sidebar__label">{item.label}</span>
+                    {item.promo && <span className="ds-sidebar__promo">مميز</span>}
+                    {item.badge && item.badge > 0 ? (
+                      <span className="ds-count">{item.badge}</span>
+                    ) : null}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         {/* Footer with connection status */}
@@ -393,6 +419,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                     : 'قاعدة البيانات'}
               </span>
             </button>
+            {/* مركز حالة المزامنة والطابور */}
+            <button
+              type="button"
+              onClick={() => setIsSyncCenterOpen(true)}
+              className="ds-iconbtn"
+              title="مركز حالة المزامنة والطابور"
+              aria-label="مركز حالة المزامنة"
+            >
+              <RefreshCw aria-hidden="true" className={pendingInvoicesCount > 0 ? 'text-amber-600' : ''} />
+              <span className="ds-vis-ge-md">المزامنة</span>
+              {pendingInvoicesCount > 0 && <span className="ds-count">{pendingInvoicesCount}</span>}
+            </button>
 
             {/* بحث ذكي (موبايل) */}
             <button
@@ -444,6 +482,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               {density === 'compact' ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
               <span className="ds-vis-ge-xl">{density === 'compact' ? 'مصغّر' : 'مريح'}</span>
+            </button>
+
+            {/* تبديل الوضع الليلي */}
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="ds-iconbtn"
+              title={isDark ? 'التبديل إلى الوضع الفاتح' : 'التبديل إلى الوضع الليلي'}
+              aria-label={isDark ? 'التبديل إلى الوضع الفاتح' : 'التبديل إلى الوضع الليلي'}
+              aria-pressed={isDark}
+            >
+              {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
             </button>
 
             {/* الإعدادات */}
@@ -652,26 +702,30 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             <div className="ds-drawer__list">
-              <div className="ds-drawer__label">أقسام النظام المتاحة لحسابك</div>
-              {filteredNavItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id || (item.id === 'customers' && activeTab === 'all_customers');
-                const theme = sectionBadgeTheme[item.id] || sectionBadgeTheme.home;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className="ds-drawer__item"
-                    aria-current={isActive ? 'page' : undefined}
-                    onClick={() => { setActiveTab(item.id); setIsMobileDrawerOpen(false); }}
-                  >
-                    <span className={`ds-ico ${theme.bg} ${theme.text} ${theme.darkBg} ${theme.darkText}`}><Icon aria-hidden="true" /></span>
-                    <span className="ds-grow">{item.label}</span>
-                    {item.promo && <span className="ds-drawer__promo">مميز</span>}
-                    {item.badge && item.badge > 0 ? <span className="ds-count">{item.badge}</span> : null}
-                  </button>
-                );
-              })}
+              {groupedNav.map((group) => (
+                <div className="ds-drawer__group" key={`drawer-group-${group.id}`}>
+                  <div className="ds-drawer__label">{group.label}</div>
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id || (item.id === 'customers' && activeTab === 'all_customers');
+                    const theme = sectionBadgeTheme[item.id] || sectionBadgeTheme.home;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className="ds-drawer__item"
+                        aria-current={isActive ? 'page' : undefined}
+                        onClick={() => { setActiveTab(item.id); setIsMobileDrawerOpen(false); }}
+                      >
+                        <span className={`ds-ico ${theme.bg} ${theme.text} ${theme.darkBg} ${theme.darkText}`}><Icon aria-hidden="true" /></span>
+                        <span className="ds-grow">{item.label}</span>
+                        {item.promo && <span className="ds-drawer__promo">مميز</span>}
+                        {item.badge && item.badge > 0 ? <span className="ds-count">{item.badge}</span> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
             </div>
 
             <div className="ds-drawer__foot">
@@ -729,6 +783,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         isOpen={isDbModalOpen}
         onClose={() => setIsDbModalOpen(false)}
       />
+      <SyncStatusCenter isOpen={isSyncCenterOpen} onClose={() => setIsSyncCenterOpen(false)} />
 
       {/* بحث ذكي عام */}
       <GlobalSearch

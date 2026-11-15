@@ -37,6 +37,7 @@ import { useApp } from '../context/AppContext';
 import { Customer, Invoice, PaymentMethod, Product } from '../types';
 import { ProductImage } from './ProductImage';
 import { CustomerFinancialSummaryCard } from './CustomerFinancialSummaryCard';
+import { CustomerSearchSelect } from './CustomerSearchSelect';
 import { formatCurrency } from '../services/invoiceService';
 import { findCustomerMatch, getBranchStockForProduct } from '../services/arabicMatchingService';
 import { getDepartmentMeta } from '../data/departmentMeta';
@@ -1063,56 +1064,23 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   </div>
                 )}
 
-                {/* Customer Search Input */}
-                <div className="relative">
-                  <Search className="w-4 h-4 t-muted absolute right-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={customerSearchQuery}
-                    onChange={(e) => {
-                      setCustomerSearchQuery(e.target.value);
-                      setIsCustomerDropdownOpen(true);
-                    }}
-                    onFocus={() => setIsCustomerDropdownOpen(true)}
-                    placeholder="ابحث بالاسم، كود العميل، أو رقم الهاتف..."
-                    className="w-full rounded-xl pr-9 pl-3 py-2.5 text-xs text-[var(--app-ink)] placeholder-custom"
-                  />
-                </div>
-
-                {/* Customer Search Live Suggestions */}
-                {isCustomerDropdownOpen && (
-                  <div className="bg-white border border-[var(--app-line)] rounded-[var(--app-radius)] shadow-lg max-h-52 overflow-y-auto divide-y divide-slate-border-soft z-30">
-                    <button
-                      type="button"
-                      onClick={handleSelectDirectCash}
-                      className="w-full p-2.5 text-right hover:bg-warn-soft transition flex items-center justify-between text-xs font-black t-warn cursor-pointer"
-                    >
-                      <span>⚡ عميل نقدي كاش (مباشر)</span>
-                      <span className="app-badge warn text-[10px]">كاش</span>
-                    </button>
-                    {filteredCustomers.map((c) => {
-                      const bal = c.currentBalance ?? c.balance ?? 0;
-                      return (
-                        <button
-                          key={c.id || c.code}
-                          type="button"
-                          onClick={() => handleSelectCustomer(c)}
-                          className="w-full p-2.5 text-right hover:bg-blue-soft-light transition flex items-center justify-between text-xs cursor-pointer"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="font-black text-[var(--app-ink)] truncate">{c.name}</div>
-                            <div className="text-[11px] t-muted font-mono">
-                              كود: {c.code || '---'} • {c.branchName} • {c.salesRepName || c.repName || 'مندوب غير محدد'}
-                            </div>
-                          </div>
-                          <div className="text-left app-num t-navy text-xs shrink-0 mr-2">
-                            {formatCurrency(bal)}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                {/* Unified Customer Search */}
+                <CustomerSearchSelect
+                  customers={getVisibleCustomers ? getVisibleCustomers() : customers}
+                  valueId={activeCustomer?.id || null}
+                  onSelect={(c) => handleSelectCustomer(c)}
+                  onClear={() => setActiveCustomer(null)}
+                  placeholder="ابحث بالاسم، كود العميل، أو الهاتف..."
+                  label="بحث واختيار العميل"
+                />
+                <button
+                  type="button"
+                  onClick={handleSelectDirectCash}
+                  className="w-full p-2.5 text-right hover:bg-warn-soft transition flex items-center justify-between text-xs font-black t-warn cursor-pointer border border-[var(--app-line)] rounded-xl bg-white"
+                >
+                  <span>⚡ عميل نقدي كاش (مباشر)</span>
+                  <span className="app-badge warn text-[10px]">كاش</span>
+                </button>
               </div>
 
               {/* Active Selected Customer & Full Financial Position Card */}

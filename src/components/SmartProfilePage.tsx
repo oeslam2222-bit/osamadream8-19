@@ -792,69 +792,71 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
           </section>
 
           {/* فلاتر العملاء */}
-          <section className="tg-card p-5 sm:p-6 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="relative flex-1 min-w-[240px]">
+          <section className="tg-card p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-2.5 sm:gap-4">
+              <div className="relative w-full sm:flex-1 sm:w-auto min-w-0 sm:min-w-[240px]">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="ابحث باسم العميل أو الكود أو الهاتف..."
-                  className="w-full pl-9 pr-4 py-2.5 bg-white border border-[var(--tg-line)] rounded-xl text-sm font-bold text-[#0f172a] placeholder:text-slate-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition"
+                  className="w-full pl-4 pr-9 py-2.5 bg-white border border-[var(--tg-line)] rounded-xl text-sm font-bold text-[#0f172a] placeholder:text-slate-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition"
                 />
               </div>
 
-              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
-                <span className="text-[11px] font-extrabold text-slate-700 leading-none mb-1">القطاع</span>
-                <select
-                  value={selectedSector}
-                  onChange={(e) => setSelectedSector(e.target.value as 'all' | 'home' | 'electrical')}
-                  className="bg-transparent font-black text-[#0b2337] text-sm focus:outline-none cursor-pointer w-full"
-                >
-                  <option value="all">كل القطاعات</option>
-                  <option value="home">منزلي</option>
-                  <option value="electrical">كهربائي</option>
-                </select>
-              </div>
+              <div className="grid grid-cols-2 gap-2 sm:contents">
+                <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
+                  <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">القطاع</span>
+                  <select
+                    value={selectedSector}
+                    onChange={(e) => setSelectedSector(e.target.value as 'all' | 'home' | 'electrical')}
+                    className="bg-transparent font-black text-[#0b2337] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
+                  >
+                    <option value="all">كل القطاعات</option>
+                    <option value="home">منزلي</option>
+                    <option value="electrical">كهربائي</option>
+                  </select>
+                </div>
 
-              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
-                <span className="text-[11px] font-extrabold text-slate-700 leading-none mb-1">الفرع</span>
-                <select
-                  value={selectedBranch}
-                  onChange={(e) => setSelectedBranch(e.target.value)}
-                  className="bg-transparent font-black text-[#0b2337] text-sm focus:outline-none cursor-pointer w-full"
-                >
-                  {branchOptions.map((b) => (
-                    <option key={b} value={b}>{b === 'الكل' ? 'كل الفروع' : b}</option>
-                  ))}
-                </select>
-              </div>
+                <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
+                  <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">الفرع</span>
+                  <select
+                    value={selectedBranch}
+                    onChange={(e) => setSelectedBranch(e.target.value)}
+                    className="bg-transparent font-black text-[#0b2337] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
+                  >
+                    {branchOptions.map((b) => (
+                      <option key={b} value={b}>{b === 'الكل' ? 'كل الفروع' : b}</option>
+                    ))}
+                  </select>
+                </div>
 
-              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
-                <span className="text-[11px] font-extrabold text-slate-700 leading-none mb-1">المشرف / المندوب</span>
-                <select
-                  value={selectedSupervisor}
-                  onChange={(e) => setSelectedSupervisor(e.target.value)}
-                  className="bg-transparent font-black text-[#0b2337] text-sm focus:outline-none cursor-pointer w-full"
-                >
-                  {supervisorOptions.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
+                <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
+                  <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">المشرف / المندوب</span>
+                  <select
+                    value={selectedSupervisor}
+                    onChange={(e) => setSelectedSupervisor(e.target.value)}
+                    className="bg-transparent font-black text-[#0b2337] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
+                  >
+                    {supervisorOptions.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
 
-              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
-                <span className="text-[11px] font-extrabold text-slate-700 leading-none mb-1">تصنيف الشيت (قابل / غير)</span>
-                <select
-                  value={selectedEligibility}
-                  onChange={(e) => setSelectedEligibility(e.target.value as any)}
-                  className="bg-transparent font-black text-[#0b2337] text-sm focus:outline-none cursor-pointer w-full"
-                >
-                  <option value="all">كل التصنيفات</option>
-                  <option value="eligible">قابل للتعامل</option>
-                  <option value="ineligible">غير قابل للتعامل</option>
-                </select>
+                <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
+                  <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1 whitespace-nowrap">تصنيف الشيت</span>
+                  <select
+                    value={selectedEligibility}
+                    onChange={(e) => setSelectedEligibility(e.target.value as any)}
+                    className="bg-transparent font-black text-[#0b2337] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
+                  >
+                    <option value="all">كل التصنيفات</option>
+                    <option value="eligible">قابل للتعامل</option>
+                    <option value="ineligible">غير قابل للتعامل</option>
+                  </select>
+                </div>
               </div>
             </div>
           </section>
@@ -1286,7 +1288,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
           )}
 
           {/* فلاتر المندوبين (بالشهر / بالربع سنوي 3 شهور / بالفرع) */}
-          <section className="tg-card p-5 sm:p-6 space-y-4">
+          <section className="tg-card p-4 sm:p-6 space-y-3 sm:space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-xs font-black text-[#0F2B38] flex items-center gap-1.5">
@@ -1358,55 +1360,57 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div className="relative flex-1 min-w-[240px]">
+            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center sm:justify-between gap-2.5 sm:gap-4">
+              <div className="relative w-full sm:flex-1 sm:w-auto min-w-0 sm:min-w-[240px]">
                 <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="ابحث باسم المندوب أو الكود أو الفرع..."
-                  className="w-full pl-9 pr-4 py-2.5 bg-white border border-[var(--tg-line)] rounded-xl text-sm font-bold text-[#0f172a] placeholder:text-slate-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition"
+                  className="w-full pl-4 pr-9 py-2.5 bg-white border border-[var(--tg-line)] rounded-xl text-sm font-bold text-[#0f172a] placeholder:text-slate-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition"
                 />
               </div>
 
-              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
-                <span className="text-[11px] font-extrabold text-slate-700 leading-none mb-1">القطاع</span>
-                <select
-                  value={selectedSector}
-                  onChange={(e) => setSelectedSector(e.target.value as 'all' | 'home' | 'electrical')}
-                  className="bg-transparent font-black text-[#0b2337] text-sm focus:outline-none cursor-pointer w-full"
-                >
-                  <option value="all">كل القطاعات</option>
-                  <option value="home">منزلي</option>
-                  <option value="electrical">كهربائي</option>
-                </select>
-              </div>
+              <div className="grid grid-cols-2 sm:contents gap-2">
+                <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
+                  <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">القطاع</span>
+                  <select
+                    value={selectedSector}
+                    onChange={(e) => setSelectedSector(e.target.value as 'all' | 'home' | 'electrical')}
+                    className="bg-transparent font-black text-[#0b2337] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
+                  >
+                    <option value="all">كل القطاعات</option>
+                    <option value="home">منزلي</option>
+                    <option value="electrical">كهربائي</option>
+                  </select>
+                </div>
 
-              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
-                <span className="text-[11px] font-extrabold text-slate-700 leading-none mb-1">الفرع</span>
-                <select
-                  value={selectedBranch}
-                  onChange={(e) => setSelectedBranch(e.target.value)}
-                  className="bg-transparent font-black text-[#0b2337] text-sm focus:outline-none cursor-pointer w-full"
-                >
-                  {branchOptions.map((b) => (
-                    <option key={b} value={b}>{b === 'الكل' ? 'كل الفروع' : b}</option>
-                  ))}
-                </select>
-              </div>
+                <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
+                  <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">الفرع</span>
+                  <select
+                    value={selectedBranch}
+                    onChange={(e) => setSelectedBranch(e.target.value)}
+                    className="bg-transparent font-black text-[#0b2337] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
+                  >
+                    {branchOptions.map((b) => (
+                      <option key={b} value={b}>{b === 'الكل' ? 'كل الفروع' : b}</option>
+                    ))}
+                  </select>
+                </div>
 
-              <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[140px]">
-                <span className="text-[11px] font-extrabold text-slate-700 leading-none mb-1">المشرف</span>
-                <select
-                  value={selectedSupervisor}
-                  onChange={(e) => setSelectedSupervisor(e.target.value)}
-                  className="bg-transparent font-black text-[#0b2337] text-sm focus:outline-none cursor-pointer w-full"
-                >
-                  {supervisorOptions.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+                <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
+                  <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">المشرف</span>
+                  <select
+                    value={selectedSupervisor}
+                    onChange={(e) => setSelectedSupervisor(e.target.value)}
+                    className="bg-transparent font-black text-[#0b2337] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
+                  >
+                    {supervisorOptions.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
           </section>

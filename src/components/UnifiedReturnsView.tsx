@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { CustomerSearchSelect } from './CustomerSearchSelect';
 import {
   AlertTriangle,
   ArrowRight,
@@ -929,27 +930,90 @@ export const UnifiedReturnsView: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-2 flex-wrap">
-                    {/* If still at customer, option to confirm receipt at warehouse */}
-                    {canManageReturn && isPending && (
+                    {/* مراجعة المشرف: تحويل لأمين المخزن */}
+                    {canManageReturn && !isClosed && status !== 'مرفوض' && (status === 'بانتظار المشرف' || status === 'عند العميل') && (
                       <button
                         type="button"
-                        onClick={() =>
-                          handleUpdateReturnStage(
-                            visit.id,
-                            'تم الاستلام بالمخزن',
-                            'تم استلام بضاعة المرتجع بالمخزن المركزي/الفرعي وجاري الفحص والمعاينة'
-                          )
-                        }
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white font-black text-[11px] shadow-xs transition cursor-pointer"
+                        onClick={() => handleUpdateReturnStage(visit.id, 'تم التحويل لأمين المخزن', 'تمت مراجعة المرتجع وتحويله لأمين المخزن لاعتماد السحب من العميل')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-[11px] shadow-xs transition cursor-pointer"
+                        title="اعتماد المشرف وتحويل المرتجع لأمين المخزن"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5" />
+                        <span>اعتماد وتحويل لأمين المخزن</span>
+                      </button>
+                    )}
+
+                    {/* اعتماد أمين المخزن لسحب المرتجع لدي العميل */}
+                    {canManageReturn && status === 'تم التحويل لأمين المخزن' && (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateReturnStage(visit.id, 'بانتظار التنسيق', 'اعتماد أمين المخزن لسحب المرتجع من العميل وبدء التنسيق')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--app-navy)] text-white font-black text-[11px] shadow-xs transition cursor-pointer hover:opacity-90"
+                        title="اعتماد أمين المخزن لسحب المرتجع لدي العميل"
+                      >
+                        <Warehouse className="w-3.5 h-3.5" />
+                        <span>اعتماد أمين المخزن لسحب المرتجع من العميل</span>
+                      </button>
+                    )}
+
+                    {canManageReturn && status === 'بانتظار التنسيق' && (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateReturnStage(visit.id, 'تم إرسال السيارة', 'تم إرسال السيارة لسحب المرتجع من العميل')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-[11px] shadow-xs transition cursor-pointer"
+                      >
+                        <Truck className="w-3.5 h-3.5" />
+                        <span>تم إرسال السيارة للسحب</span>
+                      </button>
+                    )}
+
+                    {canManageReturn && (status === 'تم إرسال السيارة' || status === 'بانتظار التنسيق') && (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateReturnStage(visit.id, 'جاري الاستلام', 'جاري استلام المرتجع من العميل')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-[11px] shadow-xs transition cursor-pointer"
+                      >
+                        <PackageCheck className="w-3.5 h-3.5" />
+                        <span>جاري الاستلام من العميل</span>
+                      </button>
+                    )}
+
+                    {canManageReturn && (status === 'جاري الاستلام' || status === 'تم إرسال السيارة') && (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateReturnStage(visit.id, 'تم الاستلام بالمخزن', 'تم استلام بضاعة المرتجع بالمخزن وجاري الفحص والمعاينة')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white font-black text-[11px] shadow-xs transition cursor-pointer"
                         title="تأكيد وصول واستلام بضاعة المرتجع إلى المخزن"
                       >
                         <Warehouse className="w-3.5 h-3.5" />
-                        <span>استلام البضاعة بالمخزن 🚚</span>
+                        <span>تأكيد الاستلام بالمخزن</span>
+                      </button>
+                    )}
+
+                    {canManageReturn && (status === 'استلام جزئي' || status === 'تعذر الاستلام') && (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateReturnStage(visit.id, 'بانتظار التنسيق', 'إعادة تنسيق لسحب/استكمال المرتجع من العميل')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-[11px] shadow-xs transition cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>إعادة تنسيق للسحب</span>
+                      </button>
+                    )}
+
+                    {canManageReturn && (status === 'تم الاستلام بالمخزن' || status === 'جاري تصفية المرتجع') && (
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateReturnStage(visit.id, 'جاري تصفية المرتجع', 'بدء تصفية وفحص المرتجع بالمخزن')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white font-black text-[11px] shadow-xs transition cursor-pointer"
+                      >
+                        <Boxes className="w-3.5 h-3.5" />
+                        <span>بدء التصفية</span>
                       </button>
                     )}
 
                     {/* Final Close & Settle Button */}
-                    {canManageReturn && !isClosed && (
+                    {canManageReturn && !isClosed && status !== 'مرفوض' && (
                       <button
                         type="button"
                         onClick={() => {
@@ -1082,68 +1146,17 @@ export const UnifiedReturnsView: React.FC = () => {
             <div className="p-4 sm:p-6 space-y-5 max-h-[78vh] overflow-y-auto text-xs">
               
               {/* 1. Customer Selection */}
-              <div className="space-y-2">
-                <label className="font-black text-slate-800 flex items-center justify-between">
-                  <span>١. اختيار العميل:</span>
-                  {selectedCustomer && (
-                    <button
-                      type="button"
-                      onClick={() => setSelectedCustomer(null)}
-                      className="text-[var(--app-warn-text)] hover:underline font-bold text-[11px]"
-                    >
-                      تغيير العميل
-                    </button>
-                  )}
-                </label>
-
-                {selectedCustomer ? (
-                  <div className="bg-[var(--app-warn-tint)] rounded-2xl p-3 border border-[var(--app-warn-line)] flex items-center justify-between gap-3">
-                    <div>
-                      <div className="font-black text-slate-900 text-sm">{selectedCustomer.name}</div>
-                      <div className="text-[11px] text-slate-600 font-bold">
-                        كود: {selectedCustomer.code} • الفرع: {selectedCustomer.branchName} • الهاتف: {selectedCustomer.phone}
-                      </div>
-                    </div>
-                    <span className="bg-[var(--app-warn)] text-slate-950 px-2 py-0.5 rounded font-black text-[10px]">
-                      محدد
-                    </span>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <input
-                      type="text"
-                      value={customerSearch}
-                      onChange={(e) => setCustomerSearch(e.target.value)}
-                      placeholder="ابحث باسم العميل أو الكود لاختياره..."
-                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:outline-none focus:border-[var(--app-warn)] bg-slate-50"
-                    />
-                    <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 bg-white">
-                      {matchedCustomers.length === 0 && (
-                        <div className="p-3 text-center text-[11px] font-bold text-slate-500">
-                          لا توجد عملاء متاحين ضمن صلاحيتك{customerSearch.trim() ? ' بهذا البحث' : ''}.
-                        </div>
-                      )}
-                      {matchedCustomers.map((cust) => (
-                        <button
-                          key={cust.id}
-                          type="button"
-                          onClick={() => setSelectedCustomer(cust)}
-                          className="w-full text-right p-2.5 hover:bg-[var(--app-warn-tint)] transition flex items-center justify-between text-xs cursor-pointer"
-                        >
-                          <div className="min-w-0">
-                            <div className="font-black text-slate-900 truncate">{cust.name}</div>
-                            <div className="text-[10px] text-slate-500">
-                              كود: {cust.code} • فرع: {cust.branchName || '—'}
-                              {cust.repName ? ` • مندوب: ${cust.repName}` : ''}
-                            </div>
-                          </div>
-                          <span className="text-[11px] font-black text-[var(--app-warn-text)]">اختيار ←</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <CustomerSearchSelect
+                label="١. اختيار العميل"
+                required
+                customers={getVisibleCustomers()}
+                valueId={selectedCustomer?.id || null}
+                onSelect={(c) => { setSelectedCustomer(c); setCustomerSearch(''); }}
+                onClear={() => { setSelectedCustomer(null); setCustomerSearch(''); }}
+                placeholder="ابحث باسم العميل أو الكود أو الهاتف أو الفرع..."
+                compact
+                maxResults={40}
+              />
 
               {/* التحقق الحي من GPS العميل عند المرتجع */}
               {selectedCustomer && (() => {

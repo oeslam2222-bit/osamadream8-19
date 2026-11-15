@@ -672,7 +672,7 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
       </section>
 
       {/* مؤشرات */}
-      <div className="grid gap-4 grid-cols-2 xl:grid-cols-4">
+      <div className="offers-kpis grid gap-4 grid-cols-2 xl:grid-cols-4">
         <div className="tg-kpi tg-kpi--amber">
           <div className="tg-kpi__top"><span className="tg-kpi__icon"><Flame size={20} /></span></div>
           <span className="tg-kpi__value tabular-nums">{stats.active.toLocaleString('en-US')}</span>

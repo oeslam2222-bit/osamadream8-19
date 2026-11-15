@@ -696,12 +696,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       <div className="catalog-hero rounded-[32px] border border-white/12 bg-[radial-gradient(circle_at_top_left,_rgba(61,216,176,0.22),transparent_35%),linear-gradient(135deg,#0f2b3d_0%,#0a1c2c_45%,#071726_100%)] shadow-[0_20px_50px_rgba(2,6,23,0.35)]">
         <div className="relative z-10 flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[26px] border border-white/14 bg-white/12 text-white shadow-xl backdrop-blur-md">
+            <div className="catalog-hero__icon flex h-16 w-16 shrink-0 items-center justify-center rounded-[26px] border border-white/14 bg-white/12 text-white shadow-xl backdrop-blur-md">
               <ShoppingCart className="h-8 w-8" />
             </div>
             <div>
-              <h1 className="text-3xl font-black tracking-tight text-white sm:text-[32px] leading-tight">كتالوج الأصناف</h1>
-              <p className="mt-1 text-[12px] font-semibold text-white/80 sm:text-sm leading-relaxed">
+              <h1 className="catalog-hero__title text-3xl font-black tracking-tight text-white sm:text-[32px] leading-tight">كتالوج الأصناف</h1>
+              <p className="catalog-hero__desc mt-1 text-[12px] font-semibold text-white/80 sm:text-sm leading-relaxed">
                 اختر المنتجات بسهولة وأضفها إلى فاتورتك — تصفح حسب القطاع، الماركة، والمخزون المتوفر.
               </p>
             </div>
@@ -875,7 +875,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       )}
 
       {/* 2. Focused Inventory Stock KPI Cards (3 Cards) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-3.5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 sm:gap-3.5">
         {/* مخزون فرع المندوب */}
         <div className="tg-kpi tg-kpi--blue min-w-0">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
@@ -883,11 +883,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <Store className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="tg-kpi__label whitespace-nowrap truncate">مخزون فرع المندوب</p>
+              <p className="tg-kpi__label">مخزون فرع المندوب</p>
               <p className="tg-kpi__value whitespace-nowrap truncate">
                 {stats.branchCartons.toLocaleString('en-US')} <span className="text-xs font-bold text-slate-500">كرتونة</span>
               </p>
-              <p className="tg-kpi__hint whitespace-nowrap truncate">رصيد متاح بالفرع ({currentActiveBranch})</p>
+              <p className="tg-kpi__hint">رصيد متاح بالفرع ({currentActiveBranch})</p>
             </div>
           </div>
           <button
@@ -908,11 +908,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <Package className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="tg-kpi__label whitespace-nowrap truncate">المخزن الرئيسي (أكتوبر)</p>
+              <p className="tg-kpi__label">المخزن الرئيسي (أكتوبر)</p>
               <p className="tg-kpi__value whitespace-nowrap truncate">
                 {stats.octoberCartons.toLocaleString('en-US')} <span className="text-xs font-bold text-slate-500 dark:text-slate-300">كرتونة</span>
               </p>
-              <p className="tg-kpi__hint whitespace-nowrap truncate">رصيد مركزي متاح للسحب</p>
+              <p className="tg-kpi__hint">رصيد مركزي متاح للسحب</p>
             </div>
           </div>
           <button
@@ -933,11 +933,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="tg-kpi__label whitespace-nowrap truncate">الأصناف المتوفرة للطلب</p>
+              <p className="tg-kpi__label">الأصناف المتوفرة للطلب</p>
               <p className="tg-kpi__value whitespace-nowrap truncate">
                 {stats.availableItemsCount.toLocaleString('en-US')} <span className="text-xs font-bold text-slate-500">صنف متاح</span>
               </p>
-              <p className="tg-kpi__hint whitespace-nowrap truncate">بمخزون &gt; 0 في الفرع أو أكتوبر</p>
+              <p className="tg-kpi__hint">بمخزون &gt; 0 في الفرع أو أكتوبر</p>
             </div>
           </div>
         </div>
@@ -947,7 +947,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       <div className="bg-white rounded-[26px] border border-slate-100 shadow-lg p-4 select-none space-y-4 font-cairo">
         <div className="flex flex-wrap items-center gap-3">
           {/* القطاعات (منزلي / كهرباء / كل القطاعات) - واضحة ومباشرة بنقرة واحدة */}
-          <div className="flex items-center gap-1 p-1.5 bg-slate-50 rounded-[20px] border border-slate-200 shadow-sm">
+          <div className="catalog-sectors flex flex-wrap items-center gap-1 p-1.5 bg-slate-50 rounded-[20px] border border-slate-200 shadow-sm">
             <button
               type="button"
               onClick={() => {
@@ -1151,7 +1151,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           )}
 
           {/* تبديل طريقة العرض: كروت / جدول ERP */}
-          <div className="flex items-center gap-1 p-1.5 bg-slate-50 rounded-[20px] border border-slate-200 shadow-sm">
+          <div className="catalog-sectors flex flex-wrap items-center gap-1 p-1.5 bg-slate-50 rounded-[20px] border border-slate-200 shadow-sm">
             <button
               type="button"
               onClick={() => switchCatalogView('cards')}

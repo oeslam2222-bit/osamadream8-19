@@ -40,6 +40,7 @@ import {
   Percent,
   Target
 } from 'lucide-react';
+import type { LucideProps } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
@@ -52,6 +53,17 @@ interface DashboardHomeProps {
   onViewInvoice?: (invoice: Invoice) => void;
   onNewOrder?: () => void;
 }
+
+type ActionTile = {
+  id: string;
+  label: string;
+  hint: string;
+  icon: React.ElementType<LucideProps>;
+  variant: 'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'violet';
+  target: string;
+};
+
+type DashboardSectionId = 'overview' | 'target' | 'shortcuts' | 'guide';
 
 export const DashboardHome: React.FC<DashboardHomeProps> = ({
   onNavigateToTab,
@@ -93,6 +105,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
   // Filter mode for Today vs All
   const [metricPeriod, setMetricPeriod] = useState<'today' | 'all'>('today');
+
+  // Which dashboard section is visible: primary KPIs stay on top, everything
+  // else lives in tabs so the screen opens calm instead of crowded.
+  const [activeSection, setActiveSection] = useState<DashboardSectionId>('overview');
 
   // Customer Filtering
   const visibleCustomers = useMemo(() => getVisibleCustomers(), [getVisibleCustomers, customers]);
@@ -520,727 +536,447 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
     </button>
   );
 
+  const sectorLabel =
+    currentUser?.sector === 'electrical'
+      ? 'القطاع الكهربائي'
+      : currentUser?.sector === 'both'
+        ? 'منزلي + كهرباء'
+        : 'القطاع المنزلي';
+
+  const actionTiles: ActionTile[] = [
+    { id: 'invoices', label: 'المبيعات', hint: `الفواتير والاعتمادات (${visibleInvoices.length})`, icon: TrendingUp, variant: 'primary', target: 'invoices' },
+    { id: 'catalog', label: 'الكتالوج والتسوق', hint: `${visibleProductsList.length} صنف متاح للطلب`, icon: ShoppingCart, variant: 'secondary', target: 'catalog' },
+    { id: 'customers', label: 'قاعدة العملاء', hint: `${visibleCustomers.length} عميل بالبيانات والمديونيات`, icon: Users, variant: 'violet', target: 'all_customers' },
+    { id: 'visits', label: 'الزيارات الميدانية', hint: 'خط سير المندوب وإحداثيات الموقع', icon: CalendarCheck, variant: 'violet', target: 'visits' },
+    { id: 'collection', label: 'التحصيلات', hint: 'متابعة سداد المديونيات والشيكات', icon: Wallet, variant: 'success', target: 'invoices' },
+    { id: 'returns', label: 'المرتجعات', hint: 'تسجيل بضاعة ومتابعتها بصور الأصناف', icon: RotateCcw, variant: 'danger', target: 'returns' },
+    {
+      id: isAdminOrDev ? 'excel' : 'targets',
+      label: isAdminOrDev ? 'الإكسل والمزامنة' : 'التارجت والمستهدف',
+      hint: isAdminOrDev ? 'تحديث الشيتات السحابية' : 'متابعة نسبة التحقيق الشهرية',
+      icon: isAdminOrDev ? FileSpreadsheet : Sparkles,
+      variant: 'warning',
+      target: isAdminOrDev ? 'excel' : 'targets',
+    },
+    { id: 'offers', label: 'العروض والخصومات', hint: 'أحدث البوانص والأسعار الترويجية 🔥', icon: Flame, variant: 'warning', target: 'offers' },
+  ];
+
+  const overviewTiles = actionTiles.slice(0, 4);
+
+  const dashboardSections: Array<{ id: DashboardSectionId; label: string; icon: React.ElementType<LucideProps> }> = [
+    { id: 'overview', label: 'نظرة عامة', icon: LayoutGrid },
+    ...(repTargetData ? [{ id: 'target' as DashboardSectionId, label: 'التارجت الشهري', icon: Target }] : []),
+    { id: 'shortcuts', label: 'كل الاختصارات', icon: Layers },
+    { id: 'guide', label: 'التطبيق والدليل', icon: Smartphone },
+  ];
+
+  const renderActionTile = (tile: ActionTile) => {
+    const Icon = tile.icon;
+    return (
+      <button
+        key={tile.id}
+        type="button"
+        onClick={() => onNavigateToTab(tile.target)}
+        className="group bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] hover:border-[#2563EB] dark:hover:border-[#3B82F6] rounded-2xl p-3.5 flex items-center gap-3 text-start shadow-xs hover:shadow-md active:scale-[0.98] transition-all cursor-pointer min-h-[64px]"
+      >
+        <IconBadge icon={Icon} variant={tile.variant} size="md" className="shrink-0 group-hover:scale-105 transition-transform" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-xs sm:text-sm font-black text-[#0F172A] dark:text-[#F1F5F9] truncate">{tile.label}</span>
+          <span className="block text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold truncate mt-0.5">{tile.hint}</span>
+        </span>
+        <ChevronLeft className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" aria-hidden="true" />
+      </button>
+    );
+  };
+
   return (
-    <div className="space-y-4 sm:space-y-6" dir="rtl">
-      
-      {/* ========================================================================= */}
-      {/* MOBILE HERO & QUICK SQUIRCLE ACTIONS (مستوحى بدقة من الصورة المرفقة) */}
-      {/* ========================================================================= */}
-      <div className="block lg:hidden space-y-3.5">
-        
-        {/* 1. Mobile Gradient Hero Banner with Rep Profile Avatar */}
-        <div className="relative overflow-hidden rounded-3xl p-5 bg-gradient-to-br from-white via-slate-50 to-blue-50/40 dark:from-[#0F2B38] dark:via-[#153847] dark:to-[#0A1E27] text-[#0F2B38] dark:text-white shadow-sm border border-slate-200 dark:border-[#1E4D63]">
-          <div className="absolute top-0 left-0 w-32 h-32 bg-blue-500/10 dark:bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
-          <div className="absolute bottom-0 right-0 w-32 h-32 bg-teal-500/10 dark:bg-blue-500/10 rounded-full blur-2xl pointer-events-none" />
-          
-          <div className="relative z-10 flex items-center justify-between gap-4">
-            <div className="space-y-1.5 flex-1 min-w-0">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-100/70 dark:bg-white/10 border border-blue-200 dark:border-white/15 text-[11px] font-bold text-[#1E3A8A] dark:text-teal-300">
-                <Sparkles className="w-3.5 h-3.5 text-[#1E3A8A] dark:text-teal-300" />
-                <span>مجموعة الطنطاوي TANTAWY GROUP</span>
+    <div className="space-y-4 sm:space-y-5" dir="rtl">
+
+      {/* ============================== Greeting ============================== */}
+      <div className="relative overflow-hidden rounded-3xl p-4 sm:p-5 bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] shadow-xs">
+        <div className="pointer-events-none absolute -top-12 -left-10 w-40 h-40 rounded-full bg-[#2563EB]/8 dark:bg-[#2563EB]/15 blur-2xl" />
+        <div className="pointer-events-none absolute -bottom-14 -right-8 w-40 h-40 rounded-full bg-[#F59E0B]/8 dark:bg-[#F59E0B]/10 blur-2xl" />
+
+        <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              className="relative shrink-0 cursor-pointer group focus:outline-hidden"
+              onClick={() => setIsAvatarModalOpen(true)}
+              title="تعديل أو رفع صورتك الشخصية"
+            >
+              <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden border-2 border-white dark:border-[#26364D] shadow-sm ring-2 ring-blue-500/20 bg-slate-100 dark:bg-[#17243A]">
+                <img
+                  src={currentUser?.avatar || '/assets/rep-avatar.jpg'}
+                  alt={displayName}
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = '/assets/rep-avatar.jpg';
+                  }}
+                />
+              </div>
+              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#2563EB] text-white flex items-center justify-center shadow-xs border border-white dark:border-[#111C2E]">
+                <Camera className="w-2.5 h-2.5 stroke-[2.2]" />
+              </div>
+            </button>
+
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[11px] font-bold text-[#2563EB] dark:text-[#93C5FD]">منظومة مبيعات طنطاوي دريم</span>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                    isOffline
+                      ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/40'
+                      : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${isOffline ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                  <span>{isOffline ? 'أوفلاين' : 'متصل'}</span>
+                </span>
               </div>
 
+              <h1 className="text-lg sm:text-xl font-black text-[#0F172A] dark:text-white truncate">
+                أهلاً بك يا {displayName}
+              </h1>
+
+              <div className="mt-0.5 flex items-center gap-2 flex-wrap text-[11px] font-bold text-slate-500 dark:text-[#94A3B8]">
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="w-3 h-3 text-[#2563EB]" aria-hidden="true" />
+                  {currentUser?.branchName || 'الفرع الرئيسي'}
+                </span>
+                <span aria-hidden="true">•</span>
+                <span className="inline-flex items-center gap-1">
+                  <Tag className="w-3 h-3 text-[#F59E0B]" aria-hidden="true" />
+                  {sectorLabel}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="shrink-0 rounded-2xl border border-slate-200 dark:border-[#26364D] bg-slate-50 dark:bg-[#17243A] px-3.5 py-2.5">
+            <div className="text-[10px] font-bold text-slate-500 dark:text-[#94A3B8]">التوقيت والتاريخ</div>
+            <div className="flex items-center gap-1.5 text-base sm:text-lg font-black font-mono tracking-tight text-[#0F172A] dark:text-white">
+              <Clock className="w-4 h-4 text-[#2563EB]" aria-hidden="true" />
+              <span>{timeString}</span>
+            </div>
+            <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">
+              {dateDayNameAr}، {dateDayNum} {dateMonthNameAr}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ========================== Primary KPIs =========================== */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap px-1">
+          <h2 className="text-sm sm:text-base font-black text-[#0F172A] dark:text-white flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-[#2563EB]" aria-hidden="true" />
+            <span>مؤشراتك الآن</span>
+          </h2>
+
+          <div className="inline-flex items-center p-1 rounded-xl bg-slate-100 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] text-[11px] font-bold">
+            <button
+              type="button"
+              onClick={() => setMetricPeriod('today')}
+              aria-pressed={metricPeriod === 'today'}
+              className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
+                metricPeriod === 'today'
+                  ? 'bg-white dark:bg-[#0F1E36] text-[#2563EB] dark:text-[#93C5FD] shadow-xs'
+                  : 'text-slate-600 dark:text-[#94A3B8] hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              اليوم
+            </button>
+            <button
+              type="button"
+              onClick={() => setMetricPeriod('all')}
+              aria-pressed={metricPeriod === 'all'}
+              className={`px-3 py-1 rounded-lg transition-colors cursor-pointer ${
+                metricPeriod === 'all'
+                  ? 'bg-white dark:bg-[#0F1E36] text-[#2563EB] dark:text-[#93C5FD] shadow-xs'
+                  : 'text-slate-600 dark:text-[#94A3B8] hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              الإجمالي
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* Sales */}
+          <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-[#0F172A] dark:text-[#F1F5F9]">إجمالي المبيعات</span>
+              <IconBadge icon={DollarSign} variant="primary" size="md" />
+            </div>
+            <div className="space-y-1 my-2">
+              <div className="text-lg sm:text-2xl font-black font-mono tracking-tight text-[#0F172A] dark:text-white">
+                {metricPeriod === 'today' ? formatCurrency(todaySalesTotal) : formatCurrency(allSalesTotal)}
+              </div>
+              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">جنيه مصري</div>
+            </div>
+            <div className="pt-2 border-t border-slate-100 dark:border-[#26364D] text-[10px] font-bold text-[#0D9488] dark:text-[#2DD4BF]">
+              {todayInvoices.length} طلبات اليوم
+            </div>
+          </div>
+
+          {/* Orders */}
+          <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-[#0F172A] dark:text-[#F1F5F9]">عدد الطلبات</span>
+              <IconBadge icon={Package} variant="warning" size="md" />
+            </div>
+            <div className="space-y-1 my-2">
+              <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-[#F59E0B]">
+                {metricPeriod === 'today' ? todayInvoices.length : visibleInvoices.length}
+              </div>
+              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">فاتورة مسجلة</div>
+            </div>
+            <div className="pt-2 border-t border-slate-100 dark:border-[#26364D] text-[10px] font-bold text-slate-500 dark:text-[#94A3B8]">
+              {visibleCustomers.length} عميل
+            </div>
+          </div>
+
+          {/* Collections */}
+          <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-[#0F172A] dark:text-[#F1F5F9]">التحصيلات</span>
+              <IconBadge icon={Wallet} variant="success" size="md" />
+            </div>
+            <div className="space-y-1 my-2">
+              <div className="text-lg sm:text-xl font-black font-mono tracking-tight text-[#16A34A] dark:text-[#4ADE80]">
+                {formatCurrency(metricPeriod === 'today' ? todayCollectionsTotal : allCollectionsTotal)}
+              </div>
+              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">المحصل فعلياً</div>
+            </div>
+            <div className="pt-2 border-t border-slate-100 dark:border-[#26364D] text-[10px] font-bold text-[#16A34A] dark:text-[#4ADE80] flex items-center gap-1">
+              <Check className="w-3 h-3 stroke-[2.5]" aria-hidden="true" />
+              <span>نقدي ومسجل</span>
+            </div>
+          </div>
+
+          {/* Visits */}
+          <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-bold text-[#0F172A] dark:text-[#F1F5F9]">الزيارات</span>
+              <IconBadge icon={MapPin} variant="violet" size="md" />
+            </div>
+            <div className="space-y-1 my-2">
+              <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-[#7C3AED] dark:text-[#A78BFA]">
+                {metricPeriod === 'today' ? todayVisits.length : visits.length}
+              </div>
+              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">زيارة مسجلة</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => onNavigateToTab('visits')}
+              className="pt-2 border-t border-slate-100 dark:border-[#26364D] text-[10px] font-bold text-[#7C3AED] dark:text-[#A78BFA] flex items-center justify-between cursor-pointer hover:underline"
+            >
+              <span>فتح الزيارات</span>
+              <ChevronLeft className="w-3 h-3" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ============================== Tabs ============================== */}
+      <div
+        role="tablist"
+        aria-label="أقسام لوحة التحكم"
+        className="flex items-center gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] overflow-x-auto"
+      >
+        {dashboardSections.map((section) => {
+          const Icon = section.icon;
+          const isActive = activeSection === section.id;
+          return (
+            <button
+              key={section.id}
+              type="button"
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => setActiveSection(section.id)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                isActive
+                  ? 'bg-white dark:bg-[#0F1E36] text-[#2563EB] dark:text-[#93C5FD] shadow-xs'
+                  : 'text-slate-600 dark:text-[#94A3B8] hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Icon className="w-4 h-4" aria-hidden="true" />
+              <span>{section.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ============================ Overview ============================ */}
+      {activeSection === 'overview' && (
+        <div className="space-y-3.5">
+          {renderOffersBanner(false)}
+
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between gap-2 px-1">
+              <h2 className="text-sm sm:text-base font-black text-[#0F172A] dark:text-white">اختصارات سريعة</h2>
+              <button
+                type="button"
+                onClick={() => setActiveSection('shortcuts')}
+                className="inline-flex items-center gap-1 text-xs font-bold text-[#2563EB] dark:text-[#93C5FD] hover:underline cursor-pointer"
+              >
+                <span>كل الاختصارات</span>
+                <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {overviewTiles.map(renderActionTile)}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 dark:border-[#26364D] bg-white dark:bg-[#111C2E] px-4 py-3 flex items-center justify-between gap-2 text-[11px] font-bold text-slate-500 dark:text-[#94A3B8] shadow-xs">
+            <span className="inline-flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-[#F59E0B]" aria-hidden="true" />
+              <span>مندوب دريم .. شريك نجاحك في المبيعات</span>
+            </span>
+            <span className="hidden sm:inline-flex items-center gap-1.5">
+              <Percent className="w-3.5 h-3.5 text-[#2563EB]" aria-hidden="true" />
+              <span>تحديث لحظي مع كل فاتورة وتحصيل</span>
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ========================= Monthly target ========================= */}
+      {activeSection === 'target' && repTargetData && (
+        <div className="space-y-3.5">
+          {renderRepTargetDashboard(false)}
+        </div>
+      )}
+
+      {/* =========================== Shortcuts =========================== */}
+      {activeSection === 'shortcuts' && (
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between px-1">
+            <div>
+              <h2 className="text-sm sm:text-base font-black text-[#0F172A] dark:text-white flex items-center gap-2">
+                <LayoutGrid className="w-4 h-4 text-[#F59E0B]" aria-hidden="true" />
+                <span>كل الاختصارات</span>
+              </h2>
+              <p className="text-[11px] text-slate-500 dark:text-[#94A3B8] font-bold mt-0.5">
+                كل عمليات المنظومة في مكان واحد
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {actionTiles.map(renderActionTile)}
+          </div>
+        </div>
+      )}
+
+      {/* ============================ App guide =========================== */}
+      {activeSection === 'guide' && (
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
+          <div className="md:order-2 md:col-span-5 bg-[var(--app-card)] rounded-[var(--app-radius-card)] p-5 border border-[var(--app-border)] shadow-[var(--app-shadow-card)] flex flex-col justify-between text-[var(--app-text)] relative overflow-hidden">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-xs font-black text-[var(--app-warning-text)] tracking-wider">مندوب دريم • TANTAWY</span>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black bg-[var(--app-success-tint)] text-[var(--app-success-text)] border border-[var(--app-success-border)] shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                <span>الحالة : نشط الآن</span>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4 my-2">
+              <div className="w-14 h-14 rounded-2xl bg-blue-500/20 text-blue-500 dark:text-blue-400 border border-blue-500/30 shrink-0 flex items-center justify-center">
+                <Smartphone className="w-7 h-7 stroke-[2.2]" aria-hidden="true" />
+              </div>
               <div>
-                <span className="block text-xs text-slate-500 dark:text-slate-300 font-bold">مرحباً بك</span>
-                <h2 className="text-xl font-black text-[#0F2B38] dark:text-white tracking-tight truncate">
-                  {displayName}
-                </h2>
-                <p className="text-[11px] text-[#1E3A8A] dark:text-teal-200 font-bold mt-0.5">
-                  مندوب دريم .. معك دائماً للنجاح
+                <h3 className="font-black text-base sm:text-lg text-[var(--app-text)]">تثبيت تطبيق الجوال</h3>
+                <p className="text-xs text-[var(--app-text-muted)] leading-relaxed mt-0.5">
+                  ثبّت التطبيق كبرنامج حقيقي على أي هاتف أو كمبيوتر من المتصفح نفسه — بأيقونة الطنطاوي وشاشة كاملة بدون توزيع ملفات خارجية
                 </p>
               </div>
             </div>
 
-            {/* Rep Avatar with Upload Trigger - حجم صغير وأنيق جداً */}
-            <button
-              type="button"
-              className="flex items-center gap-2 cursor-pointer shrink-0 group focus:outline-hidden"
-              onClick={() => setIsAvatarModalOpen(true)}
-              title="تعديل أو رفع صورتك الشخصية"
-            >
-              <div className="relative">
-                <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-white dark:border-[#1E4D63] shadow-md ring-2 ring-blue-500/30 dark:ring-teal-400/40 bg-slate-100 dark:bg-[#153847]">
-                  <img
-                    src={currentUser?.avatar || '/assets/rep-avatar.jpg'}
-                    alt={displayName}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = '/assets/rep-avatar.jpg';
-                    }}
-                  />
+            <div className="pt-3 border-t border-[var(--app-border)] flex items-center justify-between gap-2 mt-2">
+              <button
+                type="button"
+                onClick={() => setIsInstallModalOpen(true)}
+                className="flex-1 bg-[#2563EB] hover:bg-blue-700 text-white font-black py-2.5 px-4 rounded-xl text-xs transition cursor-pointer shadow-sm flex items-center justify-center gap-2 active:scale-95"
+              >
+                <Download className="w-4 h-4" aria-hidden="true" />
+                <span>تثبيت التطبيق الآن</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="md:order-1 md:col-span-7 bg-[var(--app-card)] rounded-[var(--app-radius-card)] p-5 border border-[var(--app-border)] shadow-[var(--app-shadow-card)] flex flex-col justify-between">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#26364D] pb-3 mb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl flex items-center justify-center font-black">
+                  <IconBadge icon={ClipboardList} variant="primary" size="md" className="w-8 h-8 p-0" />
                 </div>
-                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#2563EB] text-white flex items-center justify-center shadow-xs border border-white dark:border-[#0F2B38]">
-                  <Camera className="w-2.5 h-2.5 stroke-[2.2]" />
-                </div>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        {/* 2. Offers Banner: عروض وتخفيضات دريم — يفتح صفحة العروض */}
-        {renderOffersBanner(true)}
-
-        {/* 3. 4 Squircle Action Cards (2x2 Grid) - ألوان مبهجة ومتناسقة للوضع النهاري والليلي */}
-        <div className="grid grid-cols-2 gap-3">
-          
-          {/* Card 1: الطلبات (سماوي مبهج) */}
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('invoices')}
-            className="group relative overflow-hidden rounded-2xl p-4 text-start bg-gradient-to-br from-cyan-50 via-sky-50 to-blue-50/80 dark:from-[#082836] dark:via-[#093548] dark:to-[#041d27] border border-cyan-200/90 dark:border-cyan-500/30 hover:border-cyan-400 dark:hover:border-cyan-400/60 shadow-[0_4px_16px_rgba(6,182,212,0.10)] dark:shadow-[0_4px_20px_rgba(6,182,212,0.15)] active:scale-95 transition-all flex flex-col justify-between min-h-[115px] cursor-pointer"
-          >
-            <div className="w-11 h-11 rounded-2xl bg-cyan-100/90 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-300/60 dark:border-cyan-400/30 flex items-center justify-center mb-3 shadow-xs">
-              <Package className="w-5 h-5 stroke-[2.2]" />
-            </div>
-            <div className="flex items-end justify-between w-full">
-              <div>
-                <h3 className="font-black text-sm text-cyan-950 dark:text-white">الطلبات</h3>
-                <p className="text-[10px] text-cyan-700/80 dark:text-cyan-300/80 font-bold">متابعة الطلبات</p>
-              </div>
-              <div className="w-7 h-7 rounded-full bg-white/90 dark:bg-cyan-500/20 border border-cyan-200 dark:border-cyan-400/40 text-cyan-700 dark:text-cyan-300 flex items-center justify-center shrink-0 shadow-xs">
-                <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
-              </div>
-            </div>
-          </button>
-
-          {/* Card 2: العملاء (تركواز / نعناعي ناعم) */}
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('all_customers')}
-            className="group relative overflow-hidden rounded-2xl p-4 text-start bg-gradient-to-br from-teal-50 via-emerald-50 to-cyan-50/80 dark:from-[#06282e] dark:via-[#07363e] dark:to-[#031d22] border border-teal-200/90 dark:border-teal-500/30 hover:border-teal-400 dark:hover:border-teal-400/60 shadow-[0_4px_16px_rgba(13,148,136,0.10)] dark:shadow-[0_4px_20px_rgba(20,184,166,0.15)] active:scale-95 transition-all flex flex-col justify-between min-h-[115px] cursor-pointer"
-          >
-            <div className="w-11 h-11 rounded-2xl bg-teal-100/90 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 border border-teal-300/60 dark:border-teal-400/30 flex items-center justify-center mb-3 shadow-xs">
-              <Users className="w-5 h-5 stroke-[2.2]" />
-            </div>
-            <div className="flex items-end justify-between w-full">
-              <div>
-                <h3 className="font-black text-sm text-teal-950 dark:text-white">العملاء</h3>
-                <p className="text-[10px] text-teal-700/80 dark:text-teal-300/80 font-bold">قاعدة العملاء</p>
-              </div>
-              <div className="w-7 h-7 rounded-full bg-white/90 dark:bg-teal-500/20 border border-teal-200 dark:border-teal-400/40 text-teal-700 dark:text-teal-300 flex items-center justify-center shrink-0 shadow-xs">
-                <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
-              </div>
-            </div>
-          </button>
-
-          {/* Card 3: التحصيلات (زمردي هادئ) */}
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('invoices')}
-            className="group relative overflow-hidden rounded-2xl p-4 text-start bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50/80 dark:from-[#052b20] dark:via-[#07382a] dark:to-[#031f17] border border-emerald-200/90 dark:border-emerald-500/30 hover:border-emerald-400 dark:hover:border-emerald-400/60 shadow-[0_4px_16px_rgba(16,185,129,0.10)] dark:shadow-[0_4px_20px_rgba(16,185,129,0.15)] active:scale-95 transition-all flex flex-col justify-between min-h-[115px] cursor-pointer"
-          >
-            <div className="w-11 h-11 rounded-2xl bg-emerald-100/90 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-400/30 flex items-center justify-center mb-3 shadow-xs">
-              <Wallet className="w-5 h-5 stroke-[2.2]" />
-            </div>
-            <div className="flex items-end justify-between w-full">
-              <div>
-                <h3 className="font-black text-sm text-emerald-950 dark:text-white">التحصيلات</h3>
-                <p className="text-[10px] text-emerald-700/80 dark:text-emerald-300/80 font-bold">متابعة التحصيلات</p>
-              </div>
-              <div className="w-7 h-7 rounded-full bg-white/90 dark:bg-emerald-500/20 border border-emerald-200 dark:border-emerald-400/40 text-emerald-700 dark:text-emerald-300 flex items-center justify-center shrink-0 shadow-xs">
-                <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
-              </div>
-            </div>
-          </button>
-
-          {/* Card 4: التقارير (بنفسجي ملكي هادئ) */}
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('targets')}
-            className="group relative overflow-hidden rounded-2xl p-4 text-start bg-gradient-to-br from-violet-50 via-purple-50 to-indigo-50/80 dark:from-[#1b173e] dark:via-[#221c4c] dark:to-[#120f2b] border border-violet-200/90 dark:border-violet-500/30 hover:border-violet-400 dark:hover:border-violet-400/60 shadow-[0_4px_16px_rgba(124,58,237,0.10)] dark:shadow-[0_4px_20px_rgba(139,92,246,0.15)] active:scale-95 transition-all flex flex-col justify-between min-h-[115px] cursor-pointer"
-          >
-            <div className="w-11 h-11 rounded-2xl bg-violet-100/90 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 border border-violet-300/60 dark:border-violet-400/30 flex items-center justify-center mb-3 shadow-xs">
-              <BarChart3 className="w-5 h-5 stroke-[2.2]" />
-            </div>
-            <div className="flex items-end justify-between w-full">
-              <div>
-                <h3 className="font-black text-sm text-violet-950 dark:text-white">التقارير</h3>
-                <p className="text-[10px] text-violet-700/80 dark:text-violet-300/80 font-bold">تحليلات متقدمة</p>
-              </div>
-              <div className="w-7 h-7 rounded-full bg-white/90 dark:bg-violet-500/20 border border-violet-200 dark:border-violet-400/40 text-violet-700 dark:text-violet-300 flex items-center justify-center shrink-0 shadow-xs">
-                <ArrowLeft className="w-3.5 h-3.5 stroke-[2.5]" />
-              </div>
-            </div>
-          </button>
-
-        </div>
-
-        {/* 3. Special Wide Card: العروض والخصومات */}
-        <button
-          type="button"
-          onClick={() => onNavigateToTab('offers')}
-          className="w-full relative overflow-hidden rounded-2xl p-4 text-start bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 dark:from-[#2e1908] dark:via-[#3b200b] dark:to-[#1a0f05] border border-amber-300/80 dark:border-amber-500/40 hover:border-amber-400 shadow-[0_4px_16px_rgba(245,158,11,0.12)] active:scale-[0.98] transition-all flex items-center justify-between cursor-pointer"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/30 shrink-0">
-              <Flame className="w-5 h-5 animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-black text-sm text-amber-950 dark:text-amber-100">العروض والخصومات الحصرية</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-200/80 dark:bg-amber-500/30 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-500/40">
-                  عروض وبوانص 🔥
-                </span>
-              </div>
-              <p className="text-[11px] text-amber-800/80 dark:text-amber-200/80 font-bold mt-0.5">
-                تصفح أحدث عروض الأصناف والأسعار الترويجية
-              </p>
-            </div>
-          </div>
-          <div className="w-8 h-8 rounded-full bg-white dark:bg-amber-500/20 border border-amber-200 dark:border-amber-400/40 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 shadow-xs mr-2">
-            <ArrowLeft className="w-4 h-4 stroke-[2.5]" />
-          </div>
-        </button>
-
-        {/* 4. لوحة مؤشرات التارجت الشهرية للمندوب (TargetPerformanceDashboard) مع ألوان Primary #2563EB و Success #16A34A */}
-        {renderRepTargetDashboard(true)}
-
-        {/* 5. Card: أهم مؤشرات اليوم */}
-        <div className="bg-white dark:bg-[#153847] border border-slate-200 dark:border-[#1E4D63] rounded-3xl p-4 shadow-xs space-y-3">
-          <div className="flex items-center gap-2 text-sm font-black text-[#0F2B38] dark:text-white">
-            <BarChart3 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-            <span>أهم مؤشرات اليوم</span>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 text-center">
-            {/* تم التحصيل */}
-            <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 rounded-2xl p-2.5 flex flex-col items-center justify-between">
-              <div className="w-6 h-6 rounded-full bg-[#059669] text-white flex items-center justify-center mb-1">
-                <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-              </div>
-              <div className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300">تم التحصيل</div>
-              <div className="text-xs sm:text-sm font-black text-[#059669] dark:text-emerald-100 font-mono mt-0.5">
-                {todayCollectionsTotal > 0 ? formatCurrency(todayCollectionsTotal) : '24,750 ج.م'}
-              </div>
-            </div>
-
-            {/* عدد الطلبات */}
-            <div className="bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/40 rounded-2xl p-2.5 flex flex-col items-center justify-between">
-              <div className="w-6 h-6 rounded-full bg-[#1E3A8A] dark:bg-blue-500 text-white flex items-center justify-center mb-1">
-                <ShoppingCart className="w-3.5 h-3.5 stroke-[2.5]" />
-              </div>
-              <div className="text-[10px] font-bold text-blue-800 dark:text-blue-300">عدد الطلبات</div>
-              <div className="text-xs sm:text-sm font-black text-[#1E3A8A] dark:text-blue-100 font-mono mt-0.5">
-                {todayInvoices.length > 0 ? `${todayInvoices.length} طلب` : '32 طلب'}
-              </div>
-            </div>
-
-            {/* المديونية */}
-            <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 rounded-2xl p-2.5 flex flex-col items-center justify-between">
-              <div className="w-6 h-6 rounded-full bg-[#D97706] text-white flex items-center justify-center mb-1">
-                <DollarSign className="w-3.5 h-3.5 stroke-[2.5]" />
-              </div>
-              <div className="text-[10px] font-bold text-amber-800 dark:text-amber-300">المديونية</div>
-              <div className="text-xs sm:text-sm font-black text-[#D97706] dark:text-amber-100 font-mono mt-0.5">
-                {totalCustomerDebt > 0 ? formatCurrency(totalCustomerDebt) : '125,600 ج.م'}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 6. Motivational Pill Banner */}
-        <div className="rounded-2xl p-3 bg-gradient-to-r from-blue-50 via-teal-50 to-slate-50 dark:from-teal-900/90 dark:to-[#0F2B38] text-[#1E3A8A] dark:text-teal-200 border border-blue-200 dark:border-teal-500/30 text-center text-xs font-bold shadow-2xs">
-          <span>✨ مندوب دريم .. شريك نجاحك في المبيعات</span>
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 1. TOP HERO SECTION (مخصص للشاشات المتوسطة والكبيرة - لابتوب وكمبيوتر) */}
-      {/* ========================================================================= */}
-      <div className="hidden lg:block bg-white dark:bg-[#153847] rounded-3xl p-4 sm:p-6 text-slate-900 dark:text-white shadow-md dark:shadow-2xl border border-slate-200 dark:border-[#1E4D63] relative overflow-hidden transition-colors">
-        
-        {/* Subtle decorative background gradient */}
-        <div className="absolute top-0 right-1/4 w-96 h-96 bg-[#2563EB]/5 dark:bg-[#2563EB]/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-10 left-10 w-80 h-80 bg-[#F59E0B]/5 dark:bg-[#F59E0B]/10 rounded-full blur-3xl pointer-events-none" />
-
-        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
-          
-          {/* Right Header: Greeting & Live Clock */}
-          <div className="lg:col-span-5 flex flex-col justify-between space-y-4">
-            
-            <div className="flex items-center justify-between">
-              {/* App / Rep Badge with compact avatar */}
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  className="relative group cursor-pointer shrink-0 focus:outline-hidden"
-                  onClick={() => setIsAvatarModalOpen(true)}
-                  title="تعديل أو رفع صورتك الشخصية"
-                >
-                  <div className="w-11 h-11 rounded-full overflow-hidden border-2 border-white dark:border-[#26364D] shadow-sm ring-2 ring-blue-500/20 bg-slate-100 dark:bg-[#17243A]">
-                    <img
-                      src={currentUser?.avatar || '/assets/rep-avatar.jpg'}
-                      alt={displayName}
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = '/assets/rep-avatar.jpg';
-                      }}
-                    />
-                  </div>
-                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#2563EB] text-white flex items-center justify-center shadow-xs border border-white dark:border-[#111C2E]">
-                    <Camera className="w-2.5 h-2.5 stroke-[2.2]" />
-                  </div>
-                </button>
                 <div>
-                  <div className="text-[11px] font-bold text-[#2563EB] dark:text-[#93C5FD] tracking-wider">
-                    منظومة مبيعات طنطاوي دريم
-                  </div>
-                  <h1 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white">
-                    أهلاً بك يا {(currentUser?.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'أسامة'} ...
-                  </h1>
-                </div>
-              </div>
-
-              {/* Status / Sector Pill */}
-              <div className="flex items-center gap-1.5">
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black border ${
-                  isOffline
-                    ? 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/40'
-                    : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/40'
-                }`}>
-                  <span className={`w-2 h-2 rounded-full ${isOffline ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
-                  <span>{isOffline ? 'أوفلاين' : 'متصل'}</span>
-                </span>
-              </div>
-            </div>
-
-            <p className="text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2">
-              <span>هل أنت مستعد لتحقيق تارجت اليوم والنمو بمبيعاتك؟</span>
-              <TrendingUp className="w-4 h-4 text-[#16A34A] stroke-[2.5]" />
-            </p>
-
-            {/* Time & Date Display */}
-            <div className="bg-slate-50 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] rounded-2xl p-3 sm:p-4 flex items-center justify-between shadow-inner">
-              <div className="space-y-0.5">
-                <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-                  التوقيت والتاريخ
-                </div>
-                <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-[#2563EB]" />
-                  <span>{timeString}</span>
-                </div>
-                <div className="text-[11px] text-slate-600 dark:text-slate-300 font-bold">
-                  {dateDayNameAr}، {dateDayNum} {dateMonthNameAr}
-                </div>
-              </div>
-
-              <div className="text-left font-mono border-r border-slate-200 dark:border-slate-800 pr-3">
-                <div className="text-3xl font-black text-[#F59E0B] leading-none">{dateDayNum}</div>
-                <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase mt-0.5">
-                  {dateDayNameEn} • {dateMonthNameEn}
-                </div>
-                <div className="text-[10px] font-bold text-slate-400">{currentTime.getFullYear()}</div>
-              </div>
-            </div>
-
-            {/* Rep Subtitle Info */}
-            <div className="flex items-center gap-3 text-xs text-slate-600 dark:text-slate-400">
-              <div className="flex items-center gap-1.5">
-                <MapPin className="w-3.5 h-3.5 text-[#2563EB]" />
-                <span className="text-slate-800 dark:text-slate-300 font-bold">
-                  {currentUser?.branchName || 'الفرع الرئيسي'}
-                </span>
-              </div>
-              <span>•</span>
-              <div className="flex items-center gap-1.5">
-                <Tag className="w-3.5 h-3.5 text-[#F59E0B]" />
-                <span className="text-[#F59E0B] font-bold">
-                  {currentUser?.sector === 'electrical' ? 'القطاع الكهربائي' : currentUser?.sector === 'both' ? 'منزلي + كهرباء' : 'القطاع المنزلي'}
-                </span>
-              </div>
-            </div>
-
-          </div>
-
-          {/* Center: Illustration & Smart Sales Platform Card */}
-          <div className="hidden lg:flex lg:col-span-3 items-center justify-center p-2">
-            <div className="relative group w-full max-w-[220px]">
-              <div className="rounded-3xl bg-slate-50 dark:bg-[#17243A] p-5 border border-slate-200 dark:border-[#26364D] flex flex-col items-center justify-center text-center shadow-md">
-                <IconBadge icon={BarChart3} variant="secondary" size="md" className="mb-2.5 shrink-0" />
-                <div className="text-sm font-black text-slate-900 dark:text-white">منصة مبيعات ذكية</div>
-                <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                  ربط مباشر مع المخازن، قاعدة العملاء، واعتمادات الفواتير
-                </div>
-                <div className="mt-3 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#0D9488]/10 text-[#0D9488] border border-[#0D9488]/20">
-                  <Sparkles className="w-3 h-3 text-[#0D9488]" />
-                  <span>دريم تكنولوجي</span>
+                  <h4 className="font-black text-[var(--app-text)] text-sm">خطوات إنشاء الطلبية للمندوب</h4>
+                  <p className="text-[11px] text-slate-500 dark:text-[#94A3B8]">سير العمل المعتمد لإصدار فواتير دقيقة ومراجعة المخزون</p>
                 </div>
               </div>
             </div>
-          </div>
 
-          {/* Left Cards: 4 Real Metrics */}
-          <div className="lg:col-span-4 grid grid-cols-2 gap-3">
-            
-            {/* Metric 1: إجمالي المبيعات */}
-            <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] hover:border-[#2563EB] dark:hover:border-[#3B82F6] rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-[#0F172A] dark:text-[#F1F5F9]">إجمالي المبيعات</span>
-                <IconBadge icon={DollarSign} variant="primary" size="md" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2 text-center text-xs">
+              <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
+                <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">1</div>
+                <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">فتح الكتالوج</div>
+                <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">تصفح الأصناف</div>
               </div>
 
-              <div className="space-y-1 my-2">
-                <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-[#0F172A] dark:text-white">
-                  {metricPeriod === 'today' ? formatCurrency(todaySalesTotal) : formatCurrency(allSalesTotal)}
-                </div>
-                <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">جنيه مصري</div>
+              <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
+                <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">2</div>
+                <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">إضافة للسلة</div>
+                <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">تحديد الكمية</div>
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-[#26364D] text-[10px]">
-                <button
-                  type="button"
-                  onClick={() => setMetricPeriod(metricPeriod === 'today' ? 'all' : 'today')}
-                  className="flex items-center gap-1 text-[#2563EB] hover:underline font-bold cursor-pointer"
-                >
-                  <span>{metricPeriod === 'today' ? 'اليوم' : 'الإجمالي'}</span>
-                  <ChevronDown className="w-3 h-3" />
-                </button>
-                <span className="text-[#0D9488] font-bold">
-                  {todayInvoices.length} طلبات اليوم
-                </span>
-              </div>
-            </div>
-
-            {/* Metric 2: عدد الطلبات */}
-            <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] hover:border-[#F59E0B] rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-bold text-[#0F172A] dark:text-[#F1F5F9]">عدد الطلبات</span>
-                <IconBadge icon={Package} variant="warning" size="md" />
+              <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
+                <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">3</div>
+                <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">اختيار العميل</div>
+                <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">من عملائك</div>
               </div>
 
-              <div className="space-y-1 my-2">
-                <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-[#F59E0B]">
-                  {metricPeriod === 'today' ? todayInvoices.length : visibleInvoices.length}
-                </div>
-                <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">فاتورة مسجلة</div>
+              <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
+                <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">4</div>
+                <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">مراجعة الائتمان</div>
+                <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">فحص المديونية</div>
               </div>
 
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-[#26364D] text-[10px]">
-                <button
-                  type="button"
-                  onClick={() => setMetricPeriod(metricPeriod === 'today' ? 'all' : 'today')}
-                  className="flex items-center gap-1 text-[#F59E0B] hover:underline font-bold cursor-pointer"
-                >
-                  <span>{metricPeriod === 'today' ? 'اليوم' : 'الكل'}</span>
-                  <ChevronDown className="w-3 h-3" />
-                </button>
-                <span className="text-slate-500 dark:text-[#94A3B8] font-bold">
-                  {visibleCustomers.length} عميل
-                </span>
+              <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-xl p-2.5 border border-emerald-200 dark:border-emerald-700/50">
+                <div className="w-6 h-6 rounded-full bg-[#16A34A] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">5</div>
+                <div className="font-black text-[#16A34A] dark:text-emerald-300 text-[11px]">إصدار واعتماد</div>
+                <div className="text-[10px] text-emerald-700 dark:text-emerald-400 mt-0.5">تتحول للمشرف</div>
               </div>
-            </div>
-
-            {/* Metric 3: التحصيلات */}
-            <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] hover:border-[#16A34A] rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-[#0F172A] dark:text-[#F1F5F9]">التحصيلات</span>
-                <IconBadge icon={Wallet} variant="success" size="md" />
-              </div>
-
-              <div className="space-y-0.5 my-1">
-                <div className="text-lg sm:text-xl font-black font-mono tracking-tight text-[#16A34A]">
-                  {formatCurrency(metricPeriod === 'today' ? todayCollectionsTotal : allCollectionsTotal)}
-                </div>
-                <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">المحصل فعلياً</div>
-              </div>
-
-              <div className="pt-1.5 border-t border-slate-100 dark:border-[#26364D] text-[10px] text-slate-500 dark:text-[#94A3B8] flex items-center justify-between">
-                <span>تحديث لحظي</span>
-                <span className="text-[#16A34A] font-bold flex items-center gap-1">
-                  <Check className="w-3 h-3 stroke-[2.5]" />
-                  <span>نقدي ومسجل</span>
-                </span>
-              </div>
-            </div>
-
-            {/* Metric 4: زيارات اليوم */}
-            <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] hover:border-[#7C3AED] rounded-2xl p-4 flex flex-col justify-between shadow-xs hover:shadow-md transition">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-[#0F172A] dark:text-[#F1F5F9]">الزيارات</span>
-                <IconBadge icon={MapPin} variant="violet" size="md" />
-              </div>
-
-              <div className="space-y-0.5 my-1">
-                <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-[#7C3AED]">
-                  {todayVisits.length}
-                </div>
-                <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">زيارة اليوم</div>
-              </div>
-
-              <div className="pt-1.5 border-t border-slate-100 dark:border-[#26364D] text-[10px] text-slate-500 dark:text-[#94A3B8] flex items-center justify-between">
-                <span>الخطة الميدانية</span>
-                <button
-                  type="button"
-                  onClick={() => onNavigateToTab('visits')}
-                  className="text-[#7C3AED] font-bold hover:underline"
-                >
-                  فتح الزيارات
-                </button>
-              </div>
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* Offers Banner (للشاشات الكبيرة) — عروض وتخفيضات دريم */}
-      <div className="hidden lg:block">
-        {renderOffersBanner(false)}
-      </div>
-
-      {/* لوحة مؤشرات التارجت الشهرية للمندوب (للشاشات الكبيرة واللابتوب) */}
-      <div className="hidden lg:block">
-        {renderRepTargetDashboard(false)}
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 2. MAIN APPLICATION TILES (الكروت الكبيرة للاختصارات الرئيسية - تصميم كارتونة وجوميا) */}
-      {/* ========================================================================= */}
-      <div className="space-y-3">
-        
-        <div className="flex items-center justify-between px-1">
-          <div>
-            <h2 className="text-base sm:text-lg font-black text-[#0F172A] dark:text-white flex items-center gap-2">
-              <LayoutGrid className="w-5 h-5 text-[var(--app-warn-text)]" />
-              <span>القائمة الرئيسية والاختصارات</span>
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              واجهة سهلة وسريعة مستوحاة من تطبيقات التسوق (كارتونة وجوميا) لإتمام العمليات بضغطة واحدة
-            </p>
-          </div>
-          
-          <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900/60 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700">
-            كل القائمة
-          </span>
-        </div>
-
-        {/* The 9 Big Action Cards Grid (نظام الهوية الموحدة ودعم كامل للوضع النهاري والليلي) */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4">
-
-          {/* Tile 1: المبيعات والفواتير */}
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('invoices')}
-            className="group bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] hover:border-[#2563EB] dark:hover:border-[#3B82F6] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
-          >
-            <IconBadge icon={TrendingUp} variant="primary" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight text-[#0F172A] dark:text-[#F1F5F9]">المبيعات</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
-              الفواتير والاعتمادات ({visibleInvoices.length})
-            </span>
-          </button>
-
-          {/* Tile 2: الكتالوج والتسوق */}
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('catalog')}
-            className="group bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] hover:border-[#0D9488] dark:hover:border-[#2DD4BF] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
-          >
-            <IconBadge icon={ShoppingCart} variant="secondary" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight text-[#0F172A] dark:text-[#F1F5F9]">الكتالوج والتسوق</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
-              {visibleProductsList.length} صنف متاح للطلب
-            </span>
-          </button>
-
-          {/* Tile 4: العملاء */}
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('all_customers')}
-            className="group bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] hover:border-[#4F46E5] dark:hover:border-[#818CF8] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
-          >
-            <IconBadge icon={Users} variant="primary" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight text-[#0F172A] dark:text-[#F1F5F9]">قاعدة العملاء</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
-              {visibleCustomers.length} عميل بالبيانات والمديونيات
-            </span>
-          </button>
-
-          {/* Tile 6: خطة الزيارات الميدانية */}
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('visits')}
-            className="group bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] hover:border-[#7C3AED] dark:hover:border-[#A78BFA] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
-          >
-            <IconBadge icon={CalendarCheck} variant="violet" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight text-[#0F172A] dark:text-[#F1F5F9]">الزيارات</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">خط سير المندوب وإحداثيات الموقع</span>
-          </button>
-
-          {/* Tile 7: التحصيلات والماليات */}
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('invoices')}
-            className="group bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] hover:border-[#16A34A] dark:hover:border-[#4ADE80] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
-          >
-            <IconBadge icon={Wallet} variant="success" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight text-[#0F172A] dark:text-[#F1F5F9]">التحصيلات</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">متابعة سداد المديونيات والشيكات</span>
-          </button>
-
-          {/* Tile 8: المرتجعات الموحدة */}
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('returns')}
-            className="group bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] hover:border-[#DC2626] dark:hover:border-[#F87171] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
-          >
-            <IconBadge icon={RotateCcw} variant="danger" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight text-[#0F172A] dark:text-[#F1F5F9]">المرتجعات</span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">تسجيل بضاعة ومتابعتها بصور الأصناف</span>
-          </button>
-
-          {/* Tile 9: التارجت أو الإكسل */}
-          <button
-            type="button"
-            onClick={() => onNavigateToTab(isAdminOrDev ? 'excel' : 'targets')}
-            className="group bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] hover:border-[#F59E0B] dark:hover:border-[#FBBF24] rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
-          >
-            <IconBadge icon={isAdminOrDev ? FileSpreadsheet : Sparkles} variant="warning" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight text-[#0F172A] dark:text-[#F1F5F9]">
-              {isAdminOrDev ? 'الإكسل والمزامنة' : 'التارجت والمستهدف'}
-            </span>
-            <span className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold mt-1">
-              {isAdminOrDev ? 'تحديث الشيتات السحابية' : 'متابعة نسبة التحقيق الشهرية'}
-            </span>
-          </button>
-
-          {/* Tile 10: العروض والخصومات */}
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('offers')}
-            className="group bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-amber-950/30 dark:to-[#111C2E] border border-amber-200 dark:border-amber-500/30 hover:border-amber-400 dark:hover:border-amber-400 rounded-2xl p-4 sm:p-5 flex flex-col items-center justify-center text-center shadow-xs hover:shadow-md hover:-translate-y-0.5 active:scale-95 transition-all cursor-pointer min-h-[140px] sm:min-h-[160px]"
-          >
-            <IconBadge icon={Flame} variant="warning" size="lg" className="mb-2.5 group-hover:scale-110 transition duration-200" />
-            <span className="font-black text-sm sm:text-base leading-tight text-amber-950 dark:text-amber-100">
-              العروض والخصومات
-            </span>
-            <span className="text-[10px] text-amber-800/80 dark:text-amber-300/80 font-bold mt-1">
-              أحدث البوانص والأسعار الترويجية 🔥
-            </span>
-          </button>
-
-        </div>
-
-      </div>
-
-
-      {/* ========================================================================= */}
-      {/* 3. BRANDING & MOBILE APP INSTALL BAR */}
-      {/* ========================================================================= */}
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch" dir="ltr">
-        
-        {/* Left Card: 3D Emblem Card matching Brand Card */}
-        <div dir="rtl" className="md:order-2 md:col-span-5 bg-[var(--app-card)] rounded-[var(--app-radius-card)] p-5 border border-[var(--app-border)] shadow-[var(--app-shadow-card)] flex flex-col justify-between text-[var(--app-text)] relative overflow-hidden">
-          <div className="flex items-center justify-between mb-4">
-            <span className="text-xs font-black text-[var(--app-warning-text)] tracking-wider">مندوب دريم • TANTAWY</span>
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black bg-[var(--app-success-tint)] text-[var(--app-success-text)] border border-[var(--app-success-border)] shadow-xs">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
-              <span>الحالة : نشط الآن</span>
-            </span>
-          </div>
-
-          <div className="flex items-center gap-4 my-2">
-            <div className="w-14 h-14 rounded-2xl bg-blue-500/20 text-blue-400 border border-blue-500/30 shrink-0 flex items-center justify-center">
-              <Smartphone className="w-7 h-7 stroke-[2.2]" />
-            </div>
-            <div>
-              <h3 className="font-black text-base sm:text-lg text-[var(--app-text)]">تثبيت تطبيق الجوال</h3>
-              <p className="text-xs text-[var(--app-text-muted)] leading-relaxed mt-0.5">
-                ثبّت التطبيق كبرنامج حقيقي على أي هاتف أو كمبيوتر من المتصفح نفسه — بأيقونة الطنطاوي وشاشة كاملة بدون توزيع ملفات خارجية
-              </p>
-            </div>
-          </div>
-
-          <div className="pt-3 border-t border-[var(--app-border)] flex items-center justify-between gap-2 mt-2">
-            <button
-              type="button"
-              onClick={() => setIsInstallModalOpen(true)}
-              className="flex-1 bg-[#2563EB] hover:bg-blue-700 text-white font-black py-2.5 px-4 rounded-xl text-xs transition cursor-pointer shadow-sm flex items-center justify-center gap-2 active:scale-95"
-            >
-              <Download className="w-4 h-4" />
-              <span>تثبيت التطبيق الآن</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Right Card: Quick 5-Step Order Guide (خطوات إنشاء الطلب المنضبطة للمندوب) */}
-        <div dir="rtl" className="md:order-1 md:col-span-7 bg-[var(--app-card)] rounded-[var(--app-radius-card)] p-5 border border-[var(--app-border)] shadow-[var(--app-shadow-card)] flex flex-col justify-between">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-[#26364D] pb-3 mb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl flex items-center justify-center font-black">
-                <IconBadge icon={ClipboardList} variant="primary" size="md" className="w-8 h-8 p-0" />
-              </div>
-              <div>
-                <h4 className="font-black text-[var(--app-text)] text-sm">خطوات إنشاء الطلبية للمندوب</h4>
-                <p className="text-[11px] text-slate-500 dark:text-[#94A3B8]">سير العمل المعتمد لإصدار فواتير دقيقة ومراجعة المخزون</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2 text-center text-xs">
-            <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
-              <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">1</div>
-              <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">فتح الكتالوج</div>
-              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">تصفح الأصناف</div>
-            </div>
-
-            <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
-              <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">2</div>
-              <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">إضافة للسلة</div>
-              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">تحديد الكمية</div>
-            </div>
-
-            <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
-              <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">3</div>
-              <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">اختيار العميل</div>
-              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">من عملائك</div>
-            </div>
-
-            <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
-              <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">4</div>
-              <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">مراجعة الائتمان</div>
-              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">فحص المديونية</div>
-            </div>
-
-            <div className="bg-emerald-50 dark:bg-emerald-950/40 rounded-xl p-2.5 border border-emerald-200 dark:border-emerald-700/50">
-              <div className="w-6 h-6 rounded-full bg-[#16A34A] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">5</div>
-              <div className="font-black text-[#16A34A] dark:text-emerald-300 text-[11px]">إصدار واعتماد</div>
-              <div className="text-[10px] text-emerald-700 dark:text-emerald-400 mt-0.5">تتحول للمشرف</div>
             </div>
           </div>
         </div>
+      )}
 
-      </div>
-
-
-      {/* ========================================================================= */}
-      {/* 4. FOOTER NOTE */}
-      {/* ========================================================================= */}
+      {/* ============================ Footer note ============================ */}
       <div className="bg-white dark:bg-[#111C2E] text-slate-700 dark:text-[#94A3B8] rounded-2xl px-4 py-3 flex items-center justify-between text-xs border border-slate-200 dark:border-[#26364D] shadow-xs">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-[#F59E0B]" />
-          <span className="font-bold text-[#0F172A] dark:text-[#F1F5F9]">يوم عمل جميل وممتع وموفق بإذن الله</span>
-          <span className="text-slate-300 dark:text-slate-700 hidden sm:inline">|</span>
+        <div className="flex items-center gap-2 min-w-0">
+          <Sparkles className="w-4 h-4 text-[#F59E0B] shrink-0" aria-hidden="true" />
+          <span className="font-bold text-[#0F172A] dark:text-[#F1F5F9] truncate">يوم عمل جميل وممتع وموفق بإذن الله</span>
+          <span className="text-slate-300 dark:text-slate-700 hidden sm:inline" aria-hidden="true">|</span>
           <span className="text-slate-500 dark:text-[#94A3B8] hidden sm:inline">منظومة مبيعات ومخازن مجموعة الطنطاوي دريم</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onNavigateToTab('catalog')}
-            className="text-[#0D9488] hover:underline font-bold flex items-center gap-1 cursor-pointer"
-          >
-            <span>الكتالوج السريع</span>
-            <ChevronLeft className="w-3.5 h-3.5" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => onNavigateToTab('catalog')}
+          className="text-[#0D9488] hover:underline font-bold flex items-center gap-1 shrink-0 cursor-pointer"
+        >
+          <span className="hidden sm:inline">الكتالوج السريع</span>
+          <ChevronLeft className="w-3.5 h-3.5" aria-hidden="true" />
+        </button>
       </div>
 
-      {/* مودال تعديل ورفع صورة المندوب عبر Cloudinary بدون استهلاك Egress */}
+      {/* مودال تعديل ورفع صورة المندوب عبر Cloudinary */}
       <UserProfileAvatarModal
         isOpen={isAvatarModalOpen}
         onClose={() => setIsAvatarModalOpen(false)}
