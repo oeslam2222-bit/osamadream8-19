@@ -16,7 +16,17 @@ export default defineConfig(() => {
           // صور aistudio القديمة (16MB+) مش مستخدمة في التطبيق، وكانت بتتحمّل
           // كلها في الخلفية أول ما الـservice worker يتثبّت وبتزاحم باقي الملفات
           // على نفس الشبكة. بنستثنيها من الـprecache من غير ما نمسح ملفات المستخدم.
-          globIgnores: ['assets/aistudio/**', '**/*.apk'],
+          // مكتبات Excel/PDF/الصور البعيدة بقت chunks عند الطلب (2 ميجا+).
+          // تضمينها في الـprecache كان بيتحمّلها في الخلفية أول تثبيت على
+          // الموبايل من غير ما حد يفتح الشاشة اللي بتستخدمها.
+          globIgnores: [
+            'assets/aistudio/**',
+            '**/*.apk',
+            'assets/xlsx.min-*.js',
+            'assets/pdfService-*.js',
+            'assets/encodingService-*.js',
+            'assets/html2canvas.esm-*.js',
+          ],
           maximumFileSizeToCacheInBytes: 20 * 1024 * 1024,
           // الكاش الـruntime ده كان في sw.js اليدوي القديم، بس المولّد من
           // vite-plugin-pwa كان بيكتب فوقه بنفس الاسم فيبقى ميت في الإنتاج.
@@ -32,6 +42,17 @@ export default defineConfig(() => {
                 cacheName: 'google-fonts-runtime',
                 expiration: { maxEntries: 40, maxAgeSeconds: 60 * 60 * 24 * 180 },
                 cacheableResponse: { statuses: [0, 200] }, // 0 = استجابة opaque (بدون CORS)
+              },
+            },
+            {
+              // الـchunks المستثناة من الـprecache بتتخزن أول ما تُفتح شاشتها،
+              // وأسماء ملفاتها فيها hash فمفيش خطر إن نسخة قديمة تخدم الجديدة.
+              urlPattern: ({ url, sameOrigin }: { url: URL; sameOrigin: boolean }) =>
+                sameOrigin && /\/assets\/.+\.(js|css)$/.test(url.pathname),
+              handler: 'StaleWhileRevalidate',
+              options: {
+                cacheName: 'app-assets-runtime',
+                expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
               },
             },
             {
