@@ -335,3 +335,101 @@ html.dark .app-main .border-\[\#E2E8F0\],
 html.dark .app-main .border-\[\#e2e8f0\] {
   border-color: var(--app-border) !important;
 }
+
+/* ============================================================
+   خلفيات الألوان الفاتحة (bg-*-50/100) في الوضع الليلي:
+   كانت تفضل بانلات بيضاء → بقت درجات شفافة مشبعة بحدودها
+   ============================================================ */
+
+html.dark .app-main .bg-blue-50, html.dark .app-main .bg-blue-100, html.dark .app-main .bg-blue-50\/40, html.dark .app-main .bg-blue-50\/60, html.dark .app-main .bg-blue-50\/70, html.dark .app-main .bg-blue-50\/80, html.dark .app-main .bg-blue-100\/50, html.dark .app-main .bg-blue-100\/70 {
+  background-color: rgba(37, 99, 235, 0.16) !important;
+}
+html.dark .app-main .bg-indigo-50, html.dark .app-main .bg-indigo-100, html.dark .app-main .bg-indigo-50\/40, html.dark .app-main .bg-indigo-50\/60, html.dark .app-main .bg-indigo-50\/70, html.dark .app-main .bg-indigo-50\/80, html.dark .app-main .bg-indigo-100\/50, html.dark .app-main .bg-indigo-100\/70 {
+  background-color: rgba(79, 70, 229, 0.18) !important;
+}
+html.dark .app-main .bg-sky-50, html.dark .app-main .bg-sky-100, html.dark .app-main .bg-sky-50\/40, html.dark .app-main .bg-sky-50\/60, html.dark .app-main .bg-sky-50\/70, html.dark .app-main .bg-sky-50\/80, html.dark .app-main .bg-sky-100\/50, html.dark .app-main .bg-sky-100\/70 {
+  background-color: rgba(2, 132, 199, 0.18) !important;
+}
+html.dark .app-main .bg-cyan-50, html.dark .app-main .bg-cyan-100, html.dark .app-main .bg-cyan-50\/40, html.dark .app-main .bg-cyan-50\/60, html.dark .app-main .bg-cyan-50\/70, html.dark .app-main .bg-cyan-50\/80, html.dark .app-main .bg-cyan-100\/50, html.dark .app-main .bg-cyan-100\/70 {
+  background-color: rgba(8, 145, 178, 0.18) !important;
+}
+html.dark .app-main .bg-emerald-50, html.dark .app-main .bg-emerald-100, html.dark .app-main .bg-emerald-50\/40, html.dark .app-main .bg-emerald-50\/60, html.dark .app-main .bg-emerald-50\/70, html.dark .app-main .bg-emerald-50\/80, html.dark .app-main .bg-emerald-100\/50, html.dark .app-main .bg-emerald-100\/70 {
+  background-color: rgba(5, 150, 105, 0.18) !important;
+}
+html.dark .app-main .bg-green-50, html.dark .app-main .bg-green-100, html.dark .app-main .bg-green-50\/40, html.dark .app-main .bg-green-50\/60, html.dark .app-main .bg-green-50\/70, html.dark .app-main .bg-green-50\/80, html.dark .app-main .bg-green-100\/50, html.dark .app-main .bg-green-100\/70 {
+  background-color: rgba(22, 163, 74, 0.18) !important;
+}
+html.dark .app-main .bg-teal-50, html.dark .app-main .bg-teal-100, html.dark .app-main .bg-teal-50\/40, html.dark .app-main .bg-teal-50\/60, html.dark .app-main .bg-teal-50\/70, html.dark .app-main .bg-teal-50\/80, html.dark .app-main .bg-teal-100\/50, html.dark .app-main .bg-teal-100\/70 {
+  background-color: rgba(13, 148, 136, 0.20) !important;
+}
+html.dark .app-main .bg-amber-50, html.dark .app-main .bg-amber-100, html.dark .app-main .bg-amber-50\/40, html.dark .app-main .bg-amber-50\/60, html.dark .app-main .bg-amber-50\/70, html.dark .app-main .bg-amber-50\/80, html.dark .app-main .bg-amber-100\/50, html.dark .app-main .bg-amber-100\/70 {
+  background-color: rgba(217, 119, 6, 0.18) !important;
+}
+html.dark .app-main .bg-yellow-50, html.dark .app-main .bg-yellow-100, html.dark .app-main .bg-yellow-50\/40, html.dark .app-main .bg-yellow-50\/60, html.dark .app-main .bg-yellow-50\/70, html.dark .app-main .bg-yellow-50\/80, html.dark .app-main .bg-yellow-100\/50, html.dark .app-main .bg-yellow-100\/70 {
+  background-color: rgba(202, 138, 4, 0.18) !important;
+}
+html.dark .app-main .bg-orange-50, html.dark .app-main .bg-orange-100, html.dark .app-main .bg-orange-50\/40, html.dark .app-main .bg-orange-50\/60, html.dark .app-main .bg-orange-50\/70, html.dark .app-main .bg-orange-50\/80, html.dark .app-main .bg-orange-100\/50, html.dark .app-main .bg-orange-100\/70 {
+  background-color: rgba(234, 88, 12, 0.18) !important;
+}
+html.dark .app-main .bg-rose-50, html.dark .app-main .bg-rose-100, html.dark .app-main .bg-rose-50\/40, html.dark .app-main .bg-rose-50\/60, html.dark .app-main .bg-rose-50\/70, html.dark .app-main .bg-rose-50\/80, html.dark .app-main .bg-rose-100\/50, html.dark .app-main .bg-rose-100\/70 {
+  background-color: rgba(225, 29, 72, 0.16) !important;
+}
+html.dark .app-main .bg-red-50, html.dark .app-main .bg-red-100, html.dark .app-main .bg-red-50\/40, html.dark .app-main .bg-red-50\/60, html.dark .app-main .bg-red-50\/70, html.dark .app-main .bg-red-50\/80, html.dark .app-main .bg-red-100\/50, html.dark .app-main .bg-red-100\/70 {
+  background-color: rgba(220, 38, 38, 0.18) !important;
+}
+html.dark .app-main .bg-purple-50, html.dark .app-main .bg-purple-100, html.dark .app-main .bg-purple-50\/40, html.dark .app-main .bg-purple-50\/60, html.dark .app-main .bg-purple-50\/70, html.dark .app-main .bg-purple-50\/80, html.dark .app-main .bg-purple-100\/50, html.dark .app-main .bg-purple-100\/70 {
+  background-color: rgba(147, 51, 234, 0.20) !important;
+}
+html.dark .app-main .bg-violet-50, html.dark .app-main .bg-violet-100, html.dark .app-main .bg-violet-50\/40, html.dark .app-main .bg-violet-50\/60, html.dark .app-main .bg-violet-50\/70, html.dark .app-main .bg-violet-50\/80, html.dark .app-main .bg-violet-100\/50, html.dark .app-main .bg-violet-100\/70 {
+  background-color: rgba(124, 58, 237, 0.20) !important;
+}
+html.dark .app-main .bg-pink-50, html.dark .app-main .bg-pink-100, html.dark .app-main .bg-pink-50\/40, html.dark .app-main .bg-pink-50\/60, html.dark .app-main .bg-pink-50\/70, html.dark .app-main .bg-pink-50\/80, html.dark .app-main .bg-pink-100\/50, html.dark .app-main .bg-pink-100\/70 {
+  background-color: rgba(219, 39, 119, 0.18) !important;
+}
+
+/* نصوص الألوان الغامقة (text-*-600..900) تفتح عشان تبان في الليلي */
+html.dark .app-main .text-blue-600, html.dark .app-main .text-blue-700, html.dark .app-main .text-blue-800, html.dark .app-main .text-blue-900 {
+  color: #bfdbfe !important;
+}
+html.dark .app-main .text-indigo-600, html.dark .app-main .text-indigo-700, html.dark .app-main .text-indigo-800, html.dark .app-main .text-indigo-900 {
+  color: #c7d2fe !important;
+}
+html.dark .app-main .text-sky-600, html.dark .app-main .text-sky-700, html.dark .app-main .text-sky-800, html.dark .app-main .text-sky-900 {
+  color: #bae6fd !important;
+}
+html.dark .app-main .text-cyan-600, html.dark .app-main .text-cyan-700, html.dark .app-main .text-cyan-800, html.dark .app-main .text-cyan-900 {
+  color: #a5f3fc !important;
+}
+html.dark .app-main .text-emerald-600, html.dark .app-main .text-emerald-700, html.dark .app-main .text-emerald-800, html.dark .app-main .text-emerald-900 {
+  color: #a7f3d0 !important;
+}
+html.dark .app-main .text-green-600, html.dark .app-main .text-green-700, html.dark .app-main .text-green-800, html.dark .app-main .text-green-900 {
+  color: #bbf7d0 !important;
+}
+html.dark .app-main .text-teal-600, html.dark .app-main .text-teal-700, html.dark .app-main .text-teal-800, html.dark .app-main .text-teal-900 {
+  color: #99f6e4 !important;
+}
+html.dark .app-main .text-amber-600, html.dark .app-main .text-amber-700, html.dark .app-main .text-amber-800, html.dark .app-main .text-amber-900 {
+  color: #fde68a !important;
+}
+html.dark .app-main .text-yellow-600, html.dark .app-main .text-yellow-700, html.dark .app-main .text-yellow-800, html.dark .app-main .text-yellow-900 {
+  color: #fef08a !important;
+}
+html.dark .app-main .text-orange-600, html.dark .app-main .text-orange-700, html.dark .app-main .text-orange-800, html.dark .app-main .text-orange-900 {
+  color: #fed7aa !important;
+}
+html.dark .app-main .text-rose-600, html.dark .app-main .text-rose-700, html.dark .app-main .text-rose-800, html.dark .app-main .text-rose-900 {
+  color: #fecdd3 !important;
+}
+html.dark .app-main .text-red-600, html.dark .app-main .text-red-700, html.dark .app-main .text-red-800, html.dark .app-main .text-red-900 {
+  color: #fecaca !important;
+}
+html.dark .app-main .text-purple-600, html.dark .app-main .text-purple-700, html.dark .app-main .text-purple-800, html.dark .app-main .text-purple-900 {
+  color: #e9d5ff !important;
+}
+html.dark .app-main .text-violet-600, html.dark .app-main .text-violet-700, html.dark .app-main .text-violet-800, html.dark .app-main .text-violet-900 {
+  color: #ddd6fe !important;
+}
+html.dark .app-main .text-pink-600, html.dark .app-main .text-pink-700, html.dark .app-main .text-pink-800, html.dark .app-main .text-pink-900 {
+  color: #fbcfe8 !important;
+}
