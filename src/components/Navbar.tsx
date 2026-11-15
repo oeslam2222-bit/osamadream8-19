@@ -225,6 +225,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'guide', label: 'الدليل', icon: BookOpen, roles: isFieldRole ? [] : ['admin', 'branch_manager', 'developer', 'warehouse_keeper'] },
     { id: 'users', label: 'الفريق', icon: UserCheck, roles: ['admin', 'developer', 'branch_manager', 'supervisor'], badge: pendingApprovalsCount },
     { id: 'permissions', label: 'الصلاحيات', icon: ShieldCheck, roles: ['admin', 'developer'] },
+    { id: 'settings', label: 'الإعدادات', icon: Settings, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper', 'legal_advisor'] },
 
   ];
 
@@ -233,7 +234,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'selling', label: 'البيع والكتالوج', items: ['invoices', 'catalog', 'product_sales', 'offers'] },
     { id: 'field', label: 'العملاء والتحصيل', items: ['customers', 'collection', 'returns', 'visits'] },
     { id: 'reports', label: 'التقارير والأهداف', items: ['targets', 'reps', 'excel'] },
-    { id: 'admin', label: 'الإدارة والنظام', items: ['users', 'permissions', 'guide', 'legal_advisor'] },
+    { id: 'admin', label: 'الإدارة والنظام', items: ['users', 'permissions', 'guide', 'legal_advisor', 'settings'] },
   ];
 
   const filteredNavItems = navItems.filter((item) => item.roles.includes(currentUser.role));

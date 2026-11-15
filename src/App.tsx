@@ -101,6 +101,7 @@ const ProductCatalog = lazyNamed(() => import('./components/ProductCatalog'), 'P
 const AllCustomersAnalyticsView = lazyNamed(() => import('./components/AllCustomersAnalyticsView'), 'AllCustomersAnalyticsView');
 const SmartProfilePage = lazyNamed(() => import('./components/SmartProfilePage'), 'SmartProfilePage');
 const TargetsDashboard = lazyNamed(() => import('./components/TargetsDashboard'), 'TargetsDashboard');
+const SettingsCenterView = lazyNamed(() => import('./components/SettingsCenterView'), 'SettingsCenterView');
 const UnifiedRepPerformanceView = lazyNamed(() => import('./components/UnifiedRepPerformanceView'), 'UnifiedRepPerformanceView');
 const CustomerItemSalesView = lazyNamed(() => import('./components/CustomerItemSalesView'), 'CustomerItemSalesView');
 const SupervisorDashboard = lazyNamed(() => import('./components/SupervisorDashboard'), 'SupervisorDashboard');
@@ -158,16 +159,17 @@ const MainLayout: React.FC = () => {
 
   const allowedTabs = useMemo(() => {
     if (!currentUser) return ['home'];
+    // شاشة الإعدادات متاحة لكل الأدوار (بيانات الحساب والفروع والإشعارات)
     if (currentUser.role === 'admin' || currentUser.role === 'developer') {
-      return ROLE_ALLOWED_TABS.developer;
+      return Array.from(new Set([...ROLE_ALLOWED_TABS.developer, 'settings']));
     }
     const baseTabs = ROLE_ALLOWED_TABS[currentUser.role] || ROLE_ALLOWED_TABS.sales_rep || ['home'];
     const override = customPermissionOverrides.find((o) => o.userId === currentUser.id);
     if (override && Array.isArray(override.allowedTabs) && override.allowedTabs.length > 0) {
       // Merge role base tabs with custom override tabs so system screens are never inadvertently blocked
-      return Array.from(new Set([...baseTabs, ...override.allowedTabs]));
+      return Array.from(new Set([...baseTabs, ...override.allowedTabs, 'settings']));
     }
-    return baseTabs;
+    return Array.from(new Set([...baseTabs, 'settings']));
   }, [currentUser, customPermissionOverrides]);
 
   // Land on authorized tab and strictly guard unauthorized tabs
@@ -234,7 +236,7 @@ const MainLayout: React.FC = () => {
       orders: 'invoices',
       collections: 'collection',
       reports: currentUser?.role === 'sales_rep' ? 'targets' : 'dashboard',
-      settings: 'guide',
+      settings: 'settings',
       sync: 'excel',
       promotions: 'offers',
     };
@@ -249,7 +251,7 @@ const MainLayout: React.FC = () => {
       orders: 'invoices',
       collections: 'collection',
       reports: currentUser?.role === 'sales_rep' ? 'targets' : 'dashboard',
-      settings: 'guide',
+      settings: 'settings',
       sync: 'excel',
       promotions: 'offers',
     };
@@ -401,6 +403,10 @@ const MainLayout: React.FC = () => {
           )}
 
           {activeTab === 'users' && allowedTabs.includes('users') && <UserManager />}
+
+          {activeTab === 'settings' && allowedTabs.includes('settings') && (
+            <SettingsCenterView onNavigate={(tab) => setActiveTab(tab)} />
+          )}
 
           {activeTab === 'guide' && allowedTabs.includes('guide') && (
             <SystemWorkflowGuide onNavigateToTab={(tab) => setActiveTab(tab)} />
