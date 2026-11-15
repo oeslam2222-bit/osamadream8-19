@@ -220,3 +220,68 @@ html.dark .tg-stat--colored.tg-stat--emerald { background: rgba(5, 150, 105, 0.1
 html.dark .tg-stat--colored.tg-stat--amber { background: rgba(217, 119, 6, 0.18); border-color: rgba(251, 191, 36, 0.38); color: #fde68a; }
 html.dark .tg-stat--colored.tg-stat--violet { background: rgba(124, 58, 237, 0.2); border-color: rgba(167, 139, 250, 0.4); color: #ddd6fe; }
 html.dark .tg-stat--colored.tg-stat--red { background: rgba(220, 38, 38, 0.18); border-color: rgba(248, 113, 113, 0.4); color: #fecaca; }
+
+/* ============================================================
+   الشاشات اللي بتستخدم متغيّرات Tailwind الليلية (dark:bg-slate-*)
+   بتتربط بنفس لوحة الكروت الموحّدة بدل الأسود/الرمادي الغامق
+   ============================================================ */
+
+html.dark .app-main .dark\:bg-slate-800,
+html.dark .app-main .dark\:bg-slate-900 {
+  background-color: var(--app-card) !important;
+}
+
+html.dark .app-main .dark\:bg-slate-700 {
+  background-color: var(--app-card-secondary) !important;
+}
+
+html.dark .app-main .dark\:bg-slate-800\/60,
+html.dark .app-main .dark\:bg-slate-800\/80,
+html.dark .app-main .dark\:bg-slate-900\/60,
+html.dark .app-main .dark\:bg-slate-900\/80 {
+  background-color: rgba(17, 28, 46, 0.75) !important;
+}
+
+html.dark .app-main .dark\:border-slate-700,
+html.dark .app-main .dark\:border-slate-600 {
+  border-color: var(--app-border) !important;
+}
+
+html.dark .app-main .dark\:text-slate-400,
+html.dark .app-main .dark\:text-slate-300 {
+  color: var(--app-text-muted) !important;
+}
+
+html.dark .app-main .dark\:text-slate-200 {
+  color: var(--app-text) !important;
+}
+
+/* ---------- اتساق الأزرار: نفس نصف القطر والتركيز في كل الصفحات ---------- */
+.app-main button,
+.app-main .tg-btn,
+.app-main .dp-btn {
+  font-family: inherit;
+}
+
+.app-main button:focus-visible,
+.app-main a:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
+}
+
+/* أزرار الصفحات اللي بتستخدم لون أزرق صريح → نفس أزرق الهوية */
+html:not(.dark) .app-main .bg-blue-600 {
+  background-color: #1d4ed8;
+}
+
+html:not(.dark) .app-main .bg-blue-600:hover {
+  background-color: #1e40af;
+}
+
+html.dark .app-main .bg-blue-600 {
+  background-color: #3b82f6;
+}
+
+html.dark .app-main .bg-blue-600:hover {
+  background-color: #2f76e8;
+}
