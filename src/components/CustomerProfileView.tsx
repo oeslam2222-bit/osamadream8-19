@@ -26,6 +26,7 @@ import { getCustomerBalance, getCustomerOverdue } from '../services/customerFilt
 import { getCustomerPaid } from '../services/customerTableSchema';
 import { resolveBranchName, resolveSectorFromBranch, inferSectorFromText } from '../services/arabicMatchingService';
 import { uploadCustomerPhoto, normalizeCloudinaryConfig } from '../services/cloudinaryService';
+import { ItemSalesProfilePanel } from './itemSales/ItemSalesProfilePanel';
 
 export interface CustomerProfileViewProps {
   onNavigateToTab?: (tab: string) => void;
@@ -422,6 +423,13 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
               <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 font-bold">نسبة التحصيل {collectionRate}%</div>
             </article>
           </div>
+
+          {/* مبيعات الأصناف المرتبطة بهذا العميل (من شيت مبيعات الأصناف) */}
+          <ItemSalesProfilePanel
+            title="مبيعات الأصناف لهذا العميل"
+            customerAccount={customer.code || customer.id}
+            customerName={customer.name}
+          />
 
           {/* أشرطة الأقسام */}
           <div className="flex gap-1 overflow-x-auto pb-1 mb-2 scrollbar-hide">

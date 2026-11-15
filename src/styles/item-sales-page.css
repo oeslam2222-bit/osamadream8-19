@@ -1,0 +1,62 @@
+/* ============================================================
+   صفحة مبيعات الأصناف — تنسيق النهار والليل
+   الصفحة كانت مبنية بألوان ثابتة (أبيض / رمادي فاتح) فتفضل بيضاء
+   بالكامل في الوضع الليلي. هنا بنربط أسطحها ونصوصها بمتغيّرات الثيم
+   داخل نطاق الصفحة فقط (.cis-page) — بدون أي تأثير على باقي الشاشات.
+   ============================================================ */
+
+html.dark .cis-page .bg-white {
+  background-color: var(--app-card) !important;
+}
+
+html.dark .cis-page .bg-slate-50,
+html.dark .cis-page .bg-slate-50\/70,
+html.dark .cis-page .bg-slate-100\/50,
+html.dark .cis-page .bg-slate-50\/80 {
+  background-color: var(--app-card-secondary) !important;
+}
+
+html.dark .cis-page .bg-slate-100 {
+  background-color: var(--app-card-hover) !important;
+}
+
+html.dark .cis-page .bg-slate-200 {
+  background-color: var(--app-border) !important;
+}
+
+html.dark .cis-page .border-slate-100,
+html.dark .cis-page .border-slate-200 {
+  border-color: var(--app-border) !important;
+}
+
+html.dark .cis-page .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+html.dark .cis-page .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--app-border) !important;
+}
+
+html.dark .cis-page .text-slate-900,
+html.dark .cis-page .text-slate-800,
+html.dark .cis-page .text-slate-700 {
+  color: var(--app-text) !important;
+}
+
+html.dark .cis-page .text-slate-600,
+html.dark .cis-page .text-slate-500,
+html.dark .cis-page .text-slate-400 {
+  color: var(--app-text-muted) !important;
+}
+
+/* الحقول والأزرار المخصّصة داخل الصفحة */
+html.dark .cis-page input,
+html.dark .cis-page select,
+html.dark .cis-page textarea {
+  background-color: var(--app-card-secondary) !important;
+  color: var(--app-text) !important;
+  border-color: var(--app-border) !important;
+}
+
+html.dark .cis-page .hover\:bg-slate-50:hover,
+html.dark .cis-page .hover\:bg-slate-100:hover,
+html.dark .cis-page .hover\:bg-slate-200:hover {
+  background-color: var(--app-card-hover) !important;
+}

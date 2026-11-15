@@ -445,8 +445,36 @@ export function filterPromotionsForUser(
 /**
  * Find the matching active promotion for a product by code, baseCode, unifiedCode, or clean name
  */
+const normalizedVariant = (value?: string | null): string =>
+  normalizeArabicText(String(value || '')).replace(/\s+/g, '');
+
+// قيم اللون اللي معناها «كل الألوان» متبقاش شرط مطابقة
+const VARIANT_WILDCARDS = new Set(['', 'كلالالوان', 'كلالاوان', 'جميع', 'متعدد', 'الكل', '-', '—', '0']);
+
+/**
+ * اللون/المقاس هما اللي بيفرّقوا الصنف لما كود المنتج يتكرر، فلو العرض
+ * محدد بلون أو مقاس لازم يطابق الصنف — ولو العرض عام أو الصنف بدون لون
+ * بنسمح بالمطابقة زي الأول.
+ */
+function variantMatches(
+  promo: PromotionOffer,
+  prod: { color?: string; size?: string }
+): boolean {
+  const promoColor = normalizedVariant(promo.color);
+  const prodColor = normalizedVariant(prod.color);
+  if (promoColor && !VARIANT_WILDCARDS.has(promoColor) && prodColor && promoColor !== prodColor) {
+    return false;
+  }
+  const promoSize = normalizedVariant(promo.size);
+  const prodSize = normalizedVariant(prod.size);
+  if (promoSize && !VARIANT_WILDCARDS.has(promoSize) && prodSize && promoSize !== prodSize) {
+    return false;
+  }
+  return true;
+}
+
 export function findPromotionForProduct(
-  prod: Pick<Product, 'code' | 'unifiedCode' | 'name'>,
+  prod: Pick<Product, 'code' | 'unifiedCode' | 'name'> & { color?: string; size?: string },
   promotions: PromotionOffer[]
 ): PromotionOffer | undefined {
   if (!prod || !promotions || promotions.length === 0) return undefined;
@@ -457,6 +485,7 @@ export function findPromotionForProduct(
 
   return promotions.find((promo) => {
     if (promo.status && promo.status !== 'نشط') return false;
+    if (!variantMatches(promo, prod)) return false;
     const pCode = cleanProductCode(promo.productCode).toLowerCase();
     const pUnified = cleanProductCode(promo.unifiedCode?.replace(/^#/, '')).toLowerCase();
     const pBase = extractBaseProductCode(promo.productCode).toLowerCase();

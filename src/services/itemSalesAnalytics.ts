@@ -1,6 +1,5 @@
 import { CustomerItemSaleRecord, Product } from '../types';
 import { MONTH_LABELS, sumSalesAmount, sumSalesQuantity } from './customerItemSalesInsights';
-import { normalizeProductCodeKey } from './productIdentity';
 
 /**
  * طبقة تحليلات لوحة «مبيعات الأصناف» (Item-centric dashboard).
@@ -34,8 +33,25 @@ const monthOf = (record: CustomerItemSaleRecord): number => {
   return Number.isFinite(value) && value >= 1 && value <= 12 ? value : 0;
 };
 
-const itemKeyOf = (record: CustomerItemSaleRecord): string =>
-  (record.itemCode || record.itemName || '').trim() || 'غير محدد';
+const normalizeItemCode = (value?: string): string =>
+  (value || '').trim().replace(/^#/, '').toLowerCase();
+
+/**
+ * هوية الصنف في كل تحليلات مبيعات الأصناف.
+ *
+ * كود المنتج ممكن يتكرر (نفس المنتج بألوان مختلفة)، والكود الموحد هو
+ * اللي بيفرّق اللون وبيبقى فريد — فبنعتمد عليه أولاً، وبعده كود الصنف.
+ * البادئة (u:/c:) بتمنع أي تطابق عشوائي بين كود موحد وكود منتج بنفس الرقم.
+ */
+export function resolveItemKey(record: CustomerItemSaleRecord): string {
+  const unified = normalizeItemCode(record.unifiedCode);
+  if (unified) return `u:${unified}`;
+  const code = normalizeItemCode(record.itemCode);
+  if (code) return `c:${code}`;
+  return (record.itemName || '').trim() || 'غير محدد';
+}
+
+const itemKeyOf = (record: CustomerItemSaleRecord): string => resolveItemKey(record);
 
 const customerKeyOf = (record: CustomerItemSaleRecord): string =>
   (record.customerAccount || record.invoicingName || '').trim();
@@ -186,7 +202,7 @@ function accumulateItems(records: CustomerItemSaleRecord[]): Map<string, ItemAcc
     const key = itemKeyOf(record);
     const entry: ItemAccumulator =
       map.get(key) || {
-        itemCode: record.itemCode || '',
+        itemCode: (record.unifiedCode || record.itemCode || '').trim(),
         itemName: record.itemName || record.definitions || 'صنف غير محدد',
         itemGroup: resolveItemGroup(record),
         unit: record.unit || 'وحدة',
@@ -490,19 +506,25 @@ export function buildIdleItems(
 ): IdleItemsResult {
   const soldInPeriod = new Set<string>();
   periodRecords.forEach((record) => {
-    const key = itemKeyOf(record);
-    soldInPeriod.add(key);
-    if (record.itemCode) soldInPeriod.add(record.itemCode.trim());
+    soldInPeriod.add(itemKeyOf(record));
+    const unified = normalizeItemCode(record.unifiedCode);
+    const code = normalizeItemCode(record.itemCode);
+    if (unified) soldInPeriod.add(`u:${unified}`);
+    if (code) {
+      soldInPeriod.add(`c:${code}`);
+      soldInPeriod.add(code);
+    }
   });
 
   const lastSoldByCode = new Map<string, number>();
   allRecords.forEach((record) => {
-    const code = (record.itemCode || '').trim();
-    if (!code) return;
     const month = monthOf(record);
     if (!month) return;
-    const previous = lastSoldByCode.get(code);
-    if (previous === undefined || month > previous) lastSoldByCode.set(code, month);
+    const keys = [itemKeyOf(record), normalizeItemCode(record.itemCode)].filter(Boolean);
+    keys.forEach((key) => {
+      const previous = lastSoldByCode.get(key);
+      if (previous === undefined || month > previous) lastSoldByCode.set(key, month);
+    });
   });
 
   const catalogMap = new Map<string, IdleItemInsight>();
@@ -513,11 +535,20 @@ export function buildIdleItems(
     if (stock <= 0) return;
     const code = (product.code || '').trim();
     if (!code) return;
-    const identity = normalizeProductCodeKey(product.unifiedCode || product.code) || code;
+    const unified = normalizeItemCode(product.unifiedCode);
+    const normalizedCode = normalizeItemCode(product.code);
+    const identity = unified ? `u:${unified}` : `c:${normalizedCode}`;
     if (catalogMap.has(identity)) return;
     catalogWithStock += 1;
-    if (soldInPeriod.has(code) || soldInPeriod.has(identity)) return;
-    const lastMonth = lastSoldByCode.get(code) ?? null;
+    if (
+      soldInPeriod.has(identity) ||
+      soldInPeriod.has(code) ||
+      (normalizedCode && soldInPeriod.has(normalizedCode))
+    ) {
+      return;
+    }
+    const lastMonth =
+      lastSoldByCode.get(identity) ?? (normalizedCode ? lastSoldByCode.get(normalizedCode) : null) ?? null;
     catalogMap.set(identity, {
       itemCode: code,
       itemName: product.name || 'صنف غير محدد',

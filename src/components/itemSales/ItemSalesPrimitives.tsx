@@ -51,7 +51,7 @@ export const CardShell: React.FC<{
   bodyClassName = ''
 }) => (
   <section
-    className={`bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4 sm:p-5 flex flex-col ${className}`}
+    className={`bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4 sm:p-5 flex flex-col ${className}`}
   >
     <header className="flex items-start justify-between gap-3">
       <div className="flex items-start gap-2.5 min-w-0">
@@ -61,8 +61,8 @@ export const CardShell: React.FC<{
           </span>
         )}
         <div className="min-w-0">
-          <h3 className="text-[12.5px] sm:text-sm font-black text-slate-900 leading-tight">{title}</h3>
-          {subtitle && <p className="text-[10px] text-slate-500 font-bold mt-0.5">{subtitle}</p>}
+          <h3 className="text-[12.5px] sm:text-sm font-black text-[var(--app-text)] leading-tight">{title}</h3>
+          {subtitle && <p className="text-[10px] text-[var(--app-text-muted)] font-bold mt-0.5">{subtitle}</p>}
         </div>
       </div>
       {action && <div className="shrink-0">{action}</div>}

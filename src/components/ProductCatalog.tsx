@@ -52,6 +52,7 @@ import {
 import { formatCurrency } from '../services/invoiceService';
 import { resolveDisplayPrice, stripPlaceholderText } from '../services/productPricing';
 import { filterPromotionsForUser, resolveProductPromotion } from '../services/promotionService';
+import { ProductVariantPicker } from './catalog/ProductVariantPicker';
 import { cacheProductImages, getCachedImagesStats } from '../services/imageCacheService';
 import { parseExcelProducts, fetchAndParseGoogleSheet } from '../services/excelService';
 import {
@@ -1972,6 +1973,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            {/* الألوان / الأكواد الموحدة لنفس كود المنتج */}
+            <ProductVariantPicker
+              product={selectedProductForModal}
+              allProducts={products}
+              onSelect={(variant) => setSelectedProductForModal(variant)}
+            />
 
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl">

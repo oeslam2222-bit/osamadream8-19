@@ -1,0 +1,68 @@
+/* ============================================================
+   توحيد شكل الكروت في الوضع الليلي (نهار/ليل)
+   صفحات كتير مبنية بألوان ثابتة (أبيض / رمادي فاتح)، فتفضل بيضاء
+   بالكامل لما تتشغّل الليلي. هنا بنربط الأسطح والنصوص بحقول الثيم
+   داخل منطقة التطبيق فقط (.app-main) — بدون لمس شاشات التمبلت.
+   ============================================================ */
+
+html.dark .app-main .bg-white {
+  background-color: var(--app-card) !important;
+}
+
+html.dark .app-main .bg-slate-50,
+html.dark .app-main .bg-slate-50\/70,
+html.dark .app-main .bg-slate-50\/80,
+html.dark .app-main .bg-slate-100\/50,
+html.dark .app-main .bg-slate-100\/70 {
+  background-color: var(--app-card-secondary) !important;
+}
+
+html.dark .app-main .bg-slate-100 {
+  background-color: var(--app-card-hover) !important;
+}
+
+html.dark .app-main .bg-slate-200 {
+  background-color: var(--app-border) !important;
+}
+
+html.dark .app-main .border-slate-100,
+html.dark .app-main .border-slate-200 {
+  border-color: var(--app-border) !important;
+}
+
+html.dark .app-main .divide-slate-100 > :not([hidden]) ~ :not([hidden]),
+html.dark .app-main .divide-slate-200 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--app-border) !important;
+}
+
+html.dark .app-main .text-slate-900,
+html.dark .app-main .text-slate-800,
+html.dark .app-main .text-slate-700 {
+  color: var(--app-text) !important;
+}
+
+html.dark .app-main .text-slate-600,
+html.dark .app-main .text-slate-500,
+html.dark .app-main .text-slate-400 {
+  color: var(--app-text-muted) !important;
+}
+
+html.dark .app-main .hover\:bg-slate-50:hover,
+html.dark .app-main .hover\:bg-slate-100:hover,
+html.dark .app-main .hover\:bg-slate-200:hover {
+  background-color: var(--app-card-hover) !important;
+}
+
+/* الكروت الملوّنة في الوضعين: نفس الحدود ونفس الظل في كل الشاشات */
+html.dark .app-main .rounded-2xl,
+html.dark .app-main .rounded-3xl {
+  border-color: var(--app-border);
+}
+
+html.dark .app-main .shadow-sm,
+html.dark .app-main .shadow-md,
+html.dark .app-main .shadow-lg,
+html.dark .app-main .shadow-xl,
+html.dark .app-main .shadow-2xl {
+  box-shadow: var(--app-shadow-card) !important;
+}

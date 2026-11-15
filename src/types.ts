@@ -998,6 +998,7 @@ export interface CustomerItemSaleRecord {
   itemGroup: string;            // Item group (مجموعة الصنف)
   definitions?: string;         // التعريفات (Definitions)
   familyDimension: string;      // Family Dimension (عائلة الصنف / التصنيف)
+  sector?: 'home' | 'electrical' | 'both'; // القطاع (منزلي / كهربائي) من عمود القطاع في الشيت
   createdAt?: string;
 
   // --- الربط بقاعدة العملاء (Linked to Master Customers Directory) ---

@@ -110,6 +110,7 @@ function mapHeaderIndices(headerRow: any[]): Record<string, number> {
     itemGroup: -1,
     definitions: -1,
     familyDimension: -1,
+    sector: -1,
   };
 
   headerRow.forEach((raw, idx) => {
@@ -177,6 +178,10 @@ function mapHeaderIndices(headerRow: any[]): Record<string, number> {
     else if (h.includes('warehouse') || h.includes('مخزن') || h.includes('فرع') || h === 'branch') {
       if (map.warehouse === -1) map.warehouse = idx;
     }
+    // 7b. القطاع (منزلي / كهربائي) — Sector
+    else if (h.includes('قطاع') || h.includes('sector')) {
+      if (map.sector === -1) map.sector = idx;
+    }
     // 8. Item (كود الصنف)
     else if (
       h === 'item' ||
@@ -241,7 +246,9 @@ function mapHeaderIndices(headerRow: any[]): Record<string, number> {
       h.includes('qty') ||
       h.includes('كمية') ||
       h.includes('كميه') ||
-      h.includes('العدد')
+      h.includes('العدد') ||
+      h.includes('عدد') ||
+      h.includes('قطع')
     ) {
       if (map.quantity === -1) map.quantity = idx;
     }
@@ -276,6 +283,7 @@ function mapHeaderIndices(headerRow: any[]): Record<string, number> {
     else if (
       h.includes('family') ||
       h.includes('عائلة') ||
+      h.includes('عائله') ||
       h.includes('الفئة') ||
       h.includes('فئة') ||
       h.includes('التصنيف')
@@ -285,6 +293,131 @@ function mapHeaderIndices(headerRow: any[]): Record<string, number> {
   });
 
   return map;
+}
+
+/** أسماء الشهور بالعربي والإنجليزي — الشيتات الحقيقية بتكتب الشهر باسمه. */
+const MONTH_NAME_LOOKUP: Record<string, number> = {
+  'يناير': 1,
+  'فبراير': 2,
+  'مارس': 3,
+  'ابريل': 4,
+  'مايو': 5,
+  'يونيو': 6,
+  'يوليو': 7,
+  'اغسطس': 8,
+  'سبتمبر': 9,
+  'اكتوبر': 10,
+  'نوفمبر': 11,
+  'ديسمبر': 12,
+  january: 1,
+  jan: 1,
+  february: 2,
+  feb: 2,
+  march: 3,
+  mar: 3,
+  april: 4,
+  apr: 4,
+  may: 5,
+  june: 6,
+  jun: 6,
+  july: 7,
+  jul: 7,
+  august: 8,
+  aug: 8,
+  september: 9,
+  sept: 9,
+  sep: 9,
+  october: 10,
+  oct: 10,
+  november: 11,
+  nov: 11,
+  december: 12,
+  dec: 12
+};
+
+/**
+ * يستنتج رقم الشهر (1-12) من خلية «الشهر» بأي شكل بتكتبه الشيتات:
+ * رقم، اسم شهر عربي/إنجليزي، "1/2026"، "2026-01"، تاريخ كامل، أو رقم إكسل التسلسلي.
+ * بيرجّع null لو مش قادر يستنتج — عشان القارئ يرجع لعمود التاريخ.
+ */
+export function parseSalesMonthValue(rawValue: any, rawDate?: string): number | null {
+  if (rawValue instanceof Date && !Number.isNaN(rawValue.getTime())) {
+    return rawValue.getMonth() + 1;
+  }
+
+  const rawText = String(rawValue ?? '').trim();
+  if (rawText) {
+    const normalizedName = rawText
+      .toLowerCase()
+      .replace(/[\u064B-\u0652\u0640]/g, '')
+      .replace(/[أإآ]/g, 'ا')
+      .replace(/ة/g, 'ه');
+
+    const nameMatch = Object.entries(MONTH_NAME_LOOKUP)
+      .sort((a, b) => b[0].length - a[0].length)
+      .find(([name]) => normalizedName.includes(name));
+    if (nameMatch) return nameMatch[1];
+
+    const yearFirst = rawText.match(/^(\d{4})[\/\-.](\d{1,2})/);
+    if (yearFirst) {
+      const monthPart = Number(yearFirst[2]);
+      if (monthPart >= 1 && monthPart <= 12) return monthPart;
+    }
+
+    const twoParts = rawText.match(/^(\d{1,4})[\/\-.](\d{1,4})$/);
+    if (twoParts) {
+      const first = Number(twoParts[1]);
+      const second = Number(twoParts[2]);
+      if (second >= 1000 && first >= 1 && first <= 12) return first;
+      if (first >= 1000 && second >= 1 && second <= 12) return second;
+      if (first >= 1 && first <= 12 && second > 12) return first;
+      if (second >= 1 && second <= 12 && first > 12) return second;
+      if (first >= 1 && first <= 12) return first;
+    }
+
+    const latinDigits = rawText.replace(/[\u0660-\u0669\u06F0-\u06F9]/g, (digit) => {
+      const code = digit.charCodeAt(0);
+      return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
+    });
+    if (/^\d+(\.\d+)?$/.test(latinDigits)) {
+      const plain = Number(latinDigits);
+      if (plain >= 1 && plain <= 12) return Math.round(plain);
+      // تاريخ كامل مخزّن كرقم إكسل تسلسلي
+      if (plain >= 20000 && plain <= 60000) {
+        const serialDate = new Date(Date.UTC(1899, 11, 30) + Math.round(plain) * 86400000);
+        if (!Number.isNaN(serialDate.getTime())) return serialDate.getUTCMonth() + 1;
+      }
+    }
+
+    if (/\d{4}/.test(rawText)) {
+      const parsedDate = new Date(rawText);
+      if (!Number.isNaN(parsedDate.getTime())) return parsedDate.getMonth() + 1;
+    }
+  }
+
+  if (rawDate) {
+    const parsedDate = new Date(String(rawDate).trim());
+    if (!Number.isNaN(parsedDate.getTime())) return parsedDate.getMonth() + 1;
+  }
+
+  return null;
+}
+
+/**
+ * يقرأ عمود «القطاع» (منزلي / كهربائي / كلاهما) عشان يظهر كعمود مستقل
+ * بدل ما القطاع يتستنتج من الكتالوج فقط.
+ */
+export function parseSalesSectorValue(rawValue: any): 'home' | 'electrical' | 'both' | undefined {
+  const text = String(rawValue ?? '').trim().toLowerCase();
+  if (!text) return undefined;
+  const compact = text.replace(/[\s_\-./\\]+/g, '');
+  if (compact === 'home' || compact === 'electrical' || compact === 'both') {
+    return compact as 'home' | 'electrical' | 'both';
+  }
+  if (compact.includes('كلاهما') || compact.includes('الاثنين')) return 'both';
+  if (compact.includes('كهرب') || compact.includes('elect')) return 'electrical';
+  if (compact.includes('منزل')) return 'home';
+  return undefined;
 }
 
 /**
@@ -352,7 +485,6 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
     const salesOrder = getVal(colMap.salesOrder);
     const rawDate = getVal(colMap.date);
     const repName = getVal(colMap.repName) || 'غير محدد';
-    const rawMonth = getNum(colMap.month);
     const warehouse = getVal(colMap.warehouse) || 'الفرع الرئيسي';
     const unit = getVal(colMap.unit) || 'كرتونة';
     const factor = Math.max(1, getNum(colMap.factor) || 1);
@@ -368,19 +500,15 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
       amount = Math.max(0, (quantity * unitPrice) - discount);
     }
 
-    // Resolve month: from explicit month column, or derived from date
-    let month = Math.max(1, Math.min(12, Math.round(rawMonth)));
-    if ((!rawMonth || rawMonth < 1 || rawMonth > 12) && rawDate) {
-      const parsedDate = new Date(rawDate);
-      if (!isNaN(parsedDate.getTime())) {
-        month = parsedDate.getMonth() + 1;
-      }
-    }
-    if (!month || month < 1 || month > 12) month = 1;
+    // Resolve month: اسم شهر / رقم / تاريخ في عمود الشهر، وإلا من عمود التاريخ
+    const monthCell = colMap.month >= 0 ? row[colMap.month] : '';
+    const resolvedMonth = parseSalesMonthValue(monthCell, rawDate);
+    const month = resolvedMonth && resolvedMonth >= 1 && resolvedMonth <= 12 ? resolvedMonth : 1;
 
     const itemGroup = getVal(colMap.itemGroup) || 'عام';
     const definitions = getVal(colMap.definitions);
     const familyDimension = getVal(colMap.familyDimension) || itemGroup;
+    const sector = parseSalesSectorValue(colMap.sector >= 0 ? row[colMap.sector] : '');
 
     const record: CustomerItemSaleRecord = {
       id: `cis-${i}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
@@ -404,6 +532,7 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
       itemGroup,
       definitions: definitions || undefined,
       familyDimension,
+      sector,
       createdAt: new Date().toISOString()
     };
 
@@ -998,6 +1127,18 @@ export async function clearCustomerItemSales(): Promise<void> {
 }
 
 /**
+ * مفتاح السطر في شيت مبيعات الأصناف: عميل + صنف + شهر.
+ * هو الحبيبة الطبيعية للشيت الشهري، وبيُستخدم لاستبدال صفوف الشهر عند الاستيراد.
+ */
+function customerItemMonthKey(record: {
+  customerAccount?: string;
+  itemCode?: string;
+  month?: number;
+}): string {
+  return `${String(record.customerAccount || '').trim().toLowerCase()}||${String(record.itemCode || '').trim().toLowerCase()}||${Number(record.month) || 0}`;
+}
+
+/**
  * Save Customer Item Sales to storage (In-memory + IndexedDB primary + localStorage cache + window event)
  */
 export async function saveCustomerItemSales(sales: CustomerItemSaleRecord[], mode: 'replace' | 'merge' = 'replace'): Promise<void> {
@@ -1005,21 +1146,20 @@ export async function saveCustomerItemSales(sales: CustomerItemSaleRecord[], mod
   if (mode === 'merge') {
     try {
       const existing = await getSavedCustomerItemSales();
-      const newKeys = new Set(sales.map((r) => r.customerAccount + '||' + r.itemCode + '||' + r.month + '||' + (r.salesOrder || '')));
-      const oldRecords = existing.filter((r) => !newKeys.has(r.customerAccount + '||' + r.itemCode + '||' + r.month + '||' + (r.salesOrder || '')));
-      if (oldRecords.length > 0) {
-        archiveOldCustomerItemSales(oldRecords).catch(() => {});
+      /**
+       * الشيت هو المصدر الرسمي لشهر معيّن، فبنستبدل صفوف نفس
+       * (كود العميل + الصنف + الشهر) بالصفوف الجديدة.
+       * قبل كده كانت الصفوف المتشابهة بتتدمج في صف واحد بالمفتاح
+       * (عميل+صنف+شهر+أمر بيع) — وده كان بيضيّع كميات ومبالغ باقي
+       * الحركات لما الشيت يبقى بدون عمود أمر بيع.
+       */
+      const incomingGroups = new Set(sales.map(customerItemMonthKey));
+      const replacedRows = existing.filter((r) => incomingGroups.has(customerItemMonthKey(r)));
+      if (replacedRows.length > 0) {
+        archiveOldCustomerItemSales(replacedRows).catch(() => {});
       }
-      const map = new Map();
-      existing.forEach((r) => {
-        const key = r.customerAccount + '||' + r.itemCode + '||' + r.month + '||' + (r.salesOrder || '');
-        map.set(key, r);
-      });
-      sales.forEach((r) => {
-        const key = r.customerAccount + '||' + r.itemCode + '||' + r.month + '||' + (r.salesOrder || '');
-        map.set(key, r);
-      });
-      finalSales = Array.from(map.values());
+      const keptRows = existing.filter((r) => !incomingGroups.has(customerItemMonthKey(r)));
+      finalSales = [...keptRows, ...sales];
     } catch {}
   }
   inMemoryItemSalesCache = finalSales;
@@ -1260,6 +1400,7 @@ export function mapSupabaseRowToCustomerItemSale(row: any): CustomerItemSaleReco
     itemGroup: row.item_group || 'عام',
     definitions: row.definitions || undefined,
     familyDimension: row.family_dimension || row.item_group || 'عام',
+    sector: parseSalesSectorValue(row.sector),
     createdAt: row.created_at || new Date().toISOString()
   };
 }

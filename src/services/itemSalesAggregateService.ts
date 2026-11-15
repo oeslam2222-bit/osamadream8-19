@@ -135,7 +135,8 @@ export function buildItemSalesAggregates(
 
     const customerCode = String(record.customerAccount || record.linkedCustomerCode || '').trim();
     const customerName = String(record.invoicingName || record.linkedCustomerId || '').trim();
-    const itemCode = String(record.itemCode || record.unifiedCode || '').trim();
+    // الكود الموحد فريد لكل لون، وكود المنتج ممكن يتكرر — فبنقدّم الموحد.
+    const itemCode = String(record.unifiedCode || record.itemCode || '').trim();
     const itemName = String(record.itemName || '').trim();
     const family = String(record.familyDimension || '').trim();
     const group = String(record.itemGroup || '').trim();

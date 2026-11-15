@@ -75,6 +75,9 @@ import { MonthlyPerformanceCard } from './itemSales/MonthlyPerformanceCard';
 import { RepPerformanceCard } from './itemSales/RepPerformanceCard';
 import { SlowMoversCard } from './itemSales/SlowMoversCard';
 import { MonthlyAggregateCard } from './itemSales/MonthlyAggregateCard';
+import { ItemSalesRowsTable } from './itemSales/ItemSalesRowsTable';
+import { ItemSalesExecutiveCards } from './itemSales/ItemSalesExecutiveCards';
+import { CANONICAL_BRANCHES, normalizeBranchName, UNKNOWN_BRANCH } from '../services/branchDirectory';
 import SalesFocusV4 from './itemSales/SalesFocusV4';
 import {
   buildItemSalesAggregates,
@@ -199,6 +202,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [selectedRep, setSelectedRep] = useState<string>('all');
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all');
+  const [selectedSector, setSelectedSector] = useState<'all' | 'home' | 'electrical'>('all');
+  const [selectedFamily, setSelectedFamily] = useState<string>('all');
+  const [selectedItem, setSelectedItem] = useState<string>('all');
   const [customerDisplayLimit, setCustomerDisplayLimit] = useState<number>(5);
 
   const [activeView, setActiveView] = useState<SalesViewMode>('overview');
@@ -489,12 +495,46 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     return Array.from(set).sort();
   }, [rbacSales]);
 
+  /** الفروع الثابتة اللي الإدارة بتشتغل عليها (+ «غير محدد» لو الحركة بلا فرع). */
+  const resolveItemSaleBranch = React.useCallback(
+    (record: CustomerItemSaleRecord): string =>
+      normalizeBranchName(record.linkedBranch) ||
+      normalizeBranchName(record.warehouse) ||
+      UNKNOWN_BRANCH,
+    []
+  );
+
   const distinctWarehouses = useMemo(() => {
+    const present = new Set<string>();
+    rbacSales.forEach((record) => present.add(resolveItemSaleBranch(record)));
+    const ordered = (CANONICAL_BRANCHES as readonly string[]).filter((branch) => present.has(branch));
+    return present.has(UNKNOWN_BRANCH) ? [...ordered, UNKNOWN_BRANCH] : ordered;
+  }, [rbacSales, resolveItemSaleBranch]);
+
+  /** عائلات الأصناف (عمود «الصنف بالعائله» في الشيت). */
+  const distinctFamilies = useMemo(() => {
     const set = new Set<string>();
     rbacSales.forEach((record) => {
-      if (record.warehouse) set.add(record.warehouse);
+      const family = (record.familyDimension || '').trim();
+      if (family && family !== 'عام') set.add(family);
     });
-    return Array.from(set).sort();
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [rbacSales]);
+
+  /** أعلى 400 صنف حسب القيمة — عشان فلتر الصنف يفضل سريع. */
+  const distinctItems = useMemo(() => {
+    const map = new Map<string, { code: string; name: string; amount: number }>();
+    rbacSales.forEach((record) => {
+      // الكود الموحد بيفرّق اللون وهو الفريد؛ كود المنتج ممكن يتكرر.
+      const code = (record.unifiedCode || record.itemCode || '').trim();
+      if (!code) return;
+      const current = map.get(code) || { code, name: record.itemName || code, amount: 0 };
+      current.amount += Number(record.amount) || 0;
+      map.set(code, current);
+    });
+    return Array.from(map.values())
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 400);
   }, [rbacSales]);
 
   /** كل الفلاتر ما عدا الشهر — أساس حساب المقارنة الشهرية. */
@@ -502,7 +542,15 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     return rbacSales.filter((record) => {
       if (selectedGroup !== 'all' && resolveItemGroup(record) !== selectedGroup) return false;
       if (selectedRep !== 'all' && record.repName !== selectedRep) return false;
-      if (selectedWarehouse !== 'all' && record.warehouse !== selectedWarehouse) return false;
+      if (selectedWarehouse !== 'all' && resolveItemSaleBranch(record) !== selectedWarehouse) return false;
+      if (selectedSector !== 'all' && resolveItemSaleSector(record) !== selectedSector) return false;
+      if (selectedFamily !== 'all' && (record.familyDimension || '').trim() !== selectedFamily) return false;
+      if (
+        selectedItem !== 'all' &&
+        (record.unifiedCode || record.itemCode || '').trim() !== selectedItem
+      ) {
+        return false;
+      }
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase().trim();
         const matches =
@@ -518,7 +566,18 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       }
       return true;
     });
-  }, [rbacSales, selectedGroup, selectedRep, selectedWarehouse, searchTerm]);
+  }, [
+    rbacSales,
+    selectedGroup,
+    selectedRep,
+    selectedWarehouse,
+    selectedSector,
+    selectedFamily,
+    selectedItem,
+    resolveItemSaleBranch,
+    resolveItemSaleSector,
+    searchTerm
+  ]);
 
   const filteredSales = useMemo(
     () =>
@@ -743,6 +802,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     setSelectedGroup('all');
     setSelectedRep('all');
     setSelectedWarehouse('all');
+    setSelectedSector('all');
+    setSelectedFamily('all');
+    setSelectedItem('all');
   };
 
   const handleExportExcel = () => {
@@ -776,7 +838,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   }
 
   return (
-    <div className="space-y-4 pb-20" dir="rtl">
+    <div className="cis-page space-y-4 pb-20" dir="rtl">
       <input
         ref={excelFileInputRef}
         type="file"
@@ -1132,7 +1194,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 'Customer account', 'Invoicing name', 'Sales order', 'Date',
                 'المندوب', 'الشهر', 'Warehouse', 'Item', 'Name', 'Unit',
                 'factor', 'Unit price', 'Discount', 'Quantity', 'Amount',
-                'Item group', 'التعريفات', 'Family Dimension'
+                'Item group', 'التعريفات', 'Family Dimension',
+                'كود العميل', 'الشهر', 'الصنف', 'الصنف بالعائله', 'القطاع', 'عدد القطع', 'اجمالي المبلغ'
               ].map((col) => (
                 <span key={col} className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                   {col}
@@ -1240,6 +1303,32 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 </button>
               </div>
             </div>
+
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {([
+            { key: 'all' as const, label: 'كل القطاعات' },
+            { key: 'home' as const, label: 'منزلي' },
+            { key: 'electrical' as const, label: 'كهربائي' }
+          ]).map((sectorOption) => {
+            const active = selectedSector === sectorOption.key;
+            return (
+              <button
+                key={sectorOption.key}
+                type="button"
+                onClick={() => setSelectedSector(sectorOption.key)}
+                className={`h-8 px-3 rounded-xl text-[11px] font-black border transition cursor-pointer ${
+                  active
+                    ? sectorOption.key === 'electrical'
+                      ? 'bg-[var(--app-violet)] text-white border-[var(--app-violet)]'
+                      : 'bg-[var(--app-navy)] text-white border-[var(--app-navy)]'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                {sectorOption.label}
+              </button>
+            );
+          })}
+        </div>
 
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
           <div className="relative col-span-2 md:col-span-3 xl:col-span-2">
@@ -1365,6 +1454,34 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               ))}
             </select>
           )}
+
+          <select
+            value={selectedFamily}
+            onChange={(event) => setSelectedFamily(event.target.value)}
+            aria-label="تصفية بالصنف بالعائلة"
+            className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
+          >
+            <option value="all">الصنف بالعائلة (الكل)</option>
+            {distinctFamilies.map((family) => (
+              <option key={family} value={family}>
+                {family}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={selectedItem}
+            onChange={(event) => setSelectedItem(event.target.value)}
+            aria-label="تصفية بالصنف"
+            className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer max-w-[240px]"
+          >
+            <option value="all">كل الأصناف ({distinctItems.length})</option>
+            {distinctItems.map((item) => (
+              <option key={item.code} value={item.code}>
+                {item.name} — {item.code}
+              </option>
+            ))}
+          </select>
         </div>
       </section>
 
@@ -1463,6 +1580,12 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             idleCount={idleItems.totalIdle}
             idleCaption={idleCaption}
             comparisonCaption={kpiGrowthCaption}
+          />
+
+          <ItemSalesExecutiveCards
+            records={filteredSales}
+            resolveSector={resolveItemSaleSector}
+            resolveBranch={resolveItemSaleBranch}
           />
 
           {/* بطاقة تفاصيل العميل المختار من بحث العملاء */}
@@ -1715,6 +1838,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               />
             </div>
           </div>
+
+          <ItemSalesRowsTable records={filteredSales} resolveSector={resolveItemSaleSector} />
 
           <MonthlyCustomerAnalysisTable rows={monthlyCustomerRows} />
         </>

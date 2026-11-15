@@ -23,9 +23,9 @@ const KpiCard: React.FC<{
   iconClass: string;
   children: React.ReactNode;
 }> = ({ title, icon, iconClass, children }) => (
-  <div className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4 flex flex-col justify-between min-h-[118px] hover:border-slate-300 transition">
+  <div className="bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4 flex flex-col justify-between min-h-[118px] hover:border-[var(--app-primary-border)] transition">
     <div className="flex items-start justify-between gap-2">
-      <span className="text-[11px] font-bold text-slate-500 leading-tight">{title}</span>
+      <span className="text-[11px] font-bold text-[var(--app-text-muted)] leading-tight">{title}</span>
       <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconClass}`}>
         {icon}
       </span>

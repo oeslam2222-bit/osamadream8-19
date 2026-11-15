@@ -18,6 +18,7 @@ import customerMerchantAvatar from '../assets/images/customer_merchant_avatar_17
 import type { Customer, TargetRecord, User } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { CustomerProfileDrawer } from './CustomerProfileDrawer';
+import { ItemSalesProfilePanel } from './itemSales/ItemSalesProfilePanel';
 
 const MONTHS_AR = ['يناير', 'فبراير', 'مارس', 'إبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
 
@@ -1661,6 +1662,11 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               {/* تبويب 1: نظرة عامة */}
               {repAnalysisTab === 'overview' && (
                 <div className="space-y-4">
+                  <ItemSalesProfilePanel
+                    title="مبيعات الأصناف لهذا المندوب"
+                    repName={selectedRep.repName}
+                  />
+
                   <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                     <div className="rounded-2xl bg-white border border-amber-300 p-3.5 shadow-sm">
                       <div className="flex items-center justify-between mb-1"><span className="text-xs font-extrabold text-amber-900">مديونية العملاء</span><CreditCard className="w-4 h-4 text-amber-700" /></div>
