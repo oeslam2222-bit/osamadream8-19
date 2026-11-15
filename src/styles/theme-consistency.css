@@ -66,3 +66,83 @@ html.dark .app-main .shadow-xl,
 html.dark .app-main .shadow-2xl {
   box-shadow: var(--app-shadow-card) !important;
 }
+
+/* ============================================================
+   الجزء النهاري: خلفية الصفحة ملوّنة فاتحة والكروت بيضاء بحدود واضحة
+   ============================================================ */
+
+html:not(.dark) .app-main {
+  background-color: var(--app-bg);
+}
+
+html:not(.dark) .app-main .bg-white {
+  background-color: var(--app-card);
+}
+
+html:not(.dark) .app-main .border-slate-100,
+html:not(.dark) .app-main .border-slate-200 {
+  border-color: var(--app-border);
+}
+
+html:not(.dark) .app-main .text-slate-900,
+html:not(.dark) .app-main .text-slate-800 {
+  color: var(--app-text);
+}
+
+html:not(.dark) .app-main .text-slate-500,
+html:not(.dark) .app-main .text-slate-600 {
+  color: var(--app-text-muted);
+}
+
+/* ---------- جداول موحّدة في الوضعين ---------- */
+html.dark .app-main table thead th {
+  background-color: var(--app-card-secondary) !important;
+  color: var(--app-text-muted) !important;
+  border-color: var(--app-border) !important;
+}
+
+html.dark .app-main table tbody td {
+  border-color: var(--app-border) !important;
+  color: var(--app-text);
+}
+
+html.dark .app-main table tbody tr:nth-child(even) td {
+  background-color: var(--app-card-sub) !important;
+}
+
+html.dark .app-main table tbody tr:hover td {
+  background-color: var(--app-card-hover) !important;
+}
+
+/* ---------- النصوص الرمادية الفاتحة في الليلي ---------- */
+html.dark .app-main .text-slate-300 {
+  color: #8fa2bb !important;
+}
+
+html.dark .app-main .bg-\[\#F8FAFC\],
+html.dark .app-main .bg-\[\#f8fafc\],
+html.dark .app-main .bg-\[\#F1F5F9\],
+html.dark .app-main .bg-\[\#f1f5f9\] {
+  background-color: var(--app-card-secondary) !important;
+}
+
+/* ---------- أزرار ثانوية بحدود واضحة في الليلي ---------- */
+html.dark .app-main .bg-blue-50 {
+  background-color: rgba(37, 99, 235, 0.16) !important;
+  color: #bfdbfe !important;
+}
+
+html.dark .app-main .bg-emerald-50 {
+  background-color: rgba(5, 150, 105, 0.18) !important;
+  color: #a7f3d0 !important;
+}
+
+html.dark .app-main .bg-amber-50 {
+  background-color: rgba(217, 119, 6, 0.18) !important;
+  color: #fde68a !important;
+}
+
+html.dark .app-main .bg-rose-50 {
+  background-color: rgba(225, 29, 72, 0.16) !important;
+  color: #fecdd3 !important;
+}
