@@ -34,6 +34,7 @@ import {
 } from '../services/promotionService';
 import { formatCurrency } from '../services/invoiceService';
 import { cleanProductCode } from '../services/excelService';
+import { fetchGoogleSheetCsvBuffer } from '../services/googleSheetsTransport';
 import { ProductImage } from './ProductImage';
 
 interface PromotionsOffersViewProps {
@@ -251,9 +252,9 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
         fetchUrl = `https://docs.google.com/spreadsheets/d/${match[1]}/export?format=csv`;
       }
 
-      const response = await fetch(fetchUrl);
-      if (!response.ok) throw new Error('تعذر تحميل البيانات من الرابط المحدد. تأكد من ضبط إذن الوصول للشيت إلى (أي شخص لديه الرابط).');
-      const buffer = await response.arrayBuffer();
+      // الترانسبورت بيعيد المحاولة على أخطاء جوجل المؤقتة ويجرّب
+      // روابط CSV بديلة بدل فشل المزامنة من أول طلب.
+      const { buffer } = await fetchGoogleSheetCsvBuffer(fetchUrl || googleSheetUrl.trim());
       const result = await parsePromotionsFromExcelBuffer(buffer);
 
       const updatedList = [...promotions];

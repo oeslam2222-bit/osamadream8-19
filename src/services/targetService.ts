@@ -1,6 +1,7 @@
 import { TargetQuarter, TargetRecord, User } from '../types';
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText, resolveBranchName, BRANCH_CODE_MAP } from './arabicMatchingService';
 import { getPublishedCsvUrl } from './dataSourceService';
+import { buildGoogleSheetCsvCandidates, fetchGoogleSheetResponse } from './googleSheetsTransport';
 
 // The Excel engines (xlsx-js-style + the Arabic encoding helpers) are heavy and
 // only needed when a target sheet is imported or exported. They are imported
@@ -145,19 +146,8 @@ export async function fetchTargetsFromGoogleSheetUrl(urlOrId: string): Promise<T
   const candidates: string[] = [];
   const primary = getPublishedCsvUrl(clean);
   if (primary) candidates.push(primary);
-
-  const match = clean.match(/\/d\/([a-zA-Z0-9-_]+)/);
-  const gidMatch = clean.match(/[?#&]gid=([0-9]+)/);
-  const gid = gidMatch ? gidMatch[1] : '0';
-  if (match) {
-    const sheetId = match[1];
-    const gvizUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
-    const exportUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
-    const pubUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/pub?output=csv&gid=${gid}`;
-
-    if (!candidates.includes(gvizUrl)) candidates.push(gvizUrl);
-    if (!candidates.includes(exportUrl)) candidates.push(exportUrl);
-    if (!candidates.includes(pubUrl)) candidates.push(pubUrl);
+  for (const url of buildGoogleSheetCsvCandidates(clean)) {
+    if (!candidates.includes(url)) candidates.push(url);
   }
 
   let lastError: any = null;
@@ -167,7 +157,9 @@ export async function fetchTargetsFromGoogleSheetUrl(urlOrId: string): Promise<T
 
   for (const candidateUrl of candidates) {
     try {
-      const response = await fetch(candidateUrl);
+      // `fetchGoogleSheetResponse` بيعيد المحاولة على أخطاء جوجل المؤقتة
+      // (expired redirect / 5xx / QUIC reset) بدل فشل المزامنة من أول محاولة.
+      const response = await fetchGoogleSheetResponse(candidateUrl);
       if (!response.ok) {
         continue;
       }

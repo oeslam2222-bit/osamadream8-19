@@ -9,8 +9,8 @@ import {
   normalizeArabicText,
   resolveBranchName
 } from './arabicMatchingService';
-import { buildGoogleSheetsPublicCsvUrl } from './productCodeUtils';
-import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
+import { fetchGoogleSheetCsv } from './googleSheetsTransport';
+import { parseExcelOrCsvBuffer } from './encodingService';
 import { idbGet, idbSet, idbDelete } from './storageService';
 import { supabase } from './supabaseService';
 import { parseNumericValue } from './numericParsing';
@@ -591,19 +591,8 @@ export async function fetchCustomerItemSalesFromGoogleSheet(urlOrId: string): Pr
   errors: string[];
   totalRows: number;
 }> {
-  const csvUrl = buildGoogleSheetsPublicCsvUrl(urlOrId);
-  if (!csvUrl) {
-    return { sales: [], errors: ['رابط Google Sheet غير صالح'], totalRows: 0 };
-  }
-
   try {
-    const response = await fetch(csvUrl, { cache: 'no-cache' });
-    if (!response.ok) {
-      throw new Error(`تعذر الاتصال بـ Google Sheets (رمز الاستجابة: ${response.status})`);
-    }
-
-    const buffer = await response.arrayBuffer();
-    const csvText = decodeBufferSmart(buffer);
+    const { text: csvText } = await fetchGoogleSheetCsv(urlOrId);
     const workbook = XLSX.read(csvText, { type: 'string', raw: true });
     const firstSheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[firstSheetName];

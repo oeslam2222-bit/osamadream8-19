@@ -2,7 +2,7 @@ import * as XLSX from 'xlsx-js-style';
 import { COMPANY_INFO } from '../data/mockData';
 import { Customer, CustomerTier, Invoice, ItemStatus, Product, SalesPriority, User } from '../types';
 import { inferBranchFromText, resolveCustomerFinancials, getBranchStockForProduct, resolveBranchName, BRANCH_CODE_MAP } from './arabicMatchingService';
-import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
+import { parseExcelOrCsvBuffer } from './encodingService';
 import { deduplicateAndMergeCustomers } from './customerDeduplicationService';
 import { isSummaryOrTotalRow } from './customerFinancialService';
 import { resolveCustomerDuesValue } from './customerDues';
@@ -12,8 +12,12 @@ import {
   cleanProductCode,
   extractCodeFromProductName,
   extractGoogleSpreadsheetId,
-  buildGoogleSheetsPublicCsvUrl,
 } from './productCodeUtils';
+import {
+  buildGoogleSheetCsvCandidates,
+  fetchGoogleSheetCsv,
+  fetchGoogleSheetWorkbookBuffer,
+} from './googleSheetsTransport';
 
 export { parsePromotionsFromExcelBuffer, parsePromotionsFromGoogleSheet } from './promotionService';
 export { parseTargetExcel, fetchTargetsFromGoogleSheetUrl } from './targetService';
@@ -1015,15 +1019,14 @@ export function combineProductSheets(sheets: any[][][]): any[][] {
 /**
  * Fetch the whole workbook as XLSX so every sector tab is read, not just gid=0.
  * Falls back to null when the file is not public.
+ *
+ * التحميل بيمر على `fetchGoogleSheetWorkbookBuffer` اللي بيعيد المحاولة على
+ * أخطاء جوجل المؤقتة (انتهاء توقيع الـredirect / 5xx / QUIC reset).
  */
 async function fetchGoogleSheetsWorkbook(sheetId: string): Promise<any | null> {
+  const buffer = await fetchGoogleSheetWorkbookBuffer(sheetId);
+  if (!buffer) return null;
   try {
-    const response = await fetch(
-      `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=xlsx`
-    );
-    if (!response.ok) return null;
-    const buffer = await response.arrayBuffer();
-    if (!buffer || buffer.byteLength < 128) return null;
     return XLSX.read(new Uint8Array(buffer), { type: 'array' });
   } catch {
     return null;
@@ -1089,8 +1092,9 @@ export async function fetchAndParseGoogleSheet(googleSheetUrlOrId: string): Prom
   errors: string[];
   totalRows: number;
 }> {
-  const csvUrl = buildGoogleSheetsPublicCsvUrl(googleSheetUrlOrId);
-  if (!csvUrl) {
+  const { sheetId } = extractGoogleSpreadsheetId(googleSheetUrlOrId);
+  const hasCsvCandidate = buildGoogleSheetCsvCandidates(googleSheetUrlOrId).length > 0;
+  if (!hasCsvCandidate) {
     return {
       products: [],
       errors: ['رابط Google Sheets غير صالح. يرجى التأكد من نسخ رابط الشيت كاملاً.'],
@@ -1100,7 +1104,6 @@ export async function fetchAndParseGoogleSheet(googleSheetUrlOrId: string): Prom
 
   // لو المستخدم حدّد تبويب معيّن في الرابط (gid) بنحترمه ونقرأه هو بس.
   const hasExplicitTab = /[#&?]gid=\d+/.test(googleSheetUrlOrId);
-  const { sheetId } = extractGoogleSpreadsheetId(googleSheetUrlOrId);
 
   try {
     // المسار الأساسي: نحمّل الملف كامل (xlsx) ونقرأ **كل التبويبات**.
@@ -1118,16 +1121,8 @@ export async function fetchAndParseGoogleSheet(googleSheetUrlOrId: string): Prom
       }
     }
 
-    const response = await fetch(csvUrl);
-    if (!response.ok) {
-      throw new Error(`تعذر جلب الشيت (كود ${response.status}). يرجى التأكد من أن الشيت منشور للعامة (Anyone with the link can view).`);
-    }
-
-    const arrayBuffer = await response.arrayBuffer();
-    const csvText = decodeBufferSmart(arrayBuffer).replace(/^\uFEFF/, '');
-    if (!csvText || csvText.trim().length === 0) {
-      throw new Error('تم جلب الشيت لكنه لا يحتوي على أي بيانات.');
-    }
+    // المسار البديل: CSV من gviz/export/pub مع إعادة المحاولة على الأخطاء المؤقتة.
+    const { text: csvText } = await fetchGoogleSheetCsv(googleSheetUrlOrId);
 
     const workbook = XLSX.read(csvText, { type: 'string', codepage: 65001 });
     const firstSheetName = workbook.SheetNames[0];
@@ -3024,14 +3019,7 @@ export async function fetchCustomersFromGoogleSheetUrl(urlOrId: string): Promise
   errors: string[];
   totalRows: number;
 }> {
-  const csvUrl = buildGoogleSheetsPublicCsvUrl(urlOrId);
-  const response = await fetch(csvUrl);
-  if (!response.ok) {
-    throw new Error(`فشل فتح رابط جوجل شيت (${response.statusText}). تأكد من أن الرابط متاح للعامة (Anyone with the link can view).`);
-  }
-
-  const arrayBuffer = await response.arrayBuffer();
-  const csvText = decodeBufferSmart(arrayBuffer).replace(/^\uFEFF/, '');
+  const { text: csvText } = await fetchGoogleSheetCsv(urlOrId);
   const wb = XLSX.read(csvText, { type: 'string', codepage: 65001 });
   const firstSheet = wb.Sheets[wb.SheetNames[0]];
   const rawRows: any[][] = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });

@@ -1,5 +1,6 @@
 import { Product, PromotionOffer, User } from '../types';
-import { cleanProductCode, buildGoogleSheetsPublicCsvUrl } from './productCodeUtils';
+import { cleanProductCode } from './productCodeUtils';
+import { fetchGoogleSheetCsvBuffer } from './googleSheetsTransport';
 import { extractBaseProductCode } from './productVariantService';
 import { isBranchMatch, normalizeArabicText } from './arabicMatchingService';
 
@@ -341,17 +342,7 @@ export async function parsePromotionsFromExcelBuffer(
 export async function parsePromotionsFromGoogleSheet(
   sheetUrl: string
 ): Promise<{ promotions: PromotionOffer[]; message: string; matchedCount: number }> {
-  const csvUrl = buildGoogleSheetsPublicCsvUrl(sheetUrl);
-  if (!csvUrl) {
-    throw new Error('رابط Google Sheets غير صالح. يرجى التأكد من نسخ الرابط بشكل صحيح.');
-  }
-
-  const response = await fetch(csvUrl);
-  if (!response.ok) {
-    throw new Error(`تعذر تحميل شيت Google Sheets (${response.statusText}). تأكد أن الشيت متاح للقراءة.`);
-  }
-
-  const buffer = await response.arrayBuffer();
+  const { buffer } = await fetchGoogleSheetCsvBuffer(sheetUrl);
   return parsePromotionsFromExcelBuffer(buffer, 'GoogleSheets');
 }
 

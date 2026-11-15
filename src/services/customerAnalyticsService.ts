@@ -10,8 +10,8 @@ import {
   resolveBranchName,
   MAIN_BRANCH_NAME
 } from './arabicMatchingService';
-import { buildGoogleSheetsPublicCsvUrl } from './excelService';
-import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
+import { fetchGoogleSheetCsv } from './googleSheetsTransport';
+import { parseExcelOrCsvBuffer } from './encodingService';
 import { deduplicateAndMergeCustomers } from './customerDeduplicationService';
 import { resolveCustomerDuesValue } from './customerDues';
 import { isSummaryOrTotalRow } from './customerFinancialService';
@@ -1161,20 +1161,7 @@ export async function fetchDetailedCustomersFromGoogleSheet(urlOrId: string): Pr
   totalRows: number;
   duplicatesCount?: number;
 }> {
-  const csvUrl = buildGoogleSheetsPublicCsvUrl(urlOrId);
-  if (!csvUrl) {
-    throw new Error('رابط Google Sheets غير صالح. يرجى التأكد من نسخ رابط الشيت كاملاً.');
-  }
-
-  const response = await fetch(csvUrl);
-  if (!response.ok) {
-    throw new Error(
-      `تعذر جلب الشيت (كود ${response.status}). يرجى التأكد من أن الشيت متاح للعامة (Anyone with the link can view).`
-    );
-  }
-
-  const arrayBuffer = await response.arrayBuffer();
-  const csvText = decodeBufferSmart(arrayBuffer).replace(/^\uFEFF/, '');
+  const { text: csvText } = await fetchGoogleSheetCsv(urlOrId);
   if (!csvText || csvText.trim().length === 0) {
     throw new Error('تم جلب الشيت لكنه لا يحتوي على أي بيانات.');
   }
