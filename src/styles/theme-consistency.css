@@ -285,3 +285,53 @@ html.dark .app-main .bg-blue-600 {
 html.dark .app-main .bg-blue-600:hover {
   background-color: #2f76e8;
 }
+
+/* ============================================================
+   مسح الألوان المكتوبة يدويًا (hex) — أهمها النصوص الكحلي الغامق
+   اللي كانت بتختفي في الوضع الليلي (خط غامق على خلفية غامقة)
+   ============================================================ */
+
+html.dark .app-main .text-\[\#0b2337\],
+html.dark .app-main .text-\[\#0B2337\],
+html.dark .app-main .text-\[\#0F172A\],
+html.dark .app-main .text-\[\#0f172a\],
+html.dark .app-main .text-\[\#0f2b38\],
+html.dark .app-main .text-\[\#0F2B38\],
+html.dark .app-main .text-\[\#102b4e\],
+html.dark .app-main .text-\[\#1e3a8a\] {
+  color: var(--app-text) !important;
+}
+
+/* درجات الألوان المتوسطة تفتح شوية في الليلي عشان تبان */
+html.dark .app-main .text-\[\#0d9488\],
+html.dark .app-main .text-\[\#0D9488\] {
+  color: #2dd4bf !important;
+}
+
+html.dark .app-main .text-\[\#2563EB\],
+html.dark .app-main .text-\[\#2563eb\] {
+  color: #60a5fa !important;
+}
+
+html.dark .app-main .text-\[\#d97706\],
+html.dark .app-main .text-\[\#D97706\] {
+  color: #fbbf24 !important;
+}
+
+html.dark .app-main .text-\[\#ef4444\],
+html.dark .app-main .text-\[\#EF4444\] {
+  color: #f87171 !important;
+}
+
+/* الأسطح الفاتحة المكتوبة يدويًا (بانلات وأقسام) في الليلي */
+html.dark .app-main .bg-\[\#eef5fd\],
+html.dark .app-main .bg-\[\#EEF5FD\],
+html.dark .app-main .bg-\[\#eff6ff\],
+html.dark .app-main .bg-\[\#EFF6FF\] {
+  background-color: var(--app-card-secondary) !important;
+}
+
+html.dark .app-main .border-\[\#E2E8F0\],
+html.dark .app-main .border-\[\#e2e8f0\] {
+  border-color: var(--app-border) !important;
+}
