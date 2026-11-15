@@ -309,6 +309,8 @@ export interface CustomerVisit {
     proofPhotoUrl?: string;
     verifiedAt?: string;
   };
+  /** صور المنتجات المرفقة بالزيارة */
+  productPhotos?: string[];
   checkInTime?: string;              // وقت تسجيل الحضور عند العميل (Check-In)
   checkOutTime?: string;             // وقت الانتهاء من الزيارة (Check-Out)
   durationMinutes?: number;          // مدة الزيارة بالدقائق
@@ -345,6 +347,22 @@ export interface CustomerVisit {
   orderLifecycleStage?: OrderLifecycleStage;      // مرحلة الأمر في دورة الحياة
   linkedOrderNumber?: string;                     // رقم الأمر المرتبط بالزيارة
   linkedReturnNumber?: string;                    // رقم إذن المرتجع المرتبط بالزيارة
+
+  /* ===== المرحلة 2 (الميدان): مسار/توقيت/نماذج ديناميكية وربط أدلة ===== */
+  arrivalAt?: string;                // وقت الوصول الفعلي
+  startedAt?: string;                // وقت بدء الزيارة
+  endedAt?: string;                  // وقت إنهاء الزيارة
+  actualDurationMinutes?: number;    // المدة الفعلية بالدقائق
+  routePlanId?: string;              // معرف مسار اليوم
+  routeStopOrder?: number;           // ترتيب المحطة داخل المسار
+  completionStatus?: 'completed' | 'partial' | 'postponed' | 'failed'; // حالة الإتمام
+  postponementReason?: string;       // سبب التأجيل (موحّد)
+  failureReason?: string;            // سبب عدم الإتمام (موحّد)
+  dynamicFields?: Record<string, any>; // حقول ديناميكية حسب نوع الزيارة
+  linkedOrderIds?: string[];         // أوامر بيع مرتبطة بالأدلة/الزيارة
+  linkedReturnIds?: string[];        // مرتجعات مرتبطة بالأدلة/الزيارة
+  linkedCollectionIds?: string[];    // تحصيلات مرتبطة بالأدلة/الزيارة
+  evidenceLinks?: Array<{ type: 'photo' | 'order' | 'return' | 'collection' | 'note'; refId?: string; url?: string; label?: string }>;
 }
 
 /* ===== هيكلة الصور في إذن المرتجع (مرتبة ومنسقة) ===== */
@@ -447,6 +465,18 @@ export interface Customer {
   locationApprovedAt?: string;       // تاريخ اعتماد وقفل الموقع
   locationPhotoUrl?: string;         // صورة حية لواجهة المحل عند التثبيت (Cloudinary)
   locationAccuracy?: number;         // دقة قراءة GPS بالمتر وقت التثبيت
+  locationPinHistory?: Array<{
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+    capturedAt: string;
+    capturedBy?: string;
+    capturedByRole?: string;
+    previousLatitude?: number;
+    previousLongitude?: number;
+    reason?: string;
+    source?: 'visit' | 'manual' | 'profile' | 'import';
+  }>;                                // سجل تاريخي لتثبيتات الموقع (من/متى/قبل-بعد)
 
   sector?: 'home' | 'electrical' | 'both' | 'all';  // القطاع (منزلي / كهربائي) - لعزل البيانات بين القطاعات
   storePhotos?: string[];            // صور معرض/محل العميل (Cloudinary أو روابط مباشرة)
@@ -806,7 +836,14 @@ export type AuditActionType =
   | 'stock_adjustment'
   | 'user_login'
   | 'create_user'
-  | 'update_user';
+  | 'update_user'
+  | 'add_customer'
+  | 'create_visit'
+  | 'update_visit_status'
+  | 'record_collection'
+  | 'create_return'
+  | 'update_return_status'
+  | 'permission_change';
 
 export interface AuditLog {
   id: string;

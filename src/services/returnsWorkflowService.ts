@@ -175,19 +175,19 @@ export function nextActionsFor(stage: ReturnStage): ReturnAction[] {
   switch (stage) {
     case 'تم التحويل لأمين المخزن':
       return [
-        { stage: 'بانتظار التنسيق', label: 'بدء التنسيق', tone: 'primary' },
+        { stage: 'بانتظار التنسيق', label: 'اعتماد أمين المخزن لسحب المرتجع من العميل', tone: 'primary' },
         { stage: 'تعذر الاستلام', label: 'تعذر الاستلام', tone: 'danger' },
       ];
     case 'بانتظار التنسيق':
       return [
-        { stage: 'تم إرسال السيارة', label: 'تم إرسال السيارة', tone: 'primary' },
+        { stage: 'تم إرسال السيارة', label: 'تم إرسال السيارة لسحب المرتجع', tone: 'primary' },
         { stage: 'تعذر الاستلام', label: 'تعذر الاستلام', tone: 'danger' },
       ];
     case 'تم إرسال السيارة':
-      return [{ stage: 'جاري الاستلام', label: 'جاري الاستلام', tone: 'primary' }];
+      return [{ stage: 'جاري الاستلام', label: 'جاري الاستلام من العميل', tone: 'primary' }];
     case 'جاري الاستلام':
       return [
-        { stage: 'تم الاستلام بالمخزن', label: 'تسجيل الاستلام بالمخزن', tone: 'success', needsReceipt: true },
+        { stage: 'تم الاستلام بالمخزن', label: 'تأكيد الاستلام بالمخزن', tone: 'success', needsReceipt: true },
         { stage: 'استلام جزئي', label: 'استلام جزئي', tone: 'warn', needsReceipt: true },
         { stage: 'تعذر الاستلام', label: 'تعذر الاستلام', tone: 'danger' },
       ];
@@ -195,7 +195,7 @@ export function nextActionsFor(stage: ReturnStage): ReturnAction[] {
     case 'تم الاستلام بالمخزن':
       return [{ stage: 'جاري تصفية المرتجع', label: 'بدء التصفية', tone: 'primary' }];
     case 'جاري تصفية المرتجع':
-      return [{ stage: 'مغلق', label: 'إغلاق المرتجع', tone: 'success', needsSettlement: true }];
+      return [{ stage: 'مغلق', label: 'إغلاق المرتجع وتسويته', tone: 'success', needsSettlement: true }];
     default:
       return [];
   }
@@ -204,7 +204,7 @@ export function nextActionsFor(stage: ReturnStage): ReturnAction[] {
 /** تدرّج لوني ثابت لكل حالة عشان الشكل يبقى موحّد في كل الشاشات. */
 export const STAGE_STYLES: Record<ReturnStage, { badge: string; dot: string; label: string }> = {
   'بانتظار المشرف': { badge: 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border-[var(--app-warn-line)]', dot: 'bg-[var(--app-warn)]', label: 'بانتظار المشرف' },
-  'تم التحويل لأمين المخزن': { badge: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border-[var(--app-navy-line)]', dot: 'bg-[var(--app-navy)]', label: 'تم التحويل للمخزن' },
+  'تم التحويل لأمين المخزن': { badge: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border-[var(--app-navy-line)]', dot: 'bg-[var(--app-navy)]', label: 'بانتظار اعتماد أمين المخزن للسحب' },
   'بانتظار التنسيق': { badge: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border-[var(--app-navy-line)]', dot: 'bg-[var(--app-navy)]', label: 'بانتظار التنسيق' },
   'تم إرسال السيارة': { badge: 'bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border-[var(--app-navy-line)]', dot: 'bg-[var(--app-navy)]', label: 'تم إرسال السيارة' },
   'جاري الاستلام': { badge: 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)]', dot: 'bg-[var(--app-ok)]', label: 'جاري الاستلام' },

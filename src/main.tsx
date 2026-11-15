@@ -17,11 +17,14 @@ import './styles/brand-v2.css';
 // the query string as a security measure).
 const TEMPLATE_PREVIEW = new URLSearchParams(window.location.search).has('template');
 
-// Force light mode for the main app (no dark mode toggle yet).
+// Apply the saved theme before first paint to avoid a light flash.
 // Template previews manage their own class-based dark mode.
 if (!TEMPLATE_PREVIEW) {
   try {
-    document.documentElement.classList.remove('dark');
+    document.documentElement.classList.toggle(
+      'dark',
+      localStorage.getItem('tantawy_dark_mode') === 'true',
+    );
   } catch {}
 }
 

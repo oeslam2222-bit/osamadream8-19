@@ -9,7 +9,7 @@ import {
   normalizeArabicText,
   resolveBranchName
 } from './arabicMatchingService';
-import { buildGoogleSheetsPublicCsvUrl } from './excelService';
+import { buildGoogleSheetsPublicCsvUrl } from './productCodeUtils';
 import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 import { idbGet, idbSet, idbDelete } from './storageService';
 import { supabase } from './supabaseService';

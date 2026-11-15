@@ -248,23 +248,24 @@ body,
   color: var(--tg-muted);
 }
 
-.tg-kpi--blue { background: linear-gradient(150deg, #eaf2ff 0%, #f6f9ff 70%); border-color: #d4e3fb; }
+/* الألوان هنا للرقم والأيقونة فقط؛ الخلفيات متجمّعة تحت تعريف .tg-kpi
+   الأساسي في آخر الملف عشان مايحصلش reset للـvariant. */
 .tg-kpi--blue .tg-kpi__value { color: #1e3a8a; }
 .tg-kpi--blue .tg-kpi__icon { color: #2563eb; }
 
-.tg-kpi--green { background: linear-gradient(150deg, #e7f8f1 0%, #f5fdf9 70%); border-color: #c9ecd9; }
-.tg-kpi--green .tg-kpi__value { color: #047857; }
-.tg-kpi--green .tg-kpi__icon { color: #059669; }
+.tg-kpi--green .tg-kpi__value,
+.tg-kpi--emerald .tg-kpi__value { color: #047857; }
+.tg-kpi--green .tg-kpi__icon,
+.tg-kpi--emerald .tg-kpi__icon { color: #059669; }
 
-.tg-kpi--orange { background: linear-gradient(150deg, #fdf3e3 0%, #fffaf2 70%); border-color: #f6e2bd; }
-.tg-kpi--orange .tg-kpi__value { color: #b45309; }
-.tg-kpi--orange .tg-kpi__icon { color: #d97706; }
+.tg-kpi--orange .tg-kpi__value,
+.tg-kpi--amber .tg-kpi__value { color: #b45309; }
+.tg-kpi--orange .tg-kpi__icon,
+.tg-kpi--amber .tg-kpi__icon { color: #d97706; }
 
-.tg-kpi--violet { background: linear-gradient(150deg, #f3efff 0%, #faf8ff 70%); border-color: #e2d9fb; }
 .tg-kpi--violet .tg-kpi__value { color: #6d28d9; }
 .tg-kpi--violet .tg-kpi__icon { color: #7c3aed; }
 
-.tg-kpi--red { background: linear-gradient(150deg, #fdecec 0%, #fff7f7 70%); border-color: #f5cfcf; }
 .tg-kpi--red .tg-kpi__value { color: #b91c1c; }
 .tg-kpi--red .tg-kpi__icon { color: #dc2626; }
 
@@ -393,6 +394,8 @@ body,
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .tg-input::placeholder { color: var(--tg-muted); font-weight: 500; }
+/* حقول البحث بتتحط جنبها أيقونة على right-3، فالنص كان بيبدأ تحتها */
+.tg-input--search { padding-right: 38px; }
 .tg-input:focus {
   border-color: var(--role);
   box-shadow: 0 0 0 3px var(--role-soft);
@@ -1636,6 +1639,18 @@ body footer span.font-black {
   transition: transform 0.16s ease, box-shadow 0.16s ease;
   overflow: hidden;
 }
+
+/* نفس ترتيب المشكلة: قاعدة .tg-kpi فوق دي هي الأخيرة في الملف، وكانت
+   بترجّع كل الكروت أبيض بعد ما الـvariant يلوّنها. الألوان متكررة هنا بعدها
+   عشان الكروت تفضل ملوّنة زي الداشبورد. الوضع الليلي بيلغيها من identity.css. */
+.tg-kpi--blue { background: linear-gradient(150deg, #eaf2ff 0%, #f6f9ff 70%); border-color: #d4e3fb; }
+.tg-kpi--green,
+.tg-kpi--emerald { background: linear-gradient(150deg, #e7f8f1 0%, #f5fdf9 70%); border-color: #c9ecd9; }
+.tg-kpi--orange,
+.tg-kpi--amber { background: linear-gradient(150deg, #fdf3e3 0%, #fffaf2 70%); border-color: #f6e2bd; }
+.tg-kpi--violet { background: linear-gradient(150deg, #f3efff 0%, #faf8ff 70%); border-color: #e2d9fb; }
+.tg-kpi--red { background: linear-gradient(150deg, #fdecec 0%, #fff7f7 70%); border-color: #f5cfcf; }
+
 button.tg-kpi {
   text-align: right;
   cursor: pointer;
@@ -1741,4 +1756,484 @@ button.tg-kpi:hover {
   .ds-drawer-root { display: none !important; }
   .app-main,
   footer { margin-inline-start: 0 !important; }
+}
+
+/* ==========================================================================
+   DARK THEME — final source of truth
+   Loaded last so these win over the older `.dark` blocks in index.css /
+   theme-tokens.css, which used different surface values.
+   ========================================================================== */
+html.dark {
+  color-scheme: dark;
+
+  --tg-page: #0b1220;
+  --tg-card: #111c2e;
+  --tg-card-2: #17243a;
+  --tg-line: #26364d;
+  --tg-line-2: #334155;
+  --tg-ink: #f1f5f9;
+  --tg-ink-2: #cbd5e1;
+  --tg-muted: #94a3b8;
+  --tg-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  --tg-shadow-md: 0 10px 26px rgba(0, 0, 0, 0.45);
+  --tg-shadow-lg: 0 22px 50px rgba(0, 0, 0, 0.55);
+  --tg-shadow-navy: 0 12px 30px rgba(0, 0, 0, 0.5);
+
+  --app-bg: var(--tg-page);
+  --app-card: var(--tg-card);
+  --app-card-secondary: var(--tg-card-2);
+  --app-card-sub: var(--tg-card-2);
+  --app-card-hover: #1a2b42;
+  --app-text: var(--tg-ink);
+  --app-text-muted: var(--tg-muted);
+  --app-border: var(--tg-line);
+  --app-line: var(--tg-line);
+  --app-shadow-card: var(--tg-shadow);
+  --app-shadow-float: var(--tg-shadow-lg);
+
+  --app-primary: #3b82f6;
+  --app-secondary: #2dd4bf;
+  --app-success: #4ade80;
+  --app-warning: #fbbf24;
+  --app-danger: #f87171;
+  --app-violet: #a78bfa;
+}
+
+/* ---- Dark counterparts for the light-mode contrast rules above ---- */
+html.dark .tg-target__sub,
+html.dark .tg-q__sub,
+html.dark .tg-stat__sub,
+html.dark .tg-kpi__hint {
+  color: #94a3b8 !important;
+}
+html.dark .tg-kpi__label,
+html.dark .tg-pill__label {
+  color: #cbd5e1 !important;
+}
+html.dark .tg-act__date {
+  color: #94a3b8 !important;
+}
+html.dark .app-main .text-slate-300 {
+  color: #cbd5e1 !important;
+}
+
+/* الحقول كانت بخلفية فاتحة ثابتة في الوضع الليلي */
+html.dark .tg-input,
+html.dark .tg-select {
+  background-color: var(--tg-card-2);
+  color: var(--tg-ink);
+}
+html.dark .tg-input::placeholder {
+  color: var(--tg-muted);
+}
+
+/* KPI values: lighten the hard-coded light-mode colors */
+html.dark .tg-kpi--blue .tg-kpi__value { color: #93c5fd; }
+html.dark .tg-kpi--green .tg-kpi__value { color: #6ee7b7; }
+html.dark .tg-kpi--orange .tg-kpi__value { color: #fcd34d; }
+html.dark .tg-kpi--violet .tg-kpi__value { color: #c4b5fd; }
+html.dark .tg-kpi--red .tg-kpi__value { color: #fca5a5; }
+
+html.dark .tg-kpi__icon {
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: none;
+}
+html.dark .tg-kpi--blue .tg-kpi__icon { color: #93c5fd; }
+html.dark .tg-kpi--green .tg-kpi__icon { color: #6ee7b7; }
+html.dark .tg-kpi--orange .tg-kpi__icon { color: #fcd34d; }
+html.dark .tg-kpi--violet .tg-kpi__icon { color: #c4b5fd; }
+html.dark .tg-kpi--red .tg-kpi__icon { color: #fca5a5; }
+
+/* The mobile day card is a full-bleed saturated blue; in dark mode it was the
+   loudest surface on the screen. Deepen it and drop the colored shadow. */
+html.dark .tg-daycard {
+  background: linear-gradient(135deg, #1d4ed8 0%, #1b3a76 60%, #12294d 100%);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.38);
+}
+html.dark .tg-daycard__glow {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.08), transparent 65%);
+}
+
+/* Native form controls inside the app keep their white surface in dark mode
+   only when explicitly styled; normalize the default ones. */
+html.dark .app-main select,
+html.dark .app-main input[type="date"],
+html.dark .app-main input[type="month"],
+html.dark .app-main input[type="datetime-local"] {
+  background-color: #17243a !important;
+  color: #f1f5f9 !important;
+  border-color: #26364d !important;
+}
+
+/* Light-tinted wrapper surfaces that were hard-coded with arbitrary values */
+html.dark [class*="bg-[#eef5fd]"],
+html.dark [class*="bg-[#eef4fb]"],
+html.dark [class*="bg-[#f8fafc]"],
+html.dark [class*="bg-[#f1f5f9]"] {
+  background-color: #17243a !important;
+}
+html.dark [class*="bg-[#eff6ff]"] {
+  background-color: rgba(37, 99, 235, 0.12) !important;
+}
+html.dark [class*="bg-[#e2e8f0]"] {
+  background-color: #26364d !important;
+}
+
+/* Buttons/surfaces whose own background turns dark in dark mode but whose
+   text was hard-coded with a dark ink color. */
+html.dark [class*="bg-white"][class*="text-[#0b2337]"],
+html.dark [class*="bg-white"][class*="text-[#0f172a]"],
+html.dark [class*="bg-white"][class*="text-[#0f2b38]"],
+html.dark [class*="bg-[#eef5fd]"][class*="text-[#0b2337]"],
+html.dark [class*="bg-[#eef5fd]"][class*="text-[#0f172a]"],
+html.dark [class*="bg-[#eef5fd]"][class*="text-[#0f2b38]"],
+html.dark [class*="bg-[#f8fafc]"][class*="text-[#0b2337]"],
+html.dark [class*="bg-[#f8fafc]"][class*="text-[#0f172a]"],
+html.dark [class*="bg-[#f1f5f9]"][class*="text-[#0b2337]"],
+html.dark [class*="bg-[#f1f5f9]"][class*="text-[#0f172a]"],
+html.dark [class*="bg-[#eff6ff]"][class*="text-[#0b2337]"],
+html.dark [class*="bg-[#eff6ff]"][class*="text-[#0f172a]"] {
+  color: #e2e8f0 !important;
+}
+
+/* ==========================================================================
+   Typographic hierarchy
+   Screens used font-black for nearly every label, so headings, values and
+   captions all carried the same weight. Compressing the top of the scale
+   restores contrast without touching each component individually.
+   ========================================================================== */
+.app-main .font-black { font-weight: 800; }
+.app-main .font-extrabold { font-weight: 700; }
+.app-main h1,
+.app-main h2,
+.app-main h3 { letter-spacing: -0.006em; }
+
+/* ==========================================================================
+   Sidebar navigation groups
+   ========================================================================== */
+.ds-sidebar__group { display: grid; gap: 3px; }
+.ds-sidebar__group + .ds-sidebar__group { margin-top: 6px; }
+.ds-sidebar__group-label {
+  padding: 7px 10px 2px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  color: var(--app-text-muted);
+}
+html.dark .ds-sidebar__group-label { color: #94A3B8; }
+html.dark .ds-drawer__label { color: #94A3B8; }
+.ds-drawer__group + .ds-drawer__group { margin-top: 6px; }
+
+/* Tablet: sidebar collapses to an icon rail, so group titles go away. */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .ds-sidebar__group-label { display: none !important; }
+  .ds-sidebar__group + .ds-sidebar__group { margin-top: 0; }
+}
+
+/* ==========================================================================
+   Dashboard hierarchy: numbers stay bold, labels lighter.
+   Every tg-* label used to be 900, which flattened the reading order.
+   ========================================================================== */
+.tg-hero__title,
+.tg-card__title { font-weight: 800; }
+
+.tg-target__value,
+.tg-q__value,
+.tg-stat__value,
+.tg-kpi__value,
+.tg-pill__value,
+.tg-daycard__value,
+.tg-mini__value,
+.tg-mini__rem-value { font-weight: 800; }
+
+.tg-target__label,
+.tg-q__label,
+.tg-stat__label,
+.tg-kpi__label,
+.tg-pill__label,
+.tg-daycard__label,
+.tg-mini__label { font-weight: 700; }
+
+.tg-target__sub,
+.tg-q__sub,
+.tg-stat__sub,
+.tg-kpi__hint,
+.tg-mini__rem-label { font-weight: 600; }
+
+/* The shell already fills the viewport; letting the dashboard stretch to
+   100dvh left a big empty band under short, tabbed content. */
+.tg-dash { min-height: 0; }
+
+/* Mobile: four primary KPIs read better as a 2×2 grid than as a long
+   single column that pushes the tabs below the fold. */
+@media (max-width: 639px) {
+  .tg-target-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .tg-target-card { padding: 10px 11px; gap: 3px; border-radius: 16px; }
+  .tg-target__icon { width: 28px; height: 28px; border-radius: 9px; }
+  .tg-target__icon svg { width: 15px; height: 15px; }
+  .tg-target__value { font-size: 15px; }
+  .tg-target__label { font-size: 10.5px; line-height: 1.3; }
+  .tg-target__sub { font-size: 9.5px; line-height: 1.3; }
+}
+
+/* The mobile bottom nav was pinned to white for the day theme and leaked
+   into dark mode, so the whole bar stayed light while the app went navy. */
+@media (max-width: 1023px) {
+  html.dark .ds-bottom {
+    background: #0B1220 !important;
+    border-top: 1px solid #26364D !important;
+    box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.45) !important;
+  }
+  html.dark .ds-bottom__item {
+    color: #94A3B8;
+  }
+  html.dark .ds-bottom__item[aria-current='page'],
+  html.dark .ds-bottom__item[aria-current='page'] .ds-bottom__label {
+    color: var(--role) !important;
+  }
+  html.dark .ds-bottom__label {
+    color: inherit;
+  }
+}
+
+/* ==========================================================================
+   Mobile layout pass — 320–639px
+   Goal: pack more cards above the fold. On narrow screens the KPI cards grew
+   to ~185px each because long amounts wrapped mid-number ("362,779,68 / 5").
+   Numbers now stay in one piece and the currency suffix drops to its own line.
+   ========================================================================== */
+@media (max-width: 639px) {
+  .tg-kpi__value,
+  .tg-target__value,
+  .tg-stat__value,
+  .tg-mini__value,
+  .tg-kpi-big__value {
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
+  /* KPI grids: two columns, compact interior */
+  .kpi-grid { gap: 8px !important; }
+  .kpi-grid .tg-kpi {
+    min-height: 0 !important;
+    padding: 10px 11px !important;
+    gap: 2px;
+    border-radius: 15px;
+  }
+  .kpi-grid .tg-kpi__top { margin-bottom: 2px; }
+  .kpi-grid .tg-kpi__icon { width: 28px; height: 28px; border-radius: 9px; }
+  .kpi-grid .tg-kpi__icon svg { width: 15px; height: 15px; }
+  .kpi-grid .tg-kpi__value {
+    font-size: clamp(12px, 4.3vw, 16px) !important;
+    letter-spacing: -0.2px;
+    line-height: 1.2;
+  }
+  .kpi-grid .tg-kpi__label { font-size: 11px; line-height: 1.25; }
+  .kpi-grid .tg-kpi__hint { font-size: 10px; line-height: 1.2; }
+
+  /* Every other tg-kpi row (offers, collection, targets) also carried the
+     desktop min-height and a spacer, leaving a big empty gap in each card.
+     html.tg-compact is the default density and outranks a bare .tg-kpi, so it
+     must be listed explicitly for the overrides to win. */
+  html.tg-compact .tg-kpi,
+  .tg-kpi {
+    min-height: 0;
+    padding: 11px 12px;
+    gap: 3px;
+    border-radius: 15px;
+  }
+  html.tg-compact .tg-kpi__top,
+  .tg-kpi__top { margin-bottom: 0; }
+  html.tg-compact .tg-kpi__icon,
+  .tg-kpi__icon { width: 30px; height: 30px; border-radius: 10px; }
+  html.tg-compact .tg-kpi__icon svg,
+  .tg-kpi__icon svg { width: 16px; height: 16px; }
+  html.tg-compact .tg-kpi__value,
+  .tg-kpi__value { font-size: 18px; line-height: 1.2; }
+  html.tg-compact .tg-kpi__label,
+  .tg-kpi__label { font-size: 11.5px; }
+  html.tg-compact .tg-kpi__hint,
+  .tg-kpi__hint { font-size: 10.5px; }
+
+  /* Invoice KPI row (.tg-grid-4): 150px tall cards in two columns ate the
+     whole first screen. Icon moves next to the number, the decorative arrow
+     is dropped, and the hint spans both columns like .offers-kpis. */
+  .tg-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+  .tg-kpi-big {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    align-items: center;
+    gap: 2px 8px;
+    min-height: 0 !important;
+    padding: 9px 10px !important;
+    border-radius: 14px;
+    box-shadow: 0 6px 16px rgba(9, 30, 66, 0.06) !important;
+  }
+  .tg-kpi-big__top {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: start;
+    margin: 0;
+  }
+  .tg-kpi-big__top > svg { display: none; }
+  .tg-kpi-big__icon { width: 30px; height: 30px; border-radius: 10px; }
+  .tg-kpi-big__icon svg { width: 16px; height: 16px; }
+  .tg-kpi-big__value {
+    grid-column: 2;
+    font-size: 18px !important;
+    line-height: 1.15;
+    letter-spacing: -0.3px;
+    text-align: start;
+  }
+  .tg-kpi-big__label { grid-column: 2; font-size: 10.5px; line-height: 1.25; text-align: start; }
+  .tg-kpi-big__hint {
+    grid-column: 1 / -1;
+    margin-top: 3px;
+    font-size: 9.5px;
+    line-height: 1.25;
+    text-align: start;
+  }
+
+  /* Page heroes were oversized at 320px and pushed content below the fold */
+  .ds-pagehead { padding: 14px 15px; border-radius: 20px; }
+  .ds-pagehead h1,
+  .tg-hero__title { font-size: 19px !important; line-height: 1.3; }
+  .ds-pagehead__hint {
+    font-size: 11px;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* mobile-styles.css forces 16px padding on every select, which covered the
+     chevron drawn at right:12px with the option text */
+  .tg-select {
+    padding: 0 36px 0 14px !important;
+    border: 1.5px solid var(--tg-line) !important;
+    border-radius: 12px !important;
+    min-height: 44px !important;
+    background: var(--tg-card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 12px center !important;
+    background-size: 16px 16px !important;
+  }
+  /* the compact density rule forces padding-inline on .tg-input, which ate the
+     space reserved for the search icon */
+  html.tg-compact .tg-input--search { padding-right: 38px !important; }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .tg-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Catalog KPI cards are horizontal (icon + text + sort arrow) and have long
+   Arabic titles, so they need their own tighter mobile sizing. */
+@media (max-width: 639px) {
+  html .catalog-page .tg-kpi {
+    min-height: 0;
+    padding: 10px;
+    gap: 6px;
+    border-radius: 15px;
+    /* Lay icon + text beside the sort arrow instead of stacking them, which
+       halves the card height and lets all three summary cards fit on screen. */
+    flex-direction: row;
+    align-items: center;
+  }
+  html .catalog-page .tg-kpi__top { margin-bottom: 0; }
+  html .catalog-page .tg-kpi__icon { width: 30px; height: 30px; border-radius: 10px; }
+  html .catalog-page .tg-kpi__icon svg { width: 16px; height: 16px; }
+  html .catalog-page .tg-kpi__label { font-size: 11px; line-height: 1.3; }
+  html .catalog-page .tg-kpi__value { font-size: 17px; }
+  html .catalog-page .tg-kpi__hint { font-size: 10px; line-height: 1.3; }
+  html .catalog-page .tg-kpi > button {
+    width: 26px;
+    height: 26px;
+  }
+  .catalog-sectors button {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+  .catalog-hero__title { font-size: 24px !important; }
+}
+
+/* Offers KPIs: icon + text side by side so four cards take roughly one screen
+   third instead of four 162px-tall blocks. */
+@media (max-width: 639px) {
+  html .offers-kpis { gap: 8px !important; }
+  html .offers-kpis .tg-kpi {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    align-items: center;
+    gap: 2px 8px;
+    min-height: 0;
+    padding: 9px 10px;
+    border-radius: 14px;
+  }
+  html .offers-kpis .tg-kpi__top {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: start;
+    margin: 0;
+  }
+  html .offers-kpis .tg-kpi__value {
+    grid-column: 2;
+    font-size: 17px !important;
+    line-height: 1.15;
+  }
+  html .offers-kpis .tg-kpi__label {
+    grid-column: 2;
+    font-size: 10.5px;
+    line-height: 1.2;
+  }
+  html .offers-kpis .tg-kpi__hint {
+    grid-column: 1 / -1;
+    margin-top: 3px;
+    font-size: 9.5px;
+    line-height: 1.25;
+  }
+}
+
+/* The catalog hero stacked a 64px icon, a 30px title and a 3-line paragraph
+   above the fold. Shrink the block so the first product row stays visible. */
+@media (max-width: 419px) {
+  .catalog-hero__icon { width: 44px; height: 44px; border-radius: 16px !important; }
+  .catalog-hero__icon svg { width: 24px; height: 24px; }
+  .catalog-hero__title { font-size: 21px !important; }
+  .catalog-hero__desc { font-size: 11px !important; line-height: 1.5; }
+}
+
+/* At 320px the four topbar icon buttons squeezed the brand text down to 33px,
+   so the wordmark collapsed to "طن...". Keep the logo, drop the text. */
+@media (max-width: 400px) {
+  .ds-brand { gap: 6px; }
+  .ds-brand__text { display: none; }
+  .ds-brand__logo { width: 36px; height: 36px; }
+}
+
+/* الكروت تتحوّل لسطح غامق في الوضع الليلي، لكن ألوان الحبر الكحلي/الأسود
+   المكتوبة كقيم ثابتة (text-[#0b2337] وأخواتها) ظلّت غامقة فصارت سوداء
+   على أسود. نحوّلها إلى حبر فاتح على مستوى التطبيق كله دفعة واحدة. */
+html.dark [class*="text-[#0b2337]"],
+html.dark [class*="text-[#0B2337]"],
+html.dark [class*="text-[#0f172a]"],
+html.dark [class*="text-[#0F172A]"],
+html.dark [class*="text-[#102b4e]"],
+html.dark [class*="text-[#102B4E]"],
+html.dark [class*="text-[#0F2B38]"],
+html.dark [class*="text-[#0f2b38]"],
+html.dark [class*="text-[#0f233d]"],
+html.dark [class*="text-[#0F233D]"],
+html.dark [class*="text-[#0B1220]"],
+html.dark [class*="text-[#0b1220]"] {
+  color: var(--tg-ink) !important;
+}
+html.dark [class*="text-[#64748b]"],
+html.dark [class*="text-[#64748B]"] {
+  color: var(--tg-muted) !important;
 }

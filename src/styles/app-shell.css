@@ -1157,7 +1157,7 @@ html.dark .tg-mini__rem-value { color: #F8FAFC !important; }
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
 }
 html.dark .tg-target-card {
-  background: #0A1E27;
+  background: #0F1A2A;
   border-color: #26364D;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
@@ -1168,28 +1168,28 @@ html.dark .tg-target-card {
   border-left: 4px solid #DC2626;
 }
 html.dark .tg-target-card--debt {
-  background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(220, 38, 38, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.13) 0%, rgba(15, 26, 42, 0) 70%), #0F1A2A;
 }
 .tg-target-card--receivable {
   background: linear-gradient(135deg, #D1FAE5 0%, #ECFDF5 100%);
   border-left: 4px solid #10B981;
 }
 html.dark .tg-target-card--receivable {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.13) 0%, rgba(15, 26, 42, 0) 70%), #0F1A2A;
 }
 .tg-target-card--sales {
   background: linear-gradient(135deg, #DBEAFE 0%, #EFF6FF 100%);
   border-left: 4px solid #2563EB;
 }
 html.dark .tg-target-card--sales {
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(37, 99, 235, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.13) 0%, rgba(15, 26, 42, 0) 70%), #0F1A2A;
 }
 .tg-target-card--collection {
   background: linear-gradient(135deg, #E9D5FF 0%, #FAF5FF 100%);
   border-left: 4px solid #7C3AED;
 }
 html.dark .tg-target-card--collection {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2) 0%, rgba(124, 58, 237, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.13) 0%, rgba(15, 26, 42, 0) 70%), #0F1A2A;
 }
 
 .tg-target__icon {
@@ -1235,6 +1235,8 @@ html.dark .tg-target__sub { color: #64748B !important; }
 .tg-target__pct {
   font-weight: 900;
   font-size: 11px;
+  white-space: nowrap;
+  margin-inline-start: 0.35em;
 }
 
 /* ---------- كروت الأداء السريع (أداء اليوم) ---------- */
@@ -1256,7 +1258,7 @@ html.dark .tg-target__sub { color: #64748B !important; }
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05);
 }
 html.dark .tg-quick-card {
-  background: #0A1E27;
+  background: #0F1A2A;
   border-color: #26364D;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 }
@@ -1267,28 +1269,28 @@ html.dark .tg-quick-card {
   border-left: 4px solid #2563EB;
 }
 html.dark .tg-quick-card:nth-child(1) {
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(37, 99, 235, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.13) 0%, rgba(15, 26, 42, 0) 70%), #0F1A2A;
 }
 .tg-quick-card:nth-child(2) {
   background: linear-gradient(135deg, #D1FAE5 0%, #ECFDF5 100%);
   border-left: 4px solid #10B981;
 }
 html.dark .tg-quick-card:nth-child(2) {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.13) 0%, rgba(15, 26, 42, 0) 70%), #0F1A2A;
 }
 .tg-quick-card:nth-child(3) {
   background: linear-gradient(135deg, #E9D5FF 0%, #FAF5FF 100%);
   border-left: 4px solid #7C3AED;
 }
 html.dark .tg-quick-card:nth-child(3) {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2) 0%, rgba(124, 58, 237, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.13) 0%, rgba(15, 26, 42, 0) 70%), #0F1A2A;
 }
 .tg-quick-card:nth-child(4) {
   background: linear-gradient(135deg, #FEE2E2 0%, #FFF1F2 100%);
   border-left: 4px solid #DC2626;
 }
 html.dark .tg-quick-card:nth-child(4) {
-  background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(220, 38, 38, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.13) 0%, rgba(15, 26, 42, 0) 70%), #0F1A2A;
 }
 
 .tg-q__icon {
@@ -1524,28 +1526,28 @@ html.dark .tg-stat {
   border-left: 4px solid #2563EB;
 }
 html.dark .tg-stat--colored.tg-stat--blue {
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(37, 99, 235, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.13) 0%, rgba(15, 26, 42, 0) 70%), #0F1A2A;
 }
 .tg-stat--colored.tg-stat--emerald {
   background: linear-gradient(135deg, #D1FAE5 0%, #ECFDF5 100%);
   border-left: 4px solid #10B981;
 }
 html.dark .tg-stat--colored.tg-stat--emerald {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(16, 185, 129, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.13) 0%, rgba(15, 26, 42, 0) 70%), #0F1A2A;
 }
 .tg-stat--colored.tg-stat--violet {
   background: linear-gradient(135deg, #E9D5FF 0%, #FAF5FF 100%);
   border-left: 4px solid #7C3AED;
 }
 html.dark .tg-stat--colored.tg-stat--violet {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2) 0%, rgba(124, 58, 237, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.13) 0%, rgba(15, 26, 42, 0) 70%), #0F1A2A;
 }
 .tg-stat--colored.tg-stat--red {
   background: linear-gradient(135deg, #FEE2E2 0%, #FFF1F2 100%);
   border-left: 4px solid #DC2626;
 }
 html.dark .tg-stat--colored.tg-stat--red {
-  background: linear-gradient(135deg, rgba(220, 38, 38, 0.2) 0%, rgba(220, 38, 38, 0.05) 100%);
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.13) 0%, rgba(15, 26, 42, 0) 70%), #0F1A2A;
 }
 
 .tg-stat__body { min-width: 0; flex: 1; }

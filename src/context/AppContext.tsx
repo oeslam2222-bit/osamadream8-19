@@ -4,7 +4,7 @@ import { inferCustomerSector, BRANCHES } from '../data/branchDefinitions';
 import { DEFAULT_CLOUDINARY_CONFIG, normalizeCloudinaryConfig } from '../services/cloudinaryService';
 import { clearCachedImages } from '../services/imageCacheService';
 import { idbClear, idbDelete, idbGet, idbSet, debouncedIdbSet, safeLocalStorageSet } from '../services/storageService';
-import { saveCustomerItemSales, mapSupabaseRowToCustomerItemSale } from '../services/customerItemSalesService';
+import { appendAuditLog, clearAuditLogsStorage, createAuditLog, getAuditLogs } from '../services/auditLogService';
 import {
   doesCustomerBelongToBranch,
   doesCustomerBelongToRep,
@@ -107,8 +107,6 @@ import {
   inferTargetSector,
   filterTargetsForUser,
 } from '../services/targetService';
-import { fetchDetailedCustomersFromGoogleSheet } from '../services/customerAnalyticsService';
-import { fetchAndParseGoogleSheet } from '../services/excelService';
 import { saveSingleSourceUrl, getPublishedDataSources, getSavedSourceUrl, isGoogleSheetsReadMode } from '../services/dataSourceService';
 import {
   clearLocalDataVersion,
@@ -1440,13 +1438,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [inventoryLogs] = useState<InventoryTransaction[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
-  // Cleanup lingering audit & inventory logs from storage to save space and keep app ultra-lightweight
+  // Load audit logs (capped, persisted)
   useEffect(() => {
-    try {
-      localStorage.removeItem('dream_dist_inv_logs_v5');
-      localStorage.removeItem('dream_dist_audit_logs_v7');
-      idbDelete('dream_dist_audit_logs_v7').catch(() => {});
-    } catch {}
+    let active = true;
+    getAuditLogs().then((logs) => {
+      if (active) setAuditLogs(Array.isArray(logs) ? logs : []);
+    }).catch(() => {});
+    return () => { active = false; };
   }, []);
 
   // Keep active customers cache in sync for instant financial auditing across Excel & PDF exports
@@ -1531,12 +1529,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [users]);
 
-  const recordAuditLog = (_logData: Omit<AuditLog, 'id' | 'timestamp' | 'formattedTime'>) => {
-    // Audit logs disabled as requested by user to keep the app ultra-clean and lightweight
+  const recordAuditLog = (logData: Omit<AuditLog, 'id' | 'timestamp' | 'formattedTime'>) => {
+    try {
+      const entry = createAuditLog(logData);
+      setAuditLogs((prev) => [entry, ...prev].slice(0, 1200));
+      void appendAuditLog(entry);
+    } catch {
+      // keep app resilient
+    }
   };
 
   const clearAuditLogs = () => {
     setAuditLogs([]);
+    void clearAuditLogsStorage();
     try {
       localStorage.removeItem('dream_dist_audit_logs_v7');
     } catch {}
@@ -3443,6 +3448,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                 const savedSources = getPublishedDataSources();
                 const prodKeys = ['products', 'products_electrical'] as const;
                 (async () => {
+                  const { fetchAndParseGoogleSheet } = await import('../services/excelService');
                   const allProducts: Product[] = [];
                   for (const key of prodKeys) {
                     const src = (savedSources as any)[key];
@@ -3489,6 +3495,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                   const savedSources = getPublishedDataSources();
                   const custKeys = ['customers', 'customers_electrical'] as const;
                   (async () => {
+                    const { fetchDetailedCustomersFromGoogleSheet } = await import(
+                      '../services/customerAnalyticsService'
+                    );
                     const allCustomers: Customer[] = [];
                     for (const key of custKeys) {
                       const src = (savedSources as any)[key];
@@ -3913,6 +3922,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
   useEffect(() => {
     const handleOnlineSync = () => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
       flushPendingInvoices().catch((error) => console.warn('Pending invoice sync notice:', error));
       // Everything else done offline (visits, customers, products, users, targets)
       // leaves through the outbox the moment the connection is usable again.
@@ -3924,13 +3934,26 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             );
             setTimeout(() => setLastVersionSyncNotice(null), 8000);
           }
+          window.dispatchEvent(new CustomEvent('tantawy:reconnected-sync'));
         })
-        .catch((error) => console.warn('Offline queue flush notice:', error));
+        .catch((error) => {
+          console.warn('Offline queue flush notice:', error);
+          window.dispatchEvent(new CustomEvent('tantawy:reconnected-sync'));
+        });
       refreshOfflineQueueCount().catch(() => {});
     };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') handleOnlineSync();
+    };
     window.addEventListener('online', handleOnlineSync);
+    window.addEventListener('focus', handleOnlineSync);
+    document.addEventListener('visibilitychange', handleVisibility);
     if (navigator.onLine) handleOnlineSync();
-    return () => window.removeEventListener('online', handleOnlineSync);
+    return () => {
+      window.removeEventListener('online', handleOnlineSync);
+      window.removeEventListener('focus', handleOnlineSync);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   // Safety net: a device that reconnects without firing the online event (or that
@@ -7686,6 +7709,23 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       return next;
     });
 
+    // Keep customer dossier (balance/collection, last visit, counters) in sync with server/offline queue.
+    syncOrQueue('customers', 'upsert', updatedCustomer.id, updatedCustomer, () =>
+      saveCustomersToSupabase([updatedCustomer])
+    ).catch((e) => console.warn('Supabase customer sync after visit failed:', e));
+
+    const isReturnVisit = !!(visit.isReturn || visit.type === 'مرتجع');
+    recordAuditLog({
+      userId: currentUser?.id || 'user',
+      userName: currentUser?.name || 'مستخدم',
+      userRole: currentUser?.role || 'sales_rep',
+      branchName: effectiveBranch || currentUser?.branchName || '',
+      action: (isReturnVisit ? 'create_return' : (visit.collectedAmount && visit.collectedAmount > 0 ? 'record_collection' : 'create_visit')) as any,
+      actionTitle: (isReturnVisit ? 'تسجيل طلب/حالة مرتجع' : (visit.collectedAmount && visit.collectedAmount > 0 ? 'تسجيل تحصيل ميداني' : 'تسجيل زيارة ميدانية')),
+      details: `عميل: ${customer.name} (${customer.code || '—'}) | تاريخ: ${visit.date} | نوع: ${visit.type || visit.status || 'زيارة'}${visit.collectedAmount ? ` | محصّل: ${visit.collectedAmount}` : ''}${isReturnVisit ? ' | مرتجع' : ''}`,
+      badgeType: isReturnVisit ? 'warning' : (visit.collectedAmount && visit.collectedAmount > 0 ? 'success' : 'info'),
+    });
+
     return {
       success: true,
       message: 'تم حفظ الزيارة بنجاح وتأكيد تثبيتها في قاعدة البيانات ✅',
@@ -7894,6 +7934,23 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         })
       );
     }
+
+    const isReturnUpdate = !!(updatedVisit.isReturn || updatedVisit.type === 'مرتجع');
+    const prevStatus = existingVisit?.returnStatus || existingVisit?.status;
+    const nextStatus = updatedVisit.returnStatus || updatedVisit.status;
+    const prevReview = existingVisit?.reviewStatus;
+    const nextReview = updatedVisit.reviewStatus;
+    recordAuditLog({
+      userId: currentUser?.id || 'user',
+      userName: currentUser?.name || 'مستخدم',
+      userRole: currentUser?.role || 'sales_rep',
+      branchName: updatedVisit.branchName || currentUser?.branchName || '',
+      action: (isReturnUpdate ? 'update_return_status' : 'update_visit_status') as any,
+      actionTitle: isReturnUpdate ? 'تحديث حالة مرتجع/زيارة مرتجع' : 'تحديث/اعتماد زيارة',
+      details: `عميل: ${updatedVisit.customerName || visit.customerName || '—'} | ${isReturnUpdate ? `حالة المرتجع: ${prevStatus || '—'} → ${nextStatus || '—'}` : `حالة: ${prevStatus || '—'} → ${nextStatus || '—'} | مراجعة: ${prevReview || '—'} → ${nextReview || '—'}`}${updatedVisit.returnHandledBy ? ` | بواسطة: ${updatedVisit.returnHandledBy}` : ''}`,
+      badgeType: isReturnUpdate ? 'warning' : 'info',
+    });
+
     return { success: true, message: 'تم تحديث الزيارة وحفظها بقاعدة البيانات بنجاح ✅' };
   };
 
@@ -8384,6 +8441,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (!res.success) {
         return { success: false, message: res.error || 'فشل جلب مبيعات الأصناف من السيرفر' };
       }
+      const { saveCustomerItemSales, mapSupabaseRowToCustomerItemSale } = await import(
+        '../services/customerItemSalesService'
+      );
       const incoming = (res.sales || []).map(mapSupabaseRowToCustomerItemSale);
       if (incoming.length === 0) {
         return { success: true, message: 'لا توجد مبيعات أصناف جديدة للتحديث', added: 0, updated: 0 };
@@ -8404,6 +8464,42 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
   // مرجع حيّ للدالة — بيتنادى من مزامنة نسخة البيانات بدون أي زر.
   itemSalesSyncRef.current = syncCustomerItemSalesIncrementally;
+
+  const lastDeltaSyncAtRef = useRef<number>(0);
+  const reconnectDeltaSyncRef = useRef<() => void>(() => {});
+  reconnectDeltaSyncRef.current = () => {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+    const now = Date.now();
+    // Throttle to avoid extra egress on frequent focus/visibility changes.
+    if (now - lastDeltaSyncAtRef.current < 60_000) return;
+    lastDeltaSyncAtRef.current = now;
+    // After reconnect: push done, now pull only what changed (delta) for key data.
+    void syncTargetsIncrementally().catch(() => {});
+    void syncProductsIncrementally().catch(() => {});
+    void syncCustomersIncrementally().catch(() => {});
+    void itemSalesSyncRef.current?.().catch(() => {});
+  };
+
+  useEffect(() => {
+    let timer: number | null = null;
+    const handler = () => {
+      if (timer) window.clearTimeout(timer);
+      // Small delay so outbox flush/state settles before pulling deltas.
+      timer = window.setTimeout(() => reconnectDeltaSyncRef.current(), 1500);
+    };
+    window.addEventListener('tantawy:reconnected-sync', handler as EventListener);
+    // Periodic light delta refresh while online (balances/targets/stock/sales updates) without full reload.
+    const periodic = window.setInterval(() => {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+      if (document.visibilityState && document.visibilityState !== 'visible') return;
+      reconnectDeltaSyncRef.current();
+    }, 5 * 60 * 1000);
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      window.clearInterval(periodic);
+      window.removeEventListener('tantawy:reconnected-sync', handler as EventListener);
+    };
+  }, []);
 
   return (
     <AppContext.Provider

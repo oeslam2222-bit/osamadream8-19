@@ -1,9 +1,11 @@
-import * as XLSX from 'xlsx-js-style';
 import { Product, PromotionOffer, User } from '../types';
-import { cleanProductCode, buildGoogleSheetsPublicCsvUrl } from './excelService';
+import { cleanProductCode, buildGoogleSheetsPublicCsvUrl } from './productCodeUtils';
 import { extractBaseProductCode } from './productVariantService';
-import { parseExcelOrCsvBuffer } from './encodingService';
 import { isBranchMatch, normalizeArabicText } from './arabicMatchingService';
+
+// xlsx-js-style and the Arabic file-encoding helpers are only needed when a
+// promotions sheet is actually imported or exported, so they are loaded inside
+// those two functions instead of on every app start.
 
 const PROMOTIONS_STORAGE_KEY = 'tantawy_promotions_offers_v1';
 
@@ -139,6 +141,8 @@ export async function parsePromotionsFromExcelBuffer(
   buffer: ArrayBuffer,
   sheetNameHint?: string
 ): Promise<{ promotions: PromotionOffer[]; message: string; matchedCount: number }> {
+  const XLSX = await import('xlsx-js-style');
+  const { parseExcelOrCsvBuffer } = await import('./encodingService');
   const wb = await parseExcelOrCsvBuffer(buffer);
   const sheetNames = wb.SheetNames;
   if (!sheetNames || sheetNames.length === 0) {
@@ -646,7 +650,8 @@ export function applyPromotionsToProducts(
 /**
  * Export promotions list to a formatted Excel file
  */
-export function exportPromotionsToExcel(promotions: PromotionOffer[]): void {
+export async function exportPromotionsToExcel(promotions: PromotionOffer[]): Promise<void> {
+  const XLSX = await import('xlsx-js-style');
   const wb = XLSX.utils.book_new();
 
   const titleRow = ['مجموعة الطنطاوي للتجارة والتوزيع — كشف العروض والخصومات الترويجية الرسمية'];

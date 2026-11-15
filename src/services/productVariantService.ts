@@ -1,5 +1,5 @@
 import { ItemStatus, ParentProduct, Product, ProductVariant, SalesPriority } from '../types';
-import { cleanProductCode, extractCodeFromProductName } from './excelService';
+import { cleanProductCode, extractCodeFromProductName } from './productCodeUtils';
 
 /**
  * Optimizes image URLs for crystal-clear, high-definition viewing

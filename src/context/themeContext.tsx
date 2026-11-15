@@ -1,6 +1,20 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 const STORAGE_KEY = 'tantawy_dark_mode';
+
+const readStoredTheme = (): boolean => {
+  try {
+    return localStorage.getItem(STORAGE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+};
+
+const applyThemeClass = (dark: boolean) => {
+  try {
+    document.documentElement.classList.toggle('dark', dark);
+  } catch {}
+};
 
 interface ThemeContextType {
   isDark: boolean;
@@ -11,21 +25,24 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [isDark, setIsDark] = useState<boolean>(false);
+  const [isDark, setIsDark] = useState<boolean>(readStoredTheme);
 
-  const toggleTheme = () => {
-    setIsDark((prev) => !prev);
-  };
+  useEffect(() => {
+    applyThemeClass(isDark);
+    try {
+      localStorage.setItem(STORAGE_KEY, String(isDark));
+    } catch {}
+  }, [isDark]);
 
-  const setTheme = (dark: boolean) => {
-    setIsDark(dark);
-  };
+  const toggleTheme = useCallback(() => setIsDark((prev) => !prev), []);
+  const setTheme = useCallback((dark: boolean) => setIsDark(dark), []);
 
-  return (
-    <ThemeContext.Provider value={{ isDark: false, toggleTheme, setTheme }}>
-      {children}
-    </ThemeContext.Provider>
+  const value = useMemo(
+    () => ({ isDark, toggleTheme, setTheme }),
+    [isDark, toggleTheme, setTheme],
   );
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {
