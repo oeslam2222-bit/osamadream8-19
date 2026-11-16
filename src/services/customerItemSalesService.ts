@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx-js-style';
-import { Customer, CustomerItemSaleRecord, CustomerItemSalesSummary, User } from '../types';
+import { Customer, CustomerItemSaleRecord, CustomerItemSalesSummary, Product, User } from '../types';
 import {
   doesCustomerBelongToBranch,
   doesCustomerBelongToRep,
@@ -9,6 +9,12 @@ import {
   normalizeArabicText,
   resolveBranchName
 } from './arabicMatchingService';
+import {
+  buildProductFamilyLookup,
+  isGenericFamilyValue,
+  looksLikeItemCode,
+  resolveProductFamily
+} from './itemSalesAnalytics';
 import { buildGoogleSheetsPublicCsvUrl } from './productCodeUtils';
 import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 import { idbGet, idbSet, idbDelete } from './storageService';
@@ -826,8 +832,12 @@ export function enrichCustomerItemSalesWithDirectory(
         ? (rep || record.repName)
         : record.repName;
 
+    // اسم العميل من قاعدة العملاء بدل كود/اسم الفاتورة (الكود مش اسم مقروء)
+    const directoryName = String(matched.name || matched.storeName || '').trim();
+
     return {
       ...record,
+      invoicingName: directoryName || record.invoicingName,
       warehouse: newWarehouse,
       repName: newRep,
       isCustomerLinked: true,
@@ -845,6 +855,52 @@ export function enrichCustomerItemSalesWithDirectory(
     matchedRecordsCount,
     distinctCustomersMatched: matchedAccounts.size
   };
+}
+
+/**
+ * إتمام بيانات الصنف من كتالوج المنتجات (products).
+ *
+ * السبب: عمود «Family Dimension» في شيت مبيعات الأصناف بييجي فاضي أو «عام»
+ * في معظم الصفوف، فبيظهر «الصنف بالعائلة» كـ«عام» في الجدول والفلاتر.
+ * الكتالوج هو المصدر المعتمد لاسم الصنف وعائلته (Family Name / Classification)،
+ * فبنكمّل منهم من غير ما نغيّر بيانات الشيت الأصلية:
+ *   - familyDimension: لو فاضي/«عام» → من الكتالوج.
+ *   - itemName: لو فاضي أو هو نفسه الكود → اسم الكتالوج.
+ *   - unifiedCode: لو القيمة مش شكلها كود (نص) → الكود الموحد من الكتالوج.
+ */
+export function enrichCustomerItemSalesWithCatalog(
+  sales: CustomerItemSaleRecord[],
+  products: Product[]
+): CustomerItemSaleRecord[] {
+  if (!sales || sales.length === 0 || !products || products.length === 0) return sales;
+
+  const lookup = buildProductFamilyLookup(products);
+
+  return sales.map((record) => {
+    const product = lookup.find(record);
+    if (!product) return record;
+
+    const family = isGenericFamilyValue(record.familyDimension)
+      ? resolveProductFamily(product) || String(record.familyDimension || '').trim()
+      : String(record.familyDimension).trim();
+
+    const rawName = String(record.itemName || '').trim();
+    const catalogName = String(product.name || '').trim();
+    const itemName =
+      (!rawName || rawName === String(record.itemCode || '').trim() || looksLikeItemCode(rawName)) && catalogName
+        ? catalogName
+        : rawName;
+
+    const recordUnified = String(record.unifiedCode || '').trim();
+    const productUnified = String(product.unifiedCode || '').trim();
+    const unifiedCode = looksLikeItemCode(recordUnified)
+      ? recordUnified
+      : looksLikeItemCode(productUnified)
+        ? productUnified
+        : recordUnified || undefined;
+
+    return { ...record, familyDimension: family, itemName, unifiedCode };
+  });
 }
 
 /**

@@ -56,6 +56,77 @@ const itemKeyOf = (record: CustomerItemSaleRecord): string => resolveItemKey(rec
 const customerKeyOf = (record: CustomerItemSaleRecord): string =>
   (record.customerAccount || record.invoicingName || '').trim();
 
+/** قيم عائلة غير مفيدة (فاضية/عامة) — ممكن يجيبها الشيت أو التحويل. */
+const GENERIC_FAMILY_VALUES = new Set(['عام', 'غير محدد', 'الكل', '---', '0', '']);
+
+export const isGenericFamilyValue = (value?: string | null): boolean => {
+  const text = String(value ?? '').trim();
+  return !text || GENERIC_FAMILY_VALUES.has(text);
+};
+
+/**
+ * هل القيمة شكلها كود صنف ولا اسم/نص؟
+ * الكود الموحد في بعض الشيتات بييجي كنص (اسم الصنف مثلاً) — وده كان بيظهر
+ * مكان الكود تحت اسم الصنف في الجدول، فبنلغيه ويرجع كود الصنف.
+ */
+export const looksLikeItemCode = (value?: string | null): boolean => {
+  const text = String(value ?? '').trim();
+  if (!text || text.length > 30) return false;
+  if (/[\u0600-\u06FF]/.test(text)) return false;
+  if (/\s/.test(text)) return false;
+  return /^[A-Za-z0-9\u0660-\u0669._#\-\/\\]+$/.test(text);
+};
+
+/** عائلة الصنف من كتالوج المنتجات (Family Name ثم الفئة ثم القسم...). */
+export const resolveProductFamily = (product?: Product | null): string => {
+  if (!product) return '';
+  const candidates = [
+    product.familyName,
+    product.classification,
+    product.department,
+    product.itemGroup,
+    product.category
+  ];
+  for (const candidate of candidates) {
+    const text = String(candidate ?? '').trim();
+    if (text && !isGenericFamilyValue(text)) return text;
+  }
+  return '';
+};
+
+/**
+ * فهرس كتالوج المنتجات لمطابقة حركات المبيعات بالكود/الكود الموحد.
+ * بنيطة Map بدل find لكل حركة — عشان مئات الآلاف من الصفوف.
+ */
+export const buildProductFamilyLookup = (products: Product[]) => {
+  const byCode = new Map<string, Product>();
+  const byUnified = new Map<string, Product>();
+
+  const normalize = (raw?: string | null): string => {
+    const text = String(raw ?? '').trim().toLowerCase();
+    if (!text) return '';
+    return text.replace(/[\s_\-./\\#]+/g, '').replace(/\.0+$/, '');
+  };
+
+  (products || []).forEach((product) => {
+    if (!product) return;
+    const code = normalize(product.code);
+    const unified = normalize(product.unifiedCode);
+    if (code && !byCode.has(code)) byCode.set(code, product);
+    if (unified && !byUnified.has(unified)) byUnified.set(unified, product);
+  });
+
+  const find = (record: CustomerItemSaleRecord): Product | undefined => {
+    const unified = normalize(record.unifiedCode);
+    if (unified && byUnified.has(unified)) return byUnified.get(unified);
+    const code = normalize(record.itemCode);
+    if (code && byCode.has(code)) return byCode.get(code);
+    return undefined;
+  };
+
+  return { byCode, byUnified, find };
+};
+
 /**
  * مجموعة/فئة الصنف المعتمدة للعرض.
  * الأولوية لعمود «التعريفات» لأنه هو التصنيف الحقيقي في شيت الـ ERP
@@ -64,7 +135,7 @@ const customerKeyOf = (record: CustomerItemSaleRecord): string =>
  */
 export function resolveItemGroup(record: CustomerItemSaleRecord): string {
   const definitions = (record.definitions || '').trim();
-  if (definitions) return definitions;
+  if (definitions && definitions !== 'عام') return definitions;
   const group = (record.itemGroup || '').trim();
   if (group && group !== 'عام') return group;
   const family = (record.familyDimension || '').trim();
