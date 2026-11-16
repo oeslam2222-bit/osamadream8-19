@@ -799,7 +799,7 @@ export const VisitsDashboard: React.FC = () => {
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
                 timeFilter === 'today'
-                  ? 'bg-white text-[#0b2337] shadow-xs'
+                  ? 'bg-white text-[var(--app-text)] shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
@@ -812,7 +812,7 @@ export const VisitsDashboard: React.FC = () => {
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
                 timeFilter === 'week'
-                  ? 'bg-white text-[#0b2337] shadow-xs'
+                  ? 'bg-white text-[var(--app-text)] shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
@@ -825,7 +825,7 @@ export const VisitsDashboard: React.FC = () => {
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
                 timeFilter === 'month'
-                  ? 'bg-white text-[#0b2337] shadow-xs'
+                  ? 'bg-white text-[var(--app-text)] shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
@@ -838,7 +838,7 @@ export const VisitsDashboard: React.FC = () => {
               }}
               className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${
                 timeFilter === 'all'
-                  ? 'bg-white text-[#0b2337] shadow-xs'
+                  ? 'bg-white text-[var(--app-text)] shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
@@ -939,7 +939,7 @@ export const VisitsDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={resetFilters}
-                className="w-full h-[38px] rounded-xl border border-[var(--tg-line)] bg-white text-[#0b2337] font-bold hover:bg-[#f1f5f9] transition active:scale-95 flex items-center justify-center gap-1.5"
+                className="w-full h-[38px] rounded-xl border border-[var(--tg-line)] bg-white text-[var(--app-text)] font-bold hover:bg-[var(--app-card-secondary)] transition active:scale-95 flex items-center justify-center gap-1.5"
               >
                 <X className="w-3.5 h-3.5" />
                 <span>مسح الفلاتر</span>
@@ -965,7 +965,7 @@ export const VisitsDashboard: React.FC = () => {
         {/* 1. Desktop & Laptop View: Table موحد (مخفي على الموبايل/التابلت) */}
         <div className="hidden lg:block w-full overflow-hidden rounded-[28px] border border-[var(--tg-line)] bg-white shadow-sm">
           <table className="tg-table w-full text-right text-xs">
-            <thead className="bg-[var(--tg-card-2)] text-[#0f172a] font-black sticky top-0 z-10">
+            <thead className="bg-[var(--tg-card-2)] text-[var(--app-text)] font-black sticky top-0 z-10">
               <tr>
                 <th className="w-12">#</th>
                 <th>العميل والمنطقة</th>
@@ -1017,7 +1017,7 @@ export const VisitsDashboard: React.FC = () => {
                     </td>
 
                     <td>
-                      <span className="inline-block px-2.5 py-1 rounded-lg bg-[#f1f5f9] text-[#0b2337] font-mono text-[11px] font-black border border-[var(--tg-line)]">
+                      <span className="inline-block px-2.5 py-1 rounded-lg bg-[var(--app-card-secondary)] text-[var(--app-text)] font-mono text-[11px] font-black border border-[var(--tg-line)]">
                         {v.customerCode || '—'}
                       </span>
                     </td>
@@ -1082,7 +1082,7 @@ export const VisitsDashboard: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setSelectedVisit(v)}
-                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black text-[#1d4ed8] bg-[#eff6ff] border border-[#bfdbfe] hover:bg-[#dbeafe] transition active:scale-95 cursor-pointer shadow-xs"
+                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black text-[#1d4ed8] bg-[var(--app-primary-tint)] border border-[#bfdbfe] hover:bg-[#dbeafe] transition active:scale-95 cursor-pointer shadow-xs"
                       >
                         <Eye className="w-3.5 h-3.5" />
                         <span>عرض</span>
@@ -1185,7 +1185,7 @@ export const VisitsDashboard: React.FC = () => {
                 </div>
 
                 {/* Key Metrics Row */}
-                <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-[#f1f5f9] border border-[var(--tg-line)] text-xs">
+                <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-[var(--app-card-secondary)] border border-[var(--tg-line)] text-xs">
                   <div>
                     <span className="text-[10px] font-bold text-[var(--tg-muted)] block mb-0.5">نوع الزيارة</span>
                     <span className={`tg-badge tg-badge--${isCollection ? 'ok' : isReturn ? 'risk' : 'blue'}`}>
@@ -1209,12 +1209,12 @@ export const VisitsDashboard: React.FC = () => {
                 <div className="flex items-center justify-between text-xs text-[var(--tg-muted)] font-bold pt-3 border-t border-[var(--tg-line)]">
                   <div className="flex items-center gap-2">
                     <Calendar className="w-3.5 h-3.5 text-[var(--tg-muted)]" />
-                    <span className="text-[#0b2337]">{v.date}</span>
+                    <span className="text-[var(--app-text)]">{v.date}</span>
                     <span className="text-[var(--tg-muted)]">•</span>
                     <Clock className="w-3 h-3 text-[var(--tg-muted)]" />
-                    <span className="text-[#0b2337]">{v.time || '09:00 ص'}</span>
+                    <span className="text-[var(--app-text)]">{v.time || '09:00 ص'}</span>
                   </div>
-                  <div className="flex items-center gap-1 text-[#0b2337]">
+                  <div className="flex items-center gap-1 text-[var(--app-text)]">
                     <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
                     <span>{v.repName || 'المندوب'}</span>
                   </div>
@@ -1289,7 +1289,7 @@ export const VisitsDashboard: React.FC = () => {
           >
             <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-[#eff6ff] text-[#2563eb] flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-[var(--app-primary-tint)] text-[#2563eb] flex items-center justify-center">
                   <MapPin className="w-5 h-5" />
                 </div>
                 <div>
@@ -1439,7 +1439,7 @@ export const VisitsDashboard: React.FC = () => {
                       type="button"
                       onClick={() => requestCurrentRepGps()}
                       disabled={isCapturingGps}
-                      className="w-full py-2.5 px-3 rounded-xl bg-white border border-[#bfdbfe] text-[#1d4ed8] text-xs font-black hover:bg-[#eff6ff] transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="w-full py-2.5 px-3 rounded-xl bg-white border border-[#bfdbfe] text-[#1d4ed8] text-xs font-black hover:bg-[var(--app-primary-tint)] transition flex items-center justify-center gap-1.5 cursor-pointer"
                     >
                       <Navigation2 className={`w-3.5 h-3.5 ${isCapturingGps ? 'animate-spin' : ''}`} />
                       <span>{isCapturingGps ? 'جاري قراءة GPS الحي...' : 'تحديث قراءة GPS الحية للتحقق'}</span>
@@ -1611,7 +1611,7 @@ export const VisitsDashboard: React.FC = () => {
               {/* Type and Date */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-xs font-bold text-[#0b2337] block mb-1">
+                  <span className="text-xs font-bold text-[var(--app-text)] block mb-1">
                     نوع الزيارة *
                   </span>
                   <select
@@ -1628,7 +1628,7 @@ export const VisitsDashboard: React.FC = () => {
                 </label>
 
                 <label className="block">
-                  <span className="text-xs font-bold text-[#0b2337] block mb-1">
+                  <span className="text-xs font-bold text-[var(--app-text)] block mb-1">
                     تاريخ الزيارة
                   </span>
                   <input
@@ -1643,7 +1643,7 @@ export const VisitsDashboard: React.FC = () => {
               {/* حالة الإتمام وأسباب موحّدة (ديناميكية حسب النتيجة) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="text-xs font-bold text-[#0b2337] block mb-1">حالة إتمام الزيارة</span>
+                  <span className="text-xs font-bold text-[var(--app-text)] block mb-1">حالة إتمام الزيارة</span>
                   <select value={form.completionStatus} onChange={(e) => setForm({ ...form, completionStatus: e.target.value as any, postponementReason: '', failureReason: '' })} className="w-full rounded-2xl border border-slate-300 px-3 py-3 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb]">
                     <option value="completed">منفذة/مكتملة</option>
                     <option value="partial">منفذة جزئيًا</option>
@@ -1652,7 +1652,7 @@ export const VisitsDashboard: React.FC = () => {
                   </select>
                 </label>
                 <label className="block">
-                  <span className="text-xs font-bold text-[#0b2337] block mb-1">توقيت الزيارة (مرجع)</span>
+                  <span className="text-xs font-bold text-[var(--app-text)] block mb-1">توقيت الزيارة (مرجع)</span>
                   <input type="time" value={form.time} onChange={(e) => setForm({ ...form, time: e.target.value })} className="w-full rounded-2xl border border-slate-300 px-3 py-2.5 text-xs sm:text-sm font-bold bg-white dark:bg-slate-800 text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#2563eb]" />
                 </label>
               </div>
@@ -1716,7 +1716,7 @@ export const VisitsDashboard: React.FC = () => {
 
               {/* Notes */}
               <label className="block">
-                <span className="text-xs font-bold text-[#0b2337] block mb-1">
+                <span className="text-xs font-bold text-[var(--app-text)] block mb-1">
                   ملاحظات وإفادة الزيارة
                 </span>
                 <textarea
@@ -1765,7 +1765,7 @@ export const VisitsDashboard: React.FC = () => {
           >
             <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-[#eff6ff] text-[#2563eb] flex items-center justify-center">
+                <div className="w-10 h-10 rounded-2xl bg-[var(--app-primary-tint)] text-[#2563eb] flex items-center justify-center">
                   <FileText className="w-5 h-5" />
                 </div>
                 <div>
@@ -1860,7 +1860,7 @@ export const VisitsDashboard: React.FC = () => {
 
               {/* GPS Geolocation & Anti-Spoof Verification */}
               {(selectedVisit.location?.latitude || selectedVisit.geoVerification) && (
-                <div className="p-3.5 rounded-2xl border border-[#bfdbfe] bg-[#eff6ff] space-y-2.5">
+                <div className="p-3.5 rounded-2xl border border-[#bfdbfe] bg-[var(--app-primary-tint)] space-y-2.5">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="text-[11px] text-[#1d4ed8] font-black flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5" />

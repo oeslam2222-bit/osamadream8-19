@@ -106,7 +106,7 @@ const RingGauge: React.FC<{
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-base font-black tabular-nums leading-none text-[#0F2B38]">{Math.round(p)}%</span>
+        <span className="text-base font-black tabular-nums leading-none text-[var(--app-text)]">{Math.round(p)}%</span>
         {label && <span className="mt-0.5 text-[9px] font-bold text-slate-500">{label}</span>}
       </div>
     </div>
@@ -1025,8 +1025,8 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
   const getSectorColor = (s?: string) => {
     if (s === 'home') return 'bg-[#F0FDFA] text-[#0F766E] border-[#99F6E4]';
-    if (s === 'electrical') return 'bg-[#EFF6FF] text-[#1E3A8A] border-[#BFDBFE]';
-    if (s === 'both') return 'bg-[#F1F5F9] text-[#0F2B38] border-[#CBD5E1]';
+    if (s === 'electrical') return 'bg-[var(--app-primary-tint)] text-[var(--app-primary-text)] border-[#BFDBFE]';
+    if (s === 'both') return 'bg-[var(--app-card-secondary)] text-[var(--app-text)] border-[#CBD5E1]';
     return 'bg-slate-100 text-slate-600 border-slate-200';
   };
 
@@ -1055,7 +1055,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
         )}
 
         {/* Top Header Card */}
-        <div className="bg-[var(--app-navy)] text-white rounded-2xl p-4 sm:p-6 shadow-lg border border-[#1E4D63]">
+        <div className="ds-pagehead bg-[var(--app-navy)] text-white rounded-2xl p-4 sm:p-6 shadow-lg border border-[#1E4D63]">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3">
               <div className="w-12 h-12 rounded-2xl bg-[#0D9488] text-white flex items-center justify-center font-black shadow-md shrink-0">
@@ -1191,7 +1191,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
             <RingGauge percent={kpis.salesPercentage} color="#1E3A8A" label="مبيعات" size={92} stroke={10} />
             <div className="min-w-0">
               <p className="text-[10px] font-bold text-slate-500">إجمالي التارجت — الشهر الحالي</p>
-              <p className="mt-0.5 truncate text-lg font-black tabular-nums text-[#0F2B38]">{formatEGP(kpis.totalSalesAchieved)}</p>
+              <p className="mt-0.5 truncate text-lg font-black tabular-nums text-[var(--app-text)]">{formatEGP(kpis.totalSalesAchieved)}</p>
               <p className="text-[10px] font-bold text-slate-400">من {formatEGP(kpis.totalSalesTarget)} ج.م مستهدف</p>
               <p className="mt-0.5 text-[10px] font-black text-emerald-600">المتبقي: {formatEGP(kpis.remainingSales)}</p>
             </div>
@@ -1201,7 +1201,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
             <RingGauge percent={kpis.collectionPercentage} color="#0D9488" label="تحصيل" size={92} stroke={10} />
             <div className="min-w-0">
               <p className="text-[10px] font-bold text-slate-500">إجمالي التحصيل — الشهر الحالي</p>
-              <p className="mt-0.5 truncate text-lg font-black tabular-nums text-[#0F2B38]">{formatEGP(kpis.totalCollectionAchieved)}</p>
+              <p className="mt-0.5 truncate text-lg font-black tabular-nums text-[var(--app-text)]">{formatEGP(kpis.totalCollectionAchieved)}</p>
               <p className="text-[10px] font-bold text-slate-400">من {formatEGP(kpis.totalCollectionTarget)} ج.م مستهدف</p>
               <p className="mt-0.5 text-[10px] font-black text-emerald-600">المتبقي: {formatEGP(kpis.remainingCollection)}</p>
             </div>

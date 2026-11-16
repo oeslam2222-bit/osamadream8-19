@@ -53,8 +53,11 @@ import {
   exportCustomerItemSalesToExcel,
   fetchCustomerItemSalesFromSupabase,
   filterCustomerItemSalesByRBAC,
+  getItemSalesSyncMeta,
   getSavedCustomerItemSales,
   getSupabaseCustomerItemSalesCount,
+  isItemSalesCountCheckFresh,
+  setItemSalesSyncMeta,
   MONTH_NAMES_MAP,
   parseExcelCustomerItemSales,
   pushCustomerItemSalesToSupabase,
@@ -233,12 +236,19 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       }
 
       // 2. قراءة عدد السجلات في Supabase فقط (استعلام خفيف مفلتر بالنطاق) للمقارنة والتنبيه
+      //    throttled: لو الكاش موجود وفحص العدد حصل خلال آخر نص ساعة، مش بنبعته تاني.
       let remoteCount = -1;
-      try {
-        remoteCount = await getSupabaseCustomerItemSalesCount(itemSalesScope);
-        if (remoteCount >= 0) setSupabaseCount(remoteCount);
-      } catch {
-        remoteCount = -1;
+      const skipCountCheck = localBackup.length > 0 && isItemSalesCountCheckFresh();
+      if (!skipCountCheck) {
+        try {
+          remoteCount = await getSupabaseCustomerItemSalesCount(itemSalesScope);
+          if (remoteCount >= 0) {
+            setSupabaseCount(remoteCount);
+            setItemSalesSyncMeta({ lastCountCheckAt: new Date().toISOString() });
+          }
+        } catch {
+          remoteCount = -1;
+        }
       }
 
       const shouldAutoPull = localBackup.length === 0 && remoteCount > 0;
@@ -260,10 +270,17 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       }
 
       // 3. جلب مفلتر بالنطاق فقط عند طلب المستخدم صراحةً (forceRemote)
+      //    جلب جزئي: لو عندنا كاش وسبق الجلب، بنطلب الصفوف اللي اتغيرت بعد آخر جلب
+      //    بدل تنزيل الجدول كله كل مرة (توفير egress حقيقي).
+      const syncMeta = getItemSalesSyncMeta();
+      const incrementalSince =
+        localBackup.length > 0 && syncMeta.lastPullAt ? syncMeta.lastPullAt : undefined;
       let supabaseSales: CustomerItemSaleRecord[] = [];
       let supabaseError: string | null = null;
       try {
-        const fetchRes = await fetchCustomerItemSalesFromSupabase(undefined, itemSalesScope);
+        const fetchRes = await fetchCustomerItemSalesFromSupabase(undefined, itemSalesScope, {
+          updatedSince: incrementalSince
+        });
         if (fetchRes.error) {
           supabaseError = fetchRes.error;
         } else if (fetchRes.sales && fetchRes.sales.length > 0) {
@@ -274,17 +291,35 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       }
 
       if (supabaseSales.length > 0 && !supabaseError) {
-        setSalesRecords(supabaseSales);
-        setSupabaseCount(supabaseSales.length);
-        // حفظ في الكاش المحلي لتقليل الجلب مستقبلاً
-        await saveCustomerItemSales(supabaseSales);
-        setSyncSuccessMsg(
-          `تم جلب ${supabaseSales.length.toLocaleString('ar-EG')} حركة من Supabase وحفظها محلياً.`
-        );
+        if (incrementalSince) {
+          // دمج بالمعرّف: مايمسحش حركات تانية لنفس العميل/الصنف/الشهر
+          await saveCustomerItemSales(supabaseSales, 'upsert');
+          const merged = await getSavedCustomerItemSales();
+          setSalesRecords(merged);
+          setSupabaseCount(merged.length);
+          setSyncSuccessMsg(
+            `تم تحديث ${supabaseSales.length.toLocaleString('ar-EG')} حركة متغيرة فقط من Supabase (جلب جزئي).`
+          );
+        } else {
+          setSalesRecords(supabaseSales);
+          setSupabaseCount(supabaseSales.length);
+          // حفظ في الكاش المحلي لتقليل الجلب مستقبلاً
+          await saveCustomerItemSales(supabaseSales);
+          setSyncSuccessMsg(
+            `تم جلب ${supabaseSales.length.toLocaleString('ar-EG')} حركة من Supabase وحفظها محلياً.`
+          );
+        }
+        setItemSalesSyncMeta({ lastPullAt: new Date().toISOString() });
       } else if (supabaseError) {
         setSalesRecords(localBackup);
         setSyncErrorMsg(
           `فشل الاتصال بـ Supabase: ${supabaseError}. يتم عرض البيانات المخزنة محلياً (${localBackup.length.toLocaleString('ar-EG')} حركة).`
+        );
+      } else if (incrementalSince) {
+        // جلب جزئي رجع صفر صف = مفيش تغييرات على السيرفر — مش خطأ
+        setSalesRecords(localBackup);
+        setSyncSuccessMsg(
+          `لا توجد تغييرات جديدة على Supabase منذ آخر جلب — يتم عرض ${localBackup.length.toLocaleString('ar-EG')} حركة من الكاش المحلي.`
         );
       } else if (remoteCount > 0 && supabaseSales.length === 0) {
         setSalesRecords(localBackup);
@@ -590,7 +625,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const monthBreakdown = useMemo(() => {
     const map = new Map<number, { month: number; name: string; count: number; amount: number }>();
     baseSales.forEach((record) => {
-      const m = Number(record.month) || 1;
+      const m = Number(record.month) || 0;
+      // سجلات بدون شهر معروف متتحسبش في أي شهر بدل ما تدخل في يناير
+      if (m < 1 || m > 12) return;
       const cur = map.get(m) || { month: m, name: MONTH_NAMES_MAP[m] || `شهر ${m}`, count: 0, amount: 0 };
       cur.count += 1;
       cur.amount += Number(record.amount || 0);
@@ -1210,7 +1247,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           {monthBreakdown.length > 0 && (
             <section className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-3.5 space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-black text-[#0F2B38]">تحليل شهر بشهر (اختر الشهر لاستعراض مبيعاته)</span>
+                <span className="text-xs font-black text-[var(--app-text)]">تحليل شهر بشهر (اختر الشهر لاستعراض مبيعاته)</span>
                 <span className="text-[10.5px] font-bold text-slate-500">
                   {monthBreakdown.length} شهر متاح في قاعدة البيانات
                 </span>

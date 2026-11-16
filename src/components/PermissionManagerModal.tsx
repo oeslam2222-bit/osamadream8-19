@@ -277,7 +277,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
                             const customOn = !isDefault && isAllowed;
                             const customOff = isDefault && !isAllowed;
                             return (
-                              <button key={tab.id} type="button" onClick={() => toggleTab(tab.id)} className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border transition text-right ${isAllowed ? 'bg-[#f4f8fc] border-[#bfd3ea] text-[#102b4e]' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'} ${isHome ? 'opacity-90 cursor-default' : 'cursor-pointer'}`}>
+                              <button key={tab.id} type="button" onClick={() => toggleTab(tab.id)} className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border transition text-right ${isAllowed ? 'bg-[#f4f8fc] border-[#bfd3ea] text-[var(--app-text)]' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'} ${isHome ? 'opacity-90 cursor-default' : 'cursor-pointer'}`}>
                                 <div className="min-w-0">
                                   <div className="font-extrabold text-xs truncate">{tab.label}</div>
                                   <div className="text-[10px] font-bold text-slate-400 mt-0.5">{isHome ? 'أساسية (دائمًا مفعّلة)' : isAllowed ? 'وصول مفعّل' : 'غير متاح'}</div>

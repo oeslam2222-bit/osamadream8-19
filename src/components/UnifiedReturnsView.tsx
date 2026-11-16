@@ -1053,7 +1053,7 @@ export const UnifiedReturnsView: React.FC = () => {
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-[11px] border border-slate-300 transition cursor-pointer"
                       title="طباعة إذن استلام بضاعة المرتجع للمخزن"
                     >
-                      <Printer className="w-3.5 h-3.5 text-[#0b2337]" />
+                      <Printer className="w-3.5 h-3.5 text-[var(--app-text)]" />
                       <span>طباعة إذن المخزن</span>
                     </button>
 

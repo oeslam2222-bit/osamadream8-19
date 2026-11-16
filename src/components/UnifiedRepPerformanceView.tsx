@@ -325,16 +325,16 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
               value={searchRep}
               onChange={(e) => setSearchRep(e.target.value)}
               placeholder="ابحث باسم المندوب أو الكود أو الفرع..."
-              className="w-full pl-9 pr-4 py-2.5 bg-white border border-[var(--tg-line)] rounded-xl text-sm font-bold text-[#0b2337] placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition"
+              className="w-full pl-9 pr-4 py-2.5 bg-white border border-[var(--tg-line)] rounded-xl text-sm font-bold text-[var(--app-text)] placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition"
             />
           </div>
 
-          <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[150px]">
+          <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[150px]">
             <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">الفرع</span>
             <select
               value={selectedBranchFilter}
               onChange={(e) => setSelectedBranchFilter(e.target.value)}
-              className="bg-transparent font-black text-[#0b2337] text-sm focus:outline-none cursor-pointer w-full"
+              className="bg-transparent font-black text-[var(--app-text)] text-sm focus:outline-none cursor-pointer w-full"
             >
               {branchOptions.map((b) => (
                 <option key={b} value={b}>{b === 'الكل' ? 'كل الفروع' : b}</option>
@@ -342,12 +342,12 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
             </select>
           </div>
 
-          <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[150px]">
+          <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[150px]">
             <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">القطاع</span>
             <select
               value={selectedSector}
               onChange={(e) => handleSelectSector(e.target.value as 'all' | 'home' | 'electrical')}
-              className="bg-transparent font-black text-[#0b2337] text-sm focus:outline-none cursor-pointer w-full"
+              className="bg-transparent font-black text-[var(--app-text)] text-sm focus:outline-none cursor-pointer w-full"
             >
               <option value="all">كل القطاعات</option>
               <option value="home">المنزلي</option>
@@ -361,7 +361,7 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
       <div className="rounded-[28px] border border-[var(--tg-line)] bg-white shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-right text-xs border-collapse">
-            <thead className="bg-[var(--tg-card-2)] text-[#0f172a] font-black sticky top-0 z-10">
+            <thead className="bg-[var(--tg-card-2)] text-[var(--app-text)] font-black sticky top-0 z-10">
               <tr>
                 <th className="p-3.5 text-[11px] font-black whitespace-nowrap">المندوب</th>
                 <th className="p-3.5 text-[11px] whitespace-nowrap">الفرع</th>
@@ -393,7 +393,7 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
                     <tr key={rep.repId} className="hover:bg-[#f6f9fe] transition-colors border-b border-[var(--tg-line)] last:border-0 group cursor-pointer">
                       <td className="p-3.5">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-black text-sm text-[#0b2337]">{rep.repName}</span>
+                          <span className="font-mono font-black text-sm text-[var(--app-text)]">{rep.repName}</span>
                           {rep.lastMonth && (
                             <span className="text-[10px] text-slate-400 font-medium">{rep.lastMonth}</span>
                           )}
@@ -539,7 +539,7 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
               {/* عملاء المندوب */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-base font-black text-[#0b2337]">عملاء {selectedRep.repName}</h3>
+                  <h3 className="text-base font-black text-[var(--app-text)]">عملاء {selectedRep.repName}</h3>
                   <span className="text-[11px] font-bold text-slate-500">{displayedRepCustomers.length} من {repCustomers.length}</span>
                 </div>
 
@@ -568,7 +568,7 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
-                              <div className="font-black text-sm text-[#0b2337] truncate">{cust.name}</div>
+                              <div className="font-black text-sm text-[var(--app-text)] truncate">{cust.name}</div>
                               <div className="text-[10px] text-slate-500 font-medium mt-0.5 flex items-center gap-1 flex-wrap">
                                 <span className="font-mono">{cust.code}</span>
                                 {cust.phone && <span>• {cust.phone}</span>}
@@ -607,7 +607,7 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
                     <button
                       type="button"
                       onClick={() => setVisibleCustomersCount((c) => c + 10)}
-                      className="px-4 py-2 rounded-xl border border-[var(--tg-line)] bg-white text-[#0b2337] font-black text-xs hover:bg-[#eef5fd] transition cursor-pointer"
+                      className="px-4 py-2 rounded-xl border border-[var(--tg-line)] bg-white text-[var(--app-text)] font-black text-xs hover:bg-[var(--app-card-secondary)] transition cursor-pointer"
                     >
                       عرض المزيد من العملاء ({repCustomers.length - visibleCustomersCount} متبقي)
                     </button>

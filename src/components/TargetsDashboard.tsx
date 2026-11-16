@@ -496,7 +496,7 @@ export const TargetsDashboard: React.FC = () => {
                         className="w-11 h-11 rounded-2xl object-cover object-top border-2 border-blue-200 shrink-0 shadow-xs"
                       />
                       <div className="min-w-0">
-                        <div className="font-black text-sm text-[#0b2337] truncate group-hover:text-blue-700">{row.rep}</div>
+                        <div className="font-black text-sm text-[var(--app-text)] truncate group-hover:text-blue-700">{row.rep}</div>
                         <div className="text-[11px] font-bold text-slate-600 truncate">{row.branch}</div>
                       </div>
                     </div>

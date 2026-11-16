@@ -150,7 +150,7 @@ export const MonthlyAggregateCard: React.FC<MonthlyAggregateCardProps> = ({ sect
                   return (
                     <tr key={`${doc.sector}-${doc.month}`} className="text-[11px] sm:text-xs">
                       <td className="px-3 py-2 font-black text-slate-800">
-                        {MONTH_NAMES_MAP[doc.month] || `شهر ${doc.month}`}
+                        {MONTH_NAMES_MAP[doc.month] || 'غير محدد'}
                       </td>
                       <td className="px-3 py-2 font-bold text-slate-600">
                         {doc.sector === 'electrical' ? 'كهرباء' : 'منزلي'}

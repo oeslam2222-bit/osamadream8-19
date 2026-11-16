@@ -79,7 +79,7 @@ export const RoleLimitedHome: React.FC<RoleLimitedHomeProps> = ({ onGoTab }) => 
               <div className="text-xs font-extrabold text-slate-500">القضايا المفتوحة</div>
               <Scale className="w-4 h-4 text-amber-600" />
             </div>
-            <div className="mt-2 text-3xl font-black text-[#0b2337] tabular-nums">{openCases.length}</div>
+            <div className="mt-2 text-3xl font-black text-[var(--app-text)] tabular-nums">{openCases.length}</div>
             <div className="mt-1 text-[11px] text-slate-500 font-bold">ملفات تحويل نشطة</div>
           </div>
           <div className="tg-card p-4 sm:p-5">
@@ -103,7 +103,7 @@ export const RoleLimitedHome: React.FC<RoleLimitedHomeProps> = ({ onGoTab }) => 
         {/* My cases */}
         <div className="tg-card p-4 sm:p-5">
           <div className="flex items-center justify-between gap-3 mb-3">
-            <h2 className="font-black text-[#0b2337] text-sm sm:text-base">ملفاتك (العملاء المتحولين للشؤون القانونية)</h2>
+            <h2 className="font-black text-[var(--app-text)] text-sm sm:text-base">ملفاتك (العملاء المتحولين للشؤون القانونية)</h2>
             {onGoTab && (
               <button
                 type="button"
@@ -127,7 +127,7 @@ export const RoleLimitedHome: React.FC<RoleLimitedHomeProps> = ({ onGoTab }) => 
               {openCases.slice(0, 6).map((c) => (
                 <div key={c.id} className="py-2.5 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <div className="font-bold text-[#0b2337] text-sm truncate">
+                    <div className="font-bold text-[var(--app-text)] text-sm truncate">
                       {c.transferIcon && <span className="ml-1">{c.transferIcon}</span>}
                       {c.customerName}
                     </div>
@@ -178,7 +178,7 @@ export const RoleLimitedHome: React.FC<RoleLimitedHomeProps> = ({ onGoTab }) => 
           <ClipboardList className="w-10 h-10" />
         </div>
         <div>
-          <h2 className="font-black text-[#0b2337] text-lg">مهام أمين المخزن</h2>
+          <h2 className="font-black text-[var(--app-text)] text-lg">مهام أمين المخزن</h2>
           <p className="text-sm text-slate-600 mt-2 max-w-md leading-relaxed">
             تختص بمرتجعات العملاء واستلامها وتسعيرها وتسوية الكميات في المخزن.
             كل باقي الشاشات (المبيعات، التارجت، العملاء، التقارير) غير متاحة لك لضمان سرية بيانات المنظومة.

@@ -583,7 +583,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
                           <div key={s.id} className="rounded-xl border border-slate-200 bg-slate-50 p-2.5">
                             <div className="flex items-center justify-between gap-2 text-[11px]"><span className="font-black text-slate-800">{s.authorName} <span className="text-slate-400 font-bold">({s.authorRole})</span></span><span className="font-mono text-slate-400">{s.date}</span></div>
                             <div className="text-xs font-bold text-slate-700 mt-1 leading-relaxed">{s.statement}</div>
-                            {s.actionTaken && <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-extrabold text-[#102b4e] bg-blue-50 border border-blue-100 rounded-md px-2 py-0.5"><BadgeCheck size={11}/> {s.actionTaken}</div>}
+                            {s.actionTaken && <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-extrabold text-[var(--app-text)] bg-blue-50 border border-blue-100 rounded-md px-2 py-0.5"><BadgeCheck size={11}/> {s.actionTaken}</div>}
                           </div>
                         ))}
                         {(!selectedCase.statementsHistory || selectedCase.statementsHistory.length === 0) && <div className="text-xs text-slate-400 font-bold">لا توجد إفادات مسجلة بعد.</div>}
@@ -716,8 +716,8 @@ export const LegalAdvisorDashboard: React.FC = () => {
               <button onClick={() => { if (selectedCase) { const cust = accessibleCustomers.find(x=>x.id===selectedCase.customerId) || customers.find(x=>x.id===selectedCase.customerId); if (cust) openFindings(cust); else flashMsg('err','اختر ملفًا مرتبطًا بعميل'); } else { flashMsg('err','اختر ملف قضية أولًا لتسجيل التسوية/الجدولة'); } }} className="inline-flex items-center gap-1.5 bg-slate-900 text-white font-black px-4 py-2.5 rounded-xl text-xs"><FileCheck size={14}/> تسجيل تسوية/جدولة على ملف</button>
             </div>
             <div className="md:col-span-2 bg-[#f7f9fc] rounded-2xl border border-slate-200 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-start gap-3"><div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-[#102b4e]"><ShieldAlert size={18}/></div><div><div className="font-black text-slate-900 text-sm">مبدأ التشغيل الاحترافي</div><div className="text-xs font-bold text-slate-600 mt-0.5">كل إجراء (إنذار، إفادة، جدولة، تصعيد قضائي) يُوثَّق على الملف مع الوقت والمسؤول والحالة — لضمان مسار قانوني واضح وقابل للمراجعة.</div></div></div>
-              <div className="text-[11px] font-extrabold text-[#102b4e] bg-white border border-slate-200 rounded-xl px-3 py-2">سرية البيانات: المستشار القانوني يطّلع على الملفات المحالة فقط</div>
+              <div className="flex items-start gap-3"><div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-[var(--app-text)]"><ShieldAlert size={18}/></div><div><div className="font-black text-slate-900 text-sm">مبدأ التشغيل الاحترافي</div><div className="text-xs font-bold text-slate-600 mt-0.5">كل إجراء (إنذار، إفادة، جدولة، تصعيد قضائي) يُوثَّق على الملف مع الوقت والمسؤول والحالة — لضمان مسار قانوني واضح وقابل للمراجعة.</div></div></div>
+              <div className="text-[11px] font-extrabold text-[var(--app-text)] bg-white border border-slate-200 rounded-xl px-3 py-2">سرية البيانات: المستشار القانوني يطّلع على الملفات المحالة فقط</div>
             </div>
           </div>
         )}
@@ -768,13 +768,13 @@ export const LegalAdvisorDashboard: React.FC = () => {
               <div className="flex items-center gap-2 print:hidden"><button onClick={() => window.print()} className="bg-[#102b4e] text-[#e8c98c] font-black px-3.5 py-1.5 rounded-lg text-xs inline-flex items-center gap-1"><Printer size={13}/> طباعة</button><button onClick={() => setViewingNotice(null)} className="text-slate-400 hover:text-slate-700 p-1"><X size={18}/></button></div>
             </div>
             <div className="space-y-4 text-xs text-slate-800 leading-relaxed border-2 border-slate-200 p-5 rounded-2xl bg-[#fbfcfe]">
-              <div className="text-center font-black text-base text-[#102b4e] pb-2 border-b border-slate-200">{viewingNotice.legalType}</div>
+              <div className="text-center font-black text-base text-[var(--app-text)] pb-2 border-b border-slate-200">{viewingNotice.legalType}</div>
               <div className="grid grid-cols-2 gap-2 text-slate-700 font-bold"><div><span className="text-slate-500">رقم الإجراء:</span> {viewingNotice.id}</div><div><span className="text-slate-500">تاريخ التحرير:</span> {viewingNotice.issueDate}</div><div><span className="text-slate-500">الموجه إليه:</span> {viewingNotice.customerName}</div><div><span className="text-slate-500">الفرع:</span> {viewingNotice.branch}</div></div>
               <p>بناءً على المستحقات والفواتير/Aذون الاستلام المعتمدة، وحيث إنه ترصد بذمتكم المالية لصالح الشركة مبلغًا قدره:</p>
               <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-center"><span className="text-base font-black text-rose-700 tabular-nums">{fmt(viewingNotice.totalDebt)} جنيه مصري</span></div>
               <p>نحيطكم علمًا بضرورة السداد أو التقدم بتسوية معتمدة في موعد أقصاه: <b className="text-rose-700">{viewingNotice.deadlineDate}</b>. وفي حال عدم السداد دون عذر مقبول، تحتفظ الشركة بحقها في اتخاذ الإجراءات النظامية والقانونية اللازمة وفقًا للمستندات والضمانات.</p>
               {viewingNotice.notes && <div className="text-[11px] text-slate-600 border-t border-slate-200 pt-2"><b>ملاحظات/سند المطالبة:</b> {viewingNotice.notes}</div>}
-              <div className="pt-6 flex justify-between items-end text-center"><div><div className="font-bold text-slate-500 text-[11px]">مندوب/محاسب الفرع</div><div className="font-black text-slate-800 mt-4">{viewingNotice.repName}</div></div><div><div className="font-bold text-slate-500 text-[11px]">الإدارة القانونية</div><div className="font-black text-[#102b4e] mt-4">{currentUser?.name || 'المستشار القانوني'}</div><div className="text-[10px] text-amber-700 font-bold">ختم واعتماد الشؤون القانونية</div></div></div>
+              <div className="pt-6 flex justify-between items-end text-center"><div><div className="font-bold text-slate-500 text-[11px]">مندوب/محاسب الفرع</div><div className="font-black text-slate-800 mt-4">{viewingNotice.repName}</div></div><div><div className="font-bold text-slate-500 text-[11px]">الإدارة القانونية</div><div className="font-black text-[var(--app-text)] mt-4">{currentUser?.name || 'المستشار القانوني'}</div><div className="text-[10px] text-amber-700 font-bold">ختم واعتماد الشؤون القانونية</div></div></div>
             </div>
           </div>
         </div>

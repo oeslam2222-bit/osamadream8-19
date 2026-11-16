@@ -122,7 +122,7 @@ export const SyncStatusCenter: React.FC<SyncStatusCenterProps> = ({ isOpen, onCl
 
           <div className="rounded-2xl border border-slate-200 bg-white">
             <div className="px-3.5 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-sm font-black text-slate-800"><Info size={15} className="text-[#102b4e]"/> تفاصيل طابور العمليات (Outbox)</div>
+              <div className="flex items-center gap-2 text-sm font-black text-slate-800"><Info size={15} className="text-[var(--app-text)]"/> تفاصيل طابور العمليات (Outbox)</div>
               <button onClick={() => void loadQueue()} className="text-[11px] font-extrabold px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 inline-flex items-center gap-1"><RefreshCw size={12} className={loadingQueue?'animate-spin':''}/> تحديث</button>
             </div>
             <div className="max-h-56 overflow-auto p-2 space-y-2">

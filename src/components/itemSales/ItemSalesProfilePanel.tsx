@@ -11,6 +11,14 @@ import type { CustomerItemSaleRecord } from '../../types';
 
 const PALETTE = ['#0D9488', '#2563EB', '#7C3AED', '#D97706', '#DC2626', '#0F766E', '#0284C7'];
 
+/** قيمة مختصرة لخلايا المصفوفة — الشهور كتير والمكان محدود. */
+const compactAmount = (value: number): string => {
+  if (!Number.isFinite(value) || value <= 0) return '—';
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}م`;
+  if (value >= 1_000) return `${Math.round(value / 1_000)}أ`;
+  return Math.round(value).toLocaleString('ar-EG');
+};
+
 interface ItemSalesProfilePanelProps {
   title: string;
   subtitle?: string;
@@ -70,16 +78,34 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
     }
 
     if (repName) {
-      const target = normalizeArabicText(repName).replace(/\s+/g, ' ').trim();
+      const normalizeRep = (value?: string) =>
+        normalizeArabicText(value || '').replace(/\s+/g, ' ').trim();
+      const target = normalizeRep(repName);
       if (!target) return [];
-      return records.filter((record) => {
-        const candidates = [record.repName, record.linkedRepName].filter(Boolean) as string[];
-        return candidates.some((candidate) => {
-          const value = normalizeArabicText(candidate).replace(/\s+/g, ' ').trim();
-          if (!value) return false;
-          return value === target || value.includes(target) || target.includes(value);
-        });
-      });
+
+      const matches = (record: CustomerItemSaleRecord) =>
+        [record.repName, record.linkedRepName]
+          .filter(Boolean)
+          .some((candidate) => normalizeRep(candidate) === target);
+
+      const exact = records.filter(matches);
+      if (exact.length > 0) return exact;
+
+      /**
+       * مطابقة جزئية احتياطية — بتشتغل فقط لو بتشير لمندوب واحد بس.
+       * المطابقة الجزئية المفتوحة كانت بتجمع مبيعات "محمد" مع "محمد علي"،
+       * فبتنسب مبيعات مندوب لمندوب تاني في بروفايله.
+       */
+      const fuzzy = records.filter((record) =>
+        [record.repName, record.linkedRepName]
+          .filter(Boolean)
+          .some((candidate) => {
+            const value = normalizeRep(candidate);
+            return value.length > 0 && (value.includes(target) || target.includes(value));
+          })
+      );
+      const distinctReps = new Set(fuzzy.map((record) => normalizeRep(record.repName)));
+      return distinctReps.size <= 1 ? fuzzy : [];
     }
 
     return [];
@@ -87,11 +113,14 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
 
   const summary = useMemo(() => {
     const families = new Map<string, number>();
-    const items = new Map<string, { name: string; amount: number; quantity: number }>();
+    const items = new Map<string, { name: string; amount: number; quantity: number; months: number[] }>();
+    const familyMonthly = new Map<string, number[]>();
     const months = new Map<number, { amount: number; quantity: number }>();
     const customers = new Set<string>();
     let amount = 0;
     let quantity = 0;
+
+    const emptyMonths = () => new Array<number>(12).fill(0);
 
     scoped.forEach((record) => {
       const recordAmount = Number(record.amount) || 0;
@@ -100,38 +129,65 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
       quantity += recordQuantity;
       if (record.customerAccount) customers.add(record.customerAccount);
 
+      const month = Number(record.month) || 0;
+      // شهر غير معروف (0) ميدخلش في مصفوفة الشهور — بس بيفضل في الإجماليات
+      const monthIndex = month >= 1 && month <= 12 ? month - 1 : -1;
+
       const family = (record.familyDimension || '').trim() || 'عام';
       families.set(family, (families.get(family) || 0) + recordAmount);
+      const familyBuckets = familyMonthly.get(family) || emptyMonths();
+      if (monthIndex >= 0) familyBuckets[monthIndex] += recordAmount;
+      familyMonthly.set(family, familyBuckets);
 
       // الكود الموحد فريد لكل لون — كود المنتج ممكن يتكرر بين الألوان.
       const code =
         (record.unifiedCode || record.itemCode || record.itemName || '').trim() || '—';
-      const item = items.get(code) || { name: record.itemName || code, amount: 0, quantity: 0 };
+      const item =
+        items.get(code) || { name: record.itemName || code, amount: 0, quantity: 0, months: emptyMonths() };
       item.amount += recordAmount;
       item.quantity += recordQuantity;
+      if (monthIndex >= 0) item.months[monthIndex] += recordAmount;
       items.set(code, item);
 
-      const month = Math.min(12, Math.max(1, Number(record.month) || 1));
-      const monthBucket = months.get(month) || { amount: 0, quantity: 0 };
-      monthBucket.amount += recordAmount;
-      monthBucket.quantity += recordQuantity;
-      months.set(month, monthBucket);
+      if (monthIndex >= 0) {
+        const monthBucket = months.get(month) || { amount: 0, quantity: 0 };
+        monthBucket.amount += recordAmount;
+        monthBucket.quantity += recordQuantity;
+        months.set(month, monthBucket);
+      }
     });
+
+    const topFamilies = Array.from(families.entries())
+      .map(([name, value]) => ({ name, amount: value }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
+
+    const topItems = Array.from(items.entries())
+      .map(([code, value]) => ({ code, ...value }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 5);
 
     return {
       amount,
       quantity,
       customers: customers.size,
       itemCount: items.size,
-      families: Array.from(families.entries())
-        .map(([name, value]) => ({ name, amount: value }))
-        .sort((a, b) => b.amount - a.amount)
-        .slice(0, 5),
-      items: Array.from(items.entries())
-        .map(([code, value]) => ({ code, ...value }))
-        .sort((a, b) => b.amount - a.amount)
-        .slice(0, 5),
-      months
+      families: topFamilies,
+      items: topItems,
+      months,
+      // مصفوفة العائلات × الشهور (نفس ترتيب أعلى العائلات)
+      familyMatrix: topFamilies.map((family) => ({
+        name: family.name,
+        total: family.amount,
+        months: familyMonthly.get(family.name) || emptyMonths()
+      })),
+      // مصفوفة الأصناف × الشهور (نفس ترتيب أعلى الأصناف)
+      itemMatrix: topItems.map((item) => ({
+        name: item.name,
+        code: item.code,
+        total: item.amount,
+        months: item.months
+      }))
     };
   }, [scoped]);
 
@@ -295,6 +351,106 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* مصفوفة العائلات × الشهور — البُعد اللي كان ناقص في البروفايل */}
+      <div className="mt-3 rounded-xl border border-[var(--app-border)] p-3">
+        <div className="text-[10.5px] font-black text-[var(--app-text)] flex items-center gap-1.5 mb-1.5">
+          <Layers className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
+          العائلات × الشهور
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[620px] border-collapse">
+            <thead>
+              <tr>
+                <th className="text-right p-1 text-[9px] font-black text-[var(--app-text-muted)] sticky right-0 bg-[var(--app-card)]">
+                  العائلة
+                </th>
+                {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+                  <th key={month} className="p-1 text-center text-[8.5px] font-black text-[var(--app-text-muted)]">
+                    {(MONTH_NAMES_MAP[month] || '').slice(0, 3)}
+                  </th>
+                ))}
+                <th className="p-1 text-center text-[8.5px] font-black text-[var(--app-text-muted)]">الإجمالي</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.familyMatrix.map((row) => (
+                <tr key={row.name} className="border-t border-[var(--app-border)]">
+                  <td
+                    className="p-1 text-[9.5px] font-bold text-[var(--app-text)] max-w-[130px] truncate sticky right-0 bg-[var(--app-card)]"
+                    title={row.name}
+                  >
+                    {row.name}
+                  </td>
+                  {row.months.map((value, index) => (
+                    <td
+                      key={index}
+                      className={`p-1 text-center text-[9px] font-mono font-bold ${
+                        value > 0 ? 'text-[var(--app-text)]' : 'text-[var(--app-text-muted)]'
+                      }`}
+                    >
+                      {compactAmount(value)}
+                    </td>
+                  ))}
+                  <td className="p-1 text-center text-[9px] font-mono font-black text-[var(--app-primary-text)]">
+                    {compactAmount(row.total)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* مصفوفة الأصناف × الشهور */}
+      <div className="mt-3 rounded-xl border border-[var(--app-border)] p-3">
+        <div className="text-[10.5px] font-black text-[var(--app-text)] flex items-center gap-1.5 mb-1.5">
+          <Package className="w-3.5 h-3.5 text-[var(--app-primary-text)]" />
+          الأصناف × الشهور
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[620px] border-collapse">
+            <thead>
+              <tr>
+                <th className="text-right p-1 text-[9px] font-black text-[var(--app-text-muted)] sticky right-0 bg-[var(--app-card)]">
+                  الصنف
+                </th>
+                {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
+                  <th key={month} className="p-1 text-center text-[8.5px] font-black text-[var(--app-text-muted)]">
+                    {(MONTH_NAMES_MAP[month] || '').slice(0, 3)}
+                  </th>
+                ))}
+                <th className="p-1 text-center text-[8.5px] font-black text-[var(--app-text-muted)]">الإجمالي</th>
+              </tr>
+            </thead>
+            <tbody>
+              {summary.itemMatrix.map((row) => (
+                <tr key={row.code} className="border-t border-[var(--app-border)]">
+                  <td
+                    className="p-1 text-[9.5px] font-bold text-[var(--app-text)] max-w-[150px] truncate sticky right-0 bg-[var(--app-card)]"
+                    title={`${row.name} — ${row.code}`}
+                  >
+                    {row.name}
+                  </td>
+                  {row.months.map((value, index) => (
+                    <td
+                      key={index}
+                      className={`p-1 text-center text-[9px] font-mono font-bold ${
+                        value > 0 ? 'text-[var(--app-text)]' : 'text-[var(--app-text-muted)]'
+                      }`}
+                    >
+                      {compactAmount(value)}
+                    </td>
+                  ))}
+                  <td className="p-1 text-center text-[9px] font-mono font-black text-[var(--app-primary-text)]">
+                    {compactAmount(row.total)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </section>

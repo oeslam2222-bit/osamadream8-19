@@ -121,7 +121,7 @@ export const UserProfileAvatarModal: React.FC<UserProfileAvatarModalProps> = ({ 
               <Camera className="w-5 h-5 stroke-[2.2]" />
             </div>
             <div>
-              <h3 className="font-black text-base text-[#0F172A] dark:text-white">تعديل الصورة الشخصية</h3>
+              <h3 className="font-black text-base text-[var(--app-text)] dark:text-white">تعديل الصورة الشخصية</h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
                 تُرفع على Cloudinary وتُحفظ دون استهلاك باقة السيرفر
               </p>
@@ -161,7 +161,7 @@ export const UserProfileAvatarModal: React.FC<UserProfileAvatarModalProps> = ({ 
           </div>
 
           <div className="text-center">
-            <div className="font-black text-sm text-[#0F172A] dark:text-white">{currentUser.name}</div>
+            <div className="font-black text-sm text-[var(--app-text)] dark:text-white">{currentUser.name}</div>
             <div className="text-xs text-slate-500 dark:text-slate-400 font-medium">{currentUser.branchName}</div>
           </div>
         </div>

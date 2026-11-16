@@ -122,7 +122,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
                     <span className="block text-[10px] font-bold text-slate-500 truncate">{c.code || 'بدون كود'} · {c.branchName || '—'}{(c.salesRepName || c.repName) ? ` · ${c.salesRepName || c.repName}` : ''}</span>
                   </span>
                 </span>
-                <span className="text-[10px] font-extrabold text-[#102b4e] shrink-0">اختيار</span>
+                <span className="text-[10px] font-extrabold text-[var(--app-text)] shrink-0">اختيار</span>
               </button>
             ))}
           </div>

@@ -1842,7 +1842,7 @@ export default function CollectionForecastView() {
               <button
                 type="button"
                 onClick={() => setSearch('')}
-                className="px-2 py-1.5 rounded-xl bg-[#f1f5f9] hover:bg-[#e2e8f0] text-slate-600 text-xs font-bold cursor-pointer border border-[var(--tg-line)]"
+                className="px-2 py-1.5 rounded-xl bg-[var(--app-card-secondary)] hover:bg-[#e2e8f0] text-slate-600 text-xs font-bold cursor-pointer border border-[var(--tg-line)]"
               >
                 مسح البحث ✕
               </button>
@@ -1858,7 +1858,7 @@ export default function CollectionForecastView() {
         <div className="px-4 py-3 bg-[var(--tg-card-2)] border-b border-[var(--tg-line)] flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <Users className="w-4 h-4 text-emerald-700" />
-            <span className="text-xs font-black text-[#0b2337]">
+            <span className="text-xs font-black text-[var(--app-text)]">
               قائمة العملاء وبيانات المديونية والمستحقات والتوقع
             </span>
             <span className="text-[11px] font-bold text-[var(--tg-muted)] font-mono">
@@ -1872,7 +1872,7 @@ export default function CollectionForecastView() {
 
         <div className="overflow-x-auto">
           <table className="tg-table w-full text-right text-xs border-collapse">
-            <thead className="bg-[var(--tg-card-2)] text-[#0f172a] font-black sticky top-0 z-10">
+            <thead className="bg-[var(--tg-card-2)] text-[var(--app-text)] font-black sticky top-0 z-10">
               <tr>
                 {/* مفيش عمود رقم عن قصد: الكود هو أول عمود وعنوانه فوق خانة
                     الكود على طول، فمفيش أي سبب يخلي الصف ينزلق تحت عنوان غلط. */}

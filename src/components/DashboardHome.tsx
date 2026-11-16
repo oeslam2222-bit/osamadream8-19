@@ -311,7 +311,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="font-black text-sm sm:text-base text-[#0F172A] dark:text-white">
+                <h3 className="font-black text-sm sm:text-base text-[var(--app-text)] dark:text-white">
                   لوحة مؤشرات التارجت الشهرية
                 </h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-[#2563EB] dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
@@ -374,7 +374,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   <Target className="w-5 h-5 stroke-[2.2]" />
                 </div>
                 <div>
-                  <h4 className="font-black text-sm text-[#0F172A] dark:text-white">
+                  <h4 className="font-black text-sm text-[var(--app-text)] dark:text-white">
                     إجمالي المبيعات المحققة
                   </h4>
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
@@ -425,7 +425,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   <Wallet className="w-5 h-5 stroke-[2.2]" />
                 </div>
                 <div>
-                  <h4 className="font-black text-sm text-[#0F172A] dark:text-white">
+                  <h4 className="font-black text-sm text-[var(--app-text)] dark:text-white">
                     إجمالي التحصيلات المحققة
                   </h4>
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold">
@@ -581,7 +581,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       >
         <IconBadge icon={Icon} variant={tile.variant} size="md" className="shrink-0 group-hover:scale-105 transition-transform" />
         <span className="min-w-0 flex-1">
-          <span className="block text-xs sm:text-sm font-black text-[#0F172A] dark:text-[#F1F5F9] truncate">{tile.label}</span>
+          <span className="block text-xs sm:text-sm font-black text-[var(--app-text)] dark:text-[#F1F5F9] truncate">{tile.label}</span>
           <span className="block text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold truncate mt-0.5">{tile.hint}</span>
         </span>
         <ChevronLeft className="w-4 h-4 text-slate-400 dark:text-slate-500 shrink-0" aria-hidden="true" />
@@ -636,7 +636,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                 </span>
               </div>
 
-              <h1 className="text-lg sm:text-xl font-black text-[#0F172A] dark:text-white truncate">
+              <h1 className="text-lg sm:text-xl font-black text-[var(--app-text)] dark:text-white truncate">
                 أهلاً بك يا {displayName}
               </h1>
 
@@ -656,7 +656,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
           <div className="shrink-0 rounded-2xl border border-slate-200 dark:border-[#26364D] bg-slate-50 dark:bg-[#17243A] px-3.5 py-2.5">
             <div className="text-[10px] font-bold text-slate-500 dark:text-[#94A3B8]">التوقيت والتاريخ</div>
-            <div className="flex items-center gap-1.5 text-base sm:text-lg font-black font-mono tracking-tight text-[#0F172A] dark:text-white">
+            <div className="flex items-center gap-1.5 text-base sm:text-lg font-black font-mono tracking-tight text-[var(--app-text)] dark:text-white">
               <Clock className="w-4 h-4 text-[#2563EB]" aria-hidden="true" />
               <span>{timeString}</span>
             </div>
@@ -670,7 +670,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       {/* ========================== Primary KPIs =========================== */}
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap px-1">
-          <h2 className="text-sm sm:text-base font-black text-[#0F172A] dark:text-white flex items-center gap-2">
+          <h2 className="text-sm sm:text-base font-black text-[var(--app-text)] dark:text-white flex items-center gap-2">
             <BarChart3 className="w-4 h-4 text-[#2563EB]" aria-hidden="true" />
             <span>مؤشراتك الآن</span>
           </h2>
@@ -707,11 +707,11 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           {/* Sales */}
           <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-xs">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-[#0F172A] dark:text-[#F1F5F9]">إجمالي المبيعات</span>
+              <span className="text-xs font-bold text-[var(--app-text)] dark:text-[#F1F5F9]">إجمالي المبيعات</span>
               <IconBadge icon={DollarSign} variant="primary" size="md" />
             </div>
             <div className="space-y-1 my-2">
-              <div className="text-lg sm:text-2xl font-black font-mono tracking-tight text-[#0F172A] dark:text-white">
+              <div className="text-lg sm:text-2xl font-black font-mono tracking-tight text-[var(--app-text)] dark:text-white">
                 {metricPeriod === 'today' ? formatCurrency(todaySalesTotal) : formatCurrency(allSalesTotal)}
               </div>
               <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">جنيه مصري</div>
@@ -724,7 +724,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           {/* Orders */}
           <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-xs">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-[#0F172A] dark:text-[#F1F5F9]">عدد الطلبات</span>
+              <span className="text-xs font-bold text-[var(--app-text)] dark:text-[#F1F5F9]">عدد الطلبات</span>
               <IconBadge icon={Package} variant="warning" size="md" />
             </div>
             <div className="space-y-1 my-2">
@@ -741,7 +741,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           {/* Collections */}
           <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-xs">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-[#0F172A] dark:text-[#F1F5F9]">التحصيلات</span>
+              <span className="text-xs font-bold text-[var(--app-text)] dark:text-[#F1F5F9]">التحصيلات</span>
               <IconBadge icon={Wallet} variant="success" size="md" />
             </div>
             <div className="space-y-1 my-2">
@@ -759,7 +759,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           {/* Visits */}
           <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-xs">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-[#0F172A] dark:text-[#F1F5F9]">الزيارات</span>
+              <span className="text-xs font-bold text-[var(--app-text)] dark:text-[#F1F5F9]">الزيارات</span>
               <IconBadge icon={MapPin} variant="violet" size="md" />
             </div>
             <div className="space-y-1 my-2">
@@ -816,7 +816,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
           <div className="space-y-2.5">
             <div className="flex items-center justify-between gap-2 px-1">
-              <h2 className="text-sm sm:text-base font-black text-[#0F172A] dark:text-white">اختصارات سريعة</h2>
+              <h2 className="text-sm sm:text-base font-black text-[var(--app-text)] dark:text-white">اختصارات سريعة</h2>
               <button
                 type="button"
                 onClick={() => setActiveSection('shortcuts')}
@@ -857,7 +857,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         <div className="space-y-2.5">
           <div className="flex items-center justify-between px-1">
             <div>
-              <h2 className="text-sm sm:text-base font-black text-[#0F172A] dark:text-white flex items-center gap-2">
+              <h2 className="text-sm sm:text-base font-black text-[var(--app-text)] dark:text-white flex items-center gap-2">
                 <LayoutGrid className="w-4 h-4 text-[#F59E0B]" aria-hidden="true" />
                 <span>كل الاختصارات</span>
               </h2>
@@ -925,25 +925,25 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-5 gap-2 text-center text-xs">
               <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
                 <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">1</div>
-                <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">فتح الكتالوج</div>
+                <div className="font-black text-[var(--app-text)] dark:text-[#F1F5F9] text-[11px]">فتح الكتالوج</div>
                 <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">تصفح الأصناف</div>
               </div>
 
               <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
                 <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">2</div>
-                <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">إضافة للسلة</div>
+                <div className="font-black text-[var(--app-text)] dark:text-[#F1F5F9] text-[11px]">إضافة للسلة</div>
                 <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">تحديد الكمية</div>
               </div>
 
               <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
                 <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">3</div>
-                <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">اختيار العميل</div>
+                <div className="font-black text-[var(--app-text)] dark:text-[#F1F5F9] text-[11px]">اختيار العميل</div>
                 <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">من عملائك</div>
               </div>
 
               <div className="bg-slate-50 dark:bg-[#17243A] rounded-xl p-2.5 border border-slate-200/80 dark:border-[#26364D]">
                 <div className="w-6 h-6 rounded-full bg-slate-900 dark:bg-[#2563EB] text-white font-black text-xs mx-auto flex items-center justify-center mb-1.5">4</div>
-                <div className="font-black text-[#0F172A] dark:text-[#F1F5F9] text-[11px]">مراجعة الائتمان</div>
+                <div className="font-black text-[var(--app-text)] dark:text-[#F1F5F9] text-[11px]">مراجعة الائتمان</div>
                 <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] mt-0.5">فحص المديونية</div>
               </div>
 
@@ -961,7 +961,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       <div className="bg-white dark:bg-[#111C2E] text-slate-700 dark:text-[#94A3B8] rounded-2xl px-4 py-3 flex items-center justify-between text-xs border border-slate-200 dark:border-[#26364D] shadow-xs">
         <div className="flex items-center gap-2 min-w-0">
           <Sparkles className="w-4 h-4 text-[#F59E0B] shrink-0" aria-hidden="true" />
-          <span className="font-bold text-[#0F172A] dark:text-[#F1F5F9] truncate">يوم عمل جميل وممتع وموفق بإذن الله</span>
+          <span className="font-bold text-[var(--app-text)] dark:text-[#F1F5F9] truncate">يوم عمل جميل وممتع وموفق بإذن الله</span>
           <span className="text-slate-300 dark:text-slate-700 hidden sm:inline" aria-hidden="true">|</span>
           <span className="text-slate-500 dark:text-[#94A3B8] hidden sm:inline">منظومة مبيعات ومخازن مجموعة الطنطاوي دريم</span>
         </div>

@@ -438,7 +438,7 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
 
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="tg-card p-5 border border-[var(--tg-line)]">
-            <h3 className="tg-card__title flex items-center gap-2 text-[#0b2337] mb-1">
+            <h3 className="tg-card__title flex items-center gap-2 text-[var(--app-text)] mb-1">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700"><FileSpreadsheet className="w-4 h-4" /></span>
               رفع ملف Excel / CSV
             </h3>
@@ -446,7 +446,7 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
 
             <div className="border-2 border-dashed border-emerald-200 bg-emerald-50/40 rounded-2xl p-6 text-center space-y-3">
               <Upload className="w-10 h-10 text-emerald-600 mx-auto" />
-              <div className="font-black text-sm text-[#0b2337]">اختر ملف العروض من جهازك</div>
+              <div className="font-black text-sm text-[var(--app-text)]">اختر ملف العروض من جهازك</div>
               <div className="text-[11px] text-slate-500">يدعم .xlsx / .xls / .csv</div>
               <input
                 ref={fileInputRef}
@@ -469,7 +469,7 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
           </div>
 
           <div className="tg-card p-5 border border-[var(--tg-line)]">
-            <h3 className="tg-card__title flex items-center gap-2 text-[#0b2337] mb-1">
+            <h3 className="tg-card__title flex items-center gap-2 text-[var(--app-text)] mb-1">
               <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-100 text-blue-700"><RefreshCw className="w-4 h-4" /></span>
               جلب من Google Sheets
             </h3>
@@ -496,7 +496,7 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
         </div>
 
         <div className="tg-card p-4 sm:p-5 border border-[var(--tg-line)]">
-          <h3 className="tg-card__title flex items-center gap-2 text-[#0b2337] mb-2">
+          <h3 className="tg-card__title flex items-center gap-2 text-[var(--app-text)] mb-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-100 text-amber-700"><Tag className="w-4 h-4" /></span>
             ملاحظات الربط التلقائي وتوجيه العروض حسب الفرع والمندوب والقطاع
           </h3>
@@ -781,7 +781,7 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
           <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
             <Flame className="w-7 h-7" />
           </div>
-          <h3 className="text-base font-black text-[#0b2337]">لا توجد عروض مطابقة</h3>
+          <h3 className="text-base font-black text-[var(--app-text)]">لا توجد عروض مطابقة</h3>
           <p className="mt-1 text-[11px] font-bold text-[var(--tg-muted)] max-w-md">
             يمكنك رفع شيت عروض جديد من Excel أو Google Sheets من زر "رفع شيت العروض" بالأعلى.
           </p>
@@ -823,7 +823,7 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
                       </span>
                     )}
                     {sectorLabel && (
-                      <span className="rounded-lg bg-blue-50 border border-blue-200 text-[#1E3A8A] px-2 py-0.5 text-[10px] font-black">
+                      <span className="rounded-lg bg-blue-50 border border-blue-200 text-[var(--app-primary-text)] px-2 py-0.5 text-[10px] font-black">
                         {sectorLabel}
                       </span>
                     )}
@@ -845,13 +845,13 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="w-16 h-16 rounded-xl bg-[#EEF4FB] text-[#1E3A8A] border border-blue-200 flex items-center justify-center font-black shrink-0">
+                    <div className="w-16 h-16 rounded-xl bg-[#EEF4FB] text-[var(--app-primary-text)] border border-blue-200 flex items-center justify-center font-black shrink-0">
                       <Tag className="w-6 h-6" />
                     </div>
                   )}
 
                   <div className="min-w-0 flex-1 space-y-1">
-                    <h3 className="font-black text-[#0F2B38] text-sm leading-snug line-clamp-2">
+                    <h3 className="font-black text-[var(--app-text)] text-sm leading-snug line-clamp-2">
                       {promo.title}
                     </h3>
                     <div className="text-[11px] text-slate-600 font-bold truncate">
@@ -862,7 +862,7 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
                         {promo.productCode}
                       </span>
                       {promo.unifiedCode && (
-                        <span className="bg-blue-50 text-[#1E3A8A] font-mono text-[10px] font-black px-1.5 py-0.5 rounded-md border border-blue-200">
+                        <span className="bg-blue-50 text-[var(--app-primary-text)] font-mono text-[10px] font-black px-1.5 py-0.5 rounded-md border border-blue-200">
                           #{promo.unifiedCode}
                         </span>
                       )}
@@ -909,7 +909,7 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
                   </div>
                   <div className="text-left min-w-0">
                     <div className="text-[10px] font-bold text-slate-500">الفرع / المندوب</div>
-                    <div className="text-[11px] font-black text-[#0F2B38] truncate max-w-[140px]">{promo.branchName}</div>
+                    <div className="text-[11px] font-black text-[var(--app-text)] truncate max-w-[140px]">{promo.branchName}</div>
                     {promo.repName && (
                       <div className="text-[10px] font-bold text-blue-800 truncate max-w-[140px]">مندوب: {promo.repName}</div>
                     )}

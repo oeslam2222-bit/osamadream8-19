@@ -11,6 +11,7 @@ import { normalizeArabicText } from '../services/arabicMatchingService';
 import { classifyEligibilityColumn } from '../services/customerFinancialService';
 import { normalizeCloudinaryConfig, optimizeImageUrl, uploadImageToCloudinary } from '../services/cloudinaryService';
 import customerMerchantAvatar from '../assets/images/customer_merchant_avatar_1794559829020.jpg';
+import { ItemSalesProfilePanel } from './itemSales/ItemSalesProfilePanel';
 import {
   canManageLocationLock,
   requestLiveGps,
@@ -658,6 +659,13 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
           {/* التبويب 1: التفاصيل المالية والنظرة العامة */}
           {tab === 'overview' && (
             <div className="space-y-4">
+              {/* مبيعات الأصناف مرتبطة بالعميل — نفس سجلات شاشة «مبيعات الأصناف» من الكاش المحلي */}
+              <ItemSalesProfilePanel
+                title="مبيعات الأصناف لهذا العميل"
+                customerAccount={customer?.code}
+                customerName={customer?.name}
+              />
+
               {/* وصول سريع للأقسام المطلوبة */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
@@ -671,7 +679,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                     </span>
                     <ChevronRight size={14} className="text-slate-400 group-hover:text-blue-600 rotate-180" />
                   </div>
-                  <div className="text-xs font-black text-[#0b2337]">التفاصيل المالية الشهرية</div>
+                  <div className="text-xs font-black text-[var(--app-text)]">التفاصيل المالية الشهرية</div>
                   <div className="text-[10px] font-bold text-slate-500 mt-0.5">مبيعات وتحصيلات حسب الشهر</div>
                 </button>
 
@@ -686,7 +694,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                     </span>
                     <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 rounded-full px-2 py-0.5">{visits.length}</span>
                   </div>
-                  <div className="text-xs font-black text-[#0b2337]">سجل الزيارات</div>
+                  <div className="text-xs font-black text-[var(--app-text)]">سجل الزيارات</div>
                   <div className="text-[10px] font-bold text-slate-500 mt-0.5">كل الزيارات الميدانية للعميل</div>
                 </button>
 
@@ -701,7 +709,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                     </span>
                     <span className="text-[10px] font-black bg-violet-100 text-violet-700 rounded-full px-2 py-0.5">{photosCount}/{MAX_PHOTOS}</span>
                   </div>
-                  <div className="text-xs font-black text-[#0b2337]">صور المحل</div>
+                  <div className="text-xs font-black text-[var(--app-text)]">صور المحل</div>
                   <div className="text-[10px] font-bold text-slate-500 mt-0.5">توثيق وعرض صور المحل</div>
                 </button>
               </div>
@@ -716,7 +724,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                     <div className="text-[10px] font-bold text-slate-500">آخر بيع</div>
                     {lastSale ? (
                       <>
-                        <div className="text-xs font-black text-[#0b2337] dark:text-white truncate">{lastSale.invoiceNumber}</div>
+                        <div className="text-xs font-black text-[var(--app-text)] dark:text-white truncate">{lastSale.invoiceNumber}</div>
                         <div className="text-[10px] tabular-nums text-slate-500">
                           {(lastSale.date || lastSale.createdAt || '').slice(0, 10)} · {fmt(Number(lastSale.estimatedGrandTotal || lastSale.totalAmount || 0))} ج.م
                         </div>
@@ -734,7 +742,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                     <div className="text-[10px] font-bold text-slate-500">آخر تحصيل</div>
                     {lastCollection ? (
                       <>
-                        <div className="text-xs font-black text-[#0b2337] dark:text-white tabular-nums">
+                        <div className="text-xs font-black text-[var(--app-text)] dark:text-white tabular-nums">
                           {fmt(Number(lastCollection.collectedAmount || 0))} ج.م
                         </div>
                         <div className="text-[10px] tabular-nums text-slate-500">
@@ -750,7 +758,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
 
               {/* التفاصيل المالية: التحصيل والمديونيات والمرتجعات */}
               <div className="tg-card p-4 bg-white dark:bg-[#131e36] border border-slate-200 dark:border-slate-800">
-                <div className="tg-cp__section-title text-[#0b2337] dark:text-white font-black mb-3">
+                <div className="tg-cp__section-title text-[var(--app-text)] dark:text-white font-black mb-3">
                   <Wallet size={15} className="text-blue-600" />
                   التحصيل والمديونيات والمرتجعات
                 </div>
@@ -826,7 +834,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
               {limit > 0 && (
                 <div className="tg-card p-4 bg-white dark:bg-[#131e36] border border-slate-200 dark:border-slate-800">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-black text-[#0b2337] dark:text-white flex items-center gap-1.5">
+                    <span className="text-[11px] font-black text-[var(--app-text)] dark:text-white flex items-center gap-1.5">
                       <CreditCard size={14} className="text-blue-600" />
                       استخدام الحد الائتماني
                     </span>
@@ -855,7 +863,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
               {/* بطاقة الموقع الجغرافي وتثبيت GPS */}
               <div className="tg-card p-4 bg-gradient-to-br from-emerald-50/60 to-blue-50/60 dark:from-slate-800 dark:to-slate-800/90 border border-emerald-200 dark:border-slate-700">
                 <div className="flex items-center justify-between mb-2.5">
-                  <div className="tg-cp__section-title mb-0 text-[#0b2337] dark:text-white font-black">
+                  <div className="tg-cp__section-title mb-0 text-[var(--app-text)] dark:text-white font-black">
                     <MapPin size={15} className="text-emerald-600 dark:text-emerald-400" />
                     تثبيت موقع العميل بالـ GPS (Google Maps)
                   </div>
@@ -911,7 +919,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
 
               {/* بيانات المركز والمسؤولين */}
               <div className="tg-card p-4 bg-white dark:bg-[#131e36] border border-slate-200 dark:border-slate-800">
-                <div className="tg-cp__section-title text-[#0b2337] dark:text-white font-black">
+                <div className="tg-cp__section-title text-[var(--app-text)] dark:text-white font-black">
                   <Building2 size={15} className="text-blue-600" />
                   بيانات العميل والمسؤولين
                 </div>
@@ -1023,7 +1031,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
 
                         <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                           <div className="text-right sm:text-left">
-                            <div className="text-sm font-black text-[#0b2337] tabular-nums">
+                            <div className="text-sm font-black text-[var(--app-text)] tabular-nums">
                               {fmt(inv.estimatedGrandTotal || inv.totalAmount || 0)} ج.م
                             </div>
                             <div className="text-[9px] font-bold text-slate-400">القيمة الإجمالية</div>
@@ -1119,7 +1127,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                     <div key={v.id || idx} className="tg-card p-3 flex items-center justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                          <span className="text-[11px] font-black text-[#0b2337]">{v.date || '—'}</span>
+                          <span className="text-[11px] font-black text-[var(--app-text)]">{v.date || '—'}</span>
                           <span className="text-[10px] font-bold text-slate-400">{v.time || ''}</span>
                           <span className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full">
                             {v.type || 'زيارة'}
@@ -1179,7 +1187,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-black text-[#0b2337]">
+                  <h3 className="text-sm font-black text-[var(--app-text)]">
                     {currentLat && currentLng
                       ? isCustomerLocationLocked
                         ? 'الموقع الأساسي للعميل معتمد ومقفل'
@@ -1326,7 +1334,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                   <span className="w-7 h-7 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
                     <ImageIcon size={15} />
                   </span>
-                  <span className="text-sm font-black text-[#0b2337]">صور المحل</span>
+                  <span className="text-sm font-black text-[var(--app-text)]">صور المحل</span>
                   <span className="text-[10px] font-black bg-blue-600 text-white rounded-full px-2 py-0.5 tabular-nums">
                     {photosCount}/{MAX_PHOTOS}
                   </span>

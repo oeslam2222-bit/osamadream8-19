@@ -46,7 +46,8 @@ export const ItemSalesRowsTable: React.FC<ItemSalesRowsTableProps> = ({
           `${record.customerAccount}-${record.unifiedCode || record.itemCode}-${record.month}-${record.amount}`,
         customerCode: record.customerAccount || '—',
         customerName: record.invoicingName || record.customerAccount || 'عميل غير محدد',
-        month: Math.min(12, Math.max(1, Number(record.month) || 1)),
+        // 0 = شهر غير معروف (يظهر «غير محدد» بدل يناير)
+        month: Math.min(12, Math.max(0, Number(record.month) || 0)),
         // الكود الموحد فريد لكل لون؛ كود المنتج ممكن يتكرر.
         itemCode: record.unifiedCode || record.itemCode || '—',
         unifiedCode: record.unifiedCode || '',
@@ -135,7 +136,7 @@ export const ItemSalesRowsTable: React.FC<ItemSalesRowsTableProps> = ({
                     {row.customerName}
                   </td>
                   <td className="px-3 py-2 font-black text-slate-700">
-                    {MONTH_NAMES_MAP[row.month] || `شهر ${row.month}`}
+                    {MONTH_NAMES_MAP[row.month] || 'غير محدد'}
                   </td>
                   <td
                     className="px-3 py-2 font-bold text-slate-800 max-w-[220px] truncate"

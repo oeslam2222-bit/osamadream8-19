@@ -98,7 +98,7 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
   return (
     <div className="sc-page">
       {/* ---------- الرأس ---------- */}
-      <header className="sc-head">
+      <header className="sc-head ds-pagehead">
         <div>
           <span className="sc-head__eyebrow">الرئيسية / الإعدادات</span>
           <h1>مركز الإعدادات</h1>

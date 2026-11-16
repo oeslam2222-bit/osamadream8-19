@@ -54,7 +54,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
       className={`fixed inset-0 z-[100] flex flex-col items-center justify-center p-4 sm:p-8 text-center transition-colors duration-300 ${
         isDark
           ? 'bg-[#0B1220] text-[#F1F5F9]'
-          : 'bg-[#F1F5F9] text-[#0F172A]'
+          : 'bg-[var(--app-card-secondary)] text-[var(--app-text)]'
       }`}
       role="dialog"
       aria-modal="true"
@@ -64,7 +64,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
       <div className={`w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-2xl transition-colors duration-300 ${
         isDark
           ? 'bg-[#111C2E] border border-[#26364D]/30 text-[#F1F5F9] backdrop-blur-sm'
-          : 'bg-[#FFFFFF] border border-[#E2E8F0]/30 text-[#0F172A] backdrop-blur-sm'
+          : 'bg-[#FFFFFF] border border-[#E2E8F0]/30 text-[var(--app-text)] backdrop-blur-sm'
       }`}>
         <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#2563EB] to-[#0D9488] flex items-center justify-center text-white shadow-lg shadow-[#2563EB]/30">
           <Store className="w-8 h-8" />
@@ -73,7 +73,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
 
       {/* Brand name */}
       <h2 className={`text-2xl sm:text-3xl font-black tracking-tight mb-2 font-tajawal transition-colors duration-300 ${
-        isDark ? 'text-[#F1F5F9]' : 'text-[#0F172A]'
+        isDark ? 'text-[#F1F5F9]' : 'text-[var(--app-text)]'
       }`}>
         مجموعة الطنطاوي
       </h2>
@@ -93,7 +93,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
           <span className={`transition-colors duration-300 ${isDark ? 'text-[#94A3B8]' : 'text-[#64748b]'}`}>
             جاري التحضير
           </span>
-          <span className={`transition-colors duration-300 ${isDark ? 'text-[#F1F5F9]' : 'text-[#0F172A]'}`}>
+          <span className={`transition-colors duration-300 ${isDark ? 'text-[#F1F5F9]' : 'text-[var(--app-text)]'}`}>
             {Math.round(progress)}%
           </span>
         </div>

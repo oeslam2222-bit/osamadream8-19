@@ -820,10 +820,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                       <div className="shrink-0 text-left">
                         {isAvailable ? (
                           <div className="flex flex-col items-end gap-0.5">
-                            <span className="text-[10px] font-bold text-[#0F2B38] bg-[#F1F5F9] px-2 py-0.5 rounded-md border border-[#CBD5E1]">
+                            <span className="text-[10px] font-bold text-[var(--app-text)] bg-[var(--app-card-secondary)] px-2 py-0.5 rounded-md border border-[#CBD5E1]">
                               الفرع: {bStock} ك
                             </span>
-                            <span className="text-[10px] font-bold text-[#1E3A8A] bg-[#EFF6FF] px-2 py-0.5 rounded-md border border-[#BFDBFE]">
+                            <span className="text-[10px] font-bold text-[var(--app-primary-text)] bg-[var(--app-primary-tint)] px-2 py-0.5 rounded-md border border-[#BFDBFE]">
                               أكتوبر: {oStock} ك
                             </span>
                           </div>
@@ -849,7 +849,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
       {/* Selected Customer Bar if applicable */}
       {selectedCustomer && (
-        <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-2xl p-3 flex items-center justify-between gap-3">
+        <div className="bg-[var(--app-primary-tint)] border border-[#BFDBFE] rounded-2xl p-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-xl bg-[#1E3A8A] text-white flex items-center justify-center font-bold text-xs">
               عميل
@@ -1360,7 +1360,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* ERP Table View (Desktop/Laptop) — يظهر فقط عند اختيار وضع "جدول" */}
       <div className={`catalog-erp-wrap ${catalogView === 'table' ? 'block' : 'hidden'} w-full overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs bg-white dark:bg-[#0f172a] animate-in fade-in`}>
         <table className="catalog-erp-table w-full min-w-[1100px] text-right border-collapse text-xs">
-          <thead className="bg-[var(--tg-card-2)] text-[#0f172a] font-black border-b border-[var(--tg-line-strong)] select-none sticky top-0 z-10">
+          <thead className="bg-[var(--tg-card-2)] text-[var(--app-text)] font-black border-b border-[var(--tg-line-strong)] select-none sticky top-0 z-10">
             <tr>
               <th className="p-3 text-center font-black w-12">#</th>
               <th className="p-3 text-center font-black w-16">الصورة</th>
@@ -1441,7 +1441,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     </button>
                   </td>
                   <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white text-xs font-mono truncate">{p.code || '—'}</td>
-                  <td className="p-3 text-right text-xs font-mono font-extrabold text-[#1e3a8a] truncate">
+                  <td className="p-3 text-right text-xs font-mono font-extrabold text-[var(--app-primary-text)] truncate">
                     {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
                   </td>
                   <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white max-w-[260px]" title={displayName}>
@@ -1455,7 +1455,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </td>
                   <td className="p-3 text-center">
                     <span className={`inline-block px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold shrink-0 ${
-                      isElec ? 'bg-[#EFF6FF] text-[#1E3A8A] border border-[#BFDBFE] dark:bg-[#1E3A8A]/20 dark:text-[#93C5FD]' : 'bg-[#F0FDFA] text-[#0F766E] border border-[#99F6E4] dark:bg-[#0D9488]/15 dark:text-[#5EEAD4]'
+                      isElec ? 'bg-[var(--app-primary-tint)] text-[var(--app-primary-text)] border border-[#BFDBFE] dark:bg-[#1E3A8A]/20 dark:text-[#93C5FD]' : 'bg-[#F0FDFA] text-[#0F766E] border border-[#99F6E4] dark:bg-[#0D9488]/15 dark:text-[#5EEAD4]'
                     }`}>
                       {isElec ? '⚡ كهرباء' : '🏠 منزلي'}
                     </span>
@@ -1498,7 +1498,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                   </td>
                   <td className="p-3 text-center font-mono">
                     {priceInfo.factor > 1 ? (
-                      <span className="inline-block bg-[#eff6ff] text-[#1e3a8a] border border-[#bfdbfe] text-[10px] px-2 py-0.5 rounded-md font-black">
+                      <span className="inline-block bg-[var(--app-primary-tint)] text-[var(--app-primary-text)] border border-[#bfdbfe] text-[10px] px-2 py-0.5 rounded-md font-black">
                         {priceInfo.factor} ق/ك
                       </span>
                     ) : (
@@ -1643,7 +1643,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                   <span className="shrink-0">{statusBadge}</span>
                   {isElectrical ? (
-                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-2 py-0.5 text-[10px] font-black text-[#1E3A8A] dark:border-[#3B82F6]/40 dark:bg-[#1E3A8A]/25 dark:text-[#93C5FD]">
+                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap rounded-lg border border-[#BFDBFE] bg-[var(--app-primary-tint)] px-2 py-0.5 text-[10px] font-black text-[var(--app-primary-text)] dark:border-[#3B82F6]/40 dark:bg-[#1E3A8A]/25 dark:text-[#93C5FD]">
                       ⚡ كهرباء
                     </span>
                   ) : (
@@ -1727,7 +1727,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                     '—'
                   )}
                   {priceInfo.factor > 1 ? (
-                    <span className="rounded-md border border-[#bfdbfe] bg-[#eff6ff] px-2 py-0.5 text-[10px] font-black text-[#1e3a8a]">
+                    <span className="rounded-md border border-[#bfdbfe] bg-[var(--app-primary-tint)] px-2 py-0.5 text-[10px] font-black text-[var(--app-primary-text)]">
                       {priceInfo.factor} ق/ك
                     </span>
                   ) : null}
@@ -1740,7 +1740,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <div className="grid grid-cols-2 gap-2 text-center">
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
                   <span className="mb-0.5 block text-[10px] font-bold text-slate-400">الكود الموحد</span>
-                  <span className="tg-num block truncate font-mono text-xs font-black text-[#1e3a8a]" title={p.unifiedCode}>
+                  <span className="tg-num block truncate font-mono text-xs font-black text-[var(--app-primary-text)]" title={p.unifiedCode}>
                     {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
                   </span>
                 </div>

@@ -802,17 +802,17 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="ابحث باسم العميل أو الكود أو الهاتف..."
-                  className="w-full pl-4 pr-9 py-2.5 bg-white border border-[var(--tg-line)] rounded-xl text-sm font-bold text-[#0f172a] placeholder:text-slate-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition"
+                  className="w-full pl-4 pr-9 py-2.5 bg-white border border-[var(--tg-line)] rounded-xl text-sm font-bold text-[var(--app-text)] placeholder:text-slate-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2 sm:contents">
-                <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
+                <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
                   <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">القطاع</span>
                   <select
                     value={selectedSector}
                     onChange={(e) => setSelectedSector(e.target.value as 'all' | 'home' | 'electrical')}
-                    className="bg-transparent font-black text-[#0b2337] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
+                    className="bg-transparent font-black text-[var(--app-text)] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
                   >
                     <option value="all">كل القطاعات</option>
                     <option value="home">منزلي</option>
@@ -820,12 +820,12 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                   </select>
                 </div>
 
-                <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
+                <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
                   <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">الفرع</span>
                   <select
                     value={selectedBranch}
                     onChange={(e) => setSelectedBranch(e.target.value)}
-                    className="bg-transparent font-black text-[#0b2337] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
+                    className="bg-transparent font-black text-[var(--app-text)] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
                   >
                     {branchOptions.map((b) => (
                       <option key={b} value={b}>{b === 'الكل' ? 'كل الفروع' : b}</option>
@@ -833,12 +833,12 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                   </select>
                 </div>
 
-                <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
+                <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
                   <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">المشرف / المندوب</span>
                   <select
                     value={selectedSupervisor}
                     onChange={(e) => setSelectedSupervisor(e.target.value)}
-                    className="bg-transparent font-black text-[#0b2337] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
+                    className="bg-transparent font-black text-[var(--app-text)] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
                   >
                     {supervisorOptions.map((s) => (
                       <option key={s} value={s}>{s}</option>
@@ -846,12 +846,12 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                   </select>
                 </div>
 
-                <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
+                <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
                   <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1 whitespace-nowrap">تصنيف الشيت</span>
                   <select
                     value={selectedEligibility}
                     onChange={(e) => setSelectedEligibility(e.target.value as any)}
-                    className="bg-transparent font-black text-[#0b2337] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
+                    className="bg-transparent font-black text-[var(--app-text)] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
                   >
                     <option value="all">كل التصنيفات</option>
                     <option value="eligible">قابل للتعامل</option>
@@ -1292,7 +1292,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
           <section className="tg-card p-4 sm:p-6 space-y-3 sm:space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-black text-[#0F2B38] flex items-center gap-1.5">
+                <span className="text-xs font-black text-[var(--app-text)] flex items-center gap-1.5">
                   <CalendarCheck className="w-4 h-4 text-blue-700" />
                   الفترة التحليلية:
                 </span>
@@ -1324,7 +1324,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                     value={selectedRepMonth}
                     onChange={(e) => setSelectedRepMonth(Number(e.target.value))}
                     aria-label="اختيار الشهر"
-                    className="bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 text-xs sm:text-sm font-black text-[#0b2337] cursor-pointer focus:outline-none"
+                    className="bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-3 py-2 text-xs sm:text-sm font-black text-[var(--app-text)] cursor-pointer focus:outline-none"
                   >
                     {MONTHS_AR.map((mName, idx) => (
                       <option key={mName} value={idx + 1}>{mName}</option>
@@ -1337,7 +1337,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                     value={selectedRepQuarter}
                     onChange={(e) => setSelectedRepQuarter(Number(e.target.value) as 1 | 2 | 3 | 4)}
                     aria-label="اختيار الربع السنوي"
-                    className="bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 text-xs sm:text-sm font-black text-[#0b2337] cursor-pointer focus:outline-none"
+                    className="bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-3 py-2 text-xs sm:text-sm font-black text-[var(--app-text)] cursor-pointer focus:outline-none"
                   >
                     {([1, 2, 3, 4] as const).map((q) => (
                       <option key={q} value={q}>{QUARTER_LABELS[q]}</option>
@@ -1350,7 +1350,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                     value={selectedRepYear}
                     onChange={(e) => setSelectedRepYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
                     aria-label="اختيار السنة"
-                    className="bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-3 py-2 text-xs sm:text-sm font-black text-[#0b2337] cursor-pointer focus:outline-none"
+                    className="bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-3 py-2 text-xs sm:text-sm font-black text-[var(--app-text)] cursor-pointer focus:outline-none"
                   >
                     <option value="all">كل السنوات</option>
                     {repYearOptions.map((y) => (
@@ -1369,17 +1369,17 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="ابحث باسم المندوب أو الكود أو الفرع..."
-                  className="w-full pl-4 pr-9 py-2.5 bg-white border border-[var(--tg-line)] rounded-xl text-sm font-bold text-[#0f172a] placeholder:text-slate-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition"
+                  className="w-full pl-4 pr-9 py-2.5 bg-white border border-[var(--tg-line)] rounded-xl text-sm font-bold text-[var(--app-text)] placeholder:text-slate-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 transition"
                 />
               </div>
 
               <div className="grid grid-cols-2 sm:contents gap-2">
-                <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
+                <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
                   <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">القطاع</span>
                   <select
                     value={selectedSector}
                     onChange={(e) => setSelectedSector(e.target.value as 'all' | 'home' | 'electrical')}
-                    className="bg-transparent font-black text-[#0b2337] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
+                    className="bg-transparent font-black text-[var(--app-text)] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
                   >
                     <option value="all">كل القطاعات</option>
                     <option value="home">منزلي</option>
@@ -1387,12 +1387,12 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                   </select>
                 </div>
 
-                <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
+                <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
                   <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">الفرع</span>
                   <select
                     value={selectedBranch}
                     onChange={(e) => setSelectedBranch(e.target.value)}
-                    className="bg-transparent font-black text-[#0b2337] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
+                    className="bg-transparent font-black text-[var(--app-text)] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
                   >
                     {branchOptions.map((b) => (
                       <option key={b} value={b}>{b === 'الكل' ? 'كل الفروع' : b}</option>
@@ -1400,12 +1400,12 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                   </select>
                 </div>
 
-                <div className="flex flex-col justify-center bg-[#eef5fd] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
+                <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
                   <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">المشرف</span>
                   <select
                     value={selectedSupervisor}
                     onChange={(e) => setSelectedSupervisor(e.target.value)}
-                    className="bg-transparent font-black text-[#0b2337] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
+                    className="bg-transparent font-black text-[var(--app-text)] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
                   >
                     {supervisorOptions.map((s) => (
                       <option key={s} value={s}>{s}</option>
@@ -1423,7 +1423,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[28px] bg-slate-100 text-slate-600 shadow-inner">
                   <UserCheck className="w-8 h-8" />
                 </div>
-                <h3 className="text-base font-black text-[#0b2337]">لا يوجد مندوب مسجّل</h3>
+                <h3 className="text-base font-black text-[var(--app-text)]">لا يوجد مندوب مسجّل</h3>
                 <p className="mt-1 text-sm font-bold text-slate-700">لا توجد بيانات أهداف لتجميع المندوبين منها. يرجى تحميل بيانات المندوبين أولاً.</p>
               </div>
             ) : displayedReps.length === 0 ? (
@@ -1431,7 +1431,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[28px] bg-slate-100 text-slate-600 shadow-inner">
                   <UserCheck className="w-8 h-8" />
                 </div>
-                <h3 className="text-base font-black text-[#0b2337]">لا يوجد مندوبون مطابقة للبحث</h3>
+                <h3 className="text-base font-black text-[var(--app-text)]">لا يوجد مندوبون مطابقة للبحث</h3>
                 <p className="mt-1 text-sm font-bold text-slate-700">جرّب تعديل البحث أو الفلاتر (الفرع، المشرف، القطاع).</p>
               </div>
             ) : (
@@ -1461,7 +1461,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                           className="w-12 h-12 rounded-2xl object-cover object-top border-2 border-blue-200 bg-slate-100 shadow-sm shrink-0"
                         />
                         <div className="min-w-0">
-                          <div className="font-black text-base text-[#0f172a] truncate">{rep.repName}</div>
+                          <div className="font-black text-base text-[var(--app-text)] truncate">{rep.repName}</div>
                           <div className="text-xs text-slate-700 font-bold flex items-center gap-1.5 flex-wrap mt-0.5">
                             {rep.repUsername && (
                               <span className="font-mono bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded font-bold">{rep.repUsername}</span>
@@ -1490,7 +1490,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                     <div className="rep-mini grid grid-cols-2 gap-2 mb-2.5">
                       <div className="bg-slate-100/80 rounded-xl p-3 border border-slate-200">
                         <div className="text-[11px] font-extrabold text-slate-700 mb-0.5">مديونية عملائه</div>
-                        <div className="text-sm font-black text-[#0f172a] tabular-nums">{fmt(rep.debt)}</div>
+                        <div className="text-sm font-black text-[var(--app-text)] tabular-nums">{fmt(rep.debt)}</div>
                       </div>
                       <div className="bg-slate-100/80 rounded-xl p-3 border border-slate-200">
                         <div className="text-[11px] font-extrabold text-slate-700 mb-0.5">متأخرات</div>
@@ -1510,7 +1510,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                     </div>
 
                     <div className="flex items-center justify-between pt-3 border-t border-[var(--tg-line)] text-xs">
-                      <span className="font-extrabold text-slate-700">عملاؤه: <strong className="text-[#0f172a] tabular-nums">{rep.customerCount}</strong></span>
+                      <span className="font-extrabold text-slate-700">عملاؤه: <strong className="text-[var(--app-text)] tabular-nums">{rep.customerCount}</strong></span>
                       <span className="inline-flex items-center gap-1 font-black text-blue-700 group-hover:text-blue-800">
                         فتح الملف
                         <ChevronLeft className="w-3.5 h-3.5" />

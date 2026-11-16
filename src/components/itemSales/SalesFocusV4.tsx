@@ -88,13 +88,15 @@ export const SalesFocusV4: React.FC<Props> = ({ records, baseRecords, customers 
   const enriched = useMemo(() => {
     return allRows.map(r => {
       const fam = resolveItemGroup(r) || r.familyDimension || r.itemGroup || 'عام';
-      const branch = (r.warehouse || 'غير محدد').trim() || 'غير محدد';
+      // نفس ترتيب باقي الشاشات: فرع العميل المعتمد أولًا ثم مخزن الحركة
+      const branch = (r.linkedBranch || r.warehouse || 'غير محدد').trim() || 'غير محدد';
       const rep = (r.repName || 'غير محدد').trim() || 'غير محدد';
       const code = (r.customerAccount || '').trim();
       const linked = customerByCode.get(code.toLowerCase()) || (r.invoicingName ? customerByCode.get(r.invoicingName.trim().toLowerCase()) : undefined);
       return {
         raw: r,
-        month: Math.min(12, Math.max(1, Math.round(num(r.month) || 1))),
+        // 0 = شهر غير معروف، ميدخلش في مصفوفة الشهور بدل ما يتحسب يناير
+        month: Math.min(12, Math.max(0, Math.round(num(r.month) || 0))),
         amount: num(r.amount),
         qty: num(r.quantity),
         fam,
@@ -171,6 +173,7 @@ export const SalesFocusV4: React.FC<Props> = ({ records, baseRecords, customers 
       bm.sales += r.amount; bm.qty += r.qty; bm.custs.add(r.custCode); branchMap.set(r.branch, bm);
     }
     for (const r of allMonthFiltered) {
+      if (r.month < 1 || r.month > 12) continue;
       monthSales[r.month - 1] += r.amount; monthQty[r.month - 1] += r.qty;
       if (!monthFam[r.month - 1]) monthFam[r.month - 1] = new Map();
       monthFam[r.month - 1].set(r.fam, (monthFam[r.month - 1].get(r.fam) || 0) + r.amount);
