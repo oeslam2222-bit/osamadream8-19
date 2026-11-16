@@ -171,32 +171,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const isBranchManager = currentUser?.role === 'branch_manager';
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
-  // Supabase Auto-sync & manual refresh state
+  // Supabase manual refresh state (auto-fetch on mount removed to avoid unnecessary egress)
   const [supabaseSyncMsg, setSupabaseSyncMsg] = useState<string | null>(null);
   const [isManualFetching, setIsManualFetching] = useState<boolean>(false);
-
-  // Auto-fetch customers from Supabase if local list is empty on mount
-  useEffect(() => {
-    let isMounted = true;
-    if (customers.length === 0 && !isSupabaseSyncing) {
-      setIsManualFetching(true);
-      syncWithSupabase('fetch')
-        .then((res) => {
-          if (!isMounted) return;
-          setIsManualFetching(false);
-          if (res.success) {
-            setSupabaseSyncMsg('تم بنجاح تحميل قاعدة العملاء مباشرة من سوبابيز (Supabase)!');
-            setTimeout(() => setSupabaseSyncMsg(null), 5000);
-          }
-        })
-        .catch(() => {
-          if (isMounted) setIsManualFetching(false);
-        });
-    }
-    return () => {
-      isMounted = false;
-    };
-  }, [customers.length]);
 
   const handleManualSupabaseSync = async () => {
     setIsManualFetching(true);

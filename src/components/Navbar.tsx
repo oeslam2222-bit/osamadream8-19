@@ -44,8 +44,6 @@ import {
   Search,
   Camera,
   Percent,
-  Minimize2,
-  Maximize2,
   Moon,
   Sun
 } from 'lucide-react';
@@ -60,7 +58,6 @@ import { SystemSettingsAndAboutModal } from './SystemSettingsAndAboutModal';
 import { InternalNotificationCenter } from './InternalNotificationCenter';
 import { UserProfileAvatarModal } from './UserProfileAvatarModal';
 import { DatabaseConnectionModal } from './DatabaseConnectionModal';
-import { SyncStatusCenter } from './SyncStatusCenter';
 
 interface NavbarProps {
   activeTab: string;
@@ -118,26 +115,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [isDbModalOpen, setIsDbModalOpen] = useState(false);
-  const [isSyncCenterOpen, setIsSyncCenterOpen] = useState(false);
   const { isDark, toggleTheme } = useTheme();
-
-  // كثافة العرض: مصغّر (المحتوى الأكتر على الشاشة) / مريح — بيتم الحفظ محلياً
-  const [density, setDensity] = useState<'compact' | 'comfortable'>(() => {
-    try {
-      return localStorage.getItem('tantawy_density') === 'comfortable' ? 'comfortable' : 'compact';
-    } catch {
-      return 'compact';
-    }
-  });
-
-  React.useEffect(() => {
-    document.documentElement.classList.toggle('tg-compact', density === 'compact');
-    try {
-      localStorage.setItem('tantawy_density', density);
-    } catch {}
-  }, [density]);
-
-  const toggleDensity = () => setDensity((d) => (d === 'compact' ? 'comfortable' : 'compact'));
 
   const [internalSidebarCollapsed, setInternalSidebarCollapsed] = useState<boolean>(() => {
     try {
@@ -420,18 +398,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                     : 'قاعدة البيانات'}
               </span>
             </button>
-            {/* مركز حالة المزامنة والطابور */}
-            <button
-              type="button"
-              onClick={() => setIsSyncCenterOpen(true)}
-              className="ds-iconbtn"
-              title="مركز حالة المزامنة والطابور"
-              aria-label="مركز حالة المزامنة"
-            >
-              <RefreshCw aria-hidden="true" className={pendingInvoicesCount > 0 ? 'text-amber-600' : ''} />
-              <span className="ds-vis-ge-md">المزامنة</span>
-              {pendingInvoicesCount > 0 && <span className="ds-count">{pendingInvoicesCount}</span>}
-            </button>
 
             {/* بحث ذكي (موبايل) */}
             <button
@@ -472,18 +438,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 ))}
               </select>
             )}
-
-            {/* كثافة العرض: مصغّر / مريح */}
-            <button
-              type="button"
-              onClick={toggleDensity}
-              className="ds-iconbtn ds-vis-ge-lg"
-              title={density === 'compact' ? 'العرض الحالي: مصغّر — اضغط للتحويل للوضع المريح' : 'العرض الحالي: مريح — اضغط للتحويل للوضع المصغّر'}
-              aria-label="كثافة العرض"
-            >
-              {density === 'compact' ? <Minimize2 aria-hidden="true" /> : <Maximize2 aria-hidden="true" />}
-              <span className="ds-vis-ge-xl">{density === 'compact' ? 'مصغّر' : 'مريح'}</span>
-            </button>
 
             {/* تبديل الوضع الليلي */}
             <button
@@ -784,7 +738,6 @@ export const Navbar: React.FC<NavbarProps> = ({
         isOpen={isDbModalOpen}
         onClose={() => setIsDbModalOpen(false)}
       />
-      <SyncStatusCenter isOpen={isSyncCenterOpen} onClose={() => setIsSyncCenterOpen(false)} />
 
       {/* بحث ذكي عام */}
       <GlobalSearch

@@ -1,5 +1,5 @@
 import { ItemStatus, ParentProduct, Product, ProductVariant, SalesPriority } from '../types';
-import { cleanProductCode, extractCodeFromProductName } from './productCodeUtils';
+import { cleanProductCode, extractCodeFromProductName } from './arabicMatchingService';
 
 /**
  * Optimizes image URLs for crystal-clear, high-definition viewing

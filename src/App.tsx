@@ -36,12 +36,12 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
     'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
     'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers',
-    'excel', 'users', 'guide', 'permissions', 'audit_log'
+    'excel', 'users', 'guide', 'permissions'
   ],
   admin: [
     'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
     'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers',
-    'excel', 'users', 'guide', 'permissions', 'audit_log'
+    'excel', 'users', 'guide', 'permissions'
   ],
   branch_manager: [
     'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
@@ -109,13 +109,12 @@ const SettingsCenterView = lazyNamed(() => import('./components/SettingsCenterVi
 const UnifiedRepPerformanceView = lazyNamed(() => import('./components/UnifiedRepPerformanceView'), 'UnifiedRepPerformanceView');
 const CustomerItemSalesView = lazyNamed(() => import('./components/CustomerItemSalesView'), 'CustomerItemSalesView');
 const SupervisorDashboard = lazyNamed(() => import('./components/SupervisorDashboard'), 'SupervisorDashboard');
-const OrdersPipelineView = lazyNamed(() => import('./components/OrdersPipelineView'), 'OrdersPipelineView');
+const InvoicesManager = lazyNamed(() => import('./components/InvoicesManager'), 'InvoicesManager');
 const ExcelImportExport = lazyNamed(() => import('./components/ExcelImportExport'), 'ExcelImportExport');
 const UserManager = lazyNamed(() => import('./components/UserManager'), 'UserManager');
 const SystemWorkflowGuide = lazyNamed(() => import('./components/SystemWorkflowGuide'), 'SystemWorkflowGuide');
 const VisitsDashboard = lazyNamed(() => import('./components/VisitsDashboard'), 'VisitsDashboard');
-const CollectionCommandCenter = lazyNamed(() => import('./components/CollectionCommandCenter'), 'CollectionCommandCenter');
-const AuditLogView = lazyNamed(() => import('./components/AuditLogView'), 'AuditLogView');
+const CollectionRecoveryDashboard = lazyNamed(() => import('./components/CollectionRecoveryDashboard'), 'CollectionRecoveryDashboard');
 const LegalAdvisorDashboard = lazyNamed(() => import('./components/LegalAdvisorDashboard'), 'LegalAdvisorDashboard');
 const RoleLimitedHome = lazyNamed(() => import('./components/RoleLimitedHome'), 'RoleLimitedHome');
 const UnifiedReturnsView = lazyNamed(() => import('./components/UnifiedReturnsView'), 'UnifiedReturnsView');
@@ -351,13 +350,11 @@ const MainLayout: React.FC = () => {
             <TargetsDashboard />
           )}
 
-          {activeTab === 'collection' && allowedTabs.includes('collection') && <CollectionCommandCenter />}
+          {activeTab === 'collection' && allowedTabs.includes('collection') && <CollectionRecoveryDashboard />}
 
           {activeTab === 'legal_advisor' && allowedTabs.includes('legal_advisor') && <LegalAdvisorDashboard />}
 
           {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
-
-          {activeTab === 'audit_log' && allowedTabs.includes('audit_log') && <AuditLogView />}
           {(activeTab === 'all_customers' || activeTab === 'customers') && (allowedTabs.includes('all_customers') || allowedTabs.includes('customers')) && (
             <SmartProfilePage
               mode="customers"
@@ -385,7 +382,7 @@ const MainLayout: React.FC = () => {
           )}
 
           {activeTab === 'invoices' && allowedTabs.includes('invoices') && (
-            <OrdersPipelineView
+            <InvoicesManager
               onOpenNewOrder={() => setIsOrderModalOpen(true)}
               onViewInvoice={(invoice) => setViewingInvoice(invoice)}
               onEditInvoice={handleEditInvoice}

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CustomerSearchSelect } from './CustomerSearchSelect';
+import { CustomerSearchSelect } from './ui/CustomerPicker';
 import {
   AlertTriangle,
   BadgeCheck,

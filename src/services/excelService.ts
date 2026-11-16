@@ -13,7 +13,7 @@ import {
   extractCodeFromProductName,
   extractGoogleSpreadsheetId,
   buildGoogleSheetsPublicCsvUrl,
-} from './productCodeUtils';
+} from './arabicMatchingService';
 
 export { parsePromotionsFromExcelBuffer, parsePromotionsFromGoogleSheet } from './promotionService';
 export { parseTargetExcel, fetchTargetsFromGoogleSheetUrl } from './targetService';
@@ -23,7 +23,7 @@ export {
   extractCodeFromProductName,
   extractGoogleSpreadsheetId,
   buildGoogleSheetsPublicCsvUrl,
-} from './productCodeUtils';
+} from './arabicMatchingService';
 
 /**
  * Resolves true customer code, prioritizing valid ERP codes (e.g. CUST012295)

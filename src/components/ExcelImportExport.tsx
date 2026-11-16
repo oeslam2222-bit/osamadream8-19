@@ -47,10 +47,6 @@ import {
   saveDataSourcesToSupabase,
 } from '../services/supabaseService';
 import {
-  buildItemSalesAggregates,
-  saveItemSalesAggregates,
-} from '../services/itemSalesAggregateService';
-import {
   downloadCustomerAnalyticsTemplate,
   exportCustomerAnalyticsToExcel
 } from '../services/customerAnalyticsService';
@@ -344,15 +340,6 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
           syncedCount: 0,
           error: err?.message || 'فشل رفع مبيعات الأصناف للسحابة',
         }));
-
-        // الملخص الشهري بيتجمع هنا مرة واحدة — كل الأجهزة بتقرأه بدل الجدول.
-        void saveItemSalesAggregates(
-          buildItemSalesAggregates(finalSales, {
-            maxCustomers: 0,
-            resolveSector: (record) =>
-              (record as any).sector === 'electrical' || activeSectorTab === 'electrical' ? 'electrical' : 'home',
-          })
-        ).catch(() => {});
 
         // Extract and deduplicate customer profiles from sales records
         const codeMap = new Map<string, Customer>();

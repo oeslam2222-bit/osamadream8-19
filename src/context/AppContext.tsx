@@ -4,7 +4,6 @@ import { inferCustomerSector, BRANCHES } from '../data/branchDefinitions';
 import { DEFAULT_CLOUDINARY_CONFIG, normalizeCloudinaryConfig } from '../services/cloudinaryService';
 import { clearCachedImages } from '../services/imageCacheService';
 import { idbClear, idbDelete, idbGet, idbSet, debouncedIdbSet, safeLocalStorageSet } from '../services/storageService';
-import { appendAuditLog, clearAuditLogsStorage, createAuditLog, getAuditLogs } from '../services/auditLogService';
 import {
   doesCustomerBelongToBranch,
   doesCustomerBelongToRep,
@@ -68,6 +67,7 @@ import {
   fetchUsersFromSupabase,
   findUserInSupabase,
   fetchPromotionsFromSupabase,
+  fetchPromotionsStamp,
   savePromotionsToSupabase,
   sanitizeEmail,
   sanitizeIdentifier,
@@ -321,8 +321,9 @@ function saveTargetContentStamp(
 
 /** وقت آخر مزامنة ناجحة للمستخدمين — عشان ما نطلبش الجدول مع كل فتح. */
 const USERS_LAST_SYNC_KEY = 'tantawy_users_last_sync_v1';
-// المستخدمون بيتغيروا نادرًا؛ 12 ساعة توازن بين الحداثة وتوفير الـ egress لـ 500 موظف.
-const USERS_SYNC_TTL_MS = 12 * 60 * 60 * 1000;
+const PROMOTIONS_STAMP_KEY = 'tantawy_promotions_stamp_v1';
+// المستخدمون بيتغيروا نادرًا؛ 24 ساعة توفر egress لـ 500 موظف.
+const USERS_SYNC_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
  * فرملة الـ thundering-herd: لما 500 مندوب يفتحوا التطبيق في نفس نافذة الصبح،
@@ -370,10 +371,19 @@ function extractBranchStems(branchName?: string): string[] {
 function expandRepNameVariants(names: string[]): string[] {
   const result = new Set<string>();
   names.forEach((raw) => {
-    const trimmed = String(raw || '').trim();
+    const trimmed = String(raw || '')
+      .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+      .replace(/[-_]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
     if (trimmed.length >= 3) result.add(trimmed);
     const norm = normalizeArabicText(trimmed);
     if (norm.length >= 3) result.add(norm);
+    const words = norm.split(/\s+/).filter(Boolean);
+    if (words.length >= 3) {
+      const firstLast = `${words[0]} ${words[words.length - 1]}`.trim();
+      if (firstLast.length >= 3) result.add(firstLast);
+    }
   });
   return Array.from(result);
 }
@@ -798,6 +808,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [dataEpoch, setDataEpoch] = useState(0);
+  const [isLocalDataHydrated, setIsLocalDataHydrated] = useState(false);
 
   const [customerComments, setCustomerComments] = useState<CustomerCommentRecord[]>(() => {
     try {
@@ -924,6 +935,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Load the shared copy so every device and every role sees the same numbers.
   // التوقعات: الشهر الحالي بس من السيرفر مع بصمة محتوى من صف واحد لتفادي إعادة التنزيل عند عدم التغيير.
   useEffect(() => {
+    if (!isLocalDataHydrated || !currentUser) return;
     let cancelled = false;
     const bootMonth = currentMonthKey();
     loadedForecastMonthsRef.current?.add(bootMonth);
@@ -939,7 +951,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const storedFStamp = readContentStamp(fStampKey);
       const storedPStamp = readContentStamp(FORECAST_PLANS_STAMP_KEY);
 
-      const localHasBootMonth = forecasts.some((f) => f.monthKey === bootMonth);
+      const localHasBootMonth = forecastsRef.current.some((f) => f.monthKey === bootMonth);
       const skipForecasts =
         areContentStampsEqual(fStamp, storedFStamp) && (localHasBootMonth || fStamp?.count === 0);
 
@@ -981,7 +993,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       cancelled = true;
     };
-  }, [forecastFetchScope]);
+  }, [forecastFetchScope, isLocalDataHydrated, currentUser?.id]);
 
   /**
    * تحميل توقعات شهر من السيرفر ودمجها في الحالة.
@@ -1111,7 +1123,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Load targets from the shared database so every device and role sees the same sheet update.
   // If Google Sheets read mode is enabled, prefer published sheet URLs to save Supabase egress.
   useEffect(() => {
-    if (!currentUser) return;
+    if (!isLocalDataHydrated || !currentUser) return;
     let cancelled = false;
     const isAdminLevel =
       currentUser.role === 'admin' ||
@@ -1159,6 +1171,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         (localCount >= (stamp.count ?? 0) || stamp.count === 0);
       if (unchanged) return;
 
+      // Try incremental delta fetch first when we have local rows and count did not drop
+      if (
+        localCount > 0 &&
+        stored?.maxUpdatedAt &&
+        stamp &&
+        (typeof stamp.count !== 'number' || typeof stored.count !== 'number' || stamp.count >= stored.count)
+      ) {
+        const inc = await fetchTargetsIncremental(targetFetchScope).catch(() => null);
+        if (cancelled) return;
+        if (inc?.success && !inc.isFullFetch) {
+          if (inc.targets && inc.targets.length > 0) {
+            setTargets((prev) => mergeTargetsIncremental(prev, inc.targets.map(mapTargetRowToRecord)));
+          }
+          if (stamp && (stamp.count !== null || stamp.maxUpdatedAt !== null)) {
+            saveTargetContentStamp(stamp, targetFetchScope);
+          }
+          return;
+        }
+      }
+
       const result = await fetchTargetsRecentMonths(monthsWindow, targetFetchScope);
       if (cancelled) return;
       if (result.success && result.targets && result.targets.length > 0) {
@@ -1176,7 +1208,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     })().catch(() => {});
     return () => { cancelled = true; };
-  }, [targetFetchScope, currentUser?.id, currentUser?.role, dataEpoch]);
+  }, [targetFetchScope, currentUser?.id, currentUser?.role, isLocalDataHydrated, dataEpoch]);
 
   const getVisibleTargets = () => {
     const scoped = filterBySector(targets, currentUser?.sector, (record) => inferTargetSector(record, users));
@@ -1217,15 +1249,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const deduplicated = deduplicateTargetRecords(parsed);
       const withSector = tagTargetsSector(deduplicated);
       const merged = mergeSectorTargets(withSector);
+      const prevTargets = targetsRef.current;
       setTargets(merged);
-      await saveTargetsToSupabase(merged);
-      publishNewDataVersion({
-        scope: 'targets',
-        updatedBy: currentUser?.name || 'مدير النظام',
-        notes: `تحديث شيت الأهداف والمحققات البيعية (${merged.length} هدف)`,
-        targetsCount: merged.length,
-        forcePurge: true,
-      }).catch(() => {});
+      const saveTargetsRes = await saveTargetsToSupabase(merged, { previousTargets: prevTargets });
+      if ((saveTargetsRes.changedCount ?? merged.length) > 0) {
+        publishNewDataVersion({
+          scope: 'targets',
+          updatedBy: currentUser?.name || 'مدير النظام',
+          notes: `تحديث شيت الأهداف والمحققات البيعية (${merged.length} هدف)`,
+          targetsCount: merged.length,
+          forcePurge: true,
+        }).catch(() => {});
+      }
       return { success: true, count: withSector.length, message: `تم تحديث ومزامنة ${withSector.length} هدف بنجاح بدون تكرار السجلات!` };
     } catch (err: any) {
       return { success: false, count: 0, message: err?.message || 'حدث خطأ أثناء قراءة ملف الإكسل' };
@@ -1246,15 +1281,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const deduplicated = deduplicateTargetRecords(parsed);
       const withSector = tagTargetsSector(deduplicated);
       const merged = mergeSectorTargets(withSector);
+      const prevTargets = targetsRef.current;
       setTargets(merged);
-      await saveTargetsToSupabase(merged);
-      publishNewDataVersion({
-        scope: 'targets',
-        updatedBy: currentUser?.name || 'مدير النظام',
-        notes: `تحديث شيت الأهداف من Google Sheets (${merged.length} هدف)`,
-        targetsCount: merged.length,
-        forcePurge: true,
-      }).catch(() => {});
+      const saveTargetsRes = await saveTargetsToSupabase(merged, { previousTargets: prevTargets });
+      if ((saveTargetsRes.changedCount ?? merged.length) > 0) {
+        publishNewDataVersion({
+          scope: 'targets',
+          updatedBy: currentUser?.name || 'مدير النظام',
+          notes: `تحديث شيت الأهداف من Google Sheets (${merged.length} هدف)`,
+          targetsCount: merged.length,
+          forcePurge: true,
+        }).catch(() => {});
+      }
       saveSingleSourceUrl('targets', cleanUrl);
       return { success: true, count: deduplicated.length, message: `تمت مزامنة وتحديث ${deduplicated.length} هدف بنجاح بدون تكرار وحفظ الرابط!` };
     } catch (err: any) {
@@ -1424,8 +1462,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lastVersionSyncNotice, setLastVersionSyncNotice] = useState<string | null>(null);
   const clearVersionSyncNotice = () => setLastVersionSyncNotice(null);
 
-  const [isLocalDataHydrated, setIsLocalDataHydrated] = useState(false);
-
   const justLoggedInRef = useRef<boolean>(false);
 
   const [promotions, setPromotions] = useState<PromotionOffer[]>(() => getSavedPromotions());
@@ -1469,15 +1505,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [inventoryLogs] = useState<InventoryTransaction[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-
-  // Load audit logs (capped, persisted)
-  useEffect(() => {
-    let active = true;
-    getAuditLogs().then((logs) => {
-      if (active) setAuditLogs(Array.isArray(logs) ? logs : []);
-    }).catch(() => {});
-    return () => { active = false; };
-  }, []);
 
   // Keep active customers cache in sync for instant financial auditing across Excel & PDF exports
   useEffect(() => {
@@ -1563,9 +1590,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const recordAuditLog = (logData: Omit<AuditLog, 'id' | 'timestamp' | 'formattedTime'>) => {
     try {
-      const entry = createAuditLog(logData);
-      setAuditLogs((prev) => [entry, ...prev].slice(0, 1200));
-      void appendAuditLog(entry);
+      const now = new Date();
+      const entry: AuditLog = {
+        ...logData,
+        id: `audit-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        timestamp: now.toISOString(),
+        formattedTime: now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' }),
+      };
+      setAuditLogs((prev) => [entry, ...prev].slice(0, 300));
     } catch {
       // keep app resilient
     }
@@ -1573,7 +1605,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const clearAuditLogs = () => {
     setAuditLogs([]);
-    void clearAuditLogsStorage();
     try {
       localStorage.removeItem('dream_dist_audit_logs_v7');
     } catch {}
@@ -2360,11 +2391,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const branchNameContains = extractBranchStems(currentUser.branchName);
 
     if (role === 'sales_rep') {
+      const repNames = expandRepNameVariants([fullName, shortName]);
+      const repIds = Array.from(new Set([currentUser.id, currentUser.username].filter(Boolean) as string[]));
+      const hasRepKeys = repNames.length > 0 || repIds.length > 0;
       return {
-        branchNames,
-        branchNameContains,
-        repNames: expandRepNameVariants([fullName, shortName]),
-        repIds: Array.from(new Set([currentUser.id, currentUser.username].filter(Boolean) as string[])),
+        branchNames: hasRepKeys ? undefined : branchNames,
+        branchNameContains: hasRepKeys ? undefined : branchNameContains,
+        repNames,
+        repIds,
         includeUnassignedBranch: false,
         strictNoFullFallback: true,
         slimFieldColumns: true,
@@ -2402,7 +2436,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   /**
    * scope القراءة من جدول الزيارات:
    * - المندوب: آخر 90 يوماً فقط + نطاقه الخاص (مع منع سحب الجدول كله كبديل).
-   * - المشرف: آخر 180 يوماً + مندوبيه التابعين + فرعه (بدلاً من سحب كل الشركة بلا حدود).
+   * - المشرف: آخر 180 يوماً + مندوبيه التابعين (بدون توسيع الفرع عند توفر مناديب).
    * - مدير الفرع: آخر 180 يوماً + فرعه.
    * - الأدمن والمطور والدعم الفني: السجل كامل للتقارير الشاملة.
    */
@@ -2416,9 +2450,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     if (role === 'sales_rep') {
       since.setDate(since.getDate() - 90);
       if (!customerFetchScope) return { sinceDate: since.toISOString().slice(0, 10) };
+      const hasRepKeys = Boolean(customerFetchScope.repNames?.length || customerFetchScope.repIds?.length);
       return {
-        branchNames: customerFetchScope.branchNames,
-        branchNameContains: customerFetchScope.branchNameContains,
+        branchNames: hasRepKeys ? undefined : customerFetchScope.branchNames,
+        branchNameContains: hasRepKeys ? undefined : customerFetchScope.branchNameContains,
         repNames: customerFetchScope.repNames,
         repIds: customerFetchScope.repIds,
         includeUnassignedBranch: false,
@@ -2449,8 +2484,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const branchNames = Array.from(
         new Set([currentUser.branchName].filter((b): b is string => Boolean(b && b.trim())))
       );
+      const hasSubKeys = repIds.length > 0 || repNames.length > 0;
       return {
-        branchNames,
+        branchNames: hasSubKeys ? undefined : branchNames,
         repNames: Array.from(new Set(repNames)),
         repIds: Array.from(new Set(repIds)),
         includeUnassignedBranch: false,
@@ -2607,22 +2643,24 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const bootJitterTimersRef = useRef<Set<number>>(new Set());
   /** يمنع تنزيلين متوازيين لنفس جدول العملاء (نبضة الإصدار + نبضة المحتوى). */
   const customerDownloadInFlightRef = useRef(false);
-  /**
-   * من غير ختم إصدار منشور، المسار ده كان بيسحب جدول العملاء كامل **كل مرة**
-   * check() بينادي — يعني كل 30 ثانية على كل جهاز، وكمان عند كل focus.
-   * ده كان أكبر بند في فاتورة الاستضافة: 400 جهاز × 3,400 صف كل دقيقة.
-   *
-   * دلوقتي السحب بيحصل مرة واحدة لكل 15 دقيقة، وعند الإقلاع (`neverPulled`).
-   * انحراف المحتوى لسه متكفّل بيه `checkCustomersContent` عبر بصمة صف واحد
-   * (عدد الصفوف + أحدث updated_at)، فمفيش فقد في حداثة البيانات.
-   */
-  const NO_STAMP_PULL_INTERVAL_MS = 60 * 60 * 1000;
+  const versionSyncInFlightRef = useRef<Promise<{ updated: boolean; version?: number; message: string }> | null>(null);
+  const lastVersionCheckAtRef = useRef(0);
+  const NO_STAMP_PULL_INTERVAL_MS = 2 * 60 * 60 * 1000;
 
   // مبيعات الأصناف بتتغذّى من صفحة الإكسل فقط. خلاصة بيانات جديدة = تنزيل
   // التغييرات المقيّدة بنطاق المستخدم تلقائياً، من غير أي زر على الشاشات.
   const itemSalesSyncRef = useRef<null | (() => Promise<unknown>)>(null);
 
   const checkAndSyncDataVersion = async (force: boolean = false): Promise<{ updated: boolean; version?: number; message: string }> => {
+    if (versionSyncInFlightRef.current) {
+      return versionSyncInFlightRef.current;
+    }
+    if (!force && Date.now() - lastVersionCheckAtRef.current < 20_000) {
+      return { updated: false, message: 'البيانات مفحوصة مؤخراً' };
+    }
+    lastVersionCheckAtRef.current = Date.now();
+
+    const run = (async (): Promise<{ updated: boolean; version?: number; message: string }> => {
     try {
       // Never purge and re-pull while our own authoritative write is still
       // landing on the server: the old copy would overwrite the fresh one.
@@ -2768,6 +2806,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           }).catch(() => null);
           if (inc?.success) {
             const incoming = sanitizeCustomers(inc.customers || []);
+            if (incoming.length === 0) {
+              return { success: true, customers: customersRef.current };
+            }
             const linkedInc = linkCustomersToUsers(incoming, users);
             const merged = deduplicateCustomersArray(mergeCustomersIncremental(customersRef.current, linkedInc));
             if (merged.length >= custStamp.count) {
@@ -3038,6 +3079,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     } finally {
       setIsVersionSyncing(false);
     }
+    })();
+
+    versionSyncInFlightRef.current = run;
+    try {
+      return await run;
+    } finally {
+      versionSyncInFlightRef.current = null;
+    }
   };
 
   /**
@@ -3157,7 +3206,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     if (!isLocalDataHydrated) return;
     let checkInFlight = false;
     let lastHeartbeatCheck = Date.now();
-    const HEARTBEAT_INTERVAL_MS = 25 * 60 * 1000;
+    const HEARTBEAT_INTERVAL_MS = 45 * 60 * 1000;
     // شبكة أمان: لو استعلام البصمة نفسه فشل (عمود updated_at مش موجود أو
     // الشبكة وقعت) بنعمل تحميل كامل مرة كل ساعة. البصمة المحفوظة على الجهاز
     // بتغطي الحالة الطبيعية، فمش محتاجين نعيد تنزيل الجدول عند كل فتح.
@@ -3306,7 +3355,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     };
 
     let lastFocusOrVisibilityCheck = 0;
-    const FOCUS_SYNC_COOLDOWN_MS = 25 * 60 * 1000;
+    const FOCUS_SYNC_COOLDOWN_MS = 35 * 60 * 1000;
     let realtimeJitterTimer: number | null = null;
 
     const handleFocusOrVisibility = () => {
@@ -3329,8 +3378,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     window.addEventListener('focus', handleFocusOrVisibility);
     document.addEventListener('visibilitychange', handleFocusOrVisibility);
-    // Heartbeat كل 25 دقيقة لتقليل egress؛ القناة الموحدة للـ Realtime + بصمة المحتوى تغطي التحديثات.
-    const interval = window.setInterval(heartbeat, 25 * 60 * 1000);
+    // Heartbeat كل 45 دقيقة لتقليل egress؛ القناة الموحدة للـ Realtime + بصمة المحتوى تغطي التحديثات.
+    const interval = window.setInterval(heartbeat, 45 * 60 * 1000);
     realtimeCheckCustomersRef.current = checkCustomersContent;
     realtimeCheckRef.current = check;
 
@@ -3388,19 +3437,39 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const isFreshLogin = justLoggedInRef.current;
     justLoggedInRef.current = false;
 
-    // Fetch cloud-synced Promotions & Announcements so sales reps receive live special offers
-    fetchPromotionsFromSupabase().then((promoRes) => {
-      if (promoRes.success) {
-        if (promoRes.promotions.length > 0 || promotionsRef.current.length === 0) {
-          setPromotions(promoRes.promotions);
-          savePromotions(promoRes.promotions);
+    // Fetch cloud-synced Promotions & Announcements only when lightweight stamp changed
+    (async () => {
+      try {
+        const promoStamp = await fetchPromotionsStamp();
+        const storedRaw = localStorage.getItem(PROMOTIONS_STAMP_KEY);
+        const storedStamp = storedRaw ? JSON.parse(storedRaw) : null;
+        const hasLocalPromos = promotionsRef.current.length > 0;
+        const stampMatches =
+          promoStamp !== null &&
+          storedStamp !== null &&
+          promoStamp.updatedAt === storedStamp.updatedAt &&
+          promoStamp.total === storedStamp.total;
+        if (stampMatches && (hasLocalPromos || promoStamp?.total === 0)) {
+          return;
         }
-        if (promoRes.announcements.length > 0 || announcementsRef.current.length === 0) {
-          setAnnouncements(promoRes.announcements);
-          safeLocalStorageSet(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(promoRes.announcements));
+        const promoRes = await fetchPromotionsFromSupabase();
+        if (promoRes.success) {
+          if (promoRes.promotions.length > 0 || promotionsRef.current.length === 0) {
+            setPromotions(promoRes.promotions);
+            savePromotions(promoRes.promotions);
+          }
+          if (promoRes.announcements.length > 0 || announcementsRef.current.length === 0) {
+            setAnnouncements(promoRes.announcements);
+            safeLocalStorageSet(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(promoRes.announcements));
+          }
+          if (promoStamp) {
+            safeLocalStorageSet(PROMOTIONS_STAMP_KEY, JSON.stringify(promoStamp));
+          }
         }
+      } catch {
+        // ignore network hiccup
       }
-    }).catch(() => {});
+    })();
 
     // 1) المستخدمون بيتغيروا نادرًا — 24 ساعة للمناديب و 12 ساعة لباقي الأدوار، ومن غير كلمات مرور للأجهزة غير الإدارية.
     const lastUsersSync = Number(localStorage.getItem(USERS_LAST_SYNC_KEY) || 0);
@@ -4020,8 +4089,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const activeUser = currentUserRef.current;
       if (!activeUser) return;
       const now = Date.now();
-      // Cooldown: at least 15 minutes between background focus syncs
-      if (now - lastSyncTimestamp < 15 * 60 * 1000) return;
+      const invCooldownMs = activeUser.role === 'sales_rep' ? 45 * 60 * 1000 : 30 * 60 * 1000;
+      if (now - lastSyncTimestamp < invCooldownMs) return;
       lastSyncTimestamp = now;
 
       try {
@@ -4196,15 +4265,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const updateCustomer = (updatedCust: Customer) => {
-    setCustomers((prev) => prev.map((c) => (c.id === updatedCust.id ? updatedCust : c)));
-    idbSet(STORAGE_KEYS.CUSTOMERS, customers.map((c) => (c.id === updatedCust.id ? updatedCust : c)))
-      .catch(() => {});
+    const nextList = customersRef.current.map((c) => (c.id === updatedCust.id ? updatedCust : c));
+    customersRef.current = nextList;
+    setCustomers(nextList);
+    idbSet(STORAGE_KEYS.CUSTOMERS, nextList).catch(() => {});
     syncOrQueue('customers', 'upsert', updatedCust.id, updatedCust, () =>
       saveCustomersToSupabase([updatedCust])
     ).catch((e) => console.warn('Supabase customer update error:', e));
     // تعديل مندوب روتيني ما بينشرش نسخة جديدة: كل broadcast كان بيسبب فحص
-    // إصدار على كل الأجهزة الموصولة + حدث Realtime لكل مشرف/مدير. البصمة
-    // المحتوى (25 دقيقة) بتوصل التحديث لباقي الأجهزة برضه من غير كل ده.
+    // إصدار على كل الأجهزة الموصولة + حدث Realtime لكل مشرف/مدير.
     if (currentUser?.role !== 'sales_rep') {
       publishDataVersionUpdate({
         scope: 'customers',
@@ -4214,8 +4283,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const deleteCustomer = (customerId: string) => {
-    setCustomers((prev) => prev.filter((c) => c.id !== customerId));
-    idbSet(STORAGE_KEYS.CUSTOMERS, customers.filter((c) => c.id !== customerId)).catch(() => {});
+    const nextList = customersRef.current.filter((c) => c.id !== customerId);
+    customersRef.current = nextList;
+    setCustomers(nextList);
+    idbSet(STORAGE_KEYS.CUSTOMERS, nextList).catch(() => {});
     // Delete from Supabase, or park it in the offline outbox until the network returns.
     syncOrQueue('customers', 'delete', customerId, undefined, () =>
       deleteCustomerFromSupabase(customerId)
@@ -4371,13 +4442,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     } else {
       finalCustomers = deduplicateCustomersArray([...customers, ...sectorFilteredIncoming]);
     }
+    const prevCustomers = customersRef.current;
     idbSet(STORAGE_KEYS.CUSTOMERS, finalCustomers).catch(() => {});
+    customersRef.current = finalCustomers;
     setCustomers(finalCustomers);
     authoritativeWriteAtRef.current = Date.now();
     saveLocalCustomersFingerprint(finalCustomers);
 
     try {
-      const res = await replaceCustomersInSupabase(finalCustomers);
+      const res = await replaceCustomersInSupabase(finalCustomers, { previousCustomers: prevCustomers });
       if (!res.success) {
         // Do NOT publish a version stamp on a failed write. Doing so made the
         // next heartbeat pull the previous server copy, which looked like the
@@ -4392,13 +4465,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         `تم تحديث قاعدة العملاء (${finalCustomers.length} عميل)${dupNote} — البيانات الآن موحدة لكل المناديب والمشرفين`
       );
       setTimeout(() => setLastVersionSyncNotice(null), 8000);
-      await publishNewDataVersion({
-        scope: 'customers',
-        updatedBy: currentUser?.name || 'مدير النظام',
-        notes: `تحديث قاعدة بيانات العملاء (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'}) - ${finalCustomers.length} عميل`,
-        customersCount: finalCustomers.length,
-        forcePurge: true,
-      }).catch(() => {});
+      if ((res.changedCount ?? finalCustomers.length) > 0 || res.removed > 0) {
+        await publishNewDataVersion({
+          scope: 'customers',
+          updatedBy: currentUser?.name || 'مدير النظام',
+          notes: `تحديث قاعدة بيانات العملاء (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'}) - ${finalCustomers.length} عميل`,
+          customersCount: finalCustomers.length,
+          forcePurge: true,
+        }).catch(() => {});
+      }
       return {
         success: true,
         count: finalCustomers.length,
@@ -5099,7 +5174,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_DATA);
     clearCart();
 
-    [STORAGE_KEYS.PRODUCTS, STORAGE_KEYS.INVOICES, STORAGE_KEYS.CUSTOMERS, STORAGE_KEYS.VISITS, STORAGE_KEYS.TARGETS].forEach(
+    [STORAGE_KEYS.INVOICES, STORAGE_KEYS.CUSTOMERS, STORAGE_KEYS.VISITS, STORAGE_KEYS.TARGETS].forEach(
       (k) => {
         try {
           localStorage.removeItem(k);
@@ -5108,7 +5183,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         }
       }
     );
-    idbSet(STORAGE_KEYS.PRODUCTS, []).catch(() => {});
     idbSet(STORAGE_KEYS.INVOICES, []).catch(() => {});
     idbSet(STORAGE_KEYS.CUSTOMERS, []).catch(() => {});
     idbSet(STORAGE_KEYS.VISITS, []).catch(() => {});
@@ -5116,7 +5190,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     clearLocalDataVersion();
     setGlobalDataVersion(null);
     clearScopedContentStamps();
-    setProducts([]);
     setInvoices([]);
     setCustomers([]);
     setVisits([]);
@@ -5679,9 +5752,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     // الحفظ على السيرفر لازم يتأكد قبل ما نقول "تم الرفع": قبل كده كان
     // fire-and-forget، فالشيت يقول 5000 صنف والجدول فاضي والكتالوج يختفي
     // بعد أول إعادة تحميل.
-    let saveResult: { success: boolean; error?: string };
+    const prevProducts = productsRef.current;
+    let saveResult: { success: boolean; changedCount?: number; error?: string };
     try {
-      saveResult = await saveProductsToSupabase(finalUpdated, { snapshot: true });
+      saveResult = await saveProductsToSupabase(finalUpdated, { snapshot: true, previousProducts: prevProducts });
     } catch (err: any) {
       saveResult = { success: false, error: err?.message || 'تعذر الاتصال بقاعدة البيانات' };
     }
@@ -5692,16 +5766,18 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         error: saveResult.error || 'تعذر حفظ الكتالوج على السيرفر',
       };
     }
-    try {
-      await publishNewDataVersion({
-        scope: 'products',
-        updatedBy: currentUser?.name || 'مدير النظام',
-        notes: `تحديث كتالوج الأصناف والأسعار (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'})`,
-        productsCount: finalUpdated.length,
-        forcePurge: true,
-      });
-    } catch (versionErr) {
-      console.warn('Data version publish notice:', versionErr);
+    if ((saveResult.changedCount ?? finalUpdated.length) > 0) {
+      try {
+        await publishNewDataVersion({
+          scope: 'products',
+          updatedBy: currentUser?.name || 'مدير النظام',
+          notes: `تحديث كتالوج الأصناف والأسعار (${mode === 'replace' ? 'استبدال كامل' : 'دمج وتحديث'})`,
+          productsCount: finalUpdated.length,
+          forcePurge: true,
+        });
+      } catch (versionErr) {
+        console.warn('Data version publish notice:', versionErr);
+      }
     }
 
     recordAuditLog({
@@ -7369,17 +7445,19 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       idbSet(STORAGE_KEYS.PRODUCTS, updated);
       safeLocalStorageSet(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
-      saveProductsToSupabase(updated).then((result) => {
+      saveProductsToSupabase(updated, { previousProducts: prev }).then((result) => {
         if (!result.success) {
           console.warn('Supabase image links sync warning:', result.error || 'Product save failed.');
           return;
         }
-        publishNewDataVersion({
-          scope: 'products',
-          updatedBy: currentUser?.name || 'مدير النظام',
-          notes: 'تحديث صور كتالوج الأصناف',
-          productsCount: updated.length,
-        }).catch((error) => console.warn('Product image version publish notice:', error));
+        if ((result.changedCount ?? updated.length) > 0) {
+          publishNewDataVersion({
+            scope: 'products',
+            updatedBy: currentUser?.name || 'مدير النظام',
+            notes: 'تحديث صور كتالوج الأصناف',
+            productsCount: updated.length,
+          }).catch((error) => console.warn('Product image version publish notice:', error));
+        }
       }).catch((err) => {
         console.warn('Supabase image links sync warning:', err);
       });

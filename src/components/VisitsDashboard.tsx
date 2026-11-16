@@ -47,7 +47,7 @@ import {
 } from '../services/geoVerificationService';
 import type { Customer, CustomerVisit } from '../types';
 import { EmptyState } from './ui/EmptyState';
-import { CustomerSearchSelect } from './CustomerSearchSelect';
+import { CustomerSearchSelect } from './ui/CustomerPicker';
 
 const resolveStoreAvatar = (customer?: Partial<Customer> | null): string => {
   const uploaded =
@@ -67,7 +67,47 @@ const onStoreAvatarError = (e: React.SyntheticEvent<HTMLImageElement>) => {
   }
 };
 
-import { COMPLETION_STATUS_LABELS, FAILURE_REASONS, POSTPONEMENT_REASONS, VISIT_TYPE_CONFIG, getRequiredVisitFields, getVisitTypeHint } from '../services/visitFormConfig';
+const COMPLETION_STATUS_LABELS: Record<string, string> = {
+  completed: 'منفذة/مكتملة',
+  partial: 'منفذة جزئياً',
+  postponed: 'مؤجلة',
+  failed: 'لم تتم',
+};
+
+const POSTPONEMENT_REASONS = [
+  'العميل غير متواجد بالمحل',
+  'المحل مغلق وقت الزيارة',
+  'تأجيل بطلب العميل ليوم آخر',
+  'عدم توفر سيولة حالياً لدى العميل',
+  'انتهاء وقت العمل الرسمي',
+  'ازدحام خط السير / ظروف طريق',
+];
+
+const FAILURE_REASONS = [
+  'رفض العميل الاستقبال',
+  'نزاع مالي / حسابي قائم',
+  'توقف نشاط العميل أو تغيير المكان',
+  'خطأ في بيانات العنوان أو الموقع',
+  'العميل متعثر وموقوف التعامل',
+];
+
+const VISIT_TYPE_CONFIG: { id: string; label: string; hint: string; requiredFields: string[] }[] = [
+  { id: 'تحصيل', label: 'تحصيل', hint: 'سجل المبلغ المحصل الفعلي مع توثيق GPS أو صورة الواجهة.', requiredFields: ['customerId', 'collectedAmount'] },
+  { id: 'طلب بيع', label: 'طلب بيع', hint: 'استعرض العروض والكتالوج وسجّل احتياجات العميل.', requiredFields: ['customerId'] },
+  { id: 'متابعة', label: 'متابعة', hint: 'متابعة المديونية أو حالة المخزون لدى العميل.', requiredFields: ['customerId'] },
+  { id: 'تثبيت موقع', label: 'تثبيت موقع', hint: 'التقط إحداثيات GPS من أمام محل العميل مباشرة.', requiredFields: ['customerId'] },
+  { id: 'زيارة دورية', label: 'زيارة دورية', hint: 'مراجعة شاملة لحساب العميل وحالة السداد والأصناف.', requiredFields: ['customerId'] },
+];
+
+const getRequiredVisitFields = (type: string): string[] => {
+  const found = VISIT_TYPE_CONFIG.find((t) => t.id === type);
+  return found ? found.requiredFields : ['customerId'];
+};
+
+const getVisitTypeHint = (type: string): string => {
+  const found = VISIT_TYPE_CONFIG.find((t) => t.id === type);
+  return found ? found.hint : '';
+};
 
 const SIMPLE_VISIT_TYPES: { id: string; label: string; color: string }[] = VISIT_TYPE_CONFIG.map((t) => ({
   id: t.id,

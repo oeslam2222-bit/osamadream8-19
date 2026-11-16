@@ -1,7 +1,11 @@
 import { Product, PromotionOffer, User } from '../types';
-import { cleanProductCode, buildGoogleSheetsPublicCsvUrl } from './productCodeUtils';
 import { extractBaseProductCode } from './productVariantService';
-import { isBranchMatch, normalizeArabicText } from './arabicMatchingService';
+import {
+  cleanProductCode,
+  buildGoogleSheetsPublicCsvUrl,
+  isBranchMatch,
+  normalizeArabicText,
+} from './arabicMatchingService';
 
 // xlsx-js-style and the Arabic file-encoding helpers are only needed when a
 // promotions sheet is actually imported or exported, so they are loaded inside
