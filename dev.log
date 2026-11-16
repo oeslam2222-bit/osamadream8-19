@@ -1,0 +1,783 @@
+
+> react-example@0.0.0 dev
+> vite --port=3000 --host=0.0.0.0
+
+
+  [32m[1mVITE[22m v6.4.5[39m  [2mready in [0m[1m900[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m3000[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.140.7:[1m3000[22m/[39m
+[2m[32m  ➜[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+[2m٤:١٥:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٤:١٥:٢٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٤:١٥:٣٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٤:١٦:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٤:١٦:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٤:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٤:١٩:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٤:٢١:٣١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m٤:٢١:٣١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("ROLE_ALLOWED_TABS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٤:٢١:٣١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m٤:٢١:٣٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m٤:٢١:٣٧ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("ROLE_ALLOWED_TABS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٤:٢١:٣٧ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m٤:٢٣:٢٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٤:٢٥:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٤:٢٧:٣٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٤:٢٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٤:٢٩:٤٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Navbar.tsx, /src/index.css[22m
+[2m٤:٣٢:٥٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/components/Navbar.tsx, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /@fs/C:\osamadream8-19-main\src\components\CollectionRecoveryDashboard.tsx, /src/components/UserManager.tsx, /src/components/InventoryStockView.tsx, /@fs/C:\osamadream8-19-main\src\components\VisitsDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/OrderBuilderModal.tsx, /src/components/SupervisorDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\UnifiedReturnsView.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\OrderReturnModal.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /@fs/C:\osamadream8-19-main\src\components\InternalNotificationCenter.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CategoryMixCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerBreakdownCards.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\ItemRankingCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\ItemSalesKpiCards.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\RepPerformanceCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\SlowMoversCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerSnapshotCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\MonthlyPerformanceCard.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerOrderAnalyticsModal.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerFinancialSummaryCard.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\customers\CustomerQuickDrawer.tsx, /src/context/AppContext.tsx[22m
+[2m٤:٣٢:٥٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx[22m Could not Fast Refresh ("COMPANY_WAREHOUSES" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٤:٣٢:٥٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m٤:٣٢:٥٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/context/AppContext.tsx[22m Could not Fast Refresh ("useApp" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٤:٣٢:٥٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css, /@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /@fs/C:\osamadream8-19-main\src\components\LoginPage.tsx, /src/components/Navbar.tsx, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /@fs/C:\osamadream8-19-main\src\components\CollectionRecoveryDashboard.tsx, /src/components/UserManager.tsx, /src/components/PermissionManagerModal.tsx, /src/components/InventoryStockView.tsx, /@fs/C:\osamadream8-19-main\src\components\SystemWorkflowGuide.tsx, /@fs/C:\osamadream8-19-main\src\components\VisitsDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/OrderBuilderModal.tsx, /src/components/SupervisorDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\UnifiedReturnsView.tsx, /@fs/C:\osamadream8-19-main\src\components\TargetPerformanceDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditStatusBadge.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\SystemSettingsAndAboutModal.tsx, /@fs/C:\osamadream8-19-main\src\components\PowerAppsSharePointBridgeModal.tsx, /@fs/C:\osamadream8-19-main\src\components\OrderReturnModal.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /@fs/C:\osamadream8-19-main\src\components\InternalNotificationCenter.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductImage.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerFinancialSummaryCard.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx[22m
+[2m٤:٣٢:٥٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx[22m Could not Fast Refresh ("COMPANY_WAREHOUSES" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٤:٣٢:٥٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m٤:٣٣:٠٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("ROLE_ALLOWED_TABS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٤:٣٣:٠٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m٤:٥٢:٠٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٦:٣٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/context/AppContext.tsx, /src/index.css[22m
+[2m٦:٣٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/context/AppContext.tsx[22m Could not Fast Refresh ("useApp" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٦:٣٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css, /@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /@fs/C:\osamadream8-19-main\src\components\LoginPage.tsx, /src/components/Navbar.tsx, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /@fs/C:\osamadream8-19-main\src\components\CollectionRecoveryDashboard.tsx, /src/components/UserManager.tsx, /src/components/PermissionManagerModal.tsx, /src/components/InventoryStockView.tsx, /@fs/C:\osamadream8-19-main\src\components\SystemWorkflowGuide.tsx, /@fs/C:\osamadream8-19-main\src\components\VisitsDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/OrderBuilderModal.tsx, /src/components/SupervisorDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\UnifiedReturnsView.tsx, /@fs/C:\osamadream8-19-main\src\components\TargetPerformanceDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditStatusBadge.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\SystemSettingsAndAboutModal.tsx, /@fs/C:\osamadream8-19-main\src\components\PowerAppsSharePointBridgeModal.tsx, /@fs/C:\osamadream8-19-main\src\components\OrderReturnModal.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /@fs/C:\osamadream8-19-main\src\components\InternalNotificationCenter.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductImage.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerFinancialSummaryCard.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx[22m
+[2m٦:٣٧:١٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("ROLE_ALLOWED_TABS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٦:٣٧:١٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m٦:٣٧:١٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx[22m Could not Fast Refresh ("COMPANY_WAREHOUSES" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٦:٣٧:١٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m٦:٣٨:٠٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/context/AppContext.tsx, /src/index.css[22m
+[2m٦:٣٨:٠٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/context/AppContext.tsx[22m Could not Fast Refresh ("useApp" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٦:٣٨:٠٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css, /@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /@fs/C:\osamadream8-19-main\src\components\LoginPage.tsx, /src/components/Navbar.tsx, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /@fs/C:\osamadream8-19-main\src\components\CollectionRecoveryDashboard.tsx, /src/components/UserManager.tsx, /src/components/PermissionManagerModal.tsx, /src/components/InventoryStockView.tsx, /@fs/C:\osamadream8-19-main\src\components\SystemWorkflowGuide.tsx, /@fs/C:\osamadream8-19-main\src\components\VisitsDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/OrderBuilderModal.tsx, /src/components/SupervisorDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\UnifiedReturnsView.tsx, /@fs/C:\osamadream8-19-main\src\components\TargetPerformanceDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditStatusBadge.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\SystemSettingsAndAboutModal.tsx, /@fs/C:\osamadream8-19-main\src\components\PowerAppsSharePointBridgeModal.tsx, /@fs/C:\osamadream8-19-main\src\components\OrderReturnModal.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /@fs/C:\osamadream8-19-main\src\components\InternalNotificationCenter.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductImage.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerFinancialSummaryCard.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx[22m
+[2m٦:٣٨:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("ROLE_ALLOWED_TABS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٦:٣٨:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m٦:٣٨:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx[22m Could not Fast Refresh ("COMPANY_WAREHOUSES" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٦:٣٨:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m٦:٤٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٦:٤٧:١٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductImage.tsx, /src/index.css[22m
+[2m٦:٤٧:٢٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductImage.tsx, /src/index.css[22m
+[2m٦:٤٧:٤٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductImage.tsx, /src/index.css[22m
+[2m٦:٤٧:٤٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductImage.tsx, /src/index.css[22m
+[2m٦:٤٧:٥١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductImage.tsx, /src/index.css[22m
+[2m٦:٤٧:٥٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductImage.tsx, /src/index.css[22m
+[2m٦:٤٨:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductImage.tsx, /src/index.css[22m
+[2m٦:٤٩:٠٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/index.css[22m
+[2m٦:٥٠:٠٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/index.css[22m
+[2m٦:٥٤:٠٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٧:٠٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m٧:٠٧:٣٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Navbar.tsx, /src/index.css[22m
+[2m٧:١٧:٠٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2m_/workspace/src/components/OrderBuilderModal.tsx_[22m
+[2m٧:١٧:٠٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2m_/workspace/src/components/OrderBuilderModal.tsx_[22m
+[2m٧:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/customers/compare.html[22m
+[2m٧:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/customers/v1_ref/index.html[22m
+[2m٧:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/customers/v1_ref/index.html[22m
+[2m٧:١٧:٠٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/customers/v2_enhanced/index.html[22m
+[2m٧:١٧:٠٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/compare.html[22m
+[2m٧:١٧:٠٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/a_unified/index.html[22m
+[2m٧:١٧:٠٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/a_unified/index.html[22m
+[2m٧:١٧:٠٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_1/index.html[22m
+[2m٧:١٧:٠٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_1/index.html[22m
+[2m٧:١٧:٠٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_2/index.html[22m
+[2m٧:١٧:٠٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_2/index.html[22m
+[2m٧:١٧:٠٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_3/desktop_preview.html[22m
+[2m٧:١٧:٠٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_3/desktop_preview.html[22m
+[2m٧:١٧:٠٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_3/index.html[22m
+[2m٧:١٧:٠٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_3/index.html[22m
+[2m٧:١٧:٠٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mnode-compile-cache/v22.23.2-x64-2468c7ee-0/00601cfe[22m
+[2m٧:١٧:٠٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mnode-compile-cache/v22.23.2-x64-2468c7ee-0/00d6a468[22m
+[2m٧:١٧:٠٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mnode-compile-cache/v22.23.2-x64-2468c7ee-0/012e93eb[22m
+[2m٧:١٧:٠٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mnode-compile-cache/v22.23.2-x64-2468c7ee-0/040abcaf[22m
+[2m٧:١٧:٠٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mnode-compile-cache/v22.23.2-x64-2468c7ee-0/07a8c97b[22m
+[2m٧:١٧:٠٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mnode-compile-cache/v22.23.2-x64-2468c7ee-0/0a0c40d1[22m
+[2m٧:١٧:٠٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mnode-compile-cache/v22.23.2-x64-2468c7ee-0/0b8347e4[22m
+[2m٧:١٧:٠٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٧:١٧:٠٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mpublic/manifest.json[22m
+[2m٧:١٧:٠٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mpublic/sw.js[22m
+[2m٧:١٧:٠٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/render-item-sales-dashboard.tsx[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-excel-pricing-import.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-image-url-sanitization.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-item-sales.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-numeric-and-grouping.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-numeric-and-grouping.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-numeric-and-grouping.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-product-import-sectors.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-product-import-sectors.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-product-import-sectors.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-product-pricing.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-product-pricing.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-product-pricing.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-user-payloads.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/arabicMatchingService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/authService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/cloudinaryService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/consolidatedInvoiceService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/customerAnalyticsService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/customerDeduplicationService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/customerDues.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/customerFinancialService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/dataSourceService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/dataVersionService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/dispatchReportService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/encodingService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/excelService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/forecastService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/forecastService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/forecastService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/imageCacheService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/invoiceService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/legalAffairsService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/microsoftSyncService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/offlineQueueService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/passwordService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/pdfService.ts[22m
+[2m٧:١٧:٠٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/powerAutomateService.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/productIdentity.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/productVariantService.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/productVariantService.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/productVariantService.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/promotionService.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/shortageReportService.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/storageService.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/storageService.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/storageService.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/supabaseService.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/supabaseService.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/supabaseService.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/targetService.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/whatsappVisitParser.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/main.tsx[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/types.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/vite-env.d.ts[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/AccountingSyncView.tsx[22m
+[2m٧:١٧:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /src/index.css[22m
+[2m٧:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/CollectionForecastView.tsx[22m
+[2m٧:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\CollectionRecoveryDashboard.tsx, /src/index.css[22m
+[2m٧:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/CompanySettingsModal.tsx[22m
+[2m٧:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ConsolidatedInvoiceModal.tsx[22m
+[2m٧:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /src/index.css[22m
+[2m٧:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\CreditStatusBadge.tsx, /src/index.css[22m
+[2m٧:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\CustomerFinancialSummaryCard.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\CustomerOrderAnalyticsModal.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/CustomerProfileView.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/DatabaseConnectionModal.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/DepartmentCategorySlicer.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ElectronicInvoiceModal.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\EncouragementSystem.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ExcelCustomersSection.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/ExcelImportExport.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ExcelProductsSection.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ExcelPromotionsSection.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ExcelTargetsSection.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/HomeExecutiveDashboard.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\InstallAppModal.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\InternalNotificationCenter.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/InventoryStockView.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/LegalAdvisorDashboard.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\LoginPage.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ManagementDashboard.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/MobileRepDashboard.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ModernCartDrawer.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/Navbar.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/NotificationCenter.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/OffersSheetModal.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/Onboarding.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/OrderBuilderModal.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\OrderReturnModal.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/PermissionManagerModal.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/PosCashierSidebar.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\PowerAppsSharePointBridgeModal.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ProductCodeInspectorModal.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductImage.tsx, /src/index.css[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ProductPhotoUpload.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ProductVariantModal.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/PromotionsOffersView.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/PublishedDataSourcesPanel.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ReturnsCustomersView.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ReturnsManagementView.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ReturnsWarehouseView.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/RoleCommandCenter.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/SectorUserManager.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/SectoredCatalog.tsx[22m
+[2m٧:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ShortagePullModal.tsx[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\SplashScreen.tsx, /src/index.css[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/SupervisorDashboard.tsx, /src/index.css[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/SyncStatusIndicator.tsx[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\SystemSettingsAndAboutModal.tsx, /src/index.css[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\SystemWorkflowGuide.tsx, /src/index.css[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\TargetPerformanceDashboard.tsx, /src/index.css[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/UnifiedCustomersHub.tsx[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/UnifiedOperationsDashboard.tsx[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/UnifiedProductsHub.tsx[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\UnifiedReturnsView.tsx, /src/index.css[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/UnifiedSystemAdminHub.tsx[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/UnifiedTargetsHub.tsx[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/UserManager.tsx, /src/index.css[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/VisitImportModal.tsx[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\VisitsDashboard.tsx, /src/index.css[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\VisitsDashboard.tsx, /src/index.css[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\VisitsDashboard.tsx, /src/index.css[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/mobile-styles.css, /src/index.css[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/customerSales/BranchShareCard.tsx[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /src/index.css[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/customerSales/CustomerInsightRail.tsx[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/customerSales/CustomerInsightRail.tsx[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/customerSales/MonthlyTrendCard.tsx[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/customerSales/SalesKpiCards.tsx[22m
+[2m٧:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/customerSales/TopCustomersCard.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/customerSales/TopItemsChartCard.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\customers\CustomerFilterBar.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\customers\CustomerQuickDrawer.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\customers\CustomerTableSettings.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\CategoryMixCard.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerBreakdownCards.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerSnapshotCard.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\ItemRankingCard.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\ItemSalesKpiCards.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\ItemSalesPrimitives.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\MonthlyPerformanceCard.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\RepPerformanceCard.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\RepPerformanceCard.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\RepPerformanceCard.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\SlowMoversCard.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/BottomNav.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/Footer.test.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/Footer.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/Header.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/MainLayout.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/MobileHeader.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/Sidebar.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/SidebarDesktop.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/TabLoadingSkeleton.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/Button.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/Button.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/Button.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/Card.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/Card.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/Card.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ui\EmptyState.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/Input.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/Spinner.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/StatCard.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ui\StatGrid.tsx, /src/index.css[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/Toast.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/Toast.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/Toast.tsx[22m
+[2m٧:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/context/AppContext.tsx, /src/index.css[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/context/AppContext.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/context/AppContext.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/context/AppContext.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/context/appContextTypes.ts[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\context\authContext.tsx, /src/index.css[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\context\customerContext.tsx, /src/index.css[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/context/index.ts[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/context/inventoryContext.tsx, /src/index.css[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\context\invoiceContext.tsx, /src/index.css[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\context\syncContext.tsx, /src/index.css[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\context\themeContext.tsx, /src/index.css[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/data/branchDefinitions.ts[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/InventoryStockView.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/components/Navbar.tsx, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /@fs/C:\osamadream8-19-main\src\components\CollectionRecoveryDashboard.tsx, /src/components/UserManager.tsx, /src/components/InventoryStockView.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/OrderBuilderModal.tsx, /src/components/SupervisorDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\UnifiedReturnsView.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\OrderReturnModal.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /@fs/C:\osamadream8-19-main\src\components\InternalNotificationCenter.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CategoryMixCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerBreakdownCards.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\ItemRankingCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\ItemSalesKpiCards.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\SlowMoversCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerSnapshotCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\MonthlyPerformanceCard.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerOrderAnalyticsModal.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerFinancialSummaryCard.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\customers\CustomerQuickDrawer.tsx, /src/context/AppContext.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/UserManager.tsx, /src/components/InventoryStockView.tsx, /src/components/OrderBuilderModal.tsx, /src/components/SupervisorDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\TargetPerformanceDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/components/ExcelImportExport.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerOrderAnalyticsModal.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerFinancialSummaryCard.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/archiveService.ts[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /src/components/SupervisorDashboard.tsx, /src/components/InventoryStockView.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerOrderAnalyticsModal.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductImage.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/consolidatedInvoiceService.ts[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ExcelImportExport.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/OrderBuilderModal.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditStatusBadge.tsx, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /src/components/InventoryStockView.tsx, /src/components/SupervisorDashboard.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerOrderAnalyticsModal.tsx, /src/components/UserManager.tsx, /@fs/C:\osamadream8-19-main\src\components\TargetPerformanceDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerFinancialSummaryCard.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\customers\CustomerQuickDrawer.tsx, /@fs/C:\osamadream8-19-main\src\components\customers\CustomerTableSettings.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /src/components/InventoryStockView.tsx, /src/components/SupervisorDashboard.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerOrderAnalyticsModal.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CategoryMixCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerBreakdownCards.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\ItemRankingCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\MonthlyPerformanceCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\ItemSalesPrimitives.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\customers\CustomerTableSettings.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\TargetPerformanceDashboard.tsx, /src/components/ExcelImportExport.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /src/components/InventoryStockView.tsx, /src/components/SupervisorDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerOrderAnalyticsModal.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/dispatchReportService.ts[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /src/components/InventoryStockView.tsx, /src/components/SupervisorDashboard.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerOrderAnalyticsModal.tsx, /@fs/C:\osamadream8-19-main\src\components\TargetPerformanceDashboard.tsx[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/excelService.ts[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/excelService.ts[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/excelService.ts[22m
+[2m٧:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/components/Navbar.tsx, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /@fs/C:\osamadream8-19-main\src\components\CollectionRecoveryDashboard.tsx, /src/components/UserManager.tsx, /src/components/InventoryStockView.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/OrderBuilderModal.tsx, /src/components/SupervisorDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\UnifiedReturnsView.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\OrderReturnModal.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /@fs/C:\osamadream8-19-main\src\components\InternalNotificationCenter.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CategoryMixCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerBreakdownCards.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\ItemRankingCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\ItemSalesKpiCards.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\SlowMoversCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerSnapshotCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\MonthlyPerformanceCard.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerOrderAnalyticsModal.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerFinancialSummaryCard.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\customers\CustomerQuickDrawer.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/legalAffairsService.ts[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /src/components/SupervisorDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /src/context/AppContext.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/PermissionManagerModal.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/powerAutomateService.ts[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/productVariantService.ts[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/promotionService.ts[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/returnsWorkflowService.ts[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/returnsWorkflowService.ts[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/returnsWorkflowService.ts[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/sectorDatabase.ts[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/sectorPermissionService.ts[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/shortageReportService.ts[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/PermissionManagerModal.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\TargetPerformanceDashboard.tsx, /src/context/AppContext.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/whatsappVisitParser.ts[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/beautiful-cards.css, /src/index.css[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_customer_financial_columns.sql[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_customer_financial_columns.sql[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_customer_financial_columns.sql[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_customer_sector_column.sql[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_customer_sector_column.sql[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_customer_sector_column.sql[22m
+[2m٧:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_customer_slicer_columns.sql[22m
+[2m٧:١٧:١٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_forecast_tables.sql[22m
+[2m٧:١٧:١٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_server_auth_rls.sql[22m
+[2m٧:١٧:١٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_visit_return_columns.sql[22m
+[2m٧:١٧:١٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_visit_review_columns.sql[22m
+[2m٧:١٧:١٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/fix_forecast_rls.sql[22m
+[2m٧:١٧:١٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/production-hardening.sql[22m
+[2m٧:١٧:١٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/secure_user_credentials.sql[22m
+[2m٧:١٧:١٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/tamper_evidence.sql[22m
+[2m٧:١٧:١٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/visit_duplicates_report.sql[22m
+[2m٧:١٧:١٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/.temp/cli-latest[22m
+[2m٧:٢٧:٢٧ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m٧:٢٧:٥٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m٧:٢٨:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m٧:٢٨:١٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/SidebarDesktop.tsx[22m
+[2m٧:٢٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/SidebarDesktop.tsx[22m
+[2m٧:٢٨:٣٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/SidebarDesktop.tsx[22m
+[2m٧:٢٨:٣٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m٧:٢٨:٥٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/SidebarDesktop.tsx[22m
+[2m٧:٣١:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/index.css[22m
+[2m٧:٥٤:٠٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/StatCard.tsx[22m
+[2m٧:٥٤:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/index.css[22m
+[2m٧:٥٤:٣٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/index.css[22m
+[2m٧:٥٤:٤٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/index.css[22m
+[2m٧:٥٤:٥٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/index.css[22m
+[2m٧:٥٤:٥٧ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/index.css[22m
+[2m٧:٥٥:٠٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/index.css[22m
+[2m٧:٥٥:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/index.css[22m
+[2m٧:٥٥:١٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/index.css[22m
+[2m٧:٥٥:٢٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/index.css[22m
+[2m٧:٥٥:٣٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/index.css[22m
+[2m٧:٥٥:٤٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/index.css[22m
+[2m٧:٥٥:٥١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/index.css[22m
+[2m٧:٥٥:٥٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/index.css[22m
+[2m٣:١٦:٥٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/Onboarding.tsx[22m
+[2m٣:١٦:٥٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\SplashScreen.tsx, /src/index.css[22m
+[2m٣:١٦:٥٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\context\themeContext.tsx, /src/index.css[22m
+[2m٣:١٦:٥٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/components/Navbar.tsx, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /@fs/C:\osamadream8-19-main\src\components\CollectionRecoveryDashboard.tsx, /src/components/UserManager.tsx, /src/components/InventoryStockView.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/OrderBuilderModal.tsx, /src/components/SupervisorDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\UnifiedReturnsView.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\OrderReturnModal.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /@fs/C:\osamadream8-19-main\src\components\InternalNotificationCenter.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CategoryMixCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerBreakdownCards.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\ItemRankingCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\ItemSalesKpiCards.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\SlowMoversCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerSnapshotCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\MonthlyPerformanceCard.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerOrderAnalyticsModal.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerFinancialSummaryCard.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\customers\CustomerQuickDrawer.tsx, /src/context/AppContext.tsx[22m
+[2m٣:١٦:٥٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/types.ts[22m
+[2m٣:١٦:٥٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /src/components/SupervisorDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductImage.tsx[22m
+[2m٣:١٦:٥٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/context/AppContext.tsx, /src/index.css[22m
+[2m٣:١٦:٥٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٣:١٦:٥٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/PermissionManagerModal.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx[22m
+[2m٣:١٦:٥٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx[22m
+[2m٣:١٦:٥٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/UserManager.tsx, /src/components/InventoryStockView.tsx, /src/components/OrderBuilderModal.tsx, /src/components/SupervisorDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\TargetPerformanceDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/components/ExcelImportExport.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerFinancialSummaryCard.tsx[22m
+[2m٣:١٦:٥٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/OrderBuilderModal.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditStatusBadge.tsx, /src/components/UserManager.tsx, /src/components/InventoryStockView.tsx, /src/components/SupervisorDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\TargetPerformanceDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerFinancialSummaryCard.tsx[22m
+[2m٣:١٦:٥٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/encodingService.ts[22m
+[2m٣:١٦:٥٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ExcelImportExport.tsx[22m
+[2m٣:١٦:٥٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx[22m
+[2m٣:١٦:٥٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx[22m
+[2m٣:١٦:٥٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx[22m
+[2m٣:١٦:٥٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/promotionService.ts[22m
+[2m٣:١٦:٥٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/productVariantService.ts[22m
+[2m٣:١٦:٥٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\TargetPerformanceDashboard.tsx, /src/context/AppContext.tsx[22m
+[2m٣:١٦:٥٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\TargetPerformanceDashboard.tsx, /src/components/ExcelImportExport.tsx, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx[22m
+[2m٣:١٦:٥٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /src/components/SupervisorDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /src/context/AppContext.tsx[22m
+[2m٣:١٦:٥٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx[22m
+[2m٣:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx[22m
+[2m٣:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx[22m
+[2m٣:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx[22m
+[2m٣:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٣:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/powerAutomateService.ts[22m
+[2m٣:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٣:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/context/AppContext.tsx[22m
+[2m٣:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٣:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٣:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/context/AppContext.tsx[22m
+[2m٣:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\DashboardHome.tsx, /src/components/Navbar.tsx, /@fs/C:\osamadream8-19-main\src\components\InvoicesManager.tsx, /@fs/C:\osamadream8-19-main\src\components\CollectionRecoveryDashboard.tsx, /src/components/UserManager.tsx, /src/components/InventoryStockView.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /src/components/OrderBuilderModal.tsx, /src/components/SupervisorDashboard.tsx, /@fs/C:\osamadream8-19-main\src\components\UnifiedReturnsView.tsx, /@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\CreditAuditModal.tsx, /@fs/C:\osamadream8-19-main\src\components\OrderReturnModal.tsx, /@fs/C:\osamadream8-19-main\src\components\ExcelInvoicePreviewModal.tsx, /@fs/C:\osamadream8-19-main\src\components\InternalNotificationCenter.tsx, /@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CategoryMixCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerBreakdownCards.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\ItemRankingCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\ItemSalesKpiCards.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\SlowMoversCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerSnapshotCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\MonthlyPerformanceCard.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerOrderAnalyticsModal.tsx, /@fs/C:\osamadream8-19-main\src\components\CustomerFinancialSummaryCard.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\customers\CustomerQuickDrawer.tsx[22m
+[2m٣:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\SystemSettingsAndAboutModal.tsx, /src/index.css[22m
+[2m٣:١٧:٠٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductCatalog.tsx, /src/index.css[22m
+[2m٣:١٧:٠٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ProductImage.tsx, /src/index.css[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/ExcelImportExport.tsx, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\customers\CustomerQuickDrawer.tsx, /@fs/C:\osamadream8-19-main\src\components\customers\CustomerTableSettings.tsx[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\customers\CustomerFilterBar.tsx, /src/index.css[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\customers\CustomerQuickDrawer.tsx, /src/index.css[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\customers\CustomerTableSettings.tsx, /src/index.css[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\AllCustomersAnalyticsView.tsx, /@fs/C:\osamadream8-19-main\src\components\customers\CustomerTableSettings.tsx[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CategoryMixCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerBreakdownCards.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\ItemRankingCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\MonthlyPerformanceCard.tsx, /@fs/C:\osamadream8-19-main\src\components\itemSales\ItemSalesPrimitives.tsx[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /@fs/C:\osamadream8-19-main\src\components\CustomerItemSalesView.tsx[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\customerSales\CustomerDossiers.tsx, /src/index.css[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\CategoryMixCard.tsx, /src/index.css[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\ItemSalesPrimitives.tsx, /src/index.css[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerBreakdownCards.tsx, /src/index.css[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\CustomerSnapshotCard.tsx, /src/index.css[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\ItemRankingCard.tsx, /src/index.css[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\ItemSalesKpiCards.tsx, /src/index.css[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\MonthlyPerformanceCard.tsx, /src/index.css[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\RepPerformanceCard.tsx, /src/index.css[22m
+[2m٣:١٧:١٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\itemSales\SlowMoversCard.tsx, /src/index.css[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ui\StatGrid.tsx, /src/index.css[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\OrderReturnModal.tsx, /src/index.css[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\ui\EmptyState.tsx, /src/index.css[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/InventoryStockView.tsx[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/UserManager.tsx, /src/index.css[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\SystemWorkflowGuide.tsx, /src/index.css[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\components\VisitsDashboard.tsx, /src/index.css[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/PermissionManagerModal.tsx, /src/index.css[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css, /src/components/PermissionManagerModal.tsx[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/OrderBuilderModal.tsx, /src/index.css[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\context\authContext.tsx, /src/index.css[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\context\invoiceContext.tsx, /src/index.css[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\context\customerContext.tsx, /src/index.css[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/context/inventoryContext.tsx, /src/index.css[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/@fs/C:\osamadream8-19-main\src\context\syncContext.tsx, /src/index.css[22m
+[2m٣:١٧:١١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/vite-env.d.ts[22m
+[2m٣:١٧:١٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/consolidatedInvoiceService.ts[22m
+[2m٣:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ProductCodeInspectorModal.tsx[22m
+[2m٣:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ProductPhotoUpload.tsx[22m
+[2m٣:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ProductVariantModal.tsx[22m
+[2m٣:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/PromotionsOffersView.tsx[22m
+[2m٣:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/PublishedDataSourcesPanel.tsx[22m
+[2m٣:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ReturnsCustomersView.tsx[22m
+[2m٣:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ReturnsManagementView.tsx[22m
+[2m٣:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ReturnsWarehouseView.tsx[22m
+[2m٣:١٧:١٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/RoleCommandCenter.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/SectorUserManager.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/data/branchDefinitions.ts[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ShortagePullModal.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/dispatchReportService.ts[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/SyncStatusIndicator.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/UnifiedCustomersHub.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/UnifiedOperationsDashboard.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/UnifiedProductsHub.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/UnifiedSystemAdminHub.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/UnifiedTargetsHub.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/VisitImportModal.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/whatsappVisitParser.ts[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/customerSales/BranchShareCard.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/customerSales/CustomerInsightRail.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/customerSales/MonthlyTrendCard.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/customerSales/TopCustomersCard.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/customerSales/TopItemsChartCard.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/BottomNav.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/Footer.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/Button.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/MainLayout.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/TabLoadingSkeleton.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/MobileHeader.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/Sidebar.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/Card.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/Input.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ui/Spinner.tsx[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/context/index.ts[22m
+[2m٣:١٧:١٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/archiveService.ts[22m
+[2m٣:١٧:١٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/legalAffairsService.ts[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/customers/compare.html[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/customers/v1_ref/index.html[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/customers/v2_enhanced/index.html[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/compare.html[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/a_unified/index.html[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_1/index.html[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_2/index.html[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_3/desktop_preview.html[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mnode-compile-cache/v22.23.2-x64-2468c7ee-0/00d6a468[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_3/index.html[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mnode-compile-cache/v22.23.2-x64-2468c7ee-0/00601cfe[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mnode-compile-cache/v22.23.2-x64-2468c7ee-0/040abcaf[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mnode-compile-cache/v22.23.2-x64-2468c7ee-0/07a8c97b[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mnode-compile-cache/v22.23.2-x64-2468c7ee-0/0a0c40d1[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mnode-compile-cache/v22.23.2-x64-2468c7ee-0/012e93eb[22m
+[2m٣:١٨:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mnode-compile-cache/v22.23.2-x64-2468c7ee-0/0b8347e4[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mpublic/manifest.json[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mpublic/sw.js[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-excel-pricing-import.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/arabicMatchingService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-image-url-sanitization.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-item-sales.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/render-item-sales-dashboard.tsx[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-numeric-and-grouping.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-product-import-sectors.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-product-pricing.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-user-payloads.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/authService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/cloudinaryService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/customerAnalyticsService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/consolidatedInvoiceService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/customerFinancialService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/dataSourceService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/dataVersionService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/customerDues.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/dispatchReportService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/excelService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/imageCacheService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/encodingService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/invoiceService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/legalAffairsService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/microsoftSyncService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/passwordService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/pdfService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/powerAutomateService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/productVariantService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/promotionService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/productIdentity.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/shortageReportService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/supabaseService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/storageService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/targetService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/whatsappVisitParser.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/customerDeduplicationService.ts[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/layout/Footer.test.tsx[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/components/mobile-styles.css, /src/index.css[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/beautiful-cards.css, /src/index.css[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/.temp/cli-latest[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_customer_financial_columns.sql[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_customer_sector_column.sql[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_server_auth_rls.sql[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_visit_return_columns.sql[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_visit_review_columns.sql[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/fix_forecast_rls.sql[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/production-hardening.sql[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/secure_user_credentials.sql[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/tamper_evidence.sql[22m
+[2m٣:١٨:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msupabase/add_customer_slicer_columns.sql[22m
+[2m٣:٥٣:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-user-payloads.ts[22m
+[2m٣:٥٣:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/render-item-sales-dashboard.tsx[22m
+[2m٣:٥٣:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-excel-pricing-import.ts[22m
+[2m٣:٥٣:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-image-url-sanitization.ts[22m
+[2m٣:٥٣:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-item-sales.ts[22m
+[2m٣:٥٣:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-numeric-and-grouping.ts[22m
+[2m٣:٥٣:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-product-import-sectors.ts[22m
+[2m٣:٥٣:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mscripts/validate-product-pricing.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m changed tsconfig file detected: C:/osamadream8-19-main/tsconfig.json - Clearing cache and forcing full-reload to ensure TypeScript is compiled with updated config values.
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [32mvite.config.ts changed, restarting server...[39m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2m.c53ef8a64b8432ed-0.hm[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mApp.tsx[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mbuild-output.txt[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mbuild-result.txt[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mbuild_run.txt[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mbuild_run2.txt[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mmain.tsx[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mmanifest.json[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mmetadata.json[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mpackage.json[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mtsc-output.txt[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mtsc-result.txt[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mtsconfig.json[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mtsc_baseline.txt[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mtsc_run.txt[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mtypes.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mvercel.json[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mvite-env.d.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/microsoftSyncService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/productIdentity.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/arabicMatchingService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/authService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/cloudinaryService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/consolidatedInvoiceService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/customerAnalyticsService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/customerDeduplicationService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/customerDues.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/customerFinancialService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/dataSourceService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/dataVersionService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/dispatchReportService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/encodingService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/excelService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/forecastService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/imageCacheService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/invoiceService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/legalAffairsService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/offlineQueueService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/passwordService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/pdfService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/powerAutomateService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/productVariantService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/promotionService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/shortageReportService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/storageService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/supabaseService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/targetService.ts[22m
+[2m٣:٥٣:٢٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mservices/whatsappVisitParser.ts[22m
+[2m٣:٥٣:٢٧ م[22m [36m[1m[vite][22m[39m server restarted.
+[2m١٠:١٦:٢٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesign-preview.html[22m
+[2m١٠:١٦:٢٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mindex.html[22m
+[2m١٠:١٦:٢١ م[22m [36m[1m[vite][22m[39m changed tsconfig file detected: C:/osamadream8-19-main/tsconfig.json - Clearing cache and forcing full-reload to ensure TypeScript is compiled with updated config values.
+[2m١٠:١٦:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/customers/compare.html[22m
+[2m١٠:١٦:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/customers/v1_ref/index.html[22m
+[2m١٠:١٦:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/customers/v1_ref/index.html[22m
+[2m١٠:١٦:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/customers/v2_enhanced/index.html[22m
+[2m١٠:١٦:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/compare.html[22m
+[2m١٠:١٦:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/a_unified/index.html[22m
+[2m١٠:١٦:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/a_unified/index.html[22m
+[2m١٠:١٦:٤٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_1/index.html[22m
+[2m١٠:١٦:٤٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_1/index.html[22m
+[2m١٠:١٦:٤٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_2/index.html[22m
+[2m١٠:١٦:٤١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_3/desktop_preview.html[22m
+[2m١٠:١٦:٤١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_3/index.html[22m
+[2m١٠:١٦:٤١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_3/index.html[22m
+[2m١٠:٣٠:٣١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mcard-theme-check.html[22m
+[33m[vite:css][postcss] @import must precede all other statements (besides @charset or empty @layer)
+123|  @source inline("bg-black/50 bg-black/40 bg-black/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:ring-1 focus:ring-emerald-500 focus:ring-teal-500 focus:ring-[#0D9488] gap-x-6 md:p-8 py-0.2 right-1.5 top-1.5 text-blue-500 text-purple-500 text-violet-500 text-slate decoration-amber-400 shadow-blue-500/25 shadow-emerald-500/25 shadow-navy/25 fade-in slide-in-from-top-2 sm:max-w-[480px] sm:max-w-[560px] sm:max-h-[90vh] max-h-[400px] max-h-[90vh] hover:bg-amber-50/40 hover:bg-blue-50/40 hover:border-blue-300/60 hover:from-emerald-400 hover:text-rose-500 hover:to-blue-600 hover:to-teal-500 hover:text-[#0b2337] hover:bg-[#eef5fd] hover:bg-[#f6f9fe] hover:border-blue-300 hover:text-slate-600 hover:text-slate-800 hover:from-blue-500 active:scale-95 active:scale-[0.98] active:scale-[0.99] lg:grid-cols-3 lg:grid-cols-4 lg:grid-cols-5 lg:block lg:hidden lg:p-7 md:block md:flex-row md:grid-cols-2 md:hidden md:inline md:items-center md:p-8 sm:block sm:flex-none sm:flex-row sm:gap-4 sm:grid-cols-2 sm:grid-cols-3 sm:grid-cols-4 sm:grid-cols-5 sm:hidden sm:inline sm:items-center sm:items-end sm:justify-between sm:p-4 sm:p-5 sm:p-6 sm:p-7 sm:p-8 sm:px-4 sm:rounded-3xl sm:self-auto sm:text-2xl sm:text-3xl sm:text-base sm:text-lg sm:text-sm sm:text-xl sm:text-xs sm:w-auto placeholder:text-slate-400 group-hover:opacity-100 group-hover:scale-110 group-hover:text-teal-600 last:border-0 dark:bg-[#0b1329] dark:bg-[#0f172a] dark:bg-slate-800 dark:bg-slate-800/50 dark:bg-slate-800/60 dark:bg-slate-800/70 dark:bg-slate-800/80 dark:border-slate-700 dark:border-slate-800 dark:divide-slate-800/60 dark:hover:bg-slate-700 dark:hover:bg-slate-800/40 dark:hover:bg-white/10 dark:hover:border-blue-700 dark:hover:border-emerald-700 dark:hover:text-teal-300 dark:text-amber-300 dark:text-blue-300 dark:text-blue-400 dark:text-emerald-300 dark:text-emerald-400 dark:text-rose-300 dark:text-slate-100 dark:text-slate-200 dark:text-slate-300 dark:text-slate-400 dark:text-teal-200 dark:text-teal-300 dark:text-teal-400 dark:text-white disabled:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:opacity-50 disabled:opacity-60 disabled:opacity-70");
+124|  
+125|  @import "tailwindcss/theme.css" layer(theme);
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+126|  @import "tailwindcss/utilities.css";
+127|  [39m
+[33m[vite:css][postcss] @import must precede all other statements (besides @charset or empty @layer)
+124|  
+125|  @import "tailwindcss/theme.css" layer(theme);
+126|  @import "tailwindcss/utilities.css";
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+127|  [39m
+[2m١٠:٣٠:٥٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32m✨ new dependencies optimized: [33mreact/jsx-dev-runtime, react, react-dom/client[32m[39m
+[2m١٠:٣١:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32m✨ new dependencies optimized: [33mlucide-react, recharts, xlsx-js-style, @supabase/supabase-js[32m[39m
+[2m١٠:٣١:٢٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32m✨ optimized dependencies changed. reloading[39m
+[33m[vite:css][postcss] @import must precede all other statements (besides @charset or empty @layer)
+123|  @source inline("bg-black/50 bg-black/40 bg-black/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:ring-1 focus:ring-emerald-500 focus:ring-teal-500 focus:ring-[#0D9488] gap-x-6 md:p-8 py-0.2 right-1.5 top-1.5 text-blue-500 text-purple-500 text-violet-500 text-slate decoration-amber-400 shadow-blue-500/25 shadow-emerald-500/25 shadow-navy/25 fade-in slide-in-from-top-2 sm:max-w-[480px] sm:max-w-[560px] sm:max-h-[90vh] max-h-[400px] max-h-[90vh] hover:bg-amber-50/40 hover:bg-blue-50/40 hover:border-blue-300/60 hover:from-emerald-400 hover:text-rose-500 hover:to-blue-600 hover:to-teal-500 hover:text-[#0b2337] hover:bg-[#eef5fd] hover:bg-[#f6f9fe] hover:border-blue-300 hover:text-slate-600 hover:text-slate-800 hover:from-blue-500 active:scale-95 active:scale-[0.98] active:scale-[0.99] lg:grid-cols-3 lg:grid-cols-4 lg:grid-cols-5 lg:block lg:hidden lg:p-7 md:block md:flex-row md:grid-cols-2 md:hidden md:inline md:items-center md:p-8 sm:block sm:flex-none sm:flex-row sm:gap-4 sm:grid-cols-2 sm:grid-cols-3 sm:grid-cols-4 sm:grid-cols-5 sm:hidden sm:inline sm:items-center sm:items-end sm:justify-between sm:p-4 sm:p-5 sm:p-6 sm:p-7 sm:p-8 sm:px-4 sm:rounded-3xl sm:self-auto sm:text-2xl sm:text-3xl sm:text-base sm:text-lg sm:text-sm sm:text-xl sm:text-xs sm:w-auto placeholder:text-slate-400 group-hover:opacity-100 group-hover:scale-110 group-hover:text-teal-600 last:border-0 dark:bg-[#0b1329] dark:bg-[#0f172a] dark:bg-slate-800 dark:bg-slate-800/50 dark:bg-slate-800/60 dark:bg-slate-800/70 dark:bg-slate-800/80 dark:border-slate-700 dark:border-slate-800 dark:divide-slate-800/60 dark:hover:bg-slate-700 dark:hover:bg-slate-800/40 dark:hover:bg-white/10 dark:hover:border-blue-700 dark:hover:border-emerald-700 dark:hover:text-teal-300 dark:text-amber-300 dark:text-blue-300 dark:text-blue-400 dark:text-emerald-300 dark:text-emerald-400 dark:text-rose-300 dark:text-slate-100 dark:text-slate-200 dark:text-slate-300 dark:text-slate-400 dark:text-teal-200 dark:text-teal-300 dark:text-teal-400 dark:text-white disabled:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:opacity-50 disabled:opacity-60 disabled:opacity-70");
+124|  
+125|  @import "tailwindcss/theme.css" layer(theme);
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+126|  @import "tailwindcss/utilities.css";
+127|  [39m
+[33m[vite:css][postcss] @import must precede all other statements (besides @charset or empty @layer)
+124|  
+125|  @import "tailwindcss/theme.css" layer(theme);
+126|  @import "tailwindcss/utilities.css";
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+127|  [39m
+[2m١٠:٣٣:٣٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mcard-theme-check.html[22m
+[2m١٠:٣٣:٣٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/cardThemeCheck.tsx[22m
+[2m١٠:٣٩:٢٧ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/theme-consistency.css[22m
+[2m١٠:٤٠:١٧ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/theme-consistency.css[22m
+[2m١٠:٤٠:٣١ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mtheme-check.html[22m
+[2m١٠:٤٢:٠٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/theme-consistency.css[22m
+[2m١٠:٤٢:٥٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mtheme-check.html[22m
+[2m١٠:٤٢:٥٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/themeCheck.tsx[22m
+[2m١٠:٥١:٠٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/theme-consistency.css[22m
+[2m١٠:٥١:٤٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mui-check.html[22m
+[2m١٠:٥٢:٣٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/theme-consistency.css[22m
+[2m١٠:٥٣:٣٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/uiCheck.tsx[22m
+[2m١٠:٥٣:٣٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mui-check.html[22m
+[2m١١:٠٥:١٧ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/supabaseService.ts[22m
+[2m١١:٠٥:٤٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/context/AppContext.tsx[22m
+[2m١١:١٦:٢٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/SplashScreen.tsx[22m
+[2m١١:١٦:٢٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/SyncStatusCenter.tsx[22m
+[2m١١:١٦:٢٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/UserProfileAvatarModal.tsx[22m
+[2m١١:١٦:٥٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/GlobalSearch.tsx[22m
+[2m١١:١٦:٥٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/Navbar.tsx[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/app-shell.css[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/beautiful-cards.css[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/brand-v2.css[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/identity.css[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/item-sales-page.css[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/missing-utilities.css[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/tailwind-utilities.css[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/index.css[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/theme-tokens.css[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/context/appContextHelpers.ts[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/context/authContext.tsx[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/context/customerContext.tsx[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/context/invoiceContext.tsx[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/context/syncContext.tsx[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/context/themeContext.tsx[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/context/useUiPreferences.ts[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/data/branchDefinitions.ts[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/data/mockData.ts[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/arabicMatchingService.ts[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/templates/analytics/AnalyticsDashboard.tsx[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/templates/customers/CustomersTemplate.tsx[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/templates/invoices/data.ts[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/templates/orders/data.ts[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/templates/reports/data.ts[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/templates/settings/SettingsTemplate.tsx[22m
+[2m١١:١٧:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/main.tsx[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/authService.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/cloudinaryService.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/customerFinancialService.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/imageCacheService.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/networkErrorHandler.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/offlineQueueService.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/passwordService.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/permissionService.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/productIdentity.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/productPricing.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/productVariantService.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/promotionService.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/storageService.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/targetService.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/services/userRowPayload.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/templates/TemplateApp.tsx[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/templates/theme.tsx[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/templates/analytics/data.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/templates/customers/data.ts[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/templates/invoices/InvoicesTemplate.tsx[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/templates/orders/OrderFlowTemplate.tsx[22m
+[2m١١:١٧:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/templates/reports/ReportsTemplate.tsx[22m
+[2m١١:٢٠:٢٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/theme-consistency.css[22m
+[2m١١:٢١:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mall-pages-check.html[22m
+[33m[vite:css][postcss] @import must precede all other statements (besides @charset or empty @layer)
+123|  @source inline("bg-black/50 bg-black/40 bg-black/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:ring-1 focus:ring-emerald-500 focus:ring-teal-500 focus:ring-[#0D9488] gap-x-6 md:p-8 py-0.2 right-1.5 top-1.5 text-blue-500 text-purple-500 text-violet-500 text-slate decoration-amber-400 shadow-blue-500/25 shadow-emerald-500/25 shadow-navy/25 fade-in slide-in-from-top-2 sm:max-w-[480px] sm:max-w-[560px] sm:max-h-[90vh] max-h-[400px] max-h-[90vh] hover:bg-amber-50/40 hover:bg-blue-50/40 hover:border-blue-300/60 hover:from-emerald-400 hover:text-rose-500 hover:to-blue-600 hover:to-teal-500 hover:text-[#0b2337] hover:bg-[#eef5fd] hover:bg-[#f6f9fe] hover:border-blue-300 hover:text-slate-600 hover:text-slate-800 hover:from-blue-500 active:scale-95 active:scale-[0.98] active:scale-[0.99] lg:grid-cols-3 lg:grid-cols-4 lg:grid-cols-5 lg:block lg:hidden lg:p-7 md:block md:flex-row md:grid-cols-2 md:hidden md:inline md:items-center md:p-8 sm:block sm:flex-none sm:flex-row sm:gap-4 sm:grid-cols-2 sm:grid-cols-3 sm:grid-cols-4 sm:grid-cols-5 sm:hidden sm:inline sm:items-center sm:items-end sm:justify-between sm:p-4 sm:p-5 sm:p-6 sm:p-7 sm:p-8 sm:px-4 sm:rounded-3xl sm:self-auto sm:text-2xl sm:text-3xl sm:text-base sm:text-lg sm:text-sm sm:text-xl sm:text-xs sm:w-auto placeholder:text-slate-400 group-hover:opacity-100 group-hover:scale-110 group-hover:text-teal-600 last:border-0 dark:bg-[#0b1329] dark:bg-[#0f172a] dark:bg-slate-800 dark:bg-slate-800/50 dark:bg-slate-800/60 dark:bg-slate-800/70 dark:bg-slate-800/80 dark:border-slate-700 dark:border-slate-800 dark:divide-slate-800/60 dark:hover:bg-slate-700 dark:hover:bg-slate-800/40 dark:hover:bg-white/10 dark:hover:border-blue-700 dark:hover:border-emerald-700 dark:hover:text-teal-300 dark:text-amber-300 dark:text-blue-300 dark:text-blue-400 dark:text-emerald-300 dark:text-emerald-400 dark:text-rose-300 dark:text-slate-100 dark:text-slate-200 dark:text-slate-300 dark:text-slate-400 dark:text-teal-200 dark:text-teal-300 dark:text-teal-400 dark:text-white disabled:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:opacity-50 disabled:opacity-60 disabled:opacity-70");
+124|  
+125|  @import "tailwindcss/theme.css" layer(theme);
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+126|  @import "tailwindcss/utilities.css";
+127|  [39m
+[33m[vite:css][postcss] @import must precede all other statements (besides @charset or empty @layer)
+124|  
+125|  @import "tailwindcss/theme.css" layer(theme);
+126|  @import "tailwindcss/utilities.css";
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+127|  [39m
+[2m١١:٢٤:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/allPagesCheck.tsx[22m
+[2m١١:٢٤:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mall-pages-check.html[22m
+[2m١١:٢٤:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/customers/compare.html[22m
+[2m١١:٢٤:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/customers/v1_ref/index.html[22m
+[2m١١:٢٤:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/customers/v2_enhanced/index.html[22m
+[2m١١:٢٤:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/a_unified/index.html[22m
+[2m١١:٢٤:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/compare.html[22m
+[2m١١:٢٤:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_1/index.html[22m
+[2m١١:٢٤:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_2/index.html[22m
+[2m١١:٢٤:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_3/desktop_preview.html[22m
+[2m١١:٢٤:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2mdesigns/product_catalog/variant_3/index.html[22m
+[2m١١:٣٣:١٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/identity.css[22m
+[2m١١:٣٦:٤٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m١٢:٠٣:٤٢ ص[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/identity.css[22m
+[2m١٢:٠٤:١٧ ص[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/identity.css[22m
+[2m١٢:١٢:٠٠ ص[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msettings-check.html[22m
+[33m[vite:css][postcss] @import must precede all other statements (besides @charset or empty @layer)
+123|  @source inline("bg-black/50 bg-black/40 bg-black/60 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/25 focus:ring-1 focus:ring-emerald-500 focus:ring-teal-500 focus:ring-[#0D9488] gap-x-6 md:p-8 py-0.2 right-1.5 top-1.5 text-blue-500 text-purple-500 text-violet-500 text-slate decoration-amber-400 shadow-blue-500/25 shadow-emerald-500/25 shadow-navy/25 fade-in slide-in-from-top-2 sm:max-w-[480px] sm:max-w-[560px] sm:max-h-[90vh] max-h-[400px] max-h-[90vh] hover:bg-amber-50/40 hover:bg-blue-50/40 hover:border-blue-300/60 hover:from-emerald-400 hover:text-rose-500 hover:to-blue-600 hover:to-teal-500 hover:text-[#0b2337] hover:bg-[#eef5fd] hover:bg-[#f6f9fe] hover:border-blue-300 hover:text-slate-600 hover:text-slate-800 hover:from-blue-500 active:scale-95 active:scale-[0.98] active:scale-[0.99] lg:grid-cols-3 lg:grid-cols-4 lg:grid-cols-5 lg:block lg:hidden lg:p-7 md:block md:flex-row md:grid-cols-2 md:hidden md:inline md:items-center md:p-8 sm:block sm:flex-none sm:flex-row sm:gap-4 sm:grid-cols-2 sm:grid-cols-3 sm:grid-cols-4 sm:grid-cols-5 sm:hidden sm:inline sm:items-center sm:items-end sm:justify-between sm:p-4 sm:p-5 sm:p-6 sm:p-7 sm:p-8 sm:px-4 sm:rounded-3xl sm:self-auto sm:text-2xl sm:text-3xl sm:text-base sm:text-lg sm:text-sm sm:text-xl sm:text-xs sm:w-auto placeholder:text-slate-400 group-hover:opacity-100 group-hover:scale-110 group-hover:text-teal-600 last:border-0 dark:bg-[#0b1329] dark:bg-[#0f172a] dark:bg-slate-800 dark:bg-slate-800/50 dark:bg-slate-800/60 dark:bg-slate-800/70 dark:bg-slate-800/80 dark:border-slate-700 dark:border-slate-800 dark:divide-slate-800/60 dark:hover:bg-slate-700 dark:hover:bg-slate-800/40 dark:hover:bg-white/10 dark:hover:border-blue-700 dark:hover:border-emerald-700 dark:hover:text-teal-300 dark:text-amber-300 dark:text-blue-300 dark:text-blue-400 dark:text-emerald-300 dark:text-emerald-400 dark:text-rose-300 dark:text-slate-100 dark:text-slate-200 dark:text-slate-300 dark:text-slate-400 dark:text-teal-200 dark:text-teal-300 dark:text-teal-400 dark:text-white disabled:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:opacity-50 disabled:opacity-60 disabled:opacity-70");
+124|  
+125|  @import "tailwindcss/theme.css" layer(theme);
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+126|  @import "tailwindcss/utilities.css";
+127|  [39m
+[33m[vite:css][postcss] @import must precede all other statements (besides @charset or empty @layer)
+124|  
+125|  @import "tailwindcss/theme.css" layer(theme);
+126|  @import "tailwindcss/utilities.css";
+   |  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+127|  [39m
+[2m١٢:١٧:٥١ ص[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msettings-check.html[22m
