@@ -111,13 +111,11 @@ export const ItemSalesExecutiveCards: React.FC<ItemSalesExecutiveCardsProps> = (
           customers: bucket?.customers.size || 0
         };
       }),
+      // مرتبة حسب المبلغ تنازليًا (و«بدون فرع» آخر قائمة دايمًا)
       branches: Array.from(branches.values()).sort((a, b) => {
-        const aIndex = branchOrder.indexOf(a.key);
-        const bIndex = branchOrder.indexOf(b.key);
-        if (aIndex === -1 && bIndex === -1) return b.amount - a.amount;
-        if (aIndex === -1) return 1;
-        if (bIndex === -1) return -1;
-        return aIndex - bIndex;
+        if (a.key === UNKNOWN_BRANCH) return 1;
+        if (b.key === UNKNOWN_BRANCH) return -1;
+        return b.amount - a.amount;
       }),
       families: sortedFamilies,
       reps: sortedReps
@@ -171,7 +169,7 @@ export const ItemSalesExecutiveCards: React.FC<ItemSalesExecutiveCardsProps> = (
 
       <CardShell
         title="الفروع"
-        subtitle={`${analysis.branches.length} فرع · مرتبة حسب قائمة الإدارة`}
+        subtitle={`${analysis.branches.filter((branch) => branch.key !== UNKNOWN_BRANCH).length} فرع · مرتبة حسب المبلغ`}
         icon={<Building2 className="w-4 h-4" />}
         iconClass="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]"
       >

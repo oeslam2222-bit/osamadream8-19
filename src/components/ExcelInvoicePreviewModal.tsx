@@ -207,17 +207,6 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
 
           {/* Header Action Buttons (Direct Downloads) */}
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Download Both */}
-            <button
-              onClick={handleDownloadBoth}
-              disabled={isDownloadingBoth}
-              className="bg-gradient-to-r from-[var(--app-warn)] via-[var(--app-warn)] to-[var(--app-warn)] hover:from-[var(--app-warn)] hover:to-[var(--app-warn)] text-slate-950 px-3.5 py-2 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 active:scale-95 cursor-pointer disabled:opacity-50"
-              title="تحميل ملف PDF وملف Excel معاً مباشرة على جهازك بضغطة واحدة"
-            >
-              <Sparkles className="w-4 h-4 text-slate-950" />
-              <span>{isDownloadingBoth ? 'جاري التحميل...' : 'تحميل الاثنين معاً (PDF + Excel) ⚡'}</span>
-            </button>
-
             {/* Direct Excel Download */}
             <button
               onClick={handleDownloadExcel}
@@ -238,26 +227,6 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
             >
               <Download className="w-4 h-4" />
               <span>تحميل PDF 📄</span>
-            </button>
-
-            {/* Customer Item Analytics */}
-            <button
-              onClick={() => setIsAnalyticsOpen(true)}
-              className="bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white px-3 py-2 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 active:scale-95 cursor-pointer"
-              title="تحليل مسحوبات العميل ونسب الأصناف في الطلبية"
-            >
-              <BarChart3 className="w-3.5 h-3.5 text-[#60a5fa]" />
-              <span>تحليل الأصناف 📊</span>
-            </button>
-
-            {/* Copy Table */}
-            <button
-              onClick={handleCopyTable}
-              className="bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-              title="نسخ جدول الأصناف للحافظة ولصقه مباشرة في إكسل"
-            >
-              <Copy className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{copiedToast ? 'تم النسخ! ✓' : 'نسخ كجدول'}</span>
             </button>
 
             {/* Close Modal */}
@@ -563,15 +532,11 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                     <tr className="bg-slate-900 text-white font-bold border-b border-slate-700">
                       <th className="p-2.5 text-center border-l border-slate-700 w-10">م</th>
                       <th className="p-2.5 border-l border-slate-700">كود الصنف</th>
-                      <th className="p-2.5 border-l border-slate-700">الكود الموحد</th>
-                      <th className="p-2.5 border-l border-slate-700">اللون</th>
-                      <th className="p-2.5 border-l border-slate-700 min-w-[180px]">اسم الصنف والبيان التفصيلي</th>
-                      <th className="p-2.5 text-center border-l border-slate-700">شدة</th>
+                      <th className="p-2.5 border-l border-slate-700 min-w-[180px]">اسم الصنف</th>
                       <th className="p-2.5 text-center border-l border-slate-700">كرتون</th>
                       <th className="p-2.5 text-center border-l border-slate-700">قطع</th>
                       <th className="p-2.5 text-center border-l border-slate-700 bg-[var(--app-warn)]">إجمالي القطع</th>
                       <th className="p-2.5 text-center border-l border-slate-700">سعر كرتونة</th>
-                      <th className="p-2.5 text-center border-l border-slate-700">سعر قطعة</th>
                       <th className="p-2.5 text-center border-l border-slate-700">الإجمالي</th>
                       <th className="p-2.5 text-center border-l border-slate-700 text-[#0d9488]">الخصم</th>
                       <th className="p-2.5 text-center border-l border-slate-700 bg-[var(--app-warn)] text-[#d97706]">الصافي</th>
@@ -599,15 +564,11 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                         >
                           <td className="p-2 text-center border-l border-slate-200 font-bold text-slate-500">{idx + 1}</td>
                           <td className="p-2 border-l border-slate-200 font-mono font-bold text-slate-800">{cleanProductCode(item.productCode)}</td>
-                          <td className="p-2 border-l border-slate-200 font-mono text-[var(--app-navy-text)]">{unified}</td>
-                          <td className="p-2 border-l border-slate-200 text-slate-600">{item.color || item.product?.color || '---'}</td>
                           <td className="p-2 border-l border-slate-200 font-bold text-slate-900">{item.productName}</td>
-                          <td className="p-2 text-center border-l border-slate-200 text-slate-600">{cartonQty}</td>
                           <td className="p-2 text-center border-l border-slate-200 font-black text-slate-900">{cCount}</td>
                           <td className="p-2 text-center border-l border-slate-200 font-black text-slate-900">{pCount}</td>
                           <td className="p-2 text-center border-l border-slate-200 font-black text-[var(--app-warn-text)] bg-[var(--app-warn-tint)]">{totalUnits}</td>
                           <td className="p-2 text-center border-l border-slate-200 text-slate-700">{formatCurrency(item.appliedPrice)}</td>
-                          <td className="p-2 text-center border-l border-slate-200 text-slate-700">{formatCurrency(pieceP)}</td>
                           <td className="p-2 text-center border-l border-slate-200 text-slate-800">{formatCurrency(item.totalBeforeTax)}</td>
                           <td className="p-2 text-center border-l border-slate-200 text-[var(--app-ok-text)] font-bold">{item.discountAmount > 0 ? `-${formatCurrency(item.discountAmount)}` : '0'}</td>
                           <td className="p-2 text-center border-l border-slate-200 font-black text-slate-950 bg-[var(--app-warn-tint)]">{formatCurrency(item.netTotal)}</td>
@@ -854,34 +815,6 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={handleDownloadBoth}
-              disabled={isDownloadingBoth}
-              className="bg-gradient-to-r from-[var(--app-warn)] via-[var(--app-warn)] to-[var(--app-warn)] hover:from-[var(--app-warn)] hover:to-[var(--app-warn)] text-slate-950 px-4 py-2 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 active:scale-95 cursor-pointer disabled:opacity-50"
-              title="تحميل PDF و Excel معاً مباشرة"
-            >
-              <Sparkles className="w-4 h-4" />
-              <span>{isDownloadingBoth ? 'جاري التحميل...' : 'تحميل الاثنين معاً (PDF + Excel) ⚡'}</span>
-            </button>
-
-            <button
-              onClick={handleDownloadExcel}
-              disabled={isDownloadingExcel}
-              className="bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black px-4 py-2 rounded-xl text-xs shadow-md transition flex items-center gap-1.5 active:scale-95 cursor-pointer disabled:opacity-50"
-            >
-              <ArrowDownToLine className="w-4 h-4" />
-              <span>تحميل ملف Excel (.xlsx) 📥</span>
-            </button>
-
-            <button
-              onClick={handleDownloadPDF}
-              disabled={isDownloadingPdf}
-              className="bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-white font-black px-4 py-2 rounded-xl text-xs shadow-md transition flex items-center gap-1.5 active:scale-95 cursor-pointer disabled:opacity-50"
-            >
-              <Download className="w-4 h-4" />
-              <span>تحميل PDF 📄</span>
-            </button>
-
             <button
               onClick={onClose}
               className="bg-white hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer"

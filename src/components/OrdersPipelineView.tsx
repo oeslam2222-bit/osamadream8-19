@@ -10,6 +10,7 @@ import {
   Clock3,
   CreditCard,
   Eye,
+  FileSpreadsheet,
   FileText,
   Package,
   RefreshCw,
@@ -20,9 +21,23 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
+import { buildShortageReport, downloadShortageReport } from '../services/shortageReportService';
 import type { Invoice, OrderStatus } from '../types';
 
 type StageKey = 'supervisor' | 'admin' | 'prep' | 'delivery' | 'closed' | 'cancelled';
+
+/**
+ * لون هادئ لكل مرحلة من سير الطلب — توكنز الثيم، فالكارت بيبقى فاتح في
+ * النهاري وغامق في الليلي مع نص مقروء في الحالتين (بدل الكحلي الثابت).
+ */
+const STAGE_TONE: Record<StageKey, string> = {
+  supervisor: 'tg-stage-card--warn',
+  admin: 'tg-stage-card--primary',
+  prep: 'tg-stage-card--violet',
+  delivery: 'tg-stage-card--secondary',
+  closed: 'tg-stage-card--ok',
+  cancelled: 'tg-stage-card--risk',
+};
 
 const STAGES: { key: StageKey; title: string; desc: string }[] = [
   { key: 'supervisor', title: 'اعتماد المشرف', desc: 'مراجعة أولى واعتماد/إرجاع' },
@@ -65,6 +80,7 @@ export const OrdersPipelineView: React.FC<{
     refreshInvoicesNow,
     isOffline,
     offlineQueueCount,
+    products,
   } = useApp() as any;
 
   const [search, setSearch] = useState('');
@@ -103,6 +119,27 @@ export const OrdersPipelineView: React.FC<{
   const openValue = useMemo(() => base.filter(i => !['closed','cancelled'].includes(getStage(i))).reduce((s,i)=>s + Number(i.estimatedGrandTotal || i.totalAmount || 0), 0), [base]);
 
   const say = (msg: string) => { setToast(msg); setTimeout(()=>setToast(null), 4000); };
+
+  /**
+   * تجميع نواقص أكتوبر من الأوامر المعروضة وتصديرها كملف إكسل:
+   * ورقة ملخصة (المطلوب فعلياً لكل صنف مقابل رصيد المخزن الرئيسي) + تفاصيل + حسب المندوب.
+   */
+  const handleShortageExport = async () => {
+    setBusy('shortage-report');
+    try {
+      const report = buildShortageReport(base, Array.isArray(products) ? products : [], {});
+      if (!report.summary || report.summary.length === 0) {
+        say('لا توجد نواقص مفتوحة مطلوبة من مخزن أكتوبر حالياً');
+        return;
+      }
+      await downloadShortageReport(report, 'نواقص أكتوبر');
+      say(`تم تصدير ${report.summary.length.toLocaleString('ar-EG')} صنف ناقص إلى إكسل`);
+    } catch {
+      say('تعذر تصدير تقرير نواقص أكتوبر');
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const run = async (id: string, fn: () => any) => {
     setBusy(id);
@@ -299,6 +336,15 @@ export const OrdersPipelineView: React.FC<{
           <button onClick={()=>refreshInvoicesNow?.()} title="تحديث" className="col-start-2 row-start-1 sm:order-3 shrink-0 inline-flex items-center justify-center gap-1.5 h-11 px-3 rounded-xl border border-[var(--tg-line)] bg-[var(--app-card)] text-[var(--tg-ink)] text-xs font-extrabold hover:bg-[var(--app-card-hover)]">
             <RefreshCw size={15}/>تحديث
           </button>
+          <button
+            onClick={handleShortageExport}
+            disabled={busy === 'shortage-report'}
+            title="تجميع نواقص أكتوبر وتصديرها إكسل"
+            className="col-start-2 row-start-1 sm:order-3 shrink-0 inline-flex items-center justify-center gap-1.5 h-11 px-3 rounded-xl border border-amber-300 dark:border-amber-400/40 bg-amber-50 dark:bg-amber-500/10 text-amber-900 dark:text-amber-200 text-xs font-extrabold hover:bg-amber-100 disabled:opacity-60"
+          >
+            <FileSpreadsheet size={15}/>
+            {busy === 'shortage-report' ? 'جاري التصدير…' : 'نواقص أكتوبر (إكسل)'}
+          </button>
           <div className="min-w-0 col-start-1 row-start-2 sm:shrink-0 sm:w-[190px] sm:order-2">
             <select value={activeStage} onChange={e=>setActiveStage(e.target.value as any)} className="tg-select">
               <option value="all">كل المراحل ({base.length})</option>
@@ -310,17 +356,41 @@ export const OrdersPipelineView: React.FC<{
       </div>
 
       {/* stage summary */}
-      <div className="grid grid-cols-3 xl:grid-cols-6 gap-1.5 sm:gap-2">
-        {STAGES.map(s => {
-          const on = activeStage === s.key;
-          return (
-            <button key={s.key} onClick={()=>setActiveStage(on ? 'all' : s.key)} className={`text-right p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border transition ${on ? 'bg-[var(--role)] border-[var(--role)] shadow-md' : 'bg-[var(--app-card)] border-[var(--tg-line)] hover:border-[var(--role-line)]'}`}>
-              <div className={`text-[10px] sm:text-[11px] font-extrabold leading-tight line-clamp-2 sm:line-clamp-none min-h-[26px] sm:min-h-0 ${on ? 'text-white' : 'text-[var(--tg-muted)]'}`}>{s.title}</div>
-              <div className={`text-lg sm:text-xl font-black leading-none mt-1 tabular-nums ${on ? 'text-white' : 'text-[var(--tg-ink)]'}`}>{counts[s.key]}</div>
-              <div className={`hidden sm:block text-[10px] font-bold mt-1 leading-tight ${on ? 'text-white/75' : 'text-[var(--tg-muted)]'}`}>{s.desc}</div>
-            </button>
-          );
-        })}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between px-0.5 text-[10.5px] font-bold text-[var(--tg-muted)]">
+          <span>سير الطلب: من الاعتماد إلى التسليم</span>
+          <span className="tabular-nums">{base.length.toLocaleString('ar-EG')} أمر</span>
+        </div>
+        <div className="grid grid-cols-3 xl:grid-cols-6 gap-1.5 sm:gap-2">
+          {STAGES.map((s, index) => {
+            const on = activeStage === s.key;
+            return (
+              <button
+                key={s.key}
+                onClick={() => setActiveStage(on ? 'all' : s.key)}
+                aria-pressed={on}
+                className={`tg-stage-card text-right p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border transition ${STAGE_TONE[s.key]} ${
+                  on ? 'border-current shadow-md' : 'hover:shadow-sm'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-1">
+                  <span className="text-[10px] sm:text-[11px] font-extrabold leading-tight line-clamp-2 min-h-[26px] sm:min-h-[30px]">
+                    {s.title}
+                  </span>
+                  <span className="shrink-0 w-5 h-5 rounded-md grid place-items-center text-[10px] font-black tabular-nums bg-white/70 dark:bg-white/10">
+                    {index + 1}
+                  </span>
+                </div>
+                <div className="text-lg sm:text-xl font-black leading-none mt-1 tabular-nums">
+                  {counts[s.key]}
+                </div>
+                <div className="hidden sm:block text-[9.5px] font-bold mt-1 leading-tight opacity-75 line-clamp-2">
+                  {s.desc}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* list */}
@@ -391,6 +461,7 @@ export const OrdersPipelineView: React.FC<{
                       <div className="flex flex-wrap gap-2">
                         {onViewInvoice && <button onClick={()=>onViewInvoice(inv)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--tg-line)] bg-[var(--app-card)] text-[var(--tg-ink)] hover:bg-[var(--app-card-hover)]"><Eye size={13}/>عرض التفاصيل</button>}
                         {onEditInvoice && getStage(inv)==='supervisor' && <button onClick={()=>onEditInvoice(inv)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--tg-line)] bg-[var(--app-card)] text-[var(--tg-ink)] hover:bg-[var(--app-card-hover)]"><ClipboardCheck size={13}/>تعديل</button>}
+                        {/* تصدير PDF/إكسل مش هنا: موجود في شاشة معاينة الفاتورة اللي بتفتح من «عرض التفاصيل» — أمر واحد في مكان واحد. */}
                       </div>
                       <div className="text-[11px] text-[var(--tg-muted)] mt-1">الاعتماد والتجهيز والتسليم والإغلاق متاحة حسب الصلاحية والحالة.</div>
                     </div>

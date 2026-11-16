@@ -49,6 +49,7 @@ import {
 import {
   aggregateCustomerItemSales,
   clearCustomerItemSales,
+  enrichCustomerItemSalesWithCatalog,
   enrichCustomerItemSalesWithDirectory,
   exportCustomerItemSalesToExcel,
   fetchCustomerItemSalesFromSupabase,
@@ -78,7 +79,11 @@ import { MonthlyPerformanceCard } from './itemSales/MonthlyPerformanceCard';
 import { RepPerformanceCard } from './itemSales/RepPerformanceCard';
 import { SlowMoversCard } from './itemSales/SlowMoversCard';
 import { MonthlyAggregateCard } from './itemSales/MonthlyAggregateCard';
-import { ItemSalesRowsTable } from './itemSales/ItemSalesRowsTable';
+import {
+  aggregateItemSalesRows,
+  downloadItemSalesRowsCsv,
+  ItemSalesRowsTable
+} from './itemSales/ItemSalesRowsTable';
 import { ItemSalesExecutiveCards } from './itemSales/ItemSalesExecutiveCards';
 import { CANONICAL_BRANCHES, normalizeBranchName, UNKNOWN_BRANCH } from '../services/branchDirectory';
 import SalesFocusV4 from './itemSales/SalesFocusV4';
@@ -107,6 +112,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 }) => {
   const { currentUser, users, customers, products, activeSectorFilter } = useApp();
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+  /** تشخيص أعداد السجلات للمطور والدعم الفني فقط. */
+  const canSeeDiagnostics =
+    currentUser?.role === 'developer' || currentUser?.role === 'technical_support';
 
   /**
    * القطاع مش عمود في جدول مبيعات الأصناف — بنستنتجه من كتالوج المنتجات
@@ -451,11 +459,27 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     }
   };
 
+  // كود العميل → اسمه في قاعدة العملاء (لكي يظهر الاسم الحقيقي في الجداول مش الكود)
+  const customerNameByCode = useMemo(() => {
+    const map = new Map<string, string>();
+    customers.forEach((customer) => {
+      const code = String(customer.code || '').trim().toLowerCase();
+      const name = String(customer.name || customer.storeName || '').trim();
+      if (code && name) map.set(code, name);
+    });
+    return map;
+  }, [customers]);
+
   // Automatically link customer codes with master Customer directory to extract authoritative branch and rep
+  // وبعدها بنكمّل اسم الصنف وعائلته من كتالوج المنتجات (عشان «الصنف بالعائلة» متقعدش «عام»)
   const enrichedSalesRecords = useMemo(() => {
-    if (customers.length === 0 || salesRecords.length === 0) return salesRecords;
-    return enrichCustomerItemSalesWithDirectory(salesRecords, customers).enriched;
-  }, [salesRecords, customers]);
+    if (salesRecords.length === 0) return salesRecords;
+    const withDirectory =
+      customers.length > 0
+        ? enrichCustomerItemSalesWithDirectory(salesRecords, customers).enriched
+        : salesRecords;
+    return enrichCustomerItemSalesWithCatalog(withDirectory, products);
+  }, [salesRecords, customers, products]);
 
   const customerLinkStats = useMemo(() => {
     if (customers.length === 0 || salesRecords.length === 0) {
@@ -543,7 +567,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     const present = new Set<string>();
     rbacSales.forEach((record) => present.add(resolveItemSaleBranch(record)));
     const ordered = (CANONICAL_BRANCHES as readonly string[]).filter((branch) => present.has(branch));
-    return present.has(UNKNOWN_BRANCH) ? [...ordered, UNKNOWN_BRANCH] : ordered;
+    // «بدون فرع/غير محدد» مش فرع: مش بيتحسب في عدد الفروع ولا يظهر في القائمة.
+    return ordered;
   }, [rbacSales, resolveItemSaleBranch]);
 
   /** عائلات الأصناف (عمود «الصنف بالعائله» في الشيت). */
@@ -844,11 +869,11 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     setSelectedItem('all');
   };
 
+  // التصدير بيحمّل **البيانات المجمّعة** (عميل + شهر + صنف + عائلة) مش عشرات آلاف الصفوف الخام
   const handleExportExcel = () => {
-    exportCustomerItemSalesToExcel(
-      filteredSales,
-      customerSummaries,
-      `تحليل_مبيعات_الأصناف_${currentUser?.name || 'الطنطاوي'}`
+    downloadItemSalesRowsCsv(
+      aggregateItemSalesRows(filteredSales, resolveItemSaleSector, customerNameByCode),
+      `مبيعات_الأصناف_مجمعة_${new Date().toISOString().slice(0, 10)}.csv`
     );
   };
 
@@ -1040,7 +1065,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         )}
 
       {/* تشخيص عدد السجلات في كل مرحلة (لتعقب مصدر المشكلة) */}
-      {salesRecords.length > 0 && (
+      {salesRecords.length > 0 && canSeeDiagnostics && (
         <section className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-[10px]">
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-black text-slate-700 flex items-center gap-1.5">
@@ -1243,51 +1268,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         </section>
       ) : (
         <>
-          {/* Month-by-Month Strip */}
-          {monthBreakdown.length > 0 && (
-            <section className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-3.5 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-black text-[var(--app-text)]">تحليل شهر بشهر (اختر الشهر لاستعراض مبيعاته)</span>
-                <span className="text-[10.5px] font-bold text-slate-500">
-                  {monthBreakdown.length} شهر متاح في قاعدة البيانات
-                </span>
-              </div>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                <button
-                  type="button"
-                  onClick={() => setSelectedMonth('all')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-black border transition cursor-pointer whitespace-nowrap shrink-0 ${
-                    selectedMonth === 'all'
-                      ? 'bg-[#0F2B38] text-white border-[#0F2B38] shadow-xs'
-                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  كل الشهور ({baseSales.length.toLocaleString('en-US')})
-                </button>
-                {monthBreakdown.map((mb) => {
-                  const active = selectedMonth === mb.month;
-                  return (
-                    <button
-                      key={mb.month}
-                      type="button"
-                      onClick={() => setSelectedMonth(mb.month)}
-                      className={`px-3 py-1.5 rounded-xl border text-right transition cursor-pointer whitespace-nowrap shrink-0 ${
-                        active
-                          ? 'bg-[#2563EB] text-white border-[#2563EB] shadow-xs'
-                          : 'bg-slate-50 text-slate-800 border-slate-200 hover:bg-blue-50/70'
-                      }`}
-                    >
-                      <div className="text-[11px] font-black">{mb.name}</div>
-                      <div className={`text-[10px] font-mono tabular-nums ${active ? 'text-blue-100' : 'text-slate-500'}`}>
-                        {formatCurrency(mb.amount)}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
           {/* Filters */}
           <section className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-3.5 sm:p-4 space-y-3">
             <div className="flex items-center justify-between gap-2">
@@ -1442,20 +1422,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
               <option key={month} value={month}>
                 {MONTH_NAMES_MAP[month]}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={selectedGroup}
-            onChange={(event) => setSelectedGroup(event.target.value)}
-            aria-label="تصفية بمجموعة الأصناف"
-            className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
-          >
-            <option value="all">كل الفئات/التعريفات ({distinctGroups.length})</option>
-            {distinctGroups.map((group) => (
-              <option key={group} value={group}>
-                {group}
               </option>
             ))}
           </select>
@@ -1876,7 +1842,11 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             </div>
           </div>
 
-          <ItemSalesRowsTable records={filteredSales} resolveSector={resolveItemSaleSector} />
+          <ItemSalesRowsTable
+            records={filteredSales}
+            resolveSector={resolveItemSaleSector}
+            customerNameByCode={customerNameByCode}
+          />
 
           <MonthlyCustomerAnalysisTable rows={monthlyCustomerRows} />
         </>
