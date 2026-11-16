@@ -18,6 +18,50 @@ import { parseNumericValue } from './numericParsing';
 export const ITEM_SALES_STORAGE_KEY = 'tantawy_customer_item_sales_v1';
 export const ITEM_SALES_ARCHIVE_KEY = 'tantawy_customer_item_sales_archive_v1';
 
+/**
+ * بيانات توقيت المزامنة — أساس تقليل الـegress:
+ *  - lastPullAt: آخر جلب ناجح كامل، بنستخدمه للجلب الجزئي (`updated_at >= ...`).
+ *  - lastCountCheckAt: آخر تحقق من عدد السجلات، عشان مانبعتش استعلام عدّ
+ *    مع كل فتح للشاشة.
+ */
+const ITEM_SALES_SYNC_META_KEY = 'tantawy_item_sales_sync_meta_v1';
+const COUNT_CHECK_TTL_MS = 30 * 60 * 1000; // نص ساعة
+
+export interface ItemSalesSyncMeta {
+  lastPullAt?: string;
+  lastCountCheckAt?: string;
+}
+
+export function getItemSalesSyncMeta(): ItemSalesSyncMeta {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(ITEM_SALES_SYNC_META_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function setItemSalesSyncMeta(patch: ItemSalesSyncMeta): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      ITEM_SALES_SYNC_META_KEY,
+      JSON.stringify({ ...getItemSalesSyncMeta(), ...patch })
+    );
+  } catch {}
+}
+
+/** هل فحص عدد السجلات السحابي لسه حديث؟ (يمنع استعلام عدّ مع كل فتح) */
+export function isItemSalesCountCheckFresh(): boolean {
+  const { lastCountCheckAt } = getItemSalesSyncMeta();
+  if (!lastCountCheckAt) return false;
+  const at = Date.parse(lastCountCheckAt);
+  return Number.isFinite(at) && Date.now() - at < COUNT_CHECK_TTL_MS;
+}
+
 export async function getArchivedCustomerItemSales(): Promise<CustomerItemSaleRecord[]> {
   if (typeof window === 'undefined') return [];
   try {
@@ -503,7 +547,9 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
     // Resolve month: اسم شهر / رقم / تاريخ في عمود الشهر، وإلا من عمود التاريخ
     const monthCell = colMap.month >= 0 ? row[colMap.month] : '';
     const resolvedMonth = parseSalesMonthValue(monthCell, rawDate);
-    const month = resolvedMonth && resolvedMonth >= 1 && resolvedMonth <= 12 ? resolvedMonth : 1;
+    // لو الشهر مش معروف من عمود الشهر ولا من عمود التاريخ، بيتسجّل 0 («غير محدد»)
+    // بدل ما يتحشر في يناير — كان بيكبّر مبيعات يناير في كل التحليلات والبروفايلات.
+    const month = resolvedMonth && resolvedMonth >= 1 && resolvedMonth <= 12 ? resolvedMonth : 0;
 
     const itemGroup = getVal(colMap.itemGroup) || 'عام';
     const definitions = getVal(colMap.definitions);
@@ -511,14 +557,26 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
     const sector = parseSalesSectorValue(colMap.sector >= 0 ? row[colMap.sector] : '');
 
     const record: CustomerItemSaleRecord = {
-      id: `cis-${i}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+      // معرّف مشتق من مفاتيح السطر (عميل + صنف + شهر + أمر بيع + تاريخ + كمية + قيمة)
+      // بدل معرّف عشوائي: إعادة استيراد نفس الشيت بتحدّث نفس الصف بدل ما تكرّره.
+      id: toValidUUID(
+        [
+          customerAccount || `CUST-${i}`,
+          unifiedCode || itemCode || `ITEM-${i}`,
+          String(month),
+          salesOrder || '',
+          rawDate || '',
+          String(quantity),
+          String(amount)
+        ].join('|')
+      ),
       customerAccount: customerAccount || `CUST-${i}`,
       invoicingName: invoicingName || customerAccount || `عميل #${i}`,
       salesOrder: salesOrder || undefined,
       date: rawDate || undefined,
       repName,
       month,
-      monthName: MONTH_NAMES_MAP[month] || `شهر ${month}`,
+      monthName: MONTH_NAMES_MAP[month] || 'غير محدد',
       warehouse,
       itemCode: itemCode || `ITEM-${i}`,
       itemName: itemName || definitions || itemCode || `صنف #${i}`,
@@ -937,10 +995,12 @@ export function aggregateCustomerItemSales(
     summary.totalQuantity += s.quantity;
     summary.totalAmount += s.amount;
 
-    // Monthly aggregates
-    const m = s.month || 1;
-    summary.monthlySales[m] = (summary.monthlySales[m] || 0) + s.amount;
-    summary.monthlyQuantities[m] = (summary.monthlyQuantities[m] || 0) + s.quantity;
+    // Monthly aggregates — الشهر غير المحدد (0) ميدخلش في أي شهر بالمصفوفة
+    const m = Number(s.month) || 0;
+    if (m >= 1 && m <= 12) {
+      summary.monthlySales[m] = (summary.monthlySales[m] || 0) + s.amount;
+      summary.monthlyQuantities[m] = (summary.monthlyQuantities[m] || 0) + s.quantity;
+    }
 
     // Group breakdown
     const grp = s.itemGroup || 'عام';
@@ -1141,9 +1201,25 @@ function customerItemMonthKey(record: {
 /**
  * Save Customer Item Sales to storage (In-memory + IndexedDB primary + localStorage cache + window event)
  */
-export async function saveCustomerItemSales(sales: CustomerItemSaleRecord[], mode: 'replace' | 'merge' = 'replace'): Promise<void> {
+export async function saveCustomerItemSales(
+  sales: CustomerItemSaleRecord[],
+  /**
+   * replace = استبدال كل شيء، merge = استبدال مجموعات (عميل+صنف+شهر)،
+   * upsert = تحديث بالمعرّف فقط مع الحفاظ على باقي السجلات — ده اللي
+   * بيستخدمه الجلب الجزئي عشان مايمسحش حركات تانية من نفس المجموعة.
+   */
+  mode: 'replace' | 'merge' | 'upsert' = 'replace'
+): Promise<void> {
   let finalSales = sales;
-  if (mode === 'merge') {
+  if (mode === 'upsert') {
+    try {
+      const existing = await getSavedCustomerItemSales();
+      const byId = new Map<string, CustomerItemSaleRecord>();
+      existing.forEach((record) => byId.set(record.id, record));
+      sales.forEach((record) => byId.set(record.id, record));
+      finalSales = Array.from(byId.values());
+    } catch {}
+  } else if (mode === 'merge') {
     try {
       const existing = await getSavedCustomerItemSales();
       /**
@@ -1308,7 +1384,7 @@ export async function pushCustomerItemSalesToSupabase(
           sales_order: s.salesOrder ? String(s.salesOrder).trim() : null,
           sale_date: s.date ? String(s.date).trim().slice(0, 10) : null,
           rep_name: String(s.repName || 'غير محدد').trim(),
-          month: Math.max(1, Math.min(12, Number(s.month) || 1)),
+          month: Math.max(0, Math.min(12, Number(s.month) || 0)),
           warehouse: String(s.warehouse || 'الفرع الرئيسي').trim(),
           item_code: String(s.itemCode || 'ITM-UNKNOWN').trim(),
           item_name: String(s.itemName || s.itemCode || 'صنف غير محدد').trim(),
@@ -1385,7 +1461,7 @@ export function mapSupabaseRowToCustomerItemSale(row: any): CustomerItemSaleReco
     salesOrder: row.sales_order || undefined,
     date: row.sale_date || undefined,
     repName: row.rep_name || 'غير محدد',
-    month: Number(row.month) || 1,
+    month: Number(row.month) || 0,
     monthName: MONTH_NAMES_MAP[Number(row.month)] || `شهر ${row.month}`,
     warehouse: row.warehouse || 'الفرع الرئيسي',
     itemCode: row.item_code,

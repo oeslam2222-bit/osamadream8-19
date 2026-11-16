@@ -192,6 +192,38 @@ import {
 type ActiveSector = 'all' | 'home' | 'electrical';
 
 /**
+ * دالة التحقق من كلمة المرور على السيرفر (supabase/harden_login_rpc.sql) اختيارية:
+ * لو مش منشورة في قاعدة البيانات، PostgREST بيرجّع 404 في كل محاولة دخول.
+ *
+ * بنسجّل وقت الغياب ونعيد المحاولة بعد 24 ساعة بس، فمافيش 404 متكرر في
+ * الكونسول ولا رحلة شبكة زايدة مع كل login — ولما تنشر الدالة، بتبدأ تشتغل
+ * أوتوماتيك من غير تعديل كود.
+ */
+const SERVER_VERIFY_MISSING_KEY = 'tantawy:server_verify_missing_at_v1';
+const SERVER_VERIFY_RECHECK_MS = 24 * 60 * 60 * 1000;
+
+function isServerVerifyKnownMissing(): boolean {
+  try {
+    const savedAt = Number(localStorage.getItem(SERVER_VERIFY_MISSING_KEY));
+    return Number.isFinite(savedAt) && savedAt > 0 && Date.now() - savedAt < SERVER_VERIFY_RECHECK_MS;
+  } catch {
+    return false;
+  }
+}
+
+function markServerVerifyMissing(): void {
+  try {
+    safeLocalStorageSet(SERVER_VERIFY_MISSING_KEY, String(Date.now()));
+  } catch {}
+}
+
+function clearServerVerifyMissing(): void {
+  try {
+    localStorage.removeItem(SERVER_VERIFY_MISSING_KEY);
+  } catch {}
+}
+
+/**
  * بصمة محتوى جدول العملاء آخر مرة نزّلناها بالكامل.
  * بتُحفظ على الجهاز عشان إعادة فتح التطبيق تعمل استعلام صف واحد فقط
  * (count + أحدث updated_at) بدل ما تنزّل الجدول كله من جديد — ده أكبر بند
@@ -4887,16 +4919,28 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       // تحقّق عبر دالة السيرفر أولًا (supabase/harden_login_rpc.sql). لما تكون
       // منشورة، البصمة نفسها مش محتاجة تبقى قابلة للقراءة بالمفتاح العام.
       let serverVerified = false;
-      try {
-        const { data: rpcData, error: rpcErr } = await supabase.rpc('verify_user_credentials', {
-          p_username: rawTrim || cleanId || asciiDigits,
-          p_password: cleanPass,
-        });
-        if (!rpcErr && Array.isArray(rpcData) && rpcData.length > 0) {
-          serverVerified = Boolean((rpcData[0] as any)?.matched);
+      // لو الدالة معروفة إنها مش منشورة (404 خلال آخر 24 ساعة) مش بنطلبها أصلًا.
+      if (!isServerVerifyKnownMissing()) {
+        try {
+          const { data: rpcData, error: rpcErr } = await supabase.rpc('verify_user_credentials', {
+            p_username: rawTrim || cleanId || asciiDigits,
+            p_password: cleanPass,
+          });
+          if (rpcErr) {
+            const code = String((rpcErr as any)?.code || '');
+            const status = Number((rpcErr as any)?.status || 0);
+            const msg = String((rpcErr as any)?.message || '').toLowerCase();
+            if (status === 404 || code === 'PGRST202' || msg.includes('could not find the function')) {
+              markServerVerifyMissing();
+            }
+          } else if (Array.isArray(rpcData) && rpcData.length > 0) {
+            clearServerVerifyMissing();
+            serverVerified = Boolean((rpcData[0] as any)?.matched);
+          }
+        } catch {
+          // الدالة مش منشورة بعد — بنكمل بالتحقق المحلي زي الأول.
+          markServerVerifyMissing();
         }
-      } catch {
-        // الدالة مش منشورة بعد — بنكمل بالتحقق المحلي زي الأول.
       }
 
       let check = serverVerified

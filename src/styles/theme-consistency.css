@@ -510,3 +510,771 @@ html.dark .app-main [class*="from-[#f4fbfd]"] {
   background-color: var(--app-card-secondary) !important;
   border-color: var(--app-border) !important;
 }
+
+/* ============================================================
+   CARD COLOUR SYSTEM — ألوان الكروت في الوضع النهاري والليلي
+   ------------------------------------------------------------
+   الكروت الملوّنة كانت معرّفة في 4 ملفات بقيم مختلفة (identity /
+   app-shell / brand-v2 / theme-consistency)، فكان شكلها بيختلف من
+   شاشة لشاشة ومن وضع لوضع. هنا مجموعة ألوان واحدة (أزرق / أخضر /
+   بنفسجي / أحمر / برتقالي) بتتطبّق على:
+     • كروت الأهداف الأربعة   .tg-target-card--*
+     • كروت الأداء السريع      .tg-quick-card
+     • كروت المؤشرات           .tg-kpi--*
+     • كروت المعلومات السريعة  .tg-stat--colored
+
+   نهاري: سطح أبيض بمسحة لون خفيفة + حدود واضحة + شريط لون جانبي
+   ليلي : نفس اللون بدرجة مشبعة شفافة فوق سطح الكارت الداكن (مش أسود)
+   ============================================================ */
+
+/* ---------- القيم المشتركة (نهاري) ---------- */
+.tg-target-card,
+.tg-quick-card,
+.tg-kpi,
+.tg-stat--colored {
+  --c-base: #ffffff;
+  --c-wash: #ffffff;
+  --c-line: #e2e8f0;
+  --c-accent: transparent;
+  --c-value: #0f172a;
+  --c-ink: #0f172a;
+  --c-label: #475569;
+  --c-sub: #64748b;
+  --c-icon-bg: #f1f5f9;
+  --c-icon-ink: #475569;
+  --c-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+  --c-shadow-hover: 0 14px 30px rgba(15, 23, 42, 0.12);
+}
+
+/* ---------- القيم المشتركة (ليلي) ---------- */
+html.dark .tg-target-card,
+html.dark .tg-quick-card,
+html.dark .tg-kpi,
+html.dark .tg-stat--colored {
+  --c-base: var(--app-card, #111c2e);
+  --c-wash: var(--app-card, #111c2e);
+  --c-line: #26364d;
+  --c-value: #f1f5f9;
+  --c-ink: #e2e8f0;
+  --c-label: #cbd5e1;
+  --c-sub: #94a3b8;
+  --c-icon-bg: rgba(255, 255, 255, 0.07);
+  --c-icon-ink: #cbd5e1;
+  --c-shadow: 0 6px 18px rgba(0, 0, 0, 0.32);
+  --c-shadow-hover: 0 16px 34px rgba(0, 0, 0, 0.5);
+}
+
+/* ---------- أزرق (مبيعات / مؤشرات إيجابية) ---------- */
+.tg-target-card--sales,
+.tg-quick-card:nth-child(1),
+.tg-kpi--blue,
+.tg-stat--colored.tg-stat--blue {
+  --c-wash: #eef4ff;
+  --c-line: #d4e3fb;
+  --c-accent: #2563eb;
+  --c-value: #1e40af;
+  --c-ink: #1e40af;
+  --c-icon-bg: #dbeafe;
+  --c-icon-ink: #1d4ed8;
+}
+html.dark .tg-target-card--sales,
+html.dark .tg-quick-card:nth-child(1),
+html.dark .tg-kpi--blue,
+html.dark .tg-stat--colored.tg-stat--blue {
+  --c-wash: rgba(37, 99, 235, 0.15);
+  --c-line: rgba(96, 165, 250, 0.36);
+  --c-accent: #3b82f6;
+  --c-ink: #bfdbfe;
+  --c-icon-bg: rgba(59, 130, 246, 0.2);
+  --c-icon-ink: #93c5fd;
+}
+
+/* ---------- أخضر (تحصيلات / مستحقات) ---------- */
+.tg-target-card--receivable,
+.tg-quick-card:nth-child(2),
+.tg-kpi--green,
+.tg-kpi--emerald,
+.tg-stat--colored.tg-stat--emerald,
+.tg-stat--colored.tg-stat--green {
+  --c-wash: #ebfaf2;
+  --c-line: #c8ecd9;
+  --c-accent: #059669;
+  --c-value: #047857;
+  --c-ink: #047857;
+  --c-icon-bg: #d1fae5;
+  --c-icon-ink: #047857;
+}
+html.dark .tg-target-card--receivable,
+html.dark .tg-quick-card:nth-child(2),
+html.dark .tg-kpi--green,
+html.dark .tg-kpi--emerald,
+html.dark .tg-stat--colored.tg-stat--emerald,
+html.dark .tg-stat--colored.tg-stat--green {
+  --c-wash: rgba(16, 185, 129, 0.15);
+  --c-line: rgba(52, 211, 153, 0.34);
+  --c-accent: #10b981;
+  --c-ink: #a7f3d0;
+  --c-icon-bg: rgba(16, 185, 129, 0.2);
+  --c-icon-ink: #6ee7b7;
+}
+
+/* ---------- بنفسجي (تحصيل / عروض / أوامر بيع) ---------- */
+.tg-target-card--collection,
+.tg-quick-card:nth-child(3),
+.tg-kpi--violet,
+.tg-stat--colored.tg-stat--violet {
+  --c-wash: #f6f2ff;
+  --c-line: #e3d9fb;
+  --c-accent: #7c3aed;
+  --c-value: #6d28d9;
+  --c-ink: #6d28d9;
+  --c-icon-bg: #ede9fe;
+  --c-icon-ink: #6d28d9;
+}
+html.dark .tg-target-card--collection,
+html.dark .tg-quick-card:nth-child(3),
+html.dark .tg-kpi--violet,
+html.dark .tg-stat--colored.tg-stat--violet {
+  --c-wash: rgba(124, 58, 237, 0.18);
+  --c-line: rgba(167, 139, 250, 0.36);
+  --c-accent: #8b5cf6;
+  --c-ink: #ddd6fe;
+  --c-icon-bg: rgba(139, 92, 246, 0.22);
+  --c-icon-ink: #c4b5fd;
+}
+
+/* ---------- أحمر (مديونيات / مرتجعات / مخاطر) ---------- */
+.tg-target-card--debt,
+.tg-quick-card:nth-child(4),
+.tg-kpi--red,
+.tg-stat--colored.tg-stat--red {
+  --c-wash: #fff1f1;
+  --c-line: #f8d6d6;
+  --c-accent: #dc2626;
+  --c-value: #b91c1c;
+  --c-ink: #b91c1c;
+  --c-icon-bg: #fee2e2;
+  --c-icon-ink: #b91c1c;
+}
+html.dark .tg-target-card--debt,
+html.dark .tg-quick-card:nth-child(4),
+html.dark .tg-kpi--red,
+html.dark .tg-stat--colored.tg-stat--red {
+  --c-wash: rgba(239, 68, 68, 0.16);
+  --c-line: rgba(248, 113, 113, 0.36);
+  --c-accent: #ef4444;
+  --c-ink: #fecaca;
+  --c-icon-bg: rgba(239, 68, 68, 0.2);
+  --c-icon-ink: #fca5a5;
+}
+
+/* ---------- برتقالي (تحذيرات / مرتجعات معلّقة) ---------- */
+.tg-kpi--amber,
+.tg-kpi--orange,
+.tg-stat--colored.tg-stat--amber,
+.tg-stat--colored.tg-stat--orange {
+  --c-wash: #fff6e6;
+  --c-line: #f6e0b8;
+  --c-accent: #d97706;
+  --c-value: #b45309;
+  --c-ink: #b45309;
+  --c-icon-bg: #fef3c7;
+  --c-icon-ink: #b45309;
+}
+html.dark .tg-kpi--amber,
+html.dark .tg-kpi--orange,
+html.dark .tg-stat--colored.tg-stat--amber,
+html.dark .tg-stat--colored.tg-stat--orange {
+  --c-wash: rgba(245, 158, 11, 0.16);
+  --c-line: rgba(251, 191, 36, 0.36);
+  --c-accent: #f59e0b;
+  --c-ink: #fde68a;
+  --c-icon-bg: rgba(245, 158, 11, 0.2);
+  --c-icon-ink: #fcd34d;
+}
+
+/* ---------- تطبيق السطح: مسحة لون فوق سطح الكارت + شريط جانبي ---------- */
+.tg-target-card,
+.tg-quick-card {
+  background: linear-gradient(150deg, var(--c-wash) 0%, var(--c-base) 78%) !important;
+  border: 1px solid var(--c-line) !important;
+  /* الشريط على بداية السطر (يمين في RTL) — مش على الشمال */
+  border-inline-start-width: 4px !important;
+  border-inline-start-style: solid !important;
+  border-inline-start-color: var(--c-accent) !important;
+  box-shadow: var(--c-shadow) !important;
+}
+
+.tg-kpi {
+  background: linear-gradient(150deg, var(--c-wash) 0%, var(--c-base) 82%) !important;
+  border-color: var(--c-line) !important;
+  box-shadow: var(--c-shadow) !important;
+}
+.tg-kpi::before {
+  background: var(--c-accent) !important;
+}
+
+.tg-stat--colored {
+  background: var(--c-wash) !important;
+  border: 1px solid var(--c-line) !important;
+  color: var(--c-ink) !important;
+}
+
+/* ---------- النصوص والأيقونات بلون الكارت نفسه في الوضعين ---------- */
+.tg-target-card .tg-target__value,
+.tg-quick-card .tg-q__value,
+.tg-kpi .tg-kpi__value,
+.tg-stat--colored .tg-stat__value {
+  color: var(--c-value) !important;
+}
+html.dark .tg-target-card .tg-target__value,
+html.dark .tg-quick-card .tg-q__value,
+html.dark .tg-kpi .tg-kpi__value,
+html.dark .tg-stat--colored .tg-stat__value {
+  color: var(--c-value) !important;
+}
+
+.tg-target-card .tg-target__label,
+.tg-quick-card .tg-q__label,
+.tg-kpi .tg-kpi__label,
+.tg-stat--colored .tg-stat__label {
+  color: var(--c-label) !important;
+}
+html.dark .tg-target-card .tg-target__label,
+html.dark .tg-quick-card .tg-q__label,
+html.dark .tg-kpi .tg-kpi__label,
+html.dark .tg-stat--colored .tg-stat__label {
+  color: var(--c-label) !important;
+}
+
+.tg-target-card .tg-target__sub,
+.tg-quick-card .tg-q__sub,
+.tg-kpi .tg-kpi__hint,
+.tg-stat--colored .tg-stat__sub {
+  color: var(--c-sub) !important;
+}
+html.dark .tg-target-card .tg-target__sub,
+html.dark .tg-quick-card .tg-q__sub,
+html.dark .tg-kpi .tg-kpi__hint,
+html.dark .tg-stat--colored .tg-stat__sub {
+  color: var(--c-sub) !important;
+}
+
+.tg-target-card .tg-target__icon,
+.tg-quick-card .tg-q__icon,
+.tg-kpi .tg-kpi__icon {
+  background: var(--c-icon-bg) !important;
+  color: var(--c-icon-ink) !important;
+  box-shadow: none !important;
+}
+.tg-target-card .tg-target__icon svg,
+.tg-quick-card .tg-q__icon svg,
+.tg-kpi .tg-kpi__icon svg {
+  color: var(--c-icon-ink) !important;
+}
+
+/* كروت المعلومات السريعة: نفس لون الكارت للنص والأيقونة */
+.tg-stat--colored .tg-stat__value,
+.tg-stat--colored .tg-stat__label,
+.tg-stat--colored .tg-stat__sub {
+  color: var(--c-ink) !important;
+}
+.tg-stat--colored > svg {
+  color: var(--c-ink) !important;
+}
+
+/* ---------- الكارت العادي في الليلي: نفس سطح الثيم (#111C2E) ----------
+   app-shell.css كان بيثبّت #0A1E27 (أسود مخضر) فيغلب على توكنز brand-v2
+   ويخلي الكروت أغمق من صفحة التطبيق نفسها. */
+html.dark .app-main .tg-card {
+  background-color: var(--app-card) !important;
+  border-color: var(--app-border) !important;
+}
+
+/* ---------- تفاعل موحّد: رفعة خفيفة عند المرور ---------- */
+@media (hover: hover) {
+  .tg-target-card,
+  .tg-quick-card,
+  .tg-kpi {
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  }
+  .tg-target-card:hover,
+  .tg-quick-card:hover,
+  .tg-kpi:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--c-shadow-hover) !important;
+  }
+}
+
+/* ============================================================
+   الجزء الثاني: الجداول + الفلاتر + الشرائح + الحقول
+   نفس منطق الكروت: لون واحد لكل حالة، وقيم منفصلة للنهاري والليلي
+   ============================================================ */
+
+/* ---------- 1) الجداول: رأس، صفوف مخططة، وهافر ----------
+   .tg-table كان فيها هافر ثابت #f8fafc فبيفضل أبيض جوه الوضع الليلي. */
+.tg-table {
+  background: var(--app-card);
+  border-color: var(--app-border);
+}
+.tg-table thead {
+  background: #f1f5f9;
+}
+.tg-table th {
+  color: #475569;
+  border-bottom-color: var(--app-border);
+}
+.tg-table td {
+  color: var(--app-text);
+  border-bottom-color: var(--app-border);
+}
+/* الصفوف الملونة (ترحيل/تنبيه) بتفضل بلونها — الزيبرا للصفوف العادية فقط */
+.tg-table tbody tr:nth-child(even):not([class*="bg-"]) td {
+  background: rgba(15, 23, 42, 0.02);
+}
+.tg-table tbody tr:hover:not([class*="bg-"]) td {
+  background: rgba(37, 99, 235, 0.06);
+}
+
+html.dark .tg-table {
+  background: var(--app-card) !important;
+  border-color: var(--app-border) !important;
+}
+html.dark .tg-table thead {
+  background: var(--app-card-secondary) !important;
+}
+html.dark .tg-table th {
+  color: #cbd5e1 !important;
+  border-bottom-color: var(--app-border) !important;
+}
+html.dark .tg-table td {
+  color: #f1f5f9 !important;
+  border-bottom-color: var(--app-border) !important;
+}
+html.dark .tg-table tbody tr:nth-child(even):not([class*="bg-"]) td {
+  background: rgba(255, 255, 255, 0.025) !important;
+}
+html.dark .tg-table tbody tr:hover:not([class*="bg-"]) td {
+  background: rgba(59, 130, 246, 0.12) !important;
+}
+
+/* ---------- 2) شرائح المعلومات .tg-pill (كانت فاتحة في الليلي) ---------- */
+html.dark .tg-pill--blue { background: rgba(37, 99, 235, 0.16); color: #bfdbfe; }
+html.dark .tg-pill--green { background: rgba(16, 185, 129, 0.16); color: #a7f3d0; }
+html.dark .tg-pill--orange { background: rgba(245, 158, 11, 0.16); color: #fde68a; }
+html.dark .tg-pill--violet { background: rgba(124, 58, 237, 0.2); color: #ddd6fe; }
+html.dark .tg-pill--red { background: rgba(239, 68, 68, 0.16); color: #fecaca; }
+html.dark .tg-pill--slate { background: rgba(148, 163, 184, 0.14); color: #cbd5e1; }
+
+/* ---------- 3) فلاتر الشرائح .app-pill / .pill-filter ----------
+   القواعد القديمة كانت بيثبّت الأبيض على الفلاتر، فتبان كلها بيضاء في الليلي. */
+html.dark .app-pill,
+html.dark .pill-filter {
+  background: var(--app-card) !important;
+  border-color: var(--app-border) !important;
+  color: #cbd5e1 !important;
+}
+html.dark .app-pill:hover:not(:disabled),
+html.dark .pill-filter:hover:not(:disabled) {
+  background: var(--app-card-hover) !important;
+  border-color: #475569 !important;
+  color: #f1f5f9 !important;
+}
+html.dark .app-pill.on,
+html.dark .pill-filter.on {
+  background: #2563eb !important;
+  border-color: #3b82f6 !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 -3px 0 #93c5fd !important;
+}
+html:not(.dark) .app-pill,
+html:not(.dark) .pill-filter {
+  background: #ffffff !important;
+  border-color: #d6dfea !important;
+  color: #3f5266 !important;
+}
+html:not(.dark) .app-pill:hover:not(:disabled),
+html:not(.dark) .pill-filter:hover:not(:disabled) {
+  background: #f8fafc !important;
+  border-color: #b9c7d8 !important;
+  color: #0f2b38 !important;
+}
+html:not(.dark) .app-pill.on,
+html:not(.dark) .pill-filter.on {
+  background: #1e3a8a !important;
+  border-color: #1e3a8a !important;
+  color: #ffffff !important;
+  box-shadow: inset 0 -3px 0 #2563eb !important;
+}
+
+/* ---------- 4) بادجات الحالة .app-badge في الليلي ---------- */
+html.dark .app-badge.ok {
+  background: rgba(5, 150, 105, 0.18) !important;
+  color: #6ee7b7 !important;
+  border-color: rgba(45, 212, 191, 0.35) !important;
+}
+html.dark .app-badge.warn {
+  background: rgba(245, 158, 11, 0.16) !important;
+  color: #fde68a !important;
+  border-color: rgba(251, 191, 36, 0.35) !important;
+}
+html.dark .app-badge.risk {
+  background: rgba(239, 68, 68, 0.16) !important;
+  color: #fecaca !important;
+  border-color: rgba(248, 113, 113, 0.35) !important;
+}
+html.dark .app-badge.neutral {
+  background: rgba(148, 163, 184, 0.14) !important;
+  color: #cbd5e1 !important;
+  border-color: var(--app-border) !important;
+}
+
+/* ---------- 5) الأزرار الشفافة .app-btn-ghost / .btn-ghost ---------- */
+html:not(.dark) .app-btn-ghost,
+html:not(.dark) .btn-ghost,
+html:not(.dark) .chip-btn {
+  background: #ffffff !important;
+  border-color: #d6dfea !important;
+  color: #334155 !important;
+}
+html:not(.dark) .app-btn-ghost:hover:not(:disabled),
+html:not(.dark) .btn-ghost:hover:not(:disabled),
+html:not(.dark) .chip-btn:hover:not(:disabled) {
+  background: #f8fafc !important;
+  border-color: #b9c7d8 !important;
+  color: #0f2b38 !important;
+}
+html.dark .app-btn-ghost,
+html.dark .btn-ghost,
+html.dark .chip-btn {
+  background: var(--app-card) !important;
+  border-color: var(--app-border) !important;
+  color: #cbd5e1 !important;
+}
+html.dark .app-btn-ghost:hover:not(:disabled),
+html.dark .btn-ghost:hover:not(:disabled),
+html.dark .chip-btn:hover:not(:disabled) {
+  background: var(--app-card-hover) !important;
+  border-color: #475569 !important;
+  color: #f1f5f9 !important;
+}
+
+/* ---------- 6) الحقول: الفوكس كان بيرجّع الخلفية بيضاء في الليلي ---------- */
+html.dark .tg-input:focus,
+html.dark .tg-select:focus {
+  background: var(--app-card-secondary) !important;
+  color: var(--app-text) !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.28) !important;
+}
+html:not(.dark) .tg-input:focus,
+html:not(.dark) .tg-select:focus {
+  background: #ffffff;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+}
+
+/* نفس حلقة الفوكس لكل الحقول على مستوى شاشات التطبيق (نهار/ليل) */
+html:not(.dark) .app-main input:focus-visible,
+html:not(.dark) .app-main select:focus-visible,
+html:not(.dark) .app-main textarea:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+html.dark .app-main input:focus-visible,
+html.dark .app-main select:focus-visible,
+html.dark .app-main textarea:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 1px;
+}
+
+/* ============================================================
+   UNIFIED UI PASS — طبقة التوحيد النهائية للديزين كله
+   ------------------------------------------------------------
+   بتربط النوافذ (المودالات) والأزرار والحقول والعناوين بكروت
+   التطبيق: نفس نصف القطر، نفس الحدود، نفس الظل، ونفس ألوان
+   الوضع النهاري والليلي. الملف ده بيتحمّل آخر حاجة في main.tsx.
+   ============================================================ */
+
+/* ---------- 0) توكن ناقص كان بيقطع حدود رؤوس الجداول ---------- */
+:root {
+  --tg-line-strong: #cbd5e1;
+  --ui-radius: 12px;
+  --ui-radius-lg: 18px;
+  --ui-ring: 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
+html.dark {
+  --tg-line-strong: #334155;
+  --ui-ring: 0 0 0 3px rgba(96, 165, 250, 0.24);
+}
+
+/* ---------- 1) النوافذ/المودالات: نفس سطح الكروت في الليلي ----------
+   المودالات بتترسم بره <main>، فقواعد .app-main مش بتوصلها، وكانت
+   بتفضل بدرجة سلاط (bg-slate) مختلفة عن سطح التطبيق. */
+html.dark [role="dialog"].bg-white,
+html.dark [role="dialog"] .bg-white,
+html.dark [role="dialog"].bg-slate-50,
+html.dark [role="dialog"] .bg-slate-50 {
+  background-color: var(--app-card) !important;
+  color: var(--app-text) !important;
+}
+html.dark [role="dialog"] .bg-slate-100,
+html.dark [role="dialog"] .bg-slate-100\/60,
+html.dark [role="dialog"] .bg-slate-100\/70 {
+  background-color: var(--app-card-secondary) !important;
+}
+html.dark [role="dialog"] .border-slate-200,
+html.dark [role="dialog"] .border-slate-300,
+html.dark [role="dialog"] .border-slate-100 {
+  border-color: var(--app-border) !important;
+}
+html.dark [role="dialog"] .text-slate-900,
+html.dark [role="dialog"] .text-slate-800,
+html.dark [role="dialog"] .text-slate-700 {
+  color: var(--app-text) !important;
+}
+html.dark [role="dialog"] .text-slate-600,
+html.dark [role="dialog"] .text-slate-500,
+html.dark [role="dialog"] .text-slate-400 {
+  color: var(--app-text-muted) !important;
+}
+
+/* ---------- 2) الأزرار: مقاس واحد ونصف قطر واحد في كل الشاشات ---------- */
+.tg-btn,
+.app-btn,
+.btn-primary,
+.btn-ghost,
+.btn-danger,
+.chip-btn {
+  border-radius: var(--ui-radius);
+  font-weight: 800;
+  transition: background-color 0.18s ease, color 0.18s ease,
+    border-color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease;
+}
+.tg-btn:active:not(:disabled),
+.app-btn:active:not(:disabled),
+.btn-primary:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.tg-btn:disabled,
+.app-btn:disabled,
+.btn-primary:disabled,
+.btn-ghost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* الزر الشفاف في الليلي (كان بيطلع بحدود فاتحة غير متناسقة) */
+html.dark .tg-btn--ghost {
+  background: var(--app-card) !important;
+  border-color: var(--app-border) !important;
+  color: #cbd5e1 !important;
+}
+html.dark .tg-btn--ghost:hover {
+  background: var(--app-card-hover) !important;
+  border-color: #475569 !important;
+  color: #f1f5f9 !important;
+}
+
+/* زر الخطر: نسخة واضحة في الوضعين */
+html:not(.dark) .tg-btn--danger {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+html:not(.dark) .tg-btn--danger:hover { background: #fecaca; }
+html.dark .tg-btn--danger {
+  background: rgba(239, 68, 68, 0.16) !important;
+  border: 1px solid rgba(248, 113, 113, 0.34) !important;
+  color: #fca5a5 !important;
+}
+html.dark .tg-btn--danger:hover { background: rgba(239, 68, 68, 0.24) !important; }
+
+/* زر رمادي ناعم (soft) في الليلي */
+html.dark .tg-btn--soft {
+  background: rgba(148, 163, 184, 0.14) !important;
+  border-color: rgba(148, 163, 184, 0.3) !important;
+  color: #e2e8f0 !important;
+}
+
+/* ---------- 3) الحقول: أساس واحد لكل الشاشات ----------
+   نستخدم :where عشان قواعد الشاشات والأدوات الحالية تكسب، فبنملأ
+   الفراغات بس (حقول من غير شكل) من غير ما نكسر حقل معمول باليد. */
+:where(.app-main, [role="dialog"])
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+    select,
+    textarea
+  ) {
+  border-radius: var(--ui-radius);
+  /* Tailwind preflight بيلغي عرض الحدود، فبدون border-width الحقل بيبقى بدون شكل */
+  border-width: 1px;
+  border-color: var(--app-border);
+  border-style: solid;
+  background-color: var(--app-card);
+  color: var(--app-text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+:where(.app-main, [role="dialog"])
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+    select,
+    textarea
+  )::placeholder {
+  color: var(--app-text-muted);
+  opacity: 0.85;
+}
+:where(.app-main, [role="dialog"])
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+    select,
+    textarea
+  ):focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: var(--ui-ring);
+}
+html.dark
+  :where(.app-main, [role="dialog"])
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+    select,
+    textarea
+  ) {
+  background-color: var(--app-card);
+}
+html.dark
+  :where(.app-main, [role="dialog"])
+  :where(
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+    select,
+    textarea
+  ):focus {
+  background-color: var(--app-card-secondary);
+  border-color: #60a5fa;
+}
+
+/* ---------- 4) الكارت الموحّد .tg-card في الوضعين ---------- */
+.tg-card {
+  border-radius: var(--ui-radius-lg);
+  border-color: var(--app-border);
+  background: var(--app-card);
+  box-shadow: var(--app-shadow-card);
+}
+.tg-card__head {
+  border-bottom-color: var(--app-border);
+}
+.tg-card__title {
+  color: var(--app-text);
+}
+.tg-card__hint {
+  color: var(--app-text-muted);
+}
+
+/* ---------- 5) سلّم العناوين: فرق واضح بين h1/h2/h3 ---------- */
+:where(.app-main) :where(h1) {
+  font-size: 1.4rem;
+  line-height: 1.25;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+:where(.app-main) :where(h2) {
+  font-size: 1.1rem;
+  line-height: 1.3;
+  font-weight: 800;
+}
+:where(.app-main) :where(h3) {
+  font-size: 0.95rem;
+  line-height: 1.35;
+  font-weight: 700;
+}
+
+/* ---------- 6) السايدبار والتوب بار: نفس نصف القطر والانتقالات ---------- */
+.ds-sidebar__item,
+.ds-drawer__item {
+  border-radius: var(--ui-radius);
+  transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+.ds-topbar .ds-iconbtn,
+.ds-topbar .ds-iconbtn--primary {
+  border-radius: var(--ui-radius);
+}
+
+/* ---------- 7) أسطح خارج <main>: دراور/بوبوفر/مودالات ----------
+   src/index.css كان بيحوّل الأبيض لـ#131d2e (سلاط) وده لون تالت غير كروت
+   التطبيق. هنا كل سطح أبيض بره الشيل بيأخد لون الكارت الموحد. */
+html.dark .bg-white:not(.login-chip):not(.keep-white) {
+  background-color: var(--app-card) !important;
+}
+html.dark .bg-slate-50:not(.keep-white) {
+  background-color: var(--app-card-secondary) !important;
+}
+html.dark .bg-slate-100:not(.keep-white) {
+  background-color: var(--app-card-hover) !important;
+}
+html.dark .border-slate-200,
+html.dark .border-slate-300 {
+  border-color: var(--app-border) !important;
+}
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700 {
+  color: var(--app-text) !important;
+}
+html.dark .text-slate-600,
+html.dark .text-slate-500 {
+  color: var(--app-text-muted) !important;
+}
+
+/* ---------- 8) ترويسة الصفحة الموحّدة (20 شاشة تستخدمها) ----------
+   كانت تدرج مختلف (من غير هوية الدور) وظل وتدوير مختلفين عن التوب بار
+   والسايدبار. بقت من نفس عائلة الشيل الكحلي + خط الدور. */
+.ds-pagehead {
+  border-radius: 18px;
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(120% 150% at 100% 0%, rgba(37, 99, 235, 0.28) 0%, transparent 48%),
+    linear-gradient(130deg, #0f2b38 0%, #123f5c 55%, #14384a 100%);
+  box-shadow: 0 14px 34px rgba(8, 30, 52, 0.22);
+  color: #ffffff;
+}
+.ds-pagehead::after {
+  background: radial-gradient(circle, var(--role-2, #3b82f6), transparent 68%);
+  opacity: 0.42;
+}
+.ds-pagehead h1,
+.ds-pagehead h2 {
+  color: #ffffff;
+  font-size: 1.35rem;
+  line-height: 1.25;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.ds-pagehead .ds-crumb {
+  color: rgba(219, 234, 254, 0.85);
+  font-weight: 700;
+}
+.ds-pagehead .ds-crumb strong {
+  color: #bfdbfe;
+}
+.ds-pagehead__hint {
+  color: #c3d9ec;
+}
+html.dark .ds-pagehead {
+  background:
+    radial-gradient(120% 150% at 100% 0%, rgba(37, 99, 235, 0.22) 0%, transparent 50%),
+    linear-gradient(130deg, #0d2433 0%, #102f45 55%, #123246 100%);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42);
+}
+
+/* ---------- 9) شيبس الحالة ---------- */
+.tg-chip {
+  border-radius: 999px;
+  font-weight: 700;
+}
+html.dark .tg-chip {
+  background: rgba(148, 163, 184, 0.14);
+  border-color: rgba(148, 163, 184, 0.28);
+  color: #e2e8f0;
+}

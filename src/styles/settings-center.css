@@ -8,13 +8,10 @@
   padding-bottom: 24px;
 }
 
-/* ---------- الرأس ---------- */
+/* ---------- الرأس ----------
+ * الترويسة بتاخد شكلها من `.ds-pagehead` الموحّد (نفس كحلي الشل والهالة
+ * والظل في الوضعين) — هنا بس التوزيع الداخلي للعناصر، من غير خلفية خاصة. */
 .sc-head {
-  border-radius: 22px;
-  padding: 18px 20px;
-  color: #fff;
-  background: linear-gradient(120deg, #0f2b38 0%, #14384a 55%, #0d9488 135%);
-  box-shadow: 0 14px 34px rgba(15, 43, 56, 0.26);
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -233,15 +230,9 @@ html.dark .sc-tab[data-active='true'] {
 }
 
 .sc-chip--info {
-  border-color: #bfdbfe;
-  background: #eff6ff;
-  color: #1e3a8a;
-}
-
-html.dark .sc-chip--info {
-  border-color: rgba(96, 165, 250, 0.42);
-  background: rgba(37, 99, 235, 0.16);
-  color: #bfdbfe;
+  border-color: var(--app-primary-border);
+  background: var(--app-primary-tint);
+  color: var(--app-primary-text);
 }
 
 /* ---------- صفوف الإعدادات ---------- */
@@ -311,8 +302,8 @@ html.dark .sc-row__icon--violet { background: rgba(124, 58, 237, 0.2); color: #d
 }
 
 .sc-switch[data-on='true'] {
-  background: #0d9488;
-  border-color: #0d9488;
+  background: var(--app-primary);
+  border-color: var(--app-primary);
 }
 
 .sc-switch__knob {
@@ -354,8 +345,8 @@ html.dark .sc-row__icon--violet { background: rgba(124, 58, 237, 0.2); color: #d
   white-space: nowrap;
 }
 
-.sc-btn--primary { background: #0f2b38; color: #fff; border-color: #0f2b38; }
-.sc-btn--primary:hover { background: #164055; }
+.sc-btn--primary { background: var(--app-primary); color: #fff; border-color: var(--app-primary); }
+.sc-btn--primary:hover { background: var(--app-primary-hover); }
 .sc-btn--blue { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
 .sc-btn--blue:hover { background: #1e40af; }
 .sc-btn--teal { background: #0d9488; color: #fff; border-color: #0d9488; }
@@ -363,7 +354,8 @@ html.dark .sc-row__icon--violet { background: rgba(124, 58, 237, 0.2); color: #d
 .sc-btn--ghost { background: var(--app-card); color: var(--app-text); border-color: var(--app-border); }
 .sc-btn--ghost:hover { background: var(--app-card-hover); }
 
-html.dark .sc-btn--primary { background: #1e4c63; border-color: #2a6a8a; color: #e6f6ff; }
+html.dark .sc-btn--primary { background: #3b82f6; border-color: #60a5fa; color: #f8fbff; }
+html.dark .sc-btn--primary:hover { background: #60a5fa; }
 html.dark .sc-btn--blue { background: #3b82f6; border-color: #60a5fa; color: #f8fbff; }
 html.dark .sc-btn--teal { background: #14b8a6; border-color: #2dd4bf; color: #062a26; }
 

@@ -1484,13 +1484,6 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
   margin-top: 0;
 }
 
-.tg-quick {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 16px;
-}
-
 .tg-stat {
   display: flex;
   align-items: center;
@@ -1515,14 +1508,9 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
 }
 
 @media (min-width: 1024px) {
-  .tg-analytics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tg-analytics__wide { grid-column: span 2; }
-  .tg-dash-bottom { grid-template-columns: 1.9fr 1fr; }
 }
 
 @media (min-width: 1440px) {
-  .tg-analytics { grid-template-columns: 1.65fr 1fr 1fr; }
-  .tg-analytics__wide { grid-column: auto; }
 }
 
 /* ---------- صفحة تسجيل الدخول (LoginPage) ---------- */
@@ -1532,7 +1520,7 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
   align-items: center;
   justify-content: center;
   padding: 18px;
-  background: linear-gradient(160deg, #071726 0%, #0a1c2c 45%, #0b2337 100%);
+  background: linear-gradient(160deg, var(--tg-navy-ink, #071726) 0%, var(--tg-navy-3, #081c26) 45%, var(--tg-navy-2, #0c2431) 100%);
   color: #e2e8f0;
   position: relative;
   overflow: hidden;
@@ -1609,7 +1597,7 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
   flex-direction: column;
   gap: 28px;
   padding: 36px 34px 26px;
-  background: linear-gradient(155deg, #0b2337 0%, #0d2b41 55%, #0a1c2c 100%);
+  background: linear-gradient(155deg, var(--tg-navy, #0f2b38) 0%, var(--tg-navy-2, #0c2431) 55%, #0a1c2c 100%);
   border-inline-end: 1px solid rgba(255, 255, 255, 0.07);
 }
 
@@ -1917,15 +1905,19 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
   to { transform: rotate(360deg); }
 }
 
+/**
+ * ملاحظة أسفل الكارت: كان خطًّا منقّطًا ملتصقًا بزر الدخول مباشرة، فيبدو
+ * كأثر غلط من هالة الزر. بقى فاصلًا ساكنًا واضحًا مع مسافة تنفّس.
+ */
 .tg-login__note {
-  margin: 14px 0 0;
-  padding-top: 13px;
-  border-top: 1px dashed #e2e8f0;
+  margin: 20px 0 0;
+  padding-top: 15px;
+  border-top: 1px solid #e7eef7;
   text-align: center;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: #94a3b8;
-  line-height: 1.7;
+  line-height: 1.75;
 }
 
 /* تابلت وموبايل */

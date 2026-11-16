@@ -426,6 +426,63 @@ const isMissingColumnError = (err: any): boolean => {
   return code === '42703' || code === 'PGRST204' || (msg.includes('column') && msg.includes('does not exist')) || msg.includes('could not find');
 };
 
+/**
+ * PostgREST بيرفض الـselect بالكامل (400) لو فيه عمود واحد مش موجود في الجدول،
+ * والكود القديم كان بيرجع لـ'*' فيفقد كل الأعمدة المطلوبة مرة واحدة.
+ *
+ * هنا بنقرأ اسم العمود الناقص من رسالة الخطأ، نشيله، ونعيد المحاولة — فباقي
+ * الأعمدة تفضل موجودة. وبنسجّل العمود على الجهاز (لمدة 7 أيام) عشان الطلبات
+ * الجاية تبدأ بالقائمة الصح من غير 400 ولا رحلة إضافية. المدة محدودة عشان
+ * لو العمود اتنشر بعدين ما يفضلش مستثنى للأبد.
+ */
+const MISSING_COLUMN_CACHE_KEY = 'tantawy:missing_columns_v1';
+const MISSING_COLUMN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+type MissingColumnEntry = { columns: string[]; savedAt: number };
+
+function readMissingColumnCache(): Record<string, MissingColumnEntry> {
+  try {
+    const raw = localStorage.getItem(MISSING_COLUMN_CACHE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, MissingColumnEntry>) : {};
+  } catch {
+    return {};
+  }
+}
+
+const missingColumnCache: Record<string, MissingColumnEntry> = readMissingColumnCache();
+
+function activeMissingColumns(table: string): Set<string> {
+  const entry = missingColumnCache[table];
+  if (!entry || !Array.isArray(entry.columns)) return new Set();
+  if (!entry.savedAt || Date.now() - entry.savedAt > MISSING_COLUMN_TTL_MS) return new Set();
+  return new Set(entry.columns);
+}
+
+function rememberMissingColumn(table: string, column: string): void {
+  const columns = activeMissingColumns(table);
+  if (columns.has(column)) return;
+  columns.add(column);
+  missingColumnCache[table] = { columns: Array.from(columns), savedAt: Date.now() };
+  try {
+    localStorage.setItem(MISSING_COLUMN_CACHE_KEY, JSON.stringify(missingColumnCache));
+  } catch {}
+}
+
+function extractMissingColumn(err: any): string | null {
+  const msg = String(err?.message || '');
+  const match =
+    msg.match(/column\s+(?:"?[A-Za-z_][A-Za-z0-9_]*"?\.)?"?([A-Za-z0-9_]+)"?\s+does not exist/i) ||
+    msg.match(/could not find the '([A-Za-z0-9_]+)' column/i);
+  return match ? match[1] : null;
+}
+
+function buildSelectList(table: string, columns: string[]): string {
+  const missing = activeMissingColumns(table);
+  const kept = columns.filter((column) => !missing.has(column));
+  return kept.length > 0 ? kept.join(',') : '*';
+}
+
 const CUSTOMERS_FULL_SELECT_COLUMNS = [
   'id', 'code', 'name', 'store_name', 'phone', 'address', 'region', 'city', 'governorate',
   'branch_name', 'sector', 'rep_name', 'rep_id', 'tax_number', 'tier', 'credit_limit',
@@ -3480,11 +3537,11 @@ async function fetchVisitsFromSupabaseImpl(
       'order_created_id', 'order_amount', 'is_return', 'return_value', 'return_reason',
       'return_status', 'return_handled_by', 'return_handled_at', 'return_note',
       'created_by', 'created_at', 'updated_at',
-    ].join(',');
+    ];
 
     const readPages = async (useScope: boolean) => {
       const rows: any[] = [];
-      let selectCols = VISITS_SELECT_COLUMNS;
+      let selectCols = buildSelectList('visits', VISITS_SELECT_COLUMNS);
       for (let page = 0; page < MAX_VISIT_PAGES; page++) {
         const from = page * pageSize;
         const makeQuery = (cols: string) => {
@@ -3506,9 +3563,21 @@ async function fetchVisitsFromSupabaseImpl(
         };
 
         let { data, error } = await makeQuery(selectCols).range(from, from + pageSize - 1);
-        if (error && selectCols !== '*' && isMissingColumnError(error)) {
-          selectCols = '*';
-          ({ data, error } = await makeQuery('*').range(from, from + pageSize - 1));
+
+        // عمود ناقص؟ نشيله ونعيد المحاولة بباقي الأعمدة (بدل الرجوع لـ'*').
+        for (let attempt = 0; error && selectCols !== '*' && isMissingColumnError(error) && attempt < 8; attempt++) {
+          const missing = extractMissingColumn(error);
+          if (missing) {
+            rememberMissingColumn('visits', missing);
+            console.warn(`visits: العمود "${missing}" غير موجود — تم استثناؤه من القراءة.`);
+          }
+          const nextSelect = missing ? buildSelectList('visits', VISITS_SELECT_COLUMNS) : '*';
+          if (nextSelect === selectCols) {
+            selectCols = '*';
+          } else {
+            selectCols = nextSelect;
+          }
+          ({ data, error } = await makeQuery(selectCols).range(from, from + pageSize - 1));
         }
 
         if (error) return { data: rows, error };

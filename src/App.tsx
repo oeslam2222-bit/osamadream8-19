@@ -67,14 +67,18 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
 };
 
 // Lightweight Skeleton for tab transitions
+/**
+ * هيكل التحميل بين التبويبات — كان سطح كحلي غامق ثابت، فكان بيلمع كحلي
+ * في نص الشاشة الفاتحة مع كل تنقل. بقى نفس كارت التطبيق في الوضعين.
+ */
 const TabLoadingSkeleton = () => (
-  <div className="rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.16),_transparent_40%),_linear-gradient(180deg,_rgba(15,23,42,0.92),_rgba(15,23,42,0.98))] p-8 shadow-[0_20px_45px_rgba(2,6,23,0.38)] flex flex-col items-center justify-center min-h-[350px] space-y-4 animate-in fade-in">
-    <div className="w-12 h-12 rounded-2xl bg-[rgba(245,158,11,0.16)] text-[var(--app-warn)] ring-1 ring-[rgba(245,158,11,0.35)] flex items-center justify-center animate-spin">
+  <div className="rounded-[18px] border border-[var(--app-border)] bg-[var(--app-card)] p-8 shadow-[var(--app-shadow-card)] flex flex-col items-center justify-center min-h-[350px] space-y-4 animate-in fade-in">
+    <div className="w-12 h-12 rounded-2xl bg-[var(--app-primary-tint)] text-[var(--app-primary-text)] ring-1 ring-[var(--app-border)] flex items-center justify-center animate-spin">
       <Loader2 className="w-6 h-6" />
     </div>
     <div className="text-center">
-      <h3 className="font-black text-white text-sm">جاري تحميل البيانات...</h3>
-      <p className="text-xs text-slate-300 mt-1">يتم جلب محتويات القسم وتجهيزها بأعلى سرعة</p>
+      <h3 className="font-black text-[var(--app-text)] text-sm">جاري تحميل البيانات...</h3>
+      <p className="text-xs text-[var(--app-text-muted)] mt-1">يتم جلب محتويات القسم وتجهيزها بأعلى سرعة</p>
     </div>
   </div>
 );
