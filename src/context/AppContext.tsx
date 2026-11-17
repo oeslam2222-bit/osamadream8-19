@@ -5,6 +5,7 @@ import { DEFAULT_CLOUDINARY_CONFIG, normalizeCloudinaryConfig } from '../service
 import { clearCachedImages } from '../services/imageCacheService';
 import { idbClear, idbDelete, idbGet, idbSet, debouncedIdbSet, safeLocalStorageSet } from '../services/storageService';
 import { appendAuditLog, clearAuditLogsStorage, createAuditLog, getAuditLogs } from '../services/auditLogService';
+
 import {
   doesCustomerBelongToBranch,
   doesCustomerBelongToRep,
@@ -13,7 +14,6 @@ import {
   isArabicNameMatch,
   isBranchMatch,
   normalizeArabicText,
-
   getBranchStockForProduct,
   inferBranchFromText,
   sanitizeAndDeduplicateUsers,
