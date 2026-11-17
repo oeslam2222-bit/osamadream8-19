@@ -34,7 +34,7 @@ const KpiCard: React.FC<{
   </div>
 );
 
-export const ItemSalesKpiCards: React.FC<ItemSalesKpiCardsProps> = ({
+const ItemSalesKpiCardsBase: React.FC<ItemSalesKpiCardsProps> = ({
   comparison,
   totalQuantity,
   previousQuantity,
@@ -119,7 +119,7 @@ export const ItemSalesKpiCards: React.FC<ItemSalesKpiCardsProps> = ({
           </div>
           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-[var(--app-navy-line)] bg-[var(--app-navy-tint)] text-[10px] font-black text-[var(--app-navy-text)]">
-              ضمن النطاق المحدد
+              عملاء لهم مبيعات (بكود/اسم العميل)
             </span>
           </div>
         </div>
@@ -146,3 +146,7 @@ export const ItemSalesKpiCards: React.FC<ItemSalesKpiCardsProps> = ({
     </div>
   );
 };
+
+// منع إعادة الرسم مع كل تغيير في الواجهة الأب (زي حرف بحث جديد)
+export const ItemSalesKpiCards = React.memo(ItemSalesKpiCardsBase);
+export default ItemSalesKpiCards;

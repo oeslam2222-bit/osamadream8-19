@@ -2,6 +2,7 @@ import { IdCard, ShoppingCart, UserRound } from 'lucide-react';
 import React from 'react';
 import { CustomerAlert, CustomerSalesInsight } from '../../services/customerItemSalesInsights';
 import { formatCurrency } from '../../services/invoiceService';
+import { MONTH_NAMES_MAP } from '../../services/customerItemSalesService';
 import { CardShell, ChartEmpty, GrowthPill } from './ItemSalesPrimitives';
 
 const initials = (name: string): string => {
@@ -96,6 +97,65 @@ export const CustomerSnapshotCard: React.FC<CustomerSnapshotCardProps> = ({
             </span>
           </div>
         </div>
+
+        {(customer.summary.linkedSector || customer.summary.linkedCustomerCode) && (
+          <div className="flex items-center gap-1.5 flex-wrap text-[9px] font-bold">
+            {customer.summary.linkedCustomerCode && (
+              <span className="px-1.5 py-0.5 rounded-md bg-[var(--app-card-secondary)] border border-[var(--app-border)] text-[var(--app-text)] font-mono" title="كود العميل في قاعدة العملاء">
+                كود العميل: {customer.summary.linkedCustomerCode}
+              </span>
+            )}
+            {customer.summary.linkedSector && (
+              <span className="px-1.5 py-0.5 rounded-md border text-[var(--app-text)] font-bold" title="القطاع من قاعدة العملاء">
+                القطاع: {customer.summary.linkedSector === 'electrical' ? 'كهربائي' : customer.summary.linkedSector === 'both' ? 'الاثنين' : 'منزلي'}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* مبيعات الأصناف بالشهور — داخل بروفايل العميل */}
+        <div className="pt-2 border-t border-slate-100">
+          <div className="text-[9px] font-black text-slate-500 mb-1.5">مبيعات الأصناف بالشهور</div>
+          <div className="grid grid-cols-6 gap-1 text-center">
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => {
+              const amount = customer.summary.monthlySales?.[month] || 0;
+              const qty = customer.summary.monthlyQuantities?.[month] || 0;
+              return (
+                <div
+                  key={month}
+                  title={`${MONTH_NAMES_MAP[month]}: ${formatCurrency(amount)} • ${qty} كرتونة`}
+                  className={`p-1 rounded-md border text-[8px] font-bold transition ${
+                    amount > 0
+                      ? 'bg-[var(--app-warn-tint)] border-[var(--app-warn-line)] text-[var(--app-warn-text)]'
+                      : 'bg-slate-50 border-transparent text-slate-300'
+                  }`}
+                >
+                  <div className="font-black">{MONTH_NAMES_MAP[month]}</div>
+                  <div className="font-mono">{amount > 0 ? `${Math.round(amount / 1000)}k` : '—'}</div>
+                  {amount > 0 && <div className="text-[7px]">{qty} ك</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* مبيعات الأصناف بالعائلة بالشهر + الإجمالي — داخل بروفايل العميل */}
+        {Object.keys(customer.summary.familyBreakdown || {}).length > 0 && (
+          <div className="pt-2 border-t border-slate-100">
+            <div className="text-[9px] font-black text-slate-500 mb-1.5">مبيعات الأصناف بالعائلة (الإجمالي)</div>
+            <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
+              {Object.entries(customer.summary.familyBreakdown)
+                .sort((a, b) => b[1].amount - a[1].amount)
+                .slice(0, 6)
+                .map(([family, data]) => (
+                  <div key={family} className="flex items-center justify-between gap-2 text-[9px] font-bold">
+                    <span className="truncate text-slate-700 max-w-[100px]" title={family}>{family}</span>
+                    <span className="font-mono font-black text-[var(--app-ok-text)] shrink-0">{formatCurrency(data.amount)}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        )}
 
         {alert && (
           <div className="rounded-xl bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] px-2.5 py-1.5">

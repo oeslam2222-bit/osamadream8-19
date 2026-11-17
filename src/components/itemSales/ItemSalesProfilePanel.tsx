@@ -2,6 +2,7 @@ import { Layers, Loader2, Package, TrendingUp, Users } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { normalizeArabicText } from '../../services/arabicMatchingService';
 import {
+  fillGenericFamiliesFromSiblings,
   getSavedCustomerItemSales,
   MONTH_NAMES_MAP,
   normalizeCustomerLookupCode
@@ -65,10 +66,12 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
   }, []);
 
   const scoped = useMemo(() => {
+    // نكمّل العائلات «عام» من الصفوف التانية لنفس الصنف قبل التحليل (من كل الداتا)
+    const source = fillGenericFamiliesFromSiblings(records, records);
     if (customerAccount || customerName) {
       const accountKey = normalizeCustomerLookupCode(customerAccount);
       const nameKey = normalizeArabicText(customerName || '').replace(/\s+/g, '');
-      return records.filter((record) => {
+      return source.filter((record) => {
         const recordAccount = normalizeCustomerLookupCode(record.customerAccount);
         if (accountKey && recordAccount && recordAccount === accountKey) return true;
         const recordName = normalizeArabicText(record.invoicingName || '').replace(/\s+/g, '');
@@ -88,7 +91,7 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
           .filter(Boolean)
           .some((candidate) => normalizeRep(candidate) === target);
 
-      const exact = records.filter(matches);
+      const exact = source.filter(matches);
       if (exact.length > 0) return exact;
 
       /**
@@ -96,7 +99,7 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
        * المطابقة الجزئية المفتوحة كانت بتجمع مبيعات "محمد" مع "محمد علي"،
        * فبتنسب مبيعات مندوب لمندوب تاني في بروفايله.
        */
-      const fuzzy = records.filter((record) =>
+      const fuzzy = source.filter((record) =>
         [record.repName, record.linkedRepName]
           .filter(Boolean)
           .some((candidate) => {
@@ -339,7 +342,7 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
                 title={`${MONTH_NAMES_MAP[month]} — ${formatCurrency(amount)}`}
               >
                 <div className="text-[8px] font-black text-[var(--app-text-muted)]">
-                  {(MONTH_NAMES_MAP[month] || '').slice(0, 3)}
+                  {MONTH_NAMES_MAP[month] || ''}
                 </div>
                 <div
                   className={`text-[8.5px] font-mono font-black ${
@@ -356,10 +359,13 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
 
       {/* مصفوفة العائلات × الشهور — البُعد اللي كان ناقص في البروفايل */}
       <div className="mt-3 rounded-xl border border-[var(--app-border)] p-3">
-        <div className="text-[10.5px] font-black text-[var(--app-text)] flex items-center gap-1.5 mb-1.5">
+        <div className="text-[10.5px] font-black text-[var(--app-text)] flex items-center gap-1.5 mb-1">
           <Layers className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
-          العائلات × الشهور
+          مبيعات العائلات بالشهور
         </div>
+        <p className="text-[9px] font-bold text-[var(--app-text-muted)] mb-2 leading-relaxed">
+          كل صف عائلة أصناف، وكل عمود شهر — الرقم هو قيمة مبيعات هذه العائلة في هذا الشهر (مختصرة: أ=ألف، م=مليون). العمود الأخير إجمالي العائلة على كل الشهور.
+        </p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[620px] border-collapse">
             <thead>
@@ -369,7 +375,7 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
                 </th>
                 {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
                   <th key={month} className="p-1 text-center text-[8.5px] font-black text-[var(--app-text-muted)]">
-                    {(MONTH_NAMES_MAP[month] || '').slice(0, 3)}
+                    {MONTH_NAMES_MAP[month] || ''}
                   </th>
                 ))}
                 <th className="p-1 text-center text-[8.5px] font-black text-[var(--app-text-muted)]">الإجمالي</th>
@@ -406,10 +412,13 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
 
       {/* مصفوفة الأصناف × الشهور */}
       <div className="mt-3 rounded-xl border border-[var(--app-border)] p-3">
-        <div className="text-[10.5px] font-black text-[var(--app-text)] flex items-center gap-1.5 mb-1.5">
+        <div className="text-[10.5px] font-black text-[var(--app-text)] flex items-center gap-1.5 mb-1">
           <Package className="w-3.5 h-3.5 text-[var(--app-primary-text)]" />
-          الأصناف × الشهور
+          مبيعات الأصناف بالشهور
         </div>
+        <p className="text-[9px] font-bold text-[var(--app-text-muted)] mb-2 leading-relaxed">
+          كل صف صنف، وكل عمود شهر — الرقم هو قيمة مبيعات هذا الصنف في الشهر (أ=ألف، م=مليون). العمود الأخير إجمالي الصنف على كل الشهور.
+        </p>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[620px] border-collapse">
             <thead>
@@ -419,7 +428,7 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
                 </th>
                 {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
                   <th key={month} className="p-1 text-center text-[8.5px] font-black text-[var(--app-text-muted)]">
-                    {(MONTH_NAMES_MAP[month] || '').slice(0, 3)}
+                    {MONTH_NAMES_MAP[month] || ''}
                   </th>
                 ))}
                 <th className="p-1 text-center text-[8.5px] font-black text-[var(--app-text-muted)]">الإجمالي</th>

@@ -20,11 +20,13 @@ export interface AggregatedItemSalesRow {
   key: string;
   customerCode: string;
   customerName: string;
+  repName: string;
+  branch: string;
+  sector: SectorKey;
   month: number;
   itemCode: string;
   itemName: string;
   family: string;
-  sector: SectorKey;
   quantity: number;
   amount: number;
 }
@@ -85,18 +87,23 @@ export const aggregateItemSalesRows = (
         String(resolveItemGroup(record) || record.familyDimension || record.itemGroup || '').trim() ||
         'عام';
       const sector = resolveSector(record);
-      const key = `${customerCode}|${month}|${itemCode}|${family}|${sector}`;
+      // الفرع والمندوب من قاعدة العملاء (linked*) مع fallback لبيانات الشيت
+      const branch = String((record as any).linkedBranch || record.warehouse || '').trim() || '—';
+      const repName = String((record as any).linkedRepName || record.repName || '').trim() || '—';
+      const key = `${customerCode}|${month}|${itemCode}|${family}|${sector}|${branch}|${repName}`;
 
       const current =
         grouped.get(key) || {
           key,
           customerCode,
           customerName: resolveCustomerName(record, customerNameByCode),
+          repName,
+          branch,
+          sector,
           month,
           itemCode,
           itemName,
           family,
-          sector,
           quantity: 0,
           amount: 0
         };
@@ -117,10 +124,12 @@ export const downloadItemSalesRowsCsv = (
   const header = [
     'كود العميل',
     'اسم العميل',
+    'الفرع',
+    'المندوب',
+    'القطاع',
     'الشهر',
     'الصنف',
     'الصنف بالعائلة',
-    'القطاع',
     'عدد القطع',
     'المبلغ'
   ];
@@ -128,10 +137,12 @@ export const downloadItemSalesRowsCsv = (
     [
       row.customerCode,
       row.customerName,
+      row.branch,
+      row.repName,
+      SECTOR_BADGE[row.sector].label,
       MONTH_NAMES_MAP[row.month] || 'غير محدد',
       row.itemName,
       row.family,
-      SECTOR_BADGE[row.sector].label,
       Math.round(row.quantity),
       Number(row.amount.toFixed(2))
     ]
@@ -167,7 +178,7 @@ export const ItemSalesRowsTable: React.FC<ItemSalesRowsTableProps> = ({
     const q = query.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((row) =>
-      [row.customerName, row.customerCode, row.itemName, row.itemCode, row.family]
+      [row.customerName, row.customerCode, row.itemName, row.itemCode, row.family, row.branch, row.repName]
         .join(' ')
         .toLowerCase()
         .includes(q)
@@ -206,7 +217,7 @@ export const ItemSalesRowsTable: React.FC<ItemSalesRowsTableProps> = ({
           <div>
             <h3 className="text-sm font-black tg-rows-ink">مبيعات الأصناف — مُجمَّعة</h3>
             <p className="text-[11px] font-bold tg-rows-muted">
-              كود العميل · اسم العميل · الشهر · الصنف · الصنف بالعائلة · القطاع · عدد القطع · المبلغ
+              كود العميل · اسم العميل · الفرع · المندوب · الشهر · الصنف · الصنف بالعائلة · القطاع · عدد القطع · المبلغ
             </p>
           </div>
         </div>
@@ -247,6 +258,8 @@ export const ItemSalesRowsTable: React.FC<ItemSalesRowsTableProps> = ({
             <tr className="tg-rows-soft text-[10px] sm:text-[11px] font-black tg-rows-muted">
               <th className="px-3 py-2">كود العميل</th>
               <th className="px-3 py-2">اسم العميل</th>
+              <th className="px-3 py-2">الفرع</th>
+              <th className="px-3 py-2">المندوب</th>
               <th className="px-3 py-2">الشهر</th>
               <th className="px-3 py-2">الصنف</th>
               <th className="px-3 py-2">الصنف بالعائلة</th>
@@ -268,6 +281,12 @@ export const ItemSalesRowsTable: React.FC<ItemSalesRowsTableProps> = ({
                     title={row.customerName}
                   >
                     {row.customerName}
+                  </td>
+                  <td className="px-3 py-2 font-bold tg-rows-ink whitespace-nowrap" title={row.branch}>
+                    {row.branch}
+                  </td>
+                  <td className="px-3 py-2 font-bold tg-rows-muted whitespace-nowrap" title={row.repName}>
+                    {row.repName}
                   </td>
                   <td className="px-3 py-2 font-black tg-rows-ink whitespace-nowrap">
                     {MONTH_NAMES_MAP[row.month] || 'غير محدد'}
@@ -306,7 +325,7 @@ export const ItemSalesRowsTable: React.FC<ItemSalesRowsTableProps> = ({
           </tbody>
           <tfoot>
             <tr className="tg-rows-soft text-[11px] font-black tg-rows-ink">
-              <td className="px-3 py-2" colSpan={6}>
+              <td className="px-3 py-2" colSpan={8}>
                 الإجمالي (كل الصفوف المطابقة للفلاتر والبحث)
               </td>
               <td className="px-3 py-2 font-mono whitespace-nowrap">

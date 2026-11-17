@@ -84,12 +84,14 @@ export const ItemRankingCard: React.FC<ItemRankingCardProps> = ({
                     <span className="text-[9px] text-slate-400 font-bold ms-1">{item.unit}</span>
                   </span>
                 </div>
-                <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div className="h-2.5 rounded-full bg-slate-200/70 dark:bg-white/10 overflow-hidden">
                   <div
-                    className="h-full rounded-full transition-all"
+                    className="h-full rounded-full transition-all shadow-sm"
                     style={{
                       width: `${Math.max(4, Math.round((item.quantity / max) * 100))}%`,
-                      backgroundColor: index < 3 ? '#c99a43' : '#102b4e'
+                      background: index < 3
+                        ? 'linear-gradient(90deg, #f0b429, #d97706)'
+                        : 'linear-gradient(90deg, #3b82f6, #2563eb)'
                     }}
                   />
                 </div>

@@ -29,15 +29,11 @@ export const TopCustomersTable: React.FC<TopCustomersTableProps> = ({
   const rows = customers.slice(0, limit);
   const total = customers.reduce((acc, customer) => acc + customer.amount, 0);
   const rowsTotal = rows.reduce((acc, customer) => acc + customer.amount, 0);
-  const rowsOrders = rows.reduce(
-    (acc, customer) => acc + (customer.ordersAvailable ? customer.invoicesCount : 0),
-    0
-  );
 
   return (
     <CardShell
       title="أهم العملاء شراءً"
-      subtitle={`${customers.length.toLocaleString('en-US')} عميل • أعلى ${rows.length} في الفترة`}
+      subtitle={`أعلى ${rows.length.toLocaleString('en-US')} عملاء في الفترة`}
       icon={<Trophy className="w-4 h-4" />}
       iconClass="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]"
       action={
@@ -57,12 +53,11 @@ export const TopCustomersTable: React.FC<TopCustomersTableProps> = ({
         <ChartEmpty height={216} message="لا يوجد عملاء في الفترة المحددة" />
       ) : (
         <div className="overflow-x-auto -mx-1">
-          <table className="w-full text-right border-collapse min-w-[360px]">
+          <table className="w-full text-right border-collapse min-w-[320px]">
             <thead>
               <tr className="text-[9.5px] text-slate-400 font-black border-b border-slate-100">
                 <th className="py-1.5 px-1 font-black w-6">#</th>
                 <th className="py-1.5 px-1 font-black">العميل</th>
-                <th className="py-1.5 px-1 font-black text-center">الطلبات</th>
                 <th className="py-1.5 px-1 font-black">المبيعات</th>
                 <th className="py-1.5 px-1 font-black text-center">النمو</th>
               </tr>
@@ -102,14 +97,11 @@ export const TopCustomersTable: React.FC<TopCustomersTableProps> = ({
                         <div className="text-[10.5px] font-black text-slate-800 truncate max-w-[150px]">
                           {customer.customerName}
                         </div>
-                        <div className="text-[8.5px] text-slate-400 font-bold font-mono truncate">
-                          {customer.customerAccount || '—'}
+                        <div className="text-[9px] font-bold text-[var(--app-primary-text)] font-mono truncate" title={`كود العميل: ${customer.customerAccount || '—'}`}>
+                          كود: {customer.customerAccount || '—'}
                         </div>
                       </div>
                     </div>
-                  </td>
-                  <td className="py-1.5 px-1 text-center text-[10px] font-bold text-slate-600 font-mono">
-                    {customer.ordersAvailable ? customer.invoicesCount : '—'}
                   </td>
                   <td className="py-1.5 px-1">
                     <div className="text-[10.5px] font-black text-slate-900 font-mono">
@@ -127,7 +119,7 @@ export const TopCustomersTable: React.FC<TopCustomersTableProps> = ({
             </tbody>
           </table>
           <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[9.5px] font-bold text-slate-500">
-            <span>إجمالي المعروضين • {rowsOrders} طلب</span>
+            <span>إجمالي المعروضين</span>
             <span className="font-mono text-slate-700">
               {formatCompactAmount(rowsTotal)}
               {total > 0 ? ` (${Math.round((rowsTotal / total) * 100)}%)` : ''}
@@ -145,17 +137,16 @@ interface MonthlyCustomerAnalysisTableProps {
 
 export const MonthlyCustomerAnalysisTable: React.FC<MonthlyCustomerAnalysisTableProps> = ({ rows }) => {
   const totalAmount = rows.reduce((acc, row) => acc + row.amount, 0);
-  const totalOrders = rows.reduce((acc, row) => acc + row.orders, 0);
   const totalQuantity = rows.reduce((acc, row) => acc + row.quantity, 0);
 
   return (
     <CardShell
       title="تحليل شهري للعملاء"
-      subtitle="عدد الطلبات وقيمة المبيعات وعدد الأصناف ونسبة النمو لكل شهر"
+      subtitle="قيمة المبيعات والكمية وعدد الأصناف وعدد العملاء (بكود/اسم العميل له مبيعات في الشهر) ونسبة النمو"
       icon={<CalendarRange className="w-4 h-4" />}
       iconClass="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]"
       action={
-        <span className="text-[9.5px] font-bold px-2 py-1 rounded-lg bg-slate-100 text-slate-500">
+        <span className="text-[10px] font-black px-2.5 py-1 rounded-lg bg-[var(--app-card-secondary)] text-[var(--app-text-muted)] border border-[var(--app-border)]">
           {rows.length.toLocaleString('en-US')} شهر
         </span>
       }
@@ -163,53 +154,48 @@ export const MonthlyCustomerAnalysisTable: React.FC<MonthlyCustomerAnalysisTable
       {rows.length === 0 ? (
         <ChartEmpty height={220} />
       ) : (
-        <div className="overflow-x-auto -mx-1">
-          <table className="w-full text-right border-collapse min-w-[580px]">
+        <div className="overflow-x-auto -mx-1 rounded-xl border border-[var(--app-border)]">
+          <table className="w-full text-right border-collapse min-w-[760px]">
             <thead>
-              <tr className="text-[9.5px] text-slate-400 font-black border-b border-slate-100">
-                <th className="py-1.5 px-1.5 font-black">الشهر</th>
-                <th className="py-1.5 px-1.5 font-black text-center">عدد الطلبات</th>
-                <th className="py-1.5 px-1.5 font-black">إجمالي المبيعات</th>
-                <th className="py-1.5 px-1.5 font-black text-center">الكمية</th>
-                <th className="py-1.5 px-1.5 font-black text-center">عدد الأصناف</th>
-                <th className="py-1.5 px-1.5 font-black text-center">عدد العملاء</th>
-                <th className="py-1.5 px-1.5 font-black text-center">نسبة النمو</th>
+              <tr className="text-[10.5px] font-black bg-[var(--app-card-secondary)] text-[var(--app-text-muted)] border-b border-[var(--app-border)]">
+                <th className="py-3 px-4 font-black whitespace-nowrap">الشهر</th>
+                <th className="py-3 px-4 font-black whitespace-nowrap">إجمالي المبيعات</th>
+                <th className="py-3 px-4 font-black text-center whitespace-nowrap">الكمية</th>
+                <th className="py-3 px-4 font-black text-center whitespace-nowrap">عدد الأصناف</th>
+                <th className="py-3 px-4 font-black text-center whitespace-nowrap">عدد العملاء</th>
+                <th className="py-3 px-4 font-black text-center whitespace-nowrap">نسبة النمو</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.month} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/70 transition">
-                  <td className="py-1.5 px-1.5 text-[10.5px] font-black text-slate-800">{row.label}</td>
-                  <td className="py-1.5 px-1.5 text-center text-[10px] font-bold text-slate-600 font-mono">
-                    {row.orders.toLocaleString('en-US')}
-                  </td>
-                  <td className="py-1.5 px-1.5 text-[10.5px] font-black text-slate-900 font-mono">
+                <tr key={row.month} className="border-b border-[var(--app-border)] last:border-0 hover:bg-[var(--app-card-hover)] transition">
+                  <td className="py-3 px-4 text-[12px] font-black text-[var(--app-text)] whitespace-nowrap">{row.label}</td>
+                  <td className="py-3 px-4 text-[12px] font-black text-[var(--app-text)] font-mono tabular-nums whitespace-nowrap">
                     {formatCurrency(row.amount)}
                   </td>
-                  <td className="py-1.5 px-1.5 text-center text-[10px] font-bold text-slate-600 font-mono">
+                  <td className="py-3 px-4 text-center text-[12px] font-black text-[var(--app-text)] font-mono tabular-nums">
                     {row.quantity.toLocaleString('en-US')}
                   </td>
-                  <td className="py-1.5 px-1.5 text-center text-[10px] font-bold text-slate-600 font-mono">
+                  <td className="py-3 px-4 text-center text-[12px] font-black text-[var(--app-text)] font-mono tabular-nums">
                     {row.itemsCount.toLocaleString('en-US')}
                   </td>
-                  <td className="py-1.5 px-1.5 text-center text-[10px] font-bold text-slate-600 font-mono">
+                  <td className="py-3 px-4 text-center text-[12px] font-black text-[var(--app-text)] font-mono tabular-nums">
                     {row.customersCount.toLocaleString('en-US')}
                   </td>
-                  <td className="py-1.5 px-1.5 text-center">
+                  <td className="py-3 px-4 text-center">
                     <GrowthPill growth={row.growthPct} emptyLabel="—" />
                   </td>
                 </tr>
               ))}
             </tbody>
             <tfoot>
-              <tr className="text-[10px] font-black text-slate-700 bg-slate-50/70">
-                <td className="py-1.5 px-1.5">الإجمالي</td>
-                <td className="py-1.5 px-1.5 text-center font-mono">{totalOrders.toLocaleString('en-US')}</td>
-                <td className="py-1.5 px-1.5 font-mono">{formatCurrency(totalAmount)}</td>
-                <td className="py-1.5 px-1.5 text-center font-mono">{totalQuantity.toLocaleString('en-US')}</td>
-                <td className="py-1.5 px-1.5 text-center text-slate-400">—</td>
-                <td className="py-1.5 px-1.5 text-center text-slate-400">—</td>
-                <td className="py-1.5 px-1.5 text-center text-slate-400">—</td>
+              <tr className="text-[12px] font-black text-[var(--app-text)] bg-[var(--app-card-secondary)]">
+                <td className="py-3 px-4">الإجمالي</td>
+                <td className="py-3 px-4 font-mono tabular-nums whitespace-nowrap">{formatCurrency(totalAmount)}</td>
+                <td className="py-3 px-4 text-center font-mono tabular-nums">{totalQuantity.toLocaleString('en-US')}</td>
+                <td className="py-3 px-4 text-center text-[var(--app-text-muted)]">—</td>
+                <td className="py-3 px-4 text-center text-[var(--app-text-muted)]">—</td>
+                <td className="py-3 px-4 text-center text-[var(--app-text-muted)]">—</td>
               </tr>
             </tfoot>
           </table>

@@ -1,4 +1,4 @@
-import { Building2, Layers, Users, Zap } from 'lucide-react';
+import { Building2, Layers, Zap } from 'lucide-react';
 import React, { useMemo } from 'react';
 import { formatCurrency } from '../../services/invoiceService';
 import { CANONICAL_BRANCHES, UNKNOWN_BRANCH } from '../../services/branchDirectory';
@@ -174,10 +174,12 @@ export const ItemSalesExecutiveCards: React.FC<ItemSalesExecutiveCardsProps> = (
         iconClass="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]"
       >
         <div className="space-y-0">
-          {analysis.branches.map((branch, index) => (
+          {analysis.branches
+            .filter((branch) => branch.key !== UNKNOWN_BRANCH)
+            .map((branch, index) => (
             <ShareRow
               key={branch.key}
-              label={branch.key === UNKNOWN_BRANCH ? 'بدون فرع' : branch.key}
+              label={branch.key}
               amount={branch.amount}
               quantity={branch.quantity}
               share={percent(branch.amount, analysis.total)}
@@ -208,26 +210,7 @@ export const ItemSalesExecutiveCards: React.FC<ItemSalesExecutiveCardsProps> = (
         </div>
       </CardShell>
 
-      <CardShell
-        title="المناديب"
-        subtitle={`${analysis.reps.length} مندوب · أعلى 6`}
-        icon={<Users className="w-4 h-4" />}
-        iconClass="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]"
-      >
-        <div>
-          {analysis.reps.slice(0, 6).map((rep, index) => (
-            <ShareRow
-              key={rep.key}
-              label={rep.label}
-              amount={rep.amount}
-              quantity={rep.quantity}
-              share={percent(rep.amount, analysis.total)}
-              color={PALETTE[index % PALETTE.length]}
-              meta={`${rep.customers.size.toLocaleString('ar-EG')} عميل`}
-            />
-          ))}
-        </div>
-      </CardShell>
+      {/* كرت «المناديب» اتشال — مكرر مع «أداء فريق المبيعات» (RepPerformanceCard) */}
     </div>
   );
 };
