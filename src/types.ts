@@ -1009,6 +1009,7 @@ export interface CustomerItemSaleRecord {
   linkedRepName?: string;       // مندوب العميل المعتمد بقاعدة العملاء
   linkedSupervisorName?: string;// المشرف المعتمد
   linkedPhone?: string;         // هاتف العميل
+  linkedSector?: 'home' | 'electrical' | 'both'; // القطاع من قاعدة العملاء (مربوط بكود العميل)
 }
 
 /** تجميع وتحليل مبيعات العميل الواحد بالصنف والمجموعات والشهور */
@@ -1050,6 +1051,7 @@ export interface CustomerItemSalesSummary {
   linkedOverdue?: number;
   linkedTier?: string;
   linkedAddress?: string;
+  linkedSector?: 'home' | 'electrical' | 'both'; // القطاع من قاعدة العملاء (مربوط بكود العميل)
 }
 
 /**
