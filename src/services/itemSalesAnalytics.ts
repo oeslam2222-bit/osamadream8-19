@@ -449,7 +449,10 @@ export function buildMonthlyCustomerAnalysis(
     amounts[month] += amountOf(record);
     quantities[month] += quantityOf(record);
     const order = (record.salesOrder || '').trim();
-    if (order) orders[month].add(order);
+    // الشيتات اللي مفيهاش رقم أمر بيع (sales_order=null) بنحسب فيها الطلب
+    // من تركيبة (عميل + تاريخ + فرع) كبديل عشان ما يظهرش صفر في كل الشهور.
+    const fallbackOrder = `${(record.customerAccount || record.invoicingName || '').trim()}|${(record.date || '').trim()}|${(record.warehouse || '').trim()}`;
+    orders[month].add(order || fallbackOrder);
     items[month].add(itemKeyOf(record));
     const customer = customerKeyOf(record);
     if (customer) customers[month].add(customer);

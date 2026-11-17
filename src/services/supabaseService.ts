@@ -566,38 +566,66 @@ async function fetchAllRows(
 export function fetchCustomersFromSupabase(
   scope?: CustomerFetchScope,
   options?: { updatedSince?: string }
-): Promise<{ success: boolean; customers?: Customer[]; error?: string; scoped?: boolean }> {
+): Promise<{ success: boolean; customers?: Customer[]; error?: string; scoped?: boolean; emptyDueToThrottle?: boolean }> {
   return dedupeInFlightRequest(
     `customers:${JSON.stringify(scope ?? null)}:${options?.updatedSince ?? ''}`,
     () => fetchCustomersFromSupabaseImpl(scope, options)
   );
 }
 
+const _lastScopedCustomerFullFallbackAt = new Map<string, number>();
+const SCOPED_CUSTOMER_FULL_FALLBACK_COOLDOWN_MS = 20 * 60 * 1000;
+
 async function fetchCustomersFromSupabaseImpl(
   scope?: CustomerFetchScope,
   options?: { updatedSince?: string }
-): Promise<{ success: boolean; customers?: Customer[]; error?: string; scoped?: boolean }> {
+): Promise<{ success: boolean; customers?: Customer[]; error?: string; scoped?: boolean; emptyDueToThrottle?: boolean }> {
   try {
     const updatedSince = options?.updatedSince?.trim() || undefined;
     let rawCustomers: any[] | null = null;
     let scopedUsed = hasScopeFilters(scope);
+    let scopedCustomerEmptyThrottled = false;
     let { data: custData, error: cErr } = await fetchAllRows('customers', scope, updatedSince);
     if (!cErr && !updatedSince && scopedUsed && custData.length === 0 && !scope?.strictNoFullFallback) {
       // Branch names are free-text Arabic, so a narrow read that matches nothing
-      // degrades to the full base for managers/supervisors - but strict field reps
-      // stay scoped to avoid downloading 5,400+ company rows unnecessarily.
-      console.warn('Scoped customer fetch matched no rows; falling back to the full base.');
-      scopedUsed = false;
-      const fallback = await fetchAllRows('customers');
-      if (!fallback.error && fallback.data.length > 0) {
-        custData = fallback.data;
+      // can be a scope mismatch. Try scoped legacy table first, then (throttled)
+      // fall back to full base for correctness while avoiding repeated heavy pulls.
+      const scopedClients = await fetchAllRows('clients', scope);
+      if (!scopedClients.error && scopedClients.data.length > 0) {
+        custData = scopedClients.data;
         cErr = null;
+      } else {
+        const scopeKey = JSON.stringify(scope || {});
+        const last = _lastScopedCustomerFullFallbackAt.get(scopeKey) || 0;
+        if (Date.now() - last >= SCOPED_CUSTOMER_FULL_FALLBACK_COOLDOWN_MS) {
+          console.warn('Scoped customer fetch matched no rows; trying throttled fallback to the full base.');
+          _lastScopedCustomerFullFallbackAt.set(scopeKey, Date.now());
+          scopedUsed = false;
+          const fallback = await fetchAllRows('customers');
+          if (!fallback.error && fallback.data.length > 0) {
+            custData = fallback.data;
+            cErr = null;
+          } else {
+            const fallbackClients = await fetchAllRows('clients');
+            if (!fallbackClients.error && fallbackClients.data.length > 0) {
+              custData = fallbackClients.data;
+              cErr = null;
+            }
+          }
+        } else {
+          // Keep scoped-empty result during cooldown to avoid repeated full-base egress.
+          scopedUsed = true;
+          scopedCustomerEmptyThrottled = true;
+          custData = [];
+          cErr = null as any;
+        }
       }
     }
     if (!cErr && custData.length > 0) {
       rawCustomers = custData;
-    } else if (!updatedSince && !scope?.strictNoFullFallback) {
-      const { data: clientData, error: clErr } = await fetchAllRows('clients', scope);
+    } else if (!updatedSince && !scope?.strictNoFullFallback && !scopedUsed) {
+      // If we already degraded to unscoped, try legacy clients unscoped as last source.
+      const { data: clientData, error: clErr } = await fetchAllRows('clients');
       if (!clErr && clientData.length > 0) {
         rawCustomers = clientData;
       }
@@ -693,10 +721,10 @@ async function fetchCustomersFromSupabaseImpl(
             : (c.lastCollectionAmount !== undefined ? Number(c.lastCollectionAmount) : undefined),
         };
       });
-      return { success: true, customers: mapped, scoped: scopedUsed };
+      return { success: true, customers: mapped, scoped: scopedUsed, emptyDueToThrottle: scopedCustomerEmptyThrottled };
     }
 
-    return { success: true, customers: [] };
+    return { success: true, customers: [], scoped: scopedUsed, emptyDueToThrottle: scopedCustomerEmptyThrottled };
   } catch (err: any) {
     return { success: false, error: err?.message || 'خطأ في جلب قاعدة بيانات العملاء' };
   }
@@ -2523,7 +2551,7 @@ export interface InvoiceFetchScope {
 
 export function fetchInvoicesFromSupabase(
   limitOrScope: number | InvoiceFetchScope = 150,
-  options?: { updatedSince?: string; stampColumn?: 'updated_at' | 'created_at' }
+  options?: { updatedSince?: string; stampColumn?: 'updated_at' | 'created_at'; includeItems?: boolean }
 ): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
   return dedupeInFlightRequest(
     `invoices:${JSON.stringify(limitOrScope ?? null)}:${JSON.stringify(options ?? null)}`,
@@ -2533,7 +2561,7 @@ export function fetchInvoicesFromSupabase(
 
 async function fetchInvoicesFromSupabaseImpl(
   limitOrScope: number | InvoiceFetchScope = 150,
-  options?: { updatedSince?: string; stampColumn?: 'updated_at' | 'created_at' }
+  options?: { updatedSince?: string; stampColumn?: 'updated_at' | 'created_at'; includeItems?: boolean }
 ): Promise<{ success: boolean; invoices?: Invoice[]; error?: string }> {
   try {
     const scope: InvoiceFetchScope =
@@ -2544,6 +2572,7 @@ async function fetchInvoicesFromSupabaseImpl(
       .filter(Boolean);
     const updatedSince = options?.updatedSince?.trim() || '';
     const sinceCol: 'updated_at' | 'created_at' = options?.stampColumn || 'created_at';
+    const includeItems = options?.includeItems === true;
 
     // لو السكوب سدّي طلب فواتير على مجموعة مندوبين فاضية (مثلاً مدير فرع
     // مسجل من غير مناديب في الفريق بعد تحديث دورة المستخدمين) — ما نسترجعش
@@ -2555,7 +2584,8 @@ async function fetchInvoicesFromSupabaseImpl(
     const INVOICES_SELECT_COLUMNS = [
       'id', 'invoice_number', 'customer_code', 'customer_name', 'customer_phone',
       'customer_address', 'customer_tax_number', 'date', 'time', 'created_at',
-      'rep_id', 'rep_name', 'supervisor_name', 'branch_name', 'items',
+      'rep_id', 'rep_name', 'supervisor_name', 'branch_name',
+      ...(includeItems ? ['items'] : []),
       'total_cartons', 'total_pieces', 'subtotal', 'discount_percentage',
       'discount_amount', 'estimated_grand_total', 'payment_method', 'status', 'notes',
       'synced_to_accounting', 'has_shortage_split', 'shortage_invoice_number',
@@ -2627,7 +2657,7 @@ async function fetchInvoicesFromSupabaseImpl(
         repName: i.rep_name || i.repName || 'مندوب المبيعات',
         supervisorName: i.supervisor_name || i.supervisorName || 'مشرف الفرع',
         branchName: i.branch_name || i.branchName || 'الفرع الرئيسي',
-        items: Array.isArray(i.items) ? i.items : typeof i.items === 'string' ? JSON.parse(i.items) : [],
+        items: Array.isArray(i.items) ? i.items : typeof i.items === 'string' ? (() => { try { return JSON.parse(i.items); } catch { return []; } })() : [],
         totalCartons: i.total_cartons || i.totalCartons || 0,
         totalPieces: i.total_pieces || i.totalPieces || 0,
         subtotal: i.subtotal || i.estimated_grand_total || 0,
@@ -3318,6 +3348,19 @@ async function fetchProductsFromSupabaseImpl(
 
     // 2. Fallback: chunked rich catalog snapshot (المسار القديم)
     if (totalChunks > 0) {
+        const chunkFp = `chunk|${snapshotMode || ''}|${totalChunks}|${String(rawManifest?.updatedAt || rawManifest?.generatedAt || rawManifest?.version || '')}`;
+        const chunkFpKey = 'dream_dist_catalog_chunk_fp_v1';
+        let prevChunkFp = '';
+        try { prevChunkFp = localStorage.getItem(chunkFpKey) || ''; } catch {}
+        if (prevChunkFp === chunkFp) {
+          try {
+            const { idbGet } = await import('./storageService');
+            const cached = await idbGet<Product[]>('dream_dist_products_v9');
+            if (cached && cached.length > 0) {
+              return { success: true, products: filterProductsBySectorClient(cached, sector) };
+            }
+          } catch {}
+        }
         const chunkPromises: Promise<any>[] = [];
         for (let i = 0; i < totalChunks; i++) {
           chunkPromises.push(
@@ -3340,6 +3383,7 @@ async function fetchProductsFromSupabaseImpl(
           }
         });
         if (allItems.length > 0) {
+          try { localStorage.setItem(chunkFpKey, chunkFp); } catch {}
           return { success: true, products: filterProductsBySectorClient(allItems, sector) };
         }
     }
@@ -3359,6 +3403,7 @@ async function fetchProductsFromSupabaseImpl(
         ? JSON.parse(rawItems)
         : [];
       if (itemsList.length > 0) {
+        try { localStorage.setItem('dream_dist_catalog_single_fp_v1', `single|${itemsList.length}|${String((snapshotData[0] as any).updated_at || '')}`); } catch {}
         return { success: true, products: filterProductsBySectorClient(itemsList, sector) };
       }
     }
@@ -3518,8 +3563,17 @@ async function fetchVisitsFromSupabaseImpl(
 ): Promise<{ success: boolean; visits?: CustomerVisit[]; error?: string; scoped?: boolean }> {
   try {
     const pageSize = 1000;
-    const sinceDate = scope?.sinceDate?.trim() || '';
     const updatedSince = options?.updatedSince?.trim() || '';
+    // حماية egress (500 مستخدم): السحب الكامل لكل التاريخ مكلف جدًا.
+    // - المزامنة التدريجية (updatedSince) بتجيب التغييرات بس فمش محتاجين نافذة.
+    // - السحب الكامل بدون نطاق زمني (غالبًا إداري) بيتقيّد بآخر 24 شهر افتراضيًا
+    //   بدل كل التاريخ؛ ولو محتاج تاريخ أقدم يمرّر scope.sinceDate صراحة.
+    let sinceDate = scope?.sinceDate?.trim() || '';
+    if (!sinceDate && !updatedSince) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 24);
+      sinceDate = d.toISOString().slice(0, 10);
+    }
 
     /**
      * بتقرأ جدول الزيارات بالدفعات وتطبّق الـscope على السيرفر.
@@ -4875,6 +4929,7 @@ const CUSTOMER_ITEM_SALES_SELECT_COLUMNS = [
 export async function fetchCustomerItemSalesIncremental(scope?: {
   repNames?: string[];
   warehouses?: string[];
+  sectors?: Array<'home' | 'electrical'>;
 }): Promise<{
   success: boolean;
   sales?: any[];
@@ -4899,6 +4954,7 @@ export async function fetchCustomerItemSalesIncremental(scope?: {
       (scope.warehouses || []).map((w) => String(w).trim()).filter((w) => w.length >= 2).forEach((wh) => {
         clauses.push(`warehouse.ilike.${quoteOrValue(`*${wh}*`)}`);
       });
+      // لا يوجد عمود sector في customer_item_sales — العزل client-side فقط.
       return clauses.length > 0 ? q.or(clauses.join(',')) : q;
     };
     const read = await readRowsPaged(

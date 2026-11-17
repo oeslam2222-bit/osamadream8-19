@@ -24,7 +24,7 @@ const BRANCH_PATTERNS: Array<{ branch: CanonicalBranch; needles: string[] }> = [
   { branch: 'منيا القمح', needles: ['منياالقمح', 'منيالقمح', 'مالقمح', 'القمح'] },
   { branch: 'ديمشلت', needles: ['ديمشلت'] },
   { branch: 'منوف', needles: ['منوف'] },
-  { branch: 'الفيوم', needles: ['الفيوم', 'فيوم'] },
+  { branch: 'الفيوم', needles: ['الفيوم', 'فيوم', '16'] },
   { branch: 'القاهرة', needles: ['القاهره', 'قاهرة', 'cairo'] },
   { branch: 'البحيرة', needles: ['البحيره', 'بحيرة'] },
   { branch: 'المنيا', needles: ['المنيا', 'منيا'] }

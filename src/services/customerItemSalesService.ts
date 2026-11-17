@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx-js-style';
+﻿import * as XLSX from 'xlsx-js-style';
 import { Customer, CustomerItemSaleRecord, CustomerItemSalesSummary, Product, User } from '../types';
 import {
   doesCustomerBelongToBranch,
@@ -117,6 +117,12 @@ export const MONTH_NAMES_MAP: Record<number, string> = {
   10: 'أكتوبر',
   11: 'نوفمبر',
   12: 'ديسمبر'
+};
+
+/** أسماء مختصرة واضحة للجداول (4 أحرف) بدل slice(0,3) اللي كانت بتطلع «ينا/فبر/مار». */
+export const MONTH_SHORT_MAP: Record<number, string> = {
+  1: 'يناير', 2: 'فبراير', 3: 'مارس', 4: 'إبريل', 5: 'مايو', 6: 'يونيو',
+  7: 'يوليو', 8: 'أغسطس', 9: 'سبتمبر', 10: 'أكتوبر', 11: 'نوفمبر', 12: 'ديسمبر'
 };
 
 export { parseNumericValue } from './numericParsing';
@@ -563,17 +569,15 @@ export function parseRawRowsToCustomerItemSales(rawRows: any[][]): {
     const sector = parseSalesSectorValue(colMap.sector >= 0 ? row[colMap.sector] : '');
 
     const record: CustomerItemSaleRecord = {
-      // معرّف مشتق من مفاتيح السطر (عميل + صنف + شهر + أمر بيع + تاريخ + كمية + قيمة)
-      // بدل معرّف عشوائي: إعادة استيراد نفس الشيت بتحدّث نفس الصف بدل ما تكرّره.
+      // معرّف ثابت من مفاتيح السطر فقط (بدون quantity/amount!) —
+      // عشان لو اتحول رقم أو كمية أو سعر في الشيت اليومي، يتحدّث نفس الصف
+      // بدل ما يتعمل صف جديد (upsert on same data).
       id: toValidUUID(
         [
           customerAccount || `CUST-${i}`,
           unifiedCode || itemCode || `ITEM-${i}`,
           String(month),
-          salesOrder || '',
-          rawDate || '',
-          String(quantity),
-          String(amount)
+          salesOrder || rawDate || ''
         ].join('|')
       ),
       customerAccount: customerAccount || `CUST-${i}`,
@@ -846,7 +850,12 @@ export function enrichCustomerItemSalesWithDirectory(
       linkedBranch: branch,
       linkedRepName: rep,
       linkedSupervisorName: matched.supervisorName,
-      linkedPhone: matched.phone
+      linkedPhone: matched.phone,
+      linkedSector: (matched as any).sector
+        ? (matched as any).sector === 'both' || (matched as any).sector === 'all'
+          ? 'both'
+          : (matched as any).sector
+        : undefined
     };
   });
 
@@ -868,6 +877,45 @@ export function enrichCustomerItemSalesWithDirectory(
  *   - itemName: لو فاضي أو هو نفسه الكود → اسم الكتالوج.
  *   - unifiedCode: لو القيمة مش شكلها كود (نص) → الكود الموحد من الكتالوج.
  */
+/**
+ * يكمّل «الصنف بالعائلة» اللي بيجي «عام» في الشيت.
+ * الشيت بيكتب اسم البراند في عمود الصنف (لوتس/جلاكسي/...)، وبعض الصفوف
+ * بيكون ليها تصنيف (اطقم حلة/اطباق فاكهة...) وبعضها «عام». بنبني خريطة
+ * (اسم الصنف → أشهر تصنيف غير عام) ونستخدمها نكمّل بيها الصفوف الناقصة.
+ */
+export function fillGenericFamiliesFromSiblings(
+  sales: CustomerItemSaleRecord[],
+  extraVotesSource?: CustomerItemSaleRecord[]
+): CustomerItemSaleRecord[] {
+  if (!sales || sales.length === 0) return sales;
+  const itemKey = (r: CustomerItemSaleRecord) =>
+    String(r.itemName || r.itemCode || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+  const familyVotes = new Map<string, Map<string, number>>();
+  // نبني الخريطة من كل الداتا المتاحة (المفلترة + كل السجلات) عشان تكون أشمل
+  const voteSources = extraVotesSource && extraVotesSource.length > 0
+    ? [...sales, ...extraVotesSource]
+    : sales;
+  voteSources.forEach((r) => {
+    const family = String(r.familyDimension || '').trim();
+    if (!family || family === 'عام') return;
+    const key = itemKey(r);
+    if (!key) return;
+    const votes = familyVotes.get(key) || new Map<string, number>();
+    votes.set(family, (votes.get(family) || 0) + 1);
+    familyVotes.set(key, votes);
+  });
+
+  return sales.map((r) => {
+    const family = String(r.familyDimension || '').trim();
+    if (family && family !== 'عام') return r;
+    const votes = familyVotes.get(itemKey(r));
+    if (!votes || votes.size === 0) return r;
+    const bestFamily = Array.from(votes.entries()).sort((a, b) => b[1] - a[1])[0][0];
+    return { ...r, familyDimension: bestFamily };
+  });
+}
+
 export function enrichCustomerItemSalesWithCatalog(
   sales: CustomerItemSaleRecord[],
   products: Product[]
@@ -1005,7 +1053,11 @@ export function aggregateCustomerItemSales(
   customers: Customer[] = []
 ): CustomerItemSalesSummary[] {
   const map = new Map<string, CustomerItemSalesSummary>();
-  const lookup = customers && customers.length > 0 ? buildCustomerDirectoryLookup(customers) : null;
+  // السجلات اللي جاية من enrichedSalesRecords عندها linkedBranch/linkedRepName بالفعل
+  // (اتعملت في enrichCustomerItemSalesWithDirectory)، فمفيش داعي نبني lookup تاني هنا.
+  // الـ lookup بيتبنى بس لو اتبعت customers صريح && السجلات مش متصلة.
+  const needsLookup = customers && customers.length > 0 && sales.length > 0 && !sales[0]?.linkedCustomerId;
+  const lookup = needsLookup ? buildCustomerDirectoryLookup(customers) : null;
 
   sales.forEach((s) => {
     // Unique key: prefer customerAccount, fallback to invoicingName
@@ -1043,7 +1095,12 @@ export function aggregateCustomerItemSales(
         linkedBalance: matched?.currentBalance ?? matched?.balance,
         linkedOverdue: matched?.totalOverdue ?? matched?.overdueBalance,
         linkedTier: matched?.tier,
-        linkedAddress: matched?.address || matched?.district || matched?.governorate
+        linkedAddress: matched?.address || matched?.district || matched?.governorate,
+        linkedSector: (() => {
+          const raw = (s as any).linkedSector || (matched as any)?.sector;
+          if (!raw) return undefined;
+          return raw === 'both' || raw === 'all' ? 'both' : raw === 'home' || raw === 'electrical' ? raw : undefined;
+        })()
       });
     }
 
@@ -1454,7 +1511,10 @@ export async function pushCustomerItemSalesToSupabase(
           item_group: String(s.itemGroup || 'عام').trim(),
           definitions: s.definitions ? String(s.definitions).trim() : null,
           family_dimension: String(s.familyDimension || s.itemGroup || 'عام').trim(),
-          created_at: s.createdAt || new Date().toISOString()
+          created_at: s.createdAt || new Date().toISOString(),
+          // لازم يتكتب مع كل upsert عشان الـ cursor-based incremental pull
+          // (fetchCustomerItemSalesIncremental) يلتقط التعديلات اللي حصلت بعد أول رفع.
+          updated_at: new Date().toISOString()
         };
       });
 
