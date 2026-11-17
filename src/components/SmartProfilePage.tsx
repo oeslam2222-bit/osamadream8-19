@@ -3,21 +3,19 @@ import {
   Users, Search, Building2, Wallet, ShoppingCart, TrendingUp, Trophy, Scale,
   ChevronRight, ChevronLeft, X, Clock, MapPin, CreditCard, Star, Phone,
   AlertTriangle, CheckCircle2, FileText, BarChart3, RefreshCw,
-  Plus, Activity, Filter, UserCheck, RotateCcw,
+  Plus, Activity, Filter, UserCheck, RotateCcw, Package,
   ArrowUpRight, Image as ImageIcon, CalendarCheck, Check, ExternalLink,
-  Boxes, Home, Zap,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { inferTargetSector } from '../services/targetService';
 import { normalizeArabicText } from '../services/arabicMatchingService';
 import { optimizeImageUrl } from '../services/cloudinaryService';
 import { classifyEligibilityColumn } from '../services/customerFinancialService';
-import { getSavedCustomerItemSales, inferItemSaleSector, MONTH_NAMES_MAP } from '../services/customerItemSalesService';
 import { getLegalCases, subscribeToLegalCases, referCustomerToLegal, isCustomerReferredToLegal } from '../services/legalAffairsService';
 import type { LegalCase } from '../services/legalAffairsService';
 import { LegalTransferModal } from './LegalTransferModal';
 import customerMerchantAvatar from '../assets/images/customer_merchant_avatar_1794559829020.jpg';
-import type { Customer, CustomerItemSaleRecord, TargetRecord, User } from '../types';
+import type { Customer, TargetRecord, User } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { CustomerProfileDrawer } from './CustomerProfileDrawer';
 import { ItemSalesProfilePanel } from './itemSales/ItemSalesProfilePanel';
@@ -106,7 +104,6 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     currentUser,
     users,
     customers,
-    products,
     targets,
     visits: ctxVisits,
     getVisibleTargets,
@@ -140,27 +137,8 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
   const [visibleRepsCount, setVisibleRepsCount] = useState(5);
   const [openCustomerId, setOpenCustomerId] = useState<string | null>(null);
   const [openRepId, setOpenRepId] = useState<string | null>(null);
-  const [repAnalysisTab, setRepAnalysisTab] = useState<'overview' | 'monthly' | 'visits' | 'item_sales'>('overview');
-  const [allItemSales, setAllItemSales] = useState<CustomerItemSaleRecord[]>([]);
-  const [repItemSalesMonth, setRepItemSalesMonth] = useState<number | 'all'>('all');
-  const [repItemSalesSector, setRepItemSalesSector] = useState<'all' | 'home' | 'electrical'>('all');
+  const [repAnalysisTab, setRepAnalysisTab] = useState<'overview' | 'item-sales' | 'monthly' | 'visits'>('overview');
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  useEffect(() => {
-    if (!openRepId) return;
-    setRepItemSalesMonth('all');
-    setRepItemSalesSector('all');
-    if (allItemSales.length > 0) return;
-    let active = true;
-    getSavedCustomerItemSales()
-      .then((rows) => {
-        if (active && Array.isArray(rows)) setAllItemSales(rows);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [openRepId, allItemSales.length]);
 
   useEffect(() => {
     if (mode === 'reps' && canViewReps) {
@@ -722,87 +700,6 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     }
     return rows;
   }, [selectedRep, allTargets]);
-
-  /* ---------- تحليل مبيعات الأصناف والعائلات للمندوب المختار ---------- */
-  const repItemSalesRaw = useMemo(() => {
-    if (!selectedRep || allItemSales.length === 0) return [];
-    const rKey = repMatchKey(selectedRep.repName);
-    const repCustIds = new Set(repCustomers.map((c) => c.id).filter(Boolean));
-    const repCustCodes = new Set(repCustomers.map((c) => String(c.code || '').trim().toLowerCase()).filter(Boolean));
-    return allItemSales.filter((r) => {
-      const repCandidate = r.linkedRepName || r.repName;
-      if (repCandidate && repMatchKey(repCandidate) === rKey) return true;
-      if (r.linkedCustomerId && repCustIds.has(r.linkedCustomerId)) return true;
-      const acct = String(r.customerAccount || r.linkedCustomerCode || '').trim().toLowerCase();
-      if (acct && repCustCodes.has(acct)) return true;
-      return false;
-    });
-  }, [selectedRep, allItemSales, repCustomers]);
-
-  const repItemSalesMonths = useMemo(() => {
-    const s = new Set<number>();
-    repItemSalesRaw.forEach((r) => {
-      const m = Number(r.month);
-      if (m >= 1 && m <= 12) s.add(m);
-    });
-    return Array.from(s).sort((a, b) => a - b);
-  }, [repItemSalesRaw]);
-
-  const repItemSalesBreakdown = useMemo(() => {
-    const filtered = repItemSalesRaw.filter((r) => {
-      if (repItemSalesMonth !== 'all' && Number(r.month) !== repItemSalesMonth) return false;
-      const sec = inferItemSaleSector(r, allCustomers, products);
-      if (repItemSalesSector !== 'all' && sec !== repItemSalesSector) return false;
-      return true;
-    });
-
-    const buildBucket = (secKey: 'home' | 'electrical') => {
-      const rows = filtered.filter((r) => inferItemSaleSector(r, allCustomers, products) === secKey);
-      let amount = 0;
-      let pieces = 0;
-      const itemMap = new Map<
-        string,
-        {
-          name: string;
-          pieces: number;
-          amount: number;
-          families: Map<string, { name: string; pieces: number; amount: number }>;
-        }
-      >();
-      rows.forEach((r) => {
-        const qty = Number(r.quantity || 0);
-        const amt = Number(r.amount || 0);
-        pieces += qty;
-        amount += amt;
-        const itemLabel = (r.itemGroup || r.brand || r.itemName || 'غير محدد').trim();
-        const familyLabel = (r.familyDimension || r.definitions || r.itemName || 'عام').trim();
-        const cur = itemMap.get(itemLabel) || { name: itemLabel, pieces: 0, amount: 0, families: new Map() };
-        cur.pieces += qty;
-        cur.amount += amt;
-        const famCur = cur.families.get(familyLabel) || { name: familyLabel, pieces: 0, amount: 0 };
-        famCur.pieces += qty;
-        famCur.amount += amt;
-        cur.families.set(familyLabel, famCur);
-        itemMap.set(itemLabel, cur);
-      });
-      const items = Array.from(itemMap.values())
-        .map((it) => ({
-          ...it,
-          families: Array.from(it.families.values()).sort((a, b) => b.amount - a.amount),
-        }))
-        .sort((a, b) => b.amount - a.amount);
-      return { sector: secKey, rowsCount: rows.length, pieces, amount, items };
-    };
-
-    const home = buildBucket('home');
-    const electrical = buildBucket('electrical');
-    return {
-      totalPieces: home.pieces + electrical.pieces,
-      totalAmount: home.amount + electrical.amount,
-      home,
-      electrical,
-    };
-  }, [repItemSalesRaw, repItemSalesMonth, repItemSalesSector, allCustomers, products]);
 
   /* ---------- Render ---------- */
   return (
@@ -1737,8 +1634,8 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               <div className="flex items-center gap-2 overflow-x-auto pb-2.5 no-scrollbar">
                 {[
                   { key: 'overview' as const, label: 'نظرة عامة', icon: <Activity className="w-4 h-4" /> },
+                  { key: 'item-sales' as const, label: 'مبيعات الأصناف', icon: <Package className="w-4 h-4" /> },
                   { key: 'monthly' as const, label: 'أداء الشهور', icon: <BarChart3 className="w-4 h-4" /> },
-                  { key: 'item_sales' as const, label: `الأصناف والعائلات (${repItemSalesRaw.length})`, icon: <Boxes className="w-4 h-4" /> },
                   { key: 'visits' as const, label: `الزيارات (${repMonthlyVisitsCount})`, icon: <MapPin className="w-4 h-4" /> },
                 ].map((t) => {
                   const active = repAnalysisTab === t.key;
@@ -1766,11 +1663,6 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               {/* تبويب 1: نظرة عامة */}
               {repAnalysisTab === 'overview' && (
                 <div className="space-y-4">
-                  <ItemSalesProfilePanel
-                    title="مبيعات الأصناف لهذا المندوب"
-                    repName={selectedRep.repName}
-                  />
-
                   <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                     <div className="rounded-2xl bg-white border border-amber-300 p-3.5 shadow-sm">
                       <div className="flex items-center justify-between mb-1"><span className="text-xs font-extrabold text-amber-900">مديونية العملاء</span><CreditCard className="w-4 h-4 text-amber-700" /></div>
@@ -1849,6 +1741,14 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                 </div>
               )}
 
+              {/* تبويب: مبيعات الأصناف للمندوب (الإجمالي + بالشهور + بالعائلة) */}
+              {repAnalysisTab === 'item-sales' && (
+                <ItemSalesProfilePanel
+                  title="مبيعات الأصناف لهذا المندوب"
+                  repName={selectedRep.repName}
+                />
+              )}
+
               {/* تبويب 2: أداء الشهور */}
               {repAnalysisTab === 'monthly' && (
                 <div className="space-y-3">
@@ -1925,124 +1825,6 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                       ))
                     )}
                   </div>
-                </div>
-              )}
-
-              {/* تبويب 4: الأصناف والعائلات للمندوب */}
-              {repAnalysisTab === 'item_sales' && (
-                <div className="space-y-3">
-                  <div className="rounded-2xl bg-white dark:bg-[#111c2e] border border-slate-200 dark:border-slate-700 p-4 shadow-sm flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <div className="font-black text-base text-slate-900 dark:text-slate-100">
-                        مبيعات الصنف والعائلة ({repItemSalesRaw.length})
-                      </div>
-                      <div className="text-xs font-bold text-slate-600 dark:text-slate-400 mt-0.5 tabular-nums">
-                        {fmt(repItemSalesBreakdown.totalPieces)} قطعة • {fmt(repItemSalesBreakdown.totalAmount)} ج.م
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <select
-                        value={repItemSalesMonth}
-                        onChange={(e) => setRepItemSalesMonth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                        aria-label="تصفية مبيعات المندوب بالشهر"
-                        className="h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100"
-                      >
-                        <option value="all">كل الشهور</option>
-                        {repItemSalesMonths.map((m) => (
-                          <option key={m} value={m}>
-                            {MONTH_NAMES_MAP[m] || `شهر ${m}`}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-0.5 text-xs font-black">
-                        {[
-                          { k: 'all' as const, label: 'الكل' },
-                          { k: 'home' as const, label: 'منزلي' },
-                          { k: 'electrical' as const, label: 'كهربائي' },
-                        ].map((s) => (
-                          <button
-                            key={s.k}
-                            type="button"
-                            onClick={() => setRepItemSalesSector(s.k)}
-                            className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
-                              repItemSalesSector === s.k
-                                ? 'bg-[#12385d] text-white'
-                                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-700'
-                            }`}
-                          >
-                            {s.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {repItemSalesBreakdown.home.rowsCount === 0 && repItemSalesBreakdown.electrical.rowsCount === 0 ? (
-                    <div className="rounded-2xl bg-white dark:bg-[#111c2e] border border-slate-200 dark:border-slate-700 p-8 text-center text-sm font-extrabold text-slate-600 dark:text-slate-400">
-                      لا توجد مبيعات أصناف مسجلة لهذا المندوب في الفترة المختارة
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {[repItemSalesBreakdown.home, repItemSalesBreakdown.electrical]
-                        .filter((b) => b.rowsCount > 0)
-                        .map((bucket) => {
-                          const isElec = bucket.sector === 'electrical';
-                          return (
-                            <div
-                              key={bucket.sector}
-                              className={`rounded-2xl border p-4 space-y-2.5 ${
-                                isElec
-                                  ? 'bg-violet-50/50 dark:bg-[#191636] border-violet-200 dark:border-violet-800/60'
-                                  : 'bg-emerald-50/50 dark:bg-[#0f2622] border-emerald-200 dark:border-emerald-800/60'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-200/80 dark:border-slate-700/70">
-                                <span className="inline-flex items-center gap-1.5 text-sm font-black text-slate-900 dark:text-slate-100">
-                                  {isElec ? (
-                                    <Zap size={16} className="text-violet-600 dark:text-violet-400" />
-                                  ) : (
-                                    <Home size={16} className="text-emerald-600 dark:text-emerald-400" />
-                                  )}
-                                  {isElec ? 'القطاع الكهربائي' : 'القطاع المنزلي'}
-                                </span>
-                                <span className="text-xs font-black tabular-nums text-slate-800 dark:text-slate-200">
-                                  {fmt(bucket.pieces)} قطعة · {fmt(bucket.amount)} ج.م
-                                </span>
-                              </div>
-
-                              <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
-                                {bucket.items.map((item) => (
-                                  <div
-                                    key={item.name}
-                                    className="rounded-xl bg-white dark:bg-[#111c2e] border border-slate-200 dark:border-slate-700 p-3 space-y-1.5"
-                                  >
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="text-xs font-black text-slate-900 dark:text-slate-100">{item.name}</span>
-                                      <span className="text-xs font-black tabular-nums text-blue-700 dark:text-blue-300">
-                                        {fmt(item.pieces)} قطعة · {fmt(item.amount)} ج.م
-                                      </span>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
-                                      {item.families.map((fam) => (
-                                        <div
-                                          key={fam.name}
-                                          className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/70 text-[11px]"
-                                        >
-                                          <span className="font-bold text-slate-800 dark:text-slate-200 truncate">{fam.name}</span>
-                                          <span className="font-black text-slate-600 dark:text-slate-300 tabular-nums whitespace-nowrap">
-                                            {fmt(fam.pieces)} ق · {fmt(fam.amount)}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  )}
                 </div>
               )}
 

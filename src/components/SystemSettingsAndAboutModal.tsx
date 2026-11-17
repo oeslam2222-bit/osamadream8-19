@@ -39,6 +39,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
   defaultTab = 'team'
 }) => {
   const {
+    currentUser,
     dataSaverMode,
     toggleDataSaverMode,
     triggerInstallPrompt,
@@ -54,6 +55,11 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
   const [cloudNameInput, setCloudNameInput] = useState(cloudinaryConfig?.cloudName || 'drke4xlgb');
   const [presetInput, setPresetInput] = useState(cloudinaryConfig?.uploadPreset || 'DREAMOSAMA');
   const [cloudSavedNotice, setCloudSavedNotice] = useState<string | null>(null);
+
+  // إعدادات Cloudinary بيانات حساسة (اسم السحابة + Upload Preset) — تظهر
+  // للمدير والمطور فقط، وباقي الأدوار مش بتشوف الكارت ده خالص.
+  const canManageCloudinary =
+    currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   if (!isOpen) return null;
 
@@ -151,18 +157,18 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
           {/* TAB 1: TEAM & LEADERSHIP - STRICTLY NO INDIVIDUAL NAMES */}
           {activeTab === 'team' && (
             <div className="space-y-4 animate-in fade-in">
-              <div className="bg-gradient-to-r from-[var(--app-warn)] via-[var(--app-warn)] to-transparent border border-[var(--app-warn)] rounded-2xl p-4 flex items-start sm:items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black shadow-md shrink-0">
+              <div className="bg-navy-panel border border-[var(--app-primary-border, #1d4ed8)] rounded-2xl p-4 flex items-start sm:items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-white/10 text-[#2dd4bf] flex items-center justify-center font-black shadow-md shrink-0">
                   <Award className="w-6 h-6" />
                 </div>
                 <div>
-                  <h4 className="font-black text-slate-900 text-sm">
+                  <h4 className="font-black text-white text-sm">
                     القائمين على الفكرة والإشراف العام
                   </h4>
-                  <div className="text-[var(--app-warn-text)] font-extrabold text-xs mt-0.5">
+                  <div className="text-[#2dd4bf] font-extrabold text-xs mt-0.5">
                     إدارة القطاع المنزلي لمجموعة دريم طنطاوي
                   </div>
-                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                  <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
                     صاحبة الرؤية، الفكرة، والتوجيه الاستراتيجي لتأسيس هذه المنظومة البرمجية الموحدة؛ لميكنة قطاع الأدوات والأجهزة المنزلية وتنسيق حركة المبيعات والمخازن والتحصيل بأعلى معايير الدقة والسرعة.
                   </p>
                 </div>
@@ -170,14 +176,14 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Sector Leadership Card */}
-                <div className="bg-slate-50 border border-[var(--app-line)] rounded-2xl p-4 space-y-2 hover:border-[var(--app-warn)] transition">
+                <div className="bg-slate-50 border border-[var(--app-line)] rounded-2xl p-4 space-y-2 hover:border-[var(--app-primary)] transition">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-navy-panel text-[#2dd4bf] flex items-center justify-center font-black shrink-0">
                       <Building className="w-5 h-5" />
                     </div>
                     <div>
                       <div className="font-black text-sm text-slate-900">إدارة القطاع المنزلي</div>
-                      <div className="text-[11px] font-bold text-[var(--app-warn-text)]">التخطيط الاستراتيجي وميكنة العمليات</div>
+                      <div className="text-[11px] font-bold text-[var(--app-primary-text)]">التخطيط الاستراتيجي وميكنة العمليات</div>
                     </div>
                   </div>
                   <p className="text-[11px] text-slate-600 leading-relaxed pt-1">
@@ -186,7 +192,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                 </div>
 
                 {/* Operations & Logistics Card */}
-                <div className="bg-slate-50 border border-[var(--app-line)] rounded-2xl p-4 space-y-2 hover:border-[var(--app-warn)] transition">
+                <div className="bg-slate-50 border border-[var(--app-line)] rounded-2xl p-4 space-y-2 hover:border-[var(--app-primary)] transition">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-[var(--app-navy)] text-[#60a5fa] flex items-center justify-center font-black shrink-0">
                       <Server className="w-5 h-5" />
@@ -202,7 +208,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                 </div>
 
                 {/* Financial & Legal Compliance */}
-                <div className="bg-slate-50 border border-[var(--app-line)] rounded-2xl p-4 space-y-2 hover:border-[var(--app-warn)] transition">
+                <div className="bg-slate-50 border border-[var(--app-line)] rounded-2xl p-4 space-y-2 hover:border-[var(--app-primary)] transition">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center font-black shrink-0">
                       <Scale className="w-5 h-5" />
@@ -218,9 +224,9 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                 </div>
 
                 {/* Field Sales & Branches Team */}
-                <div className="bg-slate-50 border border-[var(--app-line)] rounded-2xl p-4 space-y-2 hover:border-[var(--app-warn)] transition">
+                <div className="bg-slate-50 border border-[var(--app-line)] rounded-2xl p-4 space-y-2 hover:border-[var(--app-primary)] transition">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-navy-panel text-[#2dd4bf] flex items-center justify-center font-black shrink-0">
                       <Users className="w-5 h-5" />
                     </div>
                     <div>
@@ -245,7 +251,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                   <h3 className="font-black text-base sm:text-lg text-slate-900">
                     مجموعة دريم طنطاوي • القطاع المنزلي والأجهزة
                   </h3>
-                  <div className="text-xs text-[var(--app-warn-text)] font-bold mt-0.5">
+                  <div className="text-xs text-[var(--app-primary-text)] font-bold mt-0.5">
                     TANTAWY GROUP • منظومة التوزيع الميداني وإدارة سلاسل الإمداد
                   </div>
                   <div className="text-[11px] text-slate-500 mt-1 font-mono">
@@ -257,7 +263,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
               {/* Company & Operational Overview */}
               <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
                 <h4 className="font-black text-slate-900 text-xs flex items-center gap-2">
-                  <Building className="w-4 h-4 text-[var(--app-warn-text)]" />
+                  <Building className="w-4 h-4 text-[var(--app-primary-text)]" />
                   <span>نبذة عن الكيان وشبكة التوزيع الميداني</span>
                 </h4>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
@@ -289,7 +295,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
 
                 <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1.5">
                   <div className="font-black text-slate-900 text-xs flex items-center gap-1.5">
-                    <Users className="w-4 h-4 text-[var(--app-warn-text)]" />
+                    <Users className="w-4 h-4 text-[var(--app-primary-text)]" />
                     <span>سلسلة الاعتماد الهرمي للطلبيات</span>
                   </div>
                   <p className="text-[11px] text-slate-600 leading-relaxed">
@@ -395,7 +401,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
               {/* Sound & Notification Alerts */}
               <div className="bg-slate-50 border border-[var(--app-line)] rounded-2xl p-4 flex items-center justify-between gap-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] flex items-center justify-center font-black shrink-0">
+                  <div className="w-10 h-10 rounded-xl bg-[var(--app-primary-tint)] text-[var(--app-primary-text)] flex items-center justify-center font-black shrink-0">
                     <Bell className="w-5 h-5" />
                   </div>
                   <div>
@@ -411,7 +417,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                   onClick={() => setSoundAlerts(!soundAlerts)}
                   className={`px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer shrink-0 ${
                     soundAlerts
-                      ? 'bg-[var(--app-warn)] text-slate-950 shadow-sm'
+                      ? 'bg-[var(--app-ok)] text-white shadow-sm'
                       : 'bg-white border border-[var(--app-line)] text-slate-700 hover:bg-slate-100'
                   }`}
                 >
@@ -419,7 +425,8 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                 </button>
               </div>
 
-              {/* Cloudinary Integration & Image Storage */}
+              {/* Cloudinary Integration & Image Storage — سرّي: للمدير والمطور فقط */}
+              {canManageCloudinary && (
               <div className="bg-slate-50 border border-cyan-500/30 rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
@@ -433,7 +440,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                       </p>
                     </div>
                   </div>
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border dark:border-emerald-800">
                     جاهز ومربوط ✅
                   </span>
                 </div>
@@ -492,11 +499,12 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                 </div>
 
                 {cloudSavedNotice && (
-                  <div className="p-2 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold text-center border border-emerald-200">
+                  <div className="p-2 rounded-xl bg-emerald-50 text-emerald-800 text-xs font-bold text-center border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800">
                     {cloudSavedNotice}
                   </div>
                 )}
               </div>
+              )}
             </div>
           )}
 
@@ -575,15 +583,15 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
           {/* TAB 5: COMPREHENSIVE ENTERPRISE PRIVACY & POLICY */}
           {activeTab === 'privacy' && (
             <div className="space-y-3.5 animate-in fade-in leading-relaxed text-slate-700">
-              <div className="bg-[var(--app-warn)] border border-[var(--app-warn)] rounded-2xl p-4 flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-[var(--app-warn)] text-slate-950 flex items-center justify-center font-black shrink-0">
+              <div className="bg-navy-panel border border-[var(--app-primary-border, #1d4ed8)] rounded-2xl p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/10 text-[#2dd4bf] flex items-center justify-center font-black shrink-0">
                   <Shield className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="font-black text-slate-900 text-sm">
+                  <h4 className="font-black text-white text-sm">
                     وثيقة السياسات والسرية والحماية الرقمية المعتمدة
                   </h4>
-                  <div className="text-[11px] text-[var(--app-warn-text)] font-bold">
+                  <div className="text-[11px] text-[#2dd4bf] font-bold">
                     إدارة القطاع المنزلي لمجموعة دريم طنطاوي
                   </div>
                 </div>
@@ -592,7 +600,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
               {/* Clause 1: Trade Secrets & Financial Data */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-[var(--app-line)] space-y-1.5">
                 <div className="font-black text-slate-900 flex items-center gap-2">
-                  <Lock className="w-4 h-4 text-[var(--app-warn-text)] shrink-0" />
+                  <Lock className="w-4 h-4 text-[var(--app-primary-text)] shrink-0" />
                   <span>المادة الأولى: سرية وأمان البيانات التجارية والمالية</span>
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">
@@ -636,7 +644,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
               {/* Clause 5: Field Devices & Offline Conduct */}
               <div className="bg-slate-50 p-4 rounded-2xl border border-[var(--app-line)] space-y-1.5">
                 <div className="font-black text-slate-900 flex items-center gap-2">
-                  <Smartphone className="w-4 h-4 text-[var(--app-warn-text)] shrink-0" />
+                  <Smartphone className="w-4 h-4 text-[var(--app-primary-text)] shrink-0" />
                   <span>المادة الخامسة: ضوابط تشغيل الأجهزة الميدانية والعمل بدون إنترنت</span>
                 </div>
                 <p className="text-[11px] text-slate-600 leading-relaxed">

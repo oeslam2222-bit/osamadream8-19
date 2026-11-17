@@ -58,6 +58,7 @@ import { SystemSettingsAndAboutModal } from './SystemSettingsAndAboutModal';
 import { InternalNotificationCenter } from './InternalNotificationCenter';
 import { UserProfileAvatarModal } from './UserProfileAvatarModal';
 import { DatabaseConnectionModal } from './DatabaseConnectionModal';
+import { SyncStatusCenter } from './SyncStatusCenter';
 
 interface NavbarProps {
   activeTab: string;
@@ -115,7 +116,23 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [isDbModalOpen, setIsDbModalOpen] = useState(false);
+  const [isSyncCenterOpen, setIsSyncCenterOpen] = useState(false);
   const { isDark, toggleTheme } = useTheme();
+
+  // كثافة العرض: مصغّر (المحتوى الأكتر على الشاشة) / مريح — محفوظة لكل جهاز.
+  // زر التبديل اتشال بطلب المستخدم (العرض الحالي مريح ومختصر)،
+  // والكثافة بتفضل زي ما هي لكل جهاز من غير تغيير مفاجئ.
+  const [density] = useState<'compact' | 'comfortable'>(() => {
+    try {
+      return localStorage.getItem('tantawy_density') === 'comfortable' ? 'comfortable' : 'compact';
+    } catch {
+      return 'compact';
+    }
+  });
+
+  React.useEffect(() => {
+    document.documentElement.classList.toggle('tg-compact', density === 'compact');
+  }, [density]);
 
   const [internalSidebarCollapsed, setInternalSidebarCollapsed] = useState<boolean>(() => {
     try {
@@ -397,6 +414,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                     ? 'مزامنة البيانات'
                     : 'قاعدة البيانات'}
               </span>
+            </button>
+            {/* مركز حالة المزامنة والطابور */}
+            <button
+              type="button"
+              onClick={() => setIsSyncCenterOpen(true)}
+              className="ds-iconbtn"
+              title="مركز حالة المزامنة والطابور"
+              aria-label="مركز حالة المزامنة"
+            >
+              <RefreshCw aria-hidden="true" className={pendingInvoicesCount > 0 ? 'text-amber-600' : ''} />
+              <span className="ds-vis-ge-md">المزامنة</span>
+              {pendingInvoicesCount > 0 && <span className="ds-count">{pendingInvoicesCount}</span>}
             </button>
 
             {/* بحث ذكي (موبايل) */}
@@ -738,6 +767,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         isOpen={isDbModalOpen}
         onClose={() => setIsDbModalOpen(false)}
       />
+      <SyncStatusCenter isOpen={isSyncCenterOpen} onClose={() => setIsSyncCenterOpen(false)} />
 
       {/* بحث ذكي عام */}
       <GlobalSearch

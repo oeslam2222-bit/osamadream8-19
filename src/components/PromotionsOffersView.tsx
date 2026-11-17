@@ -34,6 +34,7 @@ import {
 } from '../services/promotionService';
 import { formatCurrency } from '../services/invoiceService';
 import { cleanProductCode } from '../services/excelService';
+import { CANONICAL_BRANCHES } from '../services/branchDirectory';
 import { ProductImage } from './ProductImage';
 
 interface PromotionsOffersViewProps {
@@ -148,9 +149,14 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
   }, [scopedPromotions, users]);
 
   const branchFilterOptions = useMemo(() => {
-    const set = new Set<string>(['متاح اكتوبر', ...branches.map((b) => b.name), ...OFFER_BRANCH_STOCK_COLUMNS.filter((b) => b !== 'متاح اكتوبر')]);
+    // الفروع المعتمدة السبعة بس — مش كل الفروع المخزنة في قاعدة البيانات
+    // (اللي بتتكرر بأسماء مختلفة زي «فرع المنيا» / «المنيا» / «المنوفية»).
+    const set = new Set<string>([
+      ...CANONICAL_BRANCHES,
+      ...OFFER_BRANCH_STOCK_COLUMNS.filter((b) => CANONICAL_BRANCHES.includes(b as any)),
+    ]);
     return ['الكل', ...Array.from(set).filter(Boolean)];
-  }, [branches]);
+  }, []);
 
   const filteredPromotions = useMemo(() => {
     return scopedPromotions.filter((p) => {
