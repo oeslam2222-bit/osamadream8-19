@@ -8,7 +8,6 @@ import { resolveProductPricing, stripPlaceholderText } from '../services/product
 
 export const STORAGE_KEYS = {
   PRODUCTS: 'dream_dist_products_v9',
-
   INVOICES: 'dream_dist_invoices_v9',
   USERS: 'dream_dist_users_v10',
   BRANCHES: 'dream_dist_branches_v9',
@@ -99,3 +98,297 @@ export const firstNumber = (...values: (number | undefined | null)[]): number | 
   for (const v of values) {
     const n = Number(v);
     if (v !== undefined && v !== null && !isNaN(n)) return n;
+  }
+  return undefined;
+};
+
+/**
+ * Resolve إجمالي المستحقات (dues) for a customer.
+ *
+ * Delegates to the canonical resolver in customerFinancialService so the value
+ * used here, in the main table and in the database write path is one number.
+ */
+export const resolveDues = (c: Customer): number => resolveCustomerDuesValue(c);
+
+/**
+ * Lightweight fingerprint of the customer data a client is currently showing.
+ * Lets the heartbeat detect that an admin changed the data and pull the fresh
+ * copy, instead of waiting for a manual "publish version" press.
+ */
+export const CUSTOMERS_FINGERPRINT_KEY = 'dream_customers_fingerprint_v1';
+
+export const buildCustomersFingerprint = (list: Customer[]): string => {
+  let debt = 0;
+  let dues = 0;
+  list.forEach((c) => {
+    debt += Number(c.currentBalance ?? c.balance ?? 0);
+    dues += resolveCustomerDuesValue(c);
+  });
+  return `${list.length}:${Math.round(debt)}:${Math.round(dues)}`;
+};
+
+export const saveLocalCustomersFingerprint = (list: Customer[]) => {
+  try {
+    window.localStorage.setItem(CUSTOMERS_FINGERPRINT_KEY, buildCustomersFingerprint(list));
+  } catch {}
+};
+
+export const getLocalCustomersFingerprint = (): string => {
+  try {
+    return window.localStorage.getItem(CUSTOMERS_FINGERPRINT_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+
+// Helper to normalize branch names across legacy stored data
+export const normalizeBranchName = (name?: string): string => {
+  if (!name || !name.trim()) return 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+  const clean = name.trim();
+  const inferred = inferBranchFromText(clean);
+  if (inferred) return inferred;
+  if (!clean.startsWith('فرع') && !clean.includes('المخزن')) {
+    return `فرع ${clean}`;
+  }
+  return clean;
+};
+
+export const normalizeIdentity = (value?: string) => normalizeArabicText(String(value || '')).replace(/\s+/g, '');
+export const hasDuplicateUserIdentity = (candidate: Partial<User>, list: User[], excludeId?: string) => {
+  const username = normalizeIdentity(candidate.username);
+  const email = normalizeIdentity(candidate.email);
+  const phone = normalizeIdentity(candidate.phone);
+  const name = normalizeIdentity(candidate.name);
+  return list.some((u) => {
+    if (u.id === excludeId) return false;
+    return (username && normalizeIdentity(u.username) === username) ||
+      (email && normalizeIdentity(u.email) === email) ||
+      (phone && normalizeIdentity(u.phone) === phone) ||
+      (name && normalizeIdentity(u.name) === name);
+  });
+};
+
+/**
+ * عمود الصورة في الشيت مش دايماً رابط. الخانة الفاضية بتتحول `0` في الإكسل،
+ * فكان بيتولد `<img src="0">` والبراوزر يطلب `/0` ويرجع 404 في الكونسول.
+ */
+export const sanitizeStoredImageUrl = (value?: string): string | undefined => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return undefined;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^data:image\//i.test(raw)) return raw;
+  return undefined;
+};
+
+export const sanitizeProducts = (list: Product[]): Product[] => {
+  if (!Array.isArray(list)) return [];
+  const usedIds = new Set<string>();
+
+  // لا دمج: كل صف وارد يبقى صنف مستقل في الكتالوج، حتى لو الكود مكرر مع اختلاف
+  // اللون أو المقاس أو المخزون. كل صف يأخذ رقم تعريفي فريد (product-row-N)،
+  // فمفيش دمج أو حذف لأي صف من الشيت.
+  return list.filter(Boolean).map((rawProduct, index) => {
+    const p = { ...rawProduct };
+    const originalId = String(p.id || '').trim();
+    let rowId = originalId || `product-row-${index + 1}`;
+    if (usedIds.has(rowId)) {
+      rowId = `${rowId}-${index + 1}`;
+    }
+    usedIds.add(rowId);
+
+    const cartonQty = Math.max(1, Number(p.cartonQuantity || p.factor) || 1);
+    const savedCartonPrice = Number(
+      p.cartonPrice ??
+      (p as any).carton_price ??
+      (p as any)['سعر الكرتونة'] ??
+      (p as any)['سعر الكرتونه'] ??
+      0
+    );
+    const savedPiecePrice = Number(
+      p.piecePrice ??
+      p.salesPrice ??
+      p.price ??
+      (p as any).piece_price ??
+      (p as any).sales_price ??
+      (p as any)['سعر القطعة'] ??
+      (p as any)['سعر القطعه'] ??
+      (p as any)['سعر البيع'] ??
+      0
+    );
+
+    // قاعدة التسعير الواحدة (سعر القطعة × الشدة = سعر الكرتونة). لو الصنف شدة 1
+    // يبقى سعر القطعة = سعر الكرتونة، ومفيش معنى لـ"سعر كرتونة" تاني.
+    const pricing = resolveProductPricing({
+      piecePrice: savedPiecePrice,
+      cartonPrice: savedCartonPrice,
+      factor: cartonQty,
+    });
+    const { piecePrice, cartonPrice } = pricing;
+
+    const rawPromo = Number(p.promoPrice || p.offerPrice || 0);
+    // سعر العرض سارٍ فقط إذا كان أكبر من سعر القطعة الفردية وأقل من سعر الكرتونة
+    const cleanPromo = rawPromo > piecePrice && rawPromo < cartonPrice ? rawPromo : undefined;
+
+    return {
+      ...p,
+      id: rowId,
+      imageUrl: sanitizeStoredImageUrl(p.imageUrl),
+      // `(blank)` و`((blank))` مش بيانات — بتتشال من النص نفسه عشان متظهرش في الكارت.
+      // لو الاسم كله كان placeholder بنرجع لكود الصنف بدل ما نعرض كلمة blank.
+      name: stripPlaceholderText(p.name) || (p.code ? `صنف ${p.code}` : 'صنف بدون اسم'),
+      color: stripPlaceholderText(p.color),
+      size: stripPlaceholderText(p.size),
+      department: stripPlaceholderText(p.department),
+      classification: stripPlaceholderText(p.classification),
+      itemGroup: stripPlaceholderText(p.itemGroup),
+      familyName: stripPlaceholderText(p.familyName),
+      cartonQuantity: pricing.factor,
+      factor: pricing.factor,
+      cartonPrice,
+      piecePrice,
+      promoPrice: cleanPromo,
+      offerPrice: cleanPromo,
+    };
+  });
+};
+
+// Deduplicate customers by code / phone / name to prevent 3,000 becoming 6,000 on daily updates
+export const deduplicateCustomersArray = (list: Customer[]): Customer[] => {
+  if (!Array.isArray(list) || list.length === 0) return [];
+  return deduplicateAndMergeCustomers(list).customers;
+};
+
+// Deduplicate target records by branch + rep + date
+export const deduplicateTargetRecords = (records: TargetRecord[]): TargetRecord[] => {
+  const map = new Map<string, TargetRecord>();
+  records.forEach((r) => {
+    const branchKey = (r.branch || '').trim().toLowerCase();
+    const repKey = (r.repName || '').trim().toLowerCase();
+    const dateKey = (r.date || '').trim();
+    const key = `${branchKey}__${repKey}__${dateKey}`;
+    if (map.has(key)) {
+      map.set(key, { ...map.get(key)!, ...r, id: map.get(key)!.id });
+    } else {
+      map.set(key, r);
+    }
+  });
+  return Array.from(map.values());
+};
+
+/**
+ * مفتاح هوية الصنف انتقل لـ`src/services/productIdentity.ts`.
+ *
+ * كان معرّف هنا، والخدمة دي محتاجاه كمان (عدّ التكرار وقت الاستيراد)،
+ * والـimport من services لـcontext layering معكوس. فالتعريف بقى في
+ * الـservice، وهنا re-export بس عشان الاستيرادات الموجودة مكانش تتكسر.
+ *
+ * التعريف: الصنف = الكود. راجع الملف ده للسبب (قاعدة البيانات عليها
+ * `UNIQUE(lower(trim(code)))` على جدول products، فالكود هو الهوية).
+ */
+export { productIdentityKey, normalizeProductCodeKey, normalizeVariantCodeKey, deduplicateProductArray } from '../services/productIdentity';
+
+export const sanitizeCustomers = (list: Customer[]): Customer[] => {
+  if (!Array.isArray(list)) return [];
+  // Strictly filter out any Excel summary / total rows ("الإجمالي", "المجموع", etc.)
+  // so they never inflate company collections by 10 million!
+  const cleanRows = list.filter((c) => {
+    if (!c) return false;
+    return !isSummaryOrTotalRow(c.name, c.code, c.branchName, c.salesRepName || c.repName);
+  });
+
+  const normalizedList = cleanRows.map((c, idx) => {
+    let resolvedBranch = c.branchName || '';
+    if (!resolvedBranch || resolvedBranch === 'الفرع الرئيسي') {
+      const locInferred = inferBranchFromText(
+        `${c.address || ''} ${c.governorate || ''} ${c.notes || ''}`
+      );
+      if (locInferred) resolvedBranch = locInferred;
+    }
+    const fin = calculateCustomerFinancials(c);
+    const s26 = fin.sales2026;
+    const col26 = fin.collections2026;
+
+    // Guarantee docs logic:
+    // لو كبر من صفر يبقي ماضي علي ورق ضمان بالمبلغ ده
+    // لو 0 او مافيش يبق لا يوجد ورق ضمان
+    let gAmount = Math.abs(Number(c.guaranteeAmount || 0));
+    const rawG = String(c.guaranteeDocs || '').trim();
+    if (gAmount <= 0 && rawG) {
+      const cleanDigits = rawG.replace(/[^\d]/g, '');
+      if (cleanDigits) {
+        const parsed = parseFloat(cleanDigits);
+        if (!isNaN(parsed) && parsed > 0) gAmount = parsed;
+      }
+    }
+    let finalGDocs = 'لا يوجد ورق ضمان';
+    let finalHasG = false;
+    if (gAmount > 0) {
+      finalGDocs = `ماضي على ورق ضمان (${gAmount.toLocaleString('en-US')} ج.م)`;
+      finalHasG = true;
+    } else if (
+      rawG &&
+      rawG !== '0' &&
+      !rawG.includes('بدون') &&
+      !rawG.includes('لا') &&
+      !rawG.includes('مش') &&
+      !rawG.includes('غير') &&
+      (rawG.includes('ماضي') || rawG.includes('شيك') || rawG.includes('كمبيالة') || rawG.includes('امانة') || rawG.includes('أمانة') || rawG.includes('رهن'))
+    ) {
+      finalGDocs = rawG.includes('ماضي') ? rawG : `ماضي على ورق ضمان (${rawG})`;
+      finalHasG = true;
+    }
+
+    // Payment terms logic: كاش او علي دفعات او شيكات
+    let finalPaymentTerms = 'كاش';
+    const rawPT = String(c.paymentTerms || '').trim().toLowerCase();
+    if (rawPT.includes('شيك') || rawPT.includes('check') || rawPT.includes('cheque')) {
+      finalPaymentTerms = 'شيكات';
+    } else if (
+      rawPT.includes('دفع') ||
+      rawPT.includes('قسط') ||
+      rawPT.includes('أقساط') ||
+      rawPT.includes('اقساط') ||
+      rawPT.includes('اجل') ||
+      rawPT.includes('آجل') ||
+      rawPT.includes('installment')
+    ) {
+      finalPaymentTerms = 'على دفعات';
+    } else if (rawPT.includes('كاش') || rawPT.includes('نقد') || rawPT.includes('cash')) {
+      finalPaymentTerms = 'كاش';
+    } else if (c.paymentTerms) {
+      finalPaymentTerms = c.paymentTerms;
+    }
+
+    return {
+      ...c,
+      id: c.id || `cust_row_${idx + 1}_${(c.code || '').replace(/[^a-zA-Z0-9_-]/g, '_')}`,
+      name: c.name || `عميل ${c.code || idx + 1}`,
+      branchName: resolvedBranch || c.branchName || '',
+      currentBalance: fin.balance,
+      balance: fin.balance,
+      totalOverdueAndDue: fin.overdue,
+      overdueBalance: c.overdueBalance !== undefined ? Number(c.overdueBalance) : fin.overdue,
+      dueBalance: fin.dueBalance,
+      creditLimit: fin.creditLimit,
+      totalMonthlySales: s26,
+      sales2026: s26,
+      totalOverallSales: Number(c.totalOverallSales || s26),
+      totalMonthlyCollections: col26,
+      collections2026: col26,
+      totalOverallCollections: Number(c.totalOverallCollections || col26),
+      hasDealtIn2026: fin.isDealtCustomer,
+      dealt2026: fin.dealtStatusLabel,
+      // Keep the sheet's own wording, and keep it ABSENT when the source never
+      // provided one. Inventing "قابل" here used to shadow the real "متعامل /
+      // غير متعامل" column during classification, so every customer came out as
+      // "قابل للتعامل" and the three buckets lost their real labels.
+      dealEligibility: c.dealEligibility,
+      guaranteeDocs: finalGDocs,
+      guaranteeAmount: gAmount > 0 ? gAmount : undefined,
+      hasGuarantee: finalHasG,
+      paymentTerms: finalPaymentTerms,
+    };
+  });
+
+  return deduplicateAndMergeCustomers(normalizedList).customers;
+};
