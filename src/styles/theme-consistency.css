@@ -1076,6 +1076,52 @@ html.dark .tg-btn--ghost:hover {
   color: #f1f5f9 !important;
 }
 
+/*
+ * هوفر أزرار tg-btn: في identity.css كان `.tg-btn:hover { background:#eff6ff }`
+ * — خلفية شبه بيضا مع نص أبيض، فالزر يختفي عند التحويم في الوضعين
+ * (زي زر «إضافة للفاتورة» في الكتالوج). هنا هوفر لكل نوع بلونه:
+ * أزرق أغمق، وأحمر أغمق، و«ناعم» بلمسة خفيفة، والافتراضي رمادي بنص غامق.
+ */
+.tg-btn--blue:hover,
+.tg-btn--primary:hover {
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+  color: #ffffff !important;
+}
+html.dark .tg-btn--blue:hover,
+html.dark .tg-btn--primary:hover {
+  background: #3b82f6 !important;
+  border-color: #60a5fa !important;
+  color: #ffffff !important;
+}
+.tg-btn--danger:hover {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+  color: #ffffff !important;
+}
+.tg-btn--soft:hover {
+  background: var(--role-soft, #eff6ff) !important;
+  color: var(--role, #1e3a8a) !important;
+  filter: brightness(0.97);
+}
+.tg-btn--secondary:hover {
+  filter: brightness(0.96);
+}
+/* الزر الافتراضي (بدون نوع) كان أبيض ثابت حتى في الليلي */
+html.dark .tg-btn:not([class*='tg-btn--']) {
+  background: var(--app-card-secondary) !important;
+  border-color: var(--app-border) !important;
+  color: var(--app-text) !important;
+}
+.tg-btn:not([class*='tg-btn--']):hover {
+  background: #e2e8f0 !important;
+  color: #0f172a !important;
+}
+html.dark .tg-btn:not([class*='tg-btn--']):hover {
+  background: #1e293b !important;
+  color: #f1f5f9 !important;
+}
+
 /* زر الخطر: نسخة واضحة في الوضعين */
 html:not(.dark) .tg-btn--danger {
   background: #fee2e2;
@@ -1226,6 +1272,68 @@ html.dark .text-slate-500 {
   color: var(--app-text-muted) !important;
 }
 
+/* ✅ إصلاح شامل: خط أسود على خلفية سوداء في كل كروت التحليل
+   (أعلى الأصناف، المناديب، تحليل شهري، صفحة العملاء، الجداول...) */
+html.dark .text-slate-950,
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700,
+html.dark .text-deep-slate,
+html.dark .text-navy-deep,
+html.dark .text-\[\#0f172a\],
+html.dark .text-\[\#0F172A\] {
+  color: var(--app-text) !important;
+}
+html.dark .bg-slate-50,
+html.dark .bg-slate-100 {
+  background-color: var(--app-card-secondary) !important;
+}
+html.dark .text-slate-400 {
+  color: var(--app-text-muted) !important;
+}
+html.dark .border-slate-100,
+html.dark .border-slate-200 {
+  border-color: var(--app-border) !important;
+}
+
+/* تحسين قراءة النصوص الصغيرة جدًا في الوضع الليلي (الجداول التحليلية) */
+html.dark .app-main .text-\[8px\] { font-size: 9.5px !important; }
+html.dark .app-main .text-\[8\.5px\] { font-size: 10px !important; }
+html.dark .app-main .text-\[9px\] { font-size: 10.5px !important; }
+
+/* ---------- المودالات (بورتاب خارج .app-main) ----------
+   زر «مفعّل/معطّل» وأيقونات الحالة بتستخدم bg-slate-200 — من غير القاعدة دي
+   بتفضل رقاقة فاتحة على كارت داكن. */
+html.dark .fixed.z-50 .bg-slate-200 {
+  background-color: var(--app-card-hover) !important;
+}
+html.dark .fixed.z-50 .hover\:bg-slate-200:hover {
+  background-color: var(--app-card-hover) !important;
+}
+
+/* نص فوق خلفية عنبرية صلبة (--app-warn): أبيض على #D97706 في النهاري،
+   وداكن دافي على #FBBF24 في الليلي — كلاس مخصوص بدل text-slate-950
+   اللي بيتبدّل بالخطأ مع إصلاح الوضع الليلي العام. */
+.on-warn-solid { color: #ffffff; }
+html.dark .on-warn-solid { color: #422006 !important; }
+
+/* صنوف deep الناقصة: بتتستخدم في كذا مكوّن (الشارات الدائرية، خيارات الفلتر)
+   ومكانش ليها قاعدة CSS فبتطلع شفافة → نص أبيض على خلفية بيضاء */
+.bg-navy-deep { background-color: var(--color-bg-navy-deep, #102b4e); }
+.bg-navy-deep2 { background-color: var(--color-bg-navy-deep2, #17395f); }
+
+/* رؤوس الجداول داخل main عندها خلفية كحلي بقاعدة عامة، لكن الـ tr/ث بتاخد
+   كلاسات نص رمادية (text-slate-400/500) فبتظهر رمادي على كحلي.
+   النص جوّه رأس أي جدول يبقى فاتح في الوضعين. */
+/* رؤوس الجداول: الافتراضي داخل main خلفية كحلي + نص فاتح.
+   - لون افتراضي فاتح للـ thead (بدون !important) عشان أي thead يحدد
+     لون نص صريح بكلاس (مثل text-[var(--app-text-muted)]) يقدر يغلبه.
+   - th ترث اللون بـ !important عشان كلاسات text-slate-400/500 على tr/th
+     ما تكسرش التباين، لكن لو الـ thead نفسه عنده كلاس لون صريح فـ th
+     سترث ذلك اللون. */
+main table thead { color: #edf5fc; }
+main table thead th { color: inherit !important; }
+
 /* ---------- 8) ترويسة الصفحة الموحّدة (20 شاشة تستخدمها) ----------
    كانت تدرج مختلف (من غير هوية الدور) وظل وتدوير مختلفين عن التوب بار
    والسايدبار. بقت من نفس عائلة الشيل الكحلي + خط الدور. */
@@ -1268,6 +1376,65 @@ html.dark .ds-pagehead {
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.42);
 }
 
+/* ---------- مفتاح الرسم البياني (Legend) ----------
+ * كان شيبًا أزرق فاتح ثابت، فبيبان كلوحة بيضا في الوضع الليلي. */
+html.dark .tg-legend-inline {
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+html.dark .tg-legend-inline span {
+  color: var(--app-text-muted) !important;
+}
+
+/* ---------- كروت مراحل الطلب ----------
+ * سطح هادئ بلون المرحلة + شريط رفيع على الحافة يوضّح اللون في الوضعين،
+ * بدل الكحلي الثابت اللي كان بيخلي النص الرمادي غير مقروء في النهاري. */
+.tg-stage-card {
+  position: relative;
+  overflow: hidden;
+}
+.tg-stage-card::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 3px;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+/* ألوان المراحل — تعريف صريح بالتوكنز (مش utilities) عشان تضمن الخلفية في الوضعين */
+.tg-stage-card--warn {
+  background: var(--app-warn-tint);
+  border-color: var(--app-warn-line);
+  color: var(--app-warn-text);
+}
+.tg-stage-card--primary {
+  background: var(--app-primary-tint);
+  border-color: var(--app-primary-border);
+  color: var(--app-primary-text);
+}
+.tg-stage-card--violet {
+  background: var(--app-violet-tint);
+  border-color: var(--app-violet-border);
+  color: var(--app-violet-text);
+}
+.tg-stage-card--secondary {
+  background: var(--app-secondary-tint);
+  border-color: var(--app-secondary-border);
+  color: var(--app-secondary-text);
+}
+.tg-stage-card--ok {
+  background: var(--app-ok-tint);
+  border-color: var(--app-ok-line);
+  color: var(--app-ok-text);
+}
+.tg-stage-card--risk {
+  background: var(--app-risk-tint);
+  border-color: var(--app-risk-line);
+  color: var(--app-risk-text);
+}
+
 /* ---------- 9) شيبس الحالة ---------- */
 .tg-chip {
   border-radius: 999px;
@@ -1277,4 +1444,79 @@ html.dark .tg-chip {
   background: rgba(148, 163, 184, 0.14);
   border-color: rgba(148, 163, 184, 0.28);
   color: #e2e8f0;
+}
+
+/* ============================================================
+   جدول «مبيعات الأصناف — مُجمَّعة» (ItemSalesRowsTable)
+   كلاسات صريحة بالتوكنز بدل utilities بلون ثابت،
+   عشان تتبع وضع التطبيق (html.dark) مش إعداد النظام.
+   ============================================================ */
+.tg-rows-line {
+  border-color: var(--app-border);
+}
+.tg-rows-divide > * + * {
+  border-top: 1px solid var(--app-border);
+}
+.tg-rows-card {
+  background: var(--app-card);
+  color: var(--app-text);
+}
+.tg-rows-soft {
+  background: var(--app-card-secondary);
+}
+.tg-rows-ink {
+  color: var(--app-text);
+}
+.tg-rows-muted {
+  color: var(--app-text-muted);
+}
+.tg-rows-icon {
+  background: var(--app-primary-tint);
+  color: var(--app-primary-text);
+}
+.tg-rows-cta {
+  background: var(--app-primary);
+  color: #ffffff;
+}
+.tg-rows-cta:hover {
+  background: var(--app-primary-hover);
+  color: #ffffff;
+}
+.tg-rows-input {
+  background: var(--app-card-secondary);
+  border: 1px solid var(--app-border);
+  color: var(--app-text);
+}
+.tg-rows-input::placeholder {
+  color: var(--app-text-muted);
+}
+.tg-rows-input:focus {
+  outline: none;
+  border-color: var(--app-primary-border);
+}
+.tg-rows-badge {
+  border-width: 1px;
+  border-style: solid;
+}
+.tg-rows-badge--home {
+  background: var(--app-primary-tint);
+  color: var(--app-primary-text);
+  border-color: var(--app-primary-border);
+}
+.tg-rows-badge--elec {
+  background: var(--app-violet-tint);
+  color: var(--app-violet-text);
+  border-color: var(--app-violet-border);
+}
+/* صفوف الجدول: الهوفر والسطور بلون السطح الحالي */
+.tg-rows-table tbody tr:hover {
+  background: var(--app-card-hover);
+}
+.tg-rows-table thead tr {
+  background: var(--app-card-secondary);
+  color: var(--app-text-muted);
+}
+.tg-rows-table tfoot tr {
+  background: var(--app-card-secondary);
+  color: var(--app-text);
 }

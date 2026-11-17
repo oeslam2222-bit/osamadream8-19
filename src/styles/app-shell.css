@@ -1429,14 +1429,26 @@ html.dark .tg-legend-inline span { color: #94A3B8 !important; }
   background: #E2E8F0;
   transition: height 0.5s ease;
 }
-html.dark .tg-chart__bar { background: #1E293B; }
+/*
+ * الأعمدة في الليلي: القاعدة العامة كانت بتغطي على ألوان المبيعات/التحصيل
+ * (specificity أعلى)، فكانت كل الأعمدة بتطلع رمادية. الحل: استثناء الأعمدة
+ * الملوّنة من الخلفية المحايدة بدل الاعتماد على ترتيب القواعد.
+ */
+html.dark .tg-chart__bar:not(.tg-chart__bar--sales):not(.tg-chart__bar--collection) {
+  background: #1E293B;
+}
 .tg-chart__bar--sales { background: #2563EB; }
 .tg-chart__bar--collection { background: #10B981; }
+html.dark .tg-chart__bar--sales { background: linear-gradient(180deg, #60A5FA, #3B82F6); }
+html.dark .tg-chart__bar--collection { background: linear-gradient(180deg, #34D399, #10B981); }
 .tg-chart__label {
   font-size: 10px;
   font-weight: 900;
   color: #64748B;
   white-space: nowrap;
+}
+html.dark .tg-chart__label {
+  color: var(--app-text-muted, #94A3B8);
 }
 html.dark .tg-chart__label { color: #94A3B8 !important; }
 .tg-chart__val {

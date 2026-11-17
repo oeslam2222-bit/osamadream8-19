@@ -64,52 +64,54 @@
 .hover\:border-teal-300:hover{border-color:#5eead4}
 .hover\:text-teal-700:hover{color:#0f766e}
 .hover\:text-white:hover{color:#fff}
-.dark\:bg-slate-800{background-color:#1e293b}
-.dark\:bg-slate-800\/50{background-color:rgba(30,41,59,.5)}
-.dark\:bg-slate-800\/60{background-color:rgba(30,41,59,.6)}
-.dark\:bg-slate-800\/70{background-color:rgba(30,41,59,.7)}
-.dark\:bg-slate-800\/80{background-color:rgba(30,41,59,.8)}
-.dark\:bg-\[\#0b1329\]{background-color:#0b1329}
-.dark\:bg-\[\#0f172a\]{background-color:#0f172a}
-.dark\:border-slate-700{border-color:#334155}
-.dark\:border-slate-800{border-color:#1e293b}
-.dark\:divide-slate-800\/60>:not([hidden])~:not([hidden]){border-color:rgba(30,41,59,.6)}
-.dark\:text-slate-100{color:#f1f5f9}.dark\:text-slate-200{color:#e2e8f0}.dark\:text-slate-300{color:#cbd5e1}
-.dark\:text-slate-400{color:#94a3b8}.dark\:text-amber-300{color:#fcd34d}.dark\:text-blue-300{color:#93c5fd}
-.dark\:text-blue-400{color:#60a5fa}.dark\:text-emerald-300{color:#6ee7b7}.dark\:text-emerald-400{color:#34d399}
-.dark\:text-rose-300{color:#fda4af}.dark\:text-teal-200{color:#99f6e4}.dark\:text-teal-300{color:#5eead4}
-.dark\:text-teal-400{color:#2dd4bf}.dark\:text-white{color:#fff}
-.dark\:hover\:bg-slate-700:hover{background-color:#334155}
-.dark\:hover\:bg-slate-800\/40:hover{background-color:rgba(30,41,59,.4)}
-.dark\:hover\:bg-white\/10:hover{background-color:rgba(255,255,255,.1)}
-.dark\:hover\:border-blue-700:hover{border-color:#1d4ed8}
-.dark\:hover\:border-emerald-700:hover{border-color:#047857}
-.dark\:hover\:border-teal-700:hover{border-color:#0f766e}
-.dark\:hover\:text-teal-300:hover{color:#5eead4}
-.dark\:bg-teal-950\/40{background-color:rgba(19,78,74,.4)}
-.dark\:bg-teal-950\/50{background-color:rgba(19,78,74,.5)}
-.dark\:bg-teal-950\/60{background-color:rgba(19,78,74,.6)}
-.dark\:bg-amber-950\/40{background-color:rgba(69,26,3,.4)}
-.dark\:bg-amber-950\/60{background-color:rgba(69,26,3,.6)}
-.dark\:bg-blue-950\/40{background-color:rgba(23,37,84,.4)}
-.dark\:bg-blue-950\/60{background-color:rgba(23,37,84,.6)}
-.dark\:bg-emerald-950\/40{background-color:rgba(2,44,34,.4)}
-.dark\:bg-emerald-950\/60{background-color:rgba(2,44,34,.6)}
-.dark\:bg-rose-950\/30{background-color:rgba(76,5,25,.3)}
-.dark\:bg-rose-950\/40{background-color:rgba(76,5,25,.4)}
-.dark\:border-amber-700{border-color:#b45309}
-.dark\:border-amber-800{border-color:#92400e}
-.dark\:border-blue-800{border-color:#1e40af}
-.dark\:border-emerald-700{border-color:#047857}
-.dark\:border-emerald-800{border-color:#065f46}
-.dark\:border-rose-800{border-color:#9f1239}
-.dark\:border-rose-900\/50{border-color:rgba(131,24,67,.5)}
-.dark\:border-teal-700{border-color:#0f766e}
-.dark\:border-teal-800{border-color:#115e59}
-.dark\:border-teal-800\/80{border-color:rgba(17,94,89,.8)}
-.dark\:border-teal-900{border-color:#134e4a}
-.dark\:from-teal-950\/30{--tw-gradient-from:rgba(19,78,74,.3)}
-.dark\:to-cyan-950\/20{--tw-gradient-to:rgba(8,47,73,.2)}
+/* ⚠️ قواعد dark دي كانت bare (من غير شرط) فبتطبق في الوضع النهاري كمان
+   وبتخرّب التباين (نص فاتح على خلفية فاتحة). اتقيدت بـ html.dark. */
+html.dark .dark\:bg-slate-800{background-color:#1e293b}
+html.dark .dark\:bg-slate-800\/50{background-color:rgba(30,41,59,.5)}
+html.dark .dark\:bg-slate-800\/60{background-color:rgba(30,41,59,.6)}
+html.dark .dark\:bg-slate-800\/70{background-color:rgba(30,41,59,.7)}
+html.dark .dark\:bg-slate-800\/80{background-color:rgba(30,41,59,.8)}
+html.dark .dark\:bg-\[\#0b1329\]{background-color:#0b1329}
+html.dark .dark\:bg-\[\#0f172a\]{background-color:#0f172a}
+html.dark .dark\:border-slate-700{border-color:#334155}
+html.dark .dark\:border-slate-800{border-color:#1e293b}
+html.dark .dark\:divide-slate-800\/60>:not([hidden])~:not([hidden]){border-color:rgba(30,41,59,.6)}
+html.dark .dark\:text-slate-100{color:#f1f5f9}html.dark .dark\:text-slate-200{color:#e2e8f0}html.dark .dark\:text-slate-300{color:#cbd5e1}
+html.dark .dark\:text-slate-400{color:#94a3b8}html.dark .dark\:text-amber-300{color:#fcd34d}html.dark .dark\:text-blue-300{color:#93c5fd}
+html.dark .dark\:text-blue-400{color:#60a5fa}html.dark .dark\:text-emerald-300{color:#6ee7b7}html.dark .dark\:text-emerald-400{color:#34d399}
+html.dark .dark\:text-rose-300{color:#fda4af}html.dark .dark\:text-teal-200{color:#99f6e4}html.dark .dark\:text-teal-300{color:#5eead4}
+html.dark .dark\:text-teal-400{color:#2dd4bf}html.dark .dark\:text-white{color:#fff}
+html.dark .dark\:hover\:bg-slate-700:hover{background-color:#334155}
+html.dark .dark\:hover\:bg-slate-800\/40:hover{background-color:rgba(30,41,59,.4)}
+html.dark .dark\:hover\:bg-white\/10:hover{background-color:rgba(255,255,255,.1)}
+html.dark .dark\:hover\:border-blue-700:hover{border-color:#1d4ed8}
+html.dark .dark\:hover\:border-emerald-700:hover{border-color:#047857}
+html.dark .dark\:hover\:border-teal-700:hover{border-color:#0f766e}
+html.dark .dark\:hover\:text-teal-300:hover{color:#5eead4}
+html.dark .dark\:bg-teal-950\/40{background-color:rgba(19,78,74,.4)}
+html.dark .dark\:bg-teal-950\/50{background-color:rgba(19,78,74,.5)}
+html.dark .dark\:bg-teal-950\/60{background-color:rgba(19,78,74,.6)}
+html.dark .dark\:bg-amber-950\/40{background-color:rgba(69,26,3,.4)}
+html.dark .dark\:bg-amber-950\/60{background-color:rgba(69,26,3,.6)}
+html.dark .dark\:bg-blue-950\/40{background-color:rgba(23,37,84,.4)}
+html.dark .dark\:bg-blue-950\/60{background-color:rgba(23,37,84,.6)}
+html.dark .dark\:bg-emerald-950\/40{background-color:rgba(2,44,34,.4)}
+html.dark .dark\:bg-emerald-950\/60{background-color:rgba(2,44,34,.6)}
+html.dark .dark\:bg-rose-950\/30{background-color:rgba(76,5,25,.3)}
+html.dark .dark\:bg-rose-950\/40{background-color:rgba(76,5,25,.4)}
+html.dark .dark\:border-amber-700{border-color:#b45309}
+html.dark .dark\:border-amber-800{border-color:#92400e}
+html.dark .dark\:border-blue-800{border-color:#1e40af}
+html.dark .dark\:border-emerald-700{border-color:#047857}
+html.dark .dark\:border-emerald-800{border-color:#065f46}
+html.dark .dark\:border-rose-800{border-color:#9f1239}
+html.dark .dark\:border-rose-900\/50{border-color:rgba(131,24,67,.5)}
+html.dark .dark\:border-teal-700{border-color:#0f766e}
+html.dark .dark\:border-teal-800{border-color:#115e59}
+html.dark .dark\:border-teal-800\/80{border-color:rgba(17,94,89,.8)}
+html.dark .dark\:border-teal-900{border-color:#134e4a}
+html.dark .dark\:from-teal-950\/30{--tw-gradient-from:rgba(19,78,74,.3)}
+html.dark .dark\:to-cyan-950\/20{--tw-gradient-to:rgba(8,47,73,.2)}
 @media (min-width:640px){
   .sm\:max-w-\[480px\]{max-width:480px}.sm\:max-w-\[560px\]{max-width:560px}.sm\:max-h-\[90vh\]{max-height:90vh}
   .sm\:p-4{padding:1rem}.sm\:p-5{padding:1.25rem}.sm\:p-6{padding:1.5rem}.sm\:p-7{padding:1.75rem}.sm\:p-8{padding:2rem}
