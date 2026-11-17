@@ -5,13 +5,11 @@ import {
   TrendingUp, Wallet, CalendarCheck, Users, Maximize2, Trash2,
   FileText, ExternalLink, Navigation, Check, Clock, AlertCircle,
   CreditCard, ChevronRight, Eye, ShieldCheck, Printer, Lock, Unlock, RotateCcw,
-  Boxes, Home, Zap,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { normalizeArabicText } from '../services/arabicMatchingService';
 import { classifyEligibilityColumn } from '../services/customerFinancialService';
 import { normalizeCloudinaryConfig, optimizeImageUrl, uploadImageToCloudinary } from '../services/cloudinaryService';
-import { getSavedCustomerItemSales, inferItemSaleSector, MONTH_NAMES_MAP } from '../services/customerItemSalesService';
 import customerMerchantAvatar from '../assets/images/customer_merchant_avatar_1794559829020.jpg';
 import { ItemSalesProfilePanel } from './itemSales/ItemSalesProfilePanel';
 import {
@@ -19,7 +17,7 @@ import {
   requestLiveGps,
   watermarkAndCompressLivePhoto,
 } from '../services/geoVerificationService';
-import type { CustomerItemSaleRecord, Invoice } from '../types';
+import type { Invoice } from '../types';
 
 const MAX_PHOTOS = 3;
 const MAX_IMAGE_WIDTH = 1000;
@@ -61,7 +59,7 @@ function compressImage(file: File): Promise<string> {
   });
 }
 
-type TabKey = 'overview' | 'invoices' | 'months' | 'item_sales' | 'visits' | 'gps' | 'photos';
+type TabKey = 'overview' | 'invoices' | 'item-sales' | 'months' | 'visits' | 'gps' | 'photos';
 
 export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
   customer,
@@ -78,7 +76,6 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
     getVisibleVisits,
     getVisibleInvoices,
     invoices: allCtxInvoices,
-    products,
   } = useApp();
 
   const [photos, setPhotos] = useState<string[]>([]);
@@ -92,9 +89,6 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
   const [tab, setTab] = useState<TabKey>('overview');
   const [lightbox, setLightbox] = useState<string | null>(null);
-  const [allItemSales, setAllItemSales] = useState<CustomerItemSaleRecord[]>([]);
-  const [itemSalesMonthFilter, setItemSalesMonthFilter] = useState<number | 'all'>('all');
-  const [itemSalesSectorFilter, setItemSalesSectorFilter] = useState<'all' | 'home' | 'electrical'>('all');
 
   useEffect(() => {
     if (!isOpen || !customer) return;
@@ -106,17 +100,6 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
     setToast(null);
     setTab('overview');
     setLightbox(null);
-    setItemSalesMonthFilter('all');
-    setItemSalesSectorFilter('all');
-    let active = true;
-    getSavedCustomerItemSales()
-      .then((rows) => {
-        if (active && Array.isArray(rows)) setAllItemSales(rows);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
   }, [isOpen, customer]);
 
   /* ---------- استخراج فواتير العميل الفعلية من الـ Context ---------- */
@@ -265,90 +248,6 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
   );
   const usagePct = limit > 0 ? Math.min(100, Math.round(((balance + overdue) / limit) * 100)) : 0;
   const photosCount = photos.length + newFiles.length;
-
-  /* ---------- تحليل مبيعات الأصناف والعائلات للعميل ---------- */
-  const customerItemSales = useMemo(() => {
-    if (!customer || allItemSales.length === 0) return [];
-    const cId = customer.id;
-    const cCode = String(customer.code || '').trim().toLowerCase();
-    const cName = normalizeArabicText(customer.name || '');
-    return allItemSales.filter((r) => {
-      if (cId && r.linkedCustomerId === cId) return true;
-      const acct = String(r.customerAccount || '').trim().toLowerCase();
-      const linkedCode = String(r.linkedCustomerCode || '').trim().toLowerCase();
-      if (cCode && (acct === cCode || linkedCode === cCode)) return true;
-      if (cName && normalizeArabicText(r.invoicingName || '') === cName) return true;
-      return false;
-    });
-  }, [customer, allItemSales]);
-
-  const customerItemSalesMonths = useMemo(() => {
-    const s = new Set<number>();
-    customerItemSales.forEach((r) => {
-      const m = Number(r.month);
-      if (m >= 1 && m <= 12) s.add(m);
-    });
-    return Array.from(s).sort((a, b) => a - b);
-  }, [customerItemSales]);
-
-  const customerItemSalesBreakdown = useMemo(() => {
-    const filtered = customerItemSales.filter((r) => {
-      if (itemSalesMonthFilter !== 'all' && Number(r.month) !== itemSalesMonthFilter) return false;
-      const sec = inferItemSaleSector(r, [customer], products);
-      if (itemSalesSectorFilter !== 'all' && sec !== itemSalesSectorFilter) return false;
-      return true;
-    });
-
-    const buildBucket = (secKey: 'home' | 'electrical') => {
-      const rows = filtered.filter((r) => inferItemSaleSector(r, [customer], products) === secKey);
-      let amount = 0;
-      let pieces = 0;
-      const itemMap = new Map<
-        string,
-        {
-          name: string;
-          pieces: number;
-          amount: number;
-          families: Map<string, { name: string; pieces: number; amount: number }>;
-        }
-      >();
-
-      rows.forEach((r) => {
-        const qty = Number(r.quantity || 0);
-        const amt = Number(r.amount || 0);
-        pieces += qty;
-        amount += amt;
-        const itemLabel = (r.itemGroup || r.brand || r.itemName || 'غير محدد').trim();
-        const familyLabel = (r.familyDimension || r.definitions || r.itemName || 'عام').trim();
-        const cur = itemMap.get(itemLabel) || { name: itemLabel, pieces: 0, amount: 0, families: new Map() };
-        cur.pieces += qty;
-        cur.amount += amt;
-        const famCur = cur.families.get(familyLabel) || { name: familyLabel, pieces: 0, amount: 0 };
-        famCur.pieces += qty;
-        famCur.amount += amt;
-        cur.families.set(familyLabel, famCur);
-        itemMap.set(itemLabel, cur);
-      });
-
-      const items = Array.from(itemMap.values())
-        .map((it) => ({
-          ...it,
-          families: Array.from(it.families.values()).sort((a, b) => b.amount - a.amount),
-        }))
-        .sort((a, b) => b.amount - a.amount);
-
-      return { sector: secKey, rowsCount: rows.length, pieces, amount, items };
-    };
-
-    const home = buildBucket('home');
-    const electrical = buildBucket('electrical');
-    return {
-      totalPieces: home.pieces + electrical.pieces,
-      totalAmount: home.amount + electrical.amount,
-      home,
-      electrical,
-    };
-  }, [customerItemSales, itemSalesMonthFilter, itemSalesSectorFilter, customer, products]);
 
   /* ---------- GPS وتثبيت الموقع الجغرافي + قفل الاعتماد ---------- */
   const canEditLocationLock = canManageLocationLock(currentUser?.role);
@@ -585,15 +484,15 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
   const tabs: { key: TabKey; label: string; icon: any; count?: number; hint?: string }[] = [
     { key: 'overview', label: 'التفاصيل المالية', icon: Wallet, hint: 'المديونية والتحصيل' },
     { key: 'invoices', label: 'الفواتير', icon: FileText, count: customerInvoices.length },
+    { key: 'item-sales', label: 'مبيعات الأصناف', icon: TrendingUp, hint: 'الإجمالي والشهور والعائلات' },
     { key: 'months', label: 'المبيعات الشهرية', icon: TrendingUp, count: monthly.length || undefined },
-    { key: 'item_sales', label: 'الأصناف والعائلات', icon: Boxes, count: customerItemSales.length || undefined, hint: 'مبيعات الصنف والعائلة' },
     { key: 'visits', label: 'الزيارات', icon: CalendarCheck, count: visits.length, hint: 'سجل الزيارات الميدانية' },
     { key: 'gps', label: 'الموقع GPS', icon: MapPin },
     { key: 'photos', label: 'صور المحل', icon: ImageIcon, count: photosCount, hint: 'توثيق صور المحل' },
   ];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 overflow-hidden" dir="rtl">
+    <div className="fixed inset-0 z-[100] flex items-stretch sm:items-center justify-center p-0 sm:p-4 overflow-hidden" dir="rtl">
       {/* خلفية معتمة منفصلة قابلة للنقر للإغلاق - غير محجوبة وغير متداخلة */}
       <div
         className="fixed inset-0 bg-[#071726]/80 backdrop-blur-sm transition-opacity cursor-pointer"
@@ -601,9 +500,9 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
         aria-label="إغلاق الخلفية"
       />
 
-      <div className="tg-cp relative z-10 w-full max-w-2xl max-h-[92vh] flex flex-col bg-white dark:bg-[#0f172a] rounded-[28px] border border-slate-200 dark:border-slate-800 shadow-[0_25px_70px_rgba(0,0,0,0.55)] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+      <div className="tg-cp relative z-10 w-full max-w-none sm:max-w-2xl h-[100dvh] sm:h-auto sm:max-h-[92vh] flex flex-col bg-white dark:bg-[#0f172a] rounded-none sm:rounded-[28px] border-0 sm:border border-slate-200 dark:border-slate-800 shadow-[0_25px_70px_rgba(0,0,0,0.55)] overflow-hidden" onClick={(e) => e.stopPropagation()}>
         {/* ====== هيدر بطاقة العميل ====== */}
-        <div className="tg-cp__head relative z-10">
+        <div className="tg-cp__head relative z-10 p-3 sm:p-4">
           <button
             type="button"
             onClick={onClose}
@@ -717,12 +616,12 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
 
         {/* ====== التبويبات ====== */}
         <div className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] sticky top-0 z-10">
-          <div className="px-3 sm:px-4 pt-3 pb-2">
-            <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="px-3 sm:px-4 pt-2.5 sm:pt-3 pb-2">
+            <div className="flex items-center justify-between gap-2 mb-1.5 sm:mb-2">
               <span className="text-[11px] font-black text-slate-600 dark:text-slate-300">أقسام ملف العميل</span>
               <span className="text-[10px] font-bold text-slate-400">التفاصيل المالية • الزيارات • صور المحل</span>
             </div>
-            <div className="grid grid-cols-3 sm:grid-cols-7 gap-1.5">
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
               {tabs.map((t) => {
                 const Icon = t.icon;
                 const isActive = tab === t.key;
@@ -731,7 +630,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                     key={t.key}
                     type="button"
                     onClick={() => setTab(t.key)}
-                    className={`relative flex flex-col items-center justify-center gap-1 rounded-xl border px-2 py-2.5 text-center transition min-h-[58px] ${
+                    className={`relative flex flex-col items-center justify-center gap-1 rounded-xl border px-1.5 sm:px-2 py-2 sm:py-2.5 text-center transition min-h-[54px] sm:min-h-[58px] ${
                       isActive
                         ? 'bg-[#0b2337] text-white border-[#0b2337] shadow-sm'
                         : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800/60 dark:text-slate-200 dark:border-slate-700'
@@ -757,17 +656,10 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
         </div>
 
         {/* ====== المحتوى الداخلي ====== */}
-        <div className="tg-cp__body flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0b1329] p-4 sm:p-5 space-y-4">
+        <div className="tg-cp__body flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0b1329] p-3 sm:p-5 space-y-3 sm:space-y-4">
           {/* التبويب 1: التفاصيل المالية والنظرة العامة */}
           {tab === 'overview' && (
             <div className="space-y-4">
-              {/* مبيعات الأصناف مرتبطة بالعميل — نفس سجلات شاشة «مبيعات الأصناف» من الكاش المحلي */}
-              <ItemSalesProfilePanel
-                title="مبيعات الأصناف لهذا العميل"
-                customerAccount={customer?.code}
-                customerName={customer?.name}
-              />
-
               {/* وصول سريع للأقسام المطلوبة */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
@@ -1053,6 +945,15 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
             </div>
           )}
 
+          {/* التبويب: مبيعات الأصناف (الإجمالي + بالشهور + بالعائلة) */}
+          {tab === 'item-sales' && (
+            <ItemSalesProfilePanel
+              title="مبيعات الأصناف لهذا العميل"
+              customerAccount={customer?.code}
+              customerName={customer?.name}
+            />
+          )}
+
           {/* التبويب 2: أوامر البيع والفواتير */}
           {tab === 'invoices' && (
             <div className="space-y-3">
@@ -1204,140 +1105,6 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                     </div>
                   </div>
                 </>
-              )}
-            </div>
-          )}
-
-          {/* التبويب 3.5: مبيعات الأصناف والعائلات للعميل */}
-          {tab === 'item_sales' && (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="tg-cp__section-title mb-0">
-                  <Boxes size={15} className="text-blue-600" />
-                  مبيعات الصنف والعائلة للعميل ({customerItemSales.length})
-                </div>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <select
-                    value={itemSalesMonthFilter}
-                    onChange={(e) => setItemSalesMonthFilter(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-                    aria-label="تصفية مبيعات العميل بالشهر"
-                    className="h-8 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[11px] font-bold text-slate-800 dark:text-slate-100"
-                  >
-                    <option value="all">كل الشهور</option>
-                    {customerItemSalesMonths.map((m) => (
-                      <option key={m} value={m}>
-                        {MONTH_NAMES_MAP[m] || `شهر ${m}`}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-0.5 text-[10px] font-black">
-                    {[
-                      { k: 'all' as const, label: 'الكل' },
-                      { k: 'home' as const, label: 'منزلي' },
-                      { k: 'electrical' as const, label: 'كهربائي' },
-                    ].map((s) => (
-                      <button
-                        key={s.k}
-                        type="button"
-                        onClick={() => setItemSalesSectorFilter(s.k)}
-                        className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
-                          itemSalesSectorFilter === s.k
-                            ? 'bg-[#0b2337] text-white'
-                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'
-                        }`}
-                      >
-                        {s.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="rounded-xl border border-blue-200 dark:border-blue-800/60 bg-blue-50/70 dark:bg-blue-950/30 p-3">
-                  <div className="text-[10px] font-extrabold text-blue-800 dark:text-blue-300">إجمالي القطع المباعة</div>
-                  <div className="text-base font-black text-blue-950 dark:text-blue-100 tabular-nums mt-0.5">
-                    {fmt(customerItemSalesBreakdown.totalPieces)} قطعة
-                  </div>
-                </div>
-                <div className="rounded-xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/70 dark:bg-emerald-950/30 p-3">
-                  <div className="text-[10px] font-extrabold text-emerald-800 dark:text-emerald-300">إجمالي المبلغ</div>
-                  <div className="text-base font-black text-emerald-950 dark:text-emerald-100 tabular-nums mt-0.5">
-                    {fmt(customerItemSalesBreakdown.totalAmount)} ج.م
-                  </div>
-                </div>
-              </div>
-
-              {customerItemSalesBreakdown.home.rowsCount === 0 && customerItemSalesBreakdown.electrical.rowsCount === 0 ? (
-                <div className="tg-card p-8 text-center">
-                  <div className="mx-auto mb-3 w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-400 flex items-center justify-center">
-                    <Boxes size={22} />
-                  </div>
-                  <p className="text-xs font-black text-slate-500 dark:text-slate-400">
-                    لا توجد مبيعات أصناف مسجلة لهذا العميل في الفترة المختارة
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {[customerItemSalesBreakdown.home, customerItemSalesBreakdown.electrical]
-                    .filter((b) => b.rowsCount > 0)
-                    .map((bucket) => {
-                      const isElec = bucket.sector === 'electrical';
-                      return (
-                        <div
-                          key={bucket.sector}
-                          className={`rounded-2xl border p-3.5 space-y-2.5 ${
-                            isElec
-                              ? 'bg-violet-50/50 dark:bg-[#191636] border-violet-200 dark:border-violet-800/60'
-                              : 'bg-emerald-50/50 dark:bg-[#0f2622] border-emerald-200 dark:border-emerald-800/60'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-200/80 dark:border-slate-700/70">
-                            <span className="inline-flex items-center gap-1.5 text-xs font-black text-slate-900 dark:text-slate-100">
-                              {isElec ? (
-                                <Zap size={14} className="text-violet-600 dark:text-violet-400" />
-                              ) : (
-                                <Home size={14} className="text-emerald-600 dark:text-emerald-400" />
-                              )}
-                              {isElec ? 'القطاع الكهربائي' : 'القطاع المنزلي'}
-                            </span>
-                            <span className="text-xs font-black tabular-nums text-slate-800 dark:text-slate-200">
-                              {fmt(bucket.pieces)} قطعة · {fmt(bucket.amount)} ج.م
-                            </span>
-                          </div>
-
-                          <div className="space-y-2">
-                            {bucket.items.map((item) => (
-                              <div
-                                key={item.name}
-                                className="rounded-xl bg-white dark:bg-[#111c2e] border border-slate-200 dark:border-slate-700 p-2.5 space-y-1.5"
-                              >
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-xs font-black text-slate-900 dark:text-slate-100">{item.name}</span>
-                                  <span className="text-[11px] font-black tabular-nums text-blue-700 dark:text-blue-300">
-                                    {fmt(item.pieces)} ق · {fmt(item.amount)} ج.م
-                                  </span>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pt-1 border-t border-slate-100 dark:border-slate-800">
-                                  {item.families.map((fam) => (
-                                    <div
-                                      key={fam.name}
-                                      className="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/70 text-[10.5px]"
-                                    >
-                                      <span className="font-bold text-slate-700 dark:text-slate-200 truncate">{fam.name}</span>
-                                      <span className="font-black text-slate-600 dark:text-slate-300 tabular-nums whitespace-nowrap">
-                                        {fmt(fam.pieces)} ق · {fmt(fam.amount)}
-                                      </span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
               )}
             </div>
           )}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   BadgeCheck,
@@ -22,6 +22,8 @@ import {
 import { useApp } from '../context/AppContext';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { buildShortageReport, downloadShortageReport } from '../services/shortageReportService';
+import { fetchInvoiceRowById } from '../services/supabaseService';
+import { InvoiceItemsTable } from './InvoiceItemsTable';
 import type { Invoice, OrderStatus } from '../types';
 
 type StageKey = 'supervisor' | 'admin' | 'prep' | 'delivery' | 'closed' | 'cancelled';
@@ -91,6 +93,8 @@ export const OrdersPipelineView: React.FC<{
   const [cancelFor, setCancelFor] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState('إلغاء الطلب');
   const [deliverWarnFor, setDeliverWarnFor] = useState<string | null>(null);
+  const [hydratedItemsById, setHydratedItemsById] = useState<Record<string, any[]>>({});
+  const [hydratingIds, setHydratingIds] = useState<Record<string, boolean>>({});
 
   const base: Invoice[] = useMemo(() => {
     const list = typeof getVisibleInvoices === 'function' ? getVisibleInvoices() : (invoices || []);
@@ -117,6 +121,55 @@ export const OrdersPipelineView: React.FC<{
   }, [base]);
 
   const openValue = useMemo(() => base.filter(i => !['closed','cancelled'].includes(getStage(i))).reduce((s,i)=>s + Number(i.estimatedGrandTotal || i.totalAmount || 0), 0), [base]);
+
+  const ensureInvoiceItems = async (inv: Invoice): Promise<Invoice> => {
+    const existing = Array.isArray((inv as any).items) && (inv as any).items.length > 0 ? (inv as any).items : hydratedItemsById[inv.id];
+    if (Array.isArray(existing) && existing.length > 0) return { ...inv, items: existing } as any;
+    try {
+      const row: any = await fetchInvoiceRowById(inv.id);
+      if (!row) return inv;
+      const items = Array.isArray(row.items)
+        ? row.items
+        : typeof row.items === 'string'
+          ? (() => { try { return JSON.parse(row.items); } catch { return []; } })()
+          : [];
+      const arr = Array.isArray(items) ? items : [];
+      setHydratedItemsById((prev) => ({ ...prev, [inv.id]: arr }));
+      return { ...inv, items: arr } as any;
+    } catch {
+      return inv;
+    }
+  };
+
+  useEffect(() => {
+    if (!expanded) return;
+    const inv = base.find((x) => x.id === expanded);
+    if (!inv) return;
+    const hasItems = Array.isArray((inv as any).items) && (inv as any).items.length > 0;
+    const hasHydrated = Array.isArray(hydratedItemsById[inv.id]);
+    if (hasItems || hasHydrated || hydratingIds[inv.id]) return;
+    let cancelled = false;
+    setHydratingIds((prev) => ({ ...prev, [inv.id]: true }));
+    (async () => {
+      try {
+        await ensureInvoiceItems(inv);
+      } finally {
+        if (!cancelled) setHydratingIds((prev) => ({ ...prev, [inv.id]: false }));
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [expanded, base]);
+
+  const openView = async (inv: Invoice) => {
+    if (!onViewInvoice) return;
+    const full = await ensureInvoiceItems(inv);
+    onViewInvoice(full);
+  };
+  const openEdit = async (inv: Invoice) => {
+    if (!onEditInvoice) return;
+    const full = await ensureInvoiceItems(inv);
+    onEditInvoice(full);
+  };
 
   const say = (msg: string) => { setToast(msg); setTimeout(()=>setToast(null), 4000); };
 
@@ -220,8 +273,8 @@ export const OrdersPipelineView: React.FC<{
       return <div className="flex flex-wrap gap-2">
         {canActApprove(role) && b('اعتماد المشرف', () => doApprove(inv), 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700', <BadgeCheck size={14}/>)}
         {cancelBtn()}
-        {onEditInvoice && b('تعديل', () => onEditInvoice(inv), 'bg-[var(--app-card)] text-[var(--tg-ink)] border-[var(--tg-line)] hover:bg-[var(--app-card-hover)]')}
-        {onViewInvoice && b('عرض', () => onViewInvoice(inv), 'bg-[var(--app-card)] text-[var(--tg-ink)] border-[var(--tg-line)] hover:bg-[var(--app-card-hover)]', <Eye size={14}/>)}
+        {onEditInvoice && b('تعديل', () => { void openEdit(inv); }, 'bg-[var(--app-card)] text-[var(--tg-ink)] border-[var(--tg-line)] hover:bg-[var(--app-card-hover)]')}
+        {onViewInvoice && b('عرض', () => { void openView(inv); }, 'bg-[var(--app-card)] text-[var(--tg-ink)] border-[var(--tg-line)] hover:bg-[var(--app-card-hover)]', <Eye size={14}/>)}
       </div>;
     }
     if (st === 'admin') {
@@ -229,7 +282,7 @@ export const OrdersPipelineView: React.FC<{
         {canAdminFinal(role) ? b('اعتماد الإدارة', () => doApprove(inv), 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700', <ShieldCheck size={14}/>)
           : <span className="text-xs font-extrabold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">بانتظار اعتماد الإدارة</span>}
         {canAdminFinal(role) && cancelBtn()}
-        {onViewInvoice && b('عرض', () => onViewInvoice(inv), 'bg-[var(--app-card)] text-[var(--tg-ink)] border-[var(--tg-line)] hover:bg-[var(--app-card-hover)]', <Eye size={14}/>)}
+        {onViewInvoice && b('عرض', () => { void openView(inv); }, 'bg-[var(--app-card)] text-[var(--tg-ink)] border-[var(--tg-line)] hover:bg-[var(--app-card-hover)]', <Eye size={14}/>)}
       </div>;
     }
     if (st === 'prep') {
@@ -241,7 +294,7 @@ export const OrdersPipelineView: React.FC<{
         {canOperate(role) && b('تجهيز الطلبية', () => doStatus(inv, 'جاري التجهيز' as OrderStatus, 'تم تحويل الطلب إلى تجهيز الطلبية'), 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700', <Package size={14}/>)}
         {canOperate(role) && b('توصيل', toDelivery, 'bg-[#102b4e] text-white border-[#102b4e] hover:bg-[#16365f]', <Truck size={14}/>)}
         {cancelBtn()}
-        {onViewInvoice && b('عرض', () => onViewInvoice(inv), 'bg-[var(--app-card)] text-[var(--tg-ink)] border-[var(--tg-line)] hover:bg-[var(--app-card-hover)]', <Eye size={14}/>)}
+        {onViewInvoice && b('عرض', () => { void openView(inv); }, 'bg-[var(--app-card)] text-[var(--tg-ink)] border-[var(--tg-line)] hover:bg-[var(--app-card-hover)]', <Eye size={14}/>)}
       </div>;
     }
     if (st === 'delivery') {
@@ -249,7 +302,7 @@ export const OrdersPipelineView: React.FC<{
         {canOperate(role) && b('تم التسليم', () => doStatus(inv, 'تم التسليم' as OrderStatus, 'تم تأكيد التسليم'), 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700', <Truck size={14}/>)}
         {canOperate(role) && b('استلام وإغلاق الطلب', () => { if (window.confirm('تأكيد استلام الطلب وإغلاقه نهائيًا؟ بعد الإغلاق لا يمكن الإلغاء.')) doStatus(inv, 'إغلاق الطلبية' as OrderStatus, 'تم استلام الطلب وإغلاقه'); }, 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700', <CheckCircle2 size={14}/>)}
         {cancelBtn()}
-        {onViewInvoice && b('عرض', () => onViewInvoice(inv), 'bg-[var(--app-card)] text-[var(--tg-ink)] border-[var(--tg-line)] hover:bg-[var(--app-card-hover)]', <Eye size={14}/>)}
+        {onViewInvoice && b('عرض', () => { void openView(inv); }, 'bg-[var(--app-card)] text-[var(--tg-ink)] border-[var(--tg-line)] hover:bg-[var(--app-card-hover)]', <Eye size={14}/>)}
       </div>;
     }
     if (st === 'closed') {
@@ -260,7 +313,7 @@ export const OrdersPipelineView: React.FC<{
         {finalClosed && <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1 inline-flex items-center gap-1"><CheckCircle2 size={13}/>تم الاستلام والإغلاق</span>}
         {delivered && !finalClosed && <span className="text-xs font-extrabold text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">تم التسليم — بانتظار الإغلاق</span>}
         {!finalClosed && cancelBtn()}
-        {onViewInvoice && b('عرض', () => onViewInvoice(inv), 'bg-[var(--app-card)] text-[var(--tg-ink)] border-[var(--tg-line)] hover:bg-[var(--app-card-hover)]', <Eye size={14}/>)}
+        {onViewInvoice && b('عرض', () => { void openView(inv); }, 'bg-[var(--app-card)] text-[var(--tg-ink)] border-[var(--tg-line)] hover:bg-[var(--app-card-hover)]', <Eye size={14}/>)}
       </div>;
     }
     return null;
@@ -412,13 +465,36 @@ export const OrdersPipelineView: React.FC<{
                     <div className="min-w-0 font-black text-[var(--tg-ink)] text-[15px] leading-tight truncate">{inv.customerName || 'عميل'}</div>
                     <div className="shrink-0 font-black text-[var(--tg-ink)] text-base leading-none tabular-nums">{formatCurrency(val)}</div>
                   </div>
-                  <div className="text-[11px] text-[var(--tg-muted)] font-bold mt-1 truncate">{inv.repName || '—'} · {inv.branchName || '—'} · {inv.date ? formatArabicDate(inv.date) : ''} · {inv.items?.length || 0} صنف</div>
+                  <div className="text-[11px] text-[var(--tg-muted)] font-bold mt-1 truncate">
+                    {inv.repName || '—'} · {inv.branchName || '—'} · {inv.date ? formatArabicDate(inv.date) : ''} · {(
+                      Array.isArray((inv as any).items) ? (inv as any).items.length
+                      : Array.isArray(hydratedItemsById[inv.id]) ? hydratedItemsById[inv.id].length
+                      : '—'
+                    )} صنف
+                  </div>
                 </div>
                 <button onClick={()=>setExpanded(isOpen?null:inv.id)} aria-label={isOpen ? 'طي التفاصيل' : 'عرض التفاصيل'} className="shrink-0 p-2 rounded-xl border border-[var(--tg-line)] text-[var(--tg-ink)] hover:bg-[var(--app-card-hover)]">{isOpen?<ChevronUp size={16}/>:<ChevronDown size={16}/>}</button>
               </div>
 
               <div>{flowSteps(inv)}</div>
               <div>{actionArea(inv)}</div>
+
+              {/* جدول الأصناف والمنتجات — يُحمّل عند التوسيع لتقليل تحميل القوائم */}
+              {isOpen ? (
+                hydratingIds[inv.id] ? (
+                  <div className="text-xs font-bold text-[var(--tg-muted)] px-1 py-2">جاري تحميل بنود الفاتورة...</div>
+                ) : (
+                  <InvoiceItemsTable invoice={{ ...inv, items: (Array.isArray((inv as any).items) && (inv as any).items.length > 0 ? (inv as any).items : (hydratedItemsById[inv.id] || [])) } as any} />
+                )
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setExpanded(inv.id)}
+                  className="w-full text-xs font-black text-[var(--tg-primary)] bg-[var(--tg-primary-soft)] border border-[var(--tg-primary-line)] rounded-xl px-3 py-2 hover:opacity-90"
+                >
+                  عرض بنود الفاتورة
+                </button>
+              )}
 
                 {cancelFor === inv.id && (
                   <div className="bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-400/30 rounded-xl p-3 space-y-2">
@@ -459,8 +535,8 @@ export const OrdersPipelineView: React.FC<{
                     <div className="bg-[var(--app-card-secondary)] rounded-xl p-3 space-y-1">
                       <div className="font-extrabold text-[var(--tg-ink)] mb-1">إجراءات</div>
                       <div className="flex flex-wrap gap-2">
-                        {onViewInvoice && <button onClick={()=>onViewInvoice(inv)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--tg-line)] bg-[var(--app-card)] text-[var(--tg-ink)] hover:bg-[var(--app-card-hover)]"><Eye size={13}/>عرض التفاصيل</button>}
-                        {onEditInvoice && getStage(inv)==='supervisor' && <button onClick={()=>onEditInvoice(inv)} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--tg-line)] bg-[var(--app-card)] text-[var(--tg-ink)] hover:bg-[var(--app-card-hover)]"><ClipboardCheck size={13}/>تعديل</button>}
+                        {onViewInvoice && <button onClick={()=>{ void openView(inv); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--tg-line)] bg-[var(--app-card)] text-[var(--tg-ink)] hover:bg-[var(--app-card-hover)]"><Eye size={13}/>عرض التفاصيل</button>}
+                        {onEditInvoice && getStage(inv)==='supervisor' && <button onClick={()=>{ void openEdit(inv); }} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-[var(--tg-line)] bg-[var(--app-card)] text-[var(--tg-ink)] hover:bg-[var(--app-card-hover)]"><ClipboardCheck size={13}/>تعديل</button>}
                         {/* تصدير PDF/إكسل مش هنا: موجود في شاشة معاينة الفاتورة اللي بتفتح من «عرض التفاصيل» — أمر واحد في مكان واحد. */}
                       </div>
                       <div className="text-[11px] text-[var(--tg-muted)] mt-1">الاعتماد والتجهيز والتسليم والإغلاق متاحة حسب الصلاحية والحالة.</div>

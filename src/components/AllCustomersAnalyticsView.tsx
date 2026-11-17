@@ -171,9 +171,32 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const isBranchManager = currentUser?.role === 'branch_manager';
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
-  // Supabase manual refresh state (auto-fetch on mount removed to avoid unnecessary egress)
+  // Supabase Auto-sync & manual refresh state
   const [supabaseSyncMsg, setSupabaseSyncMsg] = useState<string | null>(null);
   const [isManualFetching, setIsManualFetching] = useState<boolean>(false);
+
+  // Auto-fetch customers from Supabase if local list is empty on mount
+  useEffect(() => {
+    let isMounted = true;
+    if (customers.length === 0 && !isSupabaseSyncing) {
+      setIsManualFetching(true);
+      syncWithSupabase('fetch')
+        .then((res) => {
+          if (!isMounted) return;
+          setIsManualFetching(false);
+          if (res.success) {
+            setSupabaseSyncMsg('تم بنجاح تحميل قاعدة العملاء مباشرة من سوبابيز (Supabase)!');
+            setTimeout(() => setSupabaseSyncMsg(null), 5000);
+          }
+        })
+        .catch(() => {
+          if (isMounted) setIsManualFetching(false);
+        });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [customers.length]);
 
   const handleManualSupabaseSync = async () => {
     setIsManualFetching(true);
@@ -3642,7 +3665,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           return (
                             <div
                               key={cust.id}
-                              className="bg-white dark:bg-slate-800 rounded-2xl p-4 border border-slate-200 dark:border-slate-700 hover:border-teal-500/80 hover:shadow-md transition group flex flex-col justify-between"
+                              className="bg-white dark:bg-slate-800 rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-700 hover:border-teal-500/80 hover:shadow-md transition group flex flex-col justify-between min-w-0"
                             >
                               <div className="space-y-3">
                                 {/* Card Header: Avatar, Name, Code, and Badges */}
@@ -3692,7 +3715,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                                 </div>
 
                                 {/* 3 Metric Capsules: Debt, Overdue, Paid */}
-                                <div className="grid grid-cols-3 gap-2 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 text-center">
+                                <div className="grid grid-cols-3 gap-1.5 sm:gap-2 p-2 sm:p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 text-center min-w-0">
                                   <div className="p-1">
                                     <div className="text-[10px] font-bold text-slate-400">المديونية</div>
                                     <div className="font-black text-[11px] sm:text-xs text-slate-900 dark:text-white font-mono mt-0.5">

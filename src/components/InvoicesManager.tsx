@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { fetchInvoiceRowById } from '../services/supabaseService';
 import { exportElectronicInvoiceToExcel, exportInvoiceForERP, downloadInvoiceBoth, exportInvoicesListToExcel } from '../services/excelService';
 import { downloadInvoicePDF } from '../services/pdfService';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
@@ -46,6 +47,7 @@ import { CreditAuditModal } from './CreditAuditModal';
 import { CreditStatusBadge } from './CreditStatusBadge';
 import { OrderReturnModal } from './OrderReturnModal';
 import { ExcelInvoicePreviewModal } from './ExcelInvoicePreviewModal';
+import { InvoiceItemsTable } from './InvoiceItemsTable';
 import { EmptyState } from './ui/EmptyState';
 
 interface InvoicesManagerProps {
@@ -155,6 +157,25 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
 
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [itemsPerPage, setItemsPerPage] = useState<number | 'all'>(10);
+  const [invoiceItemsCache, setInvoiceItemsCache] = useState<Record<string, any[]>>({});
+  const [loadingInvoiceItems, setLoadingInvoiceItems] = useState<Record<string, boolean>>({});
+
+  const ensureInvoiceItemsLoaded = async (inv: Invoice) => {
+    if (Array.isArray((inv as any).items) && (inv as any).items.length > 0) return;
+    if (Array.isArray(invoiceItemsCache[inv.id]) || loadingInvoiceItems[inv.id]) return;
+    setLoadingInvoiceItems((p) => ({ ...p, [inv.id]: true }));
+    try {
+      const row: any = await fetchInvoiceRowById(inv.id);
+      const items = Array.isArray(row?.items)
+        ? row.items
+        : typeof row?.items === 'string'
+          ? (() => { try { return JSON.parse(row.items); } catch { return []; } })()
+          : [];
+      setInvoiceItemsCache((p) => ({ ...p, [inv.id]: Array.isArray(items) ? items : [] }));
+    } finally {
+      setLoadingInvoiceItems((p) => ({ ...p, [inv.id]: false }));
+    }
+  };
 
   useEffect(() => {
     setCurrentPage(1);
@@ -911,6 +932,21 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         </div>
                       </div>
                     </div>
+
+                    {/* Items Table (الأصناف والمنتجات) */}
+                    {Array.isArray((invoice as any).items) && (invoice as any).items.length > 0 ? (
+                      <InvoiceItemsTable invoice={invoice} bare />
+                    ) : Array.isArray(invoiceItemsCache[invoice.id]) ? (
+                      <InvoiceItemsTable invoice={{ ...invoice, items: invoiceItemsCache[invoice.id] } as any} bare />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => void ensureInvoiceItemsLoaded(invoice)}
+                        className="w-full text-xs font-black text-[var(--tg-primary)] bg-[var(--tg-primary-soft)] border border-[var(--tg-primary-line)] rounded-xl px-3 py-2 hover:opacity-90"
+                      >
+                        {loadingInvoiceItems[invoice.id] ? 'جاري تحميل بنود الفاتورة...' : 'عرض بنود الفاتورة'}
+                      </button>
+                    )}
 
                     {/* Actions Strip */}
                     <div className="flex items-center justify-between gap-1.5 pt-3 border-t border-[var(--tg-line)] flex-wrap">

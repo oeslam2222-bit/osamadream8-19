@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { fetchInvoiceRowById } from '../services/supabaseService';
 import { exportElectronicInvoiceToExcel, exportInvoiceForERP, downloadInvoiceBoth } from '../services/excelService';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { downloadInvoicePDF } from '../services/pdfService';
@@ -64,6 +65,35 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   useEffect(() => {
     setActiveInvoice(invoice);
   }, [invoice]);
+
+  // Step 2 (egress/perf): hydrate invoice items on demand when opening details
+  useEffect(() => {
+    const inv = activeInvoice || invoice;
+    if (!isOpen || !inv?.id) return;
+    const hasItems = Array.isArray((inv as any).items) && (inv as any).items.length > 0;
+    if (hasItems) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const row: any = await fetchInvoiceRowById(inv.id);
+        if (cancelled || !row) return;
+        const items = Array.isArray(row.items)
+          ? row.items
+          : typeof row.items === 'string'
+            ? (() => { try { return JSON.parse(row.items); } catch { return []; } })()
+            : [];
+        if (!Array.isArray(items) || items.length === 0) return;
+        setActiveInvoice((prev) => {
+          const base = prev || inv;
+          if (base.id !== inv.id) return prev;
+          return { ...base, items } as any;
+        });
+      } catch {
+        // ignore: keep showing available invoice data
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, invoice?.id]);
 
   const currentInv = activeInvoice || invoice;
 

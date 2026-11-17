@@ -17,6 +17,7 @@ import {
   BarChart3
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { fetchInvoiceRowById } from '../services/supabaseService';
 import { Invoice } from '../types';
 import { exportElectronicInvoiceToExcel, exportInvoiceForERP, cleanProductCode, resolveSafeCustomerCode } from '../services/excelService';
 import { downloadInvoicePDF } from '../services/pdfService';
@@ -45,8 +46,40 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
   const [copiedToast, setCopiedToast] = useState(false);
   const [downloadSuccessToast, setDownloadSuccessToast] = useState<string | null>(null);
   const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false);
+  const [hydratedInvoice, setHydratedInvoice] = useState<Invoice | null>(null);
 
-  if (!isOpen || !invoice) return null;
+  React.useEffect(() => {
+    setHydratedInvoice(invoice);
+  }, [invoice]);
+
+  const inv = hydratedInvoice || invoice;
+
+  React.useEffect(() => {
+    if (!isOpen || !inv?.id) return;
+    const hasItems = Array.isArray((inv as any).items) && (inv as any).items.length > 0;
+    if (hasItems) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const row: any = await fetchInvoiceRowById(inv.id);
+        if (cancelled || !row) return;
+        const items = Array.isArray(row.items)
+          ? row.items
+          : typeof row.items === 'string'
+            ? (() => { try { return JSON.parse(row.items); } catch { return []; } })()
+            : [];
+        if (!Array.isArray(items) || items.length === 0) return;
+        setHydratedInvoice((prev) => {
+          const base = prev || inv;
+          if ((base as any).id !== inv.id) return prev;
+          return { ...(base as any), items } as any;
+        });
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, invoice?.id]);
+
+  if (!isOpen || !inv) return null;
 
   const {
     debtBefore,
@@ -55,16 +88,16 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
     isExceeded,
     requiredDown,
     matchedCustomer,
-  } = resolveCustomerFinancials(invoice);
+  } = resolveCustomerFinancials(inv as any);
 
-  const resolvedCustomerCode = resolveSafeCustomerCode(invoice, matchedCustomer);
+  const resolvedCustomerCode = resolveSafeCustomerCode(inv as any, matchedCustomer);
 
   // 1. Direct Excel Download
   const handleDownloadExcel = () => {
     setIsDownloadingExcel(true);
     try {
-      exportElectronicInvoiceToExcel(invoice);
-      setDownloadSuccessToast(`تم تحميل ملف Excel للفاتورة #${invoice.invoiceNumber} مباشرة على جهازك! 📊`);
+      exportElectronicInvoiceToExcel(inv as any);
+      setDownloadSuccessToast(`تم تحميل ملف Excel للفاتورة #${(inv as any).invoiceNumber} مباشرة على جهازك! 📊`);
       setTimeout(() => setDownloadSuccessToast(null), 3500);
     } catch (err) {
       console.error('Excel download failed:', err);
@@ -77,8 +110,8 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
   const handleDownloadERP = () => {
     setIsDownloadingExcel(true);
     try {
-      exportInvoiceForERP(invoice);
-      setDownloadSuccessToast(`تم تحميل شيت ERP للفاتورة #${invoice.invoiceNumber} مباشرة على جهازك! 📑`);
+      exportInvoiceForERP(inv as any);
+      setDownloadSuccessToast(`تم تحميل شيت ERP للفاتورة #${(inv as any).invoiceNumber} مباشرة على جهازك! 📑`);
       setTimeout(() => setDownloadSuccessToast(null), 3500);
     } catch (err) {
       console.error('ERP download failed:', err);
@@ -91,8 +124,8 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
   const handleDownloadPDF = async () => {
     setIsDownloadingPdf(true);
     try {
-      await downloadInvoicePDF(invoice);
-      setDownloadSuccessToast(`تم تحميل ملف PDF للفاتورة #${invoice.invoiceNumber} مباشرة على جهازك! 📄`);
+      await downloadInvoicePDF(inv as any);
+      setDownloadSuccessToast(`تم تحميل ملف PDF للفاتورة #${(inv as any).invoiceNumber} مباشرة على جهازك! 📄`);
       setTimeout(() => setDownloadSuccessToast(null), 3500);
     } catch (err) {
       console.error('PDF download failed:', err);
@@ -106,13 +139,13 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
     setIsDownloadingBoth(true);
     try {
       // Step A: Trigger PDF direct download
-      await downloadInvoicePDF(invoice);
+      await downloadInvoicePDF(inv as any);
       setDownloadSuccessToast('جاري استكمال تحميل ملف Excel أيضاً...');
       // Step B: Wait small delay so browser allows concurrent file downloads
       await new Promise((resolve) => setTimeout(resolve, 600));
       // Step C: Trigger Excel direct download
-      exportElectronicInvoiceToExcel(invoice);
-      setDownloadSuccessToast(`تم بنجاح تحميل ملف PDF وملف Excel للفاتورة #${invoice.invoiceNumber} مباشرة على جهازك! 📥⚡`);
+      exportElectronicInvoiceToExcel(inv as any);
+      setDownloadSuccessToast(`تم بنجاح تحميل ملف PDF وملف Excel للفاتورة #${(inv as any).invoiceNumber} مباشرة على جهازك! 📥⚡`);
       setTimeout(() => setDownloadSuccessToast(null), 4000);
     } catch (err) {
       console.error('Download both failed:', err);
@@ -141,7 +174,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
       'مصدر الصرف'
     ].join('\t');
 
-    const rows = invoice.items.map((it, idx) => {
+    const rows = (inv as any).items.map((it, idx) => {
       const cartonQty = it.cartonQuantity || 1;
       const cCount = it.cartonCount || 0;
       const pCount = it.pieceCount || 0;
@@ -149,7 +182,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
       const pieceP = it.pricePerPiece || (cartonQty > 0 ? Math.round((it.pricePerCarton || it.appliedPrice) / cartonQty) : 0);
       const unified = it.unifiedCode || (it.product as any)?.unifiedCode || '---';
       const color = it.color || it.product?.color || '---';
-      const fulfillment = it.fulfilledFrom === 'main_warehouse' ? 'مخزن 6 أكتوبر' : invoice.branchName;
+      const fulfillment = it.fulfilledFrom === 'main_warehouse' ? 'مخزن 6 أكتوبر' : (inv as any).branchName;
 
       return [
         idx + 1,
@@ -200,7 +233,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                 </span>
               </div>
               <p className="text-xs text-slate-300 font-medium mt-0.5">
-                فاتورة رقم: <span className="font-bold text-[#d97706] font-mono">#{invoice.invoiceNumber}</span> • العميل: <span className="font-bold text-white">{invoice.customerName}</span>
+                فاتورة رقم: <span className="font-bold text-[#d97706] font-mono">#{(inv as any).invoiceNumber}</span> • العميل: <span className="font-bold text-white">{(inv as any).customerName}</span>
               </p>
             </div>
           </div>
@@ -330,24 +363,24 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200">
                 <div className="p-2 bg-white rounded-lg border border-slate-200">
                   <span className="text-slate-400 block text-[10px] font-bold">رقم الفاتورة:</span>
-                  <strong className="text-slate-900 font-mono text-xs">{invoice.invoiceNumber}</strong>
+                  <strong className="text-slate-900 font-mono text-xs">{(inv as any).invoiceNumber}</strong>
                 </div>
                 <div className="p-2 bg-white rounded-lg border border-slate-200">
                   <span className="text-slate-400 block text-[10px] font-bold">تاريخ ووقت الإصدار:</span>
-                  <strong className="text-slate-900">{invoice.date} {invoice.time || ''}</strong>
+                  <strong className="text-slate-900">{(inv as any).date} {(inv as any).time || ''}</strong>
                 </div>
                 <div className="p-2 bg-white rounded-lg border border-slate-200">
                   <span className="text-slate-400 block text-[10px] font-bold">طريقة السداد:</span>
-                  <strong className="text-[var(--app-ok-text)]">{invoice.paymentMethod}</strong>
+                  <strong className="text-[var(--app-ok-text)]">{(inv as any).paymentMethod}</strong>
                 </div>
                 <div className="p-2 bg-white rounded-lg border border-slate-200">
                   <span className="text-slate-400 block text-[10px] font-bold">حالة الفاتورة:</span>
-                  <strong className="text-[var(--app-navy-text)]">{invoice.status}</strong>
+                  <strong className="text-[var(--app-navy-text)]">{(inv as any).status}</strong>
                 </div>
 
                 <div className="p-2 bg-white rounded-lg border border-slate-200">
                   <span className="text-slate-400 block text-[10px] font-bold">اسم العميل:</span>
-                  <strong className="text-slate-900">{invoice.customerName}</strong>
+                  <strong className="text-slate-900">{(inv as any).customerName}</strong>
                 </div>
                 <div className="p-2 bg-white rounded-lg border border-slate-200">
                   <span className="text-slate-400 block text-[10px] font-bold">كود العميل:</span>
@@ -355,31 +388,31 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                 </div>
                 <div className="p-2 bg-white rounded-lg border border-slate-200">
                   <span className="text-slate-400 block text-[10px] font-bold">الفرع المنفذ:</span>
-                  <strong className="text-slate-900">{invoice.branchName}</strong>
+                  <strong className="text-slate-900">{(inv as any).branchName}</strong>
                 </div>
                 <div className="p-2 bg-white rounded-lg border border-slate-200">
                   <span className="text-slate-400 block text-[10px] font-bold">المندوب المسؤول:</span>
-                  <strong className="text-slate-900">{invoice.repName}</strong>
+                  <strong className="text-slate-900">{(inv as any).repName}</strong>
                 </div>
               </div>
 
               {/* Financial Position Card (Unified CustomerFinancialSummaryCard) */}
               <CustomerFinancialSummaryCard
                 customer={matchedCustomer || {
-                  name: invoice.customerName,
+                  name: (inv as any).customerName,
                   code: resolvedCustomerCode,
                   currentBalance: debtBefore,
                   creditLimit: creditLimit,
                   totalOverdueAndDue: debtBefore
                 }}
-                currentInvoiceAmount={invoice.estimatedGrandTotal}
+                currentInvoiceAmount={(inv as any).estimatedGrandTotal}
                 theme="light"
                 initiallyOpen={true}
                 title="الموقف المالي والائتماني للعميل (Financial Audit)"
               />
 
               {/* Unified Invoice & Shortage Notice Banner */}
-              {invoice.hasOctoberShortages || invoice.items.some((it) => it.isShortage || it.needsOctoberSupply || (it.shortageCartons && it.shortageCartons > 0)) ? (
+              {invoice.hasOctoberShortages || (inv as any).items.some((it) => it.isShortage || it.needsOctoberSupply || (it.shortageCartons && it.shortageCartons > 0)) ? (
                 <div className="bg-[var(--app-warn-tint)] border-2 border-[var(--app-warn-line)] rounded-2xl p-3.5 space-y-1.5 text-xs shadow-xs">
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
@@ -393,7 +426,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                     </span>
                   </div>
                   <p className="text-[11px] text-[var(--app-warn-text)] leading-relaxed font-medium">
-                    فرع الصرف المسجل بالفاتورة: <strong>{invoice.branchName || 'فرع ديمشلت'}</strong> • الأصناف المتوفرة بالفرع تصرف فوراً، والأصناف التي بها عجز موضح أمامها <strong>«متوفر في مخزن أكتوبر»</strong> وبجانبها <strong>«طلب توريد من المخزن»</strong> تم رفع إشعار توريدها للمشرف ومدير الفرع لسحبها من مخزن 6 أكتوبر المركزي وإرسالها للسيستم.
+                    فرع الصرف المسجل بالفاتورة: <strong>{(inv as any).branchName || 'فرع ديمشلت'}</strong> • الأصناف المتوفرة بالفرع تصرف فوراً، والأصناف التي بها عجز موضح أمامها <strong>«متوفر في مخزن أكتوبر»</strong> وبجانبها <strong>«طلب توريد من المخزن»</strong> تم رفع إشعار توريدها للمشرف ومدير الفرع لسحبها من مخزن 6 أكتوبر المركزي وإرسالها للسيستم.
                   </p>
                 </div>
               ) : (
@@ -401,7 +434,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                   <div className="flex items-center gap-2">
                     <span className="text-base">✅</span>
                     <span className="font-black text-[var(--app-ok-text)]">
-                      فاتورة مبيعات موحدة مكتملة - كافة الأصناف متوفرة بمخزن {invoice.branchName || 'الفرع'}
+                      فاتورة مبيعات موحدة مكتملة - كافة الأصناف متوفرة بمخزن {(inv as any).branchName || 'الفرع'}
                     </span>
                   </div>
                   <span className="text-[11px] text-[var(--app-ok-text)] font-bold">جاهزة للصرف الفوري</span>
@@ -413,12 +446,12 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
               {/* Mobile View: Cards (phones & narrow screens) */}
               <div className="block md:hidden space-y-2">
                 <div className="text-xs font-black text-slate-800 flex items-center justify-between pb-1 border-b border-slate-200">
-                  <span>أصناف الفاتورة ({invoice.items.length})</span>
+                  <span>أصناف الفاتورة ({(inv as any).items.length})</span>
                   <span className="text-[11px] text-slate-500 font-bold">
-                    {invoice.totalCartons} كرتونة • {invoice.totalPieces} قطعة
+                    {(inv as any).totalCartons} كرتونة • {(inv as any).totalPieces} قطعة
                   </span>
                 </div>
-                {invoice.items.map((item, idx) => {
+                {(inv as any).items.map((item, idx) => {
                   const cartonQty = item.cartonQuantity || 1;
                   const cCount = item.cartonCount || 0;
                   const pCount = item.pieceCount || 0;
@@ -483,7 +516,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                       {/* Branch & October Availability Details */}
                       <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-[11px] space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-slate-500 font-bold">{invoice.branchName || 'فرع ديمشلت'}:</span>
+                          <span className="text-slate-500 font-bold">{(inv as any).branchName || 'فرع ديمشلت'}:</span>
                           {!isShortage ? (
                             <span className="text-[var(--app-ok-text)] font-black bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] px-1.5 py-0.2 rounded">
                               متوفر بالفرع ({bStock} ك) ✓
@@ -540,12 +573,12 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                       <th className="p-2.5 text-center border-l border-slate-700">الإجمالي</th>
                       <th className="p-2.5 text-center border-l border-slate-700 text-[#0d9488]">الخصم</th>
                       <th className="p-2.5 text-center border-l border-slate-700 bg-[var(--app-warn)] text-[#d97706]">الصافي</th>
-                      <th className="p-2.5 text-center border-l border-slate-700">التوفر بـ {invoice.branchName || 'الفرع'}</th>
+                      <th className="p-2.5 text-center border-l border-slate-700">التوفر بـ {(inv as any).branchName || 'الفرع'}</th>
                       <th className="p-2.5 text-center bg-[var(--app-navy)] text-[#60a5fa]">مخزن 6 أكتوبر وتوريد النواقص</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {invoice.items.map((item, idx) => {
+                    {(inv as any).items.map((item, idx) => {
                       const cartonQty = item.cartonQuantity || 1;
                       const cCount = item.cartonCount || 0;
                       const pCount = item.pieceCount || 0;
@@ -612,25 +645,25 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-900 text-white p-4 rounded-xl">
                 <div className="text-xs space-y-1">
                   <div className="text-slate-300">
-                    عدد البنود: <strong className="text-[#d97706]">{invoice.items.length}</strong> صنف • إجمالي الكراتين: <strong className="text-[#d97706]">{invoice.totalCartons}</strong> كرتونة • إجمالي القطع: <strong className="text-[#d97706]">{invoice.totalPieces}</strong> قطعة
+                    عدد البنود: <strong className="text-[#d97706]">{(inv as any).items.length}</strong> صنف • إجمالي الكراتين: <strong className="text-[#d97706]">{(inv as any).totalCartons}</strong> كرتونة • إجمالي القطع: <strong className="text-[#d97706]">{(inv as any).totalPieces}</strong> قطعة
                   </div>
-                  {invoice.notes && (
-                    <div className="text-slate-400 text-[11px]">ملاحظات: {invoice.notes}</div>
+                  {(inv as any).notes && (
+                    <div className="text-slate-400 text-[11px]">ملاحظات: {(inv as any).notes}</div>
                   )}
                 </div>
 
                 <div className="text-left sm:text-right space-y-1 shrink-0">
                   <div className="text-xs text-slate-300">
-                    {invoice.discountAmount > 0 ? 'المجموع قبل الخصم: ' : 'إجمالي الفاتورة: '}
-                    <span className="font-bold">{formatCurrency(invoice.subtotal)}</span>
+                    {(inv as any).discountAmount > 0 ? 'المجموع قبل الخصم: ' : 'إجمالي الفاتورة: '}
+                    <span className="font-bold">{formatCurrency((inv as any).subtotal)}</span>
                   </div>
-                  {invoice.discountAmount > 0 && (
+                  {(inv as any).discountAmount > 0 && (
                     <div className="text-xs text-[#0d9488]">
-                      قيمة الخصم ({invoice.discountPercentage}%): <span className="font-bold">-{formatCurrency(invoice.discountAmount)}</span>
+                      قيمة الخصم ({invoice.discountPercentage}%): <span className="font-bold">-{formatCurrency((inv as any).discountAmount)}</span>
                     </div>
                   )}
                   <div className="text-base font-black text-[#d97706] pt-1 border-t border-slate-800">
-                    صافي الفاتورة النهائي: <span>{formatCurrency(invoice.estimatedGrandTotal)}</span>
+                    صافي الفاتورة النهائي: <span>{formatCurrency((inv as any).estimatedGrandTotal)}</span>
                   </div>
                 </div>
               </div>
@@ -646,7 +679,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                   <span className="font-bold block text-slate-800 mb-6">مندوب التوزيع:</span>
                   <div className="border-t border-dashed border-slate-400 pt-1 text-[11px] text-slate-700 font-bold">
-                    {invoice.repName}
+                    {(inv as any).repName}
                   </div>
                 </div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
@@ -712,14 +745,14 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {invoice.items.map((item, idx) => (
+                    {(inv as any).items.map((item, idx) => (
                       <tr key={idx} className="hover:bg-slate-100 font-mono text-[11px]">
-                        <td className="p-2 border-l border-slate-200">{invoice.invoiceNumber}</td>
-                        <td className="p-2 border-l border-slate-200">{invoice.date}</td>
-                        <td className="p-2 border-l border-slate-200 font-sans">{invoice.repName}</td>
-                        <td className="p-2 border-l border-slate-200 font-sans">{invoice.branchName}</td>
+                        <td className="p-2 border-l border-slate-200">{(inv as any).invoiceNumber}</td>
+                        <td className="p-2 border-l border-slate-200">{(inv as any).date}</td>
+                        <td className="p-2 border-l border-slate-200 font-sans">{(inv as any).repName}</td>
+                        <td className="p-2 border-l border-slate-200 font-sans">{(inv as any).branchName}</td>
                         <td className="p-2 border-l border-slate-200">{resolvedCustomerCode}</td>
-                        <td className="p-2 border-l border-slate-200 font-sans">{invoice.customerName}</td>
+                        <td className="p-2 border-l border-slate-200 font-sans">{(inv as any).customerName}</td>
                         <td className="p-2 border-l border-slate-200 font-bold">{cleanProductCode(item.productCode)}</td>
                         <td className="p-2 border-l border-slate-200 text-[var(--app-navy-text)]">{item.unifiedCode || item.product?.unifiedCode || '---'}</td>
                         <td className="p-2 border-l border-slate-200 text-slate-600">{item.color || item.product?.color || '---'}</td>
@@ -730,8 +763,8 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                         <td className="p-2 text-center border-l border-slate-200 font-bold">{item.totalUnits}</td>
                         <td className="p-2 text-center border-l border-slate-200">{item.appliedPrice}</td>
                         <td className="p-2 text-center border-l border-slate-200 font-black text-[var(--app-ok-text)]">{item.netTotal}</td>
-                        <td className="p-2 border-l border-slate-200 font-sans">{item.fulfilledFrom === 'main_warehouse' ? 'مخزن أكتوبر' : invoice.branchName}</td>
-                        <td className="p-2 font-sans">{invoice.paymentMethod}</td>
+                        <td className="p-2 border-l border-slate-200 font-sans">{item.fulfilledFrom === 'main_warehouse' ? 'مخزن أكتوبر' : (inv as any).branchName}</td>
+                        <td className="p-2 font-sans">{(inv as any).paymentMethod}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -760,7 +793,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">اسم المحل / العميل:</span>
-                    <strong className="text-slate-900">{invoice.customerName}</strong>
+                    <strong className="text-slate-900">{(inv as any).customerName}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">كود العميل:</span>
@@ -768,11 +801,11 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">رقم الهاتف:</span>
-                    <strong className="text-slate-900">{invoice.customerPhone || '---'}</strong>
+                    <strong className="text-slate-900">{(inv as any).customerPhone || '---'}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">طريقة السداد المعتمدة:</span>
-                    <strong className="text-[var(--app-ok-text)]">{invoice.paymentMethod}</strong>
+                    <strong className="text-[var(--app-ok-text)]">{(inv as any).paymentMethod}</strong>
                   </div>
                 </div>
 
@@ -786,7 +819,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-600">صافي قيمة هذه الفاتورة:</span>
-                    <strong className="text-[var(--app-warn-text)]">{formatCurrency(invoice.estimatedGrandTotal)}</strong>
+                    <strong className="text-[var(--app-warn-text)]">{formatCurrency((inv as any).estimatedGrandTotal)}</strong>
                   </div>
                   <div className="flex justify-between text-base font-black border-t border-[var(--app-warn-line)] pt-1">
                     <span className="text-slate-900">إجمالي المديونية الحالية:</span>
@@ -811,7 +844,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
         {/* Modal Bottom Action Bar (Quick Direct Downloads) */}
         <div className="bg-slate-100 p-3 sm:p-4 border-t border-slate-300 flex flex-wrap items-center justify-between gap-3">
           <div className="text-xs text-slate-600 font-bold">
-            جاهز للتحميل: <span className="text-[var(--app-ok-text)] font-black">فاتورة_دريم_طنطاوي_{invoice.invoiceNumber}.xlsx</span>
+            جاهز للتحميل: <span className="text-[var(--app-ok-text)] font-black">فاتورة_دريم_طنطاوي_{(inv as any).invoiceNumber}.xlsx</span>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">

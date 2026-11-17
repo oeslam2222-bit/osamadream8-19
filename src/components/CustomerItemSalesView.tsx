@@ -51,6 +51,7 @@ import {
   clearCustomerItemSales,
   enrichCustomerItemSalesWithCatalog,
   enrichCustomerItemSalesWithDirectory,
+  fillGenericFamiliesFromSiblings,
   exportCustomerItemSalesToExcel,
   fetchCustomerItemSalesFromSupabase,
   filterCustomerItemSalesByRBAC,
@@ -72,18 +73,13 @@ import {
   MonthlyCustomerAnalysisTable,
   TopCustomersTable
 } from './itemSales/CustomerBreakdownCards';
-import { CustomerSnapshotCard } from './itemSales/CustomerSnapshotCard';
 import { ItemRankingCard } from './itemSales/ItemRankingCard';
 import { ItemSalesKpiCards } from './itemSales/ItemSalesKpiCards';
 import { MonthlyPerformanceCard } from './itemSales/MonthlyPerformanceCard';
 import { RepPerformanceCard } from './itemSales/RepPerformanceCard';
 import { SlowMoversCard } from './itemSales/SlowMoversCard';
 import { MonthlyAggregateCard } from './itemSales/MonthlyAggregateCard';
-import {
-  aggregateItemSalesRows,
-  downloadItemSalesRowsCsv,
-  ItemSalesRowsTable
-} from './itemSales/ItemSalesRowsTable';
+import { aggregateItemSalesRows, downloadItemSalesRowsCsv } from './itemSales/ItemSalesRowsTable';
 import { ItemSalesExecutiveCards } from './itemSales/ItemSalesExecutiveCards';
 import { CANONICAL_BRANCHES, normalizeBranchName, UNKNOWN_BRANCH } from '../services/branchDirectory';
 import SalesFocusV4 from './itemSales/SalesFocusV4';
@@ -120,24 +116,44 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
    * القطاع مش عمود في جدول مبيعات الأصناف — بنستنتجه من كتالوج المنتجات
    * (الكود/الكود الموحد). اللي مش موجود في الكتالوج بيتحسب منزلي افتراضيًا.
    */
+  // خرائط بحث سريعة بدل .find() لكل صف (كان O(n²) على 103 ألف صف).
+  const customerByIdMap = React.useMemo(() => {
+    const map = new Map<string, (typeof customers)[number]>();
+    customers.forEach((c) => { if (c.id) map.set(c.id, c); });
+    return map;
+  }, [customers]);
+  const productByCodeMap = React.useMemo(() => {
+    const clean = (v?: string) => String(v || '').trim().replace(/^#+/, '').trim().toLowerCase();
+    const byCode = new Map<string, (typeof products)[number]>();
+    const byUnified = new Map<string, (typeof products)[number]>();
+    products.forEach((p) => {
+      const code = clean(p.code);
+      const unified = clean(p.unifiedCode);
+      if (code && !byCode.has(code)) byCode.set(code, p);
+      if (unified && !byUnified.has(unified)) byUnified.set(unified, p);
+    });
+    return { byCode, byUnified };
+  }, [products]);
+
   const resolveItemSaleSector = React.useCallback(
     (record: CustomerItemSaleRecord): ItemSalesSector => {
       const ownSector = (record as any).sector;
       if (ownSector === 'electrical' || ownSector === 'home') return ownSector;
       if (record.linkedCustomerId) {
-        const linked = customers.find((customer) => customer.id === record.linkedCustomerId);
+        const linked = customerByIdMap.get(record.linkedCustomerId);
         if (linked?.sector === 'electrical') return 'electrical';
         if (linked?.sector === 'home') return 'home';
       }
-      const code = String(record.itemCode || '').trim();
-      const unified = String(record.unifiedCode || '').trim();
+      const cleanCode = (v?: string) => String(v || '').trim().replace(/^#+/, '').trim().toLowerCase();
+      const itemCode = cleanCode(record.itemCode);
+      const unified = cleanCode(record.unifiedCode);
       const match =
-        (code && products.find((product) => String(product.code || '').trim() === code)) ||
-        (unified && products.find((product) => String(product.unifiedCode || '').trim() === unified)) ||
+        (itemCode ? productByCodeMap.byCode.get(itemCode) : undefined) ||
+        (unified ? productByCodeMap.byUnified.get(unified) : undefined) ||
         null;
       return match?.sector === 'electrical' ? 'electrical' : 'home';
     },
-    [customers, products]
+    [customerByIdMap, productByCodeMap]
   );
 
   /** يحدّث ملخص الشهور في الخلفية بعد أي استيراد/جلب — بدون ما يعطّل الواجهة. */
@@ -151,24 +167,35 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     [resolveItemSaleSector]
   );
 
+  /** القطاع الفعّال للعزل: الادمن/المطور بيختار، والباقي مقفول على قطاعه. */
+  const itemSalesSector = React.useMemo<'all' | 'home' | 'electrical'>(() => {
+    if (isAdminOrDev) return activeSectorFilter;
+    if (currentUser?.sector === 'home' || currentUser?.sector === 'electrical') return currentUser.sector;
+    return activeSectorFilter;
+  }, [isAdminOrDev, currentUser?.sector, activeSectorFilter]);
+
   const itemSalesScope = React.useMemo<CustomerItemSalesFetchScope | undefined>(() => {
-    if (!currentUser || isAdminOrDev) return undefined;
+    if (!currentUser) return undefined;
     const cleanName = (value?: string) =>
       (value || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
     const role = currentUser.role;
     const branch = String(currentUser.branchName || '').trim();
     const shortBranch = branch.replace(/فرع/g, '').replace(/\([^)]*\)/g, '').trim();
     const warehouses = shortBranch.length >= 2 ? [shortBranch] : branch ? [branch] : [];
+    const sectors: Array<'home' | 'electrical'> =
+      itemSalesSector === 'home' || itemSalesSector === 'electrical' ? [itemSalesSector] : [];
+
+    // الادمن/المطور: عزل اختياري بالقطاع بس (بدون تقييد مندوب/فرع)
+    if (isAdminOrDev) return sectors.length > 0 ? { sectors } : undefined;
 
     if (role === 'sales_rep') {
       const fullName = cleanName(currentUser.name);
       const shortName = fullName.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
       const repNames = Array.from(new Set([fullName, shortName].filter((n) => n.length >= 3)));
-      return repNames.length > 0
-        ? { repNames }
-        : warehouses.length > 0
-          ? { warehouses }
-          : undefined;
+      return {
+        ...(repNames.length > 0 ? { repNames } : warehouses.length > 0 ? { warehouses } : {}),
+        ...(sectors.length > 0 ? { sectors } : {}),
+      };
     }
 
     if (role === 'supervisor') {
@@ -181,16 +208,17 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         })
         .filter((n) => n.length >= 3);
       return {
-        repNames: repNames.length > 0 ? Array.from(new Set(repNames)) : undefined,
-        warehouses: warehouses.length > 0 ? warehouses : undefined,
+        ...(repNames.length > 0 ? { repNames: Array.from(new Set(repNames)) } : {}),
+        ...(warehouses.length > 0 ? { warehouses } : {}),
+        ...(sectors.length > 0 ? { sectors } : {}),
       };
     }
 
     if (role === 'branch_manager' && warehouses.length > 0) {
-      return { warehouses };
+      return { warehouses, ...(sectors.length > 0 ? { sectors } : {}) };
     }
     return undefined;
-  }, [currentUser, users, isAdminOrDev]);
+  }, [currentUser, users, isAdminOrDev, itemSalesSector]);
 
   const [salesRecords, setSalesRecords] = useState<CustomerItemSaleRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -207,6 +235,14 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   const [searchTerm, setSearchTerm] = useState('');
+  // Debounce البحث: 103 ألف صف × ~15 عملية حسابية مع كل حرف كانت بتعمل ثقل واضح.
+  // الفلتر الفعلي هيستخدم القيمة المتأخرة دي عشان الحساب يحصل مرة واحدة بعد ما توقف الكتابة.
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedSearchTerm(searchTerm), 300);
+    return () => window.clearTimeout(t);
+  }, [searchTerm]);
+  const [searchMode, setSearchMode] = useState<'all' | 'customer'>('all');
   const [customerSearchTerm, setCustomerSearchTerm] = useState('');
   const [selectedSearchCustomer, setSelectedSearchCustomer] = useState<CustomerItemSalesSummary | null>(null);
   const [selectedMonth, setSelectedMonth] = useState<number | 'all'>('all');
@@ -470,28 +506,32 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     return map;
   }, [customers]);
 
+  // الـ directory enrichment بيتعمل مرة واحدة بس — ويتم مشاركة بياناته وإحصائياته
+  // (كان بيتعمل مرتين: هنا وفي customerLinkStats → ثقل زيادة على 103 ألف صف).
+  const directoryResult = useMemo(() => {
+    if (salesRecords.length === 0 || customers.length === 0) {
+      return { enriched: salesRecords, matchedRecordsCount: 0, distinctCustomersMatched: 0 };
+    }
+    return enrichCustomerItemSalesWithDirectory(salesRecords, customers);
+  }, [salesRecords, customers]);
+
   // Automatically link customer codes with master Customer directory to extract authoritative branch and rep
   // وبعدها بنكمّل اسم الصنف وعائلته من كتالوج المنتجات (عشان «الصنف بالعائلة» متقعدش «عام»)
   const enrichedSalesRecords = useMemo(() => {
     if (salesRecords.length === 0) return salesRecords;
-    const withDirectory =
-      customers.length > 0
-        ? enrichCustomerItemSalesWithDirectory(salesRecords, customers).enriched
-        : salesRecords;
-    return enrichCustomerItemSalesWithCatalog(withDirectory, products);
-  }, [salesRecords, customers, products]);
+    // أولًا نكمّل «عام» من صفوف تانية لنفس الصنف (الشيت فيه تصنيف لبعض الصفوف بس)
+    // بنمرّر كل salesRecords عشان الخريطة تبقى من كل الداتا مش بس المفلترة
+    const withFamilies = fillGenericFamiliesFromSiblings(directoryResult.enriched, salesRecords);
+    return enrichCustomerItemSalesWithCatalog(withFamilies, products);
+  }, [salesRecords, directoryResult, products]);
 
   const customerLinkStats = useMemo(() => {
-    if (customers.length === 0 || salesRecords.length === 0) {
-      return { linkedRecords: 0, linkedCustomers: 0, totalSales: salesRecords.length };
-    }
-    const res = enrichCustomerItemSalesWithDirectory(salesRecords, customers);
     return {
-      linkedRecords: res.matchedRecordsCount,
-      linkedCustomers: res.distinctCustomersMatched,
+      linkedRecords: directoryResult.matchedRecordsCount,
+      linkedCustomers: directoryResult.distinctCustomersMatched,
       totalSales: salesRecords.length
     };
-  }, [salesRecords, customers]);
+  }, [directoryResult, salesRecords.length]);
 
   const handleEnrichAndPersistSales = async () => {
     if (salesRecords.length === 0) return;
@@ -508,11 +548,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     const authorizedSales = showAllSalesOverride
       ? enrichedSalesRecords
       : filterCustomerItemSalesByRBAC(enrichedSalesRecords, currentUser, users, customers);
-    const effectiveSector = isAdminOrDev
-      ? activeSectorFilter
-      : currentUser?.sector === 'home' || currentUser?.sector === 'electrical'
-        ? currentUser.sector
-        : activeSectorFilter;
+    const effectiveSector = itemSalesSector;
     if (effectiveSector === 'all') return authorizedSales;
 
     const customersByReference = new Map<string, Customer>();
@@ -535,24 +571,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       const sector = resolvedCustomer?.sector;
       return sector === effectiveSector || sector === 'both' || sector === 'all';
     });
-  }, [enrichedSalesRecords, currentUser, users, customers, showAllSalesOverride, activeSectorFilter, isAdminOrDev]);
-
-  const distinctGroups = useMemo(() => {
-    const set = new Set<string>();
-    rbacSales.forEach((record) => {
-      const group = resolveItemGroup(record);
-      if (group && group !== 'عام') set.add(group);
-    });
-    return Array.from(set).sort();
-  }, [rbacSales]);
-
-  const distinctReps = useMemo(() => {
-    const set = new Set<string>();
-    rbacSales.forEach((record) => {
-      if (record.repName) set.add(record.repName);
-    });
-    return Array.from(set).sort();
-  }, [rbacSales]);
+  }, [enrichedSalesRecords, currentUser, users, customers, showAllSalesOverride, itemSalesSector]);
 
   /** الفروع الثابتة اللي الإدارة بتشتغل عليها (+ «غير محدد» لو الحركة بلا فرع). */
   const resolveItemSaleBranch = React.useCallback(
@@ -562,40 +581,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       UNKNOWN_BRANCH,
     []
   );
-
-  const distinctWarehouses = useMemo(() => {
-    const present = new Set<string>();
-    rbacSales.forEach((record) => present.add(resolveItemSaleBranch(record)));
-    const ordered = (CANONICAL_BRANCHES as readonly string[]).filter((branch) => present.has(branch));
-    // «بدون فرع/غير محدد» مش فرع: مش بيتحسب في عدد الفروع ولا يظهر في القائمة.
-    return ordered;
-  }, [rbacSales, resolveItemSaleBranch]);
-
-  /** عائلات الأصناف (عمود «الصنف بالعائله» في الشيت). */
-  const distinctFamilies = useMemo(() => {
-    const set = new Set<string>();
-    rbacSales.forEach((record) => {
-      const family = (record.familyDimension || '').trim();
-      if (family && family !== 'عام') set.add(family);
-    });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
-  }, [rbacSales]);
-
-  /** أعلى 400 صنف حسب القيمة — عشان فلتر الصنف يفضل سريع. */
-  const distinctItems = useMemo(() => {
-    const map = new Map<string, { code: string; name: string; amount: number }>();
-    rbacSales.forEach((record) => {
-      // الكود الموحد بيفرّق اللون وهو الفريد؛ كود المنتج ممكن يتكرر.
-      const code = (record.unifiedCode || record.itemCode || '').trim();
-      if (!code) return;
-      const current = map.get(code) || { code, name: record.itemName || code, amount: 0 };
-      current.amount += Number(record.amount) || 0;
-      map.set(code, current);
-    });
-    return Array.from(map.values())
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 400);
-  }, [rbacSales]);
 
   /** كل الفلاتر ما عدا الشهر — أساس حساب المقارنة الشهرية. */
   const baseSales = useMemo(() => {
@@ -611,17 +596,24 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       ) {
         return false;
       }
-      if (searchTerm.trim()) {
-        const query = searchTerm.toLowerCase().trim();
+      if (debouncedSearchTerm.trim()) {
+        const query = debouncedSearchTerm.toLowerCase().trim();
         const matches =
-          record.invoicingName?.toLowerCase().includes(query) ||
-          record.customerAccount?.toLowerCase().includes(query) ||
-          record.itemName?.toLowerCase().includes(query) ||
-          record.itemCode?.toLowerCase().includes(query) ||
-          record.definitions?.toLowerCase().includes(query) ||
-          record.familyDimension?.toLowerCase().includes(query) ||
-          record.salesOrder?.toLowerCase().includes(query) ||
-          record.repName?.toLowerCase().includes(query);
+          searchMode === 'customer'
+            ? Boolean(
+                record.invoicingName?.toLowerCase().includes(query) ||
+                  record.customerAccount?.toLowerCase().includes(query)
+              )
+            : Boolean(
+                record.invoicingName?.toLowerCase().includes(query) ||
+                  record.customerAccount?.toLowerCase().includes(query) ||
+                  record.itemName?.toLowerCase().includes(query) ||
+                  record.itemCode?.toLowerCase().includes(query) ||
+                  record.definitions?.toLowerCase().includes(query) ||
+                  record.familyDimension?.toLowerCase().includes(query) ||
+                  record.salesOrder?.toLowerCase().includes(query) ||
+                  record.repName?.toLowerCase().includes(query)
+              );
         if (!matches) return false;
       }
       return true;
@@ -636,7 +628,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     selectedItem,
     resolveItemSaleBranch,
     resolveItemSaleSector,
-    searchTerm
+    debouncedSearchTerm,
+    searchMode
   ]);
 
   const filteredSales = useMemo(
@@ -646,6 +639,118 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         : baseSales.filter((record) => Number(record.month) === selectedMonth),
     [baseSales, selectedMonth]
   );
+
+  // خيارات الفلاتر تتقيّد بالسياق الحالي (الشهر + باقي الفلاتر ما عدا الفلتر نفسه)
+  // عشان لما تختار شهر تشوف المناديب/الفروع المتاحة فعليًا وتقدر تكمل تضييق.
+  const monthScopedSales = useMemo(
+    () =>
+      selectedMonth === 'all'
+        ? rbacSales
+        : rbacSales.filter((record) => Number(record.month) === selectedMonth),
+    [rbacSales, selectedMonth]
+  );
+
+  const matchesSearchFilter = React.useCallback(
+    (record: CustomerItemSaleRecord): boolean => {
+      if (!debouncedSearchTerm.trim()) return true;
+      const query = debouncedSearchTerm.toLowerCase().trim();
+      return searchMode === 'customer'
+        ? Boolean(
+            record.invoicingName?.toLowerCase().includes(query) ||
+              record.customerAccount?.toLowerCase().includes(query)
+          )
+        : Boolean(
+            record.invoicingName?.toLowerCase().includes(query) ||
+              record.customerAccount?.toLowerCase().includes(query) ||
+              record.itemName?.toLowerCase().includes(query) ||
+              record.itemCode?.toLowerCase().includes(query) ||
+              record.definitions?.toLowerCase().includes(query) ||
+              record.familyDimension?.toLowerCase().includes(query) ||
+              record.salesOrder?.toLowerCase().includes(query) ||
+              record.repName?.toLowerCase().includes(query)
+          );
+    },
+    [debouncedSearchTerm, searchMode]
+  );
+
+  const passesCommonFilters = React.useCallback(
+    (
+      record: CustomerItemSaleRecord,
+      exclude: { group?: boolean; rep?: boolean; warehouse?: boolean; sector?: boolean; family?: boolean; item?: boolean } = {}
+    ): boolean => {
+      if (!exclude.group && selectedGroup !== 'all' && resolveItemGroup(record) !== selectedGroup) return false;
+      if (!exclude.rep && selectedRep !== 'all' && record.repName !== selectedRep) return false;
+      if (!exclude.warehouse && selectedWarehouse !== 'all' && resolveItemSaleBranch(record) !== selectedWarehouse) return false;
+      if (!exclude.sector && selectedSector !== 'all' && resolveItemSaleSector(record) !== selectedSector) return false;
+      if (!exclude.family && selectedFamily !== 'all' && (record.familyDimension || '').trim() !== selectedFamily) return false;
+      if (!exclude.item && selectedItem !== 'all' && (record.unifiedCode || record.itemCode || '').trim() !== selectedItem) return false;
+      if (!matchesSearchFilter(record)) return false;
+      return true;
+    },
+    [selectedGroup, selectedRep, selectedWarehouse, selectedSector, selectedFamily, selectedItem, resolveItemSaleBranch, resolveItemSaleSector, matchesSearchFilter]
+  );
+
+  const distinctGroups = useMemo(() => {
+    const set = new Set<string>();
+    monthScopedSales.forEach((record) => {
+      if (!passesCommonFilters(record, { group: true })) return;
+      const group = resolveItemGroup(record);
+      if (group && group !== 'عام') set.add(group);
+    });
+    if (selectedGroup !== 'all' && selectedGroup) set.add(selectedGroup);
+    return Array.from(set).sort();
+  }, [monthScopedSales, passesCommonFilters, selectedGroup]);
+
+  const distinctReps = useMemo(() => {
+    const set = new Set<string>();
+    monthScopedSales.forEach((record) => {
+      if (!passesCommonFilters(record, { rep: true })) return;
+      if (record.repName) set.add(record.repName);
+    });
+    if (selectedRep !== 'all' && selectedRep) set.add(selectedRep);
+    return Array.from(set).sort();
+  }, [monthScopedSales, passesCommonFilters, selectedRep]);
+
+  const distinctWarehouses = useMemo(() => {
+    const present = new Set<string>();
+    monthScopedSales.forEach((record) => {
+      if (!passesCommonFilters(record, { warehouse: true })) return;
+      present.add(resolveItemSaleBranch(record));
+    });
+    const ordered = (CANONICAL_BRANCHES as readonly string[]).filter((branch) => present.has(branch));
+    if (selectedWarehouse !== 'all' && selectedWarehouse && !ordered.includes(selectedWarehouse as any)) {
+      return [...ordered, selectedWarehouse];
+    }
+    return ordered;
+  }, [monthScopedSales, passesCommonFilters, resolveItemSaleBranch, selectedWarehouse]);
+
+  const distinctFamilies = useMemo(() => {
+    const set = new Set<string>();
+    monthScopedSales.forEach((record) => {
+      if (!passesCommonFilters(record, { family: true })) return;
+      const family = (record.familyDimension || '').trim();
+      if (family && family !== 'عام') set.add(family);
+    });
+    if (selectedFamily !== 'all' && selectedFamily) set.add(selectedFamily);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [monthScopedSales, passesCommonFilters, selectedFamily]);
+
+  const distinctItems = useMemo(() => {
+    const map = new Map<string, { code: string; name: string; amount: number }>();
+    monthScopedSales.forEach((record) => {
+      if (!passesCommonFilters(record, { item: true })) return;
+      const code = (record.unifiedCode || record.itemCode || '').trim();
+      if (!code) return;
+      const current = map.get(code) || { code, name: record.itemName || code, amount: 0 };
+      current.amount += Number(record.amount) || 0;
+      map.set(code, current);
+    });
+    const list = Array.from(map.values()).sort((a, b) => b.amount - a.amount);
+    if (selectedItem !== 'all' && selectedItem && !map.has(selectedItem)) {
+      return [{ code: selectedItem, name: selectedItem, amount: 0 }, ...list].slice(0, 401);
+    }
+    return list.slice(0, 400);
+  }, [monthScopedSales, passesCommonFilters, selectedItem]);
 
   const monthBreakdown = useMemo(() => {
     const map = new Map<number, { month: number; name: string; count: number; amount: number }>();
@@ -747,6 +852,127 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   }, [monthlyPerformance]);
 
   const monthlyCustomerRows = useMemo(() => buildMonthlyCustomerAnalysis(baseSales), [baseSales]);
+
+  /** الشهور الموجودة في نطاق الفلاتر الحالي (لجداول التحليل بالشهور). */
+  const analysisMonths = useMemo(() => {
+    const set = new Set<number>();
+    (filteredSales || []).forEach((r) => {
+      const m = Number(r.month) || 0;
+      if (m >= 1 && m <= 12) set.add(m);
+    });
+    return Array.from(set).sort((a, b) => a - b);
+  }, [filteredSales]);
+
+  /** الصنف (البرند/اسم الصنف) بالشهور — صف لكل صنف وأعمدة بالشهور + الإجمالي. */
+  const itemSalesByMonthPivot = useMemo(() => {
+    const map = new Map<string, { key: string; name: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>();
+    (filteredSales || []).forEach((r) => {
+      const month = Number(r.month) || 0;
+      if (month < 1 || month > 12) return;
+      const key = String(r.unifiedCode || r.itemCode || r.itemName || '').trim() || `item-${r.id || ''}`;
+      const name = String(r.itemName || r.definitions || r.itemCode || 'صنف غير محدد').trim();
+      const cur = map.get(key) || { key, name, months: {}, totalQty: 0, totalAmount: 0 };
+      const qty = Number(r.quantity) || 0;
+      const amt = Number(r.amount) || 0;
+      const m = cur.months[month] || { quantity: 0, amount: 0 };
+      m.quantity += qty; m.amount += amt;
+      cur.months[month] = m;
+      cur.totalQty += qty; cur.totalAmount += amt;
+      if (!cur.name && name) cur.name = name;
+      map.set(key, cur);
+    });
+    return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [filteredSales]);
+
+  /** الصنف بالعائلة بالشهور — صف لكل (عائلة) وأعمدة بالشهور + الإجمالي. */
+  const familySalesByMonthPivot = useMemo(() => {
+    const map = new Map<string, { family: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>();
+    (filteredSales || []).forEach((r) => {
+      const month = Number(r.month) || 0;
+      if (month < 1 || month > 12) return;
+      const family = String(resolveItemGroup(r) || r.familyDimension || r.itemGroup || '').trim() || 'عام';
+      const cur = map.get(family) || { family, months: {}, totalQty: 0, totalAmount: 0 };
+      const qty = Number(r.quantity) || 0;
+      const amt = Number(r.amount) || 0;
+      const m = cur.months[month] || { quantity: 0, amount: 0 };
+      m.quantity += qty; m.amount += amt;
+      cur.months[month] = m;
+      cur.totalQty += qty; cur.totalAmount += amt;
+      map.set(family, cur);
+    });
+    return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [filteredSales]);
+
+  /** مبيعات الفروع بالصنف بالشهور. */
+  const branchItemSalesByMonth = useMemo(() => {
+    const map = new Map<string, { branch: string; itemKey: string; itemName: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>();
+    (filteredSales || []).forEach((r) => {
+      const month = Number(r.month) || 0;
+      if (month < 1 || month > 12) return;
+      const branch = resolveItemSaleBranch(r);
+      const itemKey = String(r.unifiedCode || r.itemCode || r.itemName || '').trim() || `item-${r.id || ''}`;
+      const itemName = String(r.itemName || r.definitions || r.itemCode || 'صنف غير محدد').trim();
+      const key = `${branch}||${itemKey}`;
+      const cur = map.get(key) || { branch, itemKey, itemName, months: {}, totalQty: 0, totalAmount: 0 };
+      const qty = Number(r.quantity) || 0; const amt = Number(r.amount) || 0;
+      const m = cur.months[month] || { quantity: 0, amount: 0 };
+      m.quantity += qty; m.amount += amt;
+      cur.months[month] = m; cur.totalQty += qty; cur.totalAmount += amt;
+      map.set(key, cur);
+    });
+    return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [filteredSales, resolveItemSaleBranch]);
+
+  /** مبيعات الفروع بالعائلة بالشهور. */
+  const branchFamilySalesByMonth = useMemo(() => {
+    const map = new Map<string, { branch: string; family: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>();
+    (filteredSales || []).forEach((r) => {
+      const month = Number(r.month) || 0;
+      if (month < 1 || month > 12) return;
+      const branch = resolveItemSaleBranch(r);
+      const family = String(resolveItemGroup(r) || r.familyDimension || r.itemGroup || '').trim() || 'عام';
+      const key = `${branch}||${family}`;
+      const cur = map.get(key) || { branch, family, months: {}, totalQty: 0, totalAmount: 0 };
+      const qty = Number(r.quantity) || 0; const amt = Number(r.amount) || 0;
+      const m = cur.months[month] || { quantity: 0, amount: 0 };
+      m.quantity += qty; m.amount += amt;
+      cur.months[month] = m; cur.totalQty += qty; cur.totalAmount += amt;
+      map.set(key, cur);
+    });
+    return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+  }, [filteredSales, resolveItemSaleBranch]);
+
+  /** مبيعات الأصناف بالشهور وبالعائلة للمندوب المختار — تظهر داخل بروفايل المندوب. */
+  const selectedRepBreakdown = useMemo(() => {
+    if (selectedRep === 'all') return null;
+    const repRecords = (filteredSales || []).filter((r) => r.repName === selectedRep);
+    if (repRecords.length === 0) return null;
+
+    const monthMap = new Map<number, { month: number; amount: number; quantity: number }>();
+    const familyMap = new Map<string, { family: string; amount: number; quantity: number; monthly: Record<number, number> }>();
+    repRecords.forEach((r) => {
+      const month = Number(r.month) || 0;
+      const amount = Number(r.amount) || 0;
+      const quantity = Number(r.quantity) || 0;
+      if (month >= 1 && month <= 12) {
+        const cur = monthMap.get(month) || { month, amount: 0, quantity: 0 };
+        cur.amount += amount;
+        cur.quantity += quantity;
+        monthMap.set(month, cur);
+      }
+      const family = String(resolveItemGroup(r) || r.familyDimension || r.itemGroup || '').trim() || 'عام';
+      const f = familyMap.get(family) || { family, amount: 0, quantity: 0, monthly: {} as Record<number, number> };
+      f.amount += amount;
+      f.quantity += quantity;
+      if (month >= 1 && month <= 12) f.monthly[month] = (f.monthly[month] || 0) + amount;
+      familyMap.set(family, f);
+    });
+
+    return {
+      byMonth: Array.from(monthMap.values()).sort((a, b) => a.month - b.month),
+      byFamily: Array.from(familyMap.values()).sort((a, b) => b.amount - a.amount)
+    };
+  }, [filteredSales, selectedRep]);
 
   const repPerformance = useMemo(() => buildRepPerformance(filteredSales, 6), [filteredSales]);
 
@@ -1366,6 +1592,26 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 <X className="w-4 h-4" />
               </button>
             )}
+            <div className="flex items-center gap-1 mt-1">
+              <button
+                type="button"
+                onClick={() => setSearchMode('all')}
+                className={`h-7 px-2.5 rounded-lg text-[10px] font-black transition cursor-pointer ${
+                  searchMode === 'all' ? 'bg-[#102b4e] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                كل الحقول
+              </button>
+              <button
+                type="button"
+                onClick={() => setSearchMode('customer')}
+                className={`h-7 px-2.5 rounded-lg text-[10px] font-black transition cursor-pointer ${
+                  searchMode === 'customer' ? 'bg-[#102b4e] text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                بالعميل فقط
+              </button>
+            </div>
           </div>
 
           <div className="relative col-span-2 md:col-span-3 xl:col-span-2">
@@ -1416,7 +1662,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               setSelectedMonth(event.target.value === 'all' ? 'all' : Number(event.target.value))
             }
             aria-label="تصفية بالشهر"
-            className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
+            className="h-10 px-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
           >
             <option value="all">كل الشهور</option>
             {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (
@@ -1431,7 +1677,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               value={selectedWarehouse}
               onChange={(event) => setSelectedWarehouse(event.target.value)}
               aria-label="تصفية بالفرع"
-              className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
+              className="h-10 px-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
             >
               <option value="all">كل الفروع ({distinctWarehouses.length})</option>
               {distinctWarehouses.map((warehouse) => (
@@ -1447,7 +1693,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               value={selectedRep}
               onChange={(event) => setSelectedRep(event.target.value)}
               aria-label="تصفية بالمندوب"
-              className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
+              className="h-10 px-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
             >
               <option value="all">كل المناديب ({distinctReps.length})</option>
               {distinctReps.map((rep) => (
@@ -1462,7 +1708,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             value={selectedFamily}
             onChange={(event) => setSelectedFamily(event.target.value)}
             aria-label="تصفية بالصنف بالعائلة"
-            className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
+            className="h-10 px-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer"
           >
             <option value="all">الصنف بالعائلة (الكل)</option>
             {distinctFamilies.map((family) => (
@@ -1476,7 +1722,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             value={selectedItem}
             onChange={(event) => setSelectedItem(event.target.value)}
             aria-label="تصفية بالصنف"
-            className="h-10 px-2.5 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer max-w-[240px]"
+            className="h-10 px-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-[11px] font-bold text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)] cursor-pointer max-w-[240px]"
           >
             <option value="all">كل الأصناف ({distinctItems.length})</option>
             {distinctItems.map((item) => (
@@ -1490,14 +1736,14 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
 
       {/* View tabs */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-1.5 flex items-center gap-1 flex-wrap">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-1.5 flex items-center gap-1 flex-wrap">
         <button
           type="button"
           onClick={() => setActiveView('overview')}
           className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black transition cursor-pointer ${
             activeView === 'overview'
               ? 'bg-[#102b4e] text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-50'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
           }`}
         >
           <LayoutDashboard className="w-3.5 h-3.5" />
@@ -1509,7 +1755,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black transition cursor-pointer ${
             activeView === 'customers'
               ? 'bg-[#102b4e] text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-50'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
           }`}
         >
           <Users className="w-3.5 h-3.5" />
@@ -1528,7 +1774,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black transition cursor-pointer ${
             activeView === 'focus'
               ? 'bg-[#102b4e] text-white shadow-sm'
-              : 'text-slate-600 hover:bg-slate-50'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
           }`}
         >
           <BarChart3 className="w-3.5 h-3.5" />
@@ -1615,6 +1861,11 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                     <div className="text-[9.5px] text-slate-400 font-bold font-mono">
                       كود العميل: {selectedSearchCustomer.customerAccount || '—'}
                     </div>
+                    {selectedSearchCustomer.linkedCustomerCode && selectedSearchCustomer.linkedCustomerCode !== selectedSearchCustomer.customerAccount && (
+                      <div className="text-[9px] font-bold text-[var(--app-primary-text)] mt-0.5" title="مطابق بقاعدة العملاء">
+                        كود قاعدة العملاء: <span className="font-mono">{selectedSearchCustomer.linkedCustomerCode}</span>
+                      </div>
+                    )}
                     <div className="text-[9.5px] text-slate-500 font-bold flex items-center gap-1 mt-0.5">
                       <Building2 className="w-3 h-3 shrink-0" />
                       {selectedSearchCustomer.linkedBranch || selectedSearchCustomer.warehouse || 'الفرع الرئيسي'}
@@ -1623,6 +1874,12 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                       <UserRound className="w-3 h-3 shrink-0" />
                       {selectedSearchCustomer.linkedRepName || selectedSearchCustomer.repName || 'غير محدد'}
                     </div>
+                    {selectedSearchCustomer.linkedSector && (
+                      <div className="text-[9px] font-bold text-[var(--app-secondary-text)] mt-0.5 flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-[var(--app-secondary)]" />
+                        القطاع: {selectedSearchCustomer.linkedSector === 'electrical' ? 'كهربائي' : selectedSearchCustomer.linkedSector === 'both' ? 'الاثنين' : 'منزلي'}
+                      </div>
+                    )}
                     {selectedSearchCustomer.linkedPhone && (
                       <div className="text-[9.5px] text-slate-500 font-bold flex items-center gap-1 mt-0.5">
                         <Phone className="w-3 h-3 shrink-0" />
@@ -1735,7 +1992,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                           }"
                         >
                           <div className="text-[8px] uppercase tracking-wider mb-0.5">
-                            {MONTH_NAMES_MAP[month].slice(0, 3)}
+                            {MONTH_NAMES_MAP[month]}
                           </div>
                           <div className="font-mono font-black">
                             {hasSales ? formatCurrency(amount) : '—'}
@@ -1809,7 +2066,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-            <div className="xl:col-span-7">
+            <div className="xl:col-span-12">
               <ItemRankingCard
                 variant="quantity"
                 items={topItemsByQuantity}
@@ -1817,14 +2074,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 onSelectItem={(itemCode) => {
                   if (itemCode) setSearchTerm(itemCode);
                 }}
-              />
-            </div>
-            <div className="xl:col-span-5">
-              <CustomerSnapshotCard
-                customer={selectedCustomer}
-                alert={alerts[0] || null}
-                onStartOrder={onOpenNewOrderForCustomer ? handleStartOrderForCustomer : undefined}
-                onOpenDetails={openCustomerDetails}
               />
             </div>
           </div>
@@ -1838,15 +2087,229 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 reps={repPerformance}
                 selectedRep={selectedRep}
                 onSelectRep={(rep) => setSelectedRep(rep === selectedRep ? 'all' : rep)}
+                breakdown={selectedRepBreakdown}
               />
             </div>
           </div>
 
-          <ItemSalesRowsTable
-            records={filteredSales}
-            resolveSector={resolveItemSaleSector}
-            customerNameByCode={customerNameByCode}
-          />
+          {/* تحليل الصنف والعائلة بالشهور + مبيعات الفروع */}
+          <div className="grid grid-cols-1 gap-4">
+            <section className="bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] p-4 sm:p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div>
+                  <h3 className="text-sm font-black text-[var(--app-text)]">الصنف (البرند) بالشهور</h3>
+                  <p className="text-[10px] text-[var(--app-text-muted)] font-bold mt-0.5">قيمة وكمية مبيعات كل صنف موزعة على الشهور (أعلى 50 صنف حسب الإجمالي)</p>
+                </div>
+                <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-[var(--app-primary-tint)] text-[var(--app-primary-text)] border border-[var(--app-primary-border)]">
+                  {itemSalesByMonthPivot.length} صنف
+                </span>
+              </div>
+              {itemSalesByMonthPivot.length === 0 || analysisMonths.length === 0 ? (
+                <div className="text-xs font-bold text-[var(--app-text-muted)] text-center py-8 border border-dashed border-[var(--app-border)] rounded-xl">لا توجد بيانات للفلاتر الحالية</div>
+              ) : (
+                <div className="overflow-auto max-h-[420px] rounded-xl border border-[var(--app-border)]">
+                  <table className="w-full min-w-[900px] text-right text-[12px]">
+                    <thead className="sticky top-0 z-10 bg-[var(--app-card-secondary)] text-[var(--app-text-muted)] font-black text-[11px]">
+                      <tr>
+                        <th className="px-4 py-3 whitespace-nowrap sticky right-0 bg-[var(--app-card-secondary)] z-20">الصنف</th>
+                        {analysisMonths.map((m) => (
+                          <th key={m} className="px-3 py-3 text-center whitespace-nowrap">{MONTH_NAMES_MAP[m] || m}</th>
+                        ))}
+                        <th className="px-4 py-3 text-left whitespace-nowrap">الإجمالي</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--app-border)]">
+                      {itemSalesByMonthPivot.slice(0, 50).map((row) => (
+                        <tr key={row.key} className="hover:bg-[var(--app-card-hover)] transition">
+                          <td className="px-4 py-3 font-black text-[var(--app-text)] whitespace-nowrap max-w-[260px] truncate sticky right-0 bg-[var(--app-card)]" title={row.name}>{row.name}</td>
+                          {analysisMonths.map((m) => {
+                            const cell = row.months[m];
+                            return (
+                              <td key={m} className="px-3 py-3 text-center">
+                                {cell ? (
+                                  <div className="leading-tight">
+                                    <div className="font-mono font-black text-[var(--app-text)] tabular-nums whitespace-nowrap">{formatCurrency(cell.amount)}</div>
+                                    <div className="text-[10px] font-bold text-[var(--app-text-muted)] tabular-nums">{Math.round(cell.quantity).toLocaleString('ar-EG')} كرتونة</div>
+                                  </div>
+                                ) : <span className="text-[var(--app-text-muted)]">—</span>}
+                              </td>
+                            );
+                          })}
+                          <td className="px-4 py-3 text-left">
+                            <div className="font-mono font-black text-[var(--app-text)] tabular-nums whitespace-nowrap">{formatCurrency(row.totalAmount)}</div>
+                            <div className="text-[10px] font-bold text-[var(--app-text-muted)] tabular-nums">{Math.round(row.totalQty).toLocaleString('ar-EG')} كرتونة</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <section className="bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] p-4 sm:p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div>
+                  <h3 className="text-sm font-black text-[var(--app-text)]">الصنف بالعائلة بالشهور</h3>
+                  <p className="text-[10px] text-[var(--app-text-muted)] font-bold mt-0.5">قيمة وكمية مبيعات كل عائلة موزعة على الشهور</p>
+                </div>
+                <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-[var(--app-secondary-tint)] text-[var(--app-secondary-text)] border border-[var(--app-secondary-border)]">
+                  {familySalesByMonthPivot.length} عائلة
+                </span>
+              </div>
+              {familySalesByMonthPivot.length === 0 || analysisMonths.length === 0 ? (
+                <div className="text-xs font-bold text-[var(--app-text-muted)] text-center py-8 border border-dashed border-[var(--app-border)] rounded-xl">لا توجد بيانات للفلاتر الحالية</div>
+              ) : (
+                <div className="overflow-auto max-h-[420px] rounded-xl border border-[var(--app-border)]">
+                  <table className="w-full min-w-[900px] text-right text-[12px]">
+                    <thead className="sticky top-0 z-10 bg-[var(--app-card-secondary)] text-[var(--app-text-muted)] font-black text-[11px]">
+                      <tr>
+                        <th className="px-4 py-3 whitespace-nowrap sticky right-0 bg-[var(--app-card-secondary)] z-20">العائلة</th>
+                        {analysisMonths.map((m) => (
+                          <th key={m} className="px-3 py-3 text-center whitespace-nowrap">{MONTH_NAMES_MAP[m] || m}</th>
+                        ))}
+                        <th className="px-4 py-3 text-left whitespace-nowrap">الإجمالي</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--app-border)]">
+                      {familySalesByMonthPivot.map((row) => (
+                        <tr key={row.family} className="hover:bg-[var(--app-card-hover)] transition">
+                          <td className="px-4 py-3 font-black text-[var(--app-text)] whitespace-nowrap max-w-[260px] truncate sticky right-0 bg-[var(--app-card)]" title={row.family}>{row.family}</td>
+                          {analysisMonths.map((m) => {
+                            const cell = row.months[m];
+                            return (
+                              <td key={m} className="px-3 py-3 text-center">
+                                {cell ? (
+                                  <div className="leading-tight">
+                                    <div className="font-mono font-black text-[var(--app-text)] tabular-nums whitespace-nowrap">{formatCurrency(cell.amount)}</div>
+                                    <div className="text-[10px] font-bold text-[var(--app-text-muted)] tabular-nums">{Math.round(cell.quantity).toLocaleString('ar-EG')} كرتونة</div>
+                                  </div>
+                                ) : <span className="text-[var(--app-text-muted)]">—</span>}
+                              </td>
+                            );
+                          })}
+                          <td className="px-4 py-3 text-left">
+                            <div className="font-mono font-black text-[var(--app-text)] tabular-nums whitespace-nowrap">{formatCurrency(row.totalAmount)}</div>
+                            <div className="text-[10px] font-bold text-[var(--app-text-muted)] tabular-nums">{Math.round(row.totalQty).toLocaleString('ar-EG')} كرتونة</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <section className="bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] p-4 sm:p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div>
+                  <h3 className="text-sm font-black text-[var(--app-text)]">مبيعات الفروع بالصنف بالشهور</h3>
+                  <p className="text-[10px] text-[var(--app-text-muted)] font-bold mt-0.5">تفصيل مبيعات كل فرع على مستوى الصنف موزعة بالشهور (أعلى 80 صف)</p>
+                </div>
+                <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-[var(--app-primary-tint)] text-[var(--app-primary-text)] border border-[var(--app-primary-border)]">
+                  {branchItemSalesByMonth.length} صف
+                </span>
+              </div>
+              {branchItemSalesByMonth.length === 0 || analysisMonths.length === 0 ? (
+                <div className="text-xs font-bold text-[var(--app-text-muted)] text-center py-8 border border-dashed border-[var(--app-border)] rounded-xl">لا توجد بيانات للفلاتر الحالية</div>
+              ) : (
+                <div className="overflow-auto max-h-[420px] rounded-xl border border-[var(--app-border)]">
+                  <table className="w-full min-w-[980px] text-right text-[12px]">
+                    <thead className="sticky top-0 z-10 bg-[var(--app-card-secondary)] text-[var(--app-text-muted)] font-black text-[11px]">
+                      <tr>
+                        <th className="px-4 py-3 whitespace-nowrap sticky right-0 bg-[var(--app-card-secondary)] z-20">الفرع</th>
+                        <th className="px-4 py-3 whitespace-nowrap">الصنف</th>
+                        {analysisMonths.map((m) => (
+                          <th key={m} className="px-3 py-3 text-center whitespace-nowrap">{MONTH_NAMES_MAP[m] || m}</th>
+                        ))}
+                        <th className="px-4 py-3 text-left whitespace-nowrap">الإجمالي</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--app-border)]">
+                      {branchItemSalesByMonth.slice(0, 80).map((row) => (
+                        <tr key={`${row.branch}-${row.itemKey}`} className="hover:bg-[var(--app-card-hover)] transition">
+                          <td className="px-4 py-3 font-black text-[var(--app-text)] whitespace-nowrap sticky right-0 bg-[var(--app-card)]">{row.branch}</td>
+                          <td className="px-4 py-3 font-bold text-[var(--app-text)] whitespace-nowrap max-w-[220px] truncate" title={row.itemName}>{row.itemName}</td>
+                          {analysisMonths.map((m) => {
+                            const cell = row.months[m];
+                            return (
+                              <td key={m} className="px-3 py-3 text-center">
+                                {cell ? (
+                                  <div className="leading-tight">
+                                    <div className="font-mono font-black text-[var(--app-text)] tabular-nums whitespace-nowrap">{formatCurrency(cell.amount)}</div>
+                                    <div className="text-[10px] font-bold text-[var(--app-text-muted)] tabular-nums">{Math.round(cell.quantity).toLocaleString('ar-EG')}</div>
+                                  </div>
+                                ) : <span className="text-[var(--app-text-muted)]">—</span>}
+                              </td>
+                            );
+                          })}
+                          <td className="px-4 py-3 text-left">
+                            <div className="font-mono font-black text-[var(--app-text)] tabular-nums whitespace-nowrap">{formatCurrency(row.totalAmount)}</div>
+                            <div className="text-[10px] font-bold text-[var(--app-text-muted)] tabular-nums">{Math.round(row.totalQty).toLocaleString('ar-EG')}</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+
+            <section className="bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] p-4 sm:p-5 shadow-sm">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div>
+                  <h3 className="text-sm font-black text-[var(--app-text)]">مبيعات الفروع بالعائلة بالشهور</h3>
+                  <p className="text-[10px] text-[var(--app-text-muted)] font-bold mt-0.5">تفصيل مبيعات كل فرع على مستوى العائلة موزعة بالشهور</p>
+                </div>
+                <span className="text-[10px] font-black px-2 py-1 rounded-lg bg-[var(--app-secondary-tint)] text-[var(--app-secondary-text)] border border-[var(--app-secondary-border)]">
+                  {branchFamilySalesByMonth.length} صف
+                </span>
+              </div>
+              {branchFamilySalesByMonth.length === 0 || analysisMonths.length === 0 ? (
+                <div className="text-xs font-bold text-[var(--app-text-muted)] text-center py-8 border border-dashed border-[var(--app-border)] rounded-xl">لا توجد بيانات للفلاتر الحالية</div>
+              ) : (
+                <div className="overflow-auto max-h-[420px] rounded-xl border border-[var(--app-border)]">
+                  <table className="w-full min-w-[980px] text-right text-[12px]">
+                    <thead className="sticky top-0 z-10 bg-[var(--app-card-secondary)] text-[var(--app-text-muted)] font-black text-[11px]">
+                      <tr>
+                        <th className="px-4 py-3 whitespace-nowrap sticky right-0 bg-[var(--app-card-secondary)] z-20">الفرع</th>
+                        <th className="px-4 py-3 whitespace-nowrap">العائلة</th>
+                        {analysisMonths.map((m) => (
+                          <th key={m} className="px-3 py-3 text-center whitespace-nowrap">{MONTH_NAMES_MAP[m] || m}</th>
+                        ))}
+                        <th className="px-4 py-3 text-left whitespace-nowrap">الإجمالي</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[var(--app-border)]">
+                      {branchFamilySalesByMonth.map((row) => (
+                        <tr key={`${row.branch}-${row.family}`} className="hover:bg-[var(--app-card-hover)] transition">
+                          <td className="px-4 py-3 font-black text-[var(--app-text)] whitespace-nowrap sticky right-0 bg-[var(--app-card)]">{row.branch}</td>
+                          <td className="px-4 py-3 font-black text-[var(--app-text)] whitespace-nowrap max-w-[220px] truncate" title={row.family}>{row.family}</td>
+                          {analysisMonths.map((m) => {
+                            const cell = row.months[m];
+                            return (
+                              <td key={m} className="px-3 py-3 text-center">
+                                {cell ? (
+                                  <div className="leading-tight">
+                                    <div className="font-mono font-black text-[var(--app-text)] tabular-nums whitespace-nowrap">{formatCurrency(cell.amount)}</div>
+                                    <div className="text-[10px] font-bold text-[var(--app-text-muted)] tabular-nums">{Math.round(cell.quantity).toLocaleString('ar-EG')} كرتونة</div>
+                                  </div>
+                                ) : <span className="text-[var(--app-text-muted)]">—</span>}
+                              </td>
+                            );
+                          })}
+                          <td className="px-4 py-3 text-left">
+                            <div className="font-mono font-black text-[var(--app-text)] tabular-nums whitespace-nowrap">{formatCurrency(row.totalAmount)}</div>
+                            <div className="text-[10px] font-bold text-[var(--app-text-muted)] tabular-nums">{Math.round(row.totalQty).toLocaleString('ar-EG')} كرتونة</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </section>
+          </div>
 
           <MonthlyCustomerAnalysisTable rows={monthlyCustomerRows} />
         </>
