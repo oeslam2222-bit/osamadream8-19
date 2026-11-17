@@ -1,3 +1,65 @@
+    }
+    const rows = read.rows || [];
+    const changedRows = cursor ? rows.filter((r: any) => isRowAfterCursor(r, cursor)) : rows;
+    if (changedRows.length === 0) {
+      return { success: true, products: [], entity: 'products', count: 0, isFullFetch, maxUpdatedAt: cursor?.ts ?? null };
+    }
+    let nextCursor: SyncCursor | null = cursor;
+    for (const r of rows) nextCursor = advanceSyncCursor(nextCursor, r);
+    if (nextCursor) setSyncCursor(scopeKey, nextCursor.ts, nextCursor.id);
+    return {
+      success: true,
+      // صفوف الـ snake_case من قاعدة البيانات بتتحول لـ Product الغني قبل الدمج —
+      // mergeProductsIncremental بيدمجها في الحالة مباشرة فلازم تكون mapped.
+      products: changedRows.map(mapProductTableRow),
+      entity: 'products',
+      count: changedRows.length,
+      isFullFetch,
+      maxUpdatedAt: nextCursor?.ts ?? null,
+    };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'فشل في المزامنة التراكمية للأصناف', entity: 'products', count: 0, isFullFetch: false, maxUpdatedAt: null };
+  }
+}
+
+export function mergeProductsIncremental(existing: any[], incoming: any[]): any[] {
+  const byKey = new Map<string, any>();
+  const keyOf = (p: any) => {
+    if (!p) return '';
+    const id = String(p.id || '').trim();
+    if (id) return `id:${id}`;
+    const code = String(p.code || '').trim().toLowerCase();
+    const unified = String(p.unifiedCode || p.unified_code || '').trim().toLowerCase();
+    if (code || unified) return `cu:${code}|${unified}`;
+    const name = String(p.name || '').trim().toLowerCase();
+    const size = String(p.size || '').trim().toLowerCase();
+    const color = String(p.color || '').trim().toLowerCase();
+    return `fallback:${name}|${size}|${color}`;
+  };
+  existing.forEach((p) => { const k = keyOf(p); if (k) byKey.set(k, p); });
+  incoming.forEach((p) => { const k = keyOf(p); if (k) byKey.set(k, p); });
+  return Array.from(byKey.values());
+}
+
+/* ---------- Customer Item Sales (مبيعات الأصناف) ---------- */
+const CUSTOMER_ITEM_SALES_SELECT_COLUMNS = [
+  'id', 'customer_account', 'invoicing_name', 'sales_order', 'sale_date', 'rep_name',
+  'month', 'item_code', 'item_name', 'quantity', 'amount', 'warehouse', 'updated_at',
+  // أعمدة التحليل — لازم تفضل موجودة في المزامنة التدريجية وإلا السجلات
+  // المحدّثة تفقد الوحدة/المعامل/السعر/الخصم/الكود الموحد.
+  'unit', 'factor', 'unit_price', 'discount', 'unified_code',
+].join(',');
+
+export async function fetchCustomerItemSalesIncremental(scope?: {
+  repNames?: string[];
+  warehouses?: string[];
+  sectors?: Array<'home' | 'electrical'>;
+}): Promise<{
+  success: boolean;
+  sales?: any[];
+  error?: string;
+  isFullFetch?: boolean;
+  maxUpdatedAt?: string | null;
   count?: number;
   entity?: string;
 }> {
@@ -79,6 +141,7 @@ export async function fetchPromotionsStamp(): Promise<PromotionsStampMeta | null
     };
   } catch {
     return null;
+
   }
 }
 
@@ -101,7 +164,6 @@ export async function savePromotionsToSupabase(payload: {
         updatedAt: nowIso,
       } as any,
     };
-
     const { error } = await supabase.from('orders').upsert(record, { onConflict: 'id' });
     if (error) return { success: false, error: error.message };
     return { success: true, updatedAt: nowIso };
@@ -137,53 +199,3 @@ export async function fetchPromotionsFromSupabase(): Promise<{
         success: true,
         promotions: Array.isArray(parsed?.promotions) ? parsed.promotions : [],
         announcements: Array.isArray(parsed?.announcements) ? parsed.announcements : undefined,
-        updatedAt: rowUpdatedAt || (typeof parsed?.updatedAt === 'string' ? parsed.updatedAt : undefined),
-      };
-    } catch (err: any) {
-      return { success: false, error: err?.message || 'تعذر جلب العروض من السحابة' };
-    }
-  });
-}
-
-
-/**
- * روابط شيتات جوجل — صف واحد داخل orders بنفس نمط كتالوج الماني فست،
- * عشان الروابط تفضل محفوظة على كل الأجهزة ومن غير إعادة إدخال كل مرة.
- */
-const DATA_SOURCES_ROW_ID = 'published_data_sources_v1';
-
-export async function saveDataSourcesToSupabase(
-  sources: unknown
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const { error } = await supabase.from('orders').upsert({
-      id: DATA_SOURCES_ROW_ID,
-      status: 'published_data_sources',
-      items: sources as any,
-    });
-    if (error) return { success: false, error: error.message };
-    return { success: true };
-  } catch (e: any) {
-    return { success: false, error: e?.message || 'failed' };
-  }
-}
-
-export async function fetchDataSourcesFromSupabase(): Promise<{
-  success: boolean;
-  sources?: Record<string, any> | null;
-  error?: string;
-}> {
-  try {
-    const { data, error } = await supabase
-      .from('orders')
-      .select('items')
-      .eq('id', DATA_SOURCES_ROW_ID)
-      .limit(1);
-    if (error) return { success: false, error: error.message };
-    const raw = data?.[0]?.items;
-    const sources = typeof raw === 'string' ? JSON.parse(raw) : raw ?? null;
-    return { success: true, sources };
-  } catch (e: any) {
-    return { success: false, error: e?.message || 'failed' };
-  }
-}
