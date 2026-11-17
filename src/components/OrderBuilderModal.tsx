@@ -37,7 +37,7 @@ import { useApp } from '../context/AppContext';
 import { Customer, Invoice, PaymentMethod, Product } from '../types';
 import { ProductImage } from './ProductImage';
 import { CustomerFinancialSummaryCard } from './CustomerFinancialSummaryCard';
-import { CustomerSearchSelect } from './ui/CustomerPicker';
+import { CustomerSearchSelect } from './CustomerSearchSelect';
 import { formatCurrency } from '../services/invoiceService';
 import { findCustomerMatch, getBranchStockForProduct } from '../services/arabicMatchingService';
 import { getDepartmentMeta } from '../data/departmentMeta';
