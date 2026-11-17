@@ -32,6 +32,17 @@ if (!TEMPLATE_PREVIEW) {
   } catch {}
 }
 
+// كثافة العرض: مصغّر افتراضياً — بيتحكم فيه من زر (مصغّر/مريح) في التوب بار
+try {
+  if (localStorage.getItem('tantawy_density') !== 'comfortable') {
+    document.documentElement.classList.add('tg-compact');
+  } else {
+    document.documentElement.classList.remove('tg-compact');
+  }
+} catch {
+  document.documentElement.classList.add('tg-compact');
+}
+
 const CHUNK_RECOVERY_KEY = 'tantawy:chunk-recovery';
 
 window.addEventListener('vite:preloadError', (event) => {
