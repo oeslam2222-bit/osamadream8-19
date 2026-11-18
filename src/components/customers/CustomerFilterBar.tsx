@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ChevronDown, RotateCcw, Search, SlidersHorizontal, X, Building2, Users, ShieldCheck, Layers } from 'lucide-react';
 import { Customer } from '../../types';
+import { DebouncedSearchInput } from '../DebouncedSearchInput';
 import {
   ActivityFilter,
   CollectionRateFilter,
@@ -296,13 +297,11 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
       {/* البحث الفوري */}
       <div className="cf-search">
         <Search className="cf-search-ico" aria-hidden="true" />
-        <input
-          type="search"
+        <DebouncedSearchInput
           value={value.searchQuery}
-          onChange={(event) => onChange({ searchQuery: event.target.value })}
+          onChange={(v) => onChange({ searchQuery: v })}
           placeholder="ابحث بالاسم، كود العميل، الهاتف، المنطقة، المندوب أو أوراق الضمان..."
-          aria-label="البحث في العملاء"
-          autoComplete="off"
+          ariaLabel="البحث في العملاء"
           onFocus={() => setSearchFocused(true)}
           onBlur={() => window.setTimeout(() => setSearchFocused(false), 140)}
         />

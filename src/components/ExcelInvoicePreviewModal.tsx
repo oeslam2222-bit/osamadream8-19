@@ -6,25 +6,24 @@ import {
   Copy,
   X,
   CheckCircle2,
-  Sparkles,
-  Layers,
-  ArrowDownToLine,
+  AlertTriangle,
   Building2,
   Calendar,
-  CreditCard,
+  Phone,
   Hash,
-  ShoppingBag,
-  BarChart3
+  MessageSquareText,
+  Wallet,
+  Landmark,
+  BarChart3,
+  User
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { fetchInvoiceRowById } from '../services/supabaseService';
 import { Invoice } from '../types';
-import { exportElectronicInvoiceToExcel, exportInvoiceForERP, cleanProductCode, resolveSafeCustomerCode } from '../services/excelService';
+import { exportElectronicInvoiceToExcel, exportInvoiceForERP, resolveSafeCustomerCode } from '../services/excelService';
 import { downloadInvoicePDF } from '../services/pdfService';
 import { formatCurrency } from '../services/invoiceService';
-import { COMPANY_INFO } from '../data/mockData';
 import { resolveCustomerFinancials } from '../services/arabicMatchingService';
-import { CustomerFinancialSummaryCard } from './CustomerFinancialSummaryCard';
 import { CustomerOrderAnalyticsModal } from './CustomerOrderAnalyticsModal';
 
 interface ExcelInvoicePreviewModalProps {
@@ -39,7 +38,6 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
   onClose
 }) => {
   const { invoices } = useApp();
-  const [activeTab, setActiveTab] = useState<'standard' | 'erp' | 'credit'>('standard');
   const [isDownloadingExcel, setIsDownloadingExcel] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isDownloadingBoth, setIsDownloadingBoth] = useState(false);
@@ -91,8 +89,11 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
   } = resolveCustomerFinancials(inv as any);
 
   const resolvedCustomerCode = resolveSafeCustomerCode(inv as any, matchedCustomer);
+  const items = Array.isArray((inv as any).items) ? (inv as any).items : [];
+  const repComment = String((inv as any).repComment || '').trim();
+  const notes = String((inv as any).notes || '').trim();
 
-  // 1. Direct Excel Download
+  // 1. تحميل ملف Excel (شيت واحد نضيف: الأصناف + الإجمالي + الموقف المالي + التعليق)
   const handleDownloadExcel = () => {
     setIsDownloadingExcel(true);
     try {
@@ -106,7 +107,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
     }
   };
 
-  // 2. Direct ERP Excel Download
+  // 2. شيت ERP (نسخة ثانوية لأنظمة المحاسبة)
   const handleDownloadERP = () => {
     setIsDownloadingExcel(true);
     try {
@@ -120,7 +121,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
     }
   };
 
-  // 3. Direct PDF Download
+  // 3. تحميل PDF
   const handleDownloadPDF = async () => {
     setIsDownloadingPdf(true);
     try {
@@ -134,16 +135,13 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
     }
   };
 
-  // 4. Download Both (PDF + Excel) Direct
+  // 4. تحميل الاثنين معًا (PDF + Excel)
   const handleDownloadBoth = async () => {
     setIsDownloadingBoth(true);
     try {
-      // Step A: Trigger PDF direct download
       await downloadInvoicePDF(inv as any);
       setDownloadSuccessToast('جاري استكمال تحميل ملف Excel أيضاً...');
-      // Step B: Wait small delay so browser allows concurrent file downloads
       await new Promise((resolve) => setTimeout(resolve, 600));
-      // Step C: Trigger Excel direct download
       exportElectronicInvoiceToExcel(inv as any);
       setDownloadSuccessToast(`تم بنجاح تحميل ملف PDF وملف Excel للفاتورة #${(inv as any).invoiceNumber} مباشرة على جهازك! 📥⚡`);
       setTimeout(() => setDownloadSuccessToast(null), 4000);
@@ -154,712 +152,383 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
     }
   };
 
-  // 5. Copy Excel Table as Tab-Separated Values (TSV)
+  // 5. نسخ جدول الأصناف (TSV) — بنفس أعمدة الشيت الجديد
   const handleCopyTable = () => {
     const headers = [
       'م',
       'كود الصنف',
       'الكود الموحد',
-      'اللون',
       'اسم الصنف',
-      'شدة الكرتونة',
-      'عدد الكراتين',
-      'قطع فردية',
+      'كرتون',
+      'شدة',
+      'قطع',
       'إجمالي القطع',
-      'سعر الكرتونة',
-      'سعر القطعة',
-      'الإجمالي قبل الخصم',
-      'الخصم',
-      'الصافي',
-      'مصدر الصرف'
+      'سعر كرتونة',
+      'الإجمالي النهائي'
     ].join('\t');
 
-    const rows = (inv as any).items.map((it, idx) => {
+    const rows = items.map((it: any, idx: number) => {
       const cartonQty = it.cartonQuantity || 1;
       const cCount = it.cartonCount || 0;
       const pCount = it.pieceCount || 0;
-      const totalUnits = it.totalUnits || (cCount * cartonQty + pCount);
-      const pieceP = it.pricePerPiece || (cartonQty > 0 ? Math.round((it.pricePerCarton || it.appliedPrice) / cartonQty) : 0);
+      const totalUnits = it.totalUnits || it.totalPieces || (cCount * cartonQty + pCount);
+      const netValue = it.netTotal ?? it.totalPrice ?? it.totalBeforeTax;
       const unified = it.unifiedCode || (it.product as any)?.unifiedCode || '---';
-      const color = it.color || it.product?.color || '---';
-      const fulfillment = it.fulfilledFrom === 'main_warehouse' ? 'مخزن 6 أكتوبر' : (inv as any).branchName;
-
       return [
         idx + 1,
         it.productCode,
         unified,
-        color,
         it.productName,
-        cartonQty,
         cCount,
+        cartonQty,
         pCount,
         totalUnits,
-        it.appliedPrice,
-        pieceP,
-        it.totalBeforeTax,
-        it.discountAmount,
-        it.netTotal,
-        fulfillment
+        it.appliedPrice || it.pricePerCarton,
+        netValue
       ].join('\t');
     }).join('\n');
 
-    const fullTsv = `${headers}\n${rows}`;
-    navigator.clipboard.writeText(fullTsv);
+    navigator.clipboard.writeText(`${headers}\n${rows}`);
     setCopiedToast(true);
     setTimeout(() => setCopiedToast(false), 2500);
   };
 
+  const financialTiles = [
+    { label: 'المديونية السابقة', value: formatCurrency(debtBefore), icon: Wallet, tone: 'slate' as const },
+    { label: 'صافي هذه الفاتورة', value: formatCurrency((inv as any).estimatedGrandTotal), icon: FileSpreadsheet, tone: 'blue' as const },
+    { label: 'المديونية بعد الفاتورة', value: formatCurrency(debtAfter), icon: Landmark, tone: isExceeded ? ('risk' as const) : ('slate' as const) },
+    { label: 'الحد الائتماني', value: formatCurrency(creditLimit), icon: Building2, tone: 'slate' as const },
+    ...(isExceeded ? [{ label: 'دفعة مطلوبة فوراً', value: formatCurrency(requiredDown), icon: AlertTriangle, tone: 'risk' as const }] : [])
+  ];
+
   return (
     <div
       id="excel-invoice-preview-modal"
-      className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in"
+      className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in"
       dir="rtl"
     >
-      <div role="dialog" aria-modal="true" className="relative z-[60] bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-300 w-full max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] xl:max-w-[96vw] max-h-[96vh] flex flex-col overflow-hidden">
-        
-        {/* Top Header Ribbon (Excel Themed) */}
-        <div className="bg-slate-900 text-white p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--app-ok)]">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[var(--app-ok)] text-white flex items-center justify-center font-black shadow-md shrink-0">
-              <FileSpreadsheet className="w-6 h-6" />
+      <div role="dialog" aria-modal="true" className="modal-full-mobile relative z-[60] bg-[var(--app-card)] rounded-2xl sm:rounded-3xl shadow-2xl border border-[var(--app-border)] w-full max-w-5xl max-h-[96vh] flex flex-col overflow-hidden">
+
+        {/* الشريط العلوي */}
+        <div className="bg-slate-900 text-white p-3 sm:p-4 flex items-center justify-between gap-3 border-b-2 border-[var(--app-ok)] shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[var(--app-ok)] text-white flex items-center justify-center font-black shadow-md shrink-0">
+              <FileSpreadsheet className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base sm:text-lg font-black text-white">
-                  معاينة شيت الإكسيل (Excel Preview)
-                </h3>
-                <span className="bg-[var(--app-ok)] text-[#0d9488] border border-[var(--app-ok)] text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  XLSX Mapped ⚡
-                </span>
-              </div>
-              <p className="text-xs text-slate-300 font-medium mt-0.5">
-                فاتورة رقم: <span className="font-bold text-[#d97706] font-mono">#{(inv as any).invoiceNumber}</span> • العميل: <span className="font-bold text-white">{(inv as any).customerName}</span>
+            <div className="min-w-0">
+              <h3 className="text-sm sm:text-lg font-black text-white truncate">عرض الفاتورة — شيت الأصناف والإجمالي</h3>
+              <p className="text-[10px] sm:text-xs text-slate-300 font-mono truncate">
+                #{(inv as any).invoiceNumber} · {formatCurrency((inv as any).estimatedGrandTotal)}
               </p>
             </div>
           </div>
-
-          {/* Header Action Buttons (Direct Downloads) */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Direct Excel Download */}
-            <button
-              onClick={handleDownloadExcel}
-              disabled={isDownloadingExcel}
-              className="bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white px-3.5 py-2 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 active:scale-95 cursor-pointer disabled:opacity-50"
-              title="تحميل ملف Excel المنسق مباشرة على جهاز المندوب"
-            >
-              <ArrowDownToLine className="w-4 h-4" />
-              <span>تحميل Excel مباشر 📥</span>
-            </button>
-
-            {/* Direct PDF Download */}
-            <button
-              onClick={handleDownloadPDF}
-              disabled={isDownloadingPdf}
-              className="bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-white px-3 py-2 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 active:scale-95 cursor-pointer disabled:opacity-50"
-              title="تحميل ملف PDF مباشرة دون الحاجة لطباعة"
-            >
-              <Download className="w-4 h-4" />
-              <span>تحميل PDF 📄</span>
-            </button>
-
-            {/* Close Modal */}
-            <button
-              onClick={onClose}
-              className="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition cursor-pointer"
-              title="إغلاق المعاينة"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer shrink-0"
+            aria-label="إغلاق"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* Notifications / Feedback */}
-        {downloadSuccessToast && (
-          <div className="bg-[var(--app-ok)] text-white p-3 text-xs sm:text-sm font-black flex items-center justify-between shadow-inner animate-in fade-in">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-[#0d9488]" />
-              <span>{downloadSuccessToast}</span>
+        {/* شريط أدوات التحميل */}
+        <div className="px-3 sm:px-5 py-2.5 bg-[var(--app-card-secondary)] border-b border-[var(--app-border)] flex items-center gap-2 flex-wrap shrink-0">
+          <button
+            onClick={handleDownloadExcel}
+            disabled={isDownloadingExcel}
+            className="app-btn app-btn-primary flex items-center gap-1.5 text-xs sm:text-sm px-3.5 py-2 cursor-pointer disabled:opacity-60"
+          >
+            <Download className="w-4 h-4" />
+            <span>{isDownloadingExcel ? 'جاري التحميل...' : 'تحميل Excel'}</span>
+          </button>
+          <button
+            onClick={handleDownloadPDF}
+            disabled={isDownloadingPdf}
+            className="app-btn app-btn-ghost flex items-center gap-1.5 text-xs sm:text-sm px-3 py-2 cursor-pointer disabled:opacity-60"
+          >
+            <FileText className="w-4 h-4" />
+            <span>{isDownloadingPdf ? 'جاري التحميل...' : 'PDF'}</span>
+          </button>
+          <button
+            onClick={handleDownloadBoth}
+            disabled={isDownloadingBoth}
+            className="app-btn app-btn-ghost flex items-center gap-1.5 text-xs sm:text-sm px-3 py-2 cursor-pointer disabled:opacity-60"
+          >
+            <Download className="w-4 h-4" />
+            <span>{isDownloadingBoth ? 'جاري التحميل...' : 'PDF + Excel'}</span>
+          </button>
+          <button
+            onClick={handleCopyTable}
+            className="app-btn app-btn-ghost flex items-center gap-1.5 text-xs sm:text-sm px-3 py-2 cursor-pointer"
+          >
+            <Copy className="w-4 h-4" />
+            <span>نسخ الجدول</span>
+          </button>
+          <div className="flex-1" />
+          <button
+            onClick={() => setIsAnalyticsOpen(true)}
+            className="app-btn app-btn-ghost flex items-center gap-1.5 text-xs sm:text-sm px-3 py-2 cursor-pointer"
+          >
+            <BarChart3 className="w-4 h-4" />
+            <span>تحليلات العميل</span>
+          </button>
+          <button
+            onClick={handleDownloadERP}
+            disabled={isDownloadingExcel}
+            className="app-btn app-btn-ghost flex items-center gap-1.5 text-[10px] sm:text-xs px-2.5 py-2 text-[var(--app-text-muted)] cursor-pointer disabled:opacity-60"
+            title="شيت مخصص لأنظمة ERP / المحاسبة"
+          >
+            <span>شيت ERP</span>
+          </button>
+        </div>
+
+        {/* المحتوى — شيت واحد */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 space-y-4">
+
+          {/* بيانات العميل والفاتورة */}
+          <div className="rounded-2xl border border-slate-200 bg-slate-900 text-white p-3.5 sm:p-4">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+                  <User className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-black text-sm sm:text-base truncate">{(inv as any).customerName}</div>
+                  <div className="flex items-center gap-2 text-[10px] sm:text-xs text-slate-300 flex-wrap mt-0.5">
+                    <span className="font-mono">كود: {resolvedCustomerCode}</span>
+                    {(inv as any).customerPhone && (
+                      <span className="flex items-center gap-1"><Phone className="w-3 h-3" />{(inv as any).customerPhone}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] sm:text-xs text-slate-300 flex-wrap">
+                <span className="flex items-center gap-1"><Hash className="w-3 h-3" />#{(inv as any).invoiceNumber}</span>
+                <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{(inv as any).date} {(inv as any).time || ''}</span>
+                <span className="app-badge neutral">{(inv as any).paymentMethod}</span>
+              </div>
             </div>
-            <span className="text-[11px] text-[#0d9488] font-normal">تم الحفظ في مجلد التنزيلات بجهازك</span>
+            <div className="mt-2.5 pt-2.5 border-t border-white/10 flex items-center gap-2 text-[10px] sm:text-xs text-slate-300 flex-wrap">
+              <span className="flex items-center gap-1"><Building2 className="w-3 h-3" />الفرع: {(inv as any).branchName}</span>
+              <span>المندوب: {(inv as any).repName}</span>
+              <span className="font-mono">{items.length} صنف</span>
+            </div>
           </div>
-        )}
 
-        {/* Informational Guidance Ribbon */}
-        <div className="bg-[var(--app-ok-tint)] border-b border-[var(--app-ok-line)] px-4 py-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-[var(--app-ok-text)] font-medium">
-          <div className="flex items-center gap-2">
-            <span className="text-[var(--app-ok-text)] font-black">💡 معاينة حية لشيت Excel المطور:</span>
-            <span className="text-[var(--app-ok-text)]">
-              ملف الإكسيل يحتوي على أوراق عمل متعددة معتمدة لشركة دريم، ويمكنك فتحه على الموبايل عبر تطبيق Excel أو Google Sheets.
-            </span>
+          {/* الموقف المالي للعميل */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Landmark className="w-4 h-4 text-[var(--app-primary)]" />
+              <h4 className="text-xs sm:text-sm font-black text-[var(--app-text)]">الموقف المالي للعميل</h4>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              {financialTiles.map((tile) => (
+                <div
+                  key={tile.label}
+                  className={`rounded-xl border p-2.5 sm:p-3 ${
+                    tile.tone === 'risk'
+                      ? 'bg-[var(--app-risk-tint)] border-[var(--app-risk-line)]'
+                      : tile.tone === 'blue'
+                        ? 'bg-[var(--app-primary-tint)] border-[var(--app-primary-border)]'
+                        : 'bg-[var(--app-card-secondary)] border-[var(--app-border)]'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] text-[var(--app-text-muted)] font-bold mb-1">
+                    <tile.icon className="w-3.5 h-3.5" />
+                    <span className="truncate">{tile.label}</span>
+                  </div>
+                  <div className={`text-sm sm:text-base font-black ${
+                    tile.tone === 'risk' ? 'text-[var(--app-risk-text)]' : tile.tone === 'blue' ? 'text-[var(--app-primary-text)]' : 'text-[var(--app-text)]'
+                  }`}>{tile.value}</div>
+                </div>
+              ))}
+            </div>
+            <div className={`mt-2 rounded-xl border px-3 py-2 flex items-center gap-2 text-[11px] sm:text-xs font-bold ${
+              isExceeded
+                ? 'bg-[var(--app-risk-tint)] border-[var(--app-risk-line)] text-[var(--app-risk-text)]'
+                : 'bg-[var(--app-ok-tint)] border-[var(--app-ok-line)] text-[var(--app-ok-text)]'
+            }`}>
+              {isExceeded
+                ? <AlertTriangle className="w-4 h-4 shrink-0" />
+                : <CheckCircle2 className="w-4 h-4 shrink-0" />}
+              <span>
+                {isExceeded
+                  ? `العميل تجاوز الحد الائتماني — المطلوب سداد دفعة نقدية بقيمة ${formatCurrency(requiredDown)} قبل الصرف`
+                  : 'الحساب سليم والمديونية داخل الحد الائتماني المعتمد'}
+              </span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 text-[11px] text-[var(--app-ok-text)] font-bold shrink-0">
-            <span>التحميل فوري ومباشر على جهازك دون أي طابعة 📱💻</span>
+
+          {/* جدول الأصناف — ديسك توب */}
+          <div className="hidden sm:block rounded-2xl border border-[var(--app-border)] overflow-hidden">
+            <div className="bg-[var(--app-card-secondary)] px-3.5 py-2 border-b border-[var(--app-border)] flex items-center justify-between">
+              <h4 className="text-xs font-black text-[var(--app-text)]">أصناف الفاتورة</h4>
+              <span className="text-[10px] text-[var(--app-text-muted)] font-mono">{items.length} صنف</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-slate-900 text-white text-[10px] sm:text-[11px]">
+                    <th className="px-2 py-2 font-bold w-10">م</th>
+                    <th className="px-2 py-2 font-bold">كود الصنف</th>
+                    <th className="px-2 py-2 font-bold">الكود الموحد</th>
+                    <th className="px-2 py-2 font-bold text-right">اسم المنتج</th>
+                    <th className="px-2 py-2 font-bold">كرتون</th>
+                    <th className="px-2 py-2 font-bold">شدة</th>
+                    <th className="px-2 py-2 font-bold">قطع</th>
+                    <th className="px-2 py-2 font-bold">إجمالي القطع</th>
+                    <th className="px-2 py-2 font-bold">سعر كرتونة</th>
+                    <th className="px-2 py-2 font-bold">الإجمالي النهائي</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((it: any, idx: number) => {
+                    const cartonQty = it.cartonQuantity || 1;
+                    const cCount = it.cartonCount || 0;
+                    const pCount = it.pieceCount || 0;
+                    const totalUnits = it.totalUnits || it.totalPieces || (cCount * cartonQty + pCount);
+                    const netValue = it.netTotal ?? it.totalPrice ?? it.totalBeforeTax;
+                    const unified = it.unifiedCode || (it.product as any)?.unifiedCode || '---';
+                    const cleanPCode = it.productCode;
+                    return (
+                      <tr key={it.productId || idx} className={idx % 2 === 1 ? 'bg-[var(--app-card-secondary)]' : 'bg-[var(--app-card)]'}>
+                        <td className="px-2 py-2 text-center font-mono text-[var(--app-text-muted)]">{idx + 1}</td>
+                        <td className="px-2 py-2 text-center font-mono text-[var(--app-text)]" dir="ltr">{cleanPCode}</td>
+                        <td className="px-2 py-2 text-center font-mono text-[var(--app-text)]" dir="ltr">{unified}</td>
+                        <td className="px-2 py-2 font-bold text-[var(--app-text)]">{it.productName}</td>
+                        <td className="px-2 py-2 text-center font-mono">{cCount}</td>
+                        <td className="px-2 py-2 text-center font-mono">{cartonQty}</td>
+                        <td className="px-2 py-2 text-center font-mono">{pCount}</td>
+                        <td className="px-2 py-2 text-center font-mono font-bold">{totalUnits}</td>
+                        <td className="px-2 py-2 text-center font-mono">{formatCurrency(it.appliedPrice || it.pricePerCarton)}</td>
+                        <td className="px-2 py-2 text-center font-mono font-black text-[var(--app-text)]">{formatCurrency(netValue)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
-        </div>
 
-        {/* Sheet Tabs Switcher (Excel Style) */}
-        <div className="bg-slate-100 border-b border-slate-300 px-3 sm:px-6 pt-2 flex items-center gap-1 overflow-x-auto select-none">
-          <button
-            onClick={() => setActiveTab('standard')}
-            className={`px-4 py-2 text-xs font-black rounded-t-xl transition cursor-pointer flex items-center gap-2 shrink-0 border-t-2 ${
-              activeTab === 'standard'
-                ? 'bg-white text-[var(--app-ok-text)] border-[var(--app-ok)] shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 border-transparent hover:bg-slate-200/70'
-            }`}
-          >
-            <FileSpreadsheet className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
-            <span>ورقة 1: فاتورة مبيعات معتمدة (Executive Layout)</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('erp')}
-            className={`px-4 py-2 text-xs font-black rounded-t-xl transition cursor-pointer flex items-center gap-2 shrink-0 border-t-2 ${
-              activeTab === 'erp'
-                ? 'bg-white text-[var(--app-ok-text)] border-[var(--app-ok)] shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 border-transparent hover:bg-slate-200/70'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
-            <span>ورقة 2: جدول التكويد للسيستم (ERP / D365 Table)</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('credit')}
-            className={`px-4 py-2 text-xs font-black rounded-t-xl transition cursor-pointer flex items-center gap-2 shrink-0 border-t-2 ${
-              activeTab === 'credit'
-                ? 'bg-white text-[var(--app-ok-text)] border-[var(--app-ok)] shadow-xs'
-                : 'text-slate-600 hover:text-slate-900 border-transparent hover:bg-slate-200/70'
-            }`}
-          >
-            <CreditCard className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
-            <span>ورقة 3: كشف حساب العميل والائتمان (Ledger Audit)</span>
-          </button>
-        </div>
-
-        {/* Active Spreadsheet Content */}
-        <div className="flex-1 overflow-auto p-3 sm:p-5 bg-slate-50">
-          
-          {/* TAB 1: Standard Executive Invoice Layout */}
-          {activeTab === 'standard' && (
-            <div className="bg-white rounded-2xl border border-slate-300 shadow-sm p-3 sm:p-6 space-y-5 w-full max-w-none mx-auto">
-              
-              {/* Sheet Header (Dream Corporate Banner) */}
-              <div className="bg-slate-900 text-white rounded-xl p-4 border border-slate-800 text-center space-y-1">
-                <div className="text-base sm:text-lg font-black text-[#d97706]">
-                  {COMPANY_INFO.nameArabic} - مجموعة الطنطاوي (TANTAWY GROUP)
-                </div>
-                <div className="text-xs text-slate-300 font-bold">
-                  فاتورة مبيعات إلكترونية معتمدة - إذن صرف واستلام بضاعة وموقف حساب العميل
-                </div>
-                <div className="text-[11px] text-slate-400 pt-1 flex flex-wrap items-center justify-center gap-3">
-                  <span>س.ت: <strong>{COMPANY_INFO.commercialRegister}</strong></span>
-                  <span>ب.ض: <strong>{COMPANY_INFO.taxNumber}</strong></span>
-                  <span>الخط الساخن: <strong>{COMPANY_INFO.customerService}</strong></span>
-                  <span>المقر الرئيسي: <strong>المنطقة الصناعية - 6 أكتوبر</strong></span>
-                </div>
-              </div>
-
-              {/* Metadata Grid (Invoice & Customer Meta) */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                <div className="p-2 bg-white rounded-lg border border-slate-200">
-                  <span className="text-slate-400 block text-[10px] font-bold">رقم الفاتورة:</span>
-                  <strong className="text-slate-900 font-mono text-xs">{(inv as any).invoiceNumber}</strong>
-                </div>
-                <div className="p-2 bg-white rounded-lg border border-slate-200">
-                  <span className="text-slate-400 block text-[10px] font-bold">تاريخ ووقت الإصدار:</span>
-                  <strong className="text-slate-900">{(inv as any).date} {(inv as any).time || ''}</strong>
-                </div>
-                <div className="p-2 bg-white rounded-lg border border-slate-200">
-                  <span className="text-slate-400 block text-[10px] font-bold">طريقة السداد:</span>
-                  <strong className="text-[var(--app-ok-text)]">{(inv as any).paymentMethod}</strong>
-                </div>
-                <div className="p-2 bg-white rounded-lg border border-slate-200">
-                  <span className="text-slate-400 block text-[10px] font-bold">حالة الفاتورة:</span>
-                  <strong className="text-[var(--app-navy-text)]">{(inv as any).status}</strong>
-                </div>
-
-                <div className="p-2 bg-white rounded-lg border border-slate-200">
-                  <span className="text-slate-400 block text-[10px] font-bold">اسم العميل:</span>
-                  <strong className="text-slate-900">{(inv as any).customerName}</strong>
-                </div>
-                <div className="p-2 bg-white rounded-lg border border-slate-200">
-                  <span className="text-slate-400 block text-[10px] font-bold">كود العميل:</span>
-                  <strong className="text-slate-900 font-mono">{resolvedCustomerCode}</strong>
-                </div>
-                <div className="p-2 bg-white rounded-lg border border-slate-200">
-                  <span className="text-slate-400 block text-[10px] font-bold">الفرع المنفذ:</span>
-                  <strong className="text-slate-900">{(inv as any).branchName}</strong>
-                </div>
-                <div className="p-2 bg-white rounded-lg border border-slate-200">
-                  <span className="text-slate-400 block text-[10px] font-bold">المندوب المسؤول:</span>
-                  <strong className="text-slate-900">{(inv as any).repName}</strong>
-                </div>
-              </div>
-
-              {/* Financial Position Card (Unified CustomerFinancialSummaryCard) */}
-              <CustomerFinancialSummaryCard
-                customer={matchedCustomer || {
-                  name: (inv as any).customerName,
-                  code: resolvedCustomerCode,
-                  currentBalance: debtBefore,
-                  creditLimit: creditLimit,
-                  totalOverdueAndDue: debtBefore
-                }}
-                currentInvoiceAmount={(inv as any).estimatedGrandTotal}
-                theme="light"
-                initiallyOpen={true}
-                title="الموقف المالي والائتماني للعميل (Financial Audit)"
-              />
-
-              {/* Unified Invoice & Shortage Notice Banner */}
-              {invoice.hasOctoberShortages || (inv as any).items.some((it) => it.isShortage || it.needsOctoberSupply || (it.shortageCartons && it.shortageCartons > 0)) ? (
-                <div className="bg-[var(--app-warn-tint)] border-2 border-[var(--app-warn-line)] rounded-2xl p-3.5 space-y-1.5 text-xs shadow-xs">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">🚚</span>
-                      <span className="font-black text-[var(--app-warn-text)] text-sm">
-                        فاتورة مبيعات موحدة (تتضمن أصنافاً مطلوب توريدها من مخزن 6 أكتوبر المركزي)
-                      </span>
+          {/* الأصناف — كروت موبايل */}
+          <div className="sm:hidden space-y-2">
+            <h4 className="text-xs font-black text-[var(--app-text)] px-1">أصناف الفاتورة ({items.length})</h4>
+            {items.map((it: any, idx: number) => {
+              const cartonQty = it.cartonQuantity || 1;
+              const cCount = it.cartonCount || 0;
+              const pCount = it.pieceCount || 0;
+              const totalUnits = it.totalUnits || it.totalPieces || (cCount * cartonQty + pCount);
+              const netValue = it.netTotal ?? it.totalPrice ?? it.totalBeforeTax;
+              return (
+                <div key={it.productId || idx} className="rounded-xl border border-[var(--app-border)] bg-[var(--app-card)] p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="font-black text-xs text-[var(--app-text)] truncate">{it.productName}</div>
+                      <div className="font-mono text-[10px] text-[var(--app-text-muted)] mt-0.5" dir="ltr">{it.productCode}</div>
                     </div>
-                    <span className="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] font-black px-2.5 py-0.5 rounded-full text-xs">
-                      إشعار فوري للمشرف ومدير الفرع ⚠️
-                    </span>
+                    <div className="text-[10px] font-mono text-[var(--app-text-muted)] shrink-0">#{idx + 1}</div>
                   </div>
-                  <p className="text-[11px] text-[var(--app-warn-text)] leading-relaxed font-medium">
-                    فرع الصرف المسجل بالفاتورة: <strong>{(inv as any).branchName || 'فرع ديمشلت'}</strong> • الأصناف المتوفرة بالفرع تصرف فوراً، والأصناف التي بها عجز موضح أمامها <strong>«متوفر في مخزن أكتوبر»</strong> وبجانبها <strong>«طلب توريد من المخزن»</strong> تم رفع إشعار توريدها للمشرف ومدير الفرع لسحبها من مخزن 6 أكتوبر المركزي وإرسالها للسيستم.
-                  </p>
+                  <div className="mt-2 grid grid-cols-3 gap-1.5 text-center">
+                    <div className="rounded-lg bg-[var(--app-card-secondary)] py-1">
+                      <div className="text-[9px] text-[var(--app-text-muted)]">كرتون × شدة</div>
+                      <div className="text-xs font-black font-mono text-[var(--app-text)]">{cCount} × {cartonQty}</div>
+                    </div>
+                    <div className="rounded-lg bg-[var(--app-card-secondary)] py-1">
+                      <div className="text-[9px] text-[var(--app-text-muted)]">قطع</div>
+                      <div className="text-xs font-black font-mono text-[var(--app-text)]">{pCount}</div>
+                    </div>
+                    <div className="rounded-lg bg-[var(--app-card-secondary)] py-1">
+                      <div className="text-[9px] text-[var(--app-text-muted)]">إجمالي القطع</div>
+                      <div className="text-xs font-black font-mono text-[var(--app-text)]">{totalUnits}</div>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-[11px] border-t border-[var(--app-border)] pt-2">
+                    <span className="font-mono text-[var(--app-text-muted)]">سعر كرتونة: {formatCurrency(it.appliedPrice || it.pricePerCarton)}</span>
+                    <span className="font-black text-[var(--app-text)] font-mono">الصافي: {formatCurrency(netValue)}</span>
+                  </div>
+                  {it.discountAmount > 0 && (
+                    <div className="mt-1 text-[10px] font-mono text-[var(--app-risk-text)]">
+                      خصم: {formatCurrency(-it.discountAmount)}
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] rounded-2xl p-2.5 px-3.5 text-xs text-[var(--app-ok-text)] flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">✅</span>
-                    <span className="font-black text-[var(--app-ok-text)]">
-                      فاتورة مبيعات موحدة مكتملة - كافة الأصناف متوفرة بمخزن {(inv as any).branchName || 'الفرع'}
-                    </span>
+              );
+            })}
+          </div>
+
+          {/* الإجمالي */}
+          <div className="rounded-2xl border border-[var(--app-border)] overflow-hidden">
+            <div className={`flex items-center justify-between px-4 py-2.5 text-xs sm:text-sm ${((inv as any).discountAmount > 0) ? 'border-b border-[var(--app-border)]' : ''}`}>
+              <span className="font-bold text-[var(--app-text-muted)]">
+                {(inv as any).discountAmount > 0 ? 'إجمالي البضاعة قبل الخصم' : 'إجمالي البضاعة'}
+              </span>
+              <span className="font-black font-mono text-[var(--app-text)]">{formatCurrency((inv as any).subtotal)}</span>
+            </div>
+            {(inv as any).discountAmount > 0 && (
+              <div className="flex items-center justify-between px-4 py-2.5 text-xs sm:text-sm border-b border-[var(--app-border)] bg-[var(--app-risk-tint)]">
+                <span className="font-bold text-[var(--app-risk-text)]">إجمالي الخصم التجاري ({(inv as any).discountPercentage}%)</span>
+                <span className="font-black font-mono text-[var(--app-risk-text)]">{formatCurrency(-(inv as any).discountAmount)}</span>
+              </div>
+            )}
+            <div className="flex items-center justify-between px-4 py-3 bg-slate-900 text-white">
+              <span className="font-black text-xs sm:text-sm">الإجمالي النهائي المطلوب سداده (الصافي)</span>
+              <span className="font-black font-mono text-base sm:text-lg text-[var(--app-ok)]">{formatCurrency((inv as any).estimatedGrandTotal)}</span>
+            </div>
+          </div>
+
+          {/* التعليق + الملاحظات */}
+          {(repComment || notes) && (
+            <div className="space-y-2">
+              {repComment && (
+                <div className="rounded-2xl border border-[var(--app-warn-line)] bg-[var(--app-warn-tint)] p-3 flex items-start gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-[var(--app-warn-line)]/30 text-[var(--app-warn-text)] flex items-center justify-center shrink-0">
+                    <MessageSquareText className="w-4 h-4" />
                   </div>
-                  <span className="text-[11px] text-[var(--app-ok-text)] font-bold">جاهزة للصرف الفوري</span>
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-black text-[var(--app-warn-text)] mb-0.5">تعليق المندوب</div>
+                    <p className="text-xs text-[var(--app-warn-text)] leading-relaxed break-words">{repComment}</p>
+                  </div>
                 </div>
               )}
-
-              {/* Items Section: Responsive Mobile Cards for Phones, Full Spreadsheet Table for Desktop */}
-              
-              {/* Mobile View: Cards (phones & narrow screens) */}
-              <div className="block md:hidden space-y-2">
-                <div className="text-xs font-black text-slate-800 flex items-center justify-between pb-1 border-b border-slate-200">
-                  <span>أصناف الفاتورة ({(inv as any).items.length})</span>
-                  <span className="text-[11px] text-slate-500 font-bold">
-                    {(inv as any).totalCartons} كرتونة • {(inv as any).totalPieces} قطعة
-                  </span>
-                </div>
-                {(inv as any).items.map((item, idx) => {
-                  const cartonQty = item.cartonQuantity || 1;
-                  const cCount = item.cartonCount || 0;
-                  const pCount = item.pieceCount || 0;
-                  const totalUnits = item.totalUnits || (cCount * cartonQty + pCount);
-                  const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round((item.pricePerCarton || item.appliedPrice) / cartonQty) : 0);
-                  const unified = item.unifiedCode || (item.product as any)?.unifiedCode;
-                  const bStock = typeof item.branchStockAtOrder === 'number' ? item.branchStockAtOrder : ((item.product as any)?.branchStockActual ?? 0);
-                  const oStock = typeof item.octoberStockAtOrder === 'number' ? item.octoberStockAtOrder : ((item.product as any)?.mainWarehouseActual ?? 0);
-                  const isShortage = item.isShortage || item.needsOctoberSupply || cCount > bStock;
-                  const shortageC = item.shortageCartons && item.shortageCartons > 0 ? item.shortageCartons : Math.max(0, cCount - Math.max(0, bStock));
-
-                  return (
-                    <div
-                      key={item.productCode + idx}
-                      className="p-3 bg-white rounded-xl border border-slate-200 shadow-xs space-y-2 text-xs"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 font-black text-[10px] flex items-center justify-center shrink-0">
-                              {idx + 1}
-                            </span>
-                            <span className="font-mono font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded text-[11px]">
-                              {cleanProductCode(item.productCode)}
-                            </span>
-                            {unified && unified !== '---' && (
-                              <span className="font-mono text-[var(--app-navy-text)] bg-[var(--app-navy-tint)] px-1.5 py-0.5 rounded text-[11px]">
-                                #{unified.replace('#', '')}
-                              </span>
-                            )}
-                          </div>
-                          <div className="font-black text-slate-900 mt-1 leading-snug">
-                            {item.productName}
-                          </div>
-                          {item.color && <div className="text-[10px] text-slate-500 mt-0.5">اللون: {item.color}</div>}
-                        </div>
-
-                        <div className="text-left shrink-0">
-                          <span className="text-[10px] text-slate-400 block font-bold">الصافي</span>
-                          <strong className="text-[var(--app-warn-text)] font-black text-sm">
-                            {formatCurrency(item.netTotal)}
-                          </strong>
-                        </div>
-                      </div>
-
-                      {/* Quantity & Packaging breakdown */}
-                      <div className="grid grid-cols-3 gap-1.5 bg-slate-50 p-2 rounded-lg text-center text-[11px]">
-                        <div className="bg-white p-1 rounded border border-slate-200">
-                          <span className="text-slate-400 block text-[9px] font-bold">كرتون</span>
-                          <strong className="text-slate-900 font-black">{cCount}</strong>
-                        </div>
-                        <div className="bg-white p-1 rounded border border-slate-200">
-                          <span className="text-slate-400 block text-[9px] font-bold">قطع فردية</span>
-                          <strong className="text-[var(--app-navy-text)] font-black">{pCount}</strong>
-                        </div>
-                        <div className="bg-[var(--app-warn-tint)] p-1 rounded border border-[var(--app-warn-line)]">
-                          <span className="text-[var(--app-warn-text)] block text-[9px] font-bold">إجمالي القطع</span>
-                          <strong className="text-[var(--app-warn-text)] font-black">{totalUnits}</strong>
-                        </div>
-                      </div>
-
-                      {/* Branch & October Availability Details */}
-                      <div className="p-2 rounded-xl bg-slate-50 border border-slate-200 text-[11px] space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-500 font-bold">{(inv as any).branchName || 'فرع ديمشلت'}:</span>
-                          {!isShortage ? (
-                            <span className="text-[var(--app-ok-text)] font-black bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] px-1.5 py-0.2 rounded">
-                              متوفر بالفرع ({bStock} ك) ✓
-                            </span>
-                          ) : (
-                            <span className="text-[var(--app-risk-text)] font-black bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] px-1.5 py-0.2 rounded">
-                              غير متوفر بالفرع (عجز {shortageC} ك)
-                            </span>
-                          )}
-                        </div>
-                        {isShortage && (
-                          <div className="flex items-center justify-between pt-1 border-t border-slate-200/80">
-                            <span className="text-slate-500 font-bold">مخزن 6 أكتوبر:</span>
-                            {oStock > 0 ? (
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-[var(--app-navy-text)] font-black bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-1.5 py-0.2 rounded font-sans">
-                                  متوفر في مخزن أكتوبر ({oStock} ك)
-                                </span>
-                                <span className="text-[var(--app-warn-text)] font-black bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] px-1.5 py-0.2 rounded shadow-2xs">
-                                  🏷️ طلب توريد من المخزن
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-[var(--app-risk-text)] font-black bg-[var(--app-risk-tint)] px-1.5 py-0.2 rounded">
-                                عجز بالمخازن
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Pricing */}
-                      <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
-                        <span>سعر الكرتونة: <strong className="text-slate-700">{formatCurrency(item.appliedPrice)}</strong></span>
-                        <span>سعر القطعة: <strong className="text-slate-700">{formatCurrency(pieceP)}</strong></span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Desktop View: Full Excel Spreadsheet Table */}
-              <div className="hidden md:block border border-slate-300 rounded-xl overflow-x-auto">
-                <table className="w-full text-right text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-900 text-white font-bold border-b border-slate-700">
-                      <th className="p-2.5 text-center border-l border-slate-700 w-10">م</th>
-                      <th className="p-2.5 border-l border-slate-700">كود الصنف</th>
-                      <th className="p-2.5 border-l border-slate-700 min-w-[180px]">اسم الصنف</th>
-                      <th className="p-2.5 text-center border-l border-slate-700">كرتون</th>
-                      <th className="p-2.5 text-center border-l border-slate-700">قطع</th>
-                      <th className="p-2.5 text-center border-l border-slate-700 bg-[var(--app-warn)]">إجمالي القطع</th>
-                      <th className="p-2.5 text-center border-l border-slate-700">سعر كرتونة</th>
-                      <th className="p-2.5 text-center border-l border-slate-700">الإجمالي</th>
-                      <th className="p-2.5 text-center border-l border-slate-700 text-[#0d9488]">الخصم</th>
-                      <th className="p-2.5 text-center border-l border-slate-700 bg-[var(--app-warn)] text-[#d97706]">الصافي</th>
-                      <th className="p-2.5 text-center border-l border-slate-700">التوفر بـ {(inv as any).branchName || 'الفرع'}</th>
-                      <th className="p-2.5 text-center bg-[var(--app-navy)] text-[#60a5fa]">مخزن 6 أكتوبر وتوريد النواقص</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {(inv as any).items.map((item, idx) => {
-                      const cartonQty = item.cartonQuantity || 1;
-                      const cCount = item.cartonCount || 0;
-                      const pCount = item.pieceCount || 0;
-                      const totalUnits = item.totalUnits || (cCount * cartonQty + pCount);
-                      const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round((item.pricePerCarton || item.appliedPrice) / cartonQty) : 0);
-                      const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
-                      const bStock = typeof item.branchStockAtOrder === 'number' ? item.branchStockAtOrder : ((item.product as any)?.branchStockActual ?? 0);
-                      const oStock = typeof item.octoberStockAtOrder === 'number' ? item.octoberStockAtOrder : ((item.product as any)?.mainWarehouseActual ?? 0);
-                      const isShortage = item.isShortage || item.needsOctoberSupply || cCount > bStock;
-                      const shortageC = item.shortageCartons && item.shortageCartons > 0 ? item.shortageCartons : Math.max(0, cCount - Math.max(0, bStock));
-
-                      return (
-                        <tr
-                          key={item.productCode + idx}
-                          className={`hover:bg-[var(--app-warn-tint)] transition ${idx % 2 === 1 ? 'bg-slate-50/70' : 'bg-white'}`}
-                        >
-                          <td className="p-2 text-center border-l border-slate-200 font-bold text-slate-500">{idx + 1}</td>
-                          <td className="p-2 border-l border-slate-200 font-mono font-bold text-slate-800">{cleanProductCode(item.productCode)}</td>
-                          <td className="p-2 border-l border-slate-200 font-bold text-slate-900">{item.productName}</td>
-                          <td className="p-2 text-center border-l border-slate-200 font-black text-slate-900">{cCount}</td>
-                          <td className="p-2 text-center border-l border-slate-200 font-black text-slate-900">{pCount}</td>
-                          <td className="p-2 text-center border-l border-slate-200 font-black text-[var(--app-warn-text)] bg-[var(--app-warn-tint)]">{totalUnits}</td>
-                          <td className="p-2 text-center border-l border-slate-200 text-slate-700">{formatCurrency(item.appliedPrice)}</td>
-                          <td className="p-2 text-center border-l border-slate-200 text-slate-800">{formatCurrency(item.totalBeforeTax)}</td>
-                          <td className="p-2 text-center border-l border-slate-200 text-[var(--app-ok-text)] font-bold">{item.discountAmount > 0 ? `-${formatCurrency(item.discountAmount)}` : '0'}</td>
-                          <td className="p-2 text-center border-l border-slate-200 font-black text-slate-950 bg-[var(--app-warn-tint)]">{formatCurrency(item.netTotal)}</td>
-                          <td className="p-2 text-center border-l border-slate-200 text-[11px]">
-                            {!isShortage ? (
-                              <span className="text-[var(--app-ok-text)] font-black bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] px-2 py-0.5 rounded">
-                                متوفر بالفرع ({bStock} ك)
-                              </span>
-                            ) : (
-                              <span className="text-[var(--app-risk-text)] font-bold bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] px-2 py-0.5 rounded">
-                                غير متوفر (عجز {shortageC} ك)
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-2 text-center text-[11px]">
-                            {!isShortage ? (
-                              <span className="text-slate-400 text-[10px]">صرف فوري من الفرع</span>
-                            ) : oStock > 0 ? (
-                              <div className="flex flex-col items-center gap-0.5">
-                                <span className="text-[var(--app-navy-text)] font-black bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-1.5 py-0.5 rounded text-[10px]">
-                                  متوفر في مخزن أكتوبر ({oStock} ك)
-                                </span>
-                                <span className="text-[var(--app-warn-text)] font-black bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] px-1.5 py-0.2 rounded text-[9px] shadow-2xs">
-                                  🏷️ طلب توريد من المخزن
-                                </span>
-                              </div>
-                            ) : (
-                              <span className="text-[var(--app-risk-text)] font-black bg-[var(--app-risk-tint)] px-1.5 py-0.5 rounded text-[10px]">
-                                عجز بالمخازن
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Summary / Grand Totals Section */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-slate-900 text-white p-4 rounded-xl">
-                <div className="text-xs space-y-1">
-                  <div className="text-slate-300">
-                    عدد البنود: <strong className="text-[#d97706]">{(inv as any).items.length}</strong> صنف • إجمالي الكراتين: <strong className="text-[#d97706]">{(inv as any).totalCartons}</strong> كرتونة • إجمالي القطع: <strong className="text-[#d97706]">{(inv as any).totalPieces}</strong> قطعة
+              {notes && (
+                <div className="rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-secondary)] p-3 flex items-start gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-[var(--app-card-hover)] text-[var(--app-text-muted)] flex items-center justify-center shrink-0">
+                    <MessageSquareText className="w-4 h-4" />
                   </div>
-                  {(inv as any).notes && (
-                    <div className="text-slate-400 text-[11px]">ملاحظات: {(inv as any).notes}</div>
-                  )}
-                </div>
-
-                <div className="text-left sm:text-right space-y-1 shrink-0">
-                  <div className="text-xs text-slate-300">
-                    {(inv as any).discountAmount > 0 ? 'المجموع قبل الخصم: ' : 'إجمالي الفاتورة: '}
-                    <span className="font-bold">{formatCurrency((inv as any).subtotal)}</span>
-                  </div>
-                  {(inv as any).discountAmount > 0 && (
-                    <div className="text-xs text-[#0d9488]">
-                      قيمة الخصم ({invoice.discountPercentage}%): <span className="font-bold">-{formatCurrency((inv as any).discountAmount)}</span>
-                    </div>
-                  )}
-                  <div className="text-base font-black text-[#d97706] pt-1 border-t border-slate-800">
-                    صافي الفاتورة النهائي: <span>{formatCurrency((inv as any).estimatedGrandTotal)}</span>
+                  <div className="min-w-0">
+                    <div className="text-[11px] font-black text-[var(--app-text)] mb-0.5">ملاحظات الفاتورة والتسليم</div>
+                    <p className="text-xs text-[var(--app-text)] leading-relaxed break-words">{notes}</p>
                   </div>
                 </div>
-              </div>
-
-              {/* Signatures Row */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs pt-3 border-t border-slate-200 text-slate-600">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="font-bold block text-slate-800 mb-6">استلام وتوقيع العميل:</span>
-                  <div className="border-t border-dashed border-slate-400 pt-1 text-[11px] text-slate-500">
-                    (توقيع / ختم المستلم)
-                  </div>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="font-bold block text-slate-800 mb-6">مندوب التوزيع:</span>
-                  <div className="border-t border-dashed border-slate-400 pt-1 text-[11px] text-slate-700 font-bold">
-                    {(inv as any).repName}
-                  </div>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="font-bold block text-slate-800 mb-6">أمين مخزن الصرف:</span>
-                  <div className="border-t border-dashed border-slate-400 pt-1 text-[11px] text-slate-500">
-                    (المخزن المنفذ)
-                  </div>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="font-bold block text-slate-800 mb-6">اعتماد الحسابات والإدارة:</span>
-                  <div className="border-t border-dashed border-slate-400 pt-1 text-[11px] text-slate-500">
-                    (الختم والمراجعة)
-                  </div>
-                </div>
-              </div>
-
+              )}
             </div>
           )}
 
-          {/* TAB 2: ERP Accounting Table View */}
-          {activeTab === 'erp' && (
-            <div className="bg-white rounded-2xl border border-slate-300 shadow-sm p-4 sm:p-6 space-y-4 max-w-5xl mx-auto">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
-                <div>
-                  <h4 className="font-black text-slate-900 text-sm">
-                    جدول البيانات والأكواد للرفع على السيستم الرئيسي (ERP & D365 Integration)
-                  </h4>
-                  <p className="text-xs text-slate-500">
-                    جدول أعمدة مسطح (Flat Table) جاهز للرفع المباشر بالكود على سيستم الشركة (Microsoft Dynamics 365 / ERP)
-                  </p>
-                </div>
-                <button
-                  onClick={handleDownloadERP}
-                  className="bg-[var(--app-warn)] hover:bg-[var(--app-warn)] text-slate-950 font-black text-xs px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
-                >
-                  <ArrowDownToLine className="w-3.5 h-3.5" />
-                  <span>تحميل شيت ERP منفصل (.xlsx)</span>
-                </button>
-              </div>
-
-              <div className="border border-slate-300 rounded-xl overflow-x-auto text-xs">
-                <table className="w-full text-right border-collapse">
-                  <thead>
-                    <tr className="bg-slate-800 text-white font-bold">
-                      <th className="p-2 border-l border-slate-700">رقم الفاتورة</th>
-                      <th className="p-2 border-l border-slate-700">التاريخ</th>
-                      <th className="p-2 border-l border-slate-700">المندوب</th>
-                      <th className="p-2 border-l border-slate-700">الفرع</th>
-                      <th className="p-2 border-l border-slate-700">كود العميل</th>
-                      <th className="p-2 border-l border-slate-700">اسم العميل</th>
-                      <th className="p-2 border-l border-slate-700">كود الصنف</th>
-                      <th className="p-2 border-l border-slate-700">الكود الموحد</th>
-                      <th className="p-2 border-l border-slate-700">اللون</th>
-                      <th className="p-2 border-l border-slate-700">اسم الصنف</th>
-                      <th className="p-2 text-center border-l border-slate-700">الشدة</th>
-                      <th className="p-2 text-center border-l border-slate-700">كراتين</th>
-                      <th className="p-2 text-center border-l border-slate-700">قطع</th>
-                      <th className="p-2 text-center border-l border-slate-700">إجمالي</th>
-                      <th className="p-2 text-center border-l border-slate-700">سعر كرتونة</th>
-                      <th className="p-2 text-center border-l border-slate-700">الصافي</th>
-                      <th className="p-2 border-l border-slate-700">مصدر الصرف</th>
-                      <th className="p-2">طريقة الدفع</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {(inv as any).items.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-100 font-mono text-[11px]">
-                        <td className="p-2 border-l border-slate-200">{(inv as any).invoiceNumber}</td>
-                        <td className="p-2 border-l border-slate-200">{(inv as any).date}</td>
-                        <td className="p-2 border-l border-slate-200 font-sans">{(inv as any).repName}</td>
-                        <td className="p-2 border-l border-slate-200 font-sans">{(inv as any).branchName}</td>
-                        <td className="p-2 border-l border-slate-200">{resolvedCustomerCode}</td>
-                        <td className="p-2 border-l border-slate-200 font-sans">{(inv as any).customerName}</td>
-                        <td className="p-2 border-l border-slate-200 font-bold">{cleanProductCode(item.productCode)}</td>
-                        <td className="p-2 border-l border-slate-200 text-[var(--app-navy-text)]">{item.unifiedCode || item.product?.unifiedCode || '---'}</td>
-                        <td className="p-2 border-l border-slate-200 text-slate-600">{item.color || item.product?.color || '---'}</td>
-                        <td className="p-2 border-l border-slate-200 font-sans">{item.productName}</td>
-                        <td className="p-2 text-center border-l border-slate-200">{item.cartonQuantity || 1}</td>
-                        <td className="p-2 text-center border-l border-slate-200">{item.cartonCount}</td>
-                        <td className="p-2 text-center border-l border-slate-200">{item.pieceCount}</td>
-                        <td className="p-2 text-center border-l border-slate-200 font-bold">{item.totalUnits}</td>
-                        <td className="p-2 text-center border-l border-slate-200">{item.appliedPrice}</td>
-                        <td className="p-2 text-center border-l border-slate-200 font-black text-[var(--app-ok-text)]">{item.netTotal}</td>
-                        <td className="p-2 border-l border-slate-200 font-sans">{item.fulfilledFrom === 'main_warehouse' ? 'مخزن أكتوبر' : (inv as any).branchName}</td>
-                        <td className="p-2 font-sans">{(inv as any).paymentMethod}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+          {/* التذييل */}
+          <div className="rounded-2xl bg-[var(--app-card-secondary)] border border-[var(--app-border)] px-3.5 py-3 text-center space-y-1.5">
+            <div className="text-xs sm:text-sm font-black text-[var(--app-text)]">✨ شكرًا لتعاملكم مع شركة دريم للتجارة والتوزيع - مجموعة الطنطاوي ❤️</div>
+            <div className="text-[10px] text-[var(--app-text-muted)]">
+              التوقيعات: العميل / المحل ................ | المندوب {(inv as any).repName} ................ | أمين المخزن ................ | اعتماد الإدارة ................
             </div>
-          )}
-
-          {/* TAB 3: Credit Audit & Financial Position View */}
-          {activeTab === 'credit' && (
-            <div className="bg-white rounded-2xl border border-slate-300 shadow-sm p-3 sm:p-6 space-y-5 w-full max-w-none mx-auto">
-              <div className="border-b border-slate-200 pb-3">
-                <h4 className="font-black text-slate-900 text-base flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-[var(--app-navy-text)]" />
-                  <span>كشف حساب العميل والتدقيق المالي المعتمد</span>
-                </h4>
-                <p className="text-xs text-slate-500">
-                  موقف تفصيلي لحساب العميل ومديونيته وحدود الائتمان وسجل التحصيل
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
-                  <div className="font-bold text-slate-900 text-sm border-b border-slate-200 pb-2">
-                    بيانات حساب العميل
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">اسم المحل / العميل:</span>
-                    <strong className="text-slate-900">{(inv as any).customerName}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">كود العميل:</span>
-                    <strong className="text-slate-900 font-mono">{resolvedCustomerCode}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">رقم الهاتف:</span>
-                    <strong className="text-slate-900">{(inv as any).customerPhone || '---'}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">طريقة السداد المعتمدة:</span>
-                    <strong className="text-[var(--app-ok-text)]">{(inv as any).paymentMethod}</strong>
-                  </div>
-                </div>
-
-                <div className="bg-[var(--app-warn-tint)] p-4 rounded-xl border border-[var(--app-warn-line)] space-y-3">
-                  <div className="font-bold text-[var(--app-warn-text)] text-sm border-b border-[var(--app-warn-line)] pb-2">
-                    التحليل المالي بعد إصدار هذه الفاتورة
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">المديونية السابقة (قبل الفاتورة):</span>
-                    <strong className="text-slate-800">{formatCurrency(debtBefore)}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">صافي قيمة هذه الفاتورة:</span>
-                    <strong className="text-[var(--app-warn-text)]">{formatCurrency((inv as any).estimatedGrandTotal)}</strong>
-                  </div>
-                  <div className="flex justify-between text-base font-black border-t border-[var(--app-warn-line)] pt-1">
-                    <span className="text-slate-900">إجمالي المديونية الحالية:</span>
-                    <span className="text-[var(--app-risk-text)]">{formatCurrency(debtAfter)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs pt-1">
-                    <span className="text-slate-600">الحد الائتماني المصرح به:</span>
-                    <strong className="text-[var(--app-navy-text)]">{formatCurrency(creditLimit)}</strong>
-                  </div>
-                  {isExceeded && (
-                    <div className="bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] p-2.5 rounded-lg text-xs font-bold mt-2">
-                      ⚠️ تنبيه ائتماني: تجاوز العميل الحد بمقدار {formatCurrency(debtAfter - creditLimit)}. مطلوب تحصيل دفعة فورية لا تقل عن {formatCurrency(requiredDown)}.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-        </div>
-
-        {/* Modal Bottom Action Bar (Quick Direct Downloads) */}
-        <div className="bg-slate-100 p-3 sm:p-4 border-t border-slate-300 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-xs text-slate-600 font-bold">
-            جاهز للتحميل: <span className="text-[var(--app-ok-text)] font-black">فاتورة_دريم_طنطاوي_{(inv as any).invoiceNumber}.xlsx</span>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={onClose}
-              className="bg-white hover:bg-slate-200 text-slate-800 border border-slate-300 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer"
-            >
-              إغلاق
-            </button>
           </div>
         </div>
 
+        {/* توستات */}
+        {copiedToast && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[70] bg-slate-900 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 text-[var(--app-ok)]" />
+            تم نسخ جدول الأصناف — الصقه مباشرة في Excel أو أي برنامج جداول
+          </div>
+        )}
+        {downloadSuccessToast && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[70] bg-emerald-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 animate-in fade-in max-w-[90vw]">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span className="truncate">{downloadSuccessToast}</span>
+          </div>
+        )}
       </div>
 
-      {/* Customer Item Analytics Modal */}
+      {/* تحليلات العميل */}
       <CustomerOrderAnalyticsModal
         invoice={invoice}
         allInvoices={invoices}

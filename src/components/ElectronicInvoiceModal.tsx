@@ -29,7 +29,8 @@ import {
   CloudUpload,
   Loader2,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  MessageSquareText
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -417,8 +418,8 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in">
-      <div className="bg-white rounded-3xl max-w-4xl w-full max-h-[95vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden print:max-h-none print:shadow-none print:border-none print:w-full">
+    <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in" dir="rtl">
+      <div role="dialog" aria-modal="true" className="modal-full-mobile bg-[var(--einv-paper)] rounded-3xl max-w-4xl w-full max-h-[95vh] flex flex-col shadow-2xl border border-[var(--einv-line)] overflow-hidden print:max-h-none print:shadow-none print:border-none print:w-full">
         
         {/* Top Control Bar (Hidden in Print) */}
         <div className="ein-topbar text-slate-soft6 p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
@@ -665,10 +666,10 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
         )}
 
         {/* Printable Official Electronic Invoice Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-7 space-y-5 text-slate-900 bg-white" id="printable-invoice">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-7 space-y-5 text-[var(--einv-ink)] bg-[var(--einv-paper)]" id="printable-invoice">
           
           {/* Header Banner - Company Identity */}
-          <div className="border-b-2 border-slate-900 pb-4 relative group">
+          <div className="border-b-2 border-[var(--einv-ink-strong)] pb-4 relative group">
             
             {/* Quick Edit Header Button for Admin/Developer/Branch Manager/Supervisor */}
             {['admin', 'developer', 'supervisor', 'branch_manager'].includes(currentUser?.role || '') && (
@@ -694,24 +695,24 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                     {effectiveCompanyInfo.logoLetter || 'D'}
                   </div>
                   <div>
-                    <h1 className="text-lg sm:text-2xl font-black text-slate-950 tracking-tight">
+                    <h1 className="text-lg sm:text-2xl font-black text-[var(--einv-ink-strong)] tracking-tight">
                       {effectiveCompanyInfo.nameArabic || effectiveCompanyInfo.name || 'شركة دريم للتجارة والتوزيع'}
                     </h1>
-                    <div className="text-[10px] sm:text-xs font-bold text-slate-500 font-sans tracking-wide">
+                    <div className="text-[10px] sm:text-xs font-bold text-[var(--einv-soft)] font-sans tracking-wide">
                       {effectiveCompanyInfo.nameEnglish || effectiveCompanyInfo.commercialNameEn || 'Dream Trading & Distribution Co.'}
                     </div>
                   </div>
                 </div>
 
-                <p className="text-[11px] sm:text-xs text-slate-600 font-medium pt-1">
+                <p className="text-[11px] sm:text-xs text-[var(--einv-muted)] font-medium pt-1">
                   {effectiveCompanyInfo.activity || 'تجارة وتوزيع الأدوات المنزلية والزجاج والمستلزمات'} • {effectiveCompanyInfo.headquarters || effectiveCompanyInfo.address || 'المنطقة الصناعية الرابعة، مدينة 6 أكتوبر، الجيزة'}
                 </p>
 
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3 text-[11px] text-slate-700 pt-0.5">
-                  <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-800 border border-slate-200">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 sm:gap-3 text-[11px] text-[var(--einv-muted)] pt-0.5">
+                  <span className="bg-[var(--einv-chip)] px-2 py-0.5 rounded text-[var(--einv-ink)] border border-[var(--einv-line)]">
                     س.ت: <strong>{effectiveCompanyInfo.commercialRegister || '184920 - الجيزة'}</strong>
                   </span>
-                  <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-800 border border-slate-200">
+                  <span className="bg-[var(--einv-chip)] px-2 py-0.5 rounded text-[var(--einv-ink)] border border-[var(--einv-line)]">
                     ب.ض: <strong>{effectiveCompanyInfo.taxNumber || '200-482-991'}</strong>
                   </span>
                   <span className="tint-brass border px-2 py-0.5 rounded font-bold">
@@ -726,18 +727,18 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                   <div className="inline-block bg-slate-900 text-[#d97706] font-black text-xs px-3.5 py-1 rounded-lg shadow-xs">
                     فاتورة مبيعات معتمدة
                   </div>
-                  <div className="text-base font-black text-slate-900 mt-1 font-mono tracking-wider">
+                  <div className="text-base font-black text-[var(--einv-ink-strong)] mt-1 font-mono tracking-wider">
                     {invoice.invoiceNumber}
                   </div>
-                  <div className="text-[10px] text-slate-500 font-medium">
+                  <div className="text-[10px] text-[var(--einv-soft)] font-medium">
                     تاريخ: {invoice.date} {invoice.time ? `(${invoice.time})` : ''}
                   </div>
                 </div>
 
                 {/* QR Code Identification */}
-                <div className="w-20 h-20 bg-slate-50 p-1.5 rounded-2xl border-2 border-slate-900 flex flex-col items-center justify-center text-center shrink-0 shadow-xs">
-                  <QrCode className="w-11 h-11 text-slate-900" />
-                  <span className="text-[7px] font-black text-slate-700 pt-0.5 font-mono">{effectiveCompanyInfo.logoLetter || 'DREAM'} DIST</span>
+                <div className="w-20 h-20 bg-[var(--einv-card)] p-1.5 rounded-2xl border-2 border-[var(--einv-ink-strong)] flex flex-col items-center justify-center text-center shrink-0 shadow-xs">
+                  <QrCode className="w-11 h-11 text-[var(--einv-ink-strong)]" />
+                  <span className="text-[7px] font-black text-[var(--einv-ink)] pt-0.5 font-mono">{effectiveCompanyInfo.logoLetter || 'DREAM'} DIST</span>
                 </div>
               </div>
 
@@ -772,66 +773,66 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
           )}
 
           {/* Customer and Invoice Details Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 bg-[var(--einv-card)] p-3.5 rounded-2xl border border-[var(--einv-line)] text-xs">
             <div>
-              <span className="text-slate-400 block text-[10px] font-bold">اسم العميل / المنشأة:</span>
-              <strong className="text-slate-900 text-xs sm:text-sm font-black flex items-center gap-1 mt-0.5">
+              <span className="text-[var(--einv-soft)] block text-[10px] font-bold">اسم العميل / المنشأة:</span>
+              <strong className="text-[var(--einv-ink-strong)] text-xs sm:text-sm font-black flex items-center gap-1 mt-0.5">
                 <Store className="w-3.5 h-3.5 text-[var(--app-warn-text)] shrink-0" />
                 <span>{currentInv.customerName}</span>
               </strong>
             </div>
 
             <div>
-              <span className="text-slate-400 block text-[10px] font-bold">كود العميل:</span>
-              <strong className="text-slate-900 font-mono font-bold block mt-0.5">
+              <span className="text-[var(--einv-soft)] block text-[10px] font-bold">كود العميل:</span>
+              <strong className="text-[var(--einv-ink-strong)] font-mono font-bold block mt-0.5">
                 {currentInv.customerCode || '---'}
               </strong>
             </div>
 
             <div>
-              <span className="text-slate-400 block text-[10px] font-bold">هاتف العميل:</span>
-              <strong className="text-slate-900 font-mono font-bold block mt-0.5">
+              <span className="text-[var(--einv-soft)] block text-[10px] font-bold">هاتف العميل:</span>
+              <strong className="text-[var(--einv-ink-strong)] font-mono font-bold block mt-0.5">
                 {currentInv.customerPhone || '---'}
               </strong>
             </div>
 
             <div>
-              <span className="text-slate-400 block text-[10px] font-bold">عنوان التسليم:</span>
-              <strong className="text-slate-900 font-semibold block mt-0.5 truncate" title={currentInv.customerAddress || ''}>
+              <span className="text-[var(--einv-soft)] block text-[10px] font-bold">عنوان التسليم:</span>
+              <strong className="text-[var(--einv-ink-strong)] font-semibold block mt-0.5 truncate" title={currentInv.customerAddress || ''}>
                 {currentInv.customerAddress || '---'}
               </strong>
             </div>
 
-            <div className="pt-2 border-t border-slate-200/80">
-              <span className="text-slate-400 block text-[10px] font-bold">المندوب المسئول:</span>
-              <strong className="text-slate-900 font-bold block mt-0.5">
+            <div className="pt-2 border-t border-[var(--einv-line)]">
+              <span className="text-[var(--einv-soft)] block text-[10px] font-bold">المندوب المسئول:</span>
+              <strong className="text-[var(--einv-ink-strong)] font-bold block mt-0.5">
                 {currentInv.repName}
               </strong>
             </div>
 
-            <div className="pt-2 border-t border-slate-200/80">
-              <span className="text-slate-400 block text-[10px] font-bold">المشرف المسؤول:</span>
-              <strong className="text-slate-900 font-bold block mt-0.5">
+            <div className="pt-2 border-t border-[var(--einv-line)]">
+              <span className="text-[var(--einv-soft)] block text-[10px] font-bold">المشرف المسؤول:</span>
+              <strong className="text-[var(--einv-ink-strong)] font-bold block mt-0.5">
                 {currentInv.supervisorName || 'الإدارة العامة'}
               </strong>
             </div>
 
-            <div className="pt-2 border-t border-slate-200/80">
-              <span className="text-slate-400 block text-[10px] font-bold">فرع الصرف:</span>
-              <strong className="text-slate-900 font-bold block mt-0.5">
+            <div className="pt-2 border-t border-[var(--einv-line)]">
+              <span className="text-[var(--einv-soft)] block text-[10px] font-bold">فرع الصرف:</span>
+              <strong className="text-[var(--einv-ink-strong)] font-bold block mt-0.5">
                 {currentInv.branchName}
               </strong>
             </div>
 
-            <div className="pt-2 border-t border-slate-200/80">
-              <span className="text-slate-400 block text-[10px] font-bold">طريقة السداد:</span>
-              <span className="inline-block bg-slate-200 text-slate-900 px-2 py-0.5 rounded-md font-black text-[10px] mt-0.5">
+            <div className="pt-2 border-t border-[var(--einv-line)]">
+              <span className="text-[var(--einv-soft)] block text-[10px] font-bold">طريقة السداد:</span>
+              <span className="inline-block bg-[var(--einv-chip)] text-[var(--einv-ink-strong)] px-2 py-0.5 rounded-md font-black text-[10px] mt-0.5">
                 {currentInv.paymentMethod}
               </span>
             </div>
 
-            <div className="pt-2 border-t border-slate-200/80">
-              <span className="text-slate-400 block text-[10px] font-bold">حالة ربط Dynamics:</span>
+            <div className="pt-2 border-t border-[var(--einv-line)]">
+              <span className="text-[var(--einv-soft)] block text-[10px] font-bold">حالة ربط Dynamics:</span>
               <div className="mt-0.5">
                 {dynamicsStatus === 'sent' ? (
                   <span className="app-badge ok">
@@ -881,8 +882,21 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             title="الموقف المالي والائتماني المعتمد للعميل (كافة العملاء)"
           />
 
+          {/* تعليق المندوب (repComment) — يُكتب عند إنشاء أمر البيع ويُعرض هنا وفي شيت الإكسل */}
+          {String((currentInv as any).repComment || '').trim() && (
+            <div className="rounded-2xl border border-[var(--einv-warn-line)] bg-[var(--einv-warn-tint)] p-3 flex items-start gap-2.5 shadow-xs">
+              <div className="w-8 h-8 rounded-xl bg-[var(--einv-warn-line)]/40 text-[var(--einv-warn-text)] flex items-center justify-center shrink-0">
+                <MessageSquareText className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[11px] font-black text-[var(--einv-warn-text)] mb-0.5">تعليق المندوب على أمر البيع</div>
+                <p className="text-xs text-[var(--einv-warn-text)] leading-relaxed break-words">{String((currentInv as any).repComment).trim()}</p>
+              </div>
+            </div>
+          )}
+
           {/* Items Table */}
-          <div className="border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
+          <div className="border border-[var(--einv-line)] rounded-2xl overflow-x-auto shadow-xs">
             <table className="w-full text-right text-xs">
               <thead className="bg-slate-900 text-white font-bold">
                 <tr>
@@ -899,7 +913,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                   <th className="p-2.5 text-center">التوفر بـ {currentInv.branchName || 'الفرع'} ومخزن أكتوبر</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-[var(--einv-line)]">
                 {invoice.items.map((item, index) => {
                   const unified = item.unifiedCode || (item.product as any)?.unifiedCode;
                   const cQty = item.cartonQuantity || 1;
@@ -910,9 +924,9 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                   const shortageC = item.shortageCartons && item.shortageCartons > 0 ? item.shortageCartons : Math.max(0, (item.cartonCount || 0) - Math.max(0, bStock));
 
                   return (
-                    <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50/60'}>
-                      <td className="p-2.5 text-center text-slate-400 font-mono text-[11px]">{index + 1}</td>
-                      <td className="p-2.5 font-black font-mono text-slate-800">{item.productCode}</td>
+                    <tr key={index} className={index % 2 === 0 ? 'bg-[var(--einv-paper)]' : 'bg-[var(--einv-card)]'}>
+                      <td className="p-2.5 text-center text-[var(--einv-soft)] font-mono text-[11px]">{index + 1}</td>
+                      <td className="p-2.5 font-black font-mono text-[var(--einv-ink)]">{item.productCode}</td>
                       <td className="p-2.5 text-center font-mono font-bold t-navy">
                         {unified ? (
                           <span className="tint-navy px-2 py-0.5 rounded border border-slate-border-deep text-[11px]">
@@ -922,37 +936,37 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                           '—'
                         )}
                       </td>
-                      <td className="p-2.5 font-bold text-slate-900">
+                      <td className="p-2.5 font-bold text-[var(--einv-ink-strong)]">
                         <div>
                           <span>{item.productName}</span>
                           {item.color && (
-                            <span className="text-[11px] font-medium text-slate-500 mr-1.5">
+                            <span className="text-[11px] font-medium text-[var(--einv-muted)] mr-1.5">
                               ({item.color})
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="p-2.5 text-center text-slate-600 font-bold">{cQty} ق</td>
+                      <td className="p-2.5 text-center text-[var(--einv-muted)] font-bold">{cQty} ق</td>
                       <td className="p-2.5 text-center font-black tint-brass">
                         {item.cartonCount} ك
                       </td>
-                      <td className="p-2.5 text-center font-bold text-slate-700 font-mono">
+                      <td className="p-2.5 text-center font-bold text-[var(--einv-ink)] font-mono">
                         {item.pieceCount && item.pieceCount > 0 ? `${item.pieceCount} ق` : '—'}
                       </td>
-                      <td className="p-2.5 text-left font-mono text-slate-600 text-[11px]">
+                      <td className="p-2.5 text-left font-mono text-[var(--einv-muted)] text-[11px]">
                         {formatCurrency(pPrice)}
                       </td>
-                      <td className="p-2.5 text-left font-bold text-slate-900 font-mono">
+                      <td className="p-2.5 text-left font-bold text-[var(--einv-ink-strong)] font-mono">
                         {item.appliedPrice && item.appliedPrice !== item.pricePerCarton ? (
                           <div>
                             <span className="t-risk font-black block">{formatCurrency(item.appliedPrice)}</span>
-                            <span className="text-[10px] text-slate-400 line-through">{formatCurrency(item.pricePerCarton)}</span>
+                            <span className="text-[10px] text-[var(--einv-soft)] line-through">{formatCurrency(item.pricePerCarton)}</span>
                           </div>
                         ) : (
                           formatCurrency(item.pricePerCarton)
                         )}
                       </td>
-                      <td className="p-2.5 text-left font-black text-slate-950 font-mono bg-[var(--app-ok-tint)]">
+                      <td className="p-2.5 text-left font-black text-[var(--einv-ink-strong)] font-mono bg-[var(--app-ok-tint)]">
                         {formatCurrency(item.netTotal)}
                       </td>
                       <td className="p-2.5 text-center text-[11px]">
@@ -1047,13 +1061,13 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             
             {/* Notes & Stamps */}
             <div className="w-full sm:w-1/2 space-y-3">
-              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs space-y-1">
-                <span className="font-bold text-slate-800 block text-[11px]">شروط وإقرار الاستلام لشركة دريم:</span>
-                <p className="text-slate-500 text-[10px] leading-relaxed">
+              <div className="bg-[var(--einv-card)] p-3 rounded-2xl border border-[var(--einv-line)] text-xs space-y-1">
+                <span className="font-bold text-[var(--einv-ink)] block text-[11px]">شروط وإقرار الاستلام لشركة دريم:</span>
+                <p className="text-[var(--einv-soft)] text-[10px] leading-relaxed">
                   البضاعة المباعة تخضع لمطابقة الكود والعدد عند الاستلام. يعتبر توقيع العميل إقراراً بالاستلام بحالة ممتازة ومطابقة لكشف الحساب.
                 </p>
                 {invoice.notes && (
-                  <div className="pt-1 text-slate-800 font-bold text-[11px]">
+                  <div className="pt-1 text-[var(--einv-ink)] font-bold text-[11px]">
                     ملاحظات: {invoice.notes}
                   </div>
                 )}
@@ -1061,20 +1075,20 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
 
               {/* Official Signatures & Stamp */}
               <div className="grid grid-cols-2 gap-3 pt-1">
-                <div className="text-center p-2 border border-dashed border-slate-300 rounded-2xl">
-                  <div className="h-10 flex items-center justify-center font-black text-slate-300 text-xs">
+                <div className="text-center p-2 border border-dashed border-[var(--einv-line)] rounded-2xl">
+                  <div className="h-10 flex items-center justify-center font-black text-[var(--einv-soft)] text-xs">
                     ختم شركة دريم
                   </div>
-                  <span className="text-[10px] font-bold text-slate-500 border-t border-slate-200 pt-1 block">
+                  <span className="text-[10px] font-bold text-[var(--einv-muted)] border-t border-[var(--einv-line)] pt-1 block">
                     اعتماد الإدارة / المشرف
                   </span>
                 </div>
 
-                <div className="text-center p-2 border border-dashed border-slate-300 rounded-2xl">
-                  <div className="h-10 flex items-center justify-center font-black text-slate-300 text-xs">
+                <div className="text-center p-2 border border-dashed border-[var(--einv-line)] rounded-2xl">
+                  <div className="h-10 flex items-center justify-center font-black text-[var(--einv-soft)] text-xs">
                     توقيع المستلم
                   </div>
-                  <span className="text-[10px] font-bold text-slate-500 border-t border-slate-200 pt-1 block">
+                  <span className="text-[10px] font-bold text-[var(--einv-muted)] border-t border-[var(--einv-line)] pt-1 block">
                     استلام وختم العميل
                   </span>
                 </div>
@@ -1158,7 +1172,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
         </div>
 
         {/* Modal Footer Controls (Hidden in Print) */}
-        <div className="bg-slate-50 p-3.5 sm:p-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 print:hidden">
+        <div className="bg-[var(--app-card-secondary)] p-3.5 sm:p-4 border-t border-[var(--app-border)] flex flex-wrap items-center justify-between gap-3 print:hidden">
           
           <div className="flex items-center gap-2 flex-wrap">
             {/* Quick Combined Download */}
@@ -1249,28 +1263,28 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
         {/* Cancel Modal Confirmation for Manager/Supervisor */}
         {showCancelModal && (
           <div className="fixed inset-0 z-60 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
-            <div className="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl border border-[var(--app-risk-line)] space-y-4">
+            <div className="bg-[var(--app-card)] rounded-3xl max-w-md w-full p-5 shadow-2xl border border-[var(--app-risk-line)] space-y-4">
               <div className="flex items-center gap-3 text-[var(--app-risk-text)]">
                 <div className="p-2.5 tint-risk rounded-2xl">
                   <XCircle className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="font-black text-base text-slate-900">إلغاء الطلبية واسترجاع المخزون</h3>
-                  <p className="text-xs text-slate-500">فاتورة رقم: {invoice.invoiceNumber}</p>
+                  <h3 className="font-black text-base text-[var(--app-text)]">إلغاء الطلبية واسترجاع المخزون</h3>
+                  <p className="text-xs text-[var(--app-text-muted)]">فاتورة رقم: {invoice.invoiceNumber}</p>
                 </div>
               </div>
 
-              <p className="text-xs text-slate-700 font-medium">
+              <p className="text-xs text-[var(--app-text)] font-medium">
                 بصفتك (مشرف أو مدير الفرع)، يمكنك إلغاء هذه الطلبية في أي وقت. سيتم فوراً فك حجز الكراتين وإرجاع الأرصدة لمخزن الفرع.
               </p>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-800">سبب الإلغاء:</label>
+                <label className="block text-xs font-bold text-[var(--app-text)]">سبب الإلغاء:</label>
                 <textarea
                   rows={2}
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs font-bold text-slate-900"
+                  className="w-full p-2.5 bg-[var(--app-card-secondary)] border rounded-xl text-xs font-bold text-[var(--app-text)]"
                   placeholder="اكتب سبب الإلغاء..."
                 />
               </div>

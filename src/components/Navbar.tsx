@@ -212,7 +212,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'reps', label: 'المناديب', icon: UserCheck, roles: ['admin', 'branch_manager', 'supervisor', 'developer'] },
     { id: 'collection', label: 'تحصيل', icon: Wallet, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'returns', label: 'المرتجعات', icon: RotateCcw, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper'] },
-    { id: 'legal_advisor', label: 'المستشار القانوني', icon: ShieldCheck, roles: ['legal_advisor'] },
+    { id: 'legal_advisor', label: 'المستشار القانوني', icon: ShieldCheck, roles: ['admin', 'developer', 'legal_advisor'] },
     { id: 'offers', label: 'العروض', icon: Percent, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'], promo: true },
     { id: 'targets', label: 'التارجت', icon: Target, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },
     { id: 'visits', label: 'الزيارات', icon: CalendarCheck, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer'] },

@@ -98,6 +98,7 @@ import {
 } from '../services/forecastService';
 import { formatCurrency } from '../services/invoiceService';
 import { isArabicNameMatch } from '../services/arabicMatchingService';
+import { DebouncedSearchInput } from './DebouncedSearchInput';
 
 const STATUS_STYLE: Record<string, string> = {
   draft: 'bg-slate-100 text-slate-600 border-slate-300',
@@ -1732,12 +1733,13 @@ export default function CollectionForecastView() {
           <div className="flex flex-wrap items-center gap-2.5 min-w-0">
             <div className="relative flex-1 min-w-[220px]">
               <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
+              <DebouncedSearchInput
                 type="text"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={setSearch}
                 placeholder="بحث فوري باسم العميل أو الكود أو المندوب أو الفرع..."
                 className="tg-input pr-10"
+                delay={250}
               />
             </div>
 

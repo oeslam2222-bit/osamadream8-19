@@ -66,6 +66,7 @@ import {
   saveSingleSourceUrl,
 } from '../services/dataSourceService';
 import { EncouragementProvider, useEncouragement, EncouragementBadge } from './EncouragementSystem';
+import { DebouncedSearchInput } from './DebouncedSearchInput';
 
 // Helper to normalize and match branch names with tolerance for prefixes
 const isBranchMatch = (b1?: string | null, b2?: string | null): boolean => {
@@ -1846,10 +1847,10 @@ export const TargetPerformanceDashboard: React.FC = () => {
 
                   <div className="relative w-full sm:w-64">
                     <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
-                    <input
+                    <DebouncedSearchInput
                       type="text"
                       value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onChange={setSearchQuery}
                       placeholder="بحث باسم الفرع أو المندوب..."
                       className="w-full bg-white border border-slate-200 rounded-xl pr-9 pl-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-[var(--app-warn)]"
                     />

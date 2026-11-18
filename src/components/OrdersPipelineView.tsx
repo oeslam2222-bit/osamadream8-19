@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   BadgeCheck,
@@ -27,6 +27,31 @@ import { InvoiceItemsTable } from './InvoiceItemsTable';
 import type { Invoice, OrderStatus } from '../types';
 
 type StageKey = 'supervisor' | 'admin' | 'prep' | 'delivery' | 'closed' | 'cancelled';
+
+/**
+ * خانة بحث الأوامر — معزولة بـ debounce (أداء موبايل):
+ * الكتابة فورية محليًا، والفلترة بتنزل للصفحة بعد توقّف الكتابة بـ 250ms،
+ * بدل ما كل حرف يعيد رسم 20 كارت أمر كاملين (شريط مراحل + أزرار إجراءات).
+ */
+const OrdersSearchInput: React.FC<{ onSearch: (v: string) => void }> = ({ onSearch }) => {
+  const [local, setLocal] = useState('');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  return (
+    <input
+      value={local}
+      onChange={(e) => {
+        const v = e.target.value;
+        setLocal(v);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => onSearch(v), 250);
+      }}
+      placeholder="بحث في الأوامر"
+      aria-label="بحث برقم الأمر أو اسم العميل أو المندوب"
+      className="tg-input tg-input--search"
+    />
+  );
+};
 
 /**
  * لون هادئ لكل مرحلة من سير الطلب — توكنز الثيم، فالكارت بيبقى فاتح في
@@ -121,6 +146,17 @@ export const OrdersPipelineView: React.FC<{
   }, [base]);
 
   const openValue = useMemo(() => base.filter(i => !['closed','cancelled'].includes(getStage(i))).reduce((s,i)=>s + Number(i.estimatedGrandTotal || i.totalAmount || 0), 0), [base]);
+
+  // أداء: القائمة بترندر أول 20 أمر بس، والباقي بزر «عرض المزيد».
+  // كل كارت في القائمة بيشتمل على شريط المراحل + أزرار الإجراءات،
+  // فعرض مئات الأوامر مرة واحدة كان بيثقل الصفحة بوضوح.
+  const PAGE_SIZE = 20;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, activeStage]);
+  const visibleList = useMemo(() => filtered.slice(0, visibleCount), [filtered, visibleCount]);
+  const hiddenCount = Math.max(0, filtered.length - visibleCount);
 
   const ensureInvoiceItems = async (inv: Invoice): Promise<Invoice> => {
     const existing = Array.isArray((inv as any).items) && (inv as any).items.length > 0 ? (inv as any).items : hydratedItemsById[inv.id];
@@ -384,7 +420,7 @@ export const OrdersPipelineView: React.FC<{
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:flex-wrap sm:items-center">
           <div className="relative min-w-0 col-start-1 row-start-1 sm:shrink-0 sm:w-[320px]">
             <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--tg-muted)]"/>
-            <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="بحث في الأوامر" aria-label="بحث برقم الأمر أو اسم العميل أو المندوب" className="tg-input tg-input--search"/>
+            <OrdersSearchInput onSearch={setSearch}/>
           </div>
           <button onClick={()=>refreshInvoicesNow?.()} title="تحديث" className="col-start-2 row-start-1 sm:order-3 shrink-0 inline-flex items-center justify-center gap-1.5 h-11 px-3 rounded-xl border border-[var(--tg-line)] bg-[var(--app-card)] text-[var(--tg-ink)] text-xs font-extrabold hover:bg-[var(--app-card-hover)]">
             <RefreshCw size={15}/>تحديث
@@ -448,7 +484,7 @@ export const OrdersPipelineView: React.FC<{
 
       {/* list */}
       <div className="space-y-3">
-        {filtered.map(inv => {
+        {visibleList.map(inv => {
           const st = getStage(inv);
           const isOpen = expanded === inv.id;
           const val = Number(inv.estimatedGrandTotal || inv.totalAmount || 0);
@@ -546,6 +582,15 @@ export const OrdersPipelineView: React.FC<{
             </article>
           );
         })}
+        {hiddenCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+            className="w-full py-3 rounded-2xl border border-[var(--tg-line)] bg-[var(--app-card)] text-[var(--tg-primary)] text-xs font-black hover:bg-[var(--app-card-hover)] transition"
+          >
+            عرض المزيد ({hiddenCount.toLocaleString('ar-EG')} أمر متبقي من {filtered.length.toLocaleString('ar-EG')})
+          </button>
+        )}
         {filtered.length === 0 && (
           <div className="text-center p-8 rounded-2xl border border-dashed border-[var(--tg-line)] bg-[var(--app-card)] text-[var(--tg-muted)] font-bold">لا توجد أوامر مطابقة</div>
         )}

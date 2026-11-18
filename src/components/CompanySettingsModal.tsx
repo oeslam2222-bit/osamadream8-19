@@ -195,7 +195,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
     >
       <div
         id="company-settings-modal-container"
-        className="bg-white border-2 border-slate-800 rounded-2xl shadow-2xl max-w-3xl w-full flex flex-col overflow-hidden my-auto max-h-[94vh]"
+        className="bg-[var(--app-card)] border-2 border-[var(--app-border)] rounded-2xl shadow-2xl max-w-3xl w-full flex flex-col overflow-hidden my-auto max-h-[94vh]"
       >
         {/* Top Header */}
         <div className="bg-gradient-to-r from-slate-900 via-amber-950 to-slate-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-slate-700">
@@ -258,10 +258,10 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
         {/* Security / Isolation Assurance Notice */}
         <div className={`px-4 py-2 text-[11px] font-medium flex items-center gap-2 ${
           isEditingBranch
-            ? 'bg-blue-50 text-blue-900 border-b border-blue-200'
-            : 'bg-amber-50 text-amber-900 border-b border-amber-200'
+            ? 'bg-[var(--app-primary-tint)] text-[var(--app-primary-text)] border-b border-[var(--app-primary-border)]'
+            : 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border-b border-[var(--app-warn-line)]'
         }`}>
-          <Info className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+          <Info className="w-3.5 h-3.5 text-[var(--app-primary-text)] shrink-0" />
           <span>
             {isEditingBranch ? (
               <>
@@ -276,16 +276,16 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
         </div>
 
         {/* Live Visual Header Preview */}
-        <div className="p-3.5 sm:p-5 bg-slate-100 border-b border-slate-200">
+        <div className="p-3.5 sm:p-5 bg-[var(--app-card-secondary)] border-b border-[var(--app-border)]">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+            <span className="text-xs font-bold text-[var(--app-text)] flex items-center gap-1.5">
               <Eye className="w-4 h-4 text-amber-600" />
               <span>معاينة حية لشكل الفاتورة ({isEditingBranch ? selectedScope : 'العامة'}):</span>
             </span>
-            <span className="text-[10px] text-slate-500">تتحدث تلقائياً مع كل حرف تعدله</span>
+            <span className="text-[10px] text-[var(--app-text-muted)]">تتحدث تلقائياً مع كل حرف تعدله</span>
           </div>
 
-          <div className="bg-white p-4 rounded-xl border-2 border-slate-900 shadow-sm text-slate-900">
+          <div className="bg-[var(--einv-paper)] p-4 rounded-xl border-2 border-[var(--einv-ink-strong)] shadow-sm text-[var(--einv-ink)]">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-right">
               
               {/* Right Logo & Names */}
@@ -298,24 +298,24 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                     <h1 className="text-base sm:text-xl font-black text-[var(--app-ink)] tracking-tight leading-none">
                       {formData.nameArabic || formData.name || 'شركة دريم للتجارة والتوزيع'}
                     </h1>
-                    <div className="text-[10px] sm:text-xs font-bold text-slate-500 font-sans tracking-wide mt-0.5">
+                    <div className="text-[10px] sm:text-xs font-bold text-[var(--einv-soft)] font-sans tracking-wide mt-0.5">
                       {formData.nameEnglish || 'Dream Trading & Distribution Co.'}
                     </div>
                   </div>
                 </div>
 
-                <p className="text-[11px] sm:text-xs text-slate-600 font-medium pt-0.5">
+                <p className="text-[11px] sm:text-xs text-[var(--einv-muted)] font-medium pt-0.5">
                   {formData.activity || 'تجارة وتوزيع الأدوات المنزلية والزجاج والمستلزمات'} • {formData.headquarters || formData.address || 'المنطقة الصناعية الرابعة، مدينة 6 أكتوبر، الجيزة'}
                 </p>
 
-                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-[10px] sm:text-[11px] text-slate-700 pt-0.5">
-                  <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-800 border border-slate-200">
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 text-[10px] sm:text-[11px] text-[var(--einv-muted)] pt-0.5">
+                  <span className="bg-[var(--einv-chip)] px-2 py-0.5 rounded text-[var(--einv-ink)] border border-[var(--einv-line)]">
                     س.ت: <strong>{formData.commercialRegister || '184920 - الجيزة'}</strong>
                   </span>
-                  <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-800 border border-slate-200">
+                  <span className="bg-[var(--einv-chip)] px-2 py-0.5 rounded text-[var(--einv-ink)] border border-[var(--einv-line)]">
                     ب.ض: <strong>{formData.taxNumber || '200-482-991'}</strong>
                   </span>
-                  <span className="bg-amber-50 border border-amber-200 px-2 py-0.5 rounded text-amber-900 font-bold">
+                  <span className="bg-[var(--einv-warn-tint)] border border-[var(--einv-warn-line)] px-2 py-0.5 rounded text-[var(--einv-warn-text)] font-bold">
                     الخط الساخن: <strong>{formData.customerService || '19000 / 01000000001'}</strong>
                   </span>
                 </div>
@@ -326,11 +326,11 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                 <div className="bg-slate-900 text-amber-300 font-black text-[11px] px-3 py-1 rounded-md shadow-xs">
                   فاتورة مبيعات معتمدة
                 </div>
-                <div className="text-xs font-mono font-bold text-slate-500 mt-1">
+                <div className="text-xs font-mono font-bold text-[var(--einv-soft)] mt-1">
                   INV-SAMPLE-2026
                 </div>
                 {isEditingBranch && (
-                  <div className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded mt-1 border border-blue-200">
+                  <div className="text-[10px] font-bold text-[var(--app-primary-text)] bg-[var(--app-primary-tint)] px-2 py-0.5 rounded mt-1 border border-[var(--app-primary-border)]">
                     {selectedScope}
                   </div>
                 )}
@@ -341,11 +341,11 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
         </div>
 
         {/* Edit Form */}
-        <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1 bg-white">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1 bg-[var(--app-card)]">
           
           {savedSuccess && (
-            <div className="p-3 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-xl text-xs font-bold flex items-center gap-2 animate-bounce">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+            <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs font-bold flex items-center gap-2 animate-bounce">
+              <CheckCircle2 className="w-5 h-5 text-[var(--app-ok-text)]" />
               <span>
                 {isEditingBranch
                   ? `تم حفظ وتطبيق بيانات فاتورة فرع (${selectedScope}) بنجاح وبشكل مستقل!`
@@ -358,12 +358,12 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
             
             {/* Standard Fixed Company Logo / Icon */}
             <div className="sm:col-span-3">
-              <label className="block font-bold text-slate-700 mb-1">أيقونة وشعار التطبيق</label>
-              <div className="flex items-center gap-2 p-2 bg-slate-100 border border-slate-300 rounded-xl">
+              <label className="block font-bold text-[var(--app-text)] mb-1">أيقونة وشعار التطبيق</label>
+              <div className="flex items-center gap-2 p-2 bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-xl">
                 <div className="w-8 h-8 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-xs shrink-0">
                   {formData.logoLetter || 'D'}
                 </div>
-                <div className="text-[10px] text-slate-600 font-bold leading-tight">
+                <div className="text-[10px] text-[var(--app-text-muted)] font-bold leading-tight">
                   ثابتة وموحدة 🔒
                 </div>
               </div>
@@ -371,7 +371,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
 
             {/* Arabic Name */}
             <div className="sm:col-span-9">
-              <label className="block font-bold text-slate-700 mb-1">اسم الشركة / الفرع بالفاتورة *</label>
+              <label className="block font-bold text-[var(--app-text)] mb-1">اسم الشركة / الفرع بالفاتورة *</label>
               <input
                 type="text"
                 required
@@ -381,13 +381,13 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                   handleChange('name', e.target.value);
                 }}
                 placeholder="شركة دريم للتجارة والتوزيع - فرع أكتوبر"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-black text-slate-900 focus:ring-2 focus:ring-amber-500"
+                className="w-full p-2.5 bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-xl font-black text-[var(--app-text)] focus:ring-2 focus:ring-[var(--app-warn)]"
               />
             </div>
 
             {/* English Name */}
             <div className="sm:col-span-6">
-              <label className="block font-bold text-slate-700 mb-1">اسم الشركة بالإنجليزية (English Name)</label>
+              <label className="block font-bold text-[var(--app-text)] mb-1">اسم الشركة بالإنجليزية (English Name)</label>
               <input
                 type="text"
                 value={formData.nameEnglish || ''}
@@ -396,37 +396,37 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                   handleChange('commercialNameEn', e.target.value);
                 }}
                 placeholder="Dream Trading & Distribution Co."
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold font-sans text-slate-900 focus:ring-2 focus:ring-amber-500"
+                className="w-full p-2.5 bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-xl font-bold font-sans text-[var(--app-text)] focus:ring-2 focus:ring-[var(--app-warn)]"
               />
             </div>
 
             {/* Activity */}
             <div className="sm:col-span-6">
-              <label className="block font-bold text-slate-700 mb-1">النشاط التجاري والتخصص</label>
+              <label className="block font-bold text-[var(--app-text)] mb-1">النشاط التجاري والتخصص</label>
               <input
                 type="text"
                 value={formData.activity || ''}
                 onChange={(e) => handleChange('activity', e.target.value)}
                 placeholder="تجارة وتوزيع الأدوات المنزلية والزجاج والمستلزمات"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                className="w-full p-2.5 bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-xl font-bold text-[var(--app-text)] focus:ring-2 focus:ring-[var(--app-warn)]"
               />
             </div>
 
             {/* Commercial Register (س.ت) */}
             <div className="sm:col-span-6">
-              <label className="block font-bold text-slate-700 mb-1">رقم السجل التجاري (س.ت)</label>
+              <label className="block font-bold text-[var(--app-text)] mb-1">رقم السجل التجاري (س.ت)</label>
               <input
                 type="text"
                 value={formData.commercialRegister || ''}
                 onChange={(e) => handleChange('commercialRegister', e.target.value)}
                 placeholder="184920 - الجيزة"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                className="w-full p-2.5 bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-xl font-mono font-bold text-[var(--app-text)] focus:ring-2 focus:ring-[var(--app-warn)]"
               />
             </div>
 
             {/* Tax Number (ب.ض) */}
             <div className="sm:col-span-6">
-              <label className="block font-bold text-slate-700 mb-1">رقم البطاقة الضريبية والتسجيل (ب.ض)</label>
+              <label className="block font-bold text-[var(--app-text)] mb-1">رقم البطاقة الضريبية والتسجيل (ب.ض)</label>
               <input
                 type="text"
                 value={formData.taxNumber || ''}
@@ -435,37 +435,37 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                   handleChange('taxRegistrationNumber', e.target.value);
                 }}
                 placeholder="200-482-991"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                className="w-full p-2.5 bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-xl font-mono font-bold text-[var(--app-text)] focus:ring-2 focus:ring-[var(--app-warn)]"
               />
             </div>
 
             {/* Customer Service & Hotline */}
             <div className="sm:col-span-6">
-              <label className="block font-bold text-slate-700 mb-1">الخط الساخن وخدمة العملاء</label>
+              <label className="block font-bold text-[var(--app-text)] mb-1">الخط الساخن وخدمة العملاء</label>
               <input
                 type="text"
                 value={formData.customerService || ''}
                 onChange={(e) => handleChange('customerService', e.target.value)}
                 placeholder="19000 / 01000000001"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                className="w-full p-2.5 bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-xl font-mono font-bold text-[var(--app-text)] focus:ring-2 focus:ring-[var(--app-warn)]"
               />
             </div>
 
             {/* Landline / Phone */}
             <div className="sm:col-span-6">
-              <label className="block font-bold text-slate-700 mb-1">الهاتف الأرضي / أرقام الفرع</label>
+              <label className="block font-bold text-[var(--app-text)] mb-1">الهاتف الأرضي / أرقام الفرع</label>
               <input
                 type="text"
                 value={formData.phone || ''}
                 onChange={(e) => handleChange('phone', e.target.value)}
                 placeholder="02-38334455 / 01000000001"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                className="w-full p-2.5 bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-xl font-mono font-bold text-[var(--app-text)] focus:ring-2 focus:ring-[var(--app-warn)]"
               />
             </div>
 
             {/* Headquarters / Full Address */}
             <div className="sm:col-span-12">
-              <label className="block font-bold text-slate-700 mb-1">
+              <label className="block font-bold text-[var(--app-text)] mb-1">
                 {isEditingBranch ? `عنوان وموقع الفرع (${selectedScope})` : 'عنوان المقر الرئيسي والمصنع / المخازن المركزية'}
               </label>
               <input
@@ -476,28 +476,28 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                   handleChange('address', e.target.value);
                 }}
                 placeholder="المنطقة الصناعية الرابعة، مدينة 6 أكتوبر، الجيزة"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                className="w-full p-2.5 bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-xl font-bold text-[var(--app-text)] focus:ring-2 focus:ring-[var(--app-warn)]"
               />
             </div>
 
             {/* Multi-Email Manager (Up to 7 emails for Microsoft 365 Notifications) */}
-            <div className="sm:col-span-12 bg-slate-50/90 border border-slate-200/90 rounded-2xl p-4 shadow-2xs">
+            <div className="sm:col-span-12 bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-2xl p-4 shadow-2xs">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-xl bg-[var(--app-primary-tint)] text-[var(--app-primary-text)] border border-[var(--app-primary-border)] flex items-center justify-center shrink-0">
                     <Mail className="w-4 h-4" />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-800 text-sm">
+                    <label className="block font-bold text-[var(--app-text)] text-sm">
                       {isEditingBranch ? `عناوين البريد الإلكتروني للفرع (${selectedScope})` : 'عناوين البريد الإلكتروني الرسمي العام'}
                     </label>
-                    <span className="text-[11px] text-slate-500 block">
+                    <span className="text-[11px] text-[var(--app-text-muted)] block">
                       إشعارات Microsoft 365 Power Automate (إرسال تلقائي للطلبيات وملفات الإكسل والـ PDF)
                     </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[var(--app-primary-tint)] text-[var(--app-primary-text)] border border-[var(--app-primary-border)]">
                     {Math.min(MAX_BRANCH_EMAILS, currentTotalEmailsCount)} من {MAX_BRANCH_EMAILS} إيميلات
                   </span>
                 </div>
@@ -508,9 +508,9 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                 {/* Primary Email */}
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-[var(--app-text)] flex items-center gap-1.5">
                       <span>البريد الأساسي (الرئيسي):</span>
-                      <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded-md font-semibold">أساسي</span>
+                      <span className="text-[10px] text-[var(--app-ok-text)] bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] px-1.5 py-0.2 rounded-md font-semibold">أساسي</span>
                     </span>
                   </div>
                   <input
@@ -518,7 +518,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                     value={formData.email || ''}
                     onChange={(e) => handleChange('email', e.target.value)}
                     placeholder="oeslam2222@gmail.com أو branch@dream-dist.com"
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    className="w-full p-2.5 bg-[var(--app-card)] border border-[var(--app-border)] rounded-xl font-bold text-[var(--app-text)] focus:ring-2 focus:ring-[var(--app-primary)] focus:border-[var(--app-primary)] text-sm"
                   />
                 </div>
 
@@ -527,7 +527,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                   <div key={idx} className="flex items-center gap-2">
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-bold text-slate-600">
+                        <span className="text-xs font-bold text-[var(--app-text-muted)]">
                           بريد إضافي #{idx + 2} (مستلم إشعار):
                         </span>
                       </div>
@@ -536,13 +536,13 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                         value={emailVal}
                         onChange={(e) => handleUpdateAdditionalEmail(idx, e.target.value)}
                         placeholder={`additional${idx + 1}@dream-dist.com`}
-                        className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        className="w-full p-2.5 bg-[var(--app-card)] border border-[var(--app-border)] rounded-xl font-bold text-[var(--app-text)] focus:ring-2 focus:ring-[var(--app-primary)] focus:border-[var(--app-primary)] text-sm"
                       />
                     </div>
                     <button
                       type="button"
                       onClick={() => handleRemoveAdditionalEmail(idx)}
-                      className="mt-5 p-2.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 active:bg-rose-100 border border-rose-200 rounded-xl transition cursor-pointer flex items-center justify-center shrink-0"
+                      className="mt-5 p-2.5 text-[var(--app-risk-text)] bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] rounded-xl transition cursor-pointer flex items-center justify-center shrink-0 hover:brightness-110"
                       title="حذف هذا البريد الإضافي"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -556,19 +556,19 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                     <button
                       type="button"
                       onClick={handleAddEmail}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 border border-blue-200 rounded-xl transition cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-[var(--app-primary-text)] bg-[var(--app-primary-tint)] border border-[var(--app-primary-border)] rounded-xl transition cursor-pointer hover:brightness-110"
                     >
                       <Plus className="w-4 h-4" />
                       <span>إضافة بريد إلكتروني آخر (+ حتى {MAX_BRANCH_EMAILS} إيميلات)</span>
                     </button>
                   ) : (
-                    <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-2 font-medium">
+                    <div className="text-[11px] text-[var(--app-warn-text)] bg-[var(--app-warn-tint)] border border-[var(--app-warn-line)] rounded-xl p-2 font-medium">
                       وصلت للحد الأقصى ({MAX_BRANCH_EMAILS} إيميلات). جميع هذه العناوين ستستلم إشعارات الطلبيات المعتمدة سوياً.
                     </div>
                   )}
                 </div>
 
-                <p className="text-[11px] text-slate-500 pt-1">
+                <p className="text-[11px] text-[var(--app-text-muted)] pt-1">
                   💡 <strong>ملاحظة:</strong> يمكنك إضافة حتى {MAX_BRANCH_EMAILS} إيميلات للفرع (مثل: مدير الفرع، مسؤول المخزن، المحاسب، المشرف...). ستصلهم جميعاً إشعارات الطلبيات المعتمدة وملفات الإكسل والـ PDF في نفس اللحظة عبر Microsoft 365 Power Automate.
                 </p>
               </div>
@@ -576,25 +576,25 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
 
             {/* Website */}
             <div className="sm:col-span-6">
-              <label className="block font-bold text-slate-700 mb-1">الموقع الإلكتروني (Website)</label>
+              <label className="block font-bold text-[var(--app-text)] mb-1">الموقع الإلكتروني (Website)</label>
               <input
                 type="text"
                 value={formData.website || ''}
                 onChange={(e) => handleChange('website', e.target.value)}
                 placeholder="www.dream-dist.com"
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-amber-500"
+                className="w-full p-2.5 bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-xl font-bold text-[var(--app-text)] focus:ring-2 focus:ring-[var(--app-warn)]"
               />
             </div>
 
             {/* Footer Policy Notes */}
             <div className="sm:col-span-12">
-              <label className="block font-bold text-slate-700 mb-1">شروط وسياسة الاسترجاع والضمان (تذييل الفاتورة)</label>
+              <label className="block font-bold text-[var(--app-text)] mb-1">شروط وسياسة الاسترجاع والضمان (تذييل الفاتورة)</label>
               <textarea
                 rows={2}
                 value={formData.footerNotes || 'البضاعة المباعة ترد وتستبدل خلال 14 يوماً بحالتها الأصلية • يشترط وجود أصل الفاتورة الإلكترونية المعتمدة'}
                 onChange={(e) => handleChange('footerNotes', e.target.value)}
                 placeholder="ملاحظات وشروط الفاتورة..."
-                className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-900 focus:ring-2 focus:ring-amber-500"
+                className="w-full p-2.5 bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-xl font-medium text-[var(--app-text)] focus:ring-2 focus:ring-[var(--app-warn)]"
               />
             </div>
 
@@ -606,18 +606,18 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
             compiled into the public bundle.
           */}
           {isMasterAdmin && (
-            <div className="mt-4 border border-slate-200 rounded-2xl p-4 bg-slate-50">
+            <div className="mt-4 border border-[var(--app-border)] rounded-2xl p-4 bg-[var(--app-card-secondary)]">
               <div className="flex items-start gap-2 mb-3">
-                <ShieldCheck className="w-4 h-4 text-slate-500 mt-0.5" />
+                <ShieldCheck className="w-4 h-4 text-[var(--app-text-muted)] mt-0.5" />
                 <div>
-                  <h3 className="text-sm font-black text-slate-800">إعدادات الربط والتكاملات</h3>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                  <h3 className="text-sm font-black text-[var(--app-text)]">إعدادات الربط والتكاملات</h3>
+                  <p className="text-[11px] text-[var(--app-text-muted)] leading-relaxed">
                     رابط إشعارات مايكروسوفت يُحفظ على هذا الجهاز فقط ولا يتم تضمينه مع التطبيق.
                   </p>
                 </div>
               </div>
 
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
+              <label className="block text-xs font-bold text-[var(--app-text)] mb-1.5">
                 رابط Power Automate لإرسال الفواتير
               </label>
               <div className="flex flex-col sm:flex-row gap-2">
@@ -627,7 +627,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                   onChange={(e) => setPowerAutomateUrl(e.target.value)}
                   placeholder="https://...powerplatform.com/...&sig=..."
                   dir="ltr"
-                  className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-mono focus:outline-none focus:border-amber-500"
+                  className="flex-1 rounded-xl border border-[var(--app-border)] bg-[var(--app-card)] px-3 py-2 text-xs font-mono text-[var(--app-text)] focus:outline-none focus:border-[var(--app-warn)]"
                 />
                 <button
                   type="button"
@@ -642,18 +642,18 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
                   <span>{powerAutomateSaved ? 'تم الحفظ على هذا الجهاز' : 'حفظ الرابط'}</span>
                 </button>
               </div>
-              <p className="text-[10px] text-slate-400 mt-2">
+              <p className="text-[10px] text-[var(--app-text-muted)] mt-2">
                 بدون هذا الرابط لا تُرسل إشعارات الطلبيات لمايكروسوفت، لكن حفظ الطلبيات والفواتير يعمل بشكل طبيعي.
               </p>
             </div>
           )}
 
           {/* Form Actions */}
-          <div className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          <div className="pt-4 border-t border-[var(--app-border)] flex flex-wrap items-center justify-between gap-3">
             <button
               type="button"
               onClick={handleReset}
-              className="text-slate-600 hover:text-rose-700 text-xs font-bold flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-rose-50 transition cursor-pointer"
+              className="text-[var(--app-text-muted)] hover:text-[var(--app-risk-text)] text-xs font-bold flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-[var(--app-risk-tint)] transition cursor-pointer"
             >
               <RotateCcw className="w-3.5 h-3.5" />
               <span>استعادة الإعدادات الأصلية الافتراضية</span>
@@ -663,7 +663,7 @@ export const CompanySettingsModal: React.FC<CompanySettingsModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer"
+                className="bg-[var(--app-card-secondary)] hover:bg-[var(--app-card-hover)] text-[var(--app-text)] border border-[var(--app-border)] font-bold px-4 py-2 rounded-xl text-xs transition cursor-pointer"
               >
                 إلغاء
               </button>

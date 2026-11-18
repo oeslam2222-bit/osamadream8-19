@@ -48,6 +48,7 @@ import {
 import type { Customer, CustomerVisit } from '../types';
 import { EmptyState } from './ui/EmptyState';
 import { CustomerSearchSelect } from './CustomerSearchSelect';
+import { DebouncedSearchInput } from './DebouncedSearchInput';
 
 const resolveStoreAvatar = (customer?: Partial<Customer> | null): string => {
   const uploaded =
@@ -770,14 +771,13 @@ export const VisitsDashboard: React.FC = () => {
           {/* Main search input */}
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
+            <DebouncedSearchInput
               type="text"
               value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-              }}
+              onChange={setSearch}
               placeholder="ابحث بالاسم، كود العميل، المندوب، الفرع، أو الملاحظات..."
               className="tg-input pr-10"
+              delay={250}
             />
             {search && (
               <button

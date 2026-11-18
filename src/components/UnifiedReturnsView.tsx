@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { CustomerSearchSelect } from './CustomerSearchSelect';
+import { DebouncedSearchInput } from './DebouncedSearchInput';
 import {
   AlertTriangle,
   ArrowRight,
@@ -712,13 +713,13 @@ export const UnifiedReturnsView: React.FC = () => {
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             <div className="relative flex-1 sm:w-64">
               <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
-              <input
+              <DebouncedSearchInput
                 type="text"
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={setSearchTerm}
                 placeholder="بحث باسم العميل، الكود، الصنف..."
                 className="tg-input"
-                style={{ paddingRight: 40 }}
+                delay={250}
               />
             </div>
 

@@ -90,6 +90,20 @@ import {
 
 type SheetKey = keyof PublishedDataSources;
 
+/** أسماء الشيتات بالعربي — لعرضها في شريط تقدم المزامنة */
+const SHEET_LABELS: Partial<Record<SheetKey, string>> = {
+  customers: 'العملاء',
+  customerSales: 'مبيعات العملاء',
+  products: 'الأصناف',
+  targets: 'الأهداف',
+  offers: 'العروض',
+  customers_electrical: 'العملاء',
+  customerSales_electrical: 'مبيعات العملاء',
+  products_electrical: 'الأصناف',
+  targets_electrical: 'الأهداف',
+  offers_electrical: 'العروض',
+};
+
 /** نتيجة كل عملية مزامنة — لازم ترجع للمستدعي عشان "مزامنة الكل" تعرف مين نجح ومين فشل */
 type SyncResult = { ok: boolean; message: string };
 
@@ -229,6 +243,10 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
   // Global Sync Progress & Dedup Audit State
   const [masterSyncProgress, setMasterSyncProgress] = useState<string | null>(null);
+  // نسبة التقدم الحقيقية لمزامنة الكل — محسوبة من الخطوات المنجزة فعليًا
+  const [masterSyncPercent, setMasterSyncPercent] = useState(0);
+  /** تقدم رفع صفوف مبيعات الأصناف للسحابة — "تم رفع X من Y صف" */
+  const [rowUploadProgress, setRowUploadProgress] = useState<{ synced: number; total: number } | null>(null);
   const [isPullingSalesFromSupabase, setIsPullingSalesFromSupabase] = useState(false);
   const [dedupNotice, setDedupNotice] = useState<{
     original: number;
@@ -311,7 +329,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
   };
 
   // 2. Sync Customer Item Sales Sheet (شيت مبيعات العملاء بالصنف)
-  const handleSyncCustomerSales = async (urlOverride?: string, batch = false): Promise<SyncResult> => {
+  const handleSyncCustomerSales = async (urlOverride?: string, batch = false, onRowProgress?: (synced: number, total: number) => void): Promise<SyncResult> => {
     const key = getSectorKey('customerSales');
     const url = (urlOverride || sourceUrls[key] || '').trim();
     if (!url) {
@@ -340,7 +358,10 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
 
         // المزامنة السحابية بقت منتظرة: الأجهزة التانية بتنزّل بعد نشر نسخة
         // البيانات، فلو سبناها fire-and-forget كانت هتنزل قبل ما الصفوف توصل.
-        const pushRes = await pushCustomerItemSalesToSupabase(finalSales).catch((err) => ({
+        const pushRes = await pushCustomerItemSalesToSupabase(finalSales, (synced, total) => {
+          setRowUploadProgress({ synced, total });
+          onRowProgress?.(synced, total);
+        }).catch((err) => ({
           syncedCount: 0,
           error: err?.message || 'فشل رفع مبيعات الأصناف للسحابة',
         }));
@@ -495,6 +516,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       setSheetErrors((prev) => ({ ...prev, [key]: message }));
       return { ok: false, message };
     } finally {
+      setRowUploadProgress(null);
       if (!batch) setSyncingKey(null);
     }
   };
@@ -682,7 +704,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
   const handleSyncAllSheets = async () => {
     const sectorName = activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية';
 
-    const jobs: { label: string; key: SheetKey; run: (url: string, batch: boolean) => Promise<SyncResult> }[] = [
+    const jobs: { label: string; key: SheetKey; run: (url: string, batch: boolean, onRowProgress?: (synced: number, total: number) => void) => Promise<SyncResult> }[] = [
       { label: 'العملاء', key: getSectorKey('customers'), run: handleSyncCustomers },
       { label: 'مبيعات العملاء', key: getSectorKey('customerSales'), run: handleSyncCustomerSales },
       { label: 'الأصناف', key: getSectorKey('products'), run: handleSyncProducts },
@@ -691,7 +713,11 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
     ];
 
     setSyncingKey('all');
+    setMasterSyncPercent(0);
     setMasterSyncProgress(`بدء مزامنة كافة الشيتات الـ 5 لـ (${sectorName})...`);
+
+    // إجمالي الخطوات: 5 شيتات + فحص التكرار النهائي
+    const totalSteps = jobs.length + 1;
 
     let syncedCount = 0;
     const errors: string[] = [];
@@ -700,23 +726,35 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       for (let i = 0; i < jobs.length; i++) {
         const job = jobs[i];
         const url = (sourceUrls[job.key] || '').trim();
+        setMasterSyncProgress(`${i + 1}/${jobs.length}: جاري قراءة وتحديث شيت ${job.label} لـ ${sectorName}...`);
+        setMasterSyncPercent(Math.round((i / totalSteps) * 100));
         if (!url) {
           // الرابط غير محفوظ: بنسجله كفشل بدل ما نعدّه نجاح وهمي.
           errors.push(`${job.label}: لا يوجد رابط محفوظ لهذا الشيت`);
+          setMasterSyncPercent(Math.round(((i + 1) / totalSteps) * 100));
           continue;
         }
-        setMasterSyncProgress(`${i + 1}/5: جاري قراءة وتحديث شيت ${job.label} لـ ${sectorName}...`);
-        const result = await job.run(url, true);
+        const result = await job.run(url, true, (synced, total) => {
+          // تقدم صف-بصف: بندمج تقدم الرفع جوه الشيت الحالي مع تقدم الخطوات الكلي
+          if (total > 0) {
+            setMasterSyncPercent(Math.round(((i + synced / total) / totalSteps) * 100));
+            setMasterSyncProgress(
+              `شيت ${job.label} — تم رفع ${synced.toLocaleString('en-US')} من ${total.toLocaleString('en-US')} صف للسحابة...`
+            );
+          }
+        });
         if (result.ok) {
           syncedCount++;
         } else {
           errors.push(`${job.label}: ${result.message}`);
         }
+        setMasterSyncPercent(Math.round(((i + 1) / totalSteps) * 100));
       }
 
       // Final dedup safety sweep
       setMasterSyncProgress('فحص نهائي وتأكيد منع التكرار وتحديث أجهزة المناديب...');
       cleanAndDeduplicateCustomers();
+      setMasterSyncPercent(100);
 
       if (syncedCount === jobs.length) {
         setMasterSyncProgress(
@@ -794,7 +832,9 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         await saveCustomerItemSales(finalSales, 'merge');
 
         // Auto sync to Supabase so data is immediately saved in cloud customer_item_sales table
-        pushCustomerItemSalesToSupabase(finalSales).catch((err) => {
+        pushCustomerItemSalesToSupabase(finalSales, (synced, total) => {
+          setRowUploadProgress({ synced, total });
+        }).catch((err) => {
           console.warn('Auto cloud sync notice:', err);
         });
 
@@ -929,6 +969,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
     } catch (err: any) {
       setSheetErrors((prev) => ({ ...prev, [key]: err?.message || 'فشل رفع ملف مبيعات العملاء' }));
     } finally {
+      setRowUploadProgress(null);
       setSyncingKey(null);
       if (fileInputSalesRef.current) fileInputSalesRef.current.value = '';
     }
@@ -1277,22 +1318,64 @@ function onEdit(e) {
         </div>
         </div>
 
-        {/* Master Sync Progress Bar */}
-        {masterSyncProgress && (
-          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-lg animate-in fade-in slide-in-from-top-4">
-            <div className="flex items-center justify-between gap-4 mb-3">
-              <span className="font-black text-slate-900 text-sm">جاري المزامنة</span>
-              <span className="text-slate-600 text-xs font-mono">{masterSyncProgress}</span>
+        {/* Sync Progress Bar — نسبة حقيقية لمزامنة الكل، وشريط غير محدد للشيت الواحد / رفع الملفات */}
+        {(masterSyncProgress || (syncingKey && syncingKey !== 'all')) && (
+          <div className="bg-[var(--app-card)] border border-[var(--app-border)] rounded-3xl p-6 shadow-lg animate-in fade-in slide-in-from-top-4">
+            <div className="flex items-center justify-between gap-4 mb-3 flex-wrap">
+              <span className="font-black text-[var(--app-text)] text-sm flex items-center gap-2">
+                <RefreshCw className="w-4 h-4 text-[var(--app-primary-text)] animate-spin" />
+                جاري المزامنة
+              </span>
+              <span className="text-[var(--app-text-muted)] text-xs font-mono">
+                {masterSyncProgress || `جاري قراءة وتحديث شيت (${SHEET_LABELS[syncingKey as SheetKey] || ''})...`}
+              </span>
             </div>
-            <div className="w-full bg-slate-200 h-3 rounded-full overflow-hidden border border-slate-300">
-              <div
-                className="h-full bg-[var(--app-accent)] transition-all duration-500 ease-out animate-pulse"
-                style={{ width: '60%' }}
-              />
-            </div>
-            <p className="mt-3 text-slate-500 text-[10px] leading-relaxed">
-              يتم معالجة البيانات في الخلفية. يمكنك الاستمرار في استخدام التطبيق أثناء المزامنة.
-            </p>
+            {masterSyncProgress ? (
+              <>
+                <div className="flex items-center gap-3">
+                  <div className="w-full bg-[var(--app-card-hover)] h-3 rounded-full overflow-hidden border border-[var(--app-border)]">
+                    <div
+                      className="h-full bg-[var(--app-accent)] transition-all duration-500 ease-out"
+                      style={{ width: `${masterSyncPercent}%` }}
+                    />
+                  </div>
+                  <span className="text-[var(--app-primary-text)] text-xs font-black font-mono shrink-0 tabular-nums">
+                    {masterSyncPercent}%
+                  </span>
+                </div>
+                <p className="mt-3 text-[var(--app-text-muted)] text-[10px] leading-relaxed">
+                  تم إنجاز {masterSyncPercent}% من المزامنة — باقي {100 - masterSyncPercent}%. يتم معالجة البيانات في الخلفية، ويمكنك الاستمرار في استخدام التطبيق أثناء المزامنة.
+                </p>
+              </>
+            ) : rowUploadProgress ? (
+              <>
+                <div className="flex items-center gap-3">
+                  <div className="w-full bg-[var(--app-card-hover)] h-3 rounded-full overflow-hidden border border-[var(--app-border)]">
+                    <div
+                      className="h-full bg-[var(--app-accent)] transition-all duration-300 ease-out"
+                      style={{ width: `${Math.min(100, Math.round((rowUploadProgress.synced / Math.max(1, rowUploadProgress.total)) * 100))}%` }}
+                    />
+                  </div>
+                  <span className="text-[var(--app-primary-text)] text-xs font-black font-mono shrink-0 tabular-nums">
+                    {Math.min(100, Math.round((rowUploadProgress.synced / Math.max(1, rowUploadProgress.total)) * 100))}%
+                  </span>
+                </div>
+                <p className="mt-3 text-[var(--app-text-muted)] text-[10px] leading-relaxed">
+                  تم رفع <span className="font-black text-[var(--app-text)]">{rowUploadProgress.synced.toLocaleString('en-US')}</span> من{' '}
+                  <span className="font-black text-[var(--app-text)]">{rowUploadProgress.total.toLocaleString('en-US')}</span> صف للسحابة — باقي{' '}
+                  {Math.max(0, rowUploadProgress.total - rowUploadProgress.synced).toLocaleString('en-US')} صف.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="w-full bg-[var(--app-card-hover)] h-3 rounded-full overflow-hidden border border-[var(--app-border)]">
+                  <div className="h-full w-2/5 bg-[var(--app-accent)] rounded-full animate-pulse" />
+                </div>
+                <p className="mt-3 text-[var(--app-text-muted)] text-[10px] leading-relaxed">
+                  يتم معالجة البيانات في الخلفية، ويمكنك الاستمرار في استخدام التطبيق أثناء المزامنة.
+                </p>
+              </>
+            )}
           </div>
         )}
 

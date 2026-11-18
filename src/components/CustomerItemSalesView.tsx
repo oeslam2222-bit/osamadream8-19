@@ -83,6 +83,7 @@ import { aggregateItemSalesRows, downloadItemSalesRowsCsv } from './itemSales/It
 import { ItemSalesExecutiveCards } from './itemSales/ItemSalesExecutiveCards';
 import { CANONICAL_BRANCHES, normalizeBranchName, UNKNOWN_BRANCH } from '../services/branchDirectory';
 import SalesFocusV4 from './itemSales/SalesFocusV4';
+import { DebouncedSearchInput } from './DebouncedSearchInput';
 import {
   buildItemSalesAggregates,
   ItemSalesSector,
@@ -589,7 +590,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       if (selectedRep !== 'all' && record.repName !== selectedRep) return false;
       if (selectedWarehouse !== 'all' && resolveItemSaleBranch(record) !== selectedWarehouse) return false;
       if (selectedSector !== 'all' && resolveItemSaleSector(record) !== selectedSector) return false;
-      if (selectedFamily !== 'all' && (record.familyDimension || '').trim() !== selectedFamily) return false;
+      if (selectedFamily !== 'all' && resolveItemGroup(record) !== selectedFamily) return false;
       if (
         selectedItem !== 'all' &&
         (record.unifiedCode || record.itemCode || '').trim() !== selectedItem
@@ -682,7 +683,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       if (!exclude.rep && selectedRep !== 'all' && record.repName !== selectedRep) return false;
       if (!exclude.warehouse && selectedWarehouse !== 'all' && resolveItemSaleBranch(record) !== selectedWarehouse) return false;
       if (!exclude.sector && selectedSector !== 'all' && resolveItemSaleSector(record) !== selectedSector) return false;
-      if (!exclude.family && selectedFamily !== 'all' && (record.familyDimension || '').trim() !== selectedFamily) return false;
+      if (!exclude.family && selectedFamily !== 'all' && resolveItemGroup(record) !== selectedFamily) return false;
       if (!exclude.item && selectedItem !== 'all' && (record.unifiedCode || record.itemCode || '').trim() !== selectedItem) return false;
       if (!matchesSearchFilter(record)) return false;
       return true;
@@ -728,7 +729,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     const set = new Set<string>();
     monthScopedSales.forEach((record) => {
       if (!passesCommonFilters(record, { family: true })) return;
-      const family = (record.familyDimension || '').trim();
+      // نفس منطق عمود «الصنف بالعائلة» في الجدول (التعريفات ← المجموعة ← العائلة)
+      // عشان القائمة تطلع نفس القيم اللي بيتعرضها الجدول بالظبط.
+      const family = resolveItemGroup(record);
       if (family && family !== 'عام') set.add(family);
     });
     if (selectedFamily !== 'all' && selectedFamily) set.add(selectedFamily);
@@ -1576,12 +1579,13 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2">
           <div className="relative col-span-2 md:col-span-3 xl:col-span-2">
             <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
+            <DebouncedSearchInput
               type="text"
               value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
+              onChange={setSearchTerm}
               placeholder="بحث بالعميل، الصنف، كود العميل، أو رقم أمر البيع..."
               className="w-full h-10 pr-9 pl-9 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-warn)]"
+              delay={250}
             />
             {searchTerm && (
               <button

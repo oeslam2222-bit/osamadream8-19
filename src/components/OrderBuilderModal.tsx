@@ -32,11 +32,10 @@ import {
   X,
   Zap,
 } from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Customer, Invoice, PaymentMethod, Product } from '../types';
 import { ProductImage } from './ProductImage';
-import { CustomerFinancialSummaryCard } from './CustomerFinancialSummaryCard';
 import { CustomerSearchSelect } from './CustomerSearchSelect';
 import { formatCurrency } from '../services/invoiceService';
 import { findCustomerMatch, getBranchStockForProduct } from '../services/arabicMatchingService';
@@ -50,6 +49,251 @@ interface OrderBuilderModalProps {
   onInvoiceCreated: (invoice: Invoice) => void;
   initialCustomer?: Customer | null;
 }
+
+/**
+ * خانة بحث الكتالوج — معزولة عن باقي المودال عمدًا (أداء موبايل).
+ * كانت الكتابة بتحدّث state المودال الرئيسي مع كل حرف، فالمودال كله
+ * (سلة + كتالوج + حسابات البرومو والمخزن) كان بيرندر من الأول مع كل ضغطة
+ * زرار وده كان بيهنّج الموبايل. دلوقتي الكتابة فورية محليًا، والفلتر
+ * بيوصل للمودال مرة واحدة بعد توقّف الكتابة بـ 250ms.
+ */
+const CatalogSearchInput: React.FC<{ onSearch: (v: string) => void }> = ({ onSearch }) => {
+  const [localValue, setLocalValue] = useState('');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  return (
+    <input
+      type="search"
+      value={localValue}
+      onChange={(e) => {
+        const v = e.target.value;
+        setLocalValue(v);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => onSearch(v), 250);
+      }}
+      placeholder="كود الصنف أو الموحد..."
+      className="w-full rounded-xl px-2.5 py-2 text-xs text-[var(--app-ink)] placeholder-custom"
+    />
+  );
+};
+
+/**
+ * لوحة الكتالوج السريع — معزولة بـ React.memo عمدًا (أداء موبايل):
+ * كانت الإضافة للسلة بتحدّث الـ context، فالمودال كله كان بيرندر من
+ * الأول و24 كارت كتالوج (بحسابات البرومو والمخزن لكل صنف) بيتحسبوا
+ * تاني مع كل ضغطة «+ كرتونة». الفلاتر والبحث حالتهم هنا من جوه،
+ * والكومبوننت بيرندر تاني بس لما المنتجات أو البروموهات أو الفرع يتغيروا فعلًا.
+ */
+const CatalogQuickPicker: React.FC<{
+  products: Product[];
+  promotions: Parameters<typeof resolveProductPromotion>[1];
+  activeBranch: string;
+  onQuickAdd: (product: Product, count: number, orderType: 'carton' | 'piece') => void;
+}> = React.memo(({ products, promotions, activeBranch, onQuickAdd }) => {
+  const [catalogGroup, setCatalogGroup] = useState('all');
+  const [catalogFamily, setCatalogFamily] = useState('all');
+  const [catalogSearch, setCatalogSearch] = useState('');
+
+  // Available Item Groups from products
+  const availableItemGroups = useMemo(() => {
+    const groups = new Set<string>();
+    products.forEach((p) => {
+      const g = p.itemGroup || p.department || p.category;
+      if (g && g.trim()) groups.add(g.trim());
+    });
+    return Array.from(groups);
+  }, [products]);
+
+  // Available Families based on selected Group
+  const availableFamilies = useMemo(() => {
+    const families = new Set<string>();
+    products.forEach((p) => {
+      const g = p.itemGroup || p.department || p.category;
+      if (catalogGroup === 'all' || g === catalogGroup) {
+        const f = p.familyName || p.classification;
+        if (f && f.trim()) families.add(f.trim());
+      }
+    });
+    return Array.from(families);
+  }, [products, catalogGroup]);
+
+  // Filtered Products for quick addition
+  const filteredCatalogProducts = useMemo(() => {
+    let result = products;
+
+    if (catalogGroup !== 'all') {
+      result = result.filter((p) => (p.itemGroup || p.department || p.category) === catalogGroup);
+    }
+    if (catalogFamily !== 'all') {
+      result = result.filter((p) => (p.familyName || p.classification) === catalogFamily);
+    }
+    if (catalogSearch.trim()) {
+      const q = catalogSearch.toLowerCase().trim();
+      result = result.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.code.toLowerCase().includes(q) ||
+          (p.unifiedCode && p.unifiedCode.toLowerCase().includes(q)) ||
+          (p.color && p.color.toLowerCase().includes(q))
+      );
+    }
+    return result.slice(0, 24);
+  }, [products, catalogGroup, catalogFamily, catalogSearch]);
+
+  return (
+    <div className="ord-card p-3.5 space-y-3 animate-in fade-in">
+      <div className="flex items-center justify-between">
+        <div className="font-black text-[var(--app-ink)] text-xs flex items-center gap-1.5">
+          <Search className="w-3.5 h-3.5 t-brass" />
+          <span>إضافة أصناف سريعة من الكتالوج</span>
+        </div>
+        <span className="text-[11px] t-muted">
+          متاح {products.length} صنف
+        </span>
+      </div>
+
+      {/* 3 Core Filters: 1. Item Group, 2. Family, 3. Code/Name Search */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {/* 1. Item Group */}
+        <div>
+          <label className="text-[10px] t-muted font-bold block mb-1">
+            1. المجموعة الرئيسية (Item Group):
+          </label>
+          <select
+            value={catalogGroup}
+            onChange={(e) => {
+              setCatalogGroup(e.target.value);
+              setCatalogFamily('all');
+            }}
+            className="w-full rounded-xl px-2.5 py-2 text-xs text-[var(--app-ink)]"
+          >
+            <option value="all">كافة المجموعات</option>
+            {availableItemGroups.map((g) => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* 2. Family / Category */}
+        <div>
+          <label className="text-[10px] t-muted font-bold block mb-1">
+            2. فئة / عائلة الأصناف:
+          </label>
+          <select
+            value={catalogFamily}
+            onChange={(e) => setCatalogFamily(e.target.value)}
+            className="w-full rounded-xl px-2.5 py-2 text-xs text-[var(--app-ink)]"
+          >
+            <option value="all">كافة العائلات</option>
+            {availableFamilies.map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* 3. Search by Code / Unified Code / Name */}
+        <div>
+          <label className="text-[10px] t-muted font-bold block mb-1">
+            3. البحث بالكود أو الاسم:
+          </label>
+          <CatalogSearchInput onSearch={setCatalogSearch} />
+        </div>
+      </div>
+
+      {/* Matching Products Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pt-1">
+        {filteredCatalogProducts.map((p) => {
+          const branchStock = getBranchStockForProduct(p, activeBranch);
+          const octoberStock = p.mainWarehouseActual || 0;
+          const pPromo = resolveProductPromotion(p, promotions);
+
+          return (
+            <div
+              key={p.id}
+              className={`p-3 bg-white dark:bg-slate-800/80 border rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-teal-400 transition ${
+                pPromo.hasPromo
+                  ? 'border-amber-300 bg-amber-50/30 dark:border-amber-700/60'
+                  : 'border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="font-bold text-slate-900 dark:text-white text-xs truncate" title={p.name}>
+                    {p.name}
+                  </div>
+                  {pPromo.hasPromo && (
+                    <span className="tg-special-discount-badge shrink-0">
+                      <Flame className="w-3 h-3" />
+                      خصم خاص -{pPromo.discountPercentage}%
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 text-[11px] mt-1 flex-wrap">
+                  <span className="font-mono text-amber-700 dark:text-amber-400 font-bold whitespace-nowrap">
+                    كود: {p.code}
+                  </span>
+                  {p.unifiedCode && (
+                    <span className="font-mono text-teal-700 dark:text-teal-300 font-black whitespace-nowrap">
+                      #{p.unifiedCode.replace('#', '')}
+                    </span>
+                  )}
+                  {pPromo.hasPromo ? (
+                    <span className="flex items-center gap-1 whitespace-nowrap font-bold">
+                      <span className="line-through text-slate-400 text-[10px]">
+                        {formatCurrency(pPromo.originalCartonPrice)}
+                      </span>
+                      <span className="text-emerald-700 dark:text-emerald-400 font-black">
+                        {formatCurrency(pPromo.promoCartonPrice)}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
+                      ({formatCurrency(
+                        p.piecePrice && p.piecePrice > 0
+                          ? Math.round(p.piecePrice * (p.cartonQuantity || 1) * 100) / 100
+                          : p.cartonPrice
+                      )})
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-slate-500 font-bold mt-1 flex items-center gap-2 whitespace-nowrap">
+                  <span>الفرع: <strong className={branchStock > 0 ? 'text-emerald-600 font-black' : 'text-slate-400'}>{branchStock} ك</strong></span>
+                  <span>•</span>
+                  <span>أكتوبر: <strong className="text-blue-600 font-black">{octoberStock} ك</strong></span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-1.5 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-700/60">
+                <button
+                  type="button"
+                  onClick={() => onQuickAdd(p, 1, 'carton')}
+                  className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-[#0f2b38] hover:bg-[#0D9488] text-white text-[11px] font-black transition cursor-pointer shadow-xs whitespace-nowrap text-center"
+                  title="إضافة 1 كرتونة"
+                >
+                  + كرتونة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onQuickAdd(p, 1, 'piece')}
+                  className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white text-[11px] font-bold transition cursor-pointer whitespace-nowrap text-center"
+                  title="إضافة 1 قطعة"
+                >
+                  + قطعة
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
 
 export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   isOpen,
@@ -138,9 +382,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
   // Quick Catalog Search & Add in Step 1
   const [isCatalogPickerOpen, setIsCatalogPickerOpen] = useState<boolean>(false);
-  const [catalogSearch, setCatalogSearch] = useState('');
-  const [catalogGroup, setCatalogGroup] = useState<string>('all');
-  const [catalogFamily, setCatalogFamily] = useState<string>('all');
+  // فلترات الكتالوج والبحث اتنقلت جوه CatalogQuickPicker (معزولة) عشان ما ترندرش المودال كله
 
   // Sync initialCustomer if prop changes
   useEffect(() => {
@@ -149,9 +391,16 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
     }
   }, [initialCustomer]);
 
+  // قائمة العملاء المرئية — memoized مرة واحدة بدل إنشاء مصفوفة جديدة في كل render
+  // (كانت بتتعمل inline داخل CustomerSearchSelect وبتخليه يعيد rendering بلا داعٍ)
+  const visibleCustomers = useMemo(
+    () => (getVisibleCustomers ? getVisibleCustomers() : customers),
+    [getVisibleCustomers, customers]
+  );
+
   // Filtered master customers for quick customer lookup
   const filteredCustomers = useMemo(() => {
-    const list = getVisibleCustomers ? getVisibleCustomers() : customers;
+    const list = visibleCustomers;
     if (!customerSearchQuery.trim()) return list.slice(0, 15);
     const q = customerSearchQuery.toLowerCase().trim();
     return list
@@ -164,53 +413,9 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
           (c.storeName && c.storeName.toLowerCase().includes(q))
       )
       .slice(0, 15);
-  }, [getVisibleCustomers, customers, customerSearchQuery]);
+  }, [visibleCustomers, customerSearchQuery]);
 
-  // Available Item Groups from products
-  const availableItemGroups = useMemo(() => {
-    const groups = new Set<string>();
-    products.forEach((p) => {
-      const g = p.itemGroup || p.department || p.category;
-      if (g && g.trim()) groups.add(g.trim());
-    });
-    return Array.from(groups);
-  }, [products]);
-
-  // Available Families based on selected Group
-  const availableFamilies = useMemo(() => {
-    const families = new Set<string>();
-    products.forEach((p) => {
-      const g = p.itemGroup || p.department || p.category;
-      if (catalogGroup === 'all' || g === catalogGroup) {
-        const f = p.familyName || p.classification;
-        if (f && f.trim()) families.add(f.trim());
-      }
-    });
-    return Array.from(families);
-  }, [products, catalogGroup]);
-
-  // Filtered Products for quick addition in Step 1
-  const filteredCatalogProducts = useMemo(() => {
-    let result = products;
-
-    if (catalogGroup !== 'all') {
-      result = result.filter((p) => (p.itemGroup || p.department || p.category) === catalogGroup);
-    }
-    if (catalogFamily !== 'all') {
-      result = result.filter((p) => (p.familyName || p.classification) === catalogFamily);
-    }
-    if (catalogSearch.trim()) {
-      const q = catalogSearch.toLowerCase().trim();
-      result = result.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.code.toLowerCase().includes(q) ||
-          (p.unifiedCode && p.unifiedCode.toLowerCase().includes(q)) ||
-          (p.color && p.color.toLowerCase().includes(q))
-      );
-    }
-    return result.slice(0, 24);
-  }, [products, catalogGroup, catalogFamily, catalogSearch]);
+  // Available Item Groups / Families / Filtered Products — اتنقلوا كلهم جوه CatalogQuickPicker
 
   // Cart summary calculation
   const summary = useMemo(() => {
@@ -317,6 +522,15 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       setTimeout(() => setFeedbackSuccess(null), 2000);
     }
   };
+
+  // مرجع ثابت للإضافة السريعة — عشان CatalogQuickPicker (memo) ما يعيدش رسم
+  // شبكة الكتالوج مع كل تحديث في السلة أو أي state تاني في المودال.
+  const quickAddRef = useRef(handleQuickAddProduct);
+  quickAddRef.current = handleQuickAddProduct;
+  const quickAddFromCatalog = useCallback(
+    (product: Product, count: number, orderType: 'carton' | 'piece') => quickAddRef.current(product, count, orderType),
+    []
+  );
 
   // Order Submission & Stock Reservation Handling
   const handleSubmitOrder = async () => {
@@ -436,7 +650,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in"
       dir="rtl"
     >
-      <div className="ord-shell border border-[var(--app-line)] rounded-3xl w-full max-w-4xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden">
+      <div className="modal-full-mobile ord-shell border border-[var(--app-line)] rounded-3xl w-full max-w-4xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden">
         
         {/* ================= HEADER & STEPPER BAR ================= */}
         <div className="shrink-0">
@@ -590,19 +804,19 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
             <div className="space-y-4">
               
               {/* Cart Summary Header Banner */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3.5 flex items-center justify-between flex-wrap gap-2 text-xs">
+              <div className="bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-2xl p-3.5 flex items-center justify-between flex-wrap gap-2 text-xs">
                 <div>
-                  <div className="font-black text-slate-900 text-sm flex items-center gap-2">
+                  <div className="font-black text-[var(--app-text)] text-sm flex items-center gap-2">
                     <ShoppingCart className="w-4 h-4 text-blue-600" />
                     <span>أصناف سلة الفاتورة ({cart.length} أصناف)</span>
                   </div>
-                  <div className="text-[11px] text-slate-500 font-bold mt-0.5">
-                    الكراتين: <strong className="text-slate-800">{summary.totalCartons}</strong> كرتونة • القطع: <strong className="text-slate-800">{summary.totalPieces}</strong> قطعة
+                  <div className="text-[11px] text-[var(--app-text-muted)] font-bold mt-0.5">
+                    الكراتين: <strong className="text-[var(--app-text)]">{summary.totalCartons}</strong> كرتونة • القطع: <strong className="text-[var(--app-text)]">{summary.totalPieces}</strong> قطعة
                   </div>
                 </div>
 
                 <div className="text-left">
-                  <div className="text-[11px] text-slate-500 font-bold">إجمالي الأصناف:</div>
+                  <div className="text-[11px] text-[var(--app-text-muted)] font-bold">إجمالي الأصناف:</div>
                   <div className="text-base sm:text-lg font-black text-blue-600 font-mono">
                     {formatCurrency(summary.grandTotal)}
                   </div>
@@ -816,167 +1030,22 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 </div>
               )}
 
-              {/* Quick Catalog Addition Dropdown / Panel */}
+              {/* Quick Catalog Addition Dropdown / Panel — معزول (memo) عشان ما يترندرش مع كل حرف أو إضافة للسلة */}
               {(isCatalogPickerOpen || cart.length === 0) && (
-                <div className="ord-card p-3.5 space-y-3 animate-in fade-in">
-                  <div className="flex items-center justify-between">
-                    <div className="font-black text-[var(--app-ink)] text-xs flex items-center gap-1.5">
-                      <Search className="w-3.5 h-3.5 t-brass" />
-                      <span>إضافة أصناف سريعة من الكتالوج</span>
-                    </div>
-                    <span className="text-[11px] t-muted">
-                      متاح {products.length} صنف
-                    </span>
-                  </div>
-
-                  {/* 3 Core Filters: 1. Item Group, 2. Family, 3. Code/Name Search */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    {/* 1. Item Group */}
-                    <div>
-                      <label className="text-[10px] t-muted font-bold block mb-1">
-                        1. المجموعة الرئيسية (Item Group):
-                      </label>
-                      <select
-                        value={catalogGroup}
-                        onChange={(e) => {
-                          setCatalogGroup(e.target.value);
-                          setCatalogFamily('all');
-                        }}
-                        className="w-full rounded-xl px-2.5 py-2 text-xs text-[var(--app-ink)]"
-                      >
-                        <option value="all">كافة المجموعات</option>
-                        {availableItemGroups.map((g) => (
-                          <option key={g} value={g}>{g}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* 2. Family / Category */}
-                    <div>
-                      <label className="text-[10px] t-muted font-bold block mb-1">
-                        2. فئة / عائلة الأصناف:
-                      </label>
-                      <select
-                        value={catalogFamily}
-                        onChange={(e) => setCatalogFamily(e.target.value)}
-                        className="w-full rounded-xl px-2.5 py-2 text-xs text-[var(--app-ink)]"
-                      >
-                        <option value="all">كافة العائلات</option>
-                        {availableFamilies.map((f) => (
-                          <option key={f} value={f}>{f}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* 3. Search by Code / Unified Code / Name */}
-                    <div>
-                      <label className="text-[10px] t-muted font-bold block mb-1">
-                        3. البحث بالكود أو الاسم:
-                      </label>
-                      <input
-                        type="text"
-                        value={catalogSearch}
-                        onChange={(e) => setCatalogSearch(e.target.value)}
-                        placeholder="كود الصنف أو الموحد..."
-                        className="w-full rounded-xl px-2.5 py-2 text-xs text-[var(--app-ink)] placeholder-custom"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Matching Products Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pt-1">
-                    {filteredCatalogProducts.map((p) => {
-                      const branchStock = getBranchStockForProduct(p, activeBranch);
-                      const octoberStock = p.mainWarehouseActual || 0;
-                      const pPromo = resolveProductPromotion(p, promotions);
-
-                      return (
-                        <div
-                          key={p.id}
-                          className={`p-3 bg-white dark:bg-slate-800/80 border rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-teal-400 transition ${
-                            pPromo.hasPromo
-                              ? 'border-amber-300 bg-amber-50/30 dark:border-amber-700/60'
-                              : 'border-slate-200 dark:border-slate-700'
-                          }`}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <div className="font-bold text-slate-900 dark:text-white text-xs truncate" title={p.name}>
-                                {p.name}
-                              </div>
-                              {pPromo.hasPromo && (
-                                <span className="tg-special-discount-badge shrink-0">
-                                  <Flame className="w-3 h-3" />
-                                  خصم خاص -{pPromo.discountPercentage}%
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 text-[11px] mt-1 flex-wrap">
-                              <span className="font-mono text-amber-700 dark:text-amber-400 font-bold whitespace-nowrap">
-                                كود: {p.code}
-                              </span>
-                              {p.unifiedCode && (
-                                <span className="font-mono text-teal-700 dark:text-teal-300 font-black whitespace-nowrap">
-                                  #{p.unifiedCode.replace('#', '')}
-                                </span>
-                              )}
-                              {pPromo.hasPromo ? (
-                                <span className="flex items-center gap-1 whitespace-nowrap font-bold">
-                                  <span className="line-through text-slate-400 text-[10px]">
-                                    {formatCurrency(pPromo.originalCartonPrice)}
-                                  </span>
-                                  <span className="text-emerald-700 dark:text-emerald-400 font-black">
-                                    {formatCurrency(pPromo.promoCartonPrice)}
-                                  </span>
-                                </span>
-                              ) : (
-                                <span className="text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
-                                  ({formatCurrency(
-                                    p.piecePrice && p.piecePrice > 0
-                                      ? Math.round(p.piecePrice * (p.cartonQuantity || 1) * 100) / 100
-                                      : p.cartonPrice
-                                  )})
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[10px] text-slate-500 font-bold mt-1 flex items-center gap-2 whitespace-nowrap">
-                              <span>الفرع: <strong className={branchStock > 0 ? 'text-emerald-600 font-black' : 'text-slate-400'}>{branchStock} ك</strong></span>
-                              <span>•</span>
-                              <span>أكتوبر: <strong className="text-blue-600 font-black">{octoberStock} ك</strong></span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-end gap-1.5 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-700/60">
-                            <button
-                              type="button"
-                              onClick={() => handleQuickAddProduct(p, 1, 'carton')}
-                              className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-[#0f2b38] hover:bg-[#0D9488] text-white text-[11px] font-black transition cursor-pointer shadow-xs whitespace-nowrap text-center"
-                              title="إضافة 1 كرتونة"
-                            >
-                              + كرتونة
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleQuickAddProduct(p, 1, 'piece')}
-                              className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white text-[11px] font-bold transition cursor-pointer whitespace-nowrap text-center"
-                              title="إضافة 1 قطعة"
-                            >
-                              + قطعة
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+                <CatalogQuickPicker
+                  products={products}
+                  promotions={promotions}
+                  activeBranch={activeBranch}
+                  onQuickAdd={quickAddFromCatalog}
+                />
               )}
 
               {/* Step 1 Bottom Action Bar */}
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-3 flex-wrap">
+              <div className="bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-3 flex-wrap">
                 <div>
-                  <div className="text-[11px] text-slate-500 font-bold">إجمالي الفاتورة:</div>
+                  <div className="text-[11px] text-[var(--app-text-muted)] font-bold">إجمالي الفاتورة:</div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <div className="text-base sm:text-lg font-black text-blue-700 font-mono">
+                    <div className="text-base sm:text-lg font-black text-[var(--app-primary-text)] font-mono">
                       {formatCurrency(summary.grandTotal)}
                     </div>
                     {promoSavingsSummary.totalSaved > 0 && (
@@ -1066,21 +1135,13 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
 
                 {/* Unified Customer Search */}
                 <CustomerSearchSelect
-                  customers={getVisibleCustomers ? getVisibleCustomers() : customers}
+                  customers={visibleCustomers}
                   valueId={activeCustomer?.id || null}
                   onSelect={(c) => handleSelectCustomer(c)}
                   onClear={() => setActiveCustomer(null)}
                   placeholder="ابحث بالاسم، كود العميل، أو الهاتف..."
                   label="بحث واختيار العميل"
                 />
-                <button
-                  type="button"
-                  onClick={handleSelectDirectCash}
-                  className="w-full p-2.5 text-right hover:bg-warn-soft transition flex items-center justify-between text-xs font-black t-warn cursor-pointer border border-[var(--app-line)] rounded-xl bg-white"
-                >
-                  <span>⚡ عميل نقدي كاش (مباشر)</span>
-                  <span className="app-badge warn text-[10px]">كاش</span>
-                </button>
               </div>
 
               {/* Active Selected Customer & Full Financial Position Card */}
@@ -1139,7 +1200,6 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                         {isCreditExceeded && (
                           <div>⚠️ الفاتورة تتجاوز الحد الائتماني! رصيد بعد الفاتورة: <strong>{formatCurrency(balAfter)}</strong> &gt; حد: <strong>{formatCurrency(creditLimitVal)}</strong></div>
                         )}
-                        <div className="text-[10px] opacity-80">المديونية الحالية: {formatCurrency(balBefore)} | قيمة الفاتورة: {formatCurrency(summary.grandTotal)} | بعد الفاتورة: {formatCurrency(balAfter)}</div>
                       </div>
                     </div>
                   )}
@@ -1162,11 +1222,14 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                       </div>
                     </div>
 
-                    {/* KPI 3: Credit Limit */}
+                    {/* KPI 3: Credit Limit (+ المتبقي منه كسطر صغير بدل كارت مستقل مكرر) */}
                     <div className="ord-card p-3 rounded-[var(--app-btn-radius)]">
                       <div className="text-[10px] t-muted font-bold">الحد الائتماني:</div>
                       <div className="dream-amt t-navy text-sm sm:text-base mt-0.5">
                         {creditLimitVal > 0 ? formatCurrency(creditLimitVal) : 'بدون سقف'}
+                      </div>
+                      <div className={`text-[9px] font-bold mt-0.5 ${isCreditExceeded ? 't-risk' : 't-ok'}`}>
+                        {creditLimitVal > 0 ? `المتبقي: ${formatCurrency(remainingCredit)}` : 'غير محدود'}
                       </div>
                     </div>
 
@@ -1177,28 +1240,18 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                         {formatCurrency(balAfter)}
                       </div>
                     </div>
-
-                    {/* KPI 5: Remaining Credit */}
-                    <div className={`ord-card p-3 rounded-[var(--app-btn-radius)] ${isCreditExceeded ? 'border-[var(--app-risk-line)] bg-[var(--app-risk-tint)]' : ''}`}>
-                      <div className={`text-[10px] font-bold ${isCreditExceeded ? 't-risk' : 't-ok'}`}>
-                        المتبقي من الحد الائتماني:
-                      </div>
-                      <div className={`dream-amt text-sm sm:text-base mt-0.5 ${isCreditExceeded ? 't-risk' : 't-ok'}`}>
-                        {creditLimitVal > 0 ? formatCurrency(remainingCredit) : 'غير محدود'}
-                      </div>
-                    </div>
                   </div>
 
                   {/* Payment Method (from customer data - read only) */}
                   <div className="ord-card p-3 rounded-[var(--app-btn-radius)]">
                     <div className="text-[10px] t-muted font-bold mb-2">طريقة السداد (من بيانات العميل):</div>
-                    <div className="flex items-center gap-2 border border-[var(--app-line)] rounded-[var(--app-btn-radius)] p-2 bg-white/50">
+                    <div className="flex items-center gap-2 border border-[var(--app-line)] rounded-[var(--app-btn-radius)] p-2 bg-[var(--app-card)]">
                       <span className={`text-xs font-bold ${effectivePaymentMethod === 'نقدي (كاش)' ? 't-ok' : 't-warn'}`}>
                         {effectivePaymentMethod === 'نقدي (كاش)' ? '💵' : '⏳'}
                       </span>
                       <span className="text-xs font-black">{effectivePaymentMethod}</span>
                       {activeCustomer && !activeCustomer.paymentTerms && (
-                        <span className="text-[10px] text-slate-400 ml-auto">(غير محدد - كافتراضي كاش)</span>
+                        <span className="text-[10px] text-[var(--app-text-muted)] ml-auto">(غير محدد - كافتراضي كاش)</span>
                       )}
                     </div>
                   </div>
@@ -1345,7 +1398,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   <label className="text-xs font-bold text-[var(--app-ink)] block mb-1.5">
                     طريقة السداد:
                   </label>
-                    <div className="p-2.5 rounded-[var(--app-btn-radius)] text-xs font-bold flex items-center gap-2 border border-[var(--app-line)] bg-white/50">
+                    <div className="p-2.5 rounded-[var(--app-btn-radius)] text-xs font-bold flex items-center gap-2 border border-[var(--app-line)] bg-[var(--app-card)]">
                       <span className={`text-xs font-bold ${effectivePaymentMethod === 'نقدي (كاش)' ? 't-ok' : 't-warn'}`}>
                         {effectivePaymentMethod === 'نقدي (كاش)' ? '💵' : '⏳'}
                       </span>
@@ -1358,7 +1411,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                   <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] rounded-[var(--app-btn-radius)] p-3 text-xs">
                     <div className="flex items-center gap-2 mb-1.5">
                       <AlertTriangle className="w-4 h-4 t-risk shrink-0" />
-                      <span className="font-black text-[var(--app-risk-text)]">تم تجاوز الحد الائتما��ي!</span>
+                      <span className="font-black text-[var(--app-risk-text)]">تم تجاوز الحد الائتماني!</span>
                     </div>
                     <div className="text-[10px] text-[var(--app-risk-text)] space-y-0.5">
                       <div>رصيد العميل الحالي: <strong>{formatCurrency(balBefore)}</strong></div>
@@ -1459,21 +1512,21 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       {showCreditOverrideModal && (
         <div className="fixed inset-0 z-60 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in">
           <div className="absolute inset-0" onClick={() => setShowCreditOverrideModal(false)} aria-hidden="true" />
-          <div className="relative z-10 bg-white rounded-[var(--app-radius)] border border-[var(--app-line)] shadow-2xl w-full max-w-md p-6 sm:p-8 animate-in mi-fade-in">
+          <div className="relative z-10 bg-[var(--app-card)] rounded-[var(--app-radius)] border border-[var(--app-border)] shadow-2xl w-full max-w-md p-6 sm:p-8 animate-in mi-fade-in">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)] flex items-center justify-center shrink-0">
                   <AlertTriangle className="w-5 h-5" />
                 </div>
                 <div>
                   <h3 className="font-black text-[var(--app-ink)] text-lg">طلب استثناء خاص من الإدارة</h3>
-                  <p className="text-xs text-slate-500">تجاوز الحد الائتماني للعميل</p>
+                  <p className="text-xs text-[var(--app-text-muted)]">تجاوز الحد الائتماني للعميل</p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setShowCreditOverrideModal(false)}
-                className="text-slate-400 hover:text-[var(--app-risk-text)] transition"
+                className="text-[var(--app-text-muted)] hover:text-[var(--app-risk-text)] transition"
                 aria-label="إغلاق"
               >
                 <X className="w-5 h-5" />
@@ -1508,7 +1561,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
               <button
                 type="button"
                 onClick={() => setShowCreditOverrideModal(false)}
-                className="flex-1 px-4 py-2.5 rounded-[var(--app-btn-radius)] text-xs font-bold text-slate-600 bg-slate-100 border border-slate-200 hover:bg-slate-200 transition cursor-pointer"
+                className="flex-1 px-4 py-2.5 rounded-[var(--app-btn-radius)] text-xs font-bold text-[var(--app-text)] bg-[var(--app-card-secondary)] border border-[var(--app-border)] hover:bg-[var(--app-card-hover)] transition cursor-pointer"
               >
                 إلغاء
               </button>
