@@ -20,7 +20,7 @@ export const DEFAULT_ROLE_TABS: PermissionDefaults = {
   branch_manager: ['home', 'catalog', 'offers', 'all_customers', 'customers', 'reps', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'users', 'guide'],
   supervisor: ['home', 'catalog', 'offers', 'all_customers', 'customers', 'reps', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'users'],
   sales_rep: ['home', 'catalog', 'offers', 'all_customers', 'customers', 'customer_item_sales', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory'],
-  legal_advisor: ['home'],
+  legal_advisor: ['home', 'legal_advisor'],
   warehouse_keeper: ['home', 'returns', 'inventory', 'catalog', 'offers', 'guide'],
 };
 
@@ -44,6 +44,7 @@ export const ALL_AVAILABLE_TABS: { id: string; label: string; icon?: string }[] 
   { id: 'guide', label: 'دليل النظام' },
   { id: 'permissions', label: 'الصلاحيات' },
   { id: 'audit_log', label: 'سجل التدقيق' },
+  { id: 'legal_advisor', label: 'الشؤون القانونية' },
 ];
 
 export async function getCustomPermissions(): Promise<UserPermissionOverride[]> {

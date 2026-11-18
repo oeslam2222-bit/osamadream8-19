@@ -576,6 +576,18 @@ export function fetchCustomersFromSupabase(
 const _lastScopedCustomerFullFallbackAt = new Map<string, number>();
 const SCOPED_CUSTOMER_FULL_FALLBACK_COOLDOWN_MS = 20 * 60 * 1000;
 
+/**
+ * قيم نعم/لا/متعامل مش ممكن تكون كود أو اسم عميل — صفوف قديمة اتسربت
+ * من شيت فيه عمود حالة اتربط بالغلط كعمود اسم. بننضفها عند التحميل
+ * عشان الكود/الاسم الاحتياطي يشتغل بدل ما «لا» تفضل عايشة في الداتا.
+ */
+const INVALID_CUSTOMER_IDENTITY_VALUES = new Set(['متعامل', 'غير متعامل', 'نعم', 'لا']);
+const sanitizeCustomerIdentity = (value?: string | null): string => {
+  const text = String(value ?? '').trim();
+  if (!text || INVALID_CUSTOMER_IDENTITY_VALUES.has(text)) return '';
+  return text;
+};
+
 async function fetchCustomersFromSupabaseImpl(
   scope?: CustomerFetchScope,
   options?: { updatedSince?: string }
@@ -646,8 +658,8 @@ async function fetchCustomersFromSupabaseImpl(
         const resolvedLng = c.longitude !== undefined && c.longitude !== null ? Number(c.longitude) : geoMeta?.lng;
         return {
           id: c.id || `cust-${idx + 1}`,
-          code: c.code || c.customer_code || `CUST-${1000 + idx + 1}`,
-          name: c.name || c.customer_name || 'عميل بدون اسم',
+          code: sanitizeCustomerIdentity(c.code) || sanitizeCustomerIdentity(c.customer_code) || `CUST-${1000 + idx + 1}`,
+          name: sanitizeCustomerIdentity(c.name) || sanitizeCustomerIdentity(c.customer_name) || 'عميل بدون اسم',
           storeName: c.store_name || c.storeName || c.name || '',
           phone: c.phone || c.mobile || '',
           address: c.address || c.region || c.city || '',

@@ -101,6 +101,7 @@ export const resolveProductFamily = (product?: Product | null): string => {
 export const buildProductFamilyLookup = (products: Product[]) => {
   const byCode = new Map<string, Product>();
   const byUnified = new Map<string, Product>();
+  const byName = new Map<string, Product>();
 
   const normalize = (raw?: string | null): string => {
     const text = String(raw ?? '').trim().toLowerCase();
@@ -112,8 +113,13 @@ export const buildProductFamilyLookup = (products: Product[]) => {
     if (!product) return;
     const code = normalize(product.code);
     const unified = normalize(product.unifiedCode);
+    const name = normalize(product.name);
     if (code && !byCode.has(code)) byCode.set(code, product);
     if (unified && !byUnified.has(unified)) byUnified.set(unified, product);
+    // فهرس بالاسم كمان: شيتات المبيعات كتير أكوادها مش متطابقة مع الكتالوج،
+    // فمطابقة اسم الصنف (بعد تطبيع المسافات والرموز) هي آخر وسيلة نجيب
+    // بيها العائلة بدل ما كل الصفوف تفضل «عام».
+    if (name && !byName.has(name)) byName.set(name, product);
   });
 
   const find = (record: CustomerItemSaleRecord): Product | undefined => {
@@ -121,10 +127,12 @@ export const buildProductFamilyLookup = (products: Product[]) => {
     if (unified && byUnified.has(unified)) return byUnified.get(unified);
     const code = normalize(record.itemCode);
     if (code && byCode.has(code)) return byCode.get(code);
+    const name = normalize(record.itemName);
+    if (name && byName.has(name)) return byName.get(name);
     return undefined;
   };
 
-  return { byCode, byUnified, find };
+  return { byCode, byUnified, byName, find };
 };
 
 /**

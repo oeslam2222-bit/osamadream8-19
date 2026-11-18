@@ -1145,7 +1145,8 @@ export async function fetchAndParseGoogleSheet(googleSheetUrlOrId: string): Prom
 }
 
 /**
- * Build Complete Invoice Excel Workbook (Executive Tax Layout with Structured Grid, RTL & Multi-tabs)
+ * بناء ملف Excel للفاتورة — شيت واحد نضيف فقط (أصناف الفاتورة + الإجمالي + الموقف المالي + تعليق المندوب).
+ * (التصدير الخاص بنظام الـ ERP له دالة منفصلة: exportInvoiceForERP)
  */
 export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
@@ -1161,451 +1162,262 @@ export function buildInvoiceExcelWorkbook(invoice: Invoice): XLSX.WorkBook {
 
   const resolvedCustomerCode = resolveSafeCustomerCode(invoice, matchedCustomer);
 
-  const titleRows = [
-    ['شركة دريم للتجارة والتوزيع - مجموعة الطنطاوي (TANTAWY GROUP)'],
-    ['فاتورة مبيعات إلكترونية معتمدة - إذن صرف واستلام بضاعة وموقف حساب العميل'],
-    [],
-    // Row 4: Invoice Meta
-    ['رقم الفاتورة:', invoice.invoiceNumber, '', 'تاريخ الإصدار:', invoice.date, '', 'وقت الإصدار:', invoice.time || '', '', 'طريقة السداد:', invoice.paymentMethod],
-    // Row 5: Customer Meta
-    ['اسم العميل / المحل:', invoice.customerName, '', 'كود العميل:', resolvedCustomerCode, '', 'هاتف العميل:', invoice.customerPhone || '---', '', 'الرقم الضريبي:', invoice.customerTaxNumber || '---'],
-    // Row 6: Organization Meta
-    ['الفرع المنفذ:', invoice.branchName, '', 'المندوب المسؤول:', invoice.repName, '', 'المشرف المعتمد:', invoice.supervisorName || '---', '', 'حالة الفاتورة:', invoice.status],
-    // Row 7: Warehouse Meta
-    ['مستودع الصرف:', invoice.items.some((it) => it.fulfilledFrom === 'main_warehouse') ? 'مخزن 6 أكتوبر المركزي + الفرع' : invoice.branchName, '', 'إجمالي الكراتين:', `${invoice.totalCartons} كرتونة`, '', 'إجمالي القطع:', `${invoice.totalPieces} قطعة`, '', 'النوع:', (invoice.isShortageInvoice || invoice.invoiceNumber?.endsWith('-NQ')) ? 'فاتورة نواقص (-NQ)' : 'فاتورة مبيعات'],
-    [],
-    // Row 9-10: Financial KPI Cards
-    ['الموقف المالي والائتماني للعميل:', '', '', '', '', '', '', '', '', '', '', '', '', ''],
-    [
-      'المديونية السابقة:',
-      debtBefore,
-      '',
-      'صافي الفاتورة الحالية:',
-      invoice.estimatedGrandTotal,
-      '',
-      'إجمالي المديونية بعد الفاتورة:',
-      debtAfter,
-      '',
-      'الحد الائتماني المعتمد:',
-      creditLimit,
-      '',
-      '',
-      ''
-    ],
-    [
-      'حالة الائتمان:',
-      isExceeded ? `⚠️ تجاوز الحد الائتماني (مطلوب دفعة نقدية: ${requiredDown.toLocaleString()} ج.م)` : '✅ الحساب سليم وضمن الحد الائتماني المعتمد',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-      ''
-    ],
-    []
-  ];
-
-  // Keep the export aligned with the in-app Excel Invoice Preview Modal.
-  const tableHeaders = [
-    'م',
-    'كود الصنف',
-    'الكود الموحد',
-    'اللون',
-    'اسم الصنف والبيان التفصيلي',
-    'شدة',
-    'كرتون',
-    'قطع',
-    'إجمالي القطع',
-    'سعر كرتونة',
-    'سعر قطعة',
-    'الإجمالي',
-    'الخصم',
-    'الصافي',
-    'مصدر الصرف'
-  ];
-
-  const itemRows = invoice.items.map((item, index) => {
-    const cartonQty = item.cartonQuantity || 1;
-    const cCount = item.cartonCount || 0;
-    const pCount = item.pieceCount || 0;
-    const totalPcs = item.totalUnits || (cCount * cartonQty + pCount);
-    const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round(((item.pricePerCarton || item.appliedPrice) / cartonQty) * 100) / 100 : 0);
-    const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
-    const cleanPCode = cleanProductCode(item.productCode);
-    const color = item.color || item.product?.color || '---';
-    const fulfillmentSource = item.fulfilledFrom === 'main_warehouse' ? 'مخزن 6 أكتوبر المركزي (نواقص)' : (invoice.branchName || 'مخزن الفرع');
-
-    return [
-      index + 1,
-      cleanPCode,
-      unified,
-      color,
-      item.productName,
-      cartonQty,
-      cCount,
-      pCount,
-      totalPcs,
-      item.appliedPrice,
-      pieceP,
-      item.totalBeforeTax,
-      item.discountAmount > 0 ? -item.discountAmount : 0,
-      item.netTotal,
-      fulfillmentSource
-    ];
-  });
-
-  const summaryRows = [
-    [],
-    ['', '', '', '', '', '', '', '', '', '', invoice.discountAmount > 0 ? 'إجمالي البضاعة قبل الخصم:' : 'إجمالي البضاعة:', '', invoice.subtotal, ''],
-    ...(invoice.discountAmount > 0
-      ? [['', '', '', '', '', '', '', '', '', '', `إجمالي الخصم التجاري (${invoice.discountPercentage}%):`, '', -invoice.discountAmount, '']]
-      : []),
-    ['', '', '', '', '', '', '', '', '', '', 'الإجمالي النهائي المطلوب سداده (الصافي):', '', invoice.estimatedGrandTotal, ''],
-    ['', '', '', '', '', '', '', '', '', '', 'المديونية السابقة للعميل:', '', debtBefore, ''],
-    ['', '', '', '', '', '', '', '', '', '', 'إجمالي مديونية العميل بعد الفاتورة:', '', debtAfter, ''],
-    ['', '', '', '', '', '', '', '', '', '', 'الحد الائتماني المعتمد للعميل:', '', creditLimit, ''],
-    ['', '', '', '', '', '', '', '', '', '', 'الدفعة النقدية المطلوب تحصيلها فوراً:', '', isExceeded ? requiredDown : 0, ''],
-    [],
-    ['ملاحظات الفاتورة والتسليم:', invoice.notes || 'بضاعة مستلمة كاملة وبحالة جيدة ومطابقة للمواصفات.'],
-    ['رسالة تقدير:', '✨ شكرًا لتعاملكم مع شركة دريم للتجارة والتوزيع - مجموعة الطنطاوي ❤️'],
-    [`خدمة العملاء والشكاوى: ${COMPANY_INFO.customerService}`, 'الإدارة العامة والمخازن المركزية: المنطقة الصناعية - 6 أكتوبر - الجيزة'],
-    [],
-    ['توقيع واستلام العميل / المحل:', '', 'مندوب التوزيع والتسليم:', '', 'أمين مخزن الصرف:', '', 'اعتماد الإدارة والحسابات:', ''],
-    ['....................................', '', `................ (${invoice.repName})`, '', '....................................', '', '....................................', '']
-  ];
-
-  const fullSheetData = [...titleRows, tableHeaders, ...itemRows, ...summaryRows];
-  const ws = XLSX.utils.aoa_to_sheet(fullSheetData);
-  const lastColumn = tableHeaders.length - 1;
-  const lastColumnLabel = XLSX.utils.encode_col(lastColumn);
-  const lastRow = fullSheetData.length - 1;
-
-  // Merged headers and executive layout
-  ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: lastColumn } },
-    { s: { r: 1, c: 0 }, e: { r: 1, c: lastColumn } },
-    { s: { r: 3, c: 1 }, e: { r: 3, c: 2 } },
-    { s: { r: 3, c: 4 }, e: { r: 3, c: 5 } },
-    { s: { r: 4, c: 1 }, e: { r: 4, c: 2 } },
-    { s: { r: 4, c: 4 }, e: { r: 4, c: 5 } },
-    { s: { r: 5, c: 1 }, e: { r: 5, c: 2 } },
-    { s: { r: 5, c: 4 }, e: { r: 5, c: 5 } },
-    { s: { r: 8, c: 0 }, e: { r: 8, c: lastColumn } },
-    { s: { r: 10, c: 1 }, e: { r: 10, c: lastColumn } },
-  ];
-  ws['!freeze'] = { xSplit: 0, ySplit: titleRows.length + 1 };
-  ws['!autofilter'] = { ref: `A${titleRows.length + 1}:${lastColumnLabel}${titleRows.length + 1 + itemRows.length}` };
-  ws['!sheetView'] = [{ rightToLeft: true }];
-  ws['!views'] = [{ RTL: true }];
-  ws['!rows'] = fullSheetData.map((_, rowIndex) => ({
-    hpt: rowIndex === 0 ? 34 : rowIndex === 1 ? 26 : rowIndex === titleRows.length ? 28 : 22,
-  }));
-
-  const applyRangeStyle = (range: string, style: Record<string, unknown>) => {
-    const decoded = XLSX.utils.decode_range(range);
-    for (let row = decoded.s.r; row <= decoded.e.r; row += 1) {
-      for (let col = decoded.s.c; col <= decoded.e.c; col += 1) {
-        const cell = ws[XLSX.utils.encode_cell({ r: row, c: col })];
-        if (cell) cell.s = { ...(cell.s || {}), ...style };
-      }
-    }
-  };
-
   const navy = '0F2942';
   const slateBlue = '1E3A5F';
   const gold = 'C88A2B';
   const paleGold = 'FEF3C7';
   const paleBlue = 'F8FAFC';
-  const softGreen = 'DCFCE7';
-  const borderColor = 'CBD5E1';
+  const zebra = 'EEF2F7';
+  const borderColor = 'B9C4D1';
+  const greenFill = 'DCFCE7';
+  const greenText = '166534';
+  const redFill = 'FEE2E2';
+  const redText = '991B1B';
 
-  const baseCellStyle = {
-    font: { name: 'Segoe UI', sz: 10, color: { rgb: '1E293B' } },
-    alignment: { vertical: 'center', wrapText: true },
-    border: {
-      top: { style: 'thin', color: { rgb: borderColor } },
-      bottom: { style: 'thin', color: { rgb: borderColor } },
-      left: { style: 'thin', color: { rgb: borderColor } },
-      right: { style: 'thin', color: { rgb: borderColor } },
-    },
+  const border = {
+    top: { style: 'thin', color: { rgb: borderColor } },
+    bottom: { style: 'thin', color: { rgb: borderColor } },
+    left: { style: 'thin', color: { rgb: borderColor } },
+    right: { style: 'thin', color: { rgb: borderColor } }
   };
 
-  applyRangeStyle(`A1:${lastColumnLabel}${lastRow + 1}`, baseCellStyle);
+  const statusText = isExceeded
+    ? '⚠ العميل تجاوز الحد الائتماني المعتمد — يلزم سداد دفعة نقدية قبل الصرف'
+    : '✔ الحساب سليم والمديونية داخل الحد الائتماني المعتمد';
 
-  // Row 1 & 2: Header Banners
-  applyRangeStyle(`A1:${lastColumnLabel}1`, {
-    font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 16 },
+  const lastColumn = 9;
+  const rows: any[][] = [];
+  const merges: XLSX.Range[] = [];
+  const rowStyles: Record<number, Array<Record<string, unknown>>> = {};
+
+  const mergeRow = (rowIdx: number, text: string, style: Record<string, unknown>) => {
+    const arr: any[] = [];
+    for (let c = 0; c <= lastColumn; c += 1) arr.push(c === 0 ? text : '');
+    rows.push(arr);
+    merges.push({ s: { r: rowIdx, c: 0 }, e: { r: rowIdx, c: lastColumn } });
+    rowStyles[rowIdx] = new Array(lastColumn + 1).fill(0).map(() => ({ ...style }));
+  };
+
+  // 1) البانر الرئيسي
+  mergeRow(rows.length, 'شركة دريم للتجارة والتوزيع - مجموعة الطنطاوي (TANTAWY GROUP)', {
+    font: { bold: true, sz: 16, color: { rgb: 'FFFFFF' } },
     fill: { fgColor: { rgb: navy } },
-    alignment: { horizontal: 'center', vertical: 'center' },
-    border: { bottom: { style: 'medium', color: { rgb: gold } } }
+    alignment: { horizontal: 'center', vertical: 'center' }
   });
-  applyRangeStyle(`A2:${lastColumnLabel}2`, {
-    font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+  // 2) سطر الفاتورة
+  mergeRow(rows.length, `فاتورة مبيعات إلكترونية معتمدة رقم: ${invoice.invoiceNumber} — ${invoice.date} ${invoice.time || ''}`, {
+    font: { bold: true, sz: 12, color: { rgb: 'FFFFFF' } },
     fill: { fgColor: { rgb: slateBlue } },
     alignment: { horizontal: 'center', vertical: 'center' }
   });
-
-  // Rows 4-7: Metadata Cards
-  applyRangeStyle(`A4:${lastColumnLabel}7`, {
-    fill: { fgColor: { rgb: 'F8FAFC' } },
-    font: { name: 'Segoe UI', sz: 10, color: { rgb: '1E293B' } }
-  });
-
-  // Row 9: Financial Section Title
-  applyRangeStyle(`A9:${lastColumnLabel}9`, {
-    font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
+  rows.push([]);
+  // 4) بيانات العميل
+  mergeRow(
+    rows.length,
+    `العميل: ${invoice.customerName}   |   كود العميل: ${resolvedCustomerCode}   |   الهاتف: ${invoice.customerPhone || '---'}`,
+    { font: { bold: true, sz: 11 }, fill: { fgColor: { rgb: paleBlue } }, alignment: { horizontal: 'right', vertical: 'center', wrapText: true } }
+  );
+  // 5) بيانات الفاتورة
+  mergeRow(
+    rows.length,
+    `الفرع: ${invoice.branchName}   |   المندوب: ${invoice.repName}   |   طريقة السداد: ${invoice.paymentMethod}`,
+    { font: { bold: true, sz: 11 }, fill: { fgColor: { rgb: paleBlue } }, alignment: { horizontal: 'center', vertical: 'center', wrapText: true } }
+  );
+  rows.push([]);
+  // 7) عنوان الموقف المالي
+  mergeRow(rows.length, 'الموقف المالي للعميل', {
+    font: { bold: true, sz: 12, color: { rgb: 'FFFFFF' } },
     fill: { fgColor: { rgb: navy } },
-    alignment: { horizontal: 'right', vertical: 'center' }
+    alignment: { horizontal: 'center', vertical: 'center' }
   });
 
-  // Row 10: Financial Values Row
-  applyRangeStyle(`A10:${lastColumnLabel}10`, {
-    fill: { fgColor: { rgb: 'F1F5F9' } },
-    font: { name: 'Segoe UI', bold: true, color: { rgb: '0F172A' }, sz: 10.5 }
-  });
-
-  // Row 11: Credit Status Banner
-  applyRangeStyle(`A11:${lastColumnLabel}11`, {
-    fill: { fgColor: { rgb: isExceeded ? paleGold : softGreen } },
-    font: { name: 'Segoe UI', bold: true, color: { rgb: isExceeded ? '92400E' : '166534' }, sz: 10.5 }
-  });
-
-  // Table Headers Row
-  applyRangeStyle(`A${titleRows.length + 1}:${lastColumnLabel}${titleRows.length + 1}`, {
-    font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 10.5 },
-    fill: { fgColor: { rgb: navy } },
-    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
-    border: { top: { style: 'medium', color: { rgb: gold } }, bottom: { style: 'medium', color: { rgb: gold } } }
-  });
-
-  // Zebra striping for item rows
-  for (let itemIndex = 0; itemIndex < itemRows.length; itemIndex += 1) {
-    if (itemIndex % 2 === 0) {
-      applyRangeStyle(`A${titleRows.length + 2 + itemIndex}:${lastColumnLabel}${titleRows.length + 2 + itemIndex}`, {
-        fill: { fgColor: { rgb: paleBlue } }
-      });
-    }
-  }
-
-  // Summary Rows Styling
-  const summaryStartRow = titleRows.length + 2 + itemRows.length;
-  applyRangeStyle(`K${summaryStartRow}:M${summaryStartRow + 7}`, {
-    alignment: { horizontal: 'right', vertical: 'center' },
-    font: { name: 'Segoe UI', bold: true, color: { rgb: '1E293B' } }
-  });
-
-  // Grand Total Highlight Row
-  const grandTotalRow = summaryStartRow + 3;
-  applyRangeStyle(`K${grandTotalRow}:M${grandTotalRow}`, {
+  const finLabelStyle = {
+    font: { bold: true, sz: 11, color: { rgb: slateBlue } },
     fill: { fgColor: { rgb: paleGold } },
-    font: { name: 'Segoe UI', bold: true, color: { rgb: '92400E' }, sz: 11.5 },
-    border: {
-      top: { style: 'thin', color: { rgb: gold } },
-      bottom: { style: 'double', color: { rgb: gold } },
-      left: { style: 'thin', color: { rgb: gold } },
-      right: { style: 'thin', color: { rgb: gold } }
-    }
+    alignment: { horizontal: 'right', vertical: 'center' },
+    border
+  };
+  const finValueStyle = {
+    font: { bold: true, sz: 11, color: { rgb: '1F2937' } },
+    fill: { fgColor: { rgb: 'FFFFFF' } },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border,
+    numFmt: '#,##0.00'
+  };
+  const finRowStyle = (label1: string, value1: number, label2: string, value2: number) => {
+    const idx = rows.length;
+    rows.push([label1, '', value1, label2, '', value2, '', '', '', '']);
+    merges.push({ s: { r: idx, c: 0 }, e: { r: idx, c: 1 } });
+    merges.push({ s: { r: idx, c: 3 }, e: { r: idx, c: 4 } });
+    merges.push({ s: { r: idx, c: 5 }, e: { r: idx, c: 6 } });
+    rowStyles[idx] = [
+      { ...finLabelStyle }, { ...finLabelStyle },
+      { ...finValueStyle },
+      { ...finLabelStyle }, { ...finLabelStyle },
+      { ...finValueStyle }, { ...finValueStyle },
+      { font: { sz: 11 }, fill: { fgColor: { rgb: 'FFFFFF' } } },
+      { font: { sz: 11 }, fill: { fgColor: { rgb: 'FFFFFF' } } },
+      { font: { sz: 11 }, fill: { fgColor: { rgb: 'FFFFFF' } } }
+    ];
+  };
+  finRowStyle('المديونية السابقة:', debtBefore, 'صافي هذه الفاتورة:', invoice.estimatedGrandTotal);
+  finRowStyle('المديونية بعد الفاتورة:', debtAfter, 'الحد الائتماني المعتمد:', creditLimit);
+  finRowStyle('الدفعة المطلوب تحصيلها فوراً:', isExceeded ? requiredDown : 0, 'عدد أصناف الفاتورة:', invoice.items.length);
+
+  // 11) شريط حالة الائتمان
+  mergeRow(rows.length, statusText, {
+    font: { bold: true, sz: 11, color: { rgb: isExceeded ? redText : greenText } },
+    fill: { fgColor: { rgb: isExceeded ? redFill : greenFill } },
+    alignment: { horizontal: 'center', vertical: 'center' }
+  });
+  rows.push([]);
+
+  // 13) رأس جدول الأصناف — الأعمدة: م، كود الصنف، الكود الموحد، اسم المنتج، كرتون، شدة، قطع، إجمالي القطع، سعر الكرتونة، الإجمالي النهائي
+  const tableHeaders = [
+    'م',
+    'كود الصنف',
+    'الكود الموحد',
+    'اسم المنتج',
+    'كرتون',
+    'شدة',
+    'قطع',
+    'إجمالي القطع',
+    'سعر الكرتونة',
+    'الإجمالي النهائي'
+  ];
+  const headerRowIdx = rows.length;
+  rows.push(tableHeaders);
+
+  const itemRowIdxs: number[] = [];
+  invoice.items.forEach((item, index) => {
+    const cartonQty = item.cartonQuantity || 1;
+    const cCount = item.cartonCount || 0;
+    const pCount = item.pieceCount || 0;
+    const totalPcs = item.totalUnits || item.totalPieces || cCount * cartonQty + pCount;
+    const netValue = item.netTotal ?? item.totalPrice ?? item.totalBeforeTax;
+    const row = [
+      index + 1,
+      cleanProductCode(item.productCode),
+      item.unifiedCode || (item.product as any)?.unifiedCode || '---',
+      item.productName,
+      cCount,
+      cartonQty,
+      pCount,
+      totalPcs,
+      item.appliedPrice || item.pricePerCarton,
+      netValue
+    ];
+    const zebraFill = index % 2 === 1 ? { fgColor: { rgb: zebra } } : { fgColor: { rgb: 'FFFFFF' } };
+    const styles = [
+      { alignment: { horizontal: 'center', vertical: 'center' }, border, font: { sz: 11 }, fill: zebraFill },
+      { alignment: { horizontal: 'center', vertical: 'center' }, border, font: { sz: 11 }, fill: zebraFill, numFmt: '@' },
+      { alignment: { horizontal: 'right', vertical: 'center' }, border, font: { sz: 11 }, fill: zebraFill },
+      { alignment: { horizontal: 'center', vertical: 'center' }, border, font: { sz: 11 }, fill: zebraFill, numFmt: '#,##0' },
+      { alignment: { horizontal: 'center', vertical: 'center' }, border, font: { sz: 11 }, fill: zebraFill, numFmt: '#,##0' },
+      { alignment: { horizontal: 'center', vertical: 'center' }, border, font: { sz: 11 }, fill: zebraFill, numFmt: '#,##0' },
+      { alignment: { horizontal: 'center', vertical: 'center' }, border, font: { sz: 11, bold: true }, fill: zebraFill, numFmt: '#,##0' },
+      { alignment: { horizontal: 'center', vertical: 'center' }, border, font: { sz: 11 }, fill: zebraFill, numFmt: '#,##0.00' },
+      { alignment: { horizontal: 'center', vertical: 'center' }, border, font: { sz: 11, bold: true }, fill: zebraFill, numFmt: '#,##0.00' }
+    ];
+    const idx = rows.length;
+    rows.push(row);
+    itemRowIdxs.push(idx);
+    rowStyles[idx] = styles;
   });
 
+  // ─── صفوف الإجمالي ───────────────────────────────────────────────
+  const totalRow = (label: string, value: number, highlight = false) => {
+    const idx = rows.length;
+    const arr: any[] = [];
+    for (let c = 0; c <= lastColumn; c += 1) arr.push(c === 8 ? label : c === 9 ? value : '');
+    rows.push(arr);
+    const fill = { fgColor: { rgb: highlight ? paleGold : paleBlue } };
+    rowStyles[idx] = new Array(lastColumn + 1).fill(0).map((_, c) => ({
+      font: { bold: true, sz: highlight ? 13 : 12, color: { rgb: highlight ? '7C4A03' : slateBlue } },
+      fill,
+      border,
+      alignment: { horizontal: c === 9 ? 'center' : 'right', vertical: 'center' },
+      numFmt: c === 9 ? '#,##0.00' : undefined
+    }));
+  };
+  rows.push([]);
+  totalRow(invoice.discountAmount > 0 ? 'إجمالي البضاعة قبل الخصم:' : 'إجمالي البضاعة:', invoice.subtotal);
+  if (invoice.discountAmount > 0) {
+    totalRow(`إجمالي الخصم التجاري (${invoice.discountPercentage}%):`, -invoice.discountAmount);
+  }
+  totalRow('الإجمالي النهائي المطلوب سداده (الصافي):', invoice.estimatedGrandTotal, true);
+  rows.push([]);
+
+  // ─── تعليق المندوب (التعليق) + الملاحظات ─────────────────────────
+  const commentRow = (label: string, value: string) => {
+    const idx = rows.length;
+    const arr: any[] = [];
+    for (let c = 0; c <= lastColumn; c += 1) arr.push(c === 0 ? label : c === 2 ? value : '');
+    rows.push(arr);
+    merges.push({ s: { r: idx, c: 0 }, e: { r: idx, c: 1 } });
+    merges.push({ s: { r: idx, c: 2 }, e: { r: idx, c: lastColumn } });
+    rowStyles[idx] = new Array(lastColumn + 1).fill(0).map((_, c) => ({
+      font: { sz: 11, bold: c <= 1, color: { rgb: c <= 1 ? slateBlue : '1F2937' } },
+      fill: { fgColor: { rgb: c <= 1 ? paleGold : 'FFFBEB' } },
+      border,
+      alignment: { horizontal: c <= 1 ? 'center' : 'right', vertical: 'center', wrapText: true }
+    }));
+  };
+  if (invoice.repComment && String(invoice.repComment).trim()) {
+    commentRow('تعليق المندوب:', String(invoice.repComment).trim());
+  }
+  commentRow('ملاحظات الفاتورة والتسليم:', invoice.notes || 'بضاعة مستلمة كاملة وبحالة جيدة ومطابقة للمواصفات.');
+  rows.push([]);
+
+  // ─── التذييل والتوقيعات ──────────────────────────────────────────
+  mergeRow(rows.length, '✨ شكرًا لتعاملكم مع شركة دريم للتجارة والتوزيع - مجموعة الطنطاوي ❤️', {
+    font: { bold: true, sz: 12, color: { rgb: 'FFFFFF' } },
+    fill: { fgColor: { rgb: gold } },
+    alignment: { horizontal: 'center', vertical: 'center' }
+  });
+  mergeRow(rows.length, `خدمة العملاء والشكاوى: ${COMPANY_INFO.customerService}   |   الإدارة العامة والمخازن المركزية: المنطقة الصناعية - 6 أكتوبر - الجيزة`, {
+    font: { sz: 10, color: { rgb: slateBlue } },
+    alignment: { horizontal: 'center', vertical: 'center' }
+  });
+  rows.push([]);
+  mergeRow(
+    rows.length,
+    `التوقيعات:   العميل / المحل ........................   |   المندوب ${invoice.repName} ........................   |   أمين المخزن ........................   |   اعتماد الإدارة ........................`,
+    { font: { sz: 10, color: { rgb: '475569' } }, alignment: { horizontal: 'center', vertical: 'center' } }
+  );
+
+  // ─── تجهيز الورقة ────────────────────────────────────────────────
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!merges'] = merges;
+  ws['!freeze'] = { xSplit: 0, ySplit: headerRowIdx + 1 };
+  ws['!autofilter'] = { ref: `A${headerRowIdx + 1}:${XLSX.utils.encode_col(lastColumn)}${itemRowIdxs[itemRowIdxs.length - 1] + 1}` };
+  ws['!sheetView'] = [{ rightToLeft: true }];
+  ws['!views'] = [{ RTL: true }];
   ws['!cols'] = [
     { wch: 6 },   // م
-    { wch: 15 },  // كود الصنف
-    { wch: 15 },  // الكود الموحد
-    { wch: 14 },  // اللون
-    { wch: 38 },  // اسم الصنف والبيان التفصيلي
-    { wch: 10 },  // شدة
+    { wch: 16 },  // كود الصنف
+    { wch: 14 },  // الكود الموحد
+    { wch: 40 },  // اسم المنتج
     { wch: 10 },  // كرتون
+    { wch: 10 },  // شدة
     { wch: 10 },  // قطع
-    { wch: 14 },  // إجمالي القطع
-    { wch: 14 },  // سعر كرتونة
-    { wch: 14 },  // سعر قطعة
-    { wch: 16 },  // الإجمالي
-    { wch: 14 },  // الخصم
-    { wch: 16 },  // الصافي
-    { wch: 22 }   // مصدر الصرف
+    { wch: 13 },  // إجمالي القطع
+    { wch: 15 },  // سعر كرتونة
+    { wch: 17 }   // الإجمالي النهائي
   ];
+  ws['!rows'] = rows.map((_, rowIndex) => ({
+    hpt: rowIndex === 0 ? 34 : rowIndex === headerRowIdx ? 30 : rowIndex >= itemRowIdxs[0] && rowIndex <= itemRowIdxs[itemRowIdxs.length - 1] ? 22 : 24
+  }));
 
-  XLSX.utils.book_append_sheet(wb, ws, `فاتورة_${invoice.invoiceNumber}`);
-
-  // Tab 2: ERP Accounting Table (Auto-included in the official workbook)
-  try {
-    const erpItemHeaders = [
-      'رقم الفاتورة',
-      'تاريخ الفاتورة',
-      'كود المندوب',
-      'اسم المندوب',
-      'اسم الفرع',
-      'كود العميل',
-      'اسم العميل',
-      'رقم هاتف العميل',
-      'كود الصنف',
-      'الكود الموحد (#)',
-      'اسم الصنف',
-      'اللون',
-      'شدة الكرتونة',
-      'عدد الكراتين',
-      'قطع فردية',
-      'إجمالي القطع',
-      'سعر الكرتونة',
-      'سعر القطعة',
-      'الإجمالي قبل الخصم',
-      'نسبة خصم الفاتورة %',
-      'قيمة الخصم للصنف',
-      'الصافي النهائي',
-      'مصدر الصرف',
-      'طريقة الدفع',
-      'حالة الفاتورة'
-    ];
-
-    const erpRows = invoice.items.map((item) => {
-      const cartonQty = item.cartonQuantity || 1;
-      const cCount = item.cartonCount || 0;
-      const pCount = item.pieceCount || 0;
-      const totalPcs = item.totalUnits || (cCount * cartonQty + pCount);
-      const pieceP = item.pricePerPiece || (cartonQty > 0 ? Math.round(((item.pricePerCarton || item.appliedPrice) / cartonQty) * 100) / 100 : 0);
-      const unified = item.unifiedCode || (item.product as any)?.unifiedCode || '---';
-      const color = item.color || item.product?.color || '---';
-
-      return [
-        invoice.invoiceNumber,
-        invoice.date,
-        invoice.repId || '',
-        invoice.repName,
-        invoice.branchName,
-        resolvedCustomerCode,
-        invoice.customerName,
-        invoice.customerPhone || '',
-        cleanProductCode(item.productCode),
-        unified,
-        item.productName,
-        color,
-        cartonQty,
-        cCount,
-        pCount,
-        totalPcs,
-        item.appliedPrice,
-        pieceP,
-        item.totalBeforeTax,
-        invoice.discountPercentage || 0,
-        item.discountAmount || 0,
-        item.netTotal,
-        item.fulfilledFrom === 'main_warehouse' ? 'مخزن مركزي - 6 أكتوبر' : invoice.branchName,
-        invoice.paymentMethod,
-        invoice.status
-      ];
+  Object.entries(rowStyles).forEach(([rowIdxStr, styles]) => {
+    const rowIdx = Number(rowIdxStr);
+    styles.forEach((style, col) => {
+      const cell = ws[XLSX.utils.encode_cell({ r: rowIdx, c: col })];
+      if (cell) cell.s = { ...(cell.s || {}), ...style };
     });
+  });
 
-    const wsErp = XLSX.utils.aoa_to_sheet([erpItemHeaders, ...erpRows]);
-    wsErp['!views'] = [{ RTL: true }];
-    wsErp['!sheetView'] = [{ rightToLeft: true }];
-    wsErp['!cols'] = [
-      { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 18 }, { wch: 22 },
-      { wch: 14 }, { wch: 25 }, { wch: 16 }, { wch: 14 }, { wch: 16 },
-      { wch: 32 }, { wch: 14 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 14 },
-      { wch: 14 }, { wch: 14 }, { wch: 16 }, { wch: 16 }, { wch: 16 },
-      { wch: 16 }, { wch: 24 }, { wch: 16 }, { wch: 18 }
-    ];
-
-    // Style Header & Cells for Tab 2
-    const erpRange = XLSX.utils.decode_range(wsErp['!ref'] || 'A1:X1');
-    for (let r = erpRange.s.r; r <= erpRange.e.r; r++) {
-      for (let c = erpRange.s.c; c <= erpRange.e.c; c++) {
-        const cell = wsErp[XLSX.utils.encode_cell({ r, c })];
-        if (!cell) continue;
-        if (r === 0) {
-          cell.s = {
-            font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 10 },
-            fill: { fgColor: { rgb: navy } },
-            alignment: { horizontal: 'center', vertical: 'center' },
-            border: { bottom: { style: 'medium', color: { rgb: gold } } }
-          };
-        } else {
-          cell.s = {
-            font: { name: 'Segoe UI', sz: 9.5, color: { rgb: '1E293B' } },
-            fill: r % 2 === 0 ? { fgColor: { rgb: paleBlue } } : undefined,
-            alignment: { vertical: 'center' },
-            border: {
-              top: { style: 'thin', color: { rgb: borderColor } },
-              bottom: { style: 'thin', color: { rgb: borderColor } },
-              left: { style: 'thin', color: { rgb: borderColor } },
-              right: { style: 'thin', color: { rgb: borderColor } }
-            }
-          };
-        }
-      }
-    }
-
-    XLSX.utils.book_append_sheet(wb, wsErp, 'بيانات_السيستم_ERP');
-
-    // Tab 3: Customer Credit & Statement Audit
-    const creditHeaders = [
-      ['شركة دريم للتجارة والتوزيع - كشف الحساب والائتمان المعتمد'],
-      [`العميل: ${invoice.customerName} (كود: ${resolvedCustomerCode})`],
-      [],
-      ['البيان المالي', 'المبلغ (ج.م)', 'ملاحظات وتدقيق الحساب'],
-      ['المديونية السابقة قبل الفاتورة', debtBefore, 'رصيد سابق مسجل بالسيستم'],
-      ['قيمة فاتورة المبيعات الحالية', invoice.estimatedGrandTotal, `فاتورة رقم ${invoice.invoiceNumber}`],
-      ['إجمالي المديونية بعد الفاتورة', debtAfter, 'الرصيد التراكمي النهائي المطلوب سداده'],
-      ['الحد الائتماني المعتمد للعميل', creditLimit, 'السقف المالي الائتماني المصرح به'],
-      ['موقف الائتمان', isExceeded ? '⚠️ تجاوز الحد الائتماني' : '✅ ضمن الحد المسموح', isExceeded ? `دفعة نقدية مطلوبة: ${requiredDown.toLocaleString()} ج.م` : 'حساب سليم ومطابق للشروط'],
-      [],
-      ['مندوب التسليم:', invoice.repName, 'تاريخ وتوقيت الإصدار:', `${invoice.date} ${invoice.time || ''}`]
-    ];
-    const wsCredit = XLSX.utils.aoa_to_sheet(creditHeaders);
-    wsCredit['!views'] = [{ RTL: true }];
-    wsCredit['!sheetView'] = [{ rightToLeft: true }];
-    wsCredit['!cols'] = [{ wch: 32 }, { wch: 20 }, { wch: 38 }];
-
-    // Style Tab 3
-    const creditRange = XLSX.utils.decode_range(wsCredit['!ref'] || 'A1:C11');
-    for (let r = creditRange.s.r; r <= creditRange.e.r; r++) {
-      for (let c = creditRange.s.c; c <= creditRange.e.c; c++) {
-        const cell = wsCredit[XLSX.utils.encode_cell({ r, c })];
-        if (!cell) continue;
-        if (r === 0) {
-          cell.s = {
-            font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 14 },
-            fill: { fgColor: { rgb: navy } },
-            alignment: { horizontal: 'center', vertical: 'center' }
-          };
-        } else if (r === 1) {
-          cell.s = {
-            font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 11 },
-            fill: { fgColor: { rgb: slateBlue } },
-            alignment: { horizontal: 'center', vertical: 'center' }
-          };
-        } else if (r === 3) {
-          cell.s = {
-            font: { name: 'Segoe UI', bold: true, color: { rgb: 'FFFFFF' }, sz: 10.5 },
-            fill: { fgColor: { rgb: navy } },
-            alignment: { horizontal: 'center', vertical: 'center' }
-          };
-        } else if (r >= 4 && r <= 8) {
-          cell.s = {
-            font: { name: 'Segoe UI', sz: 10, bold: r === 6 || r === 8, color: { rgb: '0F172A' } },
-            fill: r === 8 ? { fgColor: { rgb: isExceeded ? paleGold : softGreen } } : (r % 2 === 0 ? { fgColor: { rgb: paleBlue } } : undefined),
-            alignment: { vertical: 'center' },
-            border: {
-              top: { style: 'thin', color: { rgb: borderColor } },
-              bottom: { style: 'thin', color: { rgb: borderColor } },
-              left: { style: 'thin', color: { rgb: borderColor } },
-              right: { style: 'thin', color: { rgb: borderColor } }
-            }
-          };
-        }
-      }
-    }
-
-    XLSX.utils.book_append_sheet(wb, wsCredit, 'موقف_الائتمان_والحساب');
-  } catch (err) {
-    console.warn('Failed to append auxiliary tabs to workbook, standard sheet preserved:', err);
-  }
+  XLSX.utils.book_append_sheet(wb, ws, 'فاتورة_مبيعات');
 
   return wb;
 }
@@ -2547,7 +2359,10 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const invalidImportedNames = new Set(['متعامل', 'غير متعامل', 'نعم', 'لا']);
     const resolvedImportedName = invalidImportedNames.has(cleanName) ? '' : cleanName;
 
-    const assignedCode = rawCode || `CUST-${1000 + parsedCustomersList.length + 1}`;
+    const assignedCode =
+      rawCode && !invalidImportedNames.has(rawCode.trim())
+        ? rawCode
+        : `CUST-${1000 + parsedCustomersList.length + 1}`;
     const safeCustId = `cust_r${r + 1}_${cleanCode ? cleanCode.replace(/[^a-zA-Z0-9_-]/g, '_') : 'cust'}_${1000 + parsedCustomersList.length + 1}`;
 
     // Parse credit limit and current balance / debt

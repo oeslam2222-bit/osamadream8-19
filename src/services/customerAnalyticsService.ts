@@ -526,6 +526,14 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
 
   const dataStartRow = hasSubHeaders ? headerRowIdx + 2 : headerRowIdx + 1;
 
+  // قيم نعم/لا/متعامل مش ممكن تكون كود أو اسم عميل — لو عمود الحالة
+  // اتربط بالغلط بناخدها منهم ونسيبها فاضية عشان الكود/الاسم الاحتياطي.
+  const INVALID_IDENTITY_VALUES = new Set(['متعامل', 'غير متعامل', 'نعم', 'لا']);
+  const cleanIdentityValue = (value: string): string => {
+    const text = String(value ?? '').trim();
+    return INVALID_IDENTITY_VALUES.has(text) ? '' : text;
+  };
+
   // Col indices
   const colMap = {
     code: -1,
@@ -599,9 +607,15 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     ) {
       colMap.code = idx;
     }
-    // 2. Name
+    // 2. Name — عمود الاسم المخصص فقط. الهيدر المركب زي
+    //    «اسم العميل / متعامل 2026» أو عمود الحالة (متعامل/لا) مينفعش
+    //    يتاخد اسم عميل، وإلا قيمة «لا» بتتحفظ كاسم العميل.
     else if (
       colMap.name === -1 &&
+      !h.includes('متعامل') &&
+      !h.includes('dealt') &&
+      !h.includes('status') &&
+      !h.includes('حالة') &&
       (h.includes('account name') ||
         h.includes('customer name') ||
         h.includes('اسم العميل') ||
@@ -857,8 +871,8 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
 
     processedRows++;
 
-    const rawCode = getCellStr(row, colMap.code);
-    const rawName = getCellStr(row, colMap.name);
+    const rawCode = cleanIdentityValue(getCellStr(row, colMap.code));
+    const rawName = cleanIdentityValue(getCellStr(row, colMap.name));
     const rawPhone = getCellStr(row, colMap.phone);
     const rawAddress = getCellStr(row, colMap.address);
     const rawRegion = getCellStr(row, colMap.region);
