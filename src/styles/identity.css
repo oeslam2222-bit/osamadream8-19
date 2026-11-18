@@ -50,11 +50,17 @@
   color-scheme: light;
 }
 
-/* تثبيت الوضع الفاتح نهائيًا — مفيش تبديل نهاري/ليلي */
-html,
-html.dark {
-  color-scheme: light !important;
+/* الفاتح افتراضيًا، ولما الوضع الليلي يتفعّل (كلاس .dark على <html>)
+   بنقول للمتصفح إن الصفحة غامقة — ده بيضبط الـ autofill ومربعات
+   الاختيار والسكرول بار بدل ما تترسم بألوان فاتحة على خلفية غامقة. */
+html {
+  color-scheme: light;
   background-color: var(--tg-page);
+}
+
+html.dark {
+  color-scheme: dark;
+  background-color: #0b1220;
 }
 
 html,
@@ -1918,6 +1924,106 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
   font-weight: 600;
   color: #94a3b8;
   line-height: 1.75;
+}
+
+/* ---------- الوضع الليلي لصفحة الدخول ----------
+   بدون التعديلات دي، قاعدة `.dark main` العامة بتلوّن لوحة الدخول
+   بخلفية غامقة بينما النصوص (العنوان/الليبلات/الوصف) بتفضل بألوانها
+   الكحلية الغامقة — فيبقى النص الغامق على خلفية غامقة. هنا كل عنصر
+   بيحصل على لون صريح مناسب للوضع الليلي. */
+html.dark .tg-login__inner {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 40px 90px rgba(0, 0, 0, 0.55);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+html.dark .tg-login__panel {
+  background: linear-gradient(180deg, #111c2e 0%, #0e1726 100%);
+}
+
+html.dark .tg-login__title {
+  color: #f1f5f9;
+}
+
+html.dark .tg-login__hint {
+  color: #94a3b8;
+}
+
+html.dark .tg-login__pill {
+  background: rgba(37, 99, 235, 0.16);
+  border-color: rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
+}
+
+html.dark .tg-login__error {
+  background: rgba(244, 63, 94, 0.14);
+  border-color: rgba(244, 63, 94, 0.35);
+  color: #fda4af;
+}
+
+html.dark .tg-login__label {
+  color: #cbd5e1;
+}
+
+/* !important هنا عشان قاعدة `.dark input` العامة في index.css بتستخدم
+   !important وبتغلب أي لون عادي على مستوى الصفحة كلها. */
+html.dark .tg-login__input {
+  background-color: #0f1827 !important;
+  border-color: #22344d;
+  color: #f8fafc !important;
+}
+
+html.dark .tg-login__input::placeholder {
+  color: #64748b !important;
+}
+
+html.dark .tg-login__input:hover {
+  border-color: #2f4a6b !important;
+}
+
+html.dark .tg-login__input:focus {
+  border-color: #3b82f6 !important;
+  background-color: #0f1827 !important;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.25);
+}
+
+html.dark .tg-login__input-icon {
+  color: #64748b;
+}
+
+html.dark .tg-login__eye:hover {
+  color: #60a5fa;
+  background: rgba(59, 130, 246, 0.12);
+}
+
+html.dark .tg-login__remember {
+  color: #94a3b8;
+}
+
+html.dark .tg-login__note {
+  border-top-color: #22344d;
+  color: #8ba0b8;
+}
+
+/* إصلاح الـ autofill: المتصفح بيرسم النص المحفوظ (اسم المستخدم/الباسورد)
+   بلون أسود مزرق غامق — فبناخد التحكم في لون النص والخلفية بنفسنا
+   في الوضعين. */
+.tg-login__input:-webkit-autofill,
+.tg-login__input:-webkit-autofill:hover,
+.tg-login__input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #0b2337;
+  caret-color: #0b2337;
+  -webkit-box-shadow: 0 0 0 1000px #f7fafd inset;
+  transition: background-color 99999s ease-in-out 0s;
+}
+
+html.dark .tg-login__input:-webkit-autofill,
+html.dark .tg-login__input:-webkit-autofill:hover,
+html.dark .tg-login__input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #f8fafc !important;
+  caret-color: #f8fafc;
+  -webkit-box-shadow: 0 0 0 1000px #0f1827 inset !important;
+  transition: background-color 99999s ease-in-out 0s;
 }
 
 /* تابلت وموبايل */

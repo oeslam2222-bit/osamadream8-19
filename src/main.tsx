@@ -92,10 +92,20 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
             window.location.reload();
           });
 
-          registration.update().catch(() => {});
+          // تقليل الـ egress: sw.js مضبوط no-cache، فكل استدعاء update() بينزّل
+          // الملف من السيرفر. بنخنقه لمرّة كل 15 دقيقة كحد أقصى بدل كل رجوع للتاب.
+          const SW_UPDATE_COOLDOWN_MS = 15 * 60 * 1000;
+          let lastSwUpdateCheck = 0;
+          const maybeUpdateSw = () => {
+            const now = Date.now();
+            if (now - lastSwUpdateCheck < SW_UPDATE_COOLDOWN_MS) return;
+            lastSwUpdateCheck = now;
+            registration.update().catch(() => {});
+          };
+          maybeUpdateSw();
           document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
-              registration.update().catch(() => {});
+              maybeUpdateSw();
             }
           });
         })

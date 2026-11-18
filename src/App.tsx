@@ -8,14 +8,17 @@ import {
   Package,
   Plus,
   Receipt,
+  RefreshCw,
   Server,
   ShieldCheck,
   ShoppingCart,
+  UploadCloud,
   Users,
   Wifi,
   WifiOff
 } from 'lucide-react';
 import { Onboarding } from "./components/Onboarding";
+import { SyncStatusCenter } from './components/SyncStatusCenter';
 import { SplashScreen } from "./components/SplashScreen";
 import { ToastProvider } from "./components/ui/Toast";
 import React, { Component, ErrorInfo, Suspense, useEffect, useMemo, useState } from 'react';
@@ -36,12 +39,12 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
     'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
     'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers',
-    'excel', 'users', 'guide', 'permissions', 'audit_log'
+    'excel', 'users', 'guide', 'permissions', 'audit_log', 'legal_advisor'
   ],
   admin: [
     'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
     'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers',
-    'excel', 'users', 'guide', 'permissions', 'audit_log'
+    'excel', 'users', 'guide', 'permissions', 'audit_log', 'legal_advisor'
   ],
   branch_manager: [
     'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
@@ -133,7 +136,7 @@ const MainLayout: React.FC = () => {
       return true;
     }
   });
-  const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder } = useApp();
+  const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder, pendingInvoicesCount, flushPendingInvoices } = useApp();
 
   const [activeTab, setActiveTab] = useState<string>('home');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
@@ -149,6 +152,22 @@ const MainLayout: React.FC = () => {
 
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
   const [globalSearchSeq, setGlobalSearchSeq] = useState(0);
+  /** جاري رفع الفواتير المعلقة (اللي اتحفظت أوفلاين) يدويًا من شريط الحالة */
+  const [manualSyncRunning, setManualSyncRunning] = useState(false);
+  /** مركز حالة المزامنة — تفاصيل الطابور المعلق والمزامنة اليدوية */
+  const [syncCenterOpen, setSyncCenterOpen] = useState(false);
+
+  const handleManualFlush = async () => {
+    if (manualSyncRunning || pendingInvoicesCount === 0) return;
+    setManualSyncRunning(true);
+    try {
+      await flushPendingInvoices();
+    } catch {
+      // الخطأ بيتسجل جوه الدالة نفسها — هنا مجرد مؤشر واجهة
+    } finally {
+      setManualSyncRunning(false);
+    }
+  };
 
   const [customPermissionOverrides, setCustomPermissionOverrides] = useState<UserPermissionOverride[]>([]);
 
@@ -279,13 +298,59 @@ const MainLayout: React.FC = () => {
         }}
       />
       
-      {/* Offline Status Top Bar if offline */}
-      {isOffline && (
-        <div className="bg-[var(--app-warn)] text-white text-xs py-1.5 px-4 text-center font-bold flex items-center justify-center gap-2 shadow-inner">
-          <WifiOff className="w-3.5 h-3.5" />
-          <span>أنت تعمل حالياً في وضع عدم الاتصال (Offline) - يتم حفظ الفواتير محلياً والربط تلقائياً فور عودة الشبكة</span>
+      {/* شريط حالة الاتصال والمزامنة — أوفلاين أو فيه فواتير معلّقة في انتظار الرفع */}
+      {(isOffline || pendingInvoicesCount > 0) && (
+        <div
+          className={`text-white text-xs py-1.5 px-3 sm:px-4 font-bold flex items-center justify-center gap-2 shadow-inner flex-wrap text-center ${
+            isOffline ? 'bg-[var(--app-warn)]' : 'bg-[var(--app-ok)]'
+          }`}
+          role="status"
+        >
+          {isOffline ? <WifiOff className="w-3.5 h-3.5 shrink-0" /> : <Wifi className="w-3.5 h-3.5 shrink-0" />}
+          {isOffline && (
+            <span>وضع عدم الاتصال — البيانات محفوظة محليًا وترتفع تلقائيًا عند عودة الشبكة</span>
+          )}
+          {pendingInvoicesCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setSyncCenterOpen(true)}
+              className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-black cursor-pointer hover:bg-white/30 transition"
+            >
+              {pendingInvoicesCount.toLocaleString('ar-EG')} في انتظار الرفع
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setSyncCenterOpen(true)}
+            className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-black cursor-pointer hover:bg-white/25 transition"
+          >
+            مركز المزامنة
+          </button>
+          {!isOffline && pendingInvoicesCount > 0 && (
+            <button
+              type="button"
+              onClick={handleManualFlush}
+              disabled={manualSyncRunning}
+              className="inline-flex items-center gap-1 rounded-full bg-white text-[var(--app-ok-text)] px-2.5 py-0.5 text-[11px] font-black cursor-pointer disabled:opacity-60 hover:opacity-90 transition"
+            >
+              {manualSyncRunning ? (
+                <>
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  جاري الرفع...
+                </>
+              ) : (
+                <>
+                  <UploadCloud className="w-3 h-3" />
+                  ارفع دلوقتي
+                </>
+              )}
+            </button>
+          )}
         </div>
       )}
+
+      {/* مركز حالة المزامنة — تفاصيل الطابور المعلق والمزامنة اليدوية */}
+      <SyncStatusCenter isOpen={syncCenterOpen} onClose={() => setSyncCenterOpen(false)} />
 
       {/* Main Responsive Navbar — هوية واحدة ثابتة لكل الصفحات */}
       <Navbar

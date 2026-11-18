@@ -152,6 +152,55 @@
   --app-navy-text: #94A3B8;
 }
 
+/* ============================================================
+   ورق الفاتورة الرسمية (--einv-*) — مودال عرض الفاتورة الإلكترونية
+   يبقى شكل "ورق" للطباعة، لكنه يتحول تلقائيًا لألوان الوضع الليلي
+   داخل التطبيق، ويرجع ورقيًا أبيض بالكامل عند الطباعة (@media print).
+   ============================================================ */
+:root {
+  --einv-paper: #FFFFFF;
+  --einv-card: #F8FAFC;
+  --einv-chip: #F1F5F9;
+  --einv-line: #E2E8F0;
+  --einv-ink: #0F172A;
+  --einv-ink-strong: #020617;
+  --einv-muted: #475569;
+  --einv-soft: #94A3B8;
+  --einv-warn-tint: #FFFBEB;
+  --einv-warn-line: #FDE68A;
+  --einv-warn-text: #B45309;
+}
+
+.dark {
+  --einv-paper: #153847;
+  --einv-card: #0A1E27;
+  --einv-chip: #1A4658;
+  --einv-line: #1E4D63;
+  --einv-ink: #F1F5F9;
+  --einv-ink-strong: #FFFFFF;
+  --einv-muted: #CBD5E1;
+  --einv-soft: #94A3B8;
+  --einv-warn-tint: rgba(251, 191, 36, 0.16);
+  --einv-warn-line: rgba(251, 191, 36, 0.32);
+  --einv-warn-text: #FDE047;
+}
+
+@media print {
+  .dark {
+    --einv-paper: #FFFFFF;
+    --einv-card: #F8FAFC;
+    --einv-chip: #F1F5F9;
+    --einv-line: #E2E8F0;
+    --einv-ink: #0F172A;
+    --einv-ink-strong: #020617;
+    --einv-muted: #475569;
+    --einv-soft: #94A3B8;
+    --einv-warn-tint: #FFFBEB;
+    --einv-warn-line: #FDE68A;
+    --einv-warn-text: #B45309;
+  }
+}
+
 /* Global Root Styling */
 html {
   background-color: var(--app-bg);

@@ -289,6 +289,13 @@ export { productIdentityKey, normalizeProductCodeKey, normalizeVariantCodeKey, d
 
 export const sanitizeCustomers = (list: Customer[]): Customer[] => {
   if (!Array.isArray(list)) return [];
+  // قيم نعم/لا/متعامل مش كود أو اسم عميل صالح — عمود حالة اتربط بالغلط
+  // في شيت قديم واتحفظ كذا، فبننضفها هنا عشان ماترجعش تظهر في الواجهة.
+  const invalidIdentity = new Set(['متعامل', 'غير متعامل', 'نعم', 'لا']);
+  const cleanIdentity = (value?: string | null): string => {
+    const text = String(value ?? '').trim();
+    return invalidIdentity.has(text) ? '' : text;
+  };
   // Strictly filter out any Excel summary / total rows ("الإجمالي", "المجموع", etc.)
   // so they never inflate company collections by 10 million!
   const cleanRows = list.filter((c) => {
@@ -362,7 +369,7 @@ export const sanitizeCustomers = (list: Customer[]): Customer[] => {
     return {
       ...c,
       id: c.id || `cust_row_${idx + 1}_${(c.code || '').replace(/[^a-zA-Z0-9_-]/g, '_')}`,
-      name: c.name || `عميل ${c.code || idx + 1}`,
+      name: cleanIdentity(c.name) || `عميل ${c.code || idx + 1}`,
       branchName: resolvedBranch || c.branchName || '',
       currentBalance: fin.balance,
       balance: fin.balance,
