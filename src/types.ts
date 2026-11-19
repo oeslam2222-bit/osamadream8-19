@@ -1002,6 +1002,7 @@ export interface CustomerItemSaleRecord {
   quantity: number;             // Quantity (الكمية المباعة)
   amount: number;               // Amount (القيمة الإجمالية الصافية)
   itemGroup: string;            // Item group (مجموعة الصنف)
+  brand?: string;               // العلامة التجارية / الصنف الرئيسي (اختياري)
   definitions?: string;         // التعريفات (Definitions)
   familyDimension: string;      // Family Dimension (عائلة الصنف / التصنيف)
   sector?: 'home' | 'electrical' | 'both'; // القطاع (منزلي / كهربائي) من عمود القطاع في الشيت

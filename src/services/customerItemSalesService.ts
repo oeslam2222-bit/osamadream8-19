@@ -1,6 +1,7 @@
 ﻿import * as XLSX from 'xlsx-js-style';
 import { Customer, CustomerItemSaleRecord, CustomerItemSalesSummary, Product, User } from '../types';
 import {
+  buildGoogleSheetsPublicCsvUrl,
   doesCustomerBelongToBranch,
   doesCustomerBelongToRep,
   doesCustomerBelongToSupervisor,
@@ -15,7 +16,6 @@ import {
   looksLikeItemCode,
   resolveProductFamily
 } from './itemSalesAnalytics';
-import { buildGoogleSheetsPublicCsvUrl } from './productCodeUtils';
 import { decodeBufferSmart, parseExcelOrCsvBuffer } from './encodingService';
 import { idbGet, idbSet, idbDelete } from './storageService';
 import { supabase } from './supabaseService';
@@ -487,6 +487,60 @@ export function parseSalesSectorValue(rawValue: any): 'home' | 'electrical' | 'b
   if (compact.includes('كهرب') || compact.includes('elect')) return 'electrical';
   if (compact.includes('منزل')) return 'home';
   return undefined;
+}
+
+/**
+ * يستنتج قطاع سجل مبيعات الصنف (منزلي / كهربائي) بالترتيب:
+ * 1) حقل القطاع الصريح بالسجل
+ * 2) قطاع العميل المرتبط
+ * 3) قطاع الصنف في الكتالوج
+ * 4) الكلمات المفتاحية للصنف / العائلة (وافتراضياً منزلي)
+ */
+export function inferItemSaleSector(
+  record: CustomerItemSaleRecord,
+  customers: Customer[] = [],
+  products: Product[] = []
+): 'home' | 'electrical' {
+  const explicit = parseSalesSectorValue((record as any).sector);
+  if (explicit === 'electrical') return 'electrical';
+  if (explicit === 'home') return 'home';
+
+  if (record.linkedCustomerId || record.customerAccount) {
+    const acct = String(record.customerAccount || '').trim().toLowerCase();
+    const linked = customers.find(
+      (c) =>
+        (record.linkedCustomerId && c.id === record.linkedCustomerId) ||
+        (acct && String(c.code || '').trim().toLowerCase() === acct)
+    );
+    if (linked?.sector === 'electrical') return 'electrical';
+    if (linked?.sector === 'home') return 'home';
+  }
+
+  const code = String(record.itemCode || '').trim();
+  const unified = String(record.unifiedCode || '').trim();
+  const match =
+    (code && products.find((p) => String(p.code || '').trim() === code)) ||
+    (unified && products.find((p) => String(p.unifiedCode || '').trim() === unified)) ||
+    null;
+  if (match?.sector === 'electrical') return 'electrical';
+  if (match?.sector === 'home') return 'home';
+
+  const text = `${record.itemGroup || ''} ${record.familyDimension || ''} ${record.itemName || ''} ${record.definitions || ''}`.toLowerCase();
+  if (
+    text.includes('كهرب') ||
+    text.includes('سلك') ||
+    text.includes('لمب') ||
+    text.includes('مفتاح') ||
+    text.includes('فيش') ||
+    text.includes('مروحه') ||
+    text.includes('مروحة') ||
+    text.includes('مكواة') ||
+    text.includes('كاتل') ||
+    text.includes('خلاط')
+  ) {
+    return 'electrical';
+  }
+  return 'home';
 }
 
 /**

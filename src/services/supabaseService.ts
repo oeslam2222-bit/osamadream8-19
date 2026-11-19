@@ -426,6 +426,19 @@ const isMissingColumnError = (err: any): boolean => {
   return code === '42703' || code === 'PGRST204' || (msg.includes('column') && msg.includes('does not exist')) || msg.includes('could not find');
 };
 
+const isPermissionDeniedError = (err: any): boolean => {
+  const code = String(err?.code || '');
+  const status = Number(err?.status || err?.statusCode || 0);
+  const msg = String(err?.message || '').toLowerCase();
+  return (
+    code === '42501' ||
+    status === 401 ||
+    status === 403 ||
+    msg.includes('permission denied') ||
+    msg.includes('insufficient_privilege')
+  );
+};
+
 /**
  * PostgREST بيرفض الـselect بالكامل (400) لو فيه عمود واحد مش موجود في الجدول،
  * والكود القديم كان بيرجع لـ'*' فيفقد كل الأعمدة المطلوبة مرة واحدة.
@@ -1550,6 +1563,16 @@ export async function fetchUsersFromSupabase(
             .from(table)
             .select(selectCols)
             .range(from, from + USER_PAGE_SIZE - 1);
+          if (error && (isPermissionDeniedError(error) || isMissingColumnError(error))) {
+            const publicCols = USER_PUBLIC_SELECT_BY_TABLE[table];
+            if (publicCols && selectCols !== publicCols) {
+              selectCols = publicCols;
+              ({ data, error } = await supabase
+                .from(table)
+                .select(selectCols)
+                .range(from, from + USER_PAGE_SIZE - 1));
+            }
+          }
           if (error && selectCols !== '*' && isMissingColumnError(error)) {
             selectCols = '*';
             ({ data, error } = await supabase
@@ -1718,6 +1741,13 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
           supabase.from(tbl).select(cols).or(orClauses.join(',')).limit(5);
 
         let { data: rows, error: qErr } = await buildUserLookupQuery(selectCols);
+        if (qErr && (isPermissionDeniedError(qErr) || isMissingColumnError(qErr))) {
+          const publicCols = USER_PUBLIC_SELECT_BY_TABLE[tbl];
+          if (publicCols && publicCols !== selectCols) {
+            selectCols = publicCols;
+            ({ data: rows, error: qErr } = await buildUserLookupQuery(selectCols));
+          }
+        }
         if (qErr && selectCols !== '*' && isMissingColumnError(qErr)) {
           ({ data: rows, error: qErr } = await buildUserLookupQuery('*'));
         }
@@ -1773,7 +1803,10 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
     }
 
     // 2. Fallback to cached/directory match ONLY if targeted lookup missed
-    const remoteRes = await fetchUsersFromSupabase(false, { includeCredentials: true });
+    let remoteRes = await fetchUsersFromSupabase(false, { includeCredentials: true });
+    if (!remoteRes.success) {
+      remoteRes = await fetchUsersFromSupabase(false, { includeCredentials: false });
+    }
     if (remoteRes.success && remoteRes.users && remoteRes.users.length > 0) {
       const found = remoteRes.users.find((u) => {
         const uEmail = sanitizeEmail(u.email || '');

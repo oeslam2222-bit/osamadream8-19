@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
+const REMEMBER_ID_KEY = 'tantawy_remembered_login_id';
+
 interface LoginPageProps {
   onSuccess?: () => void;
 }
@@ -12,7 +14,20 @@ interface LoginPageProps {
 export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
   const { login, authTerminationNotice, clearAuthTerminationNotice } = useApp();
 
-  const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [rememberMe, setRememberMe] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(REMEMBER_ID_KEY) !== null;
+    } catch {
+      return true;
+    }
+  });
+  const [loginIdentifier, setLoginIdentifier] = useState<string>(() => {
+    try {
+      return localStorage.getItem(REMEMBER_ID_KEY) || '';
+    } catch {
+      return '';
+    }
+  });
   const [loginPassword, setLoginPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -43,6 +58,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
       if (!result.success) {
         setLoginError(result.message);
       } else {
+        try {
+          if (rememberMe) {
+            localStorage.setItem(REMEMBER_ID_KEY, loginIdentifier.trim());
+          } else {
+            localStorage.removeItem(REMEMBER_ID_KEY);
+          }
+        } catch {}
         if (onSuccess) onSuccess();
       }
     } catch (err: any) {
@@ -112,9 +134,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
               <p className="tg-login__hint">ادخل بياناتك الخاصة بالمنظومة للمتابعة</p>
             </div>
 
+            {authTerminationNotice && !loginError && (
+              <div className="tg-login__error" role="alert">
+                <AlertCircle size={16} className="shrink-0" />
+                <span>{authTerminationNotice}</span>
+              </div>
+            )}
+
             {loginError && (
               <div className="tg-login__error" role="alert">
-                <AlertCircle size={16} />
+                <AlertCircle size={16} className="shrink-0" />
                 <span>{loginError}</span>
               </div>
             )}
@@ -159,7 +188,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
               </div>
 
               <label className="tg-login__remember">
-                <input type="checkbox" defaultChecked className="tg-login__checkbox" />
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="tg-login__checkbox"
+                />
                 تذكرني على هذا الجهاز
               </label>
 

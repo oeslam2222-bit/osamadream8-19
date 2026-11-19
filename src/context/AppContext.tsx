@@ -4879,15 +4879,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const normInput = normalizeArabicText(identifier).replace(/\s+/g, '');
     const authMode = getAuthMode();
 
-    // بيئة من غير مفاتيح Supabase (زي المعاينة السحابية): الدخول مستحيل
-    // لأن مفيش قاعدة بيانات أصلًا — رسالة صريحة أفضل من "الحساب غير مسجل".
-    if (!SUPABASE_URL) {
-      // التفاصيل التقنية بتتسجل في الكونسول بس، والمستخدم يشوف رسالة واحدة بسيطة.
+    // بيئة من غير مفاتيح Supabase (زي المعاينة السحابية): إرجاع سبب واضح بدلاً من إظهار خطأ كلمة المرور
+    if (!isSupabaseConfigured || !SUPABASE_URL) {
       console.warn('[login] Supabase env is missing: VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY');
       return {
         success: false,
-        errorType: 'wrong_password',
-        message: 'اسم المستخدم أو كلمة المرور غير صحيحة.',
+        errorType: 'connection',
+        message: 'قاعدة البيانات (Supabase) غير مربوطة في هذه البيئة حالياً. يرجى ضبط متغيرات البيئة VITE_SUPABASE_URL و VITE_SUPABASE_ANON_KEY لتسجيل الدخول.',
       };
     }
 
@@ -4925,8 +4923,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (partial.length === 1) found = partial[0];
     }
 
-    // 2. Single-roundtrip Supabase lookup when not cached locally (handles email, username, name, normalized Arabic & phone)
-    if (!found) {
+    // 2. Single-roundtrip Supabase lookup when not cached locally OR cached entry has no credential (e.g. INITIAL_USERS)
+    if (!found || !(found.password || '').trim()) {
       try {
         const supRes = await findUserInSupabase(rawTrim || cleanId || asciiDigits);
         if (supRes.success && supRes.user) {
@@ -4976,9 +4974,41 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
     }
 
-    // Verify the credential locally first to avoid blocking every login on a remote Supabase Auth roundtrip
+    // Verify the credential via server RPC first (when deployed), then local hash, then Supabase Auth fallback
     let storedCredential = (found.password || '').trim();
-    if (!storedCredential && found.id) {
+    const hasLinkedAuthUser = Boolean((found as any).authUserId || (found as any).auth_user_id);
+    const serverAuthIdentifier = identifier.includes('@')
+      ? identifier
+      : ((found as any).authEmail || (found as any).auth_email || found.email || identifier);
+
+    let serverVerified = false;
+    let serverRpcExplicitReject = false;
+    if (!serverAuthUserId && !isServerVerifyKnownMissing()) {
+      try {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('verify_user_credentials', {
+          p_username: rawTrim || found.username || found.email || cleanId || asciiDigits,
+          p_password: cleanPass,
+        });
+        if (rpcErr) {
+          const code = String((rpcErr as any)?.code || '');
+          const status = Number((rpcErr as any)?.status || 0);
+          const msg = String((rpcErr as any)?.message || '').toLowerCase();
+          if (status === 404 || code === 'PGRST202' || msg.includes('could not find the function')) {
+            markServerVerifyMissing();
+          }
+        } else if (Array.isArray(rpcData) && rpcData.length > 0) {
+          clearServerVerifyMissing();
+          serverVerified = Boolean((rpcData[0] as any)?.matched);
+          if (!serverVerified) {
+            serverRpcExplicitReject = true;
+          }
+        }
+      } catch {
+        markServerVerifyMissing();
+      }
+    }
+
+    if (!serverAuthUserId && !serverVerified && !storedCredential && found.id) {
       try {
         const { data: uData } = await supabase.from('users').select('password').eq('id', found.id).limit(1);
         if (uData?.[0]?.password && String(uData[0].password).trim().length > 0) {
@@ -4996,41 +5026,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
     }
 
-    const hasLinkedAuthUser = Boolean((found as any).authUserId || (found as any).auth_user_id);
-
-    if (serverAuthUserId) {
-      // Authenticated via Supabase Auth
+    if (serverAuthUserId || serverVerified) {
+      // Authenticated via Supabase Auth or verify_user_credentials RPC
     } else if (storedCredential.length > 0) {
-      // تحقّق عبر دالة السيرفر أولًا (supabase/harden_login_rpc.sql). لما تكون
-      // منشورة، البصمة نفسها مش محتاجة تبقى قابلة للقراءة بالمفتاح العام.
-      let serverVerified = false;
-      // لو الدالة معروفة إنها مش منشورة (404 خلال آخر 24 ساعة) مش بنطلبها أصلًا.
-      if (!isServerVerifyKnownMissing()) {
-        try {
-          const { data: rpcData, error: rpcErr } = await supabase.rpc('verify_user_credentials', {
-            p_username: rawTrim || cleanId || asciiDigits,
-            p_password: cleanPass,
-          });
-          if (rpcErr) {
-            const code = String((rpcErr as any)?.code || '');
-            const status = Number((rpcErr as any)?.status || 0);
-            const msg = String((rpcErr as any)?.message || '').toLowerCase();
-            if (status === 404 || code === 'PGRST202' || msg.includes('could not find the function')) {
-              markServerVerifyMissing();
-            }
-          } else if (Array.isArray(rpcData) && rpcData.length > 0) {
-            clearServerVerifyMissing();
-            serverVerified = Boolean((rpcData[0] as any)?.matched);
-          }
-        } catch {
-          // الدالة مش منشورة بعد — بنكمل بالتحقق المحلي زي الأول.
-          markServerVerifyMissing();
-        }
-      }
-
-      let check = serverVerified
-        ? ({ valid: true, legacy: false } as Awaited<ReturnType<typeof verifyPassword>>)
-        : await verifyPassword(cleanPass, storedCredential);
+      let check = await verifyPassword(cleanPass, storedCredential);
       // الكاش المحلي ممكن يكون فيه بصمة قديمة (كلمة السر اتغيرت من جهاز تاني).
       // قبل ما نقول "كلمة المرور غير صحيحة" بنجيب البصمة الحالية من السيرفر
       // ونعيد المقارنة مرة واحدة.
@@ -5057,8 +5056,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (!check.valid) {
         // Fallback to Supabase Auth only if server mode is active OR this account is explicitly linked to Supabase Auth
         let serverFallbackOk = false;
-        if (isServerAuthEnabled()) {
-          const outcome = await tryServerSignIn(identifier, cleanPass);
+        if (isServerAuthEnabled() && (authMode === 'server' || hasLinkedAuthUser)) {
+          const outcome = await tryServerSignIn(serverAuthIdentifier, cleanPass);
           if (outcome.kind === 'success') {
             serverFallbackOk = true;
             if (outcome.email) {
@@ -5085,20 +5084,22 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         saveUserToSupabase(found).catch((e) => console.warn('Password upgrade sync notice:', e));
       }
     } else if (isServerAuthEnabled()) {
-      // حتى لو الحساب مش مربوط بـ auth_user_id: Supabase Auth بيتحقق على
-      // السيرفر، وده المسار الوحيد المتاح لو عمود الباسورد مش مقروء بالـ anon key.
-      const outcome = await tryServerSignIn(identifier, cleanPass);
-      if (outcome.kind !== 'success') {
+      const outcome = await tryServerSignIn(serverAuthIdentifier, cleanPass);
+      if (outcome.kind === 'success') {
+        if (outcome.email) {
+          linkAuthUserToProfile(outcome.authUserId, outcome.email).catch(() => {});
+        }
+      } else {
         return {
           success: false,
-          errorType: 'no_password',
+          errorType: serverRpcExplicitReject ? 'wrong_password' : 'no_password',
           message: 'اسم المستخدم أو كلمة المرور غير صحيحة.'
         };
       }
     } else {
       return {
         success: false,
-        errorType: 'no_password',
+        errorType: serverRpcExplicitReject ? 'wrong_password' : 'no_password',
         message: 'اسم المستخدم أو كلمة المرور غير صحيحة.'
       };
     }
