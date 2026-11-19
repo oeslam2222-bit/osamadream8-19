@@ -34,6 +34,7 @@ export const CustomersScreen: React.FC = () => {
     users,
     branches,
     activeSectorFilter,
+    getVisibleCustomers,
     setActiveSectorFilter,
   } = useApp();
 
@@ -71,23 +72,10 @@ export const CustomersScreen: React.FC = () => {
   }, []);
 
   // ---------- RBAC: Which customers can this user see? ----------
+  //  بوابة السياق نفسها: دور + فرع + قطاع ('none' = محجوب عن القطاعين).
   const userVisibleCustomers = useMemo(() => {
-    if (isRep) {
-      //مندوب يرى فقط عملاءه المسندين له
-      return customers.filter((c) => {
-        const rep = c.salesRepName || c.repName || '';
-        return rep === currentUser?.name;
-      });
-    }
-    if (isSupervisor) {
-      //مشرف يرى عملاء فريقه
-      return customers.filter(
-        (c) => c.supervisorName === currentUser?.name || c.salesRepName === currentUser?.name
-      );
-    }
-    //إدارة / دعم فني / مدير فرع يرى الجميع
-    return customers;
-  }, [customers, currentUser, isRep, isSupervisor]);
+    return getVisibleCustomers();
+  }, [getVisibleCustomers]);
 
   // ---------- Available filter options ----------
   const availableBranches = useMemo(() => {

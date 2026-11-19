@@ -5,6 +5,7 @@ import { calculateCustomerFinancials, isSummaryOrTotalRow } from '../services/cu
 import { resolveCustomerDuesValue } from '../services/customerDues';
 import { productIdentityKey, deduplicateProductArray, normalizeProductCodeKey, normalizeVariantCodeKey } from '../services/productIdentity';
 import { resolveProductPricing, stripPlaceholderText } from '../services/productPricing';
+import { applyCustomerSectorHeuristic } from '../services/sectorResolver';
 
 export const STORAGE_KEYS = {
   PRODUCTS: 'dream_dist_products_v9',
@@ -394,6 +395,11 @@ export const sanitizeCustomers = (list: Customer[]): Customer[] => {
       guaranteeAmount: gAmount > 0 ? gAmount : undefined,
       hasGuarantee: finalHasG,
       paymentTerms: finalPaymentTerms,
+      // تصحيح القطاع مرة واحدة عند التحميل: سياسة add_customer_sector_column.sql
+      // كتبت sector='home' جماعي على العملاء الفاضيين، والكشف التلقائي
+      // (اسم العميل + المحل + المندوب فيه «كهرب») يرجّع القطاع الصح ويتحفظ
+      // محلياً — بدون أي طلب شبكة (egress صفر).
+      sector: applyCustomerSectorHeuristic(c),
     };
   });
 

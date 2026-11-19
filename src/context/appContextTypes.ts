@@ -52,6 +52,10 @@ export interface AppContextType {
   setSelectedBranchFilter: (branch: string) => void;
   activeSectorFilter: 'all' | 'home' | 'electrical';
   setActiveSectorFilter: (sector: 'all' | 'home' | 'electrical') => void;
+  /** true بس للإدارة العليا (admin/developer) — للتحكم في واجهات تبديل القطاع. */
+  canManageSectorGate: boolean;
+  /** القطاع الفعلي بعد قواعد الأدوار — 'none' = محجوب عن القطاعين. */
+  effectiveSectorFilter: 'all' | 'home' | 'electrical' | 'none';
   refreshInvoicesNow: (force?: boolean) => Promise<{ success: boolean; count: number; message: string }>;
   
   // Supabase Sync
@@ -227,7 +231,7 @@ export interface AppContextType {
   setIsInstallModalOpen: (open: boolean) => void;
   
   // Helpers for RBAC
-  getVisibleInvoices: () => Invoice[];
+  getVisibleInvoices: (includeArchived?: boolean) => Invoice[];
   getVisibleProducts: () => Product[];
   getVisibleCustomers: () => Customer[];
   getVisibleVisits: () => CustomerVisit[];

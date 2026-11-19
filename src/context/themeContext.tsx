@@ -52,3 +52,18 @@ export function useTheme() {
   }
   return ctx;
 }
+
+/**
+ * نسخة آمنة من useTheme للرسوم البيانية والكروت اللي بتتعرض أحيانًا خارج
+ * ThemeProvider (مثلاً سكربتات العرض). بترجّع الوضع النهاري كافتراضي بدل ما ترمي خطأ.
+ */
+export function useThemeSafe(): ThemeContextType {
+  const ctx = useContext(ThemeContext);
+  return (
+    ctx ?? {
+      isDark: false,
+      toggleTheme: () => {},
+      setTheme: () => {}
+    }
+  );
+}

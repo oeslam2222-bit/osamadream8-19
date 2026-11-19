@@ -189,7 +189,11 @@ import {
   removeQueuedMutations,
 } from '../services/offlineQueueService';
 
-type ActiveSector = 'all' | 'home' | 'electrical';
+/**
+ * القطاع الفعّال للمستخدم. `'none'` = حساب مبيعات بلا قطاع معيّن → محجوب عن
+ * بيانات القطاعين كلهم لحد ما الإدارة تعيّنله قطاعًا (matchesSector بيرجّع false).
+ */
+type ActiveSector = 'all' | 'home' | 'electrical' | 'none';
 
 /**
  * دالة التحقق من كلمة المرور على السيرفر (supabase/harden_login_rpc.sql) اختيارية:
@@ -457,14 +461,32 @@ function areContentStampsEqual(
   return a.count === b.count && a.maxUpdatedAt === b.maxUpdatedAt;
 }
 
+/** أدوار إدارية غير مبيعية: شغلها بيغطي القطاعين، فتشوفهما حتى لو قطاعه غير معيّن. */
+const SECTORLESS_ADMIN_ROLES: ReadonlySet<string> = new Set([
+  'technical_support',
+  'legal_advisor',
+  'warehouse_keeper',
+]);
+
+/**
+ * الحد الصارم للقطاع — القاعدة: ممنوع قطاع يشوف القطاع الآخر، والخروج للإدارة العليا فقط.
+ *  - admin/developer (الإدارة العليا): حرية الاختيار بين منزلي/كهربائي/الكل.
+ *  - أي دور تاني: مقيّد بقطاع حسابه (home/electrical/both/all) مهما اختارت الواجهة.
+ *  - أدوار المبيعات (مندوب/مشرف/مدير فرع) بلا قطاع معيّن: محجوبة بالكامل ('none').
+ *    مش بنرجّع 'all' هنا — ده بالظبط كان الثغرة اللي كانت بتخلي المندوب يشوف القطاعين.
+ */
 function resolveEffectiveSector(user: User | null, activeSector: ActiveSector, fallbackSector?: string): ActiveSector {
   if (user?.role === 'admin' || user?.role === 'developer') return activeSector;
   const accountSector = user?.sector || fallbackSector;
-  if (accountSector === 'home' || accountSector === 'electrical') return accountSector;
-  return activeSector;
+  if (accountSector === 'home' || accountSector === 'electrical' || accountSector === 'both' || accountSector === 'all') {
+    return accountSector as ActiveSector;
+  }
+  if (user && SECTORLESS_ADMIN_ROLES.has(user.role)) return 'all';
+  return 'none';
 }
 
 function matchesSector(recordSector: string | undefined, effectiveSector: ActiveSector): boolean {
+  if (effectiveSector === 'none') return false; // حساب مبيعات بلا قطاع: محجوب عن الاتنين
   if (effectiveSector === 'all') return true;
   return recordSector === effectiveSector || recordSector === 'both' || recordSector === 'all';
 }
@@ -519,6 +541,13 @@ function mapCommentRows(rows: any[]): CustomerCommentRecord[] {
     archivedBy: r.archived_by ?? r.archivedBy ?? undefined,
   }));
 }
+
+const EXECUTED_INVOICE_STATUSES: OrderStatus[] = [
+  'معتمدة',
+  'معتمدة ومصروفة من المخزن',
+  'تم التسليم',
+  'إغلاق الطلبية',
+];
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
@@ -1607,7 +1636,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return 'all';
   });
 
+  const canManageSectorGate = useMemo(
+    () => currentUser?.role === 'admin' || currentUser?.role === 'developer',
+    [currentUser?.role]
+  );
+
+  /** القطاع الفعلي بعد تطبيق قواعد الأدوار — `'none'` يعني محجوب عن القطاعين. */
+  const effectiveSectorFilter = useMemo(
+    () => resolveEffectiveSector(currentUser, activeSectorFilter),
+    [currentUser, activeSectorFilter]
+  );
+
   const setActiveSectorFilter = (sector: 'all' | 'home' | 'electrical') => {
+    // تبديل القطاع ميزة إدارة عليا فقط. باقي الأدوار مقيّدة بقطاع حسابها أصلًا،
+    // ومن غير البوابة دي الاختيار كان بيتسجل في localStorage ويبقى مضلّل للواجهة.
+    if (!canManageSectorGate) return;
     setActiveSectorFilterState(sector);
     try {
       localStorage.setItem('tantawy_active_sector_filter', sector);
@@ -6373,6 +6416,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const updatedInv: Invoice = {
         ...inv,
         status: 'معتمدة' as OrderStatus,
+        // Final approval = financial execution completed → archive the order (hidden from active lists).
+        isArchived: true,
+        archivedAt: new Date().toISOString(),
+        archivedBy: currentUser?.name || 'الإدارة',
         notes: notes ? `${inv.notes ? inv.notes + ' | ' : ''}ملاحظة الاعتماد النهائي من الإدارة: ${notes}` : inv.notes,
       };
 
@@ -6862,6 +6909,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         const updated: Invoice = {
           ...i,
           status,
+          // Archive lifecycle: when the order enters an executed status it is archived
+          // (hidden from active lists) — unless it is being returned/cancelled, which reactivates it.
+          isArchived: isNowReturnedOrCancelled ? false : EXECUTED_INVOICE_STATUSES.includes(status),
+          archivedAt: isNowReturnedOrCancelled || !EXECUTED_INVOICE_STATUSES.includes(status) ? i.archivedAt : new Date().toISOString(),
+          archivedBy: isNowReturnedOrCancelled || !EXECUTED_INVOICE_STATUSES.includes(status) ? i.archivedBy : (currentUser?.name || 'النظام'),
           cancellationReason: isNowReturnedOrCancelled ? (reason || i.cancellationReason || 'إلغاء الطلبية') : i.cancellationReason,
           cancelledBy: isNowReturnedOrCancelled ? (currentUser?.name || 'مسؤول النظام') : i.cancelledBy,
           cancelledAt: isNowReturnedOrCancelled ? `${new Date().toISOString().slice(0, 10)} ${new Date().toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', hour12: true })}` : i.cancelledAt,
@@ -7479,8 +7531,26 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     } catch (e) {}
   };
 
+  // The account's assigned sector is a hard boundary; only admins can switch globally.
+  // NOTE: defined before every useMemo that scopes by sector (invoices/customers/
+  // products) — it must exist at render time, not only when consumers call us.
+  const filterBySector = <T extends { sector?: 'home' | 'electrical' | 'both' | 'all' }>(
+    items: T[],
+    userSector?: string,
+    resolveItemSector?: (item: T) => string | undefined
+  ): T[] => {
+    const effectiveSector = resolveEffectiveSector(currentUser, activeSectorFilter, userSector);
+    if (effectiveSector === 'all') return items;
+    return items.filter((item) => matchesSector(item.sector || resolveItemSector?.(item), effectiveSector));
+  };
+
   // --- Role-Based Data Visibility (STRICT PRIVACY & BRANCH ISOLATION) ---
-  const getVisibleInvoices = (): Invoice[] => {
+  // The allowed invoice set is resolved once per real data/permission change, then
+  // exposed through a stable getter (same pattern as visibleVisits below). Every
+  // heavy page used to call getVisibleInvoices() during its own render, rebuilding
+  // the customer lookup maps (~2.5k rows + arabic normalisation) each time — which
+  // also defeated the dependency check of every downstream useMemo.
+  const roleScopedInvoices = useMemo((): Invoice[] => {
     if (!currentUser) return [];
 
     const customersByReference = new Map<string, Customer>();
@@ -7568,7 +7638,26 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
 
     return [];
-  };
+  }, [currentUser, invoices, customers, users, selectedBranchFilter, activeSectorFilter]);
+
+  /**
+   * Archive lifecycle: executed orders are archived (hidden from the active list)
+   * unless the caller explicitly asks for archived entries (e.g. while searching).
+   */
+  const activeRoleScopedInvoices = useMemo(
+    () => roleScopedInvoices.filter((i) => !i.isArchived),
+    [roleScopedInvoices]
+  );
+
+  /**
+   * Stable getter: returns the already-scoped array (a copy, so callers may sort
+   * it in place). includeArchived=true re-adds archived orders for search flows.
+   */
+  const getVisibleInvoices = useCallback(
+    (includeArchived: boolean = false): Invoice[] =>
+      (includeArchived ? roleScopedInvoices : activeRoleScopedInvoices).slice(),
+    [roleScopedInvoices, activeRoleScopedInvoices]
+  );
 
   /**
    * The visit set this role is allowed to see, resolved once per real change.
@@ -8244,18 +8333,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     };
   };
 
-  // The account's assigned sector is a hard boundary; only admins can switch globally.
-  const filterBySector = <T extends { sector?: 'home' | 'electrical' | 'both' | 'all' }>(
-    items: T[],
-    userSector?: string,
-    resolveItemSector?: (item: T) => string | undefined
-  ): T[] => {
-    const effectiveSector = resolveEffectiveSector(currentUser, activeSectorFilter, userSector);
-    if (effectiveSector === 'all') return items;
-    return items.filter((item) => matchesSector(item.sector || resolveItemSector?.(item), effectiveSector));
-  };
-
-  const getVisibleCustomers = (): Customer[] => {
+  // Scoped customer list, resolved once per real change (stable getter below).
+  const visibleCustomersScoped = useMemo((): Customer[] => {
     if (!currentUser) return [];
     // القطاع: admin/developer يشاهدون كل القطاعات، 나머ج يُفلتر حسب قطاع المستخدم
     // نمرّر resolver لأن معظم العملاء المستوردين حقل sector عندهم فاضي.
@@ -8292,9 +8371,16 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
     // Sales Rep: ONLY customers belonging directly to this rep
     return sectorFiltered.filter((c) => doesCustomerBelongToRep(c, currentUser));
-  };
+  }, [currentUser, customers, users, selectedBranchFilter, activeSectorFilter]);
 
-  const getVisibleProducts = (): Product[] => {
+  const getVisibleCustomers = useCallback(
+    (): Customer[] => visibleCustomersScoped.slice(),
+    [visibleCustomersScoped]
+  );
+
+  // Scoped product list (sector + promotions + branch stock), resolved once per
+  // real change — this used to rebuild every product object on every render.
+  const visibleProductsScoped = useMemo((): Product[] => {
     const sectorFiltered = filterBySector(products, currentUser?.sector, (product) => {
       const text = normalizeArabicText(`${product.department || ''} ${product.category || ''} ${product.itemGroup || ''} ${product.familyName || ''} ${product.name || ''}`);
       const electricalTerms = ['كهربا', 'لمبه', 'مفتاح', 'كابل', 'سلك', 'شاسيه', 'قاطع', 'فيشه', 'لقمه', 'دوايه', 'وش', 'سبوت', 'كشاف', 'electrical', 'electric', 'cable', 'wire', 'switch', 'bulb', 'lamp', 'socket', 'plug', 'breaker', 'fuse'];
@@ -8321,7 +8407,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         branchStocks: product.branchStocks || (branchName ? { [branchName]: branchStock } : {}),
       };
     });
-  };
+  }, [currentUser, products, promotions, activeSectorFilter]);
+
+  const getVisibleProducts = useCallback(
+    (): Product[] => visibleProductsScoped.slice(),
+    [visibleProductsScoped]
+  );
 
   const getSupervisorsInBranch = (branchName?: string): User[] => {
     const targetBranch = branchName || currentUser?.branchName;
@@ -8501,6 +8592,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const effectiveSector = resolveEffectiveSector(currentUser, activeSectorFilter);
       const sectors: Array<'home' | 'electrical'> =
         effectiveSector === 'home' || effectiveSector === 'electrical' ? [effectiveSector] : [];
+      // حساب مبيعات بلا قطاع معيّن: محجوب — مننزّل له أي بيانات ولا نصرف egress.
+      if (effectiveSector === 'none') {
+        return {
+          success: true,
+          message: 'حسابك بلا قطاع معيّن — اطلب من الإدارة تعيين قطاعك (منزلي/كهربائي) أولاً',
+          added: 0,
+          updated: 0,
+        };
+      }
 
       if (currentUser && role !== 'admin' && role !== 'developer' && role !== 'technical_support') {
         const cleanName = (value?: string) =>
@@ -8550,9 +8650,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       await saveCustomerItemSales(incoming, 'merge');
       return {
         success: true,
-        message: res.isFullFetch
-          ? `تم جلب ${incoming.length} سجل مبيعات صنف (المرة الأولى)`
-          : `تم تحديث ${incoming.length} سجل مبيعات صنف فقط`,
+        message: res.isPartial
+          ? `تم جلب ${incoming.length} سجل مبيعات صنف (دفعة أولى — التحميل هيكمل تلقائيًا في المزامنة الجاية)`
+          : res.isFullFetch
+            ? `تم جلب ${incoming.length} سجل مبيعات صنف (المرة الأولى)`
+            : `تم تحديث ${incoming.length} سجل مبيعات صنف فقط`,
         added: res.isFullFetch ? incoming.length : incoming.length,
         updated: res.isFullFetch ? 0 : incoming.length,
       };
@@ -8627,6 +8729,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         setSelectedBranchFilter,
         activeSectorFilter,
         setActiveSectorFilter,
+        canManageSectorGate,
+        effectiveSectorFilter,
         refreshInvoicesNow,
         supabaseStatus,
         isSupabaseSyncing,
