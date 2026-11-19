@@ -1,0 +1,34 @@
+
+> react-example@0.0.0 dev
+> vite --port=3000 --host=0.0.0.0
+
+
+  [32m[1mVITE[22m v6.4.5[39m  [2mready in [0m[1m1140[22m[2m[0m ms[22m
+
+  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m3000[22m/[39m
+  [32m➜[39m  [1mNetwork[22m: [36mhttp://192.168.140.7:[1m3000[22m/[39m
+[2m٧:٢٧:٤٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/identity.css, /src/styles/tailwind-utilities.css[22m
+[2m٧:٢٩:٤٠ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/identity.css, /src/styles/tailwind-utilities.css[22m
+[2m٧:٣١:٢٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/identity.css, /src/styles/tailwind-utilities.css[22m
+[2m٧:٤٩:٤٧ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ExcelInvoicePreviewModal.tsx[22m
+[2m٧:٥٠:٢٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/missing-utilities.css, /src/styles/tailwind-utilities.css[22m
+[2m٧:٥٠:٢٤ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/ExcelInvoicePreviewModal.tsx[22m
+[2m٧:٥٨:٣٢ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles/tailwind-utilities.css[22m
+[2m٧:٥٨:٣٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("ROLE_ALLOWED_TABS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٧:٥٨:٣٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m٧:٥٩:٠٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/context/AppContext.tsx, /src/styles/tailwind-utilities.css[22m
+[2m٧:٥٩:٠٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/context/AppContext.tsx[22m Could not Fast Refresh ("useApp" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٧:٥٩:٠٦ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles/tailwind-utilities.css, /@fs/C:\osamadream8-19-main\src\components\LoginPage.tsx, /src/components/DreamDeliveryDashboard.tsx, /src/components/Navbar.tsx, /@fs/C:\osamadream8-19-main\src\components\UserProfileAvatarModal.tsx, /@fs/C:\osamadream8-19-main\src\components\DatabaseConnectionModal.tsx, /@fs/C:\osamadream8-19-main\src\components\SystemSettingsAndAboutModal.tsx, /@fs/C:\osamadream8-19-main\src\components\GlobalSearch.tsx, /@fs/C:\osamadream8-19-main\src\components\SyncStatusCenter.tsx[22m
+[2m٧:٥٩:٠٧ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("ROLE_ALLOWED_TABS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٧:٥٩:٠٧ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m٧:٥٩:٣٧ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/tailwind-utilities.css, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\DatabaseConnectionModal.tsx, /src/App.tsx[22m
+[2m٧:٥٩:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/context/AppContext.tsx[22m Could not Fast Refresh ("useApp" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٧:٥٩:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles/tailwind-utilities.css, /@fs/C:\osamadream8-19-main\src\components\LoginPage.tsx, /src/components/DreamDeliveryDashboard.tsx, /src/components/Navbar.tsx, /@fs/C:\osamadream8-19-main\src\components\UserProfileAvatarModal.tsx, /@fs/C:\osamadream8-19-main\src\components\DatabaseConnectionModal.tsx, /@fs/C:\osamadream8-19-main\src\components\SystemSettingsAndAboutModal.tsx, /@fs/C:\osamadream8-19-main\src\components\GlobalSearch.tsx, /@fs/C:\osamadream8-19-main\src\components\SyncStatusCenter.tsx[22m
+[2m٧:٥٩:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("ROLE_ALLOWED_TABS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٧:٥٩:٣٨ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
+[2m٧:٥٩:٣٩ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/components/InvoicesManager.tsx[22m
+[2m٨:٠٠:٤٣ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/styles/tailwind-utilities.css, /src/context/AppContext.tsx, /@fs/C:\osamadream8-19-main\src\components\DatabaseConnectionModal.tsx, /src/App.tsx[22m
+[2m٨:٠٠:٤٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/context/AppContext.tsx[22m Could not Fast Refresh ("useApp" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٨:٠٠:٤٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mhmr update [39m[2m/src/App.tsx, /src/styles/tailwind-utilities.css, /@fs/C:\osamadream8-19-main\src\components\LoginPage.tsx, /src/components/DreamDeliveryDashboard.tsx, /src/components/Navbar.tsx, /@fs/C:\osamadream8-19-main\src\components\UserProfileAvatarModal.tsx, /@fs/C:\osamadream8-19-main\src\components\DatabaseConnectionModal.tsx, /@fs/C:\osamadream8-19-main\src\components\SystemSettingsAndAboutModal.tsx, /@fs/C:\osamadream8-19-main\src\components\GlobalSearch.tsx, /@fs/C:\osamadream8-19-main\src\components\SyncStatusCenter.tsx[22m
+[2m٨:٠٠:٤٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [33mhmr invalidate [39m[2m/src/App.tsx[22m Could not Fast Refresh ("ROLE_ALLOWED_TABS" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+[2m٨:٠٠:٤٥ م[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m [32mpage reload [39m[2msrc/App.tsx[22m
