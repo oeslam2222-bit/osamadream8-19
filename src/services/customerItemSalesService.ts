@@ -25,6 +25,13 @@ export const ITEM_SALES_STORAGE_KEY = 'tantawy_customer_item_sales_v1';
 export const ITEM_SALES_ARCHIVE_KEY = 'tantawy_customer_item_sales_archive_v1';
 
 /**
+ * سقف نسخة localStorage المرآة: أكتر من كده الـ `JSON.stringify` لمئات الآلاف
+ * من الصفوف بيجمّد الرئيسي لثوانٍ (عشرات الـMB) وفاشل أصلًا بـquota المتصفح
+ * (~5MB) — IndexedDB هو المصدر الأساسي وعلينا الاعتماد عليه للكبيرة.
+ */
+const LOCAL_MIRROR_MAX_ROWS = 8000;
+
+/**
  * بيانات توقيت المزامنة — أساس تقليل الـegress:
  *  - lastPullAt: آخر جلب ناجح كامل، بنستخدمه للجلب الجزئي (`updated_at >= ...`).
  *  - lastCountCheckAt: آخر تحقق من عدد السجلات، عشان مانبعتش استعلام عدّ
@@ -97,7 +104,13 @@ export async function archiveOldCustomerItemSales(oldRecords: CustomerItemSaleRe
     });
     const archived = Array.from(map.values());
     await idbSet(ITEM_SALES_ARCHIVE_KEY, archived);
-    try { window.localStorage.setItem(ITEM_SALES_ARCHIVE_KEY, JSON.stringify(archived)); } catch {}
+    // نسخة localStorage للأرشيف الصغير فقط — JSON.stringify لأرشيف ضخم
+    // بيجمّد الرئيسي وبيفشل بالكوايتا، فبنشيل القديم بدل ما نعيد بناءه.
+    if (archived.length <= LOCAL_MIRROR_MAX_ROWS) {
+      try { window.localStorage.setItem(ITEM_SALES_ARCHIVE_KEY, JSON.stringify(archived)); } catch {}
+    } else {
+      try { window.localStorage.removeItem(ITEM_SALES_ARCHIVE_KEY); } catch {}
+    }
   } catch {}
 }
 
@@ -838,10 +851,34 @@ export function enrichCustomerItemSalesWithDirectory(
 
     // اسم العميل من قاعدة العملاء بدل كود/اسم الفاتورة (الكود مش اسم مقروء)
     const directoryName = String(matched.name || matched.storeName || '').trim();
+    const invoicingName = directoryName || record.invoicingName;
+    const linkedSector = (matched as any).sector
+      ? (matched as any).sector === 'both' || (matched as any).sector === 'all'
+        ? 'both'
+        : (matched as any).sector
+      : undefined;
+
+    // لو الصف متطابق بالفعل بنفس القيم، نرجّعه زي ما هو بدل نسخة جديدة.
+    // ده بيوفّر عشرات آلاف الكائنات والـGC على كل فتح للصفحة.
+    if (
+      record.isCustomerLinked === true &&
+      record.invoicingName === invoicingName &&
+      record.warehouse === newWarehouse &&
+      record.repName === newRep &&
+      record.linkedCustomerId === matched.id &&
+      record.linkedCustomerCode === matched.code &&
+      record.linkedBranch === branch &&
+      record.linkedRepName === rep &&
+      record.linkedSupervisorName === matched.supervisorName &&
+      record.linkedPhone === matched.phone &&
+      record.linkedSector === linkedSector
+    ) {
+      return record;
+    }
 
     return {
       ...record,
-      invoicingName: directoryName || record.invoicingName,
+      invoicingName,
       warehouse: newWarehouse,
       repName: newRep,
       isCustomerLinked: true,
@@ -851,11 +888,7 @@ export function enrichCustomerItemSalesWithDirectory(
       linkedRepName: rep,
       linkedSupervisorName: matched.supervisorName,
       linkedPhone: matched.phone,
-      linkedSector: (matched as any).sector
-        ? (matched as any).sector === 'both' || (matched as any).sector === 'all'
-          ? 'both'
-          : (matched as any).sector
-        : undefined
+      linkedSector
     };
   });
 
@@ -893,18 +926,20 @@ export function fillGenericFamiliesFromSiblings(
 
   const familyVotes = new Map<string, Map<string, number>>();
   // نبني الخريطة من كل الداتا المتاحة (المفلترة + كل السجلات) عشان تكون أشمل
-  const voteSources = extraVotesSource && extraVotesSource.length > 0
-    ? [...sales, ...extraVotesSource]
-    : sales;
-  voteSources.forEach((r) => {
-    const family = String(r.familyDimension || '').trim();
-    if (!family || family === 'عام') return;
-    const key = itemKey(r);
-    if (!key) return;
-    const votes = familyVotes.get(key) || new Map<string, number>();
-    votes.set(family, (votes.get(family) || 0) + 1);
-    familyVotes.set(key, votes);
-  });
+  // من غير [...sales, ...extra] عشان ما نعملش مصفوفة جديدة بـ250 ألف عنصر
+  const addVotes = (rows: CustomerItemSaleRecord[]) => {
+    rows.forEach((r) => {
+      const family = String(r.familyDimension || '').trim();
+      if (!family || family === 'عام') return;
+      const key = itemKey(r);
+      if (!key) return;
+      const votes = familyVotes.get(key) || new Map<string, number>();
+      votes.set(family, (votes.get(family) || 0) + 1);
+      familyVotes.set(key, votes);
+    });
+  };
+  addVotes(sales);
+  if (extraVotesSource && extraVotesSource.length > 0) addVotes(extraVotesSource);
 
   return sales.map((r) => {
     const family = String(r.familyDimension || '').trim();
@@ -946,6 +981,14 @@ export function enrichCustomerItemSalesWithCatalog(
       : looksLikeItemCode(productUnified)
         ? productUnified
         : recordUnified || undefined;
+
+    if (
+      family === record.familyDimension &&
+      itemName === record.itemName &&
+      unifiedCode === record.unifiedCode
+    ) {
+      return record;
+    }
 
     return { ...record, familyDimension: family, itemName, unifiedCode };
   });
@@ -1359,11 +1402,18 @@ export async function saveCustomerItemSales(
   } catch (err) {
     console.warn('Customer item sales IndexedDB save note:', err);
   }
-  // Cache: localStorage (best-effort, may fail for large datasets)
-  try {
-    window.localStorage.setItem(ITEM_SALES_STORAGE_KEY, JSON.stringify(finalSales));
-  } catch {
-    // Quota exceeded - data is safely in IndexedDB
+  // Cache: localStorage (best-effort). للأجموعات الكبيرة بنوقف النسخة المرآة:
+  // الـ stringify لمئات الآلاف من الصفوف بيجمّد الرئيسي لثوانٍ وفاشل بالكوايتا
+  // أصلًا — IndexedDB هو المصدر الأساسي (وعليه الاعتماد للمجتمعات الكبيرة).
+  if (finalSales.length <= LOCAL_MIRROR_MAX_ROWS) {
+    try {
+      window.localStorage.setItem(ITEM_SALES_STORAGE_KEY, JSON.stringify(finalSales));
+    } catch {
+      // Quota exceeded - data is safely in IndexedDB
+      try { window.localStorage.removeItem(ITEM_SALES_STORAGE_KEY); } catch {}
+    }
+  } else {
+    // شيل أي نسخة قديمة صغيرة عشان القارئ ما يرجّش بيانات ناقصة/متضاربة.
     try { window.localStorage.removeItem(ITEM_SALES_STORAGE_KEY); } catch {}
   }
   // Dispatch custom event to notify all active views instantly

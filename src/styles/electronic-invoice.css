@@ -1,0 +1,254 @@
+/* ==========================================================================
+   ELECTRONIC INVOICE — معاينة أمر البيع / الفاتورة
+   الهيدر والفوتر والورق. ألوان الهيدر كحلي البراند (ثابتة في الوضعين)،
+   وألوان الورق من توكنات --einv-* فيتحول تلقائيًا في الوضع الليلي.
+   ========================================================================== */
+
+/* ---------- الهيدر ---------- */
+.ein-head {
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #123157 0%, #0f2b38 62%, #0b2140 100%);
+  color: #fff;
+  box-shadow: inset 0 -1px 0 rgba(201, 154, 67, 0.34);
+}
+
+.ein-head--sub {
+  background: #0c2440;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ein-head__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px 8px;
+}
+
+.ein-head__brand {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 11px;
+  background: #fff;
+  color: #0f2b38;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18), 0 1px 5px rgba(4, 15, 30, 0.35);
+}
+.ein-head__brand svg { width: 19px; height: 19px; }
+
+.ein-head__titlewrap { flex: 1 1 auto; min-width: 0; }
+
+.ein-head__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.25;
+  color: #fff;
+}
+
+.ein-head__no {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(201, 154, 67, 0.16);
+  border: 1px solid rgba(201, 154, 67, 0.42);
+  color: #ecc987;
+  white-space: nowrap;
+}
+
+.ein-head__sub {
+  margin-top: 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: rgba(203, 213, 225, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ein-iconbtn {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  min-height: 36px !important;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.ein-iconbtn:hover { background: rgba(239, 68, 68, 0.24); color: #fff; }
+.ein-iconbtn svg { width: 17px; height: 17px; }
+
+/* ---------- شريط الأدوات ---------- */
+.ein-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px 10px;
+  overflow-x: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.ein-toolbar::-webkit-scrollbar { display: none; }
+
+.ein-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  height: 34px;
+  min-height: 34px !important;
+  padding: 0 11px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e8f0f9;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.ein-tool:hover:not(:disabled) { background: rgba(255, 255, 255, 0.16); border-color: rgba(255, 255, 255, 0.28); }
+.ein-tool:active:not(:disabled) { transform: scale(0.97); }
+.ein-tool:disabled { opacity: 0.55; cursor: not-allowed; }
+.ein-tool svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+.ein-tool--primary {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border-color: #e5a43c;
+  color: #2b1a02;
+  box-shadow: 0 6px 14px rgba(217, 119, 6, 0.28);
+}
+.ein-tool--primary:hover:not(:disabled) { background: linear-gradient(135deg, #fbbf24, #e8890b); border-color: #fbbf24; }
+
+.ein-tool--gold {
+  background: rgba(201, 154, 67, 0.18);
+  border-color: rgba(201, 154, 67, 0.45);
+  color: #f2d9a2;
+}
+.ein-tool--gold:hover:not(:disabled) { background: rgba(201, 154, 67, 0.3); }
+
+/* ---------- ورق المعاينة ---------- */
+.ein-preview {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: #e8eef5;
+  padding: 12px;
+}
+html.dark .ein-preview { background: #08161f; }
+
+@media (min-width: 640px) {
+  .ein-preview { padding: 20px 22px; }
+}
+
+.ein-paper {
+  width: 100%;
+  max-width: 880px;
+  margin-inline: auto;
+  background: var(--einv-paper);
+  border: 1px solid var(--einv-line);
+  border-radius: 14px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.1);
+}
+
+/* ---------- الفوتر ---------- */
+.ein-foot {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--app-card);
+  border-top: 1px solid var(--app-border);
+}
+html.dark .ein-foot { background: var(--app-card-secondary); }
+
+.ein-foot__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: auto;
+}
+
+.ein-footbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 38px;
+  min-height: 38px !important;
+  padding: 0 14px;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-card);
+  color: var(--app-text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.ein-footbtn:hover { background: var(--app-card-secondary); border-color: var(--app-primary-border, var(--app-border)); }
+.ein-footbtn:active { transform: scale(0.97); }
+.ein-footbtn svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+.ein-footbtn--primary {
+  background: #0f2b38;
+  border-color: #0f2b38;
+  color: #fff;
+  min-width: 108px;
+}
+.ein-footbtn--primary:hover { background: #0d2340; border-color: #0d2340; }
+
+.ein-footbtn--danger {
+  background: var(--app-danger-tint, rgba(220, 38, 38, 0.08));
+  border-color: var(--app-danger-border, rgba(220, 38, 38, 0.25));
+  color: var(--app-danger-text, #b91c1c);
+}
+.ein-footbtn--danger:hover { background: rgba(220, 38, 38, 0.16); }
+
+.ein-foot__note {
+  min-width: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--app-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  .ein-head__top { padding: 10px 11px 6px; }
+  .ein-head__title { font-size: 13px; }
+  .ein-head__sub { font-size: 10px; }
+  .ein-toolbar { padding: 8px 10px 9px; gap: 5px; }
+  .ein-tool { height: 36px; min-height: 36px !important; font-size: 11px; padding: 0 10px; }
+  .ein-preview { padding: 8px; }
+  .ein-paper { border-radius: 10px; }
+  .ein-foot { padding: 7px 9px; gap: 5px; }
+  .ein-footbtn { height: 42px; min-height: 42px !important; padding: 0 10px; font-size: 11.5px; }
+  .ein-footbtn--primary { min-width: 84px; }
+  .ein-foot__note { display: none; }
+}

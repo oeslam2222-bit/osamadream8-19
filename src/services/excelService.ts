@@ -658,9 +658,26 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     if (colMap.sector === -1 && headers.length > 18) colMap.sector = 18;
   }
 
-  // Track code occurrences to ensure 100% of rows (all 5500+) get unique IDs without overwriting
+    // Pre-scan: count code occurrences (for unifiedCode rule)
+  const codeCounts: Record<string, number> = {};
+  for (let r = headerRowIndex + 1; r < rawRows.length; r++) {
+    const row = rawRows[r];
+    if (!row || row.length === 0 || row.every((c: any) => c === '' || c === null || c === undefined)) continue;
+    const getValPre = (colIdx: number) => {
+      if (colIdx < 0 || row[colIdx] === undefined || row[colIdx] === null) return '';
+      return stripPlaceholderText(String(row[colIdx]));
+    };
+    const rawNamePre = getValPre(colMap.name);
+    const rawCodePre = getValPre(colMap.code);
+    const rawUnifiedCodePre = getValPre(colMap.unifiedCode);
+    const productCodePre = cleanProductCode(rawCodePre);
+    const fallbackCodePre = cleanProductCode(rawUnifiedCodePre.replace(/^#/, '').trim());
+    const extractedFromTitlePre = (!productCodePre && !fallbackCodePre) ? extractCodeFromProductName(rawNamePre) : '';
+    const codePre = productCodePre || fallbackCodePre || extractedFromTitlePre;
+    if (codePre) codeCounts[codePre] = (codeCounts[codePre] || 0) + 1;
+  }
+
   const codeOccurrences: Record<string, number> = {};
-  // عدّاد الصفوف اللي مفيهاش كود حقيقي — بيتحوّل لملاحظة في نهاية الاستيراد.
   let codeLessRowCount = 0;
   const codeLessSample: string[] = [];
 
@@ -669,14 +686,10 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const row = rawRows[r];
     if (!row || row.length === 0 || row.every((c: any) => c === '' || c === null || c === undefined)) continue;
 
-    // `(blank)` / `((blank))` وأخواتها مش بيانات: بتتشال من النص نفسه قبل ما
-    // الصنف يتخزن، فمش بتوصل للكتالوج ولا للفاتورة ولا للتصدير.
     const getVal = (colIdx: number) => {
       if (colIdx < 0 || row[colIdx] === undefined || row[colIdx] === null) return '';
       return stripPlaceholderText(String(row[colIdx]));
     };
-    // نفس محرّك الأرقام اللي باقي التطبيق بيستخدمه: أرقام عربية، فواصل آلاف،
-    // ونص فيه عملة أو وحدة زي "3,080 ج.م / كرتونة" أو "4 ق/ك".
     const getNum = (colIdx: number, fallback = 0) => {
       if (colIdx < 0 || row[colIdx] === undefined || row[colIdx] === null) return fallback;
       const parsed = parseNumericValue(row[colIdx]);
@@ -686,30 +699,33 @@ export function parseRawRowsToProducts(rawRows: any[]): {
     const rawName = getVal(colMap.name);
     const rawCode = getVal(colMap.code);
     const rawUnifiedCode = getVal(colMap.unifiedCode);
+    const sizeVal = getVal(colMap.size) || '';
+    const colorVal = getVal(colMap.color) || '';
 
-    // Keep the product-code column authoritative.
     const productCode = cleanProductCode(rawCode);
     const fallbackCode = cleanProductCode(rawUnifiedCode.replace(/^#/, '').trim());
     const extractedFromTitle = (!productCode && !fallbackCode) ? extractCodeFromProductName(rawName) : '';
     const code = productCode || fallbackCode || extractedFromTitle;
 
     if (!code) {
-      const label = (rawName || `صف ${r + 1}`).slice(0, 40);
+      const label = (rawName || ('Row ' + r + 1)).slice(0, 40);
       codeLessRowCount += 1;
       if (codeLessSample.length < 5) codeLessSample.push(label);
-      errors.push(
-        `الصف ${r + 1} («${label}») مفيهوش كود صنف ولا كود موحد — اتسجّل بالاسم فقط، ` +
-          'وممكن يتكرر في الكتالوج لو الاسم اتغيّر.'
-      );
+      errors.push('الصف ' + (r + 1) + ' (' + label + ') لا يحتوي على كود منتج/كود موحد واضح؛ تم تخطيه.');
     }
 
-    let cleanUnified = cleanProductCode(rawUnifiedCode.trim());
-    if (cleanUnified && /^drm[-_]?([0-9a-zA-Z]+)$/i.test(cleanUnified)) {
-      cleanUnified = cleanUnified.replace(/^drm[-_]?/i, '');
+    // بناء الكود الموحد: code + size + color (مع توحيد الفراغات)
+    const _uSize = (sizeVal || '').toString().trim();
+    const _uColor = (colorVal || '').toString().trim();
+    let unifiedCode = code ? code : '';
+    if (code) {
+      const parts = [code];
+      if (_uSize) parts.push(_uSize);
+      if (_uColor) parts.push(_uColor);
+      unifiedCode = parts.join('_').replace(/\s+/g, '_');
+    } else {
+      unifiedCode = '';
     }
-    const unifiedCode = cleanUnified
-      ? (cleanUnified.startsWith('#') ? cleanUnified : `#${cleanUnified}`)
-      : (code ? `#${code}` : undefined);
 
     const fallbackName = getVal(colMap.familyName) || getVal(colMap.itemGroup) || `صنف دريم ${code}`;
     const name = rawName || fallbackName;
@@ -826,25 +842,12 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       : (totalAllBranchesStock > 0 ? totalAllBranchesStock : (stockCairo || stockBeheira || 0));
 
     const rawImg = cleanGoogleSheetImageUrl(getVal(colMap.imageUrl));
-    const sizeVal = getVal(colMap.size) || '';
-    const colorVal = getVal(colMap.color) || '';
 
     // Generate distinct product ID to guarantee preservation of all rows and prevent unwanted code merging
-    const baseCode = (code || `prd_r${r}`).replace(/\s+/g, '_').toLowerCase();
-    const cleanUnifiedSlug = unifiedCode ? `_u${unifiedCode.replace(/[^a-zA-Z0-9]/g, '')}` : '';
-    const cleanName = (name || '').replace(/[^a-zA-Z0-9\u0621-\u064A]/g, '_').slice(0, 20).toLowerCase();
-    const colorSlug = colorVal ? `_${colorVal.replace(/[^a-zA-Z0-9\u0621-\u064A]/g, '_').toLowerCase()}` : '';
-    const sizeSlug = sizeVal ? `_${sizeVal.replace(/[^a-zA-Z0-9\u0621-\u064A]/g, '_').toLowerCase()}` : '';
-    
-    // الـid ثابت مش متغيّر: مبني على الكود + الكود الموحد + اللون + الحجم.
-    // اللاحقة `_v2`/`_v3` بتفرّق بين الصفوف المكرّرة جوه الشيت الواحد
-    // بس — هي **مش** هوية الصنف، وده مقصود. الدمج بيحصل على
-    // `productIdentityKey` (الكود لوحده) مش على الـid، فالصف التاني بنفس
-    // الكود بيتدمج مع الأول بدل ما يولّد صنف جديد.
-    const occurrenceCount = (codeOccurrences[baseCode] || 0) + 1;
-    codeOccurrences[baseCode] = occurrenceCount;
-    const occurrenceSuffix = occurrenceCount > 1 ? `_v${occurrenceCount}` : '';
-    const deterministicId = `prod-${baseCode}${cleanUnifiedSlug}${colorSlug}${sizeSlug}${occurrenceSuffix}`;
+    // id ثابت مبني على unifiedCode لضمان upsert صحيح وعدم تكرار الصفوف
+    const idBase = unifiedCode || code || `prd_r${r}`;
+    const safeSlug = String(idBase).replace(/[^a-zA-Z0-9\u0600-\u06FF_-]/g, '_').slice(0, 120);
+    const deterministicId = `prod-${safeSlug}`;
 
     const rawSector = getVal(colMap.sector).toLowerCase();
     let sectorVal: 'home' | 'electrical' | 'both' = 'home';
@@ -881,7 +884,7 @@ export function parseRawRowsToProducts(rawRows: any[]): {
       id: deterministicId,
       code: code,
       unifiedCode: unifiedCode,
-      name: name || `صنف بدون كود (${baseCode})`,
+      name: name || `صنف ${code || unifiedCode || ''}`,
       sector: sectorVal,
       salesPriority: salesPriority,
       category: itemGroup,
@@ -915,18 +918,32 @@ export function parseRawRowsToProducts(rawRows: any[]): {
   }
 
   // ملخص واضح بدل ما المستخدم يشوف رقم غريب بعد الرفع.
-  if (codeLessRowCount > 0) {
-    errors.push(
-      `ملخص: ${codeLessRowCount} صف مفيهوش كود صنف (${codeLessSample.join('، ')}` +
-        `${codeLessRowCount > codeLessSample.length ? ' …' : ''}). ` +
-        'اكتب عمود «كود المنتج» في الشيت علشان الدمج يبقى مضمون.'
-    );
+  // إزالة التكرار حسب الكود الموحد
+  const seenUnified = new Map();
+  let dupN = 0;
+  for (const p of products) {
+    const key = (p.unifiedCode || p.code || '').toString().toLowerCase().trim();
+    if (!key) {
+      seenUnified.set('__no_key_' + (dupN++), p);
+      continue;
+    }
+    if (!seenUnified.has(key)) {
+      seenUnified.set(key, p);
+    } else {
+      dupN++;
+    }
   }
-
+  const dedupedProducts = Array.from(seenUnified.values());
+  if (dupN > 0) {
+    errors.push('تم تجاهل ' + dupN + ' صف مكرر حسب الكود الموحد لتجنب تعارض الحفظ.');
+  }
+  if (codeLessRowCount > 0) {
+    errors.push('تنبيه: ' + codeLessRowCount + ' صف بدون كود منتج تم تخطيه.');
+  }
   return {
-    products,
+    products: dedupedProducts,
     errors,
-    totalRows: products.length,
+    totalRows: dedupedProducts.length,
   };
 }
 

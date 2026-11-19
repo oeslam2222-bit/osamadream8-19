@@ -654,69 +654,71 @@ html.tg-compact .ds-bottom {
 
   .cust-card,
   .rep-card {
-    padding: 10px 10px 9px !important;
-    border-radius: 14px !important;
+    padding: 12px 14px 11px !important;
+    border-radius: 16px !important;
   }
 
   /* --- كارت العميل --- */
+  /* الكارت بقى بعرض الشاشة على الموبايل (عمود واحد) بعد ما كان عمودين
+     يخنقوا الاسم والمبلغ — المقاسات هنا مريحة للقراءة بمساحة كافية. */
   .cust-card img {
-    width: 46px !important;
-    height: 46px !important;
-    border-radius: 12px !important;
+    width: 52px !important;
+    height: 52px !important;
+    border-radius: 14px !important;
     border-width: 2px !important;
   }
   .cust-card h3 {
-    font-size: 13.5px !important;
-    line-height: 1.35 !important;
+    font-size: 16px !important;
+    line-height: 1.4 !important;
   }
   .cust-card > div > div:first-child {
-    gap: 9px !important;
+    gap: 10px !important;
   }
-  .cust-card .text-base,
   .cust-card .text-sm,
   .cust-card .text-xs {
-    font-size: 10.5px !important;
+    font-size: 12px !important;
   }
   .cust-card .text-\[17px\] {
-    font-size: 13.5px !important;
+    font-size: 15px !important;
   }
   .cust-rows {
-    margin-top: 9px !important;
+    margin-top: 11px !important;
   }
   .cust-row {
-    padding: 6px 8px !important;
-    gap: 6px !important;
+    padding: 8px 10px !important;
+    gap: 10px !important;
+    flex-wrap: wrap !important;
   }
   .cust-row .text-xs {
-    font-size: 10.5px !important;
+    font-size: 11.5px !important;
   }
   .cust-row .text-\[11px\] {
-    font-size: 9px !important;
-    line-height: 1.4 !important;
+    font-size: 10.5px !important;
+    line-height: 1.45 !important;
   }
   .cust-row .text-base,
   .cust-row .sm\:text-lg {
-    font-size: 12.5px !important;
+    font-size: 15px !important;
   }
   .cust-row .text-sm {
-    font-size: 11.5px !important;
+    font-size: 13px !important;
   }
   .cust-row .text-xs.font-extrabold {
-    font-size: 9px !important;
+    font-size: 10.5px !important;
   }
   .cust-cta {
-    margin-top: 9px !important;
-    gap: 6px !important;
+    margin-top: 11px !important;
+    gap: 8px !important;
   }
   .cust-cta a,
   .cust-cta > div {
-    min-height: 32px !important;
-    border-radius: 10px !important;
-    font-size: 10.5px !important;
-    padding-inline: 7px !important;
+    min-height: 40px !important;
+    border-radius: 11px !important;
+    font-size: 12px !important;
+    padding-inline: 10px !important;
   }
   .cust-cta a .font-mono {
-    font-size: 9.5px !important;
+    font-size: 11px !important;
   }
   /* بادج GPS يصغر مع الأفاتار */
   .cust-card .h-6.w-6 {
@@ -730,21 +732,22 @@ html.tg-compact .ds-bottom {
 
   /* --- كارت المندوب --- */
   .rep-card img {
-    width: 40px !important;
-    height: 40px !important;
-    border-radius: 12px !important;
+    width: 48px !important;
+    height: 48px !important;
+    border-radius: 14px !important;
   }
   .rep-card .text-base {
-    font-size: 13px !important;
+    font-size: 16px !important;
   }
   .rep-mini {
-    padding: 7px 8px !important;
+    padding: 10px 11px !important;
   }
   .rep-mini .text-\[11px\] {
-    font-size: 9px !important;
+    font-size: 11.5px !important;
   }
   .rep-mini .text-sm {
-    font-size: 11.5px !important;
+    font-size: 16px !important;
+    white-space: nowrap !important;
   }
   .rep-card .inline-flex.px-2 {
     font-size: 9px !important;
@@ -1419,15 +1422,18 @@ body footer span.font-black {
    ========================================================================== */
 @media (max-width: 640px) {
   /* --- كارت العميل --- */
-  .cust-card .text-base,
+  .cust-card h3 {
+    font-size: 16px !important;
+    line-height: 1.4 !important;
+  }
   .cust-card .text-sm,
   .cust-card .text-xs,
   .cust-row .text-xs,
   .cust-row .text-sm {
-    font-size: 12px !important;
+    font-size: 12.5px !important;
   }
   .cust-card .text-\[17px\] {
-    font-size: 15px !important;
+    font-size: 16px !important;
   }
   .cust-row .text-\[11px\],
   .cust-row .text-xs.font-extrabold,
@@ -1436,7 +1442,7 @@ body footer span.font-black {
   }
   .cust-row .text-base,
   .cust-row .sm\:text-lg {
-    font-size: 14px !important;
+    font-size: 16px !important;
   }
   .cust-cta a,
   .cust-cta > div {
@@ -1446,7 +1452,7 @@ body footer span.font-black {
 
   /* --- كارت المندوب --- */
   .rep-card .text-base {
-    font-size: 13.5px !important;
+    font-size: 16px !important;
   }
   .rep-mini .text-\[11px\],
   .rep-card .inline-flex.px-2,
@@ -1454,8 +1460,14 @@ body footer span.font-black {
   .rep-card .pt-3 .text-xs {
     font-size: 11.5px !important;
   }
+  /* الأرقام المالية تفضل في سطر واحد مهما كبرت */
   .rep-mini .text-sm {
-    font-size: 12px !important;
+    font-size: 16px !important;
+    white-space: nowrap !important;
+  }
+  .rep-mini .tabular-nums {
+    white-space: nowrap !important;
+    font-variant-numeric: tabular-nums !important;
   }
 
   /* --- كارت الصنف --- */

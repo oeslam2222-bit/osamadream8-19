@@ -729,6 +729,12 @@ export interface Invoice {
   accountingSyncDate?: string;
   qrPayload?: string;
 
+  // Archive lifecycle: archived automatically after sales execution completes
+  // (final approval / delivery / closing) — hidden from active lists until searched again.
+  isArchived?: boolean;
+  archivedAt?: string;
+  archivedBy?: string;
+
   // Customer Debt & Credit Limit Tracking
   customerBalanceBefore?: number;
   customerCreditLimit?: number;

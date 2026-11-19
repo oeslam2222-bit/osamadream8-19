@@ -522,288 +522,344 @@ html.dark .app-main [class*="from-[#f4fbfd]"] {
      • كروت الأداء السريع      .tg-quick-card
      • كروت المؤشرات           .tg-kpi--*
      • كروت المعلومات السريعة  .tg-stat--colored
+     • كروت مراحل الطلبات      .tg-stage-card--*
 
-   نهاري: سطح أبيض بمسحة لون خفيفة + حدود واضحة + شريط لون جانبي
-   ليلي : نفس اللون بدرجة مشبعة شفافة فوق سطح الكارت الداكن (مش أسود)
+   نهاري وليلي: نفس تدرج اللون المشبع + لمعة خفيفة أعلى الكارت + نص أبيض
+   وأيقونة داخل مربع زجاجي. درجات الليلي أغمق شوية والظل أعمق.
    ============================================================ */
 
-/* ---------- القيم المشتركة (نهاري) ---------- */
+/* ---------- التوكنز المشتركة: نص أبيض + أيقونة زجاجية ---------- */
 .tg-target-card,
 .tg-quick-card,
 .tg-kpi,
 .tg-stat--colored {
-  --c-base: #ffffff;
-  --c-wash: #ffffff;
-  --c-line: #e2e8f0;
-  --c-accent: transparent;
-  --c-value: #0f172a;
-  --c-ink: #0f172a;
-  --c-label: #475569;
-  --c-sub: #64748b;
-  --c-icon-bg: #f1f5f9;
-  --c-icon-ink: #475569;
-  --c-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
-  --c-shadow-hover: 0 14px 30px rgba(15, 23, 42, 0.12);
+  --c-wash: #2563eb;
+  --c-base: #1e3a8a;
+  --c-line: rgba(255, 255, 255, 0.18);
+  --c-accent: rgba(255, 255, 255, 0.9);
+  --c-value: #ffffff;
+  --c-ink: #ffffff;
+  --c-label: rgba(255, 255, 255, 0.96);
+  --c-sub: rgba(255, 255, 255, 0.82);
+  --c-icon-bg: rgba(255, 255, 255, 0.16);
+  --c-icon-ink: #ffffff;
+  --c-shadow: 0 12px 26px rgba(9, 30, 66, 0.22);
+  --c-shadow-hover: 0 18px 36px rgba(9, 30, 66, 0.3);
+  color: #ffffff;
 }
 
-/* ---------- القيم المشتركة (ليلي) ---------- */
+/* ---------- نفس اللون في الليلي، بس ظل أعمق وحدود أخف ---------- */
 html.dark .tg-target-card,
 html.dark .tg-quick-card,
 html.dark .tg-kpi,
 html.dark .tg-stat--colored {
-  --c-base: var(--app-card, #111c2e);
-  --c-wash: var(--app-card, #111c2e);
-  --c-line: #26364d;
-  --c-value: #f1f5f9;
-  --c-ink: #e2e8f0;
-  --c-label: #cbd5e1;
-  --c-sub: #94a3b8;
-  --c-icon-bg: rgba(255, 255, 255, 0.07);
-  --c-icon-ink: #cbd5e1;
-  --c-shadow: 0 6px 18px rgba(0, 0, 0, 0.32);
-  --c-shadow-hover: 0 16px 34px rgba(0, 0, 0, 0.5);
+  --c-value: #ffffff;
+  --c-ink: #ffffff;
+  --c-label: rgba(255, 255, 255, 0.96);
+  --c-sub: rgba(255, 255, 255, 0.82);
+  --c-line: rgba(255, 255, 255, 0.16);
+  --c-icon-bg: rgba(255, 255, 255, 0.16);
+  --c-icon-ink: #ffffff;
+  --c-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
+  --c-shadow-hover: 0 18px 38px rgba(0, 0, 0, 0.44);
 }
 
-/* ---------- أزرق (مبيعات / مؤشرات إيجابية) ---------- */
+/* ---------- الألوان الدلالية (نهاري) ---------- */
 .tg-target-card--sales,
 .tg-quick-card:nth-child(1),
 .tg-kpi--blue,
 .tg-stat--colored.tg-stat--blue {
-  --c-wash: #eef4ff;
-  --c-line: #d4e3fb;
-  --c-accent: #2563eb;
-  --c-value: #1e40af;
-  --c-ink: #1e40af;
-  --c-icon-bg: #dbeafe;
-  --c-icon-ink: #1d4ed8;
-}
-html.dark .tg-target-card--sales,
-html.dark .tg-quick-card:nth-child(1),
-html.dark .tg-kpi--blue,
-html.dark .tg-stat--colored.tg-stat--blue {
-  --c-wash: rgba(37, 99, 235, 0.15);
-  --c-line: rgba(96, 165, 250, 0.36);
-  --c-accent: #3b82f6;
-  --c-ink: #bfdbfe;
-  --c-icon-bg: rgba(59, 130, 246, 0.2);
-  --c-icon-ink: #93c5fd;
+  --c-wash: #2563eb;
+  --c-base: #1e3a8a;
+  --c-shadow: 0 12px 26px rgba(37, 99, 235, 0.28);
 }
 
-/* ---------- أخضر (تحصيلات / مستحقات) ---------- */
 .tg-target-card--receivable,
 .tg-quick-card:nth-child(2),
 .tg-kpi--green,
 .tg-kpi--emerald,
 .tg-stat--colored.tg-stat--emerald,
 .tg-stat--colored.tg-stat--green {
-  --c-wash: #ebfaf2;
-  --c-line: #c8ecd9;
-  --c-accent: #059669;
-  --c-value: #047857;
-  --c-ink: #047857;
-  --c-icon-bg: #d1fae5;
-  --c-icon-ink: #047857;
+  --c-wash: #059669;
+  --c-base: #065f46;
+  --c-shadow: 0 12px 26px rgba(5, 150, 105, 0.28);
 }
+
+.tg-target-card--collection,
+.tg-quick-card:nth-child(3),
+.tg-kpi--violet,
+.tg-stat--colored.tg-stat--violet {
+  --c-wash: #7c3aed;
+  --c-base: #4c1d95;
+  --c-shadow: 0 12px 26px rgba(124, 58, 237, 0.28);
+}
+
+.tg-target-card--debt,
+.tg-quick-card:nth-child(4),
+.tg-kpi--red,
+.tg-stat--colored.tg-stat--red {
+  --c-wash: #dc2626;
+  --c-base: #991b1b;
+  --c-shadow: 0 12px 26px rgba(220, 38, 38, 0.26);
+}
+
+.tg-kpi--amber,
+.tg-kpi--orange,
+.tg-stat--colored.tg-stat--amber,
+.tg-stat--colored.tg-stat--orange {
+  --c-wash: #d97706;
+  --c-base: #92400e;
+  --c-shadow: 0 12px 26px rgba(217, 119, 6, 0.28);
+}
+
+/* ---------- الألوان الدلالية (ليلي) ---------- */
+html.dark .tg-target-card--sales,
+html.dark .tg-quick-card:nth-child(1),
+html.dark .tg-kpi--blue,
+html.dark .tg-stat--colored.tg-stat--blue {
+  --c-wash: #2563eb;
+  --c-base: #0f1f4d;
+}
+
 html.dark .tg-target-card--receivable,
 html.dark .tg-quick-card:nth-child(2),
 html.dark .tg-kpi--green,
 html.dark .tg-kpi--emerald,
 html.dark .tg-stat--colored.tg-stat--emerald,
 html.dark .tg-stat--colored.tg-stat--green {
-  --c-wash: rgba(16, 185, 129, 0.15);
-  --c-line: rgba(52, 211, 153, 0.34);
-  --c-accent: #10b981;
-  --c-ink: #a7f3d0;
-  --c-icon-bg: rgba(16, 185, 129, 0.2);
-  --c-icon-ink: #6ee7b7;
+  --c-wash: #047857;
+  --c-base: #042f2e;
 }
 
-/* ---------- بنفسجي (تحصيل / عروض / أوامر بيع) ---------- */
-.tg-target-card--collection,
-.tg-quick-card:nth-child(3),
-.tg-kpi--violet,
-.tg-stat--colored.tg-stat--violet {
-  --c-wash: #f6f2ff;
-  --c-line: #e3d9fb;
-  --c-accent: #7c3aed;
-  --c-value: #6d28d9;
-  --c-ink: #6d28d9;
-  --c-icon-bg: #ede9fe;
-  --c-icon-ink: #6d28d9;
-}
 html.dark .tg-target-card--collection,
 html.dark .tg-quick-card:nth-child(3),
 html.dark .tg-kpi--violet,
 html.dark .tg-stat--colored.tg-stat--violet {
-  --c-wash: rgba(124, 58, 237, 0.18);
-  --c-line: rgba(167, 139, 250, 0.36);
-  --c-accent: #8b5cf6;
-  --c-ink: #ddd6fe;
-  --c-icon-bg: rgba(139, 92, 246, 0.22);
-  --c-icon-ink: #c4b5fd;
+  --c-wash: #6d28d9;
+  --c-base: #2e1065;
 }
 
-/* ---------- أحمر (مديونيات / مرتجعات / مخاطر) ---------- */
-.tg-target-card--debt,
-.tg-quick-card:nth-child(4),
-.tg-kpi--red,
-.tg-stat--colored.tg-stat--red {
-  --c-wash: #fff1f1;
-  --c-line: #f8d6d6;
-  --c-accent: #dc2626;
-  --c-value: #b91c1c;
-  --c-ink: #b91c1c;
-  --c-icon-bg: #fee2e2;
-  --c-icon-ink: #b91c1c;
-}
 html.dark .tg-target-card--debt,
 html.dark .tg-quick-card:nth-child(4),
 html.dark .tg-kpi--red,
 html.dark .tg-stat--colored.tg-stat--red {
-  --c-wash: rgba(239, 68, 68, 0.16);
-  --c-line: rgba(248, 113, 113, 0.36);
-  --c-accent: #ef4444;
-  --c-ink: #fecaca;
-  --c-icon-bg: rgba(239, 68, 68, 0.2);
-  --c-icon-ink: #fca5a5;
+  --c-wash: #b91c1c;
+  --c-base: #450a0a;
 }
 
-/* ---------- برتقالي (تحذيرات / مرتجعات معلّقة) ---------- */
-.tg-kpi--amber,
-.tg-kpi--orange,
-.tg-stat--colored.tg-stat--amber,
-.tg-stat--colored.tg-stat--orange {
-  --c-wash: #fff6e6;
-  --c-line: #f6e0b8;
-  --c-accent: #d97706;
-  --c-value: #b45309;
-  --c-ink: #b45309;
-  --c-icon-bg: #fef3c7;
-  --c-icon-ink: #b45309;
-}
 html.dark .tg-kpi--amber,
 html.dark .tg-kpi--orange,
 html.dark .tg-stat--colored.tg-stat--amber,
 html.dark .tg-stat--colored.tg-stat--orange {
-  --c-wash: rgba(245, 158, 11, 0.16);
-  --c-line: rgba(251, 191, 36, 0.36);
-  --c-accent: #f59e0b;
-  --c-ink: #fde68a;
-  --c-icon-bg: rgba(245, 158, 11, 0.2);
-  --c-icon-ink: #fcd34d;
+  --c-wash: #b45309;
+  --c-base: #451a03;
 }
 
-/* ---------- تطبيق السطح: مسحة لون فوق سطح الكارت + شريط جانبي ---------- */
+/* ---------- السطح: تدرج + لمعة خفيفة أعلى الكارت ---------- */
+.tg-target-card,
+.tg-quick-card,
+.tg-kpi,
+.tg-stat--colored {
+  background:
+    radial-gradient(125% 115% at 100% 0%, rgba(255, 255, 255, 0.18), transparent 58%),
+    linear-gradient(135deg, var(--c-wash) 0%, var(--c-base) 100%) !important;
+  border: 1px solid var(--c-line) !important;
+  border-radius: 18px;
+  box-shadow: var(--c-shadow) !important;
+}
+
+/* كروت الأهداف والأداء: شيل شريط اللون الجانبي القديم */
 .tg-target-card,
 .tg-quick-card {
-  background: linear-gradient(150deg, var(--c-wash) 0%, var(--c-base) 78%) !important;
-  border: 1px solid var(--c-line) !important;
-  /* الشريط على بداية السطر (يمين في RTL) — مش على الشمال */
-  border-inline-start-width: 4px !important;
-  border-inline-start-style: solid !important;
-  border-inline-start-color: var(--c-accent) !important;
-  box-shadow: var(--c-shadow) !important;
+  border-inline-start-width: 1px !important;
+  border-inline-start-color: var(--c-line) !important;
 }
 
-.tg-kpi {
-  background: linear-gradient(150deg, var(--c-wash) 0%, var(--c-base) 82%) !important;
-  border-color: var(--c-line) !important;
-  box-shadow: var(--c-shadow) !important;
-}
-.tg-kpi::before {
-  background: var(--c-accent) !important;
+/* كروت KPI من غير لون محدد: كحلي/تيل البراند */
+.tg-kpi:not(.tg-kpi--blue):not(.tg-kpi--green):not(.tg-kpi--emerald):not(.tg-kpi--violet):not(.tg-kpi--red):not(.tg-kpi--amber):not(.tg-kpi--orange) {
+  --c-wash: #1e4d63;
+  --c-base: #0f2b38;
 }
 
-.tg-stat--colored {
-  background: var(--c-wash) !important;
-  border: 1px solid var(--c-line) !important;
-  color: var(--c-ink) !important;
+html.dark .tg-kpi:not(.tg-kpi--blue):not(.tg-kpi--green):not(.tg-kpi--emerald):not(.tg-kpi--violet):not(.tg-kpi--red):not(.tg-kpi--amber):not(.tg-kpi--orange) {
+  --c-wash: #173f52;
+  --c-base: #0a1f2a;
 }
 
-/* ---------- النصوص والأيقونات بلون الكارت نفسه في الوضعين ---------- */
+/* ---------- النصوص ---------- */
 .tg-target-card .tg-target__value,
 .tg-quick-card .tg-q__value,
 .tg-kpi .tg-kpi__value,
 .tg-stat--colored .tg-stat__value {
-  color: var(--c-value) !important;
-}
-html.dark .tg-target-card .tg-target__value,
-html.dark .tg-quick-card .tg-q__value,
-html.dark .tg-kpi .tg-kpi__value,
-html.dark .tg-stat--colored .tg-stat__value {
-  color: var(--c-value) !important;
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
 }
 
 .tg-target-card .tg-target__label,
 .tg-quick-card .tg-q__label,
 .tg-kpi .tg-kpi__label,
 .tg-stat--colored .tg-stat__label {
-  color: var(--c-label) !important;
-}
-html.dark .tg-target-card .tg-target__label,
-html.dark .tg-quick-card .tg-q__label,
-html.dark .tg-kpi .tg-kpi__label,
-html.dark .tg-stat--colored .tg-stat__label {
-  color: var(--c-label) !important;
+  color: rgba(255, 255, 255, 0.96) !important;
 }
 
 .tg-target-card .tg-target__sub,
 .tg-quick-card .tg-q__sub,
 .tg-kpi .tg-kpi__hint,
 .tg-stat--colored .tg-stat__sub {
-  color: var(--c-sub) !important;
+  color: rgba(255, 255, 255, 0.82) !important;
 }
+
+/* الليلي: قواعد الثيم القديمة كانت بتفرض رمادي غامق على الليبل/التلميح
+   بـ!important وspecificity أعلى، فيبانوا باهتين على التدرج. هنا بنضمن
+   الأبيض بنفس القوة على كل الكروت الملوّنة. */
+html.dark .tg-target-card .tg-target__label,
+html.dark .tg-quick-card .tg-q__label,
+html.dark .tg-kpi .tg-kpi__label,
+html.dark .tg-stat--colored .tg-stat__label {
+  color: rgba(255, 255, 255, 0.96) !important;
+}
+
 html.dark .tg-target-card .tg-target__sub,
 html.dark .tg-quick-card .tg-q__sub,
 html.dark .tg-kpi .tg-kpi__hint,
 html.dark .tg-stat--colored .tg-stat__sub {
-  color: var(--c-sub) !important;
+  color: rgba(255, 255, 255, 0.84) !important;
 }
 
+/* أي وسوم جوه القيمة (زي «كرتونة» أو «ج.م») تورث الأبيض */
+.tg-target-card .tg-target__value *,
+.tg-target-card .tg-target__label *,
+.tg-quick-card .tg-q__value *,
+.tg-quick-card .tg-q__label *,
+.tg-kpi .tg-kpi__value *,
+.tg-kpi .tg-kpi__label *,
+.tg-stat--colored .tg-stat__value *,
+.tg-stat--colored .tg-stat__label * {
+  color: inherit !important;
+}
+
+/* نسبة التحقيق داخل الكارت → شيبس أبيض شفاف */
+.tg-target__pct {
+  color: #ffffff !important;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  padding: 1px 7px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+/* ---------- الأيقونات: مربع زجاجي بحدود بيضاء ---------- */
 .tg-target-card .tg-target__icon,
 .tg-quick-card .tg-q__icon,
 .tg-kpi .tg-kpi__icon {
-  background: var(--c-icon-bg) !important;
-  color: var(--c-icon-ink) !important;
-  box-shadow: none !important;
+  background: rgba(255, 255, 255, 0.16) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
 }
+
 .tg-target-card .tg-target__icon svg,
 .tg-quick-card .tg-q__icon svg,
-.tg-kpi .tg-kpi__icon svg {
-  color: var(--c-icon-ink) !important;
-}
-
-/* كروت المعلومات السريعة: نفس لون الكارت للنص والأيقونة */
-.tg-stat--colored .tg-stat__value,
-.tg-stat--colored .tg-stat__label,
-.tg-stat--colored .tg-stat__sub {
-  color: var(--c-ink) !important;
-}
+.tg-kpi .tg-kpi__icon svg,
 .tg-stat--colored > svg {
-  color: var(--c-ink) !important;
+  color: #ffffff !important;
+  stroke: currentColor;
 }
 
-/* ---------- الكارت العادي في الليلي: نفس سطح الثيم (#111C2E) ----------
-   app-shell.css كان بيثبّت #0A1E27 (أسود مخضر) فيغلب على توكنز brand-v2
-   ويخلي الكروت أغمق من صفحة التطبيق نفسها. */
-html.dark .app-main .tg-card {
-  background-color: var(--app-card) !important;
-  border-color: var(--app-border) !important;
+/* شريط KPI الجانبي القديم: خيط أبيض خفيف */
+.tg-kpi::before {
+  background: rgba(255, 255, 255, 0.28) !important;
 }
 
-/* ---------- تفاعل موحّد: رفعة خفيفة عند المرور ---------- */
+/* ---------- تفاعل موحّد ---------- */
 @media (hover: hover) {
-  .tg-target-card,
-  .tg-quick-card,
-  .tg-kpi {
-    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
-  }
   .tg-target-card:hover,
   .tg-quick-card:hover,
   .tg-kpi:hover {
-    transform: translateY(-2px);
     box-shadow: var(--c-shadow-hover) !important;
   }
+}
+
+@media (max-width: 640px) {
+  .tg-target-card,
+  .tg-quick-card,
+  .tg-kpi,
+  .tg-stat--colored {
+    color: #ffffff !important;
+  }
+}
+
+/* ---------- كروت تقرير مبيعات الأصناف: نفس نظام الكروت المميزة ---------- */
+.tg-report-kpi {
+  --c-wash: #2563eb;
+  --c-base: #1e3a8a;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background:
+    radial-gradient(125% 115% at 100% 0%, rgba(255, 255, 255, 0.18), transparent 58%),
+    linear-gradient(135deg, var(--c-wash) 0%, var(--c-base) 100%);
+  color: #ffffff;
+  box-shadow: 0 12px 26px rgba(9, 30, 66, 0.22);
+}
+.tg-report-kpi--blue {
+  --c-wash: #2563eb;
+  --c-base: #1e3a8a;
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.28);
+}
+.tg-report-kpi--green {
+  --c-wash: #059669;
+  --c-base: #065f46;
+  box-shadow: 0 12px 26px rgba(5, 150, 105, 0.28);
+}
+.tg-report-kpi--violet {
+  --c-wash: #7c3aed;
+  --c-base: #4c1d95;
+  box-shadow: 0 12px 26px rgba(124, 58, 237, 0.28);
+}
+.tg-report-kpi--amber {
+  --c-wash: #d97706;
+  --c-base: #92400e;
+  box-shadow: 0 12px 26px rgba(217, 119, 6, 0.28);
+}
+.tg-report-kpi--red {
+  --c-wash: #dc2626;
+  --c-base: #991b1b;
+  box-shadow: 0 12px 26px rgba(220, 38, 38, 0.26);
+}
+html.dark .tg-report-kpi {
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
+}
+html.dark .tg-report-kpi--blue { --c-wash: #2563eb; --c-base: #0f1f4d; }
+html.dark .tg-report-kpi--green { --c-wash: #047857; --c-base: #042f2e; }
+html.dark .tg-report-kpi--violet { --c-wash: #6d28d9; --c-base: #2e1065; }
+html.dark .tg-report-kpi--amber { --c-wash: #b45309; --c-base: #451a03; }
+html.dark .tg-report-kpi--red { --c-wash: #b91c1c; --c-base: #450a0a; }
+
+.tg-report-kpi__label {
+  color: rgba(255, 255, 255, 0.96) !important;
+}
+.tg-report-kpi__value {
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+}
+.tg-report-kpi__hint {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+.tg-report-kpi__icon {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  color: #ffffff !important;
+}
+.tg-report-kpi__icon svg {
+  color: #ffffff !important;
+  stroke: currentColor;
+}
+.tg-report-kpi__chip,
+.tg-report-kpi .tg-report-kpi__pill {
+  background: rgba(255, 255, 255, 0.16) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: #ffffff !important;
 }
 
 /* ============================================================
@@ -1389,9 +1445,25 @@ html.dark .tg-legend-inline span {
 /* ---------- كروت مراحل الطلب ----------
  * سطح هادئ بلون المرحلة + شريط رفيع على الحافة يوضّح اللون في الوضعين،
  * بدل الكحلي الثابت اللي كان بيخلي النص الرمادي غير مقروء في النهاري. */
+/* ---------- كروت مراحل الطلب — نفس نظام ألوان الكروت المميزة ----------
+ * كانت ألوان الثيم الباهتة (تنت/لاين) بتبان غامقة على غامق في الليلي،
+ * فالعنوان كان مش مقروء. دلوقتي بتستخدم نفس تدرجات كروت الرئيسية
+ * مع نص أبيض وأيقونة/رقم زجاجي، في الوضعين. */
 .tg-stage-card {
   position: relative;
   overflow: hidden;
+  --c-wash: #2563eb;
+  --c-base: #1e3a8a;
+  background:
+    radial-gradient(125% 115% at 100% 0%, rgba(255, 255, 255, 0.18), transparent 58%),
+    linear-gradient(135deg, var(--c-wash) 0%, var(--c-base) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 18px rgba(9, 30, 66, 0.2);
+}
+html.dark .tg-stage-card {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.34);
 }
 .tg-stage-card::before {
   content: '';
@@ -1399,40 +1471,74 @@ html.dark .tg-legend-inline span {
   inset-block: 0;
   inset-inline-start: 0;
   width: 3px;
-  background: currentColor;
-  opacity: 0.6;
+  background: rgba(255, 255, 255, 0.42);
+  opacity: 0.9;
+  pointer-events: none;
+}
+.tg-stage-card[aria-pressed='true'] {
+  outline: 2px solid rgba(255, 255, 255, 0.75);
+  outline-offset: -2px;
+}
+.tg-stage-card__num {
+  background: rgba(255, 255, 255, 0.2) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+.tg-stage-card__desc {
+  color: rgba(255, 255, 255, 0.85) !important;
+  opacity: 1 !important;
 }
 
-/* ألوان المراحل — تعريف صريح بالتوكنز (مش utilities) عشان تضمن الخلفية في الوضعين */
+/* ألوان المراحل (نهاري) */
 .tg-stage-card--warn {
-  background: var(--app-warn-tint);
-  border-color: var(--app-warn-line);
-  color: var(--app-warn-text);
+  --c-wash: #d97706;
+  --c-base: #92400e;
 }
 .tg-stage-card--primary {
-  background: var(--app-primary-tint);
-  border-color: var(--app-primary-border);
-  color: var(--app-primary-text);
+  --c-wash: #2563eb;
+  --c-base: #1e3a8a;
 }
 .tg-stage-card--violet {
-  background: var(--app-violet-tint);
-  border-color: var(--app-violet-border);
-  color: var(--app-violet-text);
+  --c-wash: #7c3aed;
+  --c-base: #4c1d95;
 }
 .tg-stage-card--secondary {
-  background: var(--app-secondary-tint);
-  border-color: var(--app-secondary-border);
-  color: var(--app-secondary-text);
+  --c-wash: #0891b2;
+  --c-base: #155e75;
 }
 .tg-stage-card--ok {
-  background: var(--app-ok-tint);
-  border-color: var(--app-ok-line);
-  color: var(--app-ok-text);
+  --c-wash: #059669;
+  --c-base: #065f46;
 }
 .tg-stage-card--risk {
-  background: var(--app-risk-tint);
-  border-color: var(--app-risk-line);
-  color: var(--app-risk-text);
+  --c-wash: #dc2626;
+  --c-base: #991b1b;
+}
+
+/* ألوان المراحل (ليلي) */
+html.dark .tg-stage-card--warn {
+  --c-wash: #b45309;
+  --c-base: #451a03;
+}
+html.dark .tg-stage-card--primary {
+  --c-wash: #2563eb;
+  --c-base: #0f1f4d;
+}
+html.dark .tg-stage-card--violet {
+  --c-wash: #6d28d9;
+  --c-base: #2e1065;
+}
+html.dark .tg-stage-card--secondary {
+  --c-wash: #0e7490;
+  --c-base: #083344;
+}
+html.dark .tg-stage-card--ok {
+  --c-wash: #047857;
+  --c-base: #042f2e;
+}
+html.dark .tg-stage-card--risk {
+  --c-wash: #b91c1c;
+  --c-base: #450a0a;
 }
 
 /* ---------- 9) شيبس الحالة ---------- */

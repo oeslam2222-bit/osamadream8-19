@@ -2369,6 +2369,9 @@ export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success
       parent_invoice_id: invoice.parentInvoiceId || null,
       parent_invoice_number: invoice.parentInvoiceNumber || null,
       qr_payload: invoice.qrPayload || null,
+      is_archived: invoice.isArchived ? true : false,
+      archived_at: invoice.archivedAt || null,
+      archived_by: invoice.archivedBy || null,
       created_at: invoice.date ? `${invoice.date} ${invoice.time || ''}`.trim() : new Date().toISOString(),
     };
 
@@ -4974,6 +4977,8 @@ export async function fetchCustomerItemSalesIncremental(scope?: {
   maxUpdatedAt?: string | null;
   count?: number;
   entity?: string;
+  /** الصفوف اتقرأت لحد صفحة فشلت — التحميل هيكمل من عندها في المزامنة الجاية. */
+  isPartial?: boolean;
 }> {
   try {
     const scopeKey = scope
@@ -4999,17 +5004,30 @@ export async function fetchCustomerItemSalesIncremental(scope?: {
       cursor?.ts,
       scope ? applyScope : undefined
     );
-    if (read.error) {
-      return { success: false, error: read.error.message, entity: 'customer_item_sales', count: 0, isFullFetch, maxUpdatedAt: cursor?.ts ?? null };
-    }
+    // الجدول بيوصل لأكتر من 125 ألف صف، والصفحات العميقة بترجع 500 من الـ
+    // gateway. كان الكود القديم يرمي كل الصفوف المقروءة ويرجع فشل → المؤشر
+    // ما بيتحركش → كل مزامنة (نسخة بيانات / اتصال / إشارة) بتنزّل الجدول كله
+    // تاني من أوله: عشرات الـ MB في كل مرة ودقيقة تحميل بتتحول لـ5 دقايق.
+    // الحل: نحتفظ بالصفوف اللي اتقرأت فعلاً ونقدّم المؤشر عليها، فالمزامنة
+    // الجاية تكمل من حيث ما وقفت (الدمج idempotent بالـ id، advanceSyncCursor
+    // تصاعدي دايمًا فلا يترجع أي صف مُنجز).
+    const partialError: any = read.error || null;
     const rows = read.rows || [];
-    const changedRows = cursor ? rows.filter((r: any) => isRowAfterCursor(r, cursor)) : rows;
-    if (changedRows.length === 0) {
-      return { success: true, sales: [], entity: 'customer_item_sales', count: 0, isFullFetch, maxUpdatedAt: cursor?.ts ?? null };
+    if (partialError && rows.length === 0) {
+      return { success: false, error: partialError.message, entity: 'customer_item_sales', count: 0, isFullFetch, maxUpdatedAt: cursor?.ts ?? null };
     }
+    const changedRows = cursor ? rows.filter((r: any) => isRowAfterCursor(r, cursor)) : rows;
     let nextCursor: SyncCursor | null = cursor;
     for (const r of rows) nextCursor = advanceSyncCursor(nextCursor, r);
-    if (nextCursor) setSyncCursor(scopeKey, nextCursor.ts, nextCursor.id);
+    if (nextCursor && nextCursor !== cursor) {
+      setSyncCursor(scopeKey, nextCursor.ts, nextCursor.id);
+    }
+    if (changedRows.length === 0) {
+      if (partialError) {
+        return { success: false, error: partialError.message, entity: 'customer_item_sales', count: 0, isFullFetch, maxUpdatedAt: nextCursor?.ts ?? null };
+      }
+      return { success: true, sales: [], entity: 'customer_item_sales', count: 0, isFullFetch, maxUpdatedAt: nextCursor?.ts ?? null };
+    }
     return {
       success: true,
       sales: changedRows,
@@ -5017,6 +5035,7 @@ export async function fetchCustomerItemSalesIncremental(scope?: {
       count: changedRows.length,
       isFullFetch,
       maxUpdatedAt: nextCursor?.ts ?? null,
+      isPartial: Boolean(partialError),
     };
   } catch (err: any) {
     return { success: false, error: err?.message || 'فشل في المزامنة التراكمية لمبيعات الأصناف', entity: 'customer_item_sales', count: 0, isFullFetch: false, maxUpdatedAt: null };

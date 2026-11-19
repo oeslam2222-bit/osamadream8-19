@@ -1,0 +1,59 @@
+/* ---------- طبقة شارات القطاع / فئة العميل (qops-*) ----------
+   ملاحظة: «التشغيل السريع» (QuickOpsSheet) اتعمل منها — وبقيت هنا شارات
+   القطاع/الفئة اللي بتستخدمها في الكروت والقوائم والبروفايل. */
+
+.qops-sector {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.4;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.qops-sector--home {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+.qops-sector--electrical {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.qops-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1.4;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.qops-tier--premium {
+  background: linear-gradient(135deg, rgba(201, 138, 43, 0.16), rgba(201, 138, 43, 0.08));
+  color: #92610f;
+  border-color: rgba(201, 138, 43, 0.45);
+}
+.qops-tier--high {
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+  border-color: rgba(59, 130, 246, 0.35);
+}
+.qops-tier--mid {
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+  border-color: rgba(100, 116, 139, 0.3);
+}
+.qops-tier--basic {
+  background: rgba(100, 116, 139, 0.08);
+  color: #64748b;
+  border-color: rgba(100, 116, 139, 0.25);
+}

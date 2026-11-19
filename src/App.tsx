@@ -15,13 +15,14 @@ import {
   UploadCloud,
   Users,
   Wifi,
-  WifiOff
+  WifiOff,
+  Zap
 } from 'lucide-react';
 import { Onboarding } from "./components/Onboarding";
 import { SyncStatusCenter } from './components/SyncStatusCenter';
 import { SplashScreen } from "./components/SplashScreen";
 import { ToastProvider } from "./components/ui/Toast";
-import React, { Component, ErrorInfo, Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Component, ErrorInfo, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { DreamDeliveryDashboard } from './components/DreamDeliveryDashboard';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
@@ -127,6 +128,20 @@ const OrderBuilderModal = lazyNamed(() => import('./components/OrderBuilderModal
 const PromotionsOffersView = lazyNamed(() => import('./components/PromotionsOffersView'), 'PromotionsOffersView');
 const ElectronicInvoiceModal = lazyNamed(() => import('./components/ElectronicInvoiceModal'), 'ElectronicInvoiceModal');
 
+/**
+ * التبويبات الزائرة بتفضل في DOM مخفية بـ display:none بدل ما تتفكّك مع كل
+ * تنقل — فالرجوع بيكون فوري وإعادة جلب البيانات بتتلغي للتوابيب الحديثة.
+ * حد أقصى 5 تبويبات (الأحدث آخرًا) عشان الذاكرة والخلفية ما يزيدوش، والرئيسية
+ * مثبّتة لأنها أكثر وجهة رجوع عند المندوبين.
+ */
+const MOUNTED_TABS_LIMIT = 5;
+const PINNED_TABS: readonly string[] = ['home'];
+
+/** غلاف تبويب: بيختفي بـ display:none وهو محفوظ، وبيظهر فورًا عند الرجوع. */
+const TabPane: React.FC<{ hidden: boolean; children: React.ReactNode }> = ({ hidden, children }) => (
+  <div style={hidden ? { display: 'none' } : undefined}>{children}</div>
+);
+
 const MainLayout: React.FC = () => {
   const { isDark } = useTheme();
   const [splashOpen, setSplashOpen] = useState(() => {
@@ -136,7 +151,10 @@ const MainLayout: React.FC = () => {
       return true;
     }
   });
-  const { cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder, pendingInvoicesCount, flushPendingInvoices } = useApp();
+  const {
+    cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder,
+    pendingInvoicesCount, flushPendingInvoices, offlineQueueCount, flushOfflineQueue,
+  } = useApp();
 
   const [activeTab, setActiveTab] = useState<string>('home');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
@@ -156,12 +174,14 @@ const MainLayout: React.FC = () => {
   const [manualSyncRunning, setManualSyncRunning] = useState(false);
   /** مركز حالة المزامنة — تفاصيل الطابور المعلق والمزامنة اليدوية */
   const [syncCenterOpen, setSyncCenterOpen] = useState(false);
+  const pendingTotal = (pendingInvoicesCount || 0) + (offlineQueueCount || 0);
 
   const handleManualFlush = async () => {
-    if (manualSyncRunning || pendingInvoicesCount === 0) return;
+    if (manualSyncRunning || pendingTotal === 0) return;
     setManualSyncRunning(true);
     try {
-      await flushPendingInvoices();
+      // الفواتير ليها طابور خاص، وباقي التغييرات (زيارات/عملاء/تارجت) في الـoutbox.
+      await Promise.allSettled([flushPendingInvoices(), flushOfflineQueue()]);
     } catch {
       // الخطأ بيتسجل جوه الدالة نفسها — هنا مجرد مؤشر واجهة
     } finally {
@@ -204,6 +224,34 @@ const MainLayout: React.FC = () => {
       }
     }
   }, [currentUser?.id, currentUser?.role, activeTab, allowedTabs]);
+
+  /**
+   * سجل التبويبات المحفوظة mounted (مخفية) — كل تبويب جديد بيتسجّل آخر القائمة
+   * والقديم بيتفكّك لما يتجاوز الحد (LRU). تغيّر المستخدم بيمسح القائمة عشان
+   * ما يفضلش محتوى الحساب القديم مخفيًا شغّال في الخلفية.
+   */
+  const lastMountedUserIdRef = useRef<string | undefined>(currentUser?.id);
+  const [mountedTabs, setMountedTabs] = useState<string[]>(['home']);
+  useEffect(() => {
+    const userChanged = lastMountedUserIdRef.current !== currentUser?.id;
+    lastMountedUserIdRef.current = currentUser?.id;
+    setMountedTabs((prev) => {
+      const source = userChanged ? [] : prev;
+      const next = source.filter((t) => t !== activeTab);
+      next.push(activeTab);
+      while (next.length > MOUNTED_TABS_LIMIT) {
+        const evictIndex = next.findIndex((t) => t !== activeTab && !PINNED_TABS.includes(t));
+        if (evictIndex === -1) break;
+        next.splice(evictIndex, 1);
+      }
+      if (next.length === prev.length && next.every((t, i) => t === prev[i])) return prev;
+      return next;
+    });
+  }, [activeTab, currentUser?.id]);
+
+  // التبويب النشط بيتسجّل فورًا في نفس الـrender (قبل ما الـeffect يشتغل) عشان
+  // ما يظهرش إطار فاضي وقت التنقل.
+  const openTabs = useMemo(() => new Set([...mountedTabs, activeTab]), [mountedTabs, activeTab]);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     try {
@@ -299,7 +347,7 @@ const MainLayout: React.FC = () => {
       />
       
       {/* شريط حالة الاتصال والمزامنة — أوفلاين أو فيه فواتير معلّقة في انتظار الرفع */}
-      {(isOffline || pendingInvoicesCount > 0) && (
+      {(isOffline || pendingTotal > 0) && (
         <div
           className={`text-white text-xs py-1.5 px-3 sm:px-4 font-bold flex items-center justify-center gap-2 shadow-inner flex-wrap text-center ${
             isOffline ? 'bg-[var(--app-warn)]' : 'bg-[var(--app-ok)]'
@@ -310,13 +358,13 @@ const MainLayout: React.FC = () => {
           {isOffline && (
             <span>وضع عدم الاتصال — البيانات محفوظة محليًا وترتفع تلقائيًا عند عودة الشبكة</span>
           )}
-          {pendingInvoicesCount > 0 && (
+          {pendingTotal > 0 && (
             <button
               type="button"
               onClick={() => setSyncCenterOpen(true)}
               className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-black cursor-pointer hover:bg-white/30 transition"
             >
-              {pendingInvoicesCount.toLocaleString('ar-EG')} في انتظار الرفع
+              {pendingTotal.toLocaleString('ar-EG')} عملية في انتظار الرفع
             </button>
           )}
           <button
@@ -326,7 +374,7 @@ const MainLayout: React.FC = () => {
           >
             مركز المزامنة
           </button>
-          {!isOffline && pendingInvoicesCount > 0 && (
+          {!isOffline && pendingTotal > 0 && (
             <button
               type="button"
               onClick={handleManualFlush}
@@ -367,122 +415,172 @@ const MainLayout: React.FC = () => {
         <div className="mx-auto w-full max-w-[1440px] px-3 sm:px-5 md:px-6 py-3 sm:py-5">
           <Suspense fallback={<TabLoadingSkeleton />}>
 
-          {activeTab === 'home' && allowedTabs.includes('home') && (
-            currentUser?.role === 'legal_advisor' || currentUser?.role === 'warehouse_keeper' ? (
-              <RoleLimitedHome onGoTab={(tab) => setActiveTab(tab)} />
-            ) : (
-              <DreamDeliveryDashboard
-                onNavigate={handleDashboardNavigate}
-                onNewOrder={() => setIsOrderModalOpen(true)}
+          {openTabs.has('home') && allowedTabs.includes('home') && (
+            <TabPane hidden={activeTab !== 'home'}>
+              {currentUser?.role === 'legal_advisor' || currentUser?.role === 'warehouse_keeper' ? (
+                <RoleLimitedHome onGoTab={(tab) => setActiveTab(tab)} />
+              ) : (
+                <DreamDeliveryDashboard
+                  onNavigate={handleDashboardNavigate}
+                  onNewOrder={() => setIsOrderModalOpen(true)}
+                />
+              )}
+            </TabPane>
+          )}
+          {openTabs.has('catalog') && allowedTabs.includes('catalog') && (
+            <TabPane hidden={activeTab !== 'catalog'}>
+              <ProductCatalog
+                onOpenCart={() => setIsOrderModalOpen(true)}
+                selectedCustomer={orderInitialCustomer}
+                onClearSelectedCustomer={() => setOrderInitialCustomer(null)}
+                onNavigateToTab={(tab) => setActiveTab(tab)}
+                initialSearchQuery={globalSearchQuery}
+                searchSeq={globalSearchSeq}
+                onNavigateToInvoices={() => {
+                  setActiveTab('invoices');
+                }}
               />
-            )
-          )}
-          {activeTab === 'catalog' && allowedTabs.includes('catalog') && (
-            <ProductCatalog
-              onOpenCart={() => setIsOrderModalOpen(true)}
-              selectedCustomer={orderInitialCustomer}
-              onClearSelectedCustomer={() => setOrderInitialCustomer(null)}
-              onNavigateToTab={(tab) => setActiveTab(tab)}
-              initialSearchQuery={globalSearchQuery}
-              searchSeq={globalSearchSeq}
-              onNavigateToInvoices={() => {
-                setActiveTab('invoices');
-              }}
-            />
+            </TabPane>
           )}
 
-          {(activeTab === 'offers' || activeTab === 'promotions') && (
-            <PromotionsOffersView
-              onOpenProductInCatalog={(code) => {
-                setGlobalSearchQuery(code);
-                setGlobalSearchSeq((s) => s + 1);
-                setActiveTab('catalog');
-              }}
-            />
+          {(openTabs.has('offers') || openTabs.has('promotions')) && (
+            <TabPane hidden={activeTab !== 'offers' && activeTab !== 'promotions'}>
+              <PromotionsOffersView
+                onOpenProductInCatalog={(code) => {
+                  setGlobalSearchQuery(code);
+                  setGlobalSearchSeq((s) => s + 1);
+                  setActiveTab('catalog');
+                }}
+              />
+            </TabPane>
           )}
 
-          {activeTab === 'customer_item_sales' && (allowedTabs.includes('customer_item_sales') || allowedTabs.includes('catalog')) && (
-            <CustomerItemSalesView />
+          {openTabs.has('customer_item_sales') && (allowedTabs.includes('customer_item_sales') || allowedTabs.includes('catalog')) && (
+            <TabPane hidden={activeTab !== 'customer_item_sales'}>
+              <CustomerItemSalesView />
+            </TabPane>
           )}
 
-          {activeTab === 'dashboard' && allowedTabs.includes('dashboard') && (
-            <SupervisorDashboard
-              onOpenNewOrder={() => setIsOrderModalOpen(true)}
-              onNavigateToTab={(tab) => setActiveTab(tab)}
-            />
+          {openTabs.has('dashboard') && allowedTabs.includes('dashboard') && (
+            <TabPane hidden={activeTab !== 'dashboard'}>
+              <SupervisorDashboard
+                onOpenNewOrder={() => setIsOrderModalOpen(true)}
+                onNavigateToTab={(tab) => setActiveTab(tab)}
+              />
+            </TabPane>
           )}
 
-          {activeTab === 'targets' && allowedTabs.includes('targets') && (
-            <TargetsDashboard />
+          {openTabs.has('targets') && allowedTabs.includes('targets') && (
+            <TabPane hidden={activeTab !== 'targets'}>
+              <TargetsDashboard />
+            </TabPane>
           )}
 
-          {activeTab === 'collection' && allowedTabs.includes('collection') && <CollectionCommandCenter />}
-
-          {activeTab === 'legal_advisor' && allowedTabs.includes('legal_advisor') && <LegalAdvisorDashboard />}
-
-          {activeTab === 'visits' && allowedTabs.includes('visits') && <VisitsDashboard />}
-
-          {activeTab === 'audit_log' && allowedTabs.includes('audit_log') && <AuditLogView />}
-          {(activeTab === 'all_customers' || activeTab === 'customers') && (allowedTabs.includes('all_customers') || allowedTabs.includes('customers')) && (
-            <SmartProfilePage
-              mode="customers"
-              onOpenNewOrderForCustomer={(cust) => {
-                setOrderInitialCustomer(cust);
-                setActiveTab('catalog');
-              }}
-              focusCustomerId={profileFocusCustomerId}
-              onFocusConsumed={() => setProfileFocusCustomerId(null)}
-            />
-          )}
-          {activeTab === 'reps' && allowedTabs.includes('reps') && (
-            <SmartProfilePage
-              mode="reps"
-              onOpenNewOrderForCustomer={(cust) => {
-                setOrderInitialCustomer(cust);
-                setActiveTab('catalog');
-              }}
-              focusCustomerId={profileFocusCustomerId}
-              onFocusConsumed={() => setProfileFocusCustomerId(null)}
-            />
-          )}
-          {(activeTab === 'returns' || activeTab === 'returns_customers') && (allowedTabs.includes('returns') || allowedTabs.includes('returns_customers')) && (
-            <UnifiedReturnsView />
+          {openTabs.has('collection') && allowedTabs.includes('collection') && (
+            <TabPane hidden={activeTab !== 'collection'}>
+              <CollectionCommandCenter />
+            </TabPane>
           )}
 
-          {activeTab === 'invoices' && allowedTabs.includes('invoices') && (
-            <OrdersPipelineView
-              onOpenNewOrder={() => setIsOrderModalOpen(true)}
-              onViewInvoice={(invoice) => setViewingInvoice(invoice)}
-              onEditInvoice={handleEditInvoice}
-            />
+          {openTabs.has('legal_advisor') && allowedTabs.includes('legal_advisor') && (
+            <TabPane hidden={activeTab !== 'legal_advisor'}>
+              <LegalAdvisorDashboard />
+            </TabPane>
           )}
 
-          {activeTab === 'product_sales' && allowedTabs.includes('product_sales') && (
-            <CustomerItemSalesView
-              onOpenNewOrderForCustomer={(cust) => {
-                setOrderInitialCustomer(cust);
-                setActiveTab('catalog');
-              }}
-              onNavigateToExcel={() => setActiveTab('excel')}
-            />
+          {openTabs.has('visits') && allowedTabs.includes('visits') && (
+            <TabPane hidden={activeTab !== 'visits'}>
+              <VisitsDashboard />
+            </TabPane>
           )}
 
-          {activeTab === 'excel' && allowedTabs.includes('excel') && (
-            <ExcelImportExport onNavigateToItemSales={() => setActiveTab('customer_item_sales')} />
+          {openTabs.has('audit_log') && allowedTabs.includes('audit_log') && (
+            <TabPane hidden={activeTab !== 'audit_log'}>
+              <AuditLogView />
+            </TabPane>
+          )}
+          {(openTabs.has('all_customers') || openTabs.has('customers')) && (allowedTabs.includes('all_customers') || allowedTabs.includes('customers')) && (
+            <TabPane hidden={activeTab !== 'all_customers' && activeTab !== 'customers'}>
+              <SmartProfilePage
+                mode="customers"
+                onOpenNewOrderForCustomer={(cust) => {
+                  setOrderInitialCustomer(cust);
+                  setActiveTab('catalog');
+                }}
+                focusCustomerId={profileFocusCustomerId}
+                onFocusConsumed={() => setProfileFocusCustomerId(null)}
+              />
+            </TabPane>
+          )}
+          {openTabs.has('reps') && allowedTabs.includes('reps') && (
+            <TabPane hidden={activeTab !== 'reps'}>
+              <SmartProfilePage
+                mode="reps"
+                onOpenNewOrderForCustomer={(cust) => {
+                  setOrderInitialCustomer(cust);
+                  setActiveTab('catalog');
+                }}
+                focusCustomerId={profileFocusCustomerId}
+                onFocusConsumed={() => setProfileFocusCustomerId(null)}
+              />
+            </TabPane>
+          )}
+          {(openTabs.has('returns') || openTabs.has('returns_customers')) && (allowedTabs.includes('returns') || allowedTabs.includes('returns_customers')) && (
+            <TabPane hidden={activeTab !== 'returns' && activeTab !== 'returns_customers'}>
+              <UnifiedReturnsView />
+            </TabPane>
           )}
 
-          {activeTab === 'users' && allowedTabs.includes('users') && <UserManager />}
-
-          {activeTab === 'settings' && allowedTabs.includes('settings') && (
-            <SettingsCenterView onNavigate={(tab) => setActiveTab(tab)} />
+          {openTabs.has('invoices') && allowedTabs.includes('invoices') && (
+            <TabPane hidden={activeTab !== 'invoices'}>
+              <OrdersPipelineView
+                onOpenNewOrder={() => setIsOrderModalOpen(true)}
+                onViewInvoice={(invoice) => setViewingInvoice(invoice)}
+                onEditInvoice={handleEditInvoice}
+              />
+            </TabPane>
           )}
 
-          {activeTab === 'guide' && allowedTabs.includes('guide') && (
-            <SystemWorkflowGuide onNavigateToTab={(tab) => setActiveTab(tab)} />
+          {openTabs.has('product_sales') && allowedTabs.includes('product_sales') && (
+            <TabPane hidden={activeTab !== 'product_sales'}>
+              <CustomerItemSalesView
+                onOpenNewOrderForCustomer={(cust) => {
+                  setOrderInitialCustomer(cust);
+                  setActiveTab('catalog');
+                }}
+                onNavigateToExcel={() => setActiveTab('excel')}
+              />
+            </TabPane>
           )}
 
-          {activeTab === 'permissions' && allowedTabs.includes('permissions') && (
-            <PermissionManagerModal isOpen={true} onClose={() => setActiveTab('home')} />
+          {openTabs.has('excel') && allowedTabs.includes('excel') && (
+            <TabPane hidden={activeTab !== 'excel'}>
+              <ExcelImportExport onNavigateToItemSales={() => setActiveTab('customer_item_sales')} />
+            </TabPane>
+          )}
+
+          {openTabs.has('users') && allowedTabs.includes('users') && (
+            <TabPane hidden={activeTab !== 'users'}>
+              <UserManager />
+            </TabPane>
+          )}
+
+          {openTabs.has('settings') && allowedTabs.includes('settings') && (
+            <TabPane hidden={activeTab !== 'settings'}>
+              <SettingsCenterView onNavigate={(tab) => setActiveTab(tab)} />
+            </TabPane>
+          )}
+
+          {openTabs.has('guide') && allowedTabs.includes('guide') && (
+            <TabPane hidden={activeTab !== 'guide'}>
+              <SystemWorkflowGuide onNavigateToTab={(tab) => setActiveTab(tab)} />
+            </TabPane>
+          )}
+
+          {openTabs.has('permissions') && allowedTabs.includes('permissions') && (
+            <TabPane hidden={activeTab !== 'permissions'}>
+              <PermissionManagerModal isOpen={true} onClose={() => setActiveTab('home')} />
+            </TabPane>
           )}
 
         </Suspense>

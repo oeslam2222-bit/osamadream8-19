@@ -18,6 +18,20 @@ export function formatCurrency(amount: number | undefined): string {
 }
 
 /**
+ * Compact currency for narrow KPI tiles (phones / small tablets) so long amounts
+ * stay on one line: 1.2 مليون ج.م · 185 ألف ج.م · 9,500 ج.م
+ */
+export function formatCompactCurrency(amount: number | undefined): string {
+  if (amount === undefined || isNaN(amount)) return '0 ج.م';
+  const abs = Math.abs(amount);
+  const compact = (divisor: number, suffix: string) =>
+    `${(amount / divisor).toLocaleString('en-US', { maximumFractionDigits: 1 })} ${suffix} ج.م`;
+  if (abs >= 1_000_000) return compact(1_000_000, 'مليون');
+  if (abs >= 100_000) return compact(1_000, 'ألف');
+  return formatCurrency(amount);
+}
+
+/**
  * Format number with comma separators without currency suffix (e.g. 50,000 or 50,000.50).
  */
 export function formatDecimalAmount(amount: number | undefined): string {

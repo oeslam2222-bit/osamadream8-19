@@ -12,6 +12,8 @@ import './styles/app-shell.css';
 import './styles/identity.css';
 // هوية البراند v2 (مطابقة المرجع المعتمد) — آخر ملف فيثبّت القيم فوق الكل
 import './styles/brand-v2.css';
+// معاينة أمر البيع / الفاتورة الإلكترونية — هيدر وفوتر وورق مضبوط
+import './styles/electronic-invoice.css';
 // تنسيق صفحة مبيعات الأصناف في الوضعين (النهار/الليل)
 import './styles/item-sales-page.css';
 // توحيد شكل الكروت والنصوص في الوضع الليلي على مستوى التطبيق
