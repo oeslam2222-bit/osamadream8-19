@@ -52,7 +52,9 @@ export const MonthlyAggregateCard: React.FC<MonthlyAggregateCardProps> = ({ sect
     if (records.length === 0) return;
     if (autoBuildDoneForRef.current === records.length) return;
     autoBuildDoneForRef.current = records.length;
-    void handleBuild();
+    // التجميع بيلف على كل الصفوف — بنأجّله بعد أول رسم عشان الصفحة ما تتجمّدش.
+    const timer = window.setTimeout(() => void handleBuild(), 1200);
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docs.length, isLoading, isBuilding, records.length]);
 

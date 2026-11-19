@@ -14,6 +14,7 @@ import {
 import { formatCompactAmount, MONTH_LABELS } from '../../services/customerItemSalesInsights';
 import { MonthlyPerformancePoint } from '../../services/itemSalesAnalytics';
 import { formatCurrency } from '../../services/invoiceService';
+import { useChartTheme } from '../../services/chartTheme';
 import { CardShell, ChartEmpty, GrowthPill } from './ItemSalesPrimitives';
 
 interface MonthlyPerformanceCardProps {
@@ -45,6 +46,7 @@ export const MonthlyPerformanceCard: React.FC<MonthlyPerformanceCardProps> = ({
   selectedMonth,
   onSelectMonth
 }) => {
+  const chart = useChartTheme();
   const total = points.reduce((acc, point) => acc + point.amount, 0);
 
   return (
@@ -70,21 +72,21 @@ export const MonthlyPerformanceCard: React.FC<MonthlyPerformanceCardProps> = ({
             >
               <defs>
                 <linearGradient id="monthlyPerformanceFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#102b4e" stopOpacity={0.22} />
-                  <stop offset="100%" stopColor="#102b4e" stopOpacity={0.01} />
+                  <stop offset="0%" stopColor={chart.bar} stopOpacity={0.22} />
+                  <stop offset="100%" stopColor={chart.bar} stopOpacity={0.01} />
                 </linearGradient>
               </defs>
-              <CartesianGrid stroke="#eef3f8" strokeDasharray="4 4" vertical={false} />
+              <CartesianGrid stroke={chart.grid} strokeDasharray="4 4" vertical={false} />
               <XAxis
                 dataKey="label"
-                tick={{ fill: '#64748b', fontSize: 9.5, fontFamily: 'Cairo, sans-serif' }}
-                axisLine={{ stroke: '#e2e8f0' }}
+                tick={{ fill: chart.tick, fontSize: 9.5, fontFamily: 'Cairo, sans-serif' }}
+                axisLine={{ stroke: chart.axis }}
                 tickLine={false}
                 interval={0}
               />
               <YAxis
                 tickFormatter={(value: number) => formatCompactAmount(value)}
-                tick={{ fill: '#94a3b8', fontSize: 9 }}
+                tick={{ fill: chart.tickMuted, fontSize: 9 }}
                 axisLine={false}
                 tickLine={false}
                 width={54}
@@ -100,16 +102,16 @@ export const MonthlyPerformanceCard: React.FC<MonthlyPerformanceCardProps> = ({
               <Line
                 type="monotone"
                 dataKey="amount"
-                stroke="#2563EB"
+                stroke={chart.bar}
                 strokeWidth={2.5}
-                dot={{ r: 3.5, fill: '#ffffff', stroke: '#2563EB', strokeWidth: 2 }}
-                activeDot={{ r: 5, fill: '#c99a43', stroke: '#ffffff', strokeWidth: 2 }}
+                dot={{ r: 3.5, fill: chart.pieStroke, stroke: chart.bar, strokeWidth: 2 }}
+                activeDot={{ r: 5, fill: chart.barAlt, stroke: chart.pieStroke, strokeWidth: 2 }}
               >
                 <LabelList
                   dataKey="amount"
                   position="top"
                   formatter={(value: number) => formatCompactAmount(value)}
-                  style={{ fill: '#334155', fontSize: 9, fontWeight: 800 }}
+                  style={{ fill: chart.label, fontSize: 9, fontWeight: 800 }}
                 />
               </Line>
             </ComposedChart>

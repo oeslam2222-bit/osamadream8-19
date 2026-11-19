@@ -4,6 +4,8 @@ import { formatCurrency } from '../../services/invoiceService';
 import { PeriodComparison } from '../../services/customerItemSalesInsights';
 import { GrowthPill } from './ItemSalesPrimitives';
 
+type KpiTone = 'blue' | 'green' | 'violet' | 'amber' | 'red';
+
 interface ItemSalesKpiCardsProps {
   comparison: PeriodComparison;
   totalQuantity: number;
@@ -19,14 +21,14 @@ interface ItemSalesKpiCardsProps {
 
 const KpiCard: React.FC<{
   title: string;
+  tone: KpiTone;
   icon: React.ReactNode;
-  iconClass: string;
   children: React.ReactNode;
-}> = ({ title, icon, iconClass, children }) => (
-  <div className="bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] shadow-[0_2px_10px_rgba(15,43,56,0.04)] p-4 flex flex-col justify-between min-h-[118px] hover:border-[var(--app-primary-border)] transition">
+}> = ({ title, tone, icon, children }) => (
+  <div className={`tg-report-kpi tg-report-kpi--${tone} p-4 flex flex-col justify-between min-h-[118px] transition`}>
     <div className="flex items-start justify-between gap-2">
-      <span className="text-[11px] font-bold text-[var(--app-text-muted)] leading-tight">{title}</span>
-      <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${iconClass}`}>
+      <span className="tg-report-kpi__label text-[11px] font-bold leading-tight">{title}</span>
+      <span className="tg-report-kpi__icon w-9 h-9 rounded-xl flex items-center justify-center shrink-0">
         {icon}
       </span>
     </div>
@@ -56,90 +58,70 @@ const ItemSalesKpiCardsBase: React.FC<ItemSalesKpiCardsProps> = ({
     previousItemsCount > 0 ? ((itemsCount - previousItemsCount) / previousItemsCount) * 100 : null;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
-      <KpiCard
-        title="إجمالي المبيعات"
-        icon={<Banknote className="w-5 h-5" />}
-        iconClass="bg-[var(--app-ok-tint)] text-[var(--app-ok-text)]"
-      >
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+      <KpiCard title="إجمالي المبيعات" tone="blue" icon={<Banknote className="w-5 h-5" />}>
         <div className="mt-2.5">
-          <div className="text-[21px] leading-tight font-black text-slate-900 font-mono">
+          <div className="tg-report-kpi__value text-[21px] leading-tight font-black font-mono">
             {formatCurrency(comparison.currentAmount)}
           </div>
           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-            <GrowthPill growth={amountGrowth} />
-            <span className="text-[9.5px] text-slate-400 font-bold">{amountCaption}</span>
+            <GrowthPill growth={amountGrowth} className="tg-report-kpi__pill" />
+            <span className="tg-report-kpi__hint text-[9.5px] font-bold">{amountCaption}</span>
           </div>
         </div>
       </KpiCard>
 
-      <KpiCard
-        title="إجمالي الكميات المباعة"
-        icon={<Boxes className="w-5 h-5" />}
-        iconClass="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]"
-      >
+      <KpiCard title="إجمالي الكميات المباعة" tone="green" icon={<Boxes className="w-5 h-5" />}>
         <div className="mt-2.5">
-          <div className="text-[21px] leading-tight font-black text-slate-900 font-mono">
+          <div className="tg-report-kpi__value text-[21px] leading-tight font-black font-mono">
             {totalQuantity.toLocaleString('en-US')}
-            <span className="text-[11px] font-bold text-slate-400 ms-1">وحدة</span>
+            <span className="tg-report-kpi__hint text-[11px] font-bold ms-1">وحدة</span>
           </div>
           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-            <GrowthPill growth={quantityGrowth} emptyLabel="لا توجد فترة سابقة" />
-            <span className="text-[9.5px] text-slate-400 font-bold">{comparisonCaption}</span>
+            <GrowthPill growth={quantityGrowth} className="tg-report-kpi__pill" emptyLabel="لا توجد فترة سابقة" />
+            <span className="tg-report-kpi__hint text-[9.5px] font-bold">{comparisonCaption}</span>
           </div>
         </div>
       </KpiCard>
 
-      <KpiCard
-        title="إجمالي الأصناف المتحركة"
-        icon={<Tags className="w-5 h-5" />}
-        iconClass="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]"
-      >
+      <KpiCard title="إجمالي الأصناف المتحركة" tone="violet" icon={<Tags className="w-5 h-5" />}>
         <div className="mt-2.5">
-          <div className="text-[21px] leading-tight font-black text-slate-900 font-mono">
+          <div className="tg-report-kpi__value text-[21px] leading-tight font-black font-mono">
             {itemsCount.toLocaleString('en-US')}
-            <span className="text-[11px] font-bold text-slate-400 ms-1">صنف</span>
+            <span className="tg-report-kpi__hint text-[11px] font-bold ms-1">صنف</span>
           </div>
           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-            <GrowthPill growth={itemsGrowth} emptyLabel="لا توجد فترة سابقة" />
-            <span className="text-[9.5px] text-slate-400 font-bold">{comparisonCaption}</span>
+            <GrowthPill growth={itemsGrowth} className="tg-report-kpi__pill" emptyLabel="لا توجد فترة سابقة" />
+            <span className="tg-report-kpi__hint text-[9.5px] font-bold">{comparisonCaption}</span>
           </div>
         </div>
       </KpiCard>
 
-      <KpiCard
-        title="عدد العملاء"
-        icon={<Users className="w-5 h-5" />}
-        iconClass="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)]"
-      >
+      <KpiCard title="عدد العملاء" tone="amber" icon={<Users className="w-5 h-5" />}>
         <div className="mt-2.5">
-          <div className="text-[21px] leading-tight font-black text-slate-900 font-mono">
+          <div className="tg-report-kpi__value text-[21px] leading-tight font-black font-mono">
             {customersCount.toLocaleString('en-US')}
-            <span className="text-[11px] font-bold text-slate-400 ms-1">عميل</span>
+            <span className="tg-report-kpi__hint text-[11px] font-bold ms-1">عميل</span>
           </div>
           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-[var(--app-navy-line)] bg-[var(--app-navy-tint)] text-[10px] font-black text-[var(--app-navy-text)]">
+            <span className="tg-report-kpi__chip inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-black">
               عملاء لهم مبيعات (بكود/اسم العميل)
             </span>
           </div>
         </div>
       </KpiCard>
 
-      <KpiCard
-        title="أصناف بدون حركة"
-        icon={<PackageX className="w-5 h-5" />}
-        iconClass="bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]"
-      >
+      <KpiCard title="أصناف بدون حركة" tone="red" icon={<PackageX className="w-5 h-5" />}>
         <div className="mt-2.5">
-          <div className="text-[21px] leading-tight font-black text-slate-900 font-mono">
+          <div className="tg-report-kpi__value text-[21px] leading-tight font-black font-mono">
             {idleIsLoading ? '...' : idleCount.toLocaleString('en-US')}
-            <span className="text-[11px] font-bold text-slate-400 ms-1">صنف</span>
+            <span className="tg-report-kpi__hint text-[11px] font-bold ms-1">صنف</span>
           </div>
           <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border border-[var(--app-warn-line)] bg-[var(--app-warn-tint)] text-[10px] font-black text-[var(--app-warn-text)]">
+            <span className="tg-report-kpi__chip inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-black">
               رصيد راكد
             </span>
-            <span className="text-[9.5px] text-slate-400 font-bold">{idleCaption}</span>
+            <span className="tg-report-kpi__hint text-[9.5px] font-bold">{idleCaption}</span>
           </div>
         </div>
       </KpiCard>

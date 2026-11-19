@@ -46,6 +46,8 @@ interface CustomerFilterBarProps {
   canFilterBranch: boolean;
   canFilterRep: boolean;
   canFilterSupervisor: boolean;
+  /** إخفاء فلتر القطاع عن غير الإدارة العليا (admin/developer). */
+  canFilterSector?: boolean;
   sortValue: string;
   onSortChange: (value: string) => void;
   resultCount: number;
@@ -123,6 +125,7 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
   canFilterBranch,
   canFilterRep,
   canFilterSupervisor,
+  canFilterSector = true,
   sortValue,
   onSortChange,
   resultCount,
@@ -151,7 +154,7 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
     if (value.selectedBranch !== 'ALL') tags.push({ key: 'selectedBranch', label: `الفرع: ${value.selectedBranch}` });
     if (value.selectedSupervisor !== 'ALL') tags.push({ key: 'selectedSupervisor', label: `المشرف: ${value.selectedSupervisor}` });
     if (value.selectedRep !== 'ALL') tags.push({ key: 'selectedRep', label: `المندوب: ${value.selectedRep}` });
-    if (value.selectedSector !== 'all') {
+    if (value.selectedSector !== 'all' && canFilterSector) {
       tags.push({
         key: 'selectedSector',
         label: `القطاع: ${value.selectedSector === 'home' ? 'منزلي' : value.selectedSector === 'electrical' ? 'كهرباء' : 'القطاعين'}`,
@@ -172,7 +175,7 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
       });
     }
     return tags;
-  }, [value]);
+  }, [value, canFilterSector]);
 
   const hasAnyFilter = activeTags.length > 0;
 
@@ -275,7 +278,8 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
           </select>
         </label>
 
-        {/* 4. فلتر القطاع */}
+        {/* 4. فلتر القطاع — للإدارة العليا فقط */}
+        {canFilterSector && (
         <label className="flex flex-col gap-1 min-w-0">
           <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5 whitespace-nowrap">
             <Layers className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
@@ -292,6 +296,7 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
             <option value="both">القطاعين معاً 🏢</option>
           </select>
         </label>
+        )}
       </div>
 
       {/* البحث الفوري */}

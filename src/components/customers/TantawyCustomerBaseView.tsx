@@ -82,6 +82,8 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
     currentUser,
     users,
     branches,
+    effectiveSectorFilter,
+    canManageSectorGate,
     syncCustomersIncrementally,
     updateCustomer,
     cloudinaryConfig,
@@ -164,7 +166,7 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
    * من السيرفر كان المندوب بيشوف قاعدة الشركة كلها (5,400 عميل) ويلاقي
    * فلتر المندوبين فيه 55 اسم. بعد تضييق القراءة بقى بيوصله فرعه بس،
    * وده لسه مش «عملاءه هو». الفلترة هنا بتطبّق نفس منطق getVisibleCustomers
-   * (بدون فلتر القطاع، لأن الشاشة دي ليها فلتر قطاع خاص بيها).
+   * + عزل القطاع ('none' = محجوب عن القطاعين).
    */
   const scopedCustomers = useMemo(() => {
     if (!currentUser) return [];
@@ -179,9 +181,20 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
       return customers;
     }
 
+    // عزل القطاع: حساب مبيعات بلا قطاع = محجوب، وغيره مقفول على قطاعه.
+    if (effectiveSectorFilter === 'none') return [];
+    const inAllowedSector = (c: Customer): boolean => {
+      if (effectiveSectorFilter === 'all') return true;
+      const s = c.sector;
+      if (s === 'both' || s === 'all') return true;
+      return (s || inferCustomerSector(c, users)) === effectiveSectorFilter;
+    };
+
     if (role === 'branch_manager') {
       if (!currentUser.branchName) return [];
-      return customers.filter((c) => doesCustomerBelongToBranch(c, currentUser.branchName, users));
+      return customers.filter(
+        (c) => inAllowedSector(c) && doesCustomerBelongToBranch(c, currentUser.branchName, users)
+      );
     }
 
     if (role === 'supervisor') {
@@ -189,6 +202,7 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
         users.filter((u) => u.role === 'sales_rep' && u.supervisorId === currentUser.id).map((u) => u.id)
       );
       return customers.filter((c) => {
+        if (!inAllowedSector(c)) return false;
         const isSameBranch =
           Boolean(c.branchName) && isBranchMatch(c.branchName, currentUser.branchName, { allowUnassigned: false });
         if (!isSameBranch) return false;
@@ -201,8 +215,8 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
       });
     }
 
-    return customers.filter((c) => doesCustomerBelongToRep(c, currentUser));
-  }, [customers, currentUser, users]);
+    return customers.filter((c) => inAllowedSector(c) && doesCustomerBelongToRep(c, currentUser));
+  }, [customers, currentUser, users, effectiveSectorFilter]);
 
   // Unique list of reps and branches from actual data
   const uniqueBranches = useMemo(() => {
@@ -446,7 +460,8 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
             </select>
           </div>
 
-          {/* Sector Select Dropdown */}
+          {/* Sector Select Dropdown — للإدارة العليا فقط */}
+          {canManageSectorGate && (
           <div className="min-w-[130px]">
             <select
               value={selectedSector}
@@ -461,6 +476,7 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
               <option value="home">قطاع المنزلي</option>
             </select>
           </div>
+          )}
 
           {/* Badge: 10 عملاء معروضين */}
           <div className="px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/40 text-[#2563EB] dark:text-blue-300 font-bold text-xs flex items-center gap-1.5 shadow-xs whitespace-nowrap">

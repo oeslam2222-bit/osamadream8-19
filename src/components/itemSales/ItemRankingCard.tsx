@@ -14,6 +14,7 @@ import {
 import { formatCompactAmount, shortItemName } from '../../services/customerItemSalesInsights';
 import { ItemRankingRow } from '../../services/itemSalesAnalytics';
 import { formatCurrency } from '../../services/invoiceService';
+import { useChartTheme } from '../../services/chartTheme';
 import { CardShell, ChartEmpty, GrowthPill } from './ItemSalesPrimitives';
 
 interface ItemRankingCardProps {
@@ -48,6 +49,8 @@ export const ItemRankingCard: React.FC<ItemRankingCardProps> = ({
   subtitle,
   onSelectItem
 }) => {
+  const chart = useChartTheme();
+
   if (variant === 'quantity') {
     const max = Math.max(...items.map((item) => item.quantity), 1);
 
@@ -130,23 +133,23 @@ export const ItemRankingCard: React.FC<ItemRankingCardProps> = ({
               margin={{ top: 22, right: 4, left: 0, bottom: 0 }}
               barCategoryGap="24%"
             >
-              <CartesianGrid stroke="#eef3f8" strokeDasharray="4 4" vertical={false} />
+              <CartesianGrid stroke={chart.grid} strokeDasharray="4 4" vertical={false} />
               <XAxis
                 dataKey="name"
-                tick={{ fill: '#64748b', fontSize: 8.5, fontFamily: 'Cairo, sans-serif' }}
-                axisLine={{ stroke: '#e2e8f0' }}
+                tick={{ fill: chart.tick, fontSize: 8.5, fontFamily: 'Cairo, sans-serif' }}
+                axisLine={{ stroke: chart.axis }}
                 tickLine={false}
                 interval={0}
                 height={44}
               />
               <YAxis
                 tickFormatter={(value: number) => formatCompactAmount(value)}
-                tick={{ fill: '#94a3b8', fontSize: 9 }}
+                tick={{ fill: chart.tickMuted, fontSize: 9 }}
                 axisLine={false}
                 tickLine={false}
                 width={54}
               />
-              <Tooltip content={<ItemTooltip />} cursor={{ fill: 'rgba(16,43,78,0.04)' }} />
+              <Tooltip content={<ItemTooltip />} cursor={{ fill: chart.cursor }} />
               <Bar
                 dataKey="amount"
                 radius={[5, 5, 0, 0]}
@@ -158,10 +161,10 @@ export const ItemRankingCard: React.FC<ItemRankingCardProps> = ({
                   dataKey="amount"
                   position="top"
                   formatter={(value: number) => formatCompactAmount(value)}
-                  style={{ fill: '#334155', fontSize: 9, fontWeight: 800 }}
+                  style={{ fill: chart.label, fontSize: 9, fontWeight: 800 }}
                 />
                 {chartData.map((item, index) => (
-                  <Cell key={`${item.itemCode}-${index}`} fill={index === 0 ? '#c99a43' : '#2563EB'} />
+                  <Cell key={`${item.itemCode}-${index}`} fill={index === 0 ? chart.barAlt : chart.bar} />
                 ))}
               </Bar>
             </BarChart>

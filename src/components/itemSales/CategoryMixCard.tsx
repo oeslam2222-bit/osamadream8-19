@@ -4,6 +4,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { formatCompactAmount } from '../../services/customerItemSalesInsights';
 import { GroupShareInsight } from '../../services/itemSalesAnalytics';
 import { formatCurrency } from '../../services/invoiceService';
+import { useChartTheme } from '../../services/chartTheme';
 import { CardShell, ChartEmpty } from './ItemSalesPrimitives';
 
 interface CategoryMixCardProps {
@@ -34,7 +35,10 @@ export const CategoryMixCard: React.FC<CategoryMixCardProps> = ({
   totalItems,
   totalQuantity,
   onSelectGroup
-}) => (
+}) => {
+  const chart = useChartTheme();
+
+  return (
   <CardShell
     title="توزيع المبيعات حسب الفئات"
     subtitle={`${groups.length.toLocaleString('en-US')} فئة • ${totalItems.toLocaleString('en-US')} صنف`}
@@ -60,7 +64,7 @@ export const CategoryMixCard: React.FC<CategoryMixCardProps> = ({
                 innerRadius={54}
                 outerRadius={82}
                 paddingAngle={2}
-                stroke="#fff"
+                stroke={chart.pieStroke}
                 strokeWidth={2}
               >
                 {groups.map((group) => (
@@ -118,4 +122,5 @@ export const CategoryMixCard: React.FC<CategoryMixCardProps> = ({
       </div>
     )}
   </CardShell>
-);
+  );
+};

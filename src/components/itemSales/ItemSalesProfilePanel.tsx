@@ -281,8 +281,13 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
                     <span className="truncate text-[var(--app-text)]" title={family.name}>
                       {family.name}
                     </span>
-                    <span className="font-mono font-black text-[var(--app-text)] shrink-0">
-                      {formatCurrency(family.amount)}
+                    <span className="flex items-center gap-1.5 shrink-0">
+                      <span className="font-mono font-black text-[10px] text-[var(--app-text-muted)]">
+                        {share.toFixed(1)}%
+                      </span>
+                      <span className="font-mono font-black text-[var(--app-text)]">
+                        {formatCurrency(family.amount)}
+                      </span>
                     </span>
                   </div>
                   <div className="mt-0.5 h-1.5 rounded-full bg-[var(--app-card-secondary)] overflow-hidden">
@@ -306,17 +311,25 @@ export const ItemSalesProfilePanel: React.FC<ItemSalesProfilePanelProps> = ({
             أعلى الأصناف
           </div>
           <div className="space-y-1.5">
-            {summary.items.map((item, index) => (
-              <div key={item.code} className="flex items-center justify-between gap-2 text-[10px] font-bold">
-                <span className="truncate text-[var(--app-text)]" title={`${item.name} — ${item.code}`}>
-                  <span className="inline-block w-4 text-[var(--app-text-muted)]">{index + 1}.</span>
-                  {item.name}
-                </span>
-                <span className="font-mono font-black text-[var(--app-text)] shrink-0">
-                  {formatCurrency(item.amount)}
-                </span>
-              </div>
-            ))}
+            {summary.items.map((item, index) => {
+              const itemShare = summary.amount > 0 ? (item.amount / summary.amount) * 100 : 0;
+              return (
+                <div key={item.code} className="flex items-center justify-between gap-2 text-[10px] font-bold">
+                  <span className="truncate text-[var(--app-text)]" title={`${item.name} — ${item.code}`}>
+                    <span className="inline-block w-4 text-[var(--app-text-muted)]">{index + 1}.</span>
+                    {item.name}
+                  </span>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <span className="font-mono font-black text-[10px] text-[var(--app-text-muted)]">
+                      {itemShare.toFixed(1)}%
+                    </span>
+                    <span className="font-mono font-black text-[var(--app-text)]">
+                      {formatCurrency(item.amount)}
+                    </span>
+                  </span>
+                </div>
+              );
+            })}
             {summary.items.length === 0 && (
               <div className="text-[10px] font-bold text-[var(--app-text-muted)]">لا توجد أصناف</div>
             )}

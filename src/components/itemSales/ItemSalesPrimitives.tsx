@@ -20,12 +20,16 @@ export const GrowthPill: React.FC<{
   }
 
   const Icon = growth >= 0 ? ArrowUpRight : ArrowDownRight;
+  // نسب النمو الضخمة (مثل +1956%) ناتجة عن فترة سابقة شبه صفر — مش مفيدة للمستخدم.
+  const displayGrowth =
+    growth > 999 ? '+999%+' : growth < -999 ? '-999%+' : formatGrowth(growth);
   return (
     <span
+      title={formatGrowth(growth)}
       className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md border text-[10px] font-black ${growthToneClass(growth)} ${className}`}
     >
       <Icon className="w-2.5 h-2.5" />
-      <span className="font-mono">{formatGrowth(growth)}</span>
+      <span className="font-mono">{displayGrowth}</span>
     </span>
   );
 };
