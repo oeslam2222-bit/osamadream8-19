@@ -1,4 +1,4 @@
-import { supabase, GLOBAL_SYNC_VERSION_RECORD_ID } from './supabaseService';
+import { supabase, isSupabaseConfigured, GLOBAL_SYNC_VERSION_RECORD_ID } from './supabaseService';
 import { idbDelete, idbClear } from './storageService';
 
 /**
@@ -68,6 +68,7 @@ export function clearLocalDataVersion(): void {
  * Fetch latest global data version published on the server
  */
 export async function fetchRemoteDataVersion(): Promise<GlobalDataVersionMeta | null> {
+  if (!isSupabaseConfigured) return null;
   try {
     const { data, error } = await supabase
       .from('orders')
@@ -147,6 +148,11 @@ export async function publishNewDataVersion(params: {
     customersCount: params.customersCount,
     targetsCount: params.targetsCount,
   };
+
+  if (!isSupabaseConfigured) {
+    saveLocalDataVersion(newMeta);
+    return newMeta;
+  }
 
   try {
     const { error } = await supabase.from('orders').upsert({

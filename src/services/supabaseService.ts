@@ -85,6 +85,17 @@ export const supabase = createClient(
   }
 );
 
+// Prevent @supabase/supabase-js realtime client from opening a WebSocket to
+// wss://offline-local.supabase.co when Supabase env vars are not configured.
+if (!isSupabaseConfigured && (supabase as any)?.realtime) {
+  try {
+    (supabase.realtime as any).connect = () => {};
+    (supabase.realtime as any).reconnect = () => {};
+  } catch {
+    // Ignore read-only property errors in strict environments
+  }
+}
+
 // Note: BFCache realtime reconnection is handled selectively in AppContext
 // so sales_rep devices do not reopen unnecessary WebSocket connections.
 
@@ -587,7 +598,27 @@ export function fetchCustomersFromSupabase(
 }
 
 const _lastScopedCustomerFullFallbackAt = new Map<string, number>();
-const SCOPED_CUSTOMER_FULL_FALLBACK_COOLDOWN_MS = 20 * 60 * 1000;
+const SCOPED_CUSTOMER_FULL_FALLBACK_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+const SCOPED_FALLBACK_LS_PREFIX = 'tantawy:scoped_cust_fb_v1::';
+
+function getScopedFallbackTs(scopeKey: string): number {
+  const mem = _lastScopedCustomerFullFallbackAt.get(scopeKey);
+  if (mem) return mem;
+  try {
+    const raw = localStorage.getItem(`${SCOPED_FALLBACK_LS_PREFIX}${scopeKey}`);
+    const parsed = raw ? Number(raw) : 0;
+    return Number.isFinite(parsed) ? parsed : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setScopedFallbackTs(scopeKey: string, ts: number): void {
+  _lastScopedCustomerFullFallbackAt.set(scopeKey, ts);
+  try {
+    localStorage.setItem(`${SCOPED_FALLBACK_LS_PREFIX}${scopeKey}`, String(ts));
+  } catch {}
+}
 
 /**
  * قيم نعم/لا/متعامل مش ممكن تكون كود أو اسم عميل — صفوف قديمة اتسربت
@@ -621,10 +652,10 @@ async function fetchCustomersFromSupabaseImpl(
         cErr = null;
       } else {
         const scopeKey = JSON.stringify(scope || {});
-        const last = _lastScopedCustomerFullFallbackAt.get(scopeKey) || 0;
+        const last = getScopedFallbackTs(scopeKey);
         if (Date.now() - last >= SCOPED_CUSTOMER_FULL_FALLBACK_COOLDOWN_MS) {
           console.warn('Scoped customer fetch matched no rows; trying throttled fallback to the full base.');
-          _lastScopedCustomerFullFallbackAt.set(scopeKey, Date.now());
+          setScopedFallbackTs(scopeKey, Date.now());
           scopedUsed = false;
           const fallback = await fetchAllRows('customers');
           if (!fallback.error && fallback.data.length > 0) {
@@ -1006,6 +1037,9 @@ export async function saveCustomersToSupabase(
   options?: { previousCustomers?: Customer[]; forceFull?: boolean }
 ): Promise<{ success: boolean; changedCount?: number; changedIds?: string[]; error?: string }> {
   try {
+    if (!isSupabaseConfigured) {
+      return { success: true, changedCount: customers?.length || 0, changedIds: [] };
+    }
     let customersToWrite = customers;
     if (!options?.forceFull && options?.previousCustomers && options.previousCustomers.length > 0) {
       const prevSigById = new Map<string, string>();
@@ -1440,6 +1474,9 @@ export async function saveTargetsToSupabase(
   options?: { previousTargets?: any[] }
 ): Promise<{ success: boolean; changedCount?: number; error?: string }> {
   try {
+    if (!isSupabaseConfigured) {
+      return { success: true, changedCount: targets?.length || 0 };
+    }
     let targetsToWrite = targets;
     if (options?.previousTargets && options.previousTargets.length > 0) {
       const prevSigById = new Map<string, string>();
@@ -3084,6 +3121,9 @@ export async function saveProductsToSupabase(
 ): Promise<{ success: boolean; changedCount?: number; error?: string }> {
   try {
     if (!products || products.length === 0) return { success: true, changedCount: 0 };
+    if (!isSupabaseConfigured) {
+      return { success: true, changedCount: products.length };
+    }
 
     // Index products by their unique ID to preserve all 5500+ rows
     const idMap = new Map<string, Product>();
@@ -3301,6 +3341,7 @@ export async function deleteProductFromSupabase(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     if (!productId) return { success: false, error: 'معرف الصنف مفقود' };
+    if (!isSupabaseConfigured) return { success: true };
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(productId);
     const safeId = isUuid ? productId : stringToUuid(productId);
     const { error } = await supabase.from('products').delete().eq('id', safeId);
@@ -3817,6 +3858,7 @@ async function fetchVisitsFromSupabaseImpl(
 export async function saveVisitsToSupabase(visits: CustomerVisit[]): Promise<{ success: boolean; savedCount: number; error?: string }> {
   try {
     if (!visits || visits.length === 0) return { success: true, savedCount: 0 };
+    if (!isSupabaseConfigured) return { success: true, savedCount: visits.length };
 
     const payload = visits.map((v) => {
       let enhancedNotes = (v.notes || '').replace(/\n?\[GEO_VERIFY:[^\]]+\]/g, '').trim();
@@ -5181,6 +5223,7 @@ export async function saveDataSourcesToSupabase(
   sources: unknown
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    if (!isSupabaseConfigured) return { success: true };
     const { error } = await supabase.from('orders').upsert({
       id: DATA_SOURCES_ROW_ID,
       status: 'published_data_sources',
@@ -5199,6 +5242,7 @@ export async function fetchDataSourcesFromSupabase(): Promise<{
   error?: string;
 }> {
   try {
+    if (!isSupabaseConfigured) return { success: true, sources: null };
     const { data, error } = await supabase
       .from('orders')
       .select('items')

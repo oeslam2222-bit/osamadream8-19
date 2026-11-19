@@ -92,32 +92,48 @@ export async function idbClear(): Promise<boolean> {
   }
 }
 
+const pendingIdbTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
 /**
  * Debounced IndexedDB write. Batches rapid state changes (keystrokes, filters,
  * re-renders) into a single write after the data settles. Without this, a
  * 5000-row customer table (~5MB) was written to IDB on every keystroke,
  * blocking the main thread and making the app feel sluggish.
  */
-export function debouncedIdbSet<T>(key: string, value: T, delay = 2000): () => void {
-  let timer: ReturnType<typeof setTimeout> | null = null;
-  const schedule = () => {
-    if (timer) return;
-    timer = setTimeout(async () => {
-      timer = null;
-      try {
-        await idbSet(key, value);
-      } catch {
-        // ignore
+export function debouncedIdbSet<T>(key: string, value: T, delay = 1800): () => void {
+  const existing = pendingIdbTimers.get(key);
+  if (existing) {
+    clearTimeout(existing);
+    pendingIdbTimers.delete(key);
+  }
+
+  let cancelled = false;
+  const runWrite = () => {
+    pendingIdbTimers.delete(key);
+    if (cancelled) return;
+    const execute = () => {
+      if (!cancelled) {
+        idbSet(key, value).catch(() => {});
       }
-    }, delay);
-  };
-  const cancel = () => {
-    if (timer) {
-      clearTimeout(timer);
-      timer = null;
+    };
+    if (typeof window !== 'undefined' && typeof (window as any).requestIdleCallback === 'function') {
+      (window as any).requestIdleCallback(execute, { timeout: 2500 });
+    } else {
+      execute();
     }
   };
-  return cancel;
+
+  const timer = setTimeout(runWrite, delay);
+  pendingIdbTimers.set(key, timer);
+
+  return () => {
+    cancelled = true;
+    const active = pendingIdbTimers.get(key);
+    if (active === timer) {
+      clearTimeout(timer);
+      pendingIdbTimers.delete(key);
+    }
+  };
 }
 
 /**

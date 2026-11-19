@@ -1,168 +1,266 @@
 import React, { useMemo, useState } from 'react';
-import { ClipboardList, Download, Filter, RefreshCw, Search, Shield, Trash2 } from 'lucide-react';
+import {
+  Activity,
+  CheckCircle2,
+  AlertTriangle,
+  Info,
+  ShieldAlert,
+  Search,
+  Trash2,
+  FileSpreadsheet,
+  Filter,
+} from 'lucide-react';
+import * as XLSX from 'xlsx-js-style';
 import { useApp } from '../context/AppContext';
+import type { AuditLog } from '../types';
 
-const ACTION_LABELS: Record<string, string> = {
-  create_invoice: 'إنشاء أمر/فاتورة',
-  update_invoice_status: 'تحديث حالة أمر',
-  approve_invoice: 'اعتماد أمر',
-  cancel_invoice: 'إلغاء أمر',
-  return_invoice: 'مرتجع/إرجاع',
-  delete_invoice: 'حذف أمر',
-  import_products: 'استيراد أصناف',
-  stock_adjustment: 'تسوية مخزون',
-  user_login: 'تسجيل دخول',
-  create_user: 'إنشاء مستخدم',
-  update_user: 'تعديل مستخدم',
-  add_customer: 'إضافة عميل',
-  create_visit: 'تسجيل زيارة',
-  update_visit_status: 'تحديث/اعتماد زيارة',
-  record_collection: 'تسجيل تحصيل',
-  create_return: 'إنشاء مرتجع',
-  update_return_status: 'تحديث حالة مرتجع',
-  permission_change: 'تغيير صلاحيات',
+const BADGE_META: Record<NonNullable<AuditLog['badgeType']>, { label: string; cls: string }> = {
+  success: {
+    label: 'ناجح',
+    cls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  },
+  warning: {
+    label: 'تنبيه',
+    cls: 'bg-amber-50 text-amber-700 border-amber-200',
+  },
+  danger: {
+    label: 'حرج',
+    cls: 'bg-rose-50 text-rose-700 border-rose-200',
+  },
+  info: {
+    label: 'معلومة',
+    cls: 'bg-blue-50 text-blue-700 border-blue-200',
+  },
+  neutral: {
+    label: 'عام',
+    cls: 'bg-slate-100 text-slate-700 border-slate-200',
+  },
 };
 
-function badgeCls(t?: string) {
-  switch (t) {
-    case 'success': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-    case 'warning': return 'bg-amber-50 text-amber-800 border-amber-200';
-    case 'danger': return 'bg-rose-50 text-rose-700 border-rose-200';
-    case 'info': return 'bg-blue-50 text-blue-700 border-blue-200';
-    default: return 'bg-slate-50 text-slate-700 border-slate-200';
-  }
-}
-
 export const AuditLogView: React.FC = () => {
-  const { auditLogs, currentUser, clearAuditLogs } = useApp();
-  const [q, setQ] = useState('');
-  const [action, setAction] = useState('all');
-  const [userFilter, setUserFilter] = useState('all');
+  const { auditLogs, clearAuditLogs, currentUser } = useApp();
+  const [search, setSearch] = useState('');
+  const [badgeFilter, setBadgeFilter] = useState<string>('all');
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const canClear = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
-  const actions = useMemo(() => {
-    const set = new Set<string>();
-    (auditLogs || []).forEach((l) => { if (l.action) set.add(String(l.action)); });
-    return Array.from(set).sort();
-  }, [auditLogs]);
-
-  const users = useMemo(() => {
-    const set = new Set<string>();
-    (auditLogs || []).forEach((l) => { const n = l.userName || l.userId; if (n) set.add(n); });
-    return Array.from(set).sort((a,b)=>a.localeCompare(b,'ar'));
-  }, [auditLogs]);
-
-  const filtered = useMemo(() => {
-    const query = q.trim().toLowerCase();
-    return (auditLogs || []).filter((l) => {
-      if (action !== 'all' && String(l.action) !== action) return false;
-      const uname = l.userName || l.userId || '';
-      if (userFilter !== 'all' && uname !== userFilter) return false;
-      if (!query) return true;
-      const hay = [l.actionTitle, l.details, l.userName, l.userId, l.branchName, l.invoiceNumber, l.invoiceId, l.action]
-        .map((v) => String(v || '').toLowerCase()).join(' ');
-      return hay.includes(query);
+  const filteredLogs = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (auditLogs || []).filter((log) => {
+      if (badgeFilter !== 'all' && (log.badgeType || 'neutral') !== badgeFilter) return false;
+      if (!q) return true;
+      return (
+        log.userName?.toLowerCase().includes(q) ||
+        log.branchName?.toLowerCase().includes(q) ||
+        log.actionTitle?.toLowerCase().includes(q) ||
+        log.details?.toLowerCase().includes(q) ||
+        log.invoiceNumber?.toLowerCase().includes(q)
+      );
     });
-  }, [auditLogs, q, action, userFilter]);
+  }, [auditLogs, search, badgeFilter]);
 
-  const exportCsv = () => {
-    const headers = ['time','timestamp','user','role','branch','action','title','details','invoice'];
-    const rows = filtered.map((l) => [
-      l.formattedTime || '', l.timestamp || '', l.userName || l.userId || '', l.userRole || '', l.branchName || '',
-      l.action || '', l.actionTitle || '', (l.details || '').replace(/\n/g,' '), l.invoiceNumber || l.invoiceId || ''
-    ]);
-    const esc = (v: string) => `"${String(v ?? '').replace(/"/g,'""')}"`;
-    const csv = [headers.join(','), ...rows.map(r => r.map(esc).join(','))].join('\n');
-    const blob = new Blob(["\ufeff" + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `audit-log-${new Date().toISOString().slice(0,10)}.csv`; a.click();
-    URL.revokeObjectURL(url);
+  const counts = useMemo(() => {
+    const base = { total: auditLogs.length, success: 0, warning: 0, danger: 0 };
+    auditLogs.forEach((item) => {
+      if (item.badgeType === 'success') base.success += 1;
+      else if (item.badgeType === 'warning') base.warning += 1;
+      else if (item.badgeType === 'danger') base.danger += 1;
+    });
+    return base;
+  }, [auditLogs]);
+
+  const handleExportExcel = () => {
+    const rows = filteredLogs.map((item) => ({
+      'التوقيت': item.formattedTime || item.timestamp,
+      'المستخدم': item.userName,
+      'الصلاحية': item.userRole,
+      'الفرع': item.branchName,
+      'العملية': item.actionTitle,
+      'التفاصيل': item.details,
+      'رقم الفاتورة': item.invoiceNumber || '—',
+      'التصنيف': BADGE_META[item.badgeType || 'neutral']?.label || 'عام',
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'سجل_التدقيق');
+    XLSX.writeFile(wb, `سجل_التدقيق_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   return (
     <div className="space-y-4" dir="rtl">
-      <div className="rounded-3xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      <section className="rounded-3xl bg-[#0b2337] text-white p-4 sm:p-5 shadow-xl border border-[#123a52]">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-[#102b4e] text-[#e8c98c] flex items-center justify-center"><ClipboardList size={20}/></div>
+            <div className="w-11 h-11 rounded-2xl bg-blue-500/20 border border-blue-400/30 text-blue-300 flex items-center justify-center shrink-0">
+              <Activity className="w-5 h-5" />
+            </div>
             <div>
-              <h2 className="text-lg sm:text-xl font-black text-slate-900">سجل التدقيق والعمليات</h2>
-              <p className="text-xs font-bold text-slate-500">توثيق الإجراءات الحساسة (من/متى/إجراء/تفاصيل) — محفوظ محليًا (محدود السعة) ويُحمّل عند البدء</p>
+              <h1 className="text-lg font-black">سجل التدقيق والرقابة</h1>
+              <p className="text-xs text-slate-300">
+                تتبع العمليات الحساسة واعتمادات الطلبيات وتعديلات المستخدمين والصلاحيات
+              </p>
             </div>
           </div>
+
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-black text-slate-700"><Shield size={14}/> {filtered.length} / {(auditLogs||[]).length} سجل</span>
-            <button onClick={exportCsv} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-xs font-extrabold text-slate-700"><Download size={14}/> تصدير CSV</button>
-            {canClear && (
-              <button onClick={() => { if (confirm('مسح سجل التدقيق المحلي؟')) clearAuditLogs(); }} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 hover:bg-rose-100 text-xs font-extrabold text-rose-700"><Trash2 size={14}/> مسح السجل</button>
+            <button
+              type="button"
+              onClick={handleExportExcel}
+              disabled={filteredLogs.length === 0}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-black transition cursor-pointer"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              <span>تصدير Excel</span>
+            </button>
+
+            {canClear && auditLogs.length > 0 && (
+              confirmClear ? (
+                <div className="flex items-center gap-1.5 bg-rose-950/80 border border-rose-500/40 rounded-xl px-2.5 py-1.5">
+                  <span className="text-[11px] font-bold text-rose-200">تأكيد مسح السجل؟</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearAuditLogs();
+                      setConfirmClear(false);
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-[11px] font-black cursor-pointer"
+                  >
+                    نعم، مسح
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmClear(false)}
+                    className="px-2 py-1 rounded-lg bg-slate-700 text-slate-200 text-[11px] font-bold cursor-pointer"
+                  >
+                    إلغاء
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmClear(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/30 border border-rose-400/30 text-rose-200 text-xs font-black transition cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>تفريغ السجل</span>
+                </button>
+              )
             )}
           </div>
         </div>
+      </section>
 
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-2.5">
-          <div className="md:col-span-2 relative">
-            <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-            <input value={q} onChange={e=>setQ(e.target.value)} placeholder="بحث في التفاصيل/المستخدم/الفرع/رقم الأمر..." className="w-full h-10 pr-9 pl-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold focus:outline-none focus:border-[#102b4e]"/>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="rounded-2xl bg-[var(--app-card)] border border-[var(--app-border)] p-3.5 shadow-xs">
+          <div className="text-[11px] font-bold text-[var(--app-text-muted)]">إجمالي الحركات</div>
+          <div className="text-xl font-black text-[var(--app-text)] mt-1 font-mono">{counts.total}</div>
+        </div>
+        <div className="rounded-2xl bg-[var(--app-card)] border border-emerald-200 p-3.5 shadow-xs">
+          <div className="text-[11px] font-bold text-emerald-700 flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5" /> عمليات ناجحة
           </div>
-          <select value={action} onChange={e=>setAction(e.target.value)} className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold">
-            <option value="all">كل الإجراءات</option>
-            {actions.map(a => <option key={a} value={a}>{ACTION_LABELS[a] || a}</option>)}
-          </select>
-          <select value={userFilter} onChange={e=>setUserFilter(e.target.value)} className="h-10 px-3 rounded-xl border border-slate-200 bg-white text-xs font-bold">
-            <option value="all">كل المستخدمين</option>
-            {users.map(u => <option key={u} value={u}>{u}</option>)}
+          <div className="text-xl font-black text-emerald-700 mt-1 font-mono">{counts.success}</div>
+        </div>
+        <div className="rounded-2xl bg-[var(--app-card)] border border-amber-200 p-3.5 shadow-xs">
+          <div className="text-[11px] font-bold text-amber-700 flex items-center gap-1">
+            <AlertTriangle className="w-3.5 h-3.5" /> تنبيهات
+          </div>
+          <div className="text-xl font-black text-amber-700 mt-1 font-mono">{counts.warning}</div>
+        </div>
+        <div className="rounded-2xl bg-[var(--app-card)] border border-rose-200 p-3.5 shadow-xs">
+          <div className="text-[11px] font-bold text-rose-700 flex items-center gap-1">
+            <ShieldAlert className="w-3.5 h-3.5" /> عمليات حرجة / رفض
+          </div>
+          <div className="text-xl font-black text-rose-700 mt-1 font-mono">{counts.danger}</div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl bg-[var(--app-card)] border border-[var(--app-border)] p-3.5 flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="بحث باسم المستخدم، الفرع، العملية، أو رقم الطلبية..."
+            className="w-full pr-9 pl-3 py-2.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-card-2)] text-xs sm:text-sm font-bold text-[var(--app-text)] focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <Filter className="w-4 h-4 text-slate-500" />
+          <select
+            value={badgeFilter}
+            onChange={(e) => setBadgeFilter(e.target.value)}
+            className="rounded-xl border border-[var(--app-border)] bg-[var(--app-card-2)] px-3 py-2.5 text-xs font-black text-[var(--app-text)] focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">كل التصنيفات</option>
+            <option value="success">ناجح</option>
+            <option value="info">معلومة</option>
+            <option value="warning">تنبيه</option>
+            <option value="danger">حرج</option>
+            <option value="neutral">عام</option>
           </select>
         </div>
       </div>
 
-      <div className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-        {filtered.length === 0 ? (
-          <div className="p-10 text-center">
-            <Filter className="w-10 h-10 text-slate-300 mx-auto mb-2"/>
-            <div className="font-black text-slate-700">لا توجد سجلات مطابقة</div>
-            <div className="text-xs font-bold text-slate-500 mt-1">ستظهر هنا الإجراءات الحساسة بعد تنفيذها (بعد تفعيل التسجيل).</div>
+      <div className="rounded-3xl bg-[var(--app-card)] border border-[var(--app-border)] shadow-sm overflow-hidden">
+        {filteredLogs.length === 0 ? (
+          <div className="py-14 text-center space-y-2">
+            <Info className="w-8 h-8 text-slate-400 mx-auto" />
+            <div className="text-sm font-black text-[var(--app-text)]">لا توجد حركات مسجلة مطابقة للبحث</div>
+            <p className="text-xs text-[var(--app-text-muted)]">
+              سيظهر هنا أي إنشاء أو اعتماد أو تعديل يتم داخل المنظومة
+            </p>
           </div>
         ) : (
-          <div className="overflow-auto">
-            <table className="min-w-full text-xs">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr className="text-right text-slate-600">
-                  <th className="px-3 py-3 font-black whitespace-nowrap">الوقت</th>
-                  <th className="px-3 py-3 font-black">المستخدم</th>
-                  <th className="px-3 py-3 font-black">الإجراء</th>
-                  <th className="px-3 py-3 font-black">التفاصيل</th>
-                  <th className="px-3 py-3 font-black">الفرع/المرجع</th>
+          <div className="overflow-x-auto">
+            <table className="w-full text-right border-collapse">
+              <thead>
+                <tr className="bg-[#0b2337] text-white text-xs font-black">
+                  <th className="py-3 px-4">التوقيت</th>
+                  <th className="py-3 px-4">المستخدم / الفرع</th>
+                  <th className="py-3 px-4">العملية</th>
+                  <th className="py-3 px-4">التفاصيل</th>
+                  <th className="py-3 px-4">الحالة</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filtered.slice(0, 500).map((l) => (
-                  <tr key={l.id} className="hover:bg-slate-50/70 align-top">
-                    <td className="px-3 py-3 whitespace-nowrap">
-                      <div className="font-extrabold text-slate-800 tabular-nums" dir="ltr">{l.formattedTime || '—'}</div>
-                      <div className="text-[10px] text-slate-400 font-mono" dir="ltr">{l.timestamp ? new Date(l.timestamp).toLocaleTimeString('en-GB') : ''}</div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="font-black text-slate-900">{l.userName || l.userId || '—'}</div>
-                      <div className="text-[10px] text-slate-500 font-bold">{l.userRole || ''}</div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-lg border font-extrabold ${badgeCls(l.badgeType)}`}>{ACTION_LABELS[l.action] || l.actionTitle || l.action || 'إجراء'}</span>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="font-bold text-slate-800">{l.actionTitle || '—'}</div>
-                      <div className="text-[11px] text-slate-600 mt-0.5 whitespace-pre-wrap break-words">{l.details || '—'}</div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="font-bold text-slate-700">{l.branchName || '—'}</div>
-                      {(l.invoiceNumber || l.invoiceId) && <div className="text-[10px] font-mono text-slate-500 mt-0.5">#{l.invoiceNumber || l.invoiceId}</div>}
-                    </td>
-                  </tr>
-                ))}
+              <tbody className="divide-y divide-[var(--app-border)] text-xs">
+                {filteredLogs.map((log) => {
+                  const badge = BADGE_META[log.badgeType || 'neutral'] || BADGE_META.neutral;
+                  return (
+                    <tr key={log.id} className="hover:bg-[var(--app-card-hover)] transition-colors">
+                      <td className="py-3 px-4 font-mono font-bold text-[var(--app-text-muted)] whitespace-nowrap">
+                        {log.formattedTime || log.timestamp}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <div className="font-black text-[var(--app-text)]">{log.userName}</div>
+                        <div className="text-[11px] font-bold text-[var(--app-text-muted)]">
+                          {log.branchName || 'الإدارة'}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 font-black text-[var(--app-text)]">
+                        {log.actionTitle}
+                        {log.invoiceNumber && (
+                          <span className="mr-1.5 px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 font-mono text-[10px] border border-blue-200">
+                            #{log.invoiceNumber}
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 font-semibold text-[var(--app-text)] max-w-md">
+                        {log.details}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-black border ${badge.cls}`}>
+                          {badge.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
-            {filtered.length > 500 && <div className="p-3 text-center text-[11px] font-bold text-slate-500 border-t border-slate-100">يُعرض أحدث 500 سجل — استخدم الفلاتر للتضييق</div>}
           </div>
         )}
       </div>

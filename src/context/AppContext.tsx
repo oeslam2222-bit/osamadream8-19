@@ -68,6 +68,7 @@ import {
   fetchUsersFromSupabase,
   findUserInSupabase,
   fetchPromotionsFromSupabase,
+  fetchPromotionsStamp,
   savePromotionsToSupabase,
   sanitizeEmail,
   sanitizeIdentifier,
@@ -773,20 +774,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   useEffect(() => {
-    try {
-      safeLocalStorageSet(STORAGE_KEYS.TARGETS, JSON.stringify(targets));
-    } catch {
-      try { localStorage.removeItem(STORAGE_KEYS.TARGETS); } catch {}
-    }
-    idbSet(STORAGE_KEYS.TARGETS, targets).catch(() => {});
-  }, [targets]);
-
-  useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const fromIdb = await idbGet<TargetRecord[]>(STORAGE_KEYS.TARGETS);
         if (!cancelled && Array.isArray(fromIdb) && fromIdb.length > 0) {
+          try { localStorage.removeItem(STORAGE_KEYS.TARGETS); } catch {}
           setTargets((prev) => {
             if (prev && prev.length > 0) return prev;
             return fromIdb.filter((r: any) => r && !String(r.id).startsWith('sample-trg'));
@@ -862,12 +855,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { customerCommentsRef.current = customerComments; }, [customerComments]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEYS.FORECASTS, JSON.stringify(forecasts));
-    } catch (e) {
-      console.error('Error saving forecasts to localStorage', e);
-    }
-  }, [forecasts]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const fromIdb = await idbGet<CollectionForecastRecord[]>(STORAGE_KEYS.FORECASTS);
+        if (!cancelled && Array.isArray(fromIdb) && fromIdb.length > 0) {
+          try { localStorage.removeItem(STORAGE_KEYS.FORECASTS); } catch {}
+          fromIdb.forEach((f: any) => {
+            const key = f?.monthKey ?? f?.month_key;
+            if (typeof key === 'string' && key) loadedForecastMonthsRef.current?.add(key);
+          });
+          setForecasts((prev) => (prev && prev.length > 0 ? prev : fromIdb));
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     try {
@@ -1526,38 +1529,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   // Keep active customers cache in sync for instant financial auditing across Excel & PDF exports
+  // Note: IndexedDB persistence is handled asynchronously via debouncedIdbSet below.
   useEffect(() => {
     if (customers && customers.length > 0) {
       setActiveCustomersCache(customers);
-      idbSet(STORAGE_KEYS.CUSTOMERS, customers).catch(() => {});
-      try {
-        safeLocalStorageSet(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
-      } catch {}
     }
   }, [customers]);
 
   /**
-   * حفظ الزيارات — IndexedDB بس.
-   *
-   * كان فيه مرآة تانية في localStorage بنفس السجل كامل. المرآة دي كانت بتعمل
-   * `JSON.stringify` للمصفوفة كلها (نحو 1MB عند 4,000 زيارة) + كتابة متزامنة
-   * بتوقف الـmain thread، وده بيتكرر مع **كل** ضغطة حالة على الزيارة. مع 400
-   * جهاز الشغل ده بيتضاعف 400 مرة على نفس البنية التحتية.
-   *
-   * المرآة مش بتضيف حاجة: IndexedDB بيتكتب فورًا مع كل تعديل (async، بره الـmain
-   * thread)، والـboot path بيقرأ منه ويدمجه. والـquota بتاع localStorage ~5MB
-   * للأصل كله، فنسخة الـ1MB دي كانت بتزاحم عملاء وأصناف.
-   *
-   * النسخة القديمة بتتقري مرة واحدة وقت الإقلاع وبتتمسح فورًا بعد ما تتدمج
-   * (تحت في hydrateFromIndexedDB) — مش وقت كل تعديل.
+   * حفظ الزيارات — IndexedDB بس (مع Debounce).
    */
   const persistVisits = useCallback((next: CustomerVisit[]) => {
-    idbSet(STORAGE_KEYS.VISITS, next).catch(() => {});
+    debouncedIdbSet(STORAGE_KEYS.VISITS, next, 1200);
   }, []);
 
   useEffect(() => {
-    persistVisits(visits);
-  }, [visits, persistVisits]);
+    if (!isLocalDataHydrated) return;
+    return debouncedIdbSet(STORAGE_KEYS.VISITS, visits, 1200);
+  }, [visits, isLocalDataHydrated]);
 
   // Persist users to IndexedDB and localStorage so offline sessions and registered reps are immediately available
   useEffect(() => {
@@ -1776,6 +1765,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // حتى لو الدمج مالوش نتيجة (لا IDB ولا مرآة قديمة)، المفتاح القديم
         // لازم يتمسح — تاني مرة هنا مش harmful، والنسخة لو ماقرأتهاش أصلاً.
         clearLegacyVisitsMirror();
+        // Clean up legacy oversized localStorage mirrors so quota & main-thread stay free.
+        [STORAGE_KEYS.CUSTOMERS, STORAGE_KEYS.INVOICES, STORAGE_KEYS.PRODUCTS].forEach((k) => {
+          try { localStorage.removeItem(k); } catch {}
+        });
       } catch (err) {
         console.warn('IndexedDB initial hydration notice:', err);
         clearLegacyVisitsMirror();
@@ -1954,9 +1947,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const next = forecasts.filter((f) => f.id !== id);
       setForecasts(next);
       await idbSet(STORAGE_KEYS.FORECASTS, next);
-      try {
-        window.localStorage.setItem(STORAGE_KEYS.FORECASTS, JSON.stringify(next));
-      } catch {}
       await syncOrQueue('forecasts', 'delete', id, undefined, () => deleteForecastFromSupabase(id));
       publishDataVersionUpdate({ scope: 'forecasts' }).catch(() => {});
     },
@@ -1974,9 +1964,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
       setForecasts(next);
       await idbSet(STORAGE_KEYS.FORECASTS, next);
-      try {
-        window.localStorage.setItem(STORAGE_KEYS.FORECASTS, JSON.stringify(next));
-      } catch {}
       for (const item of targetsToDelete) {
         await syncOrQueue('forecasts', 'delete', item.id, undefined, () => deleteForecastFromSupabase(item.id));
       }
@@ -2685,6 +2672,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const itemSalesSyncRef = useRef<null | (() => Promise<unknown>)>(null);
 
   const checkAndSyncDataVersion = async (force: boolean = false): Promise<{ updated: boolean; version?: number; message: string }> => {
+    if (!isSupabaseConfigured) {
+      return { updated: false, message: 'وضع التخزين المحلي' };
+    }
     try {
       // Never purge and re-pull while our own authoritative write is still
       // landing on the server: the old copy would overwrite the fresh one.
@@ -3037,7 +3027,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       if (freshTargets) {
         setTargets(freshTargets);
-        safeLocalStorageSet(STORAGE_KEYS.TARGETS, JSON.stringify(freshTargets));
         idbSet(STORAGE_KEYS.TARGETS, freshTargets).catch(() => {});
       }
 
@@ -3059,7 +3048,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           });
           const next = Array.from(nextMap.values());
           idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
-          safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(next));
           return next;
         });
       }
@@ -3167,9 +3155,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const realtimeCheckRef = useRef<(() => void) | null>(null);
   const realtimeCheckCustomersRef = useRef<(() => void) | null>(null);
   const shouldUseRealtimeRef = useRef<boolean>(false);
-  shouldUseRealtimeRef.current = Boolean(currentUser && currentUser.role !== 'sales_rep');
+  shouldUseRealtimeRef.current = Boolean(isSupabaseConfigured && currentUser && currentUser.role !== 'sales_rep');
 
   useEffect(() => {
+    if (!isSupabaseConfigured) return;
     let lastRestoreAt = 0;
     /**
      * قبل ما المتصفح يجمّد الصفحة في الـBFCache بنقفل الـWebSocket بنفسنا.
@@ -3217,7 +3206,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   // Re-check on focus, tab visibility, realtime version broadcasts, and as a short heartbeat.
   // The heartbeat is intentionally defensive: realtime can be disconnected on mobile networks.
   useEffect(() => {
-    if (!isLocalDataHydrated) return;
+    if (!isLocalDataHydrated || !isSupabaseConfigured) return;
     let checkInFlight = false;
     let lastHeartbeatCheck = Date.now();
     const HEARTBEAT_INTERVAL_MS = 25 * 60 * 1000;
@@ -3446,14 +3435,35 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   // Initial Supabase connection check, fetch users, products, invoices & real-time sync
   useEffect(() => {
     // Wait for IndexedDB hydration and an active logged-in account before syncing heavy domain data.
-    if (!isLocalDataHydrated || !currentUserRef.current) return;
+    if (!isLocalDataHydrated || !currentUserRef.current || !isSupabaseConfigured) return;
 
     const isFreshLogin = justLoggedInRef.current;
     justLoggedInRef.current = false;
 
-    // Fetch cloud-synced Promotions & Announcements so sales reps receive live special offers
-    fetchPromotionsFromSupabase().then((promoRes) => {
+    // Fetch cloud-synced Promotions & Announcements only when the 1-row stamp changed (0 egress if unchanged)
+    (async () => {
+      const PROMO_STAMP_KEY = 'dream_dist_promotions_stamp_v1';
+      const stamp = await fetchPromotionsStamp();
+      let storedStamp: { updatedAt: string | null; total: number | null } | null = null;
+      try {
+        const raw = localStorage.getItem(PROMO_STAMP_KEY);
+        if (raw) storedStamp = JSON.parse(raw);
+      } catch {}
+      const hasLocalPromoData = promotionsRef.current.length > 0 || announcementsRef.current.length > 0;
+      if (
+        stamp &&
+        storedStamp &&
+        stamp.updatedAt === storedStamp.updatedAt &&
+        stamp.total === storedStamp.total &&
+        (hasLocalPromoData || stamp.total === 0)
+      ) {
+        return;
+      }
+      const promoRes = await fetchPromotionsFromSupabase();
       if (promoRes.success) {
+        if (stamp) {
+          try { localStorage.setItem(PROMO_STAMP_KEY, JSON.stringify(stamp)); } catch {}
+        }
         if (promoRes.promotions.length > 0 || promotionsRef.current.length === 0) {
           setPromotions(promoRes.promotions);
           savePromotions(promoRes.promotions);
@@ -3463,7 +3473,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           safeLocalStorageSet(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(promoRes.announcements));
         }
       }
-    }).catch(() => {});
+    })().catch(() => {});
 
     // 1) المستخدمون بيتغيروا نادرًا — 24 ساعة للمناديب و 12 ساعة لباقي الأدوار، ومن غير كلمات مرور للأجهزة غير الإدارية.
     const lastUsersSync = Number(localStorage.getItem(USERS_LAST_SYNC_KEY) || 0);
@@ -3722,7 +3732,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
               }
               const next = Array.from(merged.values());
               idbSet(STORAGE_KEYS.INVOICES, next);
-              safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(next));
               return next;
             });
           }
@@ -3835,7 +3844,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   // قناة خفيفة واحدة تستقبل بس إشارة «نسخة بيانات جديدة» وتعمل incremental pull —
   // من غير اشتراكات الفواتير/العملاء/الزيارات التانية.
   useEffect(() => {
-    if (!isLocalDataHydrated) return;
+    if (!isLocalDataHydrated || !isSupabaseConfigured) return;
 
     if (!currentUser) {
       try { supabase.realtime.disconnect(); } catch { /* Already disconnected */ }
@@ -4003,7 +4012,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             setForecasts((prev) => {
               const next = prev.filter((f) => f.id !== deleted.id);
               idbSet(STORAGE_KEYS.FORECASTS, next).catch(() => {});
-              safeLocalStorageSet(STORAGE_KEYS.FORECASTS, JSON.stringify(next));
               return next;
             });
           }
@@ -4038,38 +4046,69 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   }, [isLocalDataHydrated, dataEpoch, currentUser?.id, currentUser?.role, currentUser?.branchName]);
 
   useEffect(() => {
-    const handleOnlineSync = () => {
+    let lastCheckedAt = 0;
+    let inFlight = false;
+
+    const handleOnlineSync = async (isExplicitReconnect = false) => {
+      if (!isSupabaseConfigured || !currentUserRef.current) return;
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
-      flushPendingInvoices().catch((error) => console.warn('Pending invoice sync notice:', error));
-      // Everything else done offline (visits, customers, products, users, targets)
-      // leaves through the outbox the moment the connection is usable again.
-      flushOfflineQueue()
-        .then((res) => {
-          if (res.syncedCount > 0) {
+      if (inFlight) return;
+      const now = Date.now();
+      if (!isExplicitReconnect && now - lastCheckedAt < 10 * 60 * 1000) return;
+      lastCheckedAt = now;
+      inFlight = true;
+      try {
+        const [pendingInvList, queuedCount] = await Promise.all([
+          idbGet<Invoice[]>(STORAGE_KEYS.PENDING_INVOICES).catch(() => null),
+          countQueuedMutations().catch(() => 0),
+        ]);
+        const hasPendingInv = Array.isArray(pendingInvList) && pendingInvList.length > 0;
+        if (!hasPendingInv && queuedCount === 0) {
+          if (isExplicitReconnect) {
+            window.dispatchEvent(new CustomEvent('tantawy:reconnected-sync'));
+          }
+          return;
+        }
+
+        let syncedTotal = 0;
+        if (hasPendingInv) {
+          const invRes = await flushPendingInvoices().catch(() => ({ success: false, syncedCount: 0 }));
+          syncedTotal += invRes.syncedCount || 0;
+        }
+        if (queuedCount > 0) {
+          const qRes = await flushOfflineQueue().catch(() => ({ success: false, syncedCount: 0 }));
+          syncedTotal += qRes.syncedCount || 0;
+          if (qRes.syncedCount > 0) {
             setLastVersionSyncNotice(
-              `تمت مزامنة ${res.syncedCount} تغيير تم عمله بدون إنترنت إلى قاعدة البيانات`
+              `تمت مزامنة ${qRes.syncedCount} تغيير تم عمله بدون إنترنت إلى قاعدة البيانات`
             );
             setTimeout(() => setLastVersionSyncNotice(null), 8000);
           }
+        }
+        await refreshOfflineQueueCount().catch(() => {});
+        if (isExplicitReconnect || syncedTotal > 0) {
           window.dispatchEvent(new CustomEvent('tantawy:reconnected-sync'));
-        })
-        .catch((error) => {
-          console.warn('Offline queue flush notice:', error);
-          window.dispatchEvent(new CustomEvent('tantawy:reconnected-sync'));
-        });
-      refreshOfflineQueueCount().catch(() => {});
+        }
+      } finally {
+        inFlight = false;
+      }
     };
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') handleOnlineSync();
+
+    const onOnline = () => { void handleOnlineSync(true); };
+    const onFocus = () => { void handleOnlineSync(false); };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void handleOnlineSync(false);
+      }
     };
-    window.addEventListener('online', handleOnlineSync);
-    window.addEventListener('focus', handleOnlineSync);
-    document.addEventListener('visibilitychange', handleVisibility);
-    if (navigator.onLine) handleOnlineSync();
+
+    window.addEventListener('online', onOnline);
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibility);
     return () => {
-      window.removeEventListener('online', handleOnlineSync);
-      window.removeEventListener('focus', handleOnlineSync);
-      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, []);
 
@@ -4078,7 +4117,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   useEffect(() => {
     let cancelled = false;
     const kick = async () => {
-      if (cancelled || !navigator.onLine) return;
+      if (cancelled || !isSupabaseConfigured || !currentUserRef.current || !navigator.onLine) return;
       const pending = await refreshOfflineQueueCount().catch(() => 0);
       if (pending === 0) return;
       await flushOfflineQueue().catch(() => {});
@@ -4095,12 +4134,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   // Supabase Egress Protection:
   // Instead of polling 24/7 (which consumes gigabytes of egress bandwidth),
   // we rely on Supabase Realtime WebSockets for instant sub-second updates, and use an intelligent,
-  // throttled fallback (only on tab focus with a 5-minute cooldown) for the latest 30 records.
+  // throttled fallback (only on tab focus with a 15-minute cooldown).
   useEffect(() => {
     let cancelled = false;
     let lastSyncTimestamp = Date.now();
 
     const refreshInvoicesSafely = async () => {
+      if (!isSupabaseConfigured) return;
       if (typeof document !== 'undefined' && document.hidden) return;
       const activeUser = currentUserRef.current;
       if (!activeUser) return;
@@ -4727,38 +4767,37 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     });
   }, [users]);
 
-  // Sync high-capacity data directly to IndexedDB (preventing LocalStorage quota overflow).
-  // Debounced: a 5000-row customer table (~5MB) was being written on every
-  // keystroke/filter change, blocking the main thread. Now batches into a
-  // single write after the data settles.
-  const cancelCustomersIdb = useRef(debouncedIdbSet(STORAGE_KEYS.CUSTOMERS, customers));
-  const cancelInvoicesIdb = useRef(debouncedIdbSet(STORAGE_KEYS.INVOICES, invoices));
-  const cancelProductsIdb = useRef(debouncedIdbSet(STORAGE_KEYS.PRODUCTS, products));
-  const cancelCartIdb = useRef(debouncedIdbSet(STORAGE_KEYS.CART, cart));
-
+  // Sync high-capacity data directly to IndexedDB (preventing LocalStorage quota overflow & main-thread freezes).
+  // Debounced per-key inside debouncedIdbSet; returning the cancel handle ensures overlapping edits coalesce cleanly.
   useEffect(() => {
     if (!isLocalDataHydrated) return;
-    cancelProductsIdb.current = debouncedIdbSet(STORAGE_KEYS.PRODUCTS, products);
-    cancelProductsIdb.current();
+    return debouncedIdbSet(STORAGE_KEYS.PRODUCTS, products, 1800);
   }, [products, isLocalDataHydrated]);
 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
-    cancelCustomersIdb.current = debouncedIdbSet(STORAGE_KEYS.CUSTOMERS, customers);
-    cancelCustomersIdb.current();
+    return debouncedIdbSet(STORAGE_KEYS.CUSTOMERS, customers, 1800);
   }, [customers, isLocalDataHydrated]);
 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
-    cancelInvoicesIdb.current = debouncedIdbSet(STORAGE_KEYS.INVOICES, invoices);
-    cancelInvoicesIdb.current();
+    return debouncedIdbSet(STORAGE_KEYS.INVOICES, invoices, 1500);
   }, [invoices, isLocalDataHydrated]);
 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
-    cancelCartIdb.current = debouncedIdbSet(STORAGE_KEYS.CART, cart);
-    cancelCartIdb.current();
+    return debouncedIdbSet(STORAGE_KEYS.CART, cart, 800);
   }, [cart, isLocalDataHydrated]);
+
+  useEffect(() => {
+    if (!isLocalDataHydrated) return;
+    return debouncedIdbSet(STORAGE_KEYS.TARGETS, targets, 1500);
+  }, [targets, isLocalDataHydrated]);
+
+  useEffect(() => {
+    if (!isLocalDataHydrated) return;
+    return debouncedIdbSet(STORAGE_KEYS.FORECASTS, forecasts, 1500);
+  }, [forecasts, isLocalDataHydrated]);
 
   useEffect(() => {
     idbSet(STORAGE_KEYS.USERS, users);
@@ -7313,10 +7352,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     // 2. Remove immediately from local state
     setInvoices((prev) => prev.filter((inv) => inv.id !== targetId));
 
-    // 3. Immediately persist updated invoices to IndexedDB and LocalStorage
+    // 3. Immediately persist updated invoices to IndexedDB
     const remaining = invoices.filter((inv) => inv.id !== targetId);
     idbSet(STORAGE_KEYS.INVOICES, remaining).catch(() => {});
-    safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify(remaining));
 
     // 4. Record Audit Log
     recordAuditLog({
@@ -7463,7 +7501,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       });
 
       idbSet(STORAGE_KEYS.PRODUCTS, updated);
-      safeLocalStorageSet(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
       saveProductsToSupabase(updated).then((result) => {
         if (!result.success) {
           console.warn('Supabase image links sync warning:', result.error || 'Product save failed.');
@@ -7501,7 +7538,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       setCart([]);
       try {
         localStorage.removeItem(STORAGE_KEYS.ACCOUNTING_LOGS);
-        safeLocalStorageSet(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
       } catch (e) {
         // Safe ignore
       }
@@ -7513,8 +7549,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     setCart([]);
     idbSet(STORAGE_KEYS.PRODUCTS, []);
     idbSet(STORAGE_KEYS.CART, []);
-    safeLocalStorageSet(STORAGE_KEYS.PRODUCTS, JSON.stringify([]));
-    safeLocalStorageSet(STORAGE_KEYS.CART, JSON.stringify([]));
 
     if (options?.wipeInvoices) {
       const remoteDelete = await deleteAllInvoicesFromSupabase();
@@ -7523,7 +7557,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
       setInvoices([]);
       idbSet(STORAGE_KEYS.INVOICES, []);
-      safeLocalStorageSet(STORAGE_KEYS.INVOICES, JSON.stringify([]));
       safeLocalStorageSet(STORAGE_KEYS.DELETED_INVOICE_IDS, JSON.stringify([]));
     }
 
@@ -8524,7 +8557,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const incoming = res.targets || [];
       const merged = mergeTargetsIncremental(targetsRef.current, incoming.map(mapTargetRowToRecord));
       setTargets(merged);
-      try { safeLocalStorageSet(STORAGE_KEYS.TARGETS, JSON.stringify(merged)); } catch { try { localStorage.removeItem(STORAGE_KEYS.TARGETS); } catch {} }
       idbSet(STORAGE_KEYS.TARGETS, merged).catch(() => {});
       return { success: true, message: `تم تحميل ${merged.length} هدف`, count: merged.length };
     } catch (err: any) {
@@ -8544,7 +8576,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
       const merged = mergeTargetsIncremental(targetsRef.current, incoming.map(mapTargetRowToRecord));
       setTargets(merged);
-      try { safeLocalStorageSet(STORAGE_KEYS.TARGETS, JSON.stringify(merged)); } catch { try { localStorage.removeItem(STORAGE_KEYS.TARGETS); } catch {} }
       idbSet(STORAGE_KEYS.TARGETS, merged).catch(() => {});
       return {
         success: true,
@@ -8670,32 +8701,33 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const lastDeltaSyncAtRef = useRef<number>(0);
   const reconnectDeltaSyncRef = useRef<() => void>(() => {});
   reconnectDeltaSyncRef.current = () => {
+    if (!isSupabaseConfigured || !currentUserRef.current) return;
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
     const now = Date.now();
-    // Throttle to avoid extra egress on frequent focus/visibility changes.
-    if (now - lastDeltaSyncAtRef.current < 60_000) return;
+    // Throttle strongly (20m) so focus/reconnect events don't multiply egress across 500 devices.
+    if (now - lastDeltaSyncAtRef.current < 20 * 60 * 1000) return;
     lastDeltaSyncAtRef.current = now;
-    // After reconnect: push done, now pull only what changed (delta) for key data.
+    // Pull only incremental deltas (using updated_at cursors) for core tables.
     void syncTargetsIncrementally().catch(() => {});
     void syncProductsIncrementally().catch(() => {});
     void syncCustomersIncrementally().catch(() => {});
-    void itemSalesSyncRef.current?.().catch(() => {});
   };
 
   useEffect(() => {
+    if (!isSupabaseConfigured) return;
     let timer: number | null = null;
     const handler = () => {
       if (timer) window.clearTimeout(timer);
       // Small delay so outbox flush/state settles before pulling deltas.
-      timer = window.setTimeout(() => reconnectDeltaSyncRef.current(), 1500);
+      timer = window.setTimeout(() => reconnectDeltaSyncRef.current(), 2500);
     };
     window.addEventListener('tantawy:reconnected-sync', handler as EventListener);
-    // Periodic light delta refresh while online (balances/targets/stock/sales updates) without full reload.
+    // Periodic light delta refresh every 30 minutes while active & online.
     const periodic = window.setInterval(() => {
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
       if (document.visibilityState && document.visibilityState !== 'visible') return;
       reconnectDeltaSyncRef.current();
-    }, 5 * 60 * 1000);
+    }, 30 * 60 * 1000);
     return () => {
       if (timer) window.clearTimeout(timer);
       window.clearInterval(periodic);

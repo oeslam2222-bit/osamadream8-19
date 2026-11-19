@@ -1,5 +1,6 @@
 import { Customer, Product, User, Invoice } from '../types';
 import { resolveCustomerDuesValue } from './customerDues';
+export { buildGoogleSheetsPublicCsvUrl } from './productCodeUtils';
 
 /**
  * Universal Arabic Text Normalizer
