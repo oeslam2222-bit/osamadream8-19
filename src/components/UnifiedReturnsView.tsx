@@ -87,6 +87,7 @@ export const UnifiedReturnsView: React.FC = () => {
     setVisibleReturnsCount(RETURNS_PAGE_SIZE);
   }, [activeTabFilter, searchTerm]);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('الكل');
+  const [sortByDebtDesc, setSortByDebtDesc] = useState(false);
   const [flashMsg, setFlashMsg] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
 
   // New Return Modal State
@@ -231,7 +232,7 @@ export const UnifiedReturnsView: React.FC = () => {
 
   // Filtered Returns List
   const filteredReturns = useMemo(() => {
-    return returnVisits.filter((v) => {
+    const list = returnVisits.filter((v) => {
       // 1. Branch filter
       if (selectedBranchFilter !== 'الكل' && v.branchName !== selectedBranchFilter) return false;
 
@@ -261,8 +262,22 @@ export const UnifiedReturnsView: React.FC = () => {
       }
 
       return true;
-    }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  }, [returnVisits, selectedBranchFilter, activeTabFilter, searchTerm]);
+    });
+    if (sortByDebtDesc) {
+      const custMap = new Map(customers.map((c) => [c.id || '', c]));
+      list.sort((a, b) => {
+        const ca = custMap.get(a.customerId || '') || customers.find((c) => c.code === a.customerCode);
+        const cb = custMap.get(b.customerId || '') || customers.find((c) => c.code === b.customerCode);
+        const da = Number(ca?.currentBalance ?? ca?.balance ?? 0);
+        const db = Number(cb?.currentBalance ?? cb?.balance ?? 0);
+        if (db !== da) return db - da;
+        return (b.date || '').localeCompare(a.date || '');
+      });
+    } else {
+      list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    }
+    return list;
+  }, [returnVisits, selectedBranchFilter, activeTabFilter, searchTerm, sortByDebtDesc, customers]);
 
   // Aggregate Metrics
   const metrics = useMemo(() => {
@@ -737,6 +752,18 @@ export const UnifiedReturnsView: React.FC = () => {
                 ))}
               </select>
             )}
+            <button
+              type="button"
+              onClick={() => setSortByDebtDesc((v) => !v)}
+              className={`px-3 py-2 rounded-xl text-xs font-black border transition cursor-pointer whitespace-nowrap ${
+                sortByDebtDesc
+                  ? 'bg-[var(--app-navy)] text-white border-[var(--app-navy)]'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+              }`}
+              title="ترتيب المرتجعات حسب مديونية العميل (الأعلى أولاً)"
+            >
+              ترتيب بالمديونية {sortByDebtDesc ? '↓' : ''}
+            </button>
           </div>
         </div>
       </section>

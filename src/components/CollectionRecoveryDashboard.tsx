@@ -124,6 +124,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     users,
     invoices,
     getVisibleCustomers,
+    canManageSectorGate,
     addVisit,
     updateCustomer,
     visits,
@@ -739,12 +740,14 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                   <option key={option} value={option}>{option === 'الكل' ? 'كل المناديب' : option}</option>
                 ))}
               </select>
+              {canManageSectorGate && (
               <select value={sectorFilter} onChange={(event) => setSectorFilter(event.target.value as 'all' | 'home' | 'electrical' | 'both')} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15">
                 <option value="all">كل القطاعات</option>
                 <option value="home">منزلي</option>
                 <option value="electrical">كهربائي</option>
                 <option value="both">كلاهما</option>
               </select>
+              )}
             </div>
           </div>
 

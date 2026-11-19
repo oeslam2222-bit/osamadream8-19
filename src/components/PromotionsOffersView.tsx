@@ -54,6 +54,8 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
     saveAndSyncPromotions,
     announcements,
     saveAndSyncAnnouncements,
+    canManageSectorGate,
+    effectiveSectorFilter,
   } = useApp();
 
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
@@ -132,10 +134,11 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
   };
 
   // نطاق العروض المسموح للمستخدم حسب القطاع والفرع والمندوب
-  const scopedPromotions = useMemo(
-    () => filterPromotionsForUser(promotions, currentUser, products),
-    [promotions, currentUser, products]
-  );
+  const scopedPromotions = useMemo(() => {
+    // حساب مبيعات بلا قطاع ('none'): محجوب عن عروض القطاعين.
+    if (effectiveSectorFilter === 'none' && !isAdminOrDev) return [];
+    return filterPromotionsForUser(promotions, currentUser, products);
+  }, [promotions, currentUser, products, effectiveSectorFilter, isAdminOrDev]);
 
   const repFilterOptions = useMemo(() => {
     const set = new Set<string>();
@@ -740,7 +743,7 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
             </button>
           </div>
 
-          {(isAdminOrDev || !currentUser?.sector || currentUser.sector === 'all' || currentUser.sector === 'both') && (
+          {canManageSectorGate && (
             <select
               value={selectedSectorFilter}
               onChange={(e) => setSelectedSectorFilter(e.target.value as 'all' | 'home' | 'electrical')}

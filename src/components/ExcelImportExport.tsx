@@ -292,28 +292,35 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
     setSyncingKey(key);
     setSheetErrors((prev) => ({ ...prev, [key]: null }));
     setSheetSuccess((prev) => ({ ...prev, [key]: null }));
+    if (!batch) {
+      setMasterSyncPercent(10);
+      setMasterSyncProgress('جاري جلب قاعدة العملاء من Google Sheets...');
+    }
 
     try {
       saveSingleSourceUrl(key, url);
       setSources(getPublishedDataSources());
-
       const res = await fetchCustomersFromGoogleSheetUrl(url);
       if (res.errors.length > 0 && res.customers.length === 0) {
         throw new Error(res.errors.join(' • '));
       }
-
-      // Tag all incoming customers with the active sector
+      if (!batch) {
+        setMasterSyncPercent(55);
+        setMasterSyncProgress(`تم جلب ${res.customers.length.toLocaleString('ar-EG')} صف، جاري الحفظ...`);
+      }
       const sectorTagged = res.customers.map((c) => ({
         ...c,
         sector: activeSectorTab,
       }));
-
-      // Merge and update customers in place with strict deduplication
       const importResult = await importCustomersList(sectorTagged, 'merge');
       if (!importResult.success) {
         throw new Error(importResult.message);
       }
-
+      if (!batch) {
+        setMasterSyncPercent(100);
+        setMasterSyncProgress('تم تحديث قاعدة العملاء بنجاح.');
+        setTimeout(() => { setMasterSyncProgress(null); setMasterSyncPercent(0); }, 4000);
+      }
       setSheetSuccess((prev) => ({
         ...prev,
         [key]: `تم بنجاح تحديث ${importResult.count} عميل فريد لـ (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'})، وحذف أي مكررات سابقة. البيانات محدثة ومتاحة الآن للمناديب والمشرفين.`
@@ -321,6 +328,10 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       return { ok: true, message: `تم تحديث ${importResult.count} عميل فريد` };
     } catch (err: any) {
       const message = err?.message || 'فشلت مزامنة شيت العملاء';
+      if (!batch) {
+        setMasterSyncProgress(null);
+        setMasterSyncPercent(0);
+      }
       setSheetErrors((prev) => ({ ...prev, [key]: message }));
       return { ok: false, message };
     } finally {
@@ -794,24 +805,38 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
     const key = getSectorKey('customers');
     setSyncingKey(key);
     setSheetErrors((prev) => ({ ...prev, [key]: null }));
+    setMasterSyncPercent(5);
+    setMasterSyncProgress(`جاري قراءة ملف قاعدة العملاء (${file.name})...`);
     try {
+      setMasterSyncPercent(20);
+      setMasterSyncProgress('جاري تحليل صفوف العملاء من ملف Excel...');
       const res = await parseExcelCustomers(file);
       if (res.errors.length > 0 && res.customers.length === 0) {
         throw new Error(res.errors.join(' • '));
       }
+      setMasterSyncPercent(60);
+      setMasterSyncProgress(`جاري دمج وحفظ ${res.customers.length.toLocaleString('ar-EG')} عميل...`);
       const sectorTagged = res.customers.map((c) => ({
         ...c,
         sector: activeSectorTab,
       }));
       const importRes = await importCustomersList(sectorTagged, 'merge');
+      setMasterSyncPercent(100);
+      setMasterSyncProgress(`تم حفظ ${importRes.count?.toLocaleString('ar-EG') || ''} عميل بنجاح.`);
       setSheetSuccess((prev) => ({
         ...prev,
         [key]: `تم بنجاح رفع ملف الإكسل وتحديث ${importRes.count} عميل لـ (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'}) بدون تكرار!`
       }));
     } catch (err: any) {
+      setMasterSyncProgress(null);
+      setMasterSyncPercent(0);
       setSheetErrors((prev) => ({ ...prev, [key]: err?.message || 'فشل رفع ملف العملاء' }));
     } finally {
       setSyncingKey(null);
+      setTimeout(() => {
+        setMasterSyncProgress(null);
+        setMasterSyncPercent(0);
+      }, 4000);
       if (fileInputCustomersRef.current) fileInputCustomersRef.current.value = '';
     }
   };
@@ -822,18 +847,26 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
     const key = getSectorKey('customerSales');
     setSyncingKey(key);
     setSheetErrors((prev) => ({ ...prev, [key]: null }));
+    setMasterSyncPercent(5);
+    setMasterSyncProgress(`جاري قراءة ملف مبيعات العملاء (${file.name})...`);
     try {
-      // 1. Try parsing customer item sales format first
+      setMasterSyncPercent(15);
+      setMasterSyncProgress('جاري تحليل صفوف مبيعات الأصناف...');
       const itemSalesRes = await parseExcelCustomerItemSales(file);
       if (itemSalesRes.sales && itemSalesRes.sales.length > 0) {
-        // Automatically link customer codes with master customer directory to resolve branch and sales rep
+        setMasterSyncPercent(40);
+        setMasterSyncProgress(`تم العثور على ${itemSalesRes.sales.length.toLocaleString('ar-EG')} صف. جاري ربط العملاء وحفظ البيانات...`);
         const enrichedRes = enrichCustomerItemSalesWithDirectory(itemSalesRes.sales, customersRef.current);
         const finalSales = enrichedRes.enriched;
         await saveCustomerItemSales(finalSales, 'merge');
-
-        // Auto sync to Supabase so data is immediately saved in cloud customer_item_sales table
+        setMasterSyncPercent(65);
+        setMasterSyncProgress(`جاري رفع ${finalSales.length.toLocaleString('ar-EG')} صف إلى السحابة...`);
         pushCustomerItemSalesToSupabase(finalSales, (synced, total) => {
           setRowUploadProgress({ synced, total });
+          if (total > 0) {
+            setMasterSyncPercent(65 + Math.round((synced / total) * 30));
+            setMasterSyncProgress(`رفع مبيعات الأصناف إلى السحابة: ${synced.toLocaleString('ar-EG')} من ${total.toLocaleString('ar-EG')}`);
+          }
         }).catch((err) => {
           console.warn('Auto cloud sync notice:', err);
         });
@@ -908,10 +941,13 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         const finalDeduped = deduplicateAndMergeCustomers(updatedCustomers).customers;
         await importCustomersList(finalDeduped, 'merge');
 
+        setMasterSyncPercent(100);
+        setMasterSyncProgress('تم حفظ مبيعات العملاء محليًا وبدأ الرفع للسحابة.');
         setSheetSuccess((prev) => ({
           ...prev,
           [key]: `تم بنجاح رفع ملف الإكسل وتحديث ${finalSales.length.toLocaleString('ar-EG')} حركة صنف، وتم ربط كود العميل بقاعدة العملاء لـ (${enrichedRes.distinctCustomersMatched} عميل) وتحديد فروعهم ومناديبهم تلقائياً بدون تكرار!`
         }));
+        setTimeout(() => { setMasterSyncProgress(null); setMasterSyncPercent(0); }, 5000);
         return;
       }
 
@@ -967,10 +1003,18 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         [key]: `تم بنجاح رفع ملف مبيعات العملاء وتحديث ${updatedCount} عميل قائم وإدراج ${newCount} عميل جديد بدون أي تكرار!`
       }));
     } catch (err: any) {
+      setMasterSyncProgress(null);
+      setMasterSyncPercent(0);
       setSheetErrors((prev) => ({ ...prev, [key]: err?.message || 'فشل رفع ملف مبيعات العملاء' }));
     } finally {
       setRowUploadProgress(null);
       setSyncingKey(null);
+      setTimeout(() => {
+        if (!rowUploadProgress) {
+          setMasterSyncProgress(null);
+          setMasterSyncPercent(0);
+        }
+      }, 6000);
       if (fileInputSalesRef.current) fileInputSalesRef.current.value = '';
     }
   };

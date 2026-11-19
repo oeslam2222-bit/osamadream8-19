@@ -93,8 +93,8 @@ export function EncouragementProvider({ children }: { children: ReactNode }) {
     <EncouragementContext.Provider value={{ showEncouragement, activeEncouragement: active }}>
       {children}
       {active && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center justify-center pointer-events-none">
-          <div className="bg-white dark:bg-slate-800 border border-[var(--app-line)] dark:border-slate-700 rounded-2xl p-4 shadow-2xl flex items-center gap-3 min-w-[320px] max-w-md animate-in slide-in-from-bottom duration-300 pointer-events-auto">
+        <div className="fixed bottom-24 lg:bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center justify-center pointer-events-none">
+          <div className="bg-white dark:bg-slate-800 border border-[var(--app-line)] dark:border-slate-700 rounded-2xl p-4 shadow-2xl flex items-center gap-3 w-[calc(100vw-2rem)] max-w-md sm:w-auto sm:min-w-[320px] animate-in slide-in-from-bottom duration-300 pointer-events-auto">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${active.color}`}>
               <active.icon className="w-5 h-5 shrink-0" />
             </div>

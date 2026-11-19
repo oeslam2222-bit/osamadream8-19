@@ -54,6 +54,8 @@ export const InventoryStockView: React.FC = () => {
     deleteProduct,
     adjustStock,
     selectedBranchFilter,
+    canManageSectorGate,
+    effectiveSectorFilter,
     setSelectedBranchFilter
   } = useApp();
 
@@ -126,21 +128,16 @@ export const InventoryStockView: React.FC = () => {
     return getBranchStockForProduct(p, currentActiveBranch);
   };
 
-  // 🏠⚡ قطاع المستخدم: لو حسابه مربوط بقطاع واحد يشوفه فقط، وإلا يقدر يتنقل بينهم
-  const canSwitchSector = useMemo(() => {
-    const role = currentUser?.role;
-    if (role === 'admin' || role === 'developer') return true;
-    const s = currentUser?.sector;
-    return !s || s === 'all' || s === 'both';
-  }, [currentUser]);
+  // 🏠⚡ قطاع المستخدم: التبديل للإدارة العليا فقط، وبقية الأدوار مقفولة
+  // على قطاع حسابها ('none' = بلا قطاع → محجوب عن القطاعين).
+  const canSwitchSector = canManageSectorGate;
 
-  const effectiveSector: 'all' | 'home' | 'electrical' = canSwitchSector
+  const effectiveSector: 'all' | 'home' | 'electrical' | 'none' = canManageSectorGate
     ? sectorTab
-    : currentUser?.sector === 'electrical'
-      ? 'electrical'
-      : 'home';
+    : effectiveSectorFilter;
 
   const matchesSector = (p: Product) => {
+    if (effectiveSector === 'none') return false;
     if (effectiveSector === 'all') return true;
     const s = p.sector;
     return !s || s === 'all' || s === 'both' || s === effectiveSector;

@@ -107,6 +107,7 @@ export const VisitsDashboard: React.FC = () => {
     cloudinaryConfig,
     getVisibleVisits,
     getVisibleCustomers,
+    canManageSectorGate,
     addVisit,
     updateVisit,
     updateCustomer,
@@ -134,6 +135,7 @@ export const VisitsDashboard: React.FC = () => {
   const [geoFilter, setGeoFilter] = useState<'all' | 'verified' | 'flagged'>('all');
   const [repFilter, setRepFilter] = useState<string>('all');
   const [sectorFilter, setSectorFilter] = useState<'all' | 'home' | 'electrical'>('all');
+  const [branchFilter, setBranchFilter] = useState<string>('all');
   const VISITS_CHUNK = 10;
   const [visibleVisitsCount, setVisibleVisitsCount] = useState(VISITS_CHUNK);
 
@@ -179,6 +181,7 @@ export const VisitsDashboard: React.FC = () => {
   // بحث وفلترة العملاء داخل مودال تسجيل الزيارة
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerRepFilter, setCustomerRepFilter] = useState('all');
+  const [customerBranchFilter, setCustomerBranchFilter] = useState('all');
 
   const myCustomers = useMemo(() => {
     return getVisibleCustomers();
@@ -211,14 +214,25 @@ export const VisitsDashboard: React.FC = () => {
       const rep = c.salesRepName || c.repName;
       if (rep) reps.add(rep);
     });
-    return Array.from(reps);
+    return Array.from(reps).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [myCustomers]);
+  const customerBranchOptions = useMemo(() => {
+    const branches = new Set<string>();
+    myCustomers.forEach((c) => {
+      const b = (c.branchName || '').trim();
+      if (b) branches.add(b);
+    });
+    return Array.from(branches).sort((a, b) => a.localeCompare(b, 'ar'));
   }, [myCustomers]);
 
-  // العملاء المطابقون للبحث (اسم/كود) وفلتر المندوب
+  // عملاء للمودال: فلتر مندوب + فلتر منطقة + بحث، مرتّبين حسب المديونية (الأعلى أولًا)
   const filteredModalCustomers = useMemo(() => {
     let list = myCustomers;
     if (customerRepFilter !== 'all') {
       list = list.filter((c) => (c.salesRepName || c.repName) === customerRepFilter);
+    }
+    if (customerBranchFilter !== 'all') {
+      list = list.filter((c) => (c.branchName || '') === customerBranchFilter);
     }
     const q = customerSearch.trim().toLowerCase();
     if (q) {
@@ -228,8 +242,8 @@ export const VisitsDashboard: React.FC = () => {
           (c.code || '').toLowerCase().includes(q)
       );
     }
-    return list;
-  }, [myCustomers, customerSearch, customerRepFilter]);
+    return [...list].sort((a, b) => (Number(b.currentBalance ?? b.balance ?? 0)) - (Number(a.currentBalance ?? a.balance ?? 0)));
+  }, [myCustomers, customerSearch, customerRepFilter, customerBranchFilter]);
 
   // Request Rep live GPS position (maximumAge: 0 prohibits stale cache)
   const requestCurrentRepGps = async (): Promise<LiveGpsReading | null> => {
@@ -554,6 +568,9 @@ export const VisitsDashboard: React.FC = () => {
     if (repFilter !== 'all') {
       result = result.filter((v) => v.repName === repFilter || v.repId === repFilter);
     }
+    if (branchFilter !== 'all') {
+      result = result.filter((v) => (v.branchName || '') === branchFilter);
+    }
 
     // Sector filter
     const userSector = currentUser?.sector;
@@ -597,6 +614,7 @@ export const VisitsDashboard: React.FC = () => {
     geoFilter,
     repFilter,
     sectorFilter,
+    branchFilter,
     currentUser?.sector,
     users,
   ]);
@@ -642,6 +660,10 @@ export const VisitsDashboard: React.FC = () => {
     const reps = [...new Set(visits.map((v) => v.repName).filter(Boolean))];
     return reps;
   }, [visits]);
+  const branchOptions = useMemo(() => {
+    const branches = [...new Set(visits.map((v) => v.branchName).filter(Boolean) as string[])];
+    return branches.sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [visits]);
 
   const hasActiveFilters =
     search.trim() !== '' ||
@@ -650,7 +672,8 @@ export const VisitsDashboard: React.FC = () => {
     statusFilter !== 'all' ||
     geoFilter !== 'all' ||
     repFilter !== 'all' ||
-    sectorFilter !== 'all';
+    sectorFilter !== 'all' ||
+    branchFilter !== 'all';
 
   const resetFilters = () => {
     setSearch('');
@@ -660,6 +683,7 @@ export const VisitsDashboard: React.FC = () => {
     setGeoFilter('all');
     setRepFilter('all');
     setSectorFilter('all');
+    setBranchFilter('all');
   };
 
   return (
@@ -884,7 +908,8 @@ export const VisitsDashboard: React.FC = () => {
             </select>
           </div>
 
-          {/* Sector */}
+          {/* Sector — للإدارة العليا فقط (باقي الأدوار مقفولة على قطاع حسابها) */}
+          {canManageSectorGate && (
           <div>
             <label className="block text-[11px] font-bold text-slate-600 mb-1">القطاع</label>
             <select
@@ -899,7 +924,26 @@ export const VisitsDashboard: React.FC = () => {
               <option value="electrical">كهرباء ⚡</option>
             </select>
           </div>
+          )}
 
+          {/* Branch / Region */}
+          <div>
+            <label className="block text-[11px] font-bold text-slate-600 mb-1">المنطقة / الفرع</label>
+            <select
+              value={branchFilter}
+              onChange={(e) => {
+                setBranchFilter(e.target.value);
+              }}
+              className="tg-select"
+            >
+              <option value="all">كل المناطق</option>
+              {branchOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
           {/* Sales Rep */}
           <div>
             <label className="block text-[11px] font-bold text-slate-600 mb-1">المندوب</label>
@@ -1315,6 +1359,8 @@ export const VisitsDashboard: React.FC = () => {
                 customers={myCustomers}
                 valueId={form.customerId || null}
                 showRepFilter
+                showBranchFilter
+                sortBy="balance_desc"
                 placeholder="ابحث باسم العميل أو الكود أو الهاتف..."
                 onSelect={(c) => {
                   setForm({

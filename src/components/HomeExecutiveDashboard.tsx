@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx-js-style';
 import { useApp } from '../context/AppContext';
-import { formatCurrency } from '../services/invoiceService';
+import { formatCompactCurrency, formatCurrency } from '../services/invoiceService';
 import { getBranchStockForProduct } from '../services/arabicMatchingService';
 import { Invoice, Product, CustomerVisit } from '../types';
 
@@ -389,8 +389,9 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
             <span>المبيعات المعتمدة</span>
             <Wallet className="w-4 h-4 text-[var(--app-warn-text)]" />
           </div>
-          <div className="text-lg sm:text-2xl font-black font-mono text-slate-900 mt-1">
-            {formatCurrency(totalSalesRevenue)}
+          <div className="text-lg sm:text-2xl font-black font-mono text-slate-900 mt-1 whitespace-nowrap">
+            <span className="sm:hidden">{formatCompactCurrency(totalSalesRevenue)}</span>
+            <span className="hidden sm:inline">{formatCurrency(totalSalesRevenue)}</span>
           </div>
           <div className="text-[11px] text-[var(--app-ok-text)] font-bold flex items-center gap-1">
             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -411,7 +412,9 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
             {pendingOrders.length} طلبية
           </div>
           <div className="text-[11px] text-slate-500 font-medium truncate">
-            بقيمة: <strong className="font-mono text-slate-800">{formatCurrency(totalPendingAmount)}</strong>
+            بقيمة:{' '}
+            <strong className="font-mono text-slate-800 sm:hidden">{formatCompactCurrency(totalPendingAmount)}</strong>
+            <strong className="hidden sm:inline font-mono text-slate-800">{formatCurrency(totalPendingAmount)}</strong>
           </div>
         </div>
 

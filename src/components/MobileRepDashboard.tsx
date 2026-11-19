@@ -808,7 +808,7 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
       {/* ===== أوامر البيع ===== */}
       <section>
         {sectionTitle('أوامر البيع ودورة الطلبيات', Receipt)}
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-2.5 text-center">
             <div className="rep-num text-base t-warn">{salesOrdersSummary.pendingCount}</div>
             <div className="text-[9px] font-bold t-muted leading-tight">بانتظار الاعتماد</div>

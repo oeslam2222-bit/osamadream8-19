@@ -71,7 +71,7 @@ const STAGES: { key: StageKey; title: string; desc: string }[] = [
   { key: 'admin', title: 'اعتماد الإدارة', desc: 'اعتماد نهائي والبت في الاستثناء' },
   { key: 'prep', title: 'تجهيز الطلبية', desc: 'تحضير الأصناف ومعالجة النواقص/التوريد' },
   { key: 'delivery', title: 'توصيل', desc: 'الطلب في الطريق للتسليم' },
-  { key: 'closed', title: 'استلام وإغلاق الطلب', desc: 'تم التسليم وإقفال الطلب' },
+  { key: 'closed', title: 'استلام وإغلاق', desc: 'تم التسليم وإقفال الطلب' },
   { key: 'cancelled', title: 'إلغاء الطلب', desc: 'طلبات منتهية بالإلغاء' },
 ];
 
@@ -122,9 +122,11 @@ export const OrdersPipelineView: React.FC<{
   const [hydratingIds, setHydratingIds] = useState<Record<string, boolean>>({});
 
   const base: Invoice[] = useMemo(() => {
-    const list = typeof getVisibleInvoices === 'function' ? getVisibleInvoices() : (invoices || []);
+    // includeArchived=true لما يبعت المستخدم بحث (باش يرجع الفواتير المؤرشفة
+    // اللي من غيرها ما يشوفهاش — تختفي المنفّذة من القائمة النشطة).
+    const list = typeof getVisibleInvoices === 'function' ? getVisibleInvoices(!!search.trim()) : (invoices || []);
     return Array.isArray(list) ? list : [];
-  }, [getVisibleInvoices, invoices]);
+  }, [getVisibleInvoices, invoices, search]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -466,14 +468,14 @@ export const OrdersPipelineView: React.FC<{
                   <span className="text-[10px] sm:text-[11px] font-extrabold leading-tight line-clamp-2 min-h-[26px] sm:min-h-[30px]">
                     {s.title}
                   </span>
-                  <span className="shrink-0 w-5 h-5 rounded-md grid place-items-center text-[10px] font-black tabular-nums bg-white/70 dark:bg-white/10">
+                  <span className="tg-stage-card__num shrink-0 w-5 h-5 rounded-md grid place-items-center text-[10px] font-black tabular-nums">
                     {index + 1}
                   </span>
                 </div>
                 <div className="text-lg sm:text-xl font-black leading-none mt-1 tabular-nums">
                   {counts[s.key]}
                 </div>
-                <div className="hidden sm:block text-[9.5px] font-bold mt-1 leading-tight opacity-75 line-clamp-2">
+                <div className="tg-stage-card__desc hidden sm:block text-[9.5px] font-bold mt-1 leading-tight line-clamp-2">
                   {s.desc}
                 </div>
               </button>

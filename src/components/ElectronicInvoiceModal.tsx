@@ -370,6 +370,19 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
     }
   };
 
+  // شيت إلكتروني مبسط للفاتورة — الأصناف بالتفصبل + الموقف المالي (مصمم لنقل/رفع للنظام).
+  const handleDownloadSimplifiedExcel = () => {
+    try {
+      exportInvoiceForERP(currentInv);
+      setDownloadNotice(`تم تحميل شيت إلكتروني مبسط للفاتورة #${currentInv.invoiceNumber} مباشرة على جهازك! 📑`);
+      setTimeout(() => setDownloadNotice(null), 4500);
+    } catch (e) {
+      console.error('Simplified Excel download error:', e);
+      setDownloadNotice('تم إرسال أمر تنزيل الشيت الإلكتروني المبسط إلى متصفحك.');
+      setTimeout(() => setDownloadNotice(null), 3000);
+    }
+  };
+
   const handlePrint = () => {
     const source = document.getElementById('printable-invoice');
     if (!source) {
@@ -419,110 +432,102 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in" dir="rtl">
-      <div role="dialog" aria-modal="true" className="modal-full-mobile bg-[var(--einv-paper)] rounded-3xl max-w-4xl w-full max-h-[95vh] flex flex-col shadow-2xl border border-[var(--einv-line)] overflow-hidden print:max-h-none print:shadow-none print:border-none print:w-full">
+      <div role="dialog" aria-modal="true" className="modal-full-mobile bg-[var(--einv-paper)] rounded-3xl max-w-5xl w-full max-h-[95vh] md:h-[92dvh] flex flex-col shadow-2xl border border-[var(--einv-line)] overflow-hidden print:max-h-none print:shadow-none print:border-none print:w-full">
         
         {/* Top Control Bar (Hidden in Print) */}
-        <div className="ein-topbar text-slate-soft6 p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 print:hidden">
-          <div className="flex items-center gap-2.5">
-            <div className="ein-brandtile w-9 h-9 flex items-center justify-center font-black">
-              <FileText className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="text-xs sm:text-sm font-black flex items-center gap-2">
-                <span>فاتورة مبيعات معتمدة - شركة دريم</span>
-                <span className="badge-brass-dark text-[11px] font-mono px-2 py-0.5">
-                  {invoice.invoiceNumber}
-                </span>
+        <header className="ein-head print:hidden">
+          <div className="ein-head__top">
+            <span className="ein-head__brand" aria-hidden="true">
+              <FileText />
+            </span>
+            <div className="ein-head__titlewrap">
+              <div className="ein-head__title">
+                <span>معاينة أمر البيع</span>
+                <span className="ein-head__no">{currentInv.invoiceNumber}</span>
               </div>
-              <p className="text-[11px] text-slate-400">
-                تصدير احترافي ومباشر بصيغتي PDF الرسمية وشيت إكسل عالي التنسيق
-              </p>
+              <div className="ein-head__sub">
+                {currentInv.status || 'قيد المراجعة'} • {currentInv.branchName || 'الفرع'} •{' '}
+                {currentInv.date}{currentInv.time ? ` (${currentInv.time})` : ''}
+              </div>
             </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="ein-iconbtn"
+              aria-label="إغلاق معاينة الفاتورة"
+              title="إغلاق"
+            >
+              <X aria-hidden="true" />
+            </button>
           </div>
 
-          {/* Action Buttons in Header */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Edit / Re-open order if pending */}
+          <div className="ein-toolbar" role="toolbar" aria-label="أدوات أمر البيع">
+            <button
+              type="button"
+              onClick={handleDownloadPDF}
+              disabled={isDownloadingPDF}
+              className="ein-tool ein-tool--primary"
+              title="تحميل ملف PDF مباشرة"
+            >
+              <Download aria-hidden="true" />
+              {isDownloadingPDF ? 'جاري التحميل...' : 'تحميل PDF'}
+            </button>
+            <button type="button" onClick={handlePrint} className="ein-tool" title="طباعة نسختين: العميل والمندوب">
+              <Printer aria-hidden="true" />
+              طباعة
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadBoth}
+              disabled={isDownloadingBoth}
+              className="ein-tool"
+              title="تحميل PDF وملف Excel معاً"
+            >
+              <Sparkles aria-hidden="true" />
+              {isDownloadingBoth ? 'جاري التحميل...' : 'PDF + Excel'}
+            </button>
+            <button type="button" onClick={() => setShowExcelPreview(true)} className="ein-tool" title="معاينة شيت Excel">
+              <FileSpreadsheet aria-hidden="true" />
+              معاينة Excel
+            </button>
+            <button type="button" onClick={handleDownloadSimplifiedExcel} className="ein-tool" title="شيت ERP المبسط بالأصناف">
+              <FileText aria-hidden="true" />
+              شيت ERP
+            </button>
+            <button type="button" onClick={handleCopyInvoiceNumber} className="ein-tool" title="نسخ رقم الفاتورة">
+              <Copy aria-hidden="true" />
+              {copiedInvoiceNo ? 'تم النسخ' : 'نسخ الرقم'}
+            </button>
+            <button type="button" onClick={() => setShowCreditAudit(true)} className="ein-tool" title="تدقيق الائتمان والمديونية">
+              <ShieldCheck aria-hidden="true" />
+              تدقيق الائتمان
+            </button>
+            {['admin', 'developer', 'supervisor', 'branch_manager'].includes(currentUser?.role || '') && (
+              <button type="button" onClick={() => setShowCompanySettings(true)} className="ein-tool" title="إعدادات بيانات الفاتورة للفرع">
+                <Settings aria-hidden="true" />
+                إعدادات الفاتورة
+              </button>
+            )}
             {canEditOrder && (
               <button
+                type="button"
                 onClick={() => {
                   onClose();
                   if (onEditInvoice) onEditInvoice(invoice);
                 }}
-                className="btn-brass px-3.5 py-2 text-xs cursor-pointer"
+                className="ein-tool ein-tool--gold"
                 title="تعديل الطلبية وإضافة أصناف جديدة في السلة"
               >
-                <Pencil className="w-3.5 h-3.5" />
-                <span>تعديل الطلبية / إضافة أصناف ✏️</span>
+                <Pencil aria-hidden="true" />
+                تعديل الطلبية
               </button>
             )}
-
-            {/* Combined Direct Download: PDF + Excel together */}
-            <button
-              onClick={handleDownloadBoth}
-              disabled={isDownloadingBoth}
-              className="btn-ondark px-3.5 py-2 text-xs cursor-pointer disabled:opacity-50 active:scale-95"
-              title="تحميل ملف PDF وملف Excel معاً مباشرة على جهازك بضغطة واحدة"
-            >
-              <Sparkles className="w-3.5 h-3.5 t-brass" />
-              <span>{isDownloadingBoth ? 'جاري التنزيل المزدوج...' : 'تحميل الاثنين (PDF + Excel) ⚡'}</span>
-            </button>
-
-            {/* Direct High-Quality PDF Download */}
-            <button
-              onClick={handleDownloadPDF}
-              disabled={isDownloadingPDF}
-              className="btn-ondark px-3.5 py-2 text-xs cursor-pointer disabled:opacity-50"
-              title="تحميل فاتورة PDF رسمية مباشرة على جهاز المندوب دون نافذة طباعة"
-            >
-              <Download className={`w-3.5 h-3.5 ${isDownloadingPDF ? 'animate-bounce' : ''}`} />
-              <span>{isDownloadingPDF ? 'جاري التنزيل على الجهاز...' : 'تحميل PDF على الجهاز 📥'}</span>
-            </button>
-
-            {/* Excel Preview Modal Trigger */}
-            <button
-              onClick={() => setShowExcelPreview(true)}
-              className="btn-ondark px-3.5 py-2 text-xs cursor-pointer"
-              title="معاينة شيت الإكسل المطور والمحاسبي قبل التنزيل"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>معاينة شيت Excel 👁️</span>
-            </button>
-
-
-            {/* Credit Audit Modal Button */}
-            <button
-              onClick={() => setShowCreditAudit(true)}
-              className="btn-ondark px-3 py-2 text-xs cursor-pointer"
-              title="عرض جدول تدقيق الائتمان والمديونية المعتمد"
-            >
-              <CreditCard className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">تدقيق الائتمان 💳</span>
-            </button>
-
-            {/* Print Button (Subtle/Secondary) */}
-            <button
-              onClick={handlePrint}
-              className="btn-ondark px-2.5 py-2 text-xs cursor-pointer"
-              title="طباعة ورقية"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span className="hidden xl:inline">طباعة</span>
-            </button>
-
-            {/* Close Button */}
-            <button
-              onClick={onClose}
-              className="text-slate-400 hover:text-white p-1.5 rounded-xl hover:bg-slate-800 transition cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
           </div>
-        </div>
+        </header>
 
         {/* Dynamics 365 Integration Status & Action Bar (Hidden for all except Developer) */}
         {isDeveloperRole && (
-          <div className="ein-topbar border-t border-[rgba(255,255,255,.08)] px-3.5 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs print:hidden">
+          <div className="ein-head--sub px-3.5 sm:px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs print:hidden">
             <div className="flex items-center gap-2.5 flex-wrap">
               <span className="text-slate-400 font-bold flex items-center gap-1.5">
                 <Server className="w-3.5 h-3.5 text-[#60a5fa]" />
@@ -646,46 +651,16 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
           </div>
         )}
 
-        {/* Quick Edit Banner on Mobile & Desktop */}
-        {canEditOrder && (
-          <div className="panel-warn border-b-2 px-4 py-2 flex items-center justify-between gap-2 text-xs print:hidden">
-            <span className="font-bold">
-              هل ترغب في تعديل كميات أو أصناف هذه الفاتورة؟
-            </span>
-            <button
-              onClick={() => {
-                onClose();
-                if (onEditInvoice) onEditInvoice(invoice);
-              }}
-              className="app-btn app-btn-warn-soft px-3 text-xs cursor-pointer shrink-0"
-            >
-              <Pencil className="w-3 h-3" />
-              <span>تعديل الفاتورة الآن ✏️</span>
-            </button>
-          </div>
-        )}
-
         {/* Printable Official Electronic Invoice Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-7 space-y-5 text-[var(--einv-ink)] bg-[var(--einv-paper)]" id="printable-invoice">
+        <div className="ein-preview">
+          <div
+            className="ein-paper p-4 sm:p-7 space-y-5 text-[var(--einv-ink)] print:max-w-none print:rounded-none print:border-0 print:p-0 print:shadow-none"
+            id="printable-invoice"
+          >
           
           {/* Header Banner - Company Identity */}
           <div className="border-b-2 border-[var(--einv-ink-strong)] pb-4 relative group">
             
-            {/* Quick Edit Header Button for Admin/Developer/Branch Manager/Supervisor */}
-            {['admin', 'developer', 'supervisor', 'branch_manager'].includes(currentUser?.role || '') && (
-              <div className="absolute top-0 left-0 print:hidden opacity-90 group-hover:opacity-100 transition">
-                <button
-                  type="button"
-                  onClick={() => setShowCompanySettings(true)}
-                  className="tint-brass border px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer"
-                  title="إعدادات بيانات الفاتورة للفرع"
-                >
-                  <Settings className="w-3 h-3 text-[var(--app-warn-text)]" />
-                  <span>إعدادات بيانات الفاتورة {currentUser?.role === 'admin' || currentUser?.role === 'developer' ? '(الشركة / الفروع)' : `(${currentUser?.branchName})`} ✏️</span>
-                </button>
-              </div>
-            )}
-
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               
               {/* Right: Company Logo & Details */}
@@ -736,9 +711,9 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
                 </div>
 
                 {/* QR Code Identification */}
-                <div className="w-20 h-20 bg-[var(--einv-card)] p-1.5 rounded-2xl border-2 border-[var(--einv-ink-strong)] flex flex-col items-center justify-center text-center shrink-0 shadow-xs">
-                  <QrCode className="w-11 h-11 text-[var(--einv-ink-strong)]" />
-                  <span className="text-[7px] font-black text-[var(--einv-ink)] pt-0.5 font-mono">{effectiveCompanyInfo.logoLetter || 'DREAM'} DIST</span>
+                <div className="w-16 h-16 bg-[var(--einv-card)] p-1 rounded-xl border-2 border-[var(--einv-ink-strong)] flex flex-col items-center justify-center text-center shrink-0 shadow-xs" title="كود التحقق من الفاتورة">
+                  <QrCode className="w-8 h-8 text-[var(--einv-ink-strong)]" />
+                  <span className="text-[6.5px] font-black text-[var(--einv-ink)] pt-0.5 font-mono">{effectiveCompanyInfo.logoLetter || 'DREAM'} DIST</span>
                 </div>
               </div>
 
@@ -1168,97 +1143,45 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
             </div>
 
           </div>
+          </div>
 
         </div>
 
         {/* Modal Footer Controls (Hidden in Print) */}
-        <div className="bg-[var(--app-card-secondary)] p-3.5 sm:p-4 border-t border-[var(--app-border)] flex flex-wrap items-center justify-between gap-3 print:hidden">
-          
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Quick Combined Download */}
-            <button
-              onClick={handleDownloadBoth}
-              disabled={isDownloadingBoth}
-                className="btn-brass px-4 py-2 text-xs cursor-pointer disabled:opacity-50 active:scale-95"
-              title="تحميل ملف PDF وملف Excel معاً مباشرة على جهازك"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>{isDownloadingBoth ? 'جاري التحميل...' : 'تحميل الاثنين (PDF + Excel) ⚡'}</span>
-            </button>
-
-            {/* Quick PDF Button */}
-            <button
-              onClick={handleDownloadPDF}
-              disabled={isDownloadingPDF}
-              className="app-btn app-btn-primary px-4 py-2 text-xs cursor-pointer disabled:opacity-50"
-              title="تحميل ملف PDF مباشرة على جهازك"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>{isDownloadingPDF ? 'جاري التحميل...' : 'تحميل PDF مباشر 📄'}</span>
-            </button>
-
-            {/* Preview Excel Modal */}
-            <button
-              onClick={() => setShowExcelPreview(true)}
-              className="app-btn app-btn-ghost px-3.5 py-2 text-xs cursor-pointer"
-              title="معاينة شيت الإكسيل قبل التحميل"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>معاينة Excel 👁️</span>
-            </button>
-
-
-            {/* Copy Invoice Number */}
-            <button
-              onClick={handleCopyInvoiceNumber}
-              className="btn-ghost px-3 py-2 text-xs cursor-pointer"
-            >
-              <Copy className="w-3.5 h-3.5" />
-              <span>{copiedInvoiceNo ? 'تم نسخ الرقم! ✓' : 'نسخ رقم الفاتورة'}</span>
-            </button>
-
-            {/* Return Action Button (Full/Partial Return for Delivered, Closed, or In-progress orders) */}
+        <footer className="ein-foot print:hidden">
+          <div className="ein-foot__note">
+            {cancelFeedback
+              ? cancelFeedback
+              : 'المعاينة محدّثة من بيانات أمر البيع — استخدم «تعديل الطلبية» لتغيير الأصناف قبل الاعتماد.'}
+          </div>
+          <div className="ein-foot__actions">
             {canMakeReturn && (
               <button
+                type="button"
                 onClick={() => setShowReturnModal(true)}
-                className="app-btn app-btn-warn-soft px-3 py-2 text-xs cursor-pointer"
-                title="تسجيل إذن مرتجع (كلي أو جزئي) وإعادة المخزون وتعديل المديونية"
+                className="ein-footbtn"
+                title="تسجيل إذن مرتجع كلي أو جزئي وإعادة المخزون"
               >
-                <RotateCcw className="w-3.5 h-3.5 t-warn" />
-                <span>إجراء مرتجع (كلي / جزئي) ↩️</span>
+                <RotateCcw aria-hidden="true" />
+                مرتجع
               </button>
             )}
-
-            {/* Cancel Order button for Supervisor/Manager */}
             {canCancelOrder && (
               <button
+                type="button"
                 onClick={() => setShowCancelModal(true)}
-                className="app-btn app-btn-risk-soft px-3 py-2 text-xs cursor-pointer"
+                className="ein-footbtn ein-footbtn--danger"
                 title="إلغاء الطلبية وفك حجز المخزون"
               >
-                <XCircle className="w-3.5 h-3.5 t-risk" />
-                <span>إلغاء الطلبية ❌</span>
+                <XCircle aria-hidden="true" />
+                إلغاء الطلبية
               </button>
             )}
-          </div>
-
-          {/* Close / Action Feedback */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {cancelFeedback && (
-              <span className="app-badge risk px-2.5 py-1 text-xs">
-                {cancelFeedback}
-              </span>
-            )}
-
-            <button
-              onClick={onClose}
-              className="btn-primary px-6 py-2 text-xs cursor-pointer"
-            >
-              إغلاق النافذة
+            <button type="button" onClick={onClose} className="ein-footbtn ein-footbtn--primary">
+              إغلاق المعاينة
             </button>
           </div>
-
-        </div>
+        </footer>
 
         {/* Cancel Modal Confirmation for Manager/Supervisor */}
         {showCancelModal && (

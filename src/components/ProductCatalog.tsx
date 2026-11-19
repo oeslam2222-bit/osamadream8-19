@@ -110,6 +110,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setSelectedBranchFilter,
     activeSectorFilter,
     setActiveSectorFilter,
+    canManageSectorGate,
+    effectiveSectorFilter,
   } = useApp();
 
   const promotions = useMemo(
@@ -377,11 +379,13 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   // Filtered Products
   const filteredProducts = useMemo(() => {
     let result = getVisibleProducts().filter((p) => {
-      // 1. Sector filter: home vs electrical — عندما يختار المستخدم 'all' تعرض جميع القطاعات (منزلي وكهرباء)
-      if (activeSectorFilter !== 'all') {
+      // 1. Sector filter — القطاع الفعلي بعد قواعد الأدوار (admin بيبقى اختياره،
+      //    باقي الأدوار محصورة بقطاع حسابها، و'none' = محجوب عن القطاعين).
+      if (effectiveSectorFilter === 'none') return false;
+      if (effectiveSectorFilter !== 'all') {
         const isElec = isProductElectrical(p);
-        if (activeSectorFilter === 'electrical' && !isElec) return false;
-        if (activeSectorFilter === 'home' && isElec && p.sector !== 'both' && p.sector !== 'all') return false;
+        if (effectiveSectorFilter === 'electrical' && !isElec) return false;
+        if (effectiveSectorFilter === 'home' && isElec && p.sector !== 'both' && p.sector !== 'all') return false;
       }
 
       // 2. Hide products with 0 stock in both main warehouse and rep's branch
@@ -457,7 +461,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     getVisibleProducts,
     promotions,
     currentUser,
-    activeSectorFilter,
+    effectiveSectorFilter,
     onlyInStock,
     onlyPromos,
     debouncedSearchTerm,
@@ -644,9 +648,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       const catLabel =
         selectedDept !== 'الكل'
           ? selectedDept
-          : activeSectorFilter === 'electrical'
+          : effectiveSectorFilter === 'electrical'
           ? 'قطاع الكهرباء'
-          : activeSectorFilter === 'home'
+          : effectiveSectorFilter === 'home'
           ? 'القطاع المنزلي'
           : 'الكتالوج العام';
 
@@ -947,7 +951,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* 3. Filter Bar */}
       <div className="bg-white rounded-[26px] border border-slate-100 shadow-lg p-4 select-none space-y-4 font-cairo">
         <div className="flex flex-wrap items-center gap-3">
-          {/* القطاعات (منزلي / كهرباء / كل القطاعات) - واضحة ومباشرة بنقرة واحدة */}
+          {/* القطاعات — تبديل القطاع ميزة إدارة عليا فقط (admin/developer) */}
+          {canManageSectorGate && (
           <div className="catalog-sectors flex flex-wrap items-center gap-1 p-1.5 bg-slate-50 rounded-[20px] border border-slate-200 shadow-sm">
             <button
               type="button"
@@ -992,6 +997,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               ⚡ كهرباء
             </button>
           </div>
+          )}
 
           {/* زر التبديل لعرض تفاصيل الـ 8 مخازن (7 فروع + مخزن أكتوبر المركزي) */}
           <button
@@ -1209,7 +1215,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <span>المتوفر بالمخازن فقط (مخزون &gt; 0)</span>
             </button>
 
-            {/* أزرار القطاع: متاحة لكافة المستخدمين لتصفح منزلي أو كهرباء أو كل الأصناف */}
+            {/* أزرار القطاع — للإدارة العليا فقط (admin/developer) */}
+            {canManageSectorGate && (
             <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
               <button
                 type="button"
@@ -1240,6 +1247,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 ⚡ كهرباء {currentUser?.sector === 'electrical' ? '⭐' : ''}
               </button>
             </div>
+            )}
 
             {/* تصدير PDF */}
             <button

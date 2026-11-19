@@ -9,6 +9,8 @@ interface CustomerSearchSelectProps {
   onClear?: () => void;
   placeholder?: string;
   showRepFilter?: boolean;
+  showBranchFilter?: boolean;
+  sortBy?: 'default' | 'balance_desc';
   maxResults?: number;
   className?: string;
   compact?: boolean;
@@ -24,6 +26,8 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
   onClear,
   placeholder = 'ابحث باسم العميل أو الكود أو الهاتف...',
   showRepFilter = false,
+  showBranchFilter = false,
+  sortBy = 'default',
   maxResults = 50,
   className = '',
   compact = false,
@@ -33,6 +37,7 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
 }) => {
   const [query, setQuery] = useState('');
   const [rep, setRep] = useState('all');
+  const [branch, setBranch] = useState('all');
 
   const selected = useMemo(() => (valueId ? customers.find((c) => c.id === valueId) || null : null), [customers, valueId]);
 
@@ -46,10 +51,23 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
   }, [customers, showRepFilter]);
 
+  const branchOptions = useMemo(() => {
+    if (!showBranchFilter) return [];
+    const set = new Set<string>();
+    customers.forEach((c) => {
+      const b = (c.branchName || '').trim();
+      if (b) set.add(b);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [customers, showBranchFilter]);
+
   const filtered = useMemo(() => {
     let list = customers;
     if (showRepFilter && rep !== 'all') {
       list = list.filter((c) => (c.salesRepName || c.repName) === rep);
+    }
+    if (showBranchFilter && branch !== 'all') {
+      list = list.filter((c) => (c.branchName || '').trim() === branch);
     }
     const q = query.trim().toLowerCase();
     if (q) {
@@ -60,8 +78,11 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
         String(c.branchName || '').toLowerCase().includes(q)
       );
     }
+    if (sortBy === 'balance_desc') {
+      list = [...list].sort((a, b) => Number(b.currentBalance ?? b.balance ?? 0) - Number(a.currentBalance ?? a.balance ?? 0));
+    }
     return list;
-  }, [customers, query, rep, showRepFilter]);
+  }, [customers, query, rep, branch, showRepFilter, showBranchFilter, sortBy]);
 
   return (
     <div className={`space-y-2 ${className}`} dir="rtl">
@@ -102,6 +123,12 @@ export const CustomerSearchSelect: React.FC<CustomerSearchSelectProps> = ({
             <select value={rep} onChange={(e) => setRep(e.target.value)} disabled={disabled} className="w-full h-9 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold focus:outline-none">
               <option value="all">كل المناديب</option>
               {repOptions.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+          )}
+          {showBranchFilter && (
+            <select value={branch} onChange={(e) => setBranch(e.target.value)} disabled={disabled} className="w-full h-9 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-bold focus:outline-none">
+              <option value="all">كل المناطق / الفروع</option>
+              {branchOptions.map((b) => <option key={b} value={b}>{b}</option>)}
             </select>
           )}
           <div className={`overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100 bg-white ${compact ? 'max-h-40' : 'max-h-56'}`}>

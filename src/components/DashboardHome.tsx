@@ -42,7 +42,7 @@ import {
 } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { formatCurrency } from '../services/invoiceService';
+import { formatCompactCurrency, formatCurrency } from '../services/invoiceService';
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import { Customer, CustomerVisit, Invoice, TargetRecord } from '../types';
 import { IconBadge } from './ui/IconBadge';
@@ -391,7 +391,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-[#2563EB] dark:text-blue-400">
                 {formatCurrency(repTargetData.salesAchieved)}
               </div>
-              <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 font-bold">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs text-slate-600 dark:text-slate-300 font-bold">
                 <span>المستهدف: {formatCurrency(repTargetData.salesTarget)}</span>
                 <span className="text-slate-500 dark:text-slate-400 font-medium">
                   {repTargetData.remainingSales > 0
@@ -442,7 +442,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-[#16A34A] dark:text-emerald-400">
                 {formatCurrency(repTargetData.collectionAchieved)}
               </div>
-              <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 font-bold">
+              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-xs text-slate-600 dark:text-slate-300 font-bold">
                 <span>المستهدف: {formatCurrency(repTargetData.collectionTarget)}</span>
                 <span className="text-slate-500 dark:text-slate-400 font-medium">
                   {repTargetData.remainingCollection > 0
@@ -562,6 +562,10 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   ];
 
   const overviewTiles = actionTiles.slice(0, 4);
+
+  // قيم كروت المؤشرات — تُختصر على الموبايل حتى لا تكسر الأرقام الطويلة الكارت
+  const salesMetricValue = metricPeriod === 'today' ? todaySalesTotal : allSalesTotal;
+  const collectionsMetricValue = metricPeriod === 'today' ? todayCollectionsTotal : allCollectionsTotal;
 
   const dashboardSections: Array<{ id: DashboardSectionId; label: string; icon: React.ElementType<LucideProps> }> = [
     { id: 'overview', label: 'نظرة عامة', icon: LayoutGrid },
@@ -711,8 +715,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               <IconBadge icon={DollarSign} variant="primary" size="md" />
             </div>
             <div className="space-y-1 my-2">
-              <div className="text-lg sm:text-2xl font-black font-mono tracking-tight text-[var(--app-text)] dark:text-white">
-                {metricPeriod === 'today' ? formatCurrency(todaySalesTotal) : formatCurrency(allSalesTotal)}
+              <div className="text-lg sm:text-2xl font-black font-mono tracking-tight text-[var(--app-text)] dark:text-white whitespace-nowrap">
+                <span className="sm:hidden">{formatCompactCurrency(salesMetricValue)}</span>
+                <span className="hidden sm:inline">{formatCurrency(salesMetricValue)}</span>
               </div>
               <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">جنيه مصري</div>
             </div>
@@ -745,8 +750,9 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
               <IconBadge icon={Wallet} variant="success" size="md" />
             </div>
             <div className="space-y-1 my-2">
-              <div className="text-lg sm:text-xl font-black font-mono tracking-tight text-[#16A34A] dark:text-[#4ADE80]">
-                {formatCurrency(metricPeriod === 'today' ? todayCollectionsTotal : allCollectionsTotal)}
+              <div className="text-lg sm:text-xl font-black font-mono tracking-tight text-[#16A34A] dark:text-[#4ADE80] whitespace-nowrap">
+                <span className="sm:hidden">{formatCompactCurrency(collectionsMetricValue)}</span>
+                <span className="hidden sm:inline">{formatCurrency(collectionsMetricValue)}</span>
               </div>
               <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">المحصل فعلياً</div>
             </div>

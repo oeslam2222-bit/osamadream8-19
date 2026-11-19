@@ -111,6 +111,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     getVisibleInvoices,
     getVisibleVisits,
     selectedBranchFilter,
+    canManageSectorGate,
     setSelectedBranchFilter,
   } = useApp();
 
@@ -807,6 +808,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               </div>
 
               <div className="grid grid-cols-2 gap-2 sm:contents">
+                {canManageSectorGate && (
                 <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
                   <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">القطاع</span>
                   <select
@@ -819,6 +821,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                     <option value="electrical">كهربائي</option>
                   </select>
                 </div>
+                )}
 
                 <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
                   <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">الفرع</span>
@@ -863,7 +866,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
           </section>
 
           {/* كروت العملاء (بروفايل احترافي عالي التباين) */}
-          <div className="cust-grid grid grid-cols-2 xl:grid-cols-3 gap-2.5 md:gap-4">
+          <div className="cust-grid grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5 md:gap-4">
             {displayedCustomers.length === 0 ? (
               <div className="col-span-full tg-card p-12 text-center">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
@@ -925,7 +928,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
 
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
-                            <h3 className="text-base sm:text-[17px] font-black text-slate-950 leading-snug line-clamp-1 group-hover:text-blue-900 transition-colors">
+                            <h3 className="text-base sm:text-[17px] font-black text-slate-950 leading-snug line-clamp-2 group-hover:text-blue-900 transition-colors">
                               {cust.name}
                             </h3>
                             <span
@@ -1374,6 +1377,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               </div>
 
               <div className="grid grid-cols-2 sm:contents gap-2">
+                {canManageSectorGate && (
                 <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
                   <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">القطاع</span>
                   <select
@@ -1386,6 +1390,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                     <option value="electrical">كهربائي</option>
                   </select>
                 </div>
+                )}
 
                 <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
                   <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">الفرع</span>
@@ -1417,7 +1422,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
           </section>
 
           {/* كروت المندوبين (بروفايل) - أول 5 */}
-          <div className="rep-grid grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 md:gap-4">
+          <div className="rep-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 md:gap-4">
             {repsMap.length === 0 ? (
               <div className="col-span-full tg-card p-12 text-center">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-[28px] bg-slate-100 text-slate-600 shadow-inner">

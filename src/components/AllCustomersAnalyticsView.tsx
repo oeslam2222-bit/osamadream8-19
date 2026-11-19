@@ -74,7 +74,6 @@ import { Customer, CustomerVisit, User, Invoice, OrderStatus } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import {
   MONTH_NAMES_AR,
-  filterCustomersByRBAC,
   fetchDetailedCustomersFromGoogleSheet,
   parseDetailedCustomersExcel,
   downloadCustomerAnalyticsTemplate
@@ -159,6 +158,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     togglePrivacyMode,
     cleanAndDeduplicateCustomers,
     activeSectorFilter,
+    effectiveSectorFilter,
+    canManageSectorGate,
+    getVisibleCustomers,
     setActiveSectorFilter,
     syncWithSupabase,
     isSupabaseSyncing,
@@ -546,9 +548,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [syncStatus, setSyncStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // 1. RBAC Base Filtered List (Strictly isolated by user permissions)
+  //    بنستخدم getVisibleCustomers عشان العزل يمرّ من نفس بوابة السياق
+  //    (قطاع + فرع + دور) — وحساب بلا قطاع = 'none' = محجوب عن القطاعين.
   const userVisibleCustomers = useMemo(() => {
-    return filterCustomersByRBAC(customers, currentUser, users);
-  }, [customers, currentUser, users]);
+    return getVisibleCustomers();
+  }, [getVisibleCustomers]);
 
   // Customers with pending returns (for red badge in table)
   const customersWithReturns = useMemo(() => {
@@ -2070,6 +2074,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           debtStatuses: availableDebtStatuses,
         }}
         canFilterBranch={isAdminOrDev || isSupervisor || isBranchManager}
+        canFilterSector={canManageSectorGate}
         canFilterRep={!isRep}
         canFilterSupervisor={!isRep}
         debtCustomersCount={debtCustomersCount}

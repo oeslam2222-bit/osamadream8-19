@@ -32,6 +32,7 @@ import { useApp } from '../context/AppContext';
 import type { Customer } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { filterCustomersByRBAC } from '../services/customerAnalyticsService';
+import { inferCustomerSector } from '../data/branchDefinitions';
 import {
   addLegalStatement,
   getLegalCaseForCustomer,
@@ -82,7 +83,7 @@ const fmt = (n: number) => formatCurrency(n || 0);
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 export const LegalAdvisorDashboard: React.FC = () => {
-  const { customers, branches, currentUser, users, recordAuditLog } = useApp();
+  const { customers, branches, currentUser, users, recordAuditLog, effectiveSectorFilter } = useApp();
 
   const [activeTab, setActiveTab] = useState<TabKey>('cases');
   const [searchTerm, setSearchTerm] = useState('');
@@ -159,11 +160,18 @@ export const LegalAdvisorDashboard: React.FC = () => {
 
   // Privacy: legal advisor sees only referred customers
   const accessibleCustomers = useMemo(() => {
+    // العزل القطاعي الصارم: حساب بلا قطاع = محجوب، ولو مختار قطاع معين نشوفه بس
+    // (الأدوار الإدارية بترجّع 'all' من السياق فسلوكها زي ما هو).
+    if (effectiveSectorFilter === 'none') return [];
     const base = currentUser?.role === 'legal_advisor' ? customers : filterCustomersByRBAC(customers, currentUser, users);
+    const sectorScoped =
+      effectiveSectorFilter === 'all'
+        ? base
+        : base.filter((c) => (c.sector || inferCustomerSector(c, users)) === effectiveSectorFilter);
     const ids = new Set(legalCases.map((c) => c.customerId).filter(Boolean));
     const codes = new Set(legalCases.map((c) => c.customerCode).filter(Boolean));
-    return base.filter((c) => ids.has(c.id) || (!!c.code && codes.has(c.code as string)) || isCustomerReferredToLegal(c));
-  }, [customers, currentUser, users, legalCases]);
+    return sectorScoped.filter((c) => ids.has(c.id) || (!!c.code && codes.has(c.code as string)) || isCustomerReferredToLegal(c));
+  }, [customers, currentUser, users, legalCases, effectiveSectorFilter]);
 
   // Modals / forms
   const [selectedCustomerForNotice, setSelectedCustomerForNotice] = useState<Customer | null>(null);

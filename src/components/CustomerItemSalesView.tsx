@@ -12,6 +12,7 @@ import {
   LayoutDashboard,
   Link2,
   Loader2,
+  Lock,
   Phone,
   Plus,
   RefreshCw,
@@ -33,11 +34,13 @@ import {
   buildCustomerInsights,
   buildFollowUpAlerts,
   buildPeriodComparison,
+  formatCompactAmount,
   resolveLatestSalesMonth
 } from '../services/customerItemSalesInsights';
 import {
   buildGroupInsights,
   buildIdleItems,
+  IdleItemsResult,
   buildItemRanking,
   buildMonthlyCustomerAnalysis,
   buildMonthlyPerformance,
@@ -82,7 +85,8 @@ import { MonthlyAggregateCard } from './itemSales/MonthlyAggregateCard';
 import { aggregateItemSalesRows, downloadItemSalesRowsCsv } from './itemSales/ItemSalesRowsTable';
 import { ItemSalesExecutiveCards } from './itemSales/ItemSalesExecutiveCards';
 import { CANONICAL_BRANCHES, normalizeBranchName, UNKNOWN_BRANCH } from '../services/branchDirectory';
-import SalesFocusV4 from './itemSales/SalesFocusV4';
+import TotalsAnalysisView from './itemSales/TotalsAnalysisView';
+import { createItemSalesSectorResolver } from '../services/sectorResolver';
 import { DebouncedSearchInput } from './DebouncedSearchInput';
 import {
   buildItemSalesAggregates,
@@ -107,7 +111,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   onOpenNewOrderForCustomer,
   onNavigateToExcel
 }) => {
-  const { currentUser, users, customers, products, activeSectorFilter } = useApp();
+  const { currentUser, users, customers, products, activeSectorFilter, effectiveSectorFilter } = useApp();
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
   /** تشخيص أعداد السجلات للمطور والدعم الفني فقط. */
   const canSeeDiagnostics =
@@ -118,43 +122,19 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
    * (الكود/الكود الموحد). اللي مش موجود في الكتالوج بيتحسب منزلي افتراضيًا.
    */
   // خرائط بحث سريعة بدل .find() لكل صف (كان O(n²) على 103 ألف صف).
-  const customerByIdMap = React.useMemo(() => {
-    const map = new Map<string, (typeof customers)[number]>();
-    customers.forEach((c) => { if (c.id) map.set(c.id, c); });
-    return map;
-  }, [customers]);
-  const productByCodeMap = React.useMemo(() => {
-    const clean = (v?: string) => String(v || '').trim().replace(/^#+/, '').trim().toLowerCase();
-    const byCode = new Map<string, (typeof products)[number]>();
-    const byUnified = new Map<string, (typeof products)[number]>();
-    products.forEach((p) => {
-      const code = clean(p.code);
-      const unified = clean(p.unifiedCode);
-      if (code && !byCode.has(code)) byCode.set(code, p);
-      if (unified && !byUnified.has(unified)) byUnified.set(unified, p);
-    });
-    return { byCode, byUnified };
-  }, [products]);
+  // — اتحوّلت لـ sectorResolver الداخلي (createItemSalesSectorResolver). —
+
+  // موحّد تحديد القطاع — نفس الـ resolver بيستخدمه فلتر RBAC والفلتر والتحليل،
+  // فمفيش حركة بتعدي في مسار وتسقط في التاني (كان السبب في انزلاق كل القطاع
+  // لـ«منزلي»: سياسة add_customer_sector_column.sql كتبت sector='home' جماعي).
+  const sectorResolver = React.useMemo(
+    () => createItemSalesSectorResolver(customers, products || []),
+    [customers, products]
+  );
 
   const resolveItemSaleSector = React.useCallback(
-    (record: CustomerItemSaleRecord): ItemSalesSector => {
-      const ownSector = (record as any).sector;
-      if (ownSector === 'electrical' || ownSector === 'home') return ownSector;
-      if (record.linkedCustomerId) {
-        const linked = customerByIdMap.get(record.linkedCustomerId);
-        if (linked?.sector === 'electrical') return 'electrical';
-        if (linked?.sector === 'home') return 'home';
-      }
-      const cleanCode = (v?: string) => String(v || '').trim().replace(/^#+/, '').trim().toLowerCase();
-      const itemCode = cleanCode(record.itemCode);
-      const unified = cleanCode(record.unifiedCode);
-      const match =
-        (itemCode ? productByCodeMap.byCode.get(itemCode) : undefined) ||
-        (unified ? productByCodeMap.byUnified.get(unified) : undefined) ||
-        null;
-      return match?.sector === 'electrical' ? 'electrical' : 'home';
-    },
-    [customerByIdMap, productByCodeMap]
+    (record: CustomerItemSaleRecord): ItemSalesSector => sectorResolver.resolve(record),
+    [sectorResolver]
   );
 
   /** يحدّث ملخص الشهور في الخلفية بعد أي استيراد/جلب — بدون ما يعطّل الواجهة. */
@@ -168,12 +148,15 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     [resolveItemSaleSector]
   );
 
-  /** القطاع الفعّال للعزل: الادمن/المطور بيختار، والباقي مقفول على قطاعه. */
-  const itemSalesSector = React.useMemo<'all' | 'home' | 'electrical'>(() => {
+  /** القطاع الفعّال للعزل: الادمن/المطور بيختار، والباقي مقفول على قطاع حسابه
+   *  ('none' = بلا قطاع معيّن → محجوب عن القطاعين). */
+  const itemSalesSector = React.useMemo<'all' | 'home' | 'electrical' | 'none'>(() => {
     if (isAdminOrDev) return activeSectorFilter;
-    if (currentUser?.sector === 'home' || currentUser?.sector === 'electrical') return currentUser.sector;
-    return activeSectorFilter;
-  }, [isAdminOrDev, currentUser?.sector, activeSectorFilter]);
+    return effectiveSectorFilter;
+  }, [isAdminOrDev, effectiveSectorFilter, activeSectorFilter]);
+
+  /** حساب مبيعات بلا قطاع: ما نعرضش عليه أي حركة ولا نصرف egress لجلبها. */
+  const isSectorBlocked = !isAdminOrDev && itemSalesSector === 'none';
 
   const itemSalesScope = React.useMemo<CustomerItemSalesFetchScope | undefined>(() => {
     if (!currentUser) return undefined;
@@ -185,6 +168,10 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     const warehouses = shortBranch.length >= 2 ? [shortBranch] : branch ? [branch] : [];
     const sectors: Array<'home' | 'electrical'> =
       itemSalesSector === 'home' || itemSalesSector === 'electrical' ? [itemSalesSector] : [];
+
+    // محجوب عن القطاعين (حساب مبيعات بلا قطاع): نطاق مستحيل المطابقة —
+    // مانجلبش أي صف من السيرفر ومانصرفش egress.
+    if (isSectorBlocked) return { repNames: ['__no_sector_assigned__'] };
 
     // الادمن/المطور: عزل اختياري بالقطاع بس (بدون تقييد مندوب/فرع)
     if (isAdminOrDev) return sectors.length > 0 ? { sectors } : undefined;
@@ -219,7 +206,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       return { warehouses, ...(sectors.length > 0 ? { sectors } : {}) };
     }
     return undefined;
-  }, [currentUser, users, isAdminOrDev, itemSalesSector]);
+  }, [currentUser, users, isAdminOrDev, itemSalesSector, isSectorBlocked]);
 
   const [salesRecords, setSalesRecords] = useState<CustomerItemSaleRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -234,6 +221,14 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const [isSupabaseFetching, setIsSupabaseFetching] = useState(false);
   const [isImportingExcel, setIsImportingExcel] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [idleItems, setIdleItems] = useState<IdleItemsResult>({
+    items: [],
+    totalIdle: 0,
+    catalogWithStock: 0,
+    source: 'none'
+  });
+  const [idleLoading, setIdleLoading] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState('');
   // Debounce البحث: 103 ألف صف × ~15 عملية حسابية مع كل حرف كانت بتعمل ثقل واضح.
@@ -266,6 +261,12 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const loadSalesData = async (options?: { forceRemote?: boolean }) => {
     // منع تكرار التحميل بسبب حدث الحفظ (save event) الذي يُطلق عند المزامنة/الجلب من Supabase
     if (loadSalesInProgress.current) return;
+    // حساب بلا قطاع: محجوب عن بيانات القطاعين — بدون جلب ولا عرض.
+    if (isSectorBlocked) {
+      setSalesRecords([]);
+      setIsLoading(false);
+      return;
+    }
     loadSalesInProgress.current = true;
 
     const forceRemote = options?.forceRemote === true;
@@ -546,33 +547,16 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   };
 
   const rbacSales = useMemo(() => {
+    if (isSectorBlocked) return [];
     const authorizedSales = showAllSalesOverride
       ? enrichedSalesRecords
       : filterCustomerItemSalesByRBAC(enrichedSalesRecords, currentUser, users, customers);
     const effectiveSector = itemSalesSector;
     if (effectiveSector === 'all') return authorizedSales;
-
-    const customersByReference = new Map<string, Customer>();
-    const customersByName = new Map<string, Customer[]>();
-    customers.forEach((customer) => {
-      if (customer.id) customersByReference.set(customer.id.toLowerCase(), customer);
-      if (customer.code) customersByReference.set(customer.code.toLowerCase(), customer);
-      const normalizedName = customer.name.trim().toLowerCase();
-      if (normalizedName) customersByName.set(normalizedName, [...(customersByName.get(normalizedName) || []), customer]);
-    });
-
-    return authorizedSales.filter((record) => {
-      const references = [record.linkedCustomerId, record.linkedCustomerCode, record.customerAccount]
-        .filter((value): value is string => Boolean(value))
-        .map((value) => value.trim().toLowerCase());
-      const customer = references.map((reference) => customersByReference.get(reference)).find(Boolean);
-      const normalizedName = (record.invoicingName || '').trim().toLowerCase();
-      const nameMatches = customersByName.get(normalizedName);
-      const resolvedCustomer = customer || (nameMatches?.length === 1 ? nameMatches[0] : undefined);
-      const sector = resolvedCustomer?.sector;
-      return sector === effectiveSector || sector === 'both' || sector === 'all';
-    });
-  }, [enrichedSalesRecords, currentUser, users, customers, showAllSalesOverride, itemSalesSector]);
+    if (effectiveSector === 'none') return [];
+    // نفس موحّد القطاع المستخدم في baseSales/التحليل — قطاع موحّد لكل المسارات.
+    return authorizedSales.filter((record) => sectorResolver.matches(record, effectiveSector));
+  }, [enrichedSalesRecords, currentUser, users, customers, showAllSalesOverride, itemSalesSector, sectorResolver, isSectorBlocked]);
 
   /** الفروع الثابتة اللي الإدارة بتشتغل عليها (+ «غير محدد» لو الحركة بلا فرع). */
   const resolveItemSaleBranch = React.useCallback(
@@ -589,7 +573,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       if (selectedGroup !== 'all' && resolveItemGroup(record) !== selectedGroup) return false;
       if (selectedRep !== 'all' && record.repName !== selectedRep) return false;
       if (selectedWarehouse !== 'all' && resolveItemSaleBranch(record) !== selectedWarehouse) return false;
-      if (selectedSector !== 'all' && resolveItemSaleSector(record) !== selectedSector) return false;
+      if (selectedSector !== 'all' && !sectorResolver.matches(record, selectedSector)) return false;
       if (selectedFamily !== 'all' && resolveItemGroup(record) !== selectedFamily) return false;
       if (
         selectedItem !== 'all' &&
@@ -629,6 +613,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     selectedItem,
     resolveItemSaleBranch,
     resolveItemSaleSector,
+    sectorResolver,
     debouncedSearchTerm,
     searchMode
   ]);
@@ -640,6 +625,17 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         : baseSales.filter((record) => Number(record.month) === selectedMonth),
     [baseSales, selectedMonth]
   );
+
+  /** وصف مختصر للنطاق الحالي بيظهر فوق جداول تحليل الإجماليات. */
+  const analysisSubtitle = [
+    selectedMonth === 'all' ? 'كل الشهور' : MONTH_NAMES_MAP[selectedMonth],
+    selectedSector === 'all' ? 'كل القطاعات' : selectedSector === 'home' ? 'منزلي' : 'كهربائي',
+    selectedWarehouse !== 'all' ? `فرع ${selectedWarehouse}` : '',
+    selectedRep !== 'all' ? `مندوب ${selectedRep}` : '',
+    selectedFamily !== 'all' ? `عائلة ${selectedFamily}` : ''
+  ]
+    .filter(Boolean)
+    .join(' • ');
 
   // خيارات الفلاتر تتقيّد بالسياق الحالي (الشهر + باقي الفلاتر ما عدا الفلتر نفسه)
   // عشان لما تختار شهر تشوف المناديب/الفروع المتاحة فعليًا وتقدر تكمل تضييق.
@@ -674,86 +670,93 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     [debouncedSearchTerm, searchMode]
   );
 
-  const passesCommonFilters = React.useCallback(
-    (
-      record: CustomerItemSaleRecord,
-      exclude: { group?: boolean; rep?: boolean; warehouse?: boolean; sector?: boolean; family?: boolean; item?: boolean } = {}
-    ): boolean => {
-      if (!exclude.group && selectedGroup !== 'all' && resolveItemGroup(record) !== selectedGroup) return false;
-      if (!exclude.rep && selectedRep !== 'all' && record.repName !== selectedRep) return false;
-      if (!exclude.warehouse && selectedWarehouse !== 'all' && resolveItemSaleBranch(record) !== selectedWarehouse) return false;
-      if (!exclude.sector && selectedSector !== 'all' && resolveItemSaleSector(record) !== selectedSector) return false;
-      if (!exclude.family && selectedFamily !== 'all' && resolveItemGroup(record) !== selectedFamily) return false;
-      if (!exclude.item && selectedItem !== 'all' && (record.unifiedCode || record.itemCode || '').trim() !== selectedItem) return false;
-      if (!matchesSearchFilter(record)) return false;
-      return true;
-    },
-    [selectedGroup, selectedRep, selectedWarehouse, selectedSector, selectedFamily, selectedItem, resolveItemSaleBranch, resolveItemSaleSector, matchesSearchFilter]
-  );
+  /**
+   * خيارات الفلاتر كلها في لفة واحدة بدل 5 لفات على نفس الصفوف
+   * (كان ثقل كبير على 126 ألف صف). نفس شروط الفلاتر المستخدمة في baseSales،
+   * فالقوائم الناتجة متطابقة.
+   */
+  const filterOptions = useMemo(() => {
+    const groups = new Set<string>();
+    const reps = new Set<string>();
+    const presentBranches = new Set<string>();
+    const families = new Set<string>();
+    const items = new Map<string, { code: string; name: string; amount: number }>();
+
+    for (const record of monthScopedSales) {
+      if (!matchesSearchFilter(record)) continue;
+      if (selectedSector !== 'all' && !sectorResolver.matches(record, selectedSector)) continue;
+
+      const group = resolveItemGroup(record);
+      const branch = resolveItemSaleBranch(record);
+      const code = (record.unifiedCode || record.itemCode || '').trim();
+
+      const groupOk = selectedGroup === 'all' || group === selectedGroup;
+      const repOk = selectedRep === 'all' || record.repName === selectedRep;
+      const branchOk = selectedWarehouse === 'all' || branch === selectedWarehouse;
+      const familyOk = selectedFamily === 'all' || group === selectedFamily;
+      const itemOk = selectedItem === 'all' || code === selectedItem;
+
+      if (repOk && branchOk && familyOk && itemOk && group && group !== 'عام') groups.add(group);
+      if (groupOk && branchOk && familyOk && itemOk && record.repName) reps.add(record.repName);
+      if (groupOk && repOk && familyOk && itemOk) presentBranches.add(branch);
+      if (groupOk && repOk && branchOk && itemOk && group && group !== 'عام') families.add(group);
+      if (groupOk && repOk && branchOk && familyOk && code) {
+        const current = items.get(code) || { code, name: record.itemName || code, amount: 0 };
+        current.amount += Number(record.amount) || 0;
+        items.set(code, current);
+      }
+    }
+
+    return { groups, reps, presentBranches, families, items };
+  }, [
+    monthScopedSales,
+    matchesSearchFilter,
+    resolveItemGroup,
+    resolveItemSaleBranch,
+    sectorResolver,
+    selectedGroup,
+    selectedRep,
+    selectedWarehouse,
+    selectedSector,
+    selectedFamily,
+    selectedItem
+  ]);
 
   const distinctGroups = useMemo(() => {
-    const set = new Set<string>();
-    monthScopedSales.forEach((record) => {
-      if (!passesCommonFilters(record, { group: true })) return;
-      const group = resolveItemGroup(record);
-      if (group && group !== 'عام') set.add(group);
-    });
+    const set = new Set(filterOptions.groups);
     if (selectedGroup !== 'all' && selectedGroup) set.add(selectedGroup);
     return Array.from(set).sort();
-  }, [monthScopedSales, passesCommonFilters, selectedGroup]);
+  }, [filterOptions.groups, selectedGroup]);
 
   const distinctReps = useMemo(() => {
-    const set = new Set<string>();
-    monthScopedSales.forEach((record) => {
-      if (!passesCommonFilters(record, { rep: true })) return;
-      if (record.repName) set.add(record.repName);
-    });
+    const set = new Set(filterOptions.reps);
     if (selectedRep !== 'all' && selectedRep) set.add(selectedRep);
     return Array.from(set).sort();
-  }, [monthScopedSales, passesCommonFilters, selectedRep]);
+  }, [filterOptions.reps, selectedRep]);
 
   const distinctWarehouses = useMemo(() => {
-    const present = new Set<string>();
-    monthScopedSales.forEach((record) => {
-      if (!passesCommonFilters(record, { warehouse: true })) return;
-      present.add(resolveItemSaleBranch(record));
-    });
-    const ordered = (CANONICAL_BRANCHES as readonly string[]).filter((branch) => present.has(branch));
+    const ordered = (CANONICAL_BRANCHES as readonly string[]).filter((branch) =>
+      filterOptions.presentBranches.has(branch)
+    );
     if (selectedWarehouse !== 'all' && selectedWarehouse && !ordered.includes(selectedWarehouse as any)) {
       return [...ordered, selectedWarehouse];
     }
     return ordered;
-  }, [monthScopedSales, passesCommonFilters, resolveItemSaleBranch, selectedWarehouse]);
+  }, [filterOptions.presentBranches, selectedWarehouse]);
 
   const distinctFamilies = useMemo(() => {
-    const set = new Set<string>();
-    monthScopedSales.forEach((record) => {
-      if (!passesCommonFilters(record, { family: true })) return;
-      // نفس منطق عمود «الصنف بالعائلة» في الجدول (التعريفات ← المجموعة ← العائلة)
-      // عشان القائمة تطلع نفس القيم اللي بيتعرضها الجدول بالظبط.
-      const family = resolveItemGroup(record);
-      if (family && family !== 'عام') set.add(family);
-    });
+    const set = new Set(filterOptions.families);
     if (selectedFamily !== 'all' && selectedFamily) set.add(selectedFamily);
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
-  }, [monthScopedSales, passesCommonFilters, selectedFamily]);
+  }, [filterOptions.families, selectedFamily]);
 
   const distinctItems = useMemo(() => {
-    const map = new Map<string, { code: string; name: string; amount: number }>();
-    monthScopedSales.forEach((record) => {
-      if (!passesCommonFilters(record, { item: true })) return;
-      const code = (record.unifiedCode || record.itemCode || '').trim();
-      if (!code) return;
-      const current = map.get(code) || { code, name: record.itemName || code, amount: 0 };
-      current.amount += Number(record.amount) || 0;
-      map.set(code, current);
-    });
-    const list = Array.from(map.values()).sort((a, b) => b.amount - a.amount);
-    if (selectedItem !== 'all' && selectedItem && !map.has(selectedItem)) {
+    const list = Array.from(filterOptions.items.values()).sort((a, b) => b.amount - a.amount);
+    if (selectedItem !== 'all' && selectedItem && !filterOptions.items.has(selectedItem)) {
       return [{ code: selectedItem, name: selectedItem, amount: 0 }, ...list].slice(0, 401);
     }
     return list.slice(0, 400);
-  }, [monthScopedSales, passesCommonFilters, selectedItem]);
+  }, [filterOptions.items, selectedItem]);
 
   const monthBreakdown = useMemo(() => {
     const map = new Map<number, { month: number; name: string; count: number; amount: number }>();
@@ -770,6 +773,16 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   }, [baseSales]);
 
   const computedDiagnostics = useMemo(() => {
+    // التشخيص للمطور/الدعم فقط — من غير كده كنا بنمر على 126 ألف صف لكل مستخدم.
+    if (!canSeeDiagnostics) {
+      return {
+        supabaseCount: 0,
+        loadedCount: 0,
+        numericValuesCount: 0,
+        afterRbacCount: 0,
+        afterFiltersCount: 0
+      };
+    }
     const numericValuesCount = salesRecords.filter(
       (r) => Number(r.quantity || 0) > 0 || Number(r.amount || 0) > 0
     ).length;
@@ -780,7 +793,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       afterRbacCount: rbacSales.length,
       afterFiltersCount: filteredSales.length
     };
-  }, [salesRecords, rbacSales, filteredSales, supabaseCount]);
+  }, [canSeeDiagnostics, salesRecords, rbacSales, filteredSales, supabaseCount]);
 
   const customerSummaries = useMemo(
     () => aggregateCustomerItemSales(filteredSales, customers),
@@ -979,10 +992,22 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
   const repPerformance = useMemo(() => buildRepPerformance(filteredSales, 6), [filteredSales]);
 
-  const idleItems = useMemo(
-    () => buildIdleItems(filteredSales, baseSales, products || [], 6),
-    [filteredSales, baseSales, products]
-  );
+  // حساب الأصناف الراكدة ثقيل (نصف ثانية+ على 126 ألف صف) — بنأجّله لما بعد
+  // أول رسم عشان الصفحة تفتح فورًا، والكارت بيعرض «...» لحد ما يخلص.
+  useEffect(() => {
+    let cancelled = false;
+    setIdleLoading(true);
+    const timer = window.setTimeout(() => {
+      const next = buildIdleItems(filteredSales, baseSales, products || [], 6);
+      if (cancelled) return;
+      setIdleItems(next);
+      setIdleLoading(false);
+    }, 60);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [filteredSales, baseSales, products]);
 
   const idleCaption = useMemo(() => {
     if (idleItems.source === 'catalog') {
@@ -1175,8 +1200,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
       {/* Page header */}
       <section className="ds-pagehead">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
             <div className="ds-crumb text-[11px] font-bold mb-1">التقارير <span className="mx-1">›</span> <strong>مبيعات الأصناف</strong></div>
             <div className="flex items-center gap-2">
               <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 border border-white/20"><BarChart3 className="w-4 h-4 sm:w-5 sm:h-5"/></div>
@@ -1186,7 +1211,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1.5 flex-wrap shrink-0 justify-end">
+          <div className="flex items-center gap-1.5 flex-wrap justify-start sm:justify-end w-full sm:w-auto sm:shrink-0">
             <button
               type="button"
               onClick={() => loadSalesData({ forceRemote: true })}
@@ -1197,30 +1222,44 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               <span>تحديث</span>
             </button>
 
-            {salesRecords.length > 0 && customers.length > 0 && (
-              <button
-                type="button"
-                onClick={handleEnrichAndPersistSales}
-                title="مطابقة كود العميل بقاعدة العملاء المركزية وتحديد الفرع والمندوب لكل حركة"
-                className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-xl border border-[var(--app-ok-line)] bg-[var(--app-ok)] text-white font-black text-[11px] transition cursor-pointer"
-              >
-                <Link2 className="w-4 h-4" />
-                <span>ربط الفروع والمناديب</span>
-              </button>
-            )}
-
             {salesRecords.length > 0 && (
               <button
                 type="button"
-                onClick={handleExportExcel}
-                className="inline-flex items-center gap-2 h-9 px-3.5 rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] transition cursor-pointer"
+                onClick={() => setToolsOpen((v) => !v)}
+                aria-expanded={toolsOpen}
+                aria-haspopup="menu"
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] transition cursor-pointer"
               >
-                <Download className="w-4 h-4" />
-                تصدير Excel
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+                <span>أدوات</span>
               </button>
             )}
           </div>
         </div>
+
+        {toolsOpen && salesRecords.length > 0 && (
+          <div className="mt-2 flex flex-col sm:flex-row sm:w-fit gap-1.5 rounded-xl border border-white/15 bg-white/5 p-1.5">
+            {customers.length > 0 && (
+              <button
+                type="button"
+                onClick={() => { setToolsOpen(false); void handleEnrichAndPersistSales(); }}
+                title="مطابقة كود العميل بقاعدة العملاء المركزية وتحديد الفرع والمندوب لكل حركة"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg border border-white/15 bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] transition cursor-pointer"
+              >
+                <Link2 className="w-3.5 h-3.5" />
+                ربط الفروع والمناديب
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { setToolsOpen(false); void handleExportExcel(); }}
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg border border-white/15 bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] transition cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" />
+              تصدير Excel
+            </button>
+          </div>
+        )}
 
             <div className="pt-1 flex items-center gap-2 flex-wrap text-[10px]">
               {salesRecords.length > 0 && (
@@ -1257,14 +1296,14 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               <div className="w-8 h-8 rounded-xl bg-[var(--app-ok)] text-white flex items-center justify-center shrink-0 shadow-2xs">
                 <Link2 className="w-4 h-4" />
               </div>
-              <div>
-                <div className="font-black text-slate-900 flex items-center gap-2">
+              <div className="min-w-0">
+                <div className="font-black text-white flex flex-wrap items-center gap-2">
                   <span>ربط كود العميل بقاعدة العملاء المركزية</span>
                   <span className="bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] text-[10px] px-2 py-0.5 rounded-md font-black border border-[var(--app-ok-line)]">
                     مفعّل وتلقائي ✓
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-600 mt-0.5">
+                <p className="text-[11px] text-white/85 mt-0.5">
                   تم ربط <strong>{customerLinkStats.linkedCustomers.toLocaleString('ar-EG')}</strong> عميل وتحديد فروعهم (المخزن) ومناديبهم المعتمدين تلقائياً عبر مطابقة كود العميل (Customer Account).
                 </p>
               </div>
@@ -1272,7 +1311,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             <button
               type="button"
               onClick={handleEnrichAndPersistSales}
-              className="inline-flex items-center justify-center gap-1.5 h-8 px-3 bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black rounded-xl text-[11px] shadow-2xs transition cursor-pointer shrink-0"
+              className="inline-flex w-full sm:w-auto items-center justify-center gap-1.5 h-9 sm:h-8 px-3 bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white font-black rounded-xl text-[11px] shadow-2xs transition cursor-pointer shrink-0"
             >
               <RefreshCw className="w-3 h-3" />
               <span>تثبيت الربط ببيانات العملاء</span>
@@ -1551,11 +1590,16 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             </div>
 
         <div className="flex items-center gap-1.5 flex-wrap">
-          {([
-            { key: 'all' as const, label: 'كل القطاعات' },
-            { key: 'home' as const, label: 'منزلي' },
-            { key: 'electrical' as const, label: 'كهربائي' }
-          ]).map((sectorOption) => {
+          {(isAdminOrDev
+            ? ([
+                { key: 'all' as const, label: 'كل القطاعات' },
+                { key: 'home' as const, label: 'منزلي' },
+                { key: 'electrical' as const, label: 'كهربائي' }
+              ])
+            : itemSalesSector === 'home' || itemSalesSector === 'electrical'
+            ? [{ key: itemSalesSector, label: itemSalesSector === 'electrical' ? 'كهربائي' : 'منزلي' }]
+            : []
+          ).map((sectorOption) => {
             const active = selectedSector === sectorOption.key;
             return (
               <button
@@ -1782,7 +1826,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           }`}
         >
           <BarChart3 className="w-3.5 h-3.5" />
-          عرض تحليلي (v4)
+          تحليل الإجماليات
+          {!isAdminOrDev && <Lock className="w-3 h-3" />}
         </button>
 
         <span className="ms-auto text-[9px] text-slate-400 font-bold px-2 hidden sm:inline-flex items-center gap-1">
@@ -1794,7 +1839,32 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       </div>
 
       {activeView === 'focus' ? (
-        <SalesFocusV4 records={rbacSales} baseRecords={baseSales} customers={customers} />
+        isAdminOrDev ? (
+          <TotalsAnalysisView
+            records={filteredSales}
+            customers={customers}
+            sector={selectedSector}
+            onSelectSector={setSelectedSector}
+            resolveSector={resolveItemSaleSector}
+            subtitle={analysisSubtitle}
+          />
+        ) : (
+          <section className="bg-[var(--app-card)] rounded-3xl border border-[var(--app-border)] p-8 sm:p-12 text-center shadow-xs">
+            <div className="w-16 h-16 rounded-3xl bg-[var(--app-card-hover)] text-[var(--app-text-muted)] mx-auto flex items-center justify-center mb-4">
+              <Lock className="w-8 h-8" />
+            </div>
+            <h2 className="text-base sm:text-lg font-black text-[var(--app-text)]">
+              تحليل الإجماليات متاح للإدارة فقط حالياً
+            </h2>
+            <p className="text-xs text-[var(--app-text-muted)] max-w-xl mx-auto mt-2 leading-relaxed">
+              الشاشة دي بتعرض إجماليات مبيعات الأصناف حسب القطاع والعميل والفرع والمندوب
+              (إدارة فقط لحد ما يتم فتح الصلاحيات لباقي الأدوار).
+            </p>
+            <div className="mt-4 text-[11px] font-black text-[var(--app-text-muted)]">
+              الحساب الحالي: {currentUser?.name || '—'} • {currentUser?.role || '—'}
+            </div>
+          </section>
+        )
       ) : activeView === 'overview' ? (
         <>
           {salesRecords.length > 0 && periodTotals.amount === 0 && (
@@ -1831,7 +1901,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             previousItemsCount={kpiPreviousItemsCount}
             customersCount={periodTotals.customersCount}
             idleCount={idleItems.totalIdle}
-            idleCaption={idleCaption}
+            idleCaption={idleLoading ? '' : idleCaption}
+            idleIsLoading={idleLoading}
             comparisonCaption={kpiGrowthCaption}
           />
 
@@ -1998,8 +2069,11 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                           <div className="text-[8px] uppercase tracking-wider mb-0.5">
                             {MONTH_NAMES_MAP[month]}
                           </div>
-                          <div className="font-mono font-black">
-                            {hasSales ? formatCurrency(amount) : '—'}
+                          <div
+                            className="font-mono font-black truncate"
+                            title={hasSales ? formatCurrency(amount) : undefined}
+                          >
+                            {hasSales ? formatCompactAmount(amount) : '—'}
                           </div>
                           <div className="text-[8px]">{hasSales ? qty.toLocaleString('ar-EG') : '0'} ك</div>
                         </div>

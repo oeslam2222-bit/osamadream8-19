@@ -39,6 +39,7 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
     getVisibleCustomers,
     getVisibleInvoices,
     selectedBranchFilter,
+    canManageSectorGate,
     setSelectedBranchFilter,
   } = useApp();
 
@@ -342,6 +343,7 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
             </select>
           </div>
 
+          {canManageSectorGate && (
           <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[150px]">
             <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">القطاع</span>
             <select
@@ -354,6 +356,7 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
               <option value="electrical">الكهربائي</option>
             </select>
           </div>
+          )}
         </div>
       </section>
 
