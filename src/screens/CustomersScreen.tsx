@@ -13,6 +13,11 @@ import {
   X,
   AlertTriangle,
   CheckCircle2,
+  Home,
+  Zap,
+  ShoppingCart,
+  CreditCard,
+  Wallet,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Customer } from '../types';
@@ -148,6 +153,43 @@ export const CustomersScreen: React.FC = () => {
     return list;
   }, [userVisibleCustomers, filter, currentUser?.name]);
 
+  // ---------- إحصائيات إجمالية (تتغير حسب فلتر القطاع) ----------
+  const totalSales = useMemo(() => {
+    return filteredCustomers.reduce((acc, c) => {
+      const sales = Number(c.sales2026 || c.totalMonthlySales || c.totalOverallSales || 0);
+      return acc + sales;
+    }, 0);
+  }, [filteredCustomers]);
+
+  const totalCollections = useMemo(() => {
+    return filteredCustomers.reduce((acc, c) => {
+      const coll = Number(c.collections2026 || c.totalMonthlyCollections || c.totalOverallCollections || 0);
+      return acc + coll;
+    }, 0);
+  }, [filteredCustomers]);
+
+  const totalDebt = useMemo(() => {
+    return filteredCustomers.reduce((acc, c) => {
+      const debt = Number(c.currentBalance ?? c.balance ?? c.overdueBalance ?? 0);
+      return acc + debt;
+    }, 0);
+  }, [filteredCustomers]);
+
+  const totalOverdue = useMemo(() => {
+    return filteredCustomers.reduce((acc, c) => {
+      const overdue = Number(c.overdueBalance ?? c.totalOverdueAndDue ?? 0);
+      return acc + overdue;
+    }, 0);
+  }, [filteredCustomers]);
+
+  const customersWithDebt = useMemo(() => {
+    return filteredCustomers.filter((c) => Number(c.currentBalance ?? c.balance ?? c.overdueBalance ?? 0) > 0).length;
+  }, [filteredCustomers]);
+
+  const collectionRate = useMemo(() => {
+    return totalSales > 0 ? Math.round((totalCollections / totalSales) * 100) : 0;
+  }, [totalSales, totalCollections]);
+
   // ---------- Group customers by Rep ----------
   const customersByRep = useMemo(() => {
     const map = new Map<string, Customer[]>();
@@ -199,6 +241,117 @@ export const CustomersScreen: React.FC = () => {
           <button className="w-9 h-9 rounded-full bg-blue-600 text-white flex items-center justify-center active:scale-95 transition hover:bg-blue-500">
             <Plus className="w-5 h-5" />
           </button>
+        </div>
+      </div>
+
+      {/* كرتين منفصلتين للقطاعات — منزلي وكهرباء — لفصل العملاء بين بعضهم */}
+      <div className="px-4 pb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+          <button
+            type="button"
+            onClick={() => handleFilterChange('sector', 'home')}
+            className={`px-3 py-2 rounded-xl border flex flex-col items-center gap-1.5 transition-all ${
+              filter.sector === 'home'
+                ? 'bg-[var(--app-ok-tint)] border-[var(--app-ok-line)] text-[var(--app-ok-text)] shadow-sm'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-[var(--app-ok-line)]/50'
+            }`}
+          >
+            <Home className="w-5 h-5" />
+            <span className="font-black text-xs">قطاع المنزلي</span>
+            <span className="text-[9px] font-bold">
+              {userVisibleCustomers.filter((c) => c.sector === 'home' || c.sector === 'both').length} عميل
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleFilterChange('sector', 'electrical')}
+            className={`px-3 py-2 rounded-xl border flex flex-col items-center gap-1.5 transition-all ${
+              filter.sector === 'electrical'
+                ? 'bg-[var(--app-warn-tint)] border-[var(--app-warn-line)] text-[var(--app-warn-text)] shadow-sm'
+                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-[var(--app-warn-line)]/50'
+            }`}
+          >
+            <Zap className="w-5 h-5" />
+            <span className="font-black text-xs">قطاع الكهرباء</span>
+            <span className="text-[9px] font-bold">
+              {userVisibleCustomers.filter((c) => c.sector === 'electrical' || c.sector === 'both').length} عميل
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* كروت الإحصائيات الإجمالية — مضغوطة لتناسب الشاشة */}
+      <div className="px-4 pb-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 mb-3">
+          {/* إجمالي المبيعات — أزرق/Neavy */}
+          <article className="p-2.5 rounded-xl border border-[var(--app-navy-line)] bg-[var(--app-navy-tint)] shadow-sm">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] font-bold text-[var(--app-navy-text)]">إجمالي المبيعات</span>
+              <ShoppingCart className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
+            </div>
+            <div className="font-black text-slate-900 dark:text-white text-base tabular-nums">
+              {formatCurrency(totalSales)}
+            </div>
+            <div className="text-[9px] text-[var(--app-navy-text)] mt-0.5 font-bold">
+              {filteredCustomers.length} عميل
+            </div>
+          </article>
+
+          {/* إجمالي التحصيل — أخضر/Emerald */}
+          <article className="p-2.5 rounded-xl border border-[var(--app-ok-line)] bg-[var(--app-ok-tint)] shadow-sm">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] font-bold text-[var(--app-ok-text)]">إجمالي التحصيل</span>
+              <CreditCard className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
+            </div>
+            <div className="font-black text-slate-900 dark:text-white text-base tabular-nums">
+              {formatCurrency(totalCollections)}
+            </div>
+            <div className="text-[9px] text-[var(--app-ok-text)] mt-0.5 font-bold">
+              نسبة السداد {collectionRate}%
+            </div>
+          </article>
+
+          {/* إجمالي المديونية — برتقالي/Warning */}
+          <article className="p-2.5 rounded-xl border border-[var(--app-warn-line)] bg-[var(--app-warn-tint)] shadow-sm">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] font-bold text-[var(--app-warn-text)]">إجمالي المديونية</span>
+              <Wallet className="w-3.5 h-3.5 text-[var(--app-warn-text)]" />
+            </div>
+            <div className={`font-black text-base ${totalDebt > 0 ? 'text-[var(--app-warn-text)]' : 'text-slate-400'} tabular-nums`}>
+              {formatCurrency(totalDebt)}
+            </div>
+            <div className="text-[9px] text-[var(--app-warn-text)] mt-0.5 font-bold">
+              {customersWithDebt} عميل لديه مديونية
+            </div>
+          </article>
+
+          {/* إجمالي المستحقات / المتأخرات — أحمر/Risk */}
+          <article className="p-2.5 rounded-xl border border-[var(--app-risk-line)] bg-[var(--app-risk-tint)] shadow-sm">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] font-bold text-[var(--app-risk-text)]">المستحقات / المتأخرات</span>
+              <AlertCircle className="w-3.5 h-3.5 text-[var(--app-risk-text)]" />
+            </div>
+            <div className={`font-black text-base ${totalOverdue > 0 ? 'text-[var(--app-risk-text)]' : 'text-slate-400'} tabular-nums`}>
+              {formatCurrency(totalOverdue)}
+            </div>
+            <div className="text-[9px] text-[var(--app-risk-text)] mt-0.5 font-bold">
+              مستحقات متأخرة
+            </div>
+          </article>
+
+          {/* عدد العملاء الإجمالي — نيلي/Slate */}
+          <article className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 shadow-sm">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">عدد العملاء</span>
+              <Users className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
+            </div>
+            <div className="font-black text-slate-900 dark:text-white text-base tabular-nums">
+              {filteredCustomers.length}
+            </div>
+            <div className="text-[9px] text-slate-600 dark:text-slate-300 mt-0.5 font-bold">
+              معروضون في القائمة
+            </div>
+          </article>
         </div>
       </div>
 

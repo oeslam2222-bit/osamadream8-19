@@ -19,6 +19,10 @@ export interface User {
   approvalStatus: UserApprovalStatus;
   registrationDate?: string;
   commissionRate?: number;
+  /** Supabase Auth uid linked to this profile (server-side auth). */
+  auth_user_id?: string;
+  /** Email used for Supabase Auth linking (server-side auth). */
+  auth_email?: string;
 }
 
 export interface CompanyInfo {

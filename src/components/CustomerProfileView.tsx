@@ -56,6 +56,7 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
     setActiveSectorFilter,
     saveCustomersToSupabase,
     cloudinaryConfig,
+    customerComments,
   } = useApp();
 
   const [activeCustomer, setActiveCustomer] = useState<Customer | null>(initialSelectedCustomer || null);
@@ -377,52 +378,87 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
             </div>
           </div>
 
-          {/* بطاقات المؤشرات المالية */}
+          {/* بطاقات المؤشرات المالية — منسقة ومُلونة للوضع النهاري والليلي */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-2">
+            {/* إجمالي المبيعات — Navy */}
             <article
-              className="p-3.5 rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface)] shadow-sm ckpi ckpi-navy"
+              className="p-3.5 rounded-2xl border border-[var(--app-navy-line)] bg-[var(--app-navy-tint)] shadow-sm ckpi ckpi-navy"
             >
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">إجمالي المبيعات 2026</span>
+                <span className="text-[10px] font-bold text-[var(--app-navy-text)]">إجمالي المبيعات 2026</span>
                 <ShoppingCart className="w-4 h-4 text-[var(--app-navy-text)]" />
               </div>
               <div className="font-black text-slate-900 dark:text-white text-lg">{formatCurrency(totalSales2026)}</div>
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 font-bold">مبيعات السنة الحالية</div>
+              <div className="text-[10px] text-[var(--app-navy-text)] mt-0.5 font-bold">مبيعات السنة الحالية</div>
             </article>
 
-            <article className="p-3.5 rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface)] shadow-sm ckpi ckpi-blue">
+            {/* إجمالي التحصيل — Emerald/Green */}
+            <article
+              className="p-3.5 rounded-2xl border border-[var(--app-ok-line)] bg-[var(--app-ok-tint)] shadow-sm ckpi ckpi-blue"
+            >
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">إجمالي التحصيل 2026</span>
+                <span className="text-[10px] font-bold text-[var(--app-ok-text)]">إجمالي التحصيل 2026</span>
                 <CreditCard className="w-4 h-4 text-[var(--app-ok-text)]" />
               </div>
               <div className="font-black text-slate-900 dark:text-white text-lg">{formatCurrency(totalCollections2026)}</div>
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 font-bold">تحصيل السنة الحالية</div>
+              <div className="text-[10px] text-[var(--app-ok-text)] mt-0.5 font-bold">تحصيل السنة الحالية</div>
             </article>
 
-            <article className="p-3.5 rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface)] shadow-sm ckpi ckpi-green">
+            {/* المديونية الحالية — Amber/Warning */}
+            <article
+              className="p-3.5 rounded-2xl border border-[var(--app-warn-line)] bg-[var(--app-warn-tint)] shadow-sm ckpi ckpi-green"
+            >
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">المديونية الحالية</span>
-                <Wallet className="w-4 h-4 text-[var(--app-navy-text)]" />
+                <span className="text-[10px] font-bold text-[var(--app-warn-text)]">المديونية الحالية</span>
+                <Wallet className="w-4 h-4 text-[var(--app-warn-text)]" />
               </div>
-              <div className={`font-black text-lg ${balance > 0 ? 'text-[var(--app-navy)]' : 'text-slate-400'}`}>
+              <div className={`font-black text-lg ${balance > 0 ? 'text-[var(--app-warn-text)]' : 'text-slate-400'}`}>
                 {formatCurrency(balance)}
               </div>
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 font-bold">
+              <div className="text-[10px] text-[var(--app-warn-text)] mt-0.5 font-bold">
                 {creditLimit > 0 ? `الحد: ${formatCurrency(creditLimit)}` : 'بدون حد ائتماني'}
               </div>
             </article>
 
-            <article className="p-3.5 rounded-2xl border border-[var(--app-line)] bg-[var(--app-surface)] shadow-sm ckpi ckpi-rose">
+            {/* المتأخرات / المرتجات — Rose/Risk */}
+            <article
+              className="p-3.5 rounded-2xl border border-[var(--app-risk-line)] bg-[var(--app-risk-tint)] shadow-sm ckpi ckpi-rose"
+            >
               <div className="flex items-center justify-between mb-1.5">
-                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">المتأخرات</span>
+                <span className="text-[10px] font-bold text-[var(--app-risk-text)]">المتأخرات / المرتجات</span>
                 <AlertCircle className="w-4 h-4 text-[var(--app-risk-text)]" />
               </div>
-              <div className={`font-black text-lg ${overdue > 0 ? 'text-[var(--app-risk)]' : 'text-slate-400'}`}>
+              <div className={`font-black text-lg ${overdue > 0 ? 'text-[var(--app-risk-text)]' : 'text-slate-400'}`}>
                 {formatCurrency(overdue)}
               </div>
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 font-bold">نسبة التحصيل {collectionRate}%</div>
+              <div className="text-[10px] text-[var(--app-risk-text)] mt-0.5 font-bold">نسبة التحصيل {collectionRate}%</div>
             </article>
           </div>
+
+          {/* أزرار الإجراءات السريعة — لمدير الفرع والإدارة فقط */}
+          {(isManager || isAdminOrDev) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+              <button
+                type="button"
+                onClick={() => setActiveSection('overview')}
+                className="flex items-center justify-center gap-2 p-3 rounded-2xl border border-[var(--app-navy-line)] bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] font-black text-sm hover:bg-[var(--app-navy)] hover:text-white transition-all"
+                title="فتح ملف العميل"
+              >
+                <FileText className="w-4 h-4" /> الملف الكامل
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  // التنقل الفعال لصفحة الشؤون القانونية للمستشار القانوني
+                  if (onNavigateToTab) onNavigateToTab('legal_advisor');
+                }}
+                className="flex items-center justify-center gap-2 p-3 rounded-2xl border border-[var(--app-risk-line)] bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] font-black text-sm hover:bg-[var(--app-risk)] hover:text-white transition-all"
+                title="الشؤون القانونية — تحويل العميل للمستشار القانوني"
+              >
+                <AlertCircle className="w-4 h-4" /> الشؤون القانونية
+              </button>
+            </div>
+          )}
 
           {/* مبيعات الأصناف المرتبطة بهذا العميل (من شيت مبيعات الأصناف) */}
           <ItemSalesProfilePanel
@@ -497,6 +533,40 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                         <div className="text-[10px] font-bold text-slate-500">نسبة السداد</div>
                         <div className="font-black text-slate-900 dark:text-white">{collectionRate}%</div>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* آخر التعليقات على العميل */}
+                  <div className="col-span-1 md:col-span-3 lg:col-span-1">
+                    <h3 className="text-xs font-black text-slate-600 dark:text-slate-300 mb-3 flex items-center gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 text-[var(--app-risk-text)]" /> آخر التعليقات
+                    </h3>
+                    <div className="space-y-2">
+                      {() => {
+                        const customerCommentsFiltered = customerComments
+                          .filter((c) => c.customerId === customer.id || c.customerCode === customer.code)
+                          .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+                          .slice(0, 5);
+                        if (customerCommentsFiltered.length === 0) {
+                          return <div className="p-3 text-center text-slate-400 text-xs font-bold">لا توجد تعليقات مسجلة</div>;
+                        }
+                        return customerCommentsFiltered.map((c) => (
+                          <div key={c.id} className="p-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200">{c.authorName}</span>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                c.kind === 'defaulted' ? 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)]' :
+                                c.kind === 'return' ? 'bg-[var(--app-warn-tint)] text-[var(--app-warn-text)]' :
+                                'bg-slate-100 dark:bg-slate-700 text-slate-500'
+                              }`}>
+                                {c.kind === 'defaulted' ? 'متعثر' : c.kind === 'return' ? 'مرتجع' : 'ملاحظة'}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed">{c.body}</div>
+                            <div className="text-[9px] text-slate-400 mt-1 font-mono">{c.createdAt}</div>
+                          </div>
+                        ));
+                      }}()
                     </div>
                   </div>
                 </div>

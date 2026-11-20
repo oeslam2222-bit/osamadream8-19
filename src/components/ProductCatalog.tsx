@@ -233,10 +233,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         if (parsed.onlyInStock !== undefined) setOnlyInStock(parsed.onlyInStock);
         if (parsed.sortBy !== undefined) setSortBy(parsed.sortBy);
         if (parsed.activeSectorFilter !== undefined) {
+          // القيمة القديمة 'all' غير مدعومة بعد إزالة خيار "الكل" — تُحوّل للقطاع الافتراضي.
           setActiveSectorFilter(
-            parsed.activeSectorFilter === 'all' && !canManageSectorGate
-              ? defaultSector
-              : parsed.activeSectorFilter
+            parsed.activeSectorFilter === 'home' || parsed.activeSectorFilter === 'electrical'
+              ? parsed.activeSectorFilter
+              : defaultSector
           );
         }
         if (parsed.minPrice !== undefined) setMinPrice(parsed.minPrice);

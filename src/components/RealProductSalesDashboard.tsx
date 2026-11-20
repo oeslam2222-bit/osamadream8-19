@@ -219,10 +219,22 @@ export const RealProductSalesDashboard: React.FC<{ isDark: boolean; onOpenCustom
   const customersAgg = useMemo<AggCustomer[]>(() => {
     const custMap = new Map<string, AggCustomer>();
     periodInvoices.forEach((inv) => {
-      const custKey = inv.customerId || inv.customerCode || inv.customerName;
+      const custKey = inv.customerId || inv.customerCode || inv.customerName || 'غير محدد';
       let c = custMap.get(custKey);
       if (!c) {
-        c = { key: custKey, name: inv.customerName, sales: 0, orders: 0, products: [] };
+        // اسم العميل من الفاتورة أولًا؛ لو فارغ، نبحث عنه في قائمة العملاء الظاهرة via id/code/name.
+        let displayName = inv.customerName?.trim() || '';
+        if (!displayName) {
+          const found = customers.find(
+            (cu) =>
+              cu.id === inv.customerId ||
+              cu.code === inv.customerCode ||
+              cu.name === inv.customerName ||
+              cu.storeName === inv.customerName
+          );
+          displayName = found?.name || found?.storeName || inv.customerCode || 'عميل بدون اسم';
+        }
+        c = { key: custKey, name: displayName, sales: 0, orders: 0, products: [] };
         custMap.set(custKey, c);
       }
       c.orders += 1;
@@ -244,7 +256,7 @@ export const RealProductSalesDashboard: React.FC<{ isDark: boolean; onOpenCustom
       });
     });
     return Array.from(custMap.values()).sort((a, b) => b.sales - a.sales);
-  }, [periodInvoices]);
+  }, [periodInvoices, customers]);
 
   const topCustomers = useMemo(() => customersAgg.slice(0, 5), [customersAgg]);
   const selectedCustomerAgg = useMemo(

@@ -38,10 +38,15 @@ export function applyCustomerSectorHeuristic(customer: {
   salesRepName?: string;
 }): Customer['sector'] {
   const sector = customer.sector;
+  // 'both' / 'all' موثوقة — تُترك كما هي.
   if (sector === 'both' || sector === 'all') return sector;
+  // كشف تلقائي «كهرب» يغلب أي قيمة 'home' كتبتها السياسة الجماعية على العملاء الفاضيين.
   if (isElectricalLabel(customer.name, customer.storeName, customer.repName, customer.salesRepName)) {
     return 'electrical';
   }
+  // إذا كان القطاع معلنًا صراحةً 'electrical' أو 'home' تُحترم.
+  if (sector === 'electrical' || sector === 'home') return sector;
+  // الافتراضي: sector فارغ أو مجهول → نرجّعه كما هو (لا نفترض 'home' أعمىً ليشAppear في الكهرباء).
   return sector;
 }
 
@@ -150,7 +155,8 @@ export function createItemSalesSectorResolver(
       (unified ? productByUnified.get(unified) : undefined);
     if (product?.sector === 'electrical') return 'electrical';
 
-    // 7) الافتراضي: منزلي.
+    // 7) الافتراضي: لا نفترض 'home' أعمىً — إذا لم يتحدد القطاع rõًا نرجّع 'home'
+    // للحفاظ على نوع الإرجاع، لكن السجل سيعتمد على الكشف التلقائي بالاسم في السطر 3.
     return 'home';
   };
 

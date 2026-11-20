@@ -735,15 +735,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const savedSession = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_DATA);
-    if (!savedSession) return null;
-    try {
-      return JSON.parse(savedSession) as User;
-    } catch {
-      return null;
-    }
-  });
+  // NOTE (server-auth migration): currentUser is no longer restored from a full
+  // localStorage user object (which previously included the password hash).
+  // Session restoration is now handled by Supabase Auth via the dedicated
+  // AuthProvider (authContext.tsx). This keeps the initial state empty until
+  // a server-verified session is established.
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   const currentUserRef = useRef<User | null>(currentUser);
   useEffect(() => {
@@ -1660,12 +1657,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('الكل');
 
-  const [activeSectorFilter, setActiveSectorFilterState] = useState<'all' | 'home' | 'electrical'>(() => {
+  const [activeSectorFilter, setActiveSectorFilterState] = useState<'home' | 'electrical'>(() => {
     try {
       const saved = localStorage.getItem('tantawy_active_sector_filter_v2');
-      if (saved === 'home' || saved === 'electrical' || saved === 'all') return saved;
+      if (saved === 'home' || saved === 'electrical') return saved;
     } catch {}
-    return 'all';
+    return 'home';
   });
 
   const canManageSectorGate = useMemo(
@@ -1679,7 +1676,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [currentUser, activeSectorFilter]
   );
 
-  const setActiveSectorFilter = useCallback((sector: 'all' | 'home' | 'electrical') => {
+  const setActiveSectorFilter = useCallback((sector: 'home' | 'electrical') => {
     // تبديل القطاع ميزة إدارة عليا فقط. باقي الأدوار مقيّدة بقطاع حسابها أصلًا،
     // ومن غير البوابة دي الاختيار كان بيتسجل في localStorage ويبقى مضلّل للواجهة.
     if (!canManageSectorGate) return;
@@ -5024,6 +5021,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           linkAuthUserToProfile(outcome.authUserId, outcome.email).catch(() => {});
         }
       }
+      // Server mode only: if Supabase Auth did not confirm the credentials,
+      // reject immediately. No client-side password fallback is allowed.
+      if (!serverAuthUserId) {
+        return {
+          success: false,
+          errorType: 'wrong_password',
+          message: 'اسم المستخدم أو كلمة المرور غير صحيحة.',
+        };
+      }
     }
 
     // 1. Search in local memory first with rich identifier matching
@@ -5237,7 +5243,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     setIsAuthenticated(true);
     localStorage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, found.id);
-    safeLocalStorageSet(STORAGE_KEYS.CURRENT_USER_DATA, JSON.stringify(found));
+    // Server-auth migration: do not persist full user object (may include
+    // password hash) in localStorage. Keep only the user id as a session
+    // reference; full profile is resolved from Supabase on session restore.
     setDataEpoch((n) => n + 1);
 
     return { success: true, message: `مرحباً بك ${found.name}`, user: found };
