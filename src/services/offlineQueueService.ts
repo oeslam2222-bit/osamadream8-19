@@ -118,6 +118,13 @@ export async function markQueuedMutationFailure(
   return next.length;
 }
 
+export const MAX_ATTEMPTS = 5;
+
+/** هل تجاوز العنصر الحد الأقصى للمحاولات → "dead letter" (لا إعادة محاولة). */
+export function isDeadLetter(item: QueuedMutation): boolean {
+  return (item.attempts || 0) >= MAX_ATTEMPTS;
+}
+
 export async function countQueuedMutations(): Promise<number> {
   return (await getQueuedMutations()).length;
 }

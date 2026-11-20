@@ -46,6 +46,10 @@ export async function idbGet<T>(key: string): Promise<T | null> {
   }
 }
 
+let _idbQuotaExceeded = false;
+export function isStorageQuotaExceeded(): boolean { return _idbQuotaExceeded; }
+export function resetStorageQuotaFlag(): void { _idbQuotaExceeded = false; }
+
 export async function idbSet<T>(key: string, value: T): Promise<boolean> {
   try {
     const db = await openDB();
@@ -54,10 +58,28 @@ export async function idbSet<T>(key: string, value: T): Promise<boolean> {
       const store = tx.objectStore(STORE_NAME);
       store.put(value, key);
       tx.oncomplete = () => resolve(true);
-      tx.onerror = () => resolve(false);
-      tx.onabort = () => resolve(false);
+      tx.onerror = () => {
+        const err = tx.error;
+        if (err && (err.name === 'QuotaExceededError' || /quota/i.test(err.message || ''))) {
+          _idbQuotaExceeded = true;
+          console.warn('[storage] IndexedDB quota exceeded while writing', key);
+        }
+        resolve(false);
+      };
+      tx.onabort = () => {
+        const err = tx.error;
+        if (err && (err.name === 'QuotaExceededError' || /quota/i.test(err.message || ''))) {
+          _idbQuotaExceeded = true;
+          console.warn('[storage] IndexedDB quota exceeded (abort) while writing', key);
+        }
+        resolve(false);
+      };
     });
-  } catch {
+  } catch (err: any) {
+    if (err && (err?.name === 'QuotaExceededError' || /quota/i.test(err?.message || ''))) {
+      _idbQuotaExceeded = true;
+      console.warn('[storage] IndexedDB quota exceeded while opening/writing', key);
+    }
     return false;
   }
 }

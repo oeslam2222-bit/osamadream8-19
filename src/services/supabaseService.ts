@@ -2391,21 +2391,68 @@ export async function publishInvoiceSignal(
 }
 
 /** يجيب فاتورة واحدة بالـid من الجدول اللي فيه البيانات فعلاً. */
+const _invoiceTableCache = new Map<string, 'orders' | 'invoices'>();
 export async function fetchInvoiceRowById(id: string): Promise<any | null> {
   if (!id) return null;
+  const cached = _invoiceTableCache.get(id);
+  // Try the cached table first (avoids the fallback query on repeat fetches).
+  const tryTable = async (table: 'orders' | 'invoices'): Promise<any | null> => {
+    try {
+      const { data } = await supabase.from(table).select('*').eq('id', id).limit(1);
+      if (data && data[0]) return data[0];
+    } catch {
+      // جرّب الجدول التاني
+    }
+    return null;
+  };
+  if (cached) {
+    const row = await tryTable(cached);
+    if (row) return row;
+    // cached table no longer has it — fall through to the other table
+    _invoiceTableCache.delete(id);
+  }
+  // orders first (authoritative), then invoices (legacy)
+  const orderRow = await tryTable('orders');
+  if (orderRow) { _invoiceTableCache.set(id, 'orders'); return orderRow; }
+  const invoiceRow = await tryTable('invoices');
+  if (invoiceRow) { _invoiceTableCache.set(id, 'invoices'); return invoiceRow; }
+  return null;
+}
+
+/**
+ * نسخة دفعة من fetchInvoiceRowById —  Requested ids بطلب واحد (أو طلبين على الأكثر).
+ *
+ * كان الـrealtime بينادي fetchInvoiceRowById لكل فاتورة لوحدها (N طلبات لكل
+ * إشارة، وكل واحد بيجرّب جدولين) — يعني 25 فاتورة كانت بتوصل 50 طلب network.
+ * هنا الطلبات بتتلوي في `in('id', ids)` واحد لكل جدول على الأكثر.
+ */
+export async function fetchInvoiceRowsByIds(ids: string[]): Promise<any[]> {
+  const unique = Array.from(new Set(ids.filter(Boolean).map(String)));
+  if (unique.length === 0) return [];
+
+  const rows: any[] = [];
+  const found = new Set<string>();
   try {
-    const { data } = await supabase.from('orders').select('*').eq('id', id).limit(1);
-    if (data && data[0]) return data[0];
+    const { data } = await supabase.from('orders').select('*').in('id', unique);
+    if (data && data.length > 0) {
+      rows.push(...data);
+      data.forEach((row: any) => found.add(String(row.id)));
+    }
   } catch {
     // جرّب الجدول التاني
   }
-  try {
-    const { data } = await supabase.from('invoices').select('*').eq('id', id).limit(1);
-    if (data && data[0]) return data[0];
-  } catch {
-    // مفيش
+
+  // صفوف ناقصة في `orders` (بيانات قديمة) → نبحث عنها في `invoices` بطلب واحد.
+  const missing = unique.filter((id) => !found.has(String(id)));
+  if (missing.length > 0) {
+    try {
+      const { data } = await supabase.from('invoices').select('*').in('id', missing);
+      if (data && data.length > 0) rows.push(...data);
+    } catch {
+      // مفيش
+    }
   }
-  return null;
+  return rows;
 }
 
 export async function saveInvoiceToSupabase(invoice: Invoice): Promise<{ success: boolean; error?: string }> {
