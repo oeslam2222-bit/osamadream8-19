@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Cloud, Database, Info, Loader2, RefreshCw, UploadCloud, Wifi, WifiOff, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { getQueuedMutations, type QueuedMutation } from '../services/offlineQueueService';
+import { getQueuedMutations, MAX_ATTEMPTS, type QueuedMutation } from '../services/offlineQueueService';
 
 interface SyncStatusCenterProps {
   isOpen: boolean;
@@ -13,6 +13,8 @@ export const SyncStatusCenter: React.FC<SyncStatusCenterProps> = ({ isOpen, onCl
     isOffline,
     pendingInvoicesCount,
     offlineQueueCount,
+    deadLetterCount,
+    storageQuotaExceeded,
     flushPendingInvoices,
     flushOfflineQueue,
     syncWithSupabase,
@@ -92,6 +94,26 @@ export const SyncStatusCenter: React.FC<SyncStatusCenterProps> = ({ isOpen, onCl
             <div className="flex items-center gap-2.5"><HIcon size={18} /><div><div className="text-xs font-bold opacity-80">الحالة الحالية</div><div className="font-black text-sm">{health.label}</div></div></div>
             <div className="text-[11px] font-extrabold">تحديث يدوي متاح أدناه</div>
           </div>
+
+          {deadLetterCount > 0 && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3.5 flex items-start gap-2.5">
+              <AlertTriangle size={18} className="text-rose-600 shrink-0 mt-0.5" />
+              <div className="text-[12px] text-rose-800 leading-relaxed">
+                <div className="font-black">⚠️ {deadLetterCount} عملية فشلت permanently (≥{MAX_ATTEMPTS} محاولات)</div>
+                <div className="mt-1">هذه العمليات تجاوزت الحد الأقصى للمحاولات ولن تُعاد تلقائياً (لمنع spam على السيرفر). راجعها في الطابور أدناه أو أعد ضبطها يدوياً.</div>
+              </div>
+            </div>
+          )}
+
+          {storageQuotaExceeded && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5 flex items-start gap-2.5">
+              <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-[12px] text-amber-800 leading-relaxed">
+                <div className="font-black">⚠️ مساحة التخزين المحلي ممتلئة (IndexedDB quota)</div>
+                <div className="mt-1">بعض البيانات قد لا تُحفظ offline. امسح cache المتصفح أو أغلق تبويبات أخرى لتحرير مساحة.</div>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3"><div className="text-[11px] font-bold text-slate-500">فواتير معلّقة (طابور محلي)</div><div className="mt-1 text-2xl font-black text-slate-900 tabular-nums">{pendingInvoicesCount || 0}</div><div className="text-[11px] font-bold text-slate-500 mt-1">بانتظار الرفع للسحابة</div></div>

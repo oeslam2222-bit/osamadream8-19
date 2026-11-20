@@ -44,6 +44,7 @@ import { useApp } from '../context/AppContext';
 import { sanitizeStoredImageUrl } from '../context/appContextHelpers';
 import { useTheme } from '../context/themeContext';
 import { ProductImage } from './ProductImage';
+import { ProductCard } from './catalog/ProductCard';
 import {
   getProductImageUrl,
   getCandidateImageUrls,
@@ -208,6 +209,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string } | null>(null);
   const [addedItemToast, setAddedItemToast] = useState<{ name: string; count: string } | null>(null);
   const [stockErrorToast, setStockErrorToast] = useState<string | null>(null);
+
+  const handleSelectProduct = useCallback((product: Product) => {
+    setSelectedProductForModal(product);
+  }, [setSelectedProductForModal]);
 
   // PDF Export States
   const [isExportingPDF, setIsExportingPDF] = useState(false);
@@ -581,7 +586,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     : null;
 
   // Add item to cart with quantity (ذكي: لو الشدة = 1 يضاف كقطع، ولو أكبر يضاف ككرتونة)
-  const handleAddToCart = (product: Product) => {
+  const handleAddToCart = useCallback((product: Product) => {
     const factor = product.cartonQuantity ?? product.factor ?? 1;
     const isSingle = factor <= 1;
     const type = isSingle ? 'piece' : (cardOrderTypes[product.id] || 'carton');
@@ -609,7 +614,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       count: isSingle ? `${qty} قطعة` : `${qty} ${type === 'carton' ? 'كرتونة' : 'قطعة'}`,
     });
     setTimeout(() => setAddedItemToast(null), 3000);
-  };
+  }, [addToCart, cardQuantities, cardOrderTypes, getProductBranchStock, stripPlaceholderText, setStockErrorToast, setAddedItemToast]);
 
   const handleQtyChange = (productId: string, delta: number) => {
     setCardQuantities((prev) => {
@@ -1601,245 +1606,23 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
       {/* 4b. Product Cards Grid — شبكة الكروت (زي المرجع): 4 أعمدة على الويب */}
       <div className={`${catalogView === 'cards' ? 'grid' : 'hidden'} cat-grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:gap-4`}>
-        {paginatedProducts.map((p, idx) => {
-          const branchStock = getProductBranchStock(p);
-          const octoberStock = p.mainWarehouseActual || 0;
-          const isFav = Boolean(favorites[p.id]);
-          const currentQty = cardQuantities[p.id] || 1;
-          const isElectrical = isProductElectrical(p);
-          const priceInfo = resolveDisplayPrice({
-            piecePrice: p.piecePrice ?? p.salesPrice,
-            cartonPrice: p.cartonPrice,
-            factor: p.cartonQuantity ?? p.factor,
-          });
-          const promoInfo = resolveProductPromotion(p, promotions);
-          const displayOrig = priceInfo.isSinglePiece ? promoInfo.originalPiecePrice : promoInfo.originalCartonPrice;
-          const displayPromo = priceInfo.isSinglePiece ? promoInfo.promoPiecePrice : promoInfo.promoCartonPrice;
-          const displayName = stripPlaceholderText(p.name);
-
-          let statusBadge = (
-            <span className="px-2.5 py-1 rounded-full whitespace-nowrap shrink-0 text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shadow-xs">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              <span>متوفر</span>
-            </span>
-          );
-
-          if (branchStock <= 0 && octoberStock > 0) {
-            statusBadge = (
-              <span className="px-2.5 py-1 rounded-full whitespace-nowrap shrink-0 text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1 shadow-xs">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                <span>محدود</span>
-              </span>
-            );
-          } else if (branchStock <= 0 && octoberStock <= 0) {
-            statusBadge = (
-              <span className="px-2.5 py-1 rounded-full whitespace-nowrap shrink-0 text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 flex items-center gap-1 shadow-xs">
-                <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-                <span>نفد جزئياً</span>
-              </span>
-            );
-          }
-
-          return (
-            <div
-              key={p.id}
-              className={`cat-card group tg-card tg-card--hover flex flex-col justify-between gap-3 p-3.5 select-none ${
-                promoInfo.hasPromo ? 'ring-1 ring-amber-400/70' : ''
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
-                  <span className="shrink-0">{statusBadge}</span>
-                  {isElectrical ? (
-                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap rounded-lg border border-[#BFDBFE] bg-[var(--app-primary-tint)] px-2 py-0.5 text-[10px] font-black text-[var(--app-primary-text)] dark:border-[#3B82F6]/40 dark:bg-[#1E3A8A]/25 dark:text-[#93C5FD]">
-                      ⚡ كهرباء
-                    </span>
-                  ) : (
-                    <span className="hidden sm:inline-flex shrink-0 whitespace-nowrap rounded-lg border border-[#99F6E4] bg-[#F0FDFA] px-2 py-0.5 text-[10px] font-black text-[#0F766E] dark:border-[#2DD4BF]/40 dark:bg-[#0D9488]/15 dark:text-[#5EEAD4]">
-                      🏠 منزلي
-                    </span>
-                  )}
-                  {promoInfo.hasPromo && (
-                    <span className="tg-special-discount-badge shrink-0">
-                      <Flame className="w-3 h-3" />
-                      خصم خاص -{promoInfo.discountPercentage}%
-                    </span>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => toggleFavorite(p.id)}
-                  aria-label="إضافة للمفضلة"
-                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border transition ${
-                    isFav
-                      ? 'border-rose-200 bg-rose-50 text-rose-600 dark:border-rose-900/60 dark:bg-rose-950/40'
-                      : 'border-slate-200 bg-white text-slate-400 hover:text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
-                  }`}
-                >
-                  <Heart className={`w-4 h-4 ${isFav ? 'fill-rose-600' : ''}`} />
-                </button>
-              </div>
-
-              <div
-                className="flex aspect-square w-full cursor-pointer items-center justify-center overflow-hidden rounded-[14px] bg-white transition-transform duration-200 group-hover:scale-[1.01]"
-                onClick={() => {
-                  const img = getProductImageUrl(p, cloudinaryConfig);
-                  if (img && !img.startsWith('data:image/svg+xml')) {
-                    setLightboxImage({ src: img, alt: p.name });
-                  }
-                }}
-              >
-                <ProductImage
-                  product={p}
-                  cloudinaryConfig={cloudinaryConfig}
-                  targetSize={280}
-                  sizeVariant="card"
-                  priority={idx < 4}
-                  containerClassName="w-full h-full flex items-center justify-center"
-                  className="max-h-full max-w-full object-contain"
-                />
-              </div>
-
-              <div className="space-y-1 text-center">
-                <div className="text-[10px] font-bold leading-tight text-slate-500 dark:text-slate-400">
-                  {stripPlaceholderText(p.department) || stripPlaceholderText(p.itemGroup) || 'عام'}
-                  {stripPlaceholderText(p.familyName) ? ` • ${stripPlaceholderText(p.familyName)}` : ''}
-                </div>
-                <h3
-                  onClick={() => setSelectedProductForModal(p)}
-                  className="min-h-[38px] cursor-pointer text-sm font-black leading-snug text-slate-900 transition hover:text-[#2563eb] dark:text-white"
-                  title={displayName}
-                >
-                  {displayName || `صنف ${p.code}`}
-                </h3>
-                <div className="flex flex-wrap items-center justify-center gap-1.5 text-xs font-bold text-slate-500 dark:text-slate-400">
-                  {promoInfo.hasPromo && displayPromo > 0 ? (
-                    <div className="flex flex-wrap items-center justify-center gap-1.5">
-                      {displayOrig > displayPromo && (
-                        <span className="text-[11px] font-bold line-through text-slate-400">
-                          {formatCurrency(displayOrig)}
-                        </span>
-                      )}
-                      <span className="text-sm font-black text-[#047857] dark:text-emerald-400">
-                        {formatCurrency(displayPromo)}
-                        <span className="ml-1 text-[11px] font-normal text-slate-500 dark:text-slate-400">/ {priceInfo.unitLabel}</span>
-                      </span>
-                    </div>
-                  ) : priceInfo.displayPrice > 0 ? (
-                    <span className="text-sm font-black text-slate-900 dark:text-white">
-                      {formatCurrency(priceInfo.displayPrice)}
-                      <span className="ml-1 text-[11px] font-normal text-slate-500 dark:text-slate-400">/ {priceInfo.unitLabel}</span>
-                    </span>
-                  ) : (
-                    '—'
-                  )}
-                  {priceInfo.factor > 1 ? (
-                    <span className="rounded-md border border-[#bfdbfe] bg-[var(--app-primary-tint)] px-2 py-0.5 text-[10px] font-black text-[var(--app-primary-text)]">
-                      {priceInfo.factor} ق/ك
-                    </span>
-                  ) : null}
-                  {stripPlaceholderText(p.size) && (
-                    <span className="text-[10px] text-slate-400">({stripPlaceholderText(p.size)})</span>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-center">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
-                  <span className="mb-0.5 block text-[10px] font-bold text-slate-400">الكود الموحد</span>
-                  <span className="tg-num block truncate font-mono text-xs font-black text-[var(--app-primary-text)]" title={p.unifiedCode}>
-                    {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
-                  </span>
-                </div>
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
-                  <span className="mb-0.5 block text-[10px] font-bold text-slate-400">كود العميل</span>
-                  <span className="tg-num block truncate font-mono text-xs font-black text-slate-900" title={p.code}>
-                    {p.code || '—'}
-                  </span>
-                </div>
-              </div>
-
-              {showAllWarehouses ? (
-                <div className="space-y-1 rounded-2xl border border-slate-200 bg-slate-50 p-2.5 dark:border-slate-700 dark:bg-slate-800/60">
-                  <div className="mb-1 flex items-center justify-between text-[10px] font-black text-slate-500 dark:text-slate-400">
-                    <span>🏢 أرصدة المخازن</span>
-                  </div>
-                  <div className="grid grid-cols-4 gap-1.5 text-center">
-                    {COMPANY_WAREHOUSES.map((wh) => {
-                      const stock = getWarehouseStock(p, wh.key);
-                      return (
-                        <div
-                          key={wh.key}
-                          className={`rounded-xl border p-1 text-[10px] ${
-                            stock > 0
-                              ? 'border-[#0B1220] bg-[#0B1220] text-white font-bold dark:border-slate-600 dark:bg-[#0B1220] dark:text-white'
-                              : 'border-slate-200 bg-white text-slate-400 dark:border-slate-700 dark:bg-slate-800'
-                          }`}
-                        >
-                          <div className="truncate text-[9px]">{wh.shortLabel}</div>
-                          <div className="font-mono text-xs font-black">{stock}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2 text-center">
-                  <div className="tg-pill tg-pill--blue justify-center">
-                    <Calendar className="h-3.5 w-3.5" />
-                    <div className="text-right leading-tight">
-                      <span className="tg-pill__label">مخزون أكتوبر</span>
-                      <span className="tg-pill__value tg-num">{octoberStock}</span>
-                    </div>
-                  </div>
-                  <div className="tg-pill tg-pill--green justify-center">
-                    <Store className="h-3.5 w-3.5" />
-                    <div className="text-right leading-tight">
-                      <span className="tg-pill__label">مخزون الفرع</span>
-                      <span className="tg-pill__value tg-num">{branchStock}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <div className="space-y-2 border-t border-slate-100 pt-2 dark:border-slate-800">
-                <div className="flex items-stretch gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleAddToCart(p)}
-                    className="tg-btn tg-btn--blue min-h-[46px] flex-1 px-3 py-2.5 text-xs active:scale-[0.98]"
-                  >
-                    <ShoppingCart className="h-4 w-4" />
-                    <span>إضافة للفاتورة</span>
-                  </button>
-
-                  <div className="tg-num flex min-h-[46px] w-[110px] shrink-0 items-center justify-between overflow-hidden rounded-xl border border-slate-200 bg-white">
-                    <button
-                      type="button"
-                      onClick={() => handleQtyChange(p.id, 1)}
-                      className="flex h-full w-10 items-center justify-center text-sm font-bold text-slate-700 transition hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
-                      aria-label="زيادة الكمية"
-                    >
-                      +
-                    </button>
-                    <span className="flex-1 text-center text-xs font-black text-slate-900 dark:text-white font-mono">
-                      {currentQty}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleQtyChange(p.id, -1)}
-                      className="flex h-full w-10 items-center justify-center text-sm font-bold text-slate-700 transition hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700"
-                      aria-label="تقليل الكمية"
-                    >
-                      -
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        {paginatedProducts.map((p) => (
+          <ProductCard
+            key={p.id}
+            product={p}
+            cloudinaryConfig={cloudinaryConfig}
+            promotions={promotions}
+            isFav={Boolean(favorites[p.id])}
+            onToggleFavorite={toggleFavorite}
+            currentQty={cardQuantities[p.id] || 1}
+            onQtyChange={handleQtyChange}
+            onAddToCart={handleAddToCart}
+            onSelectProduct={handleSelectProduct}
+            currentActiveBranch={currentActiveBranch}
+            showAllWarehouses={showAllWarehouses}
+            setShowAllWarehouses={setShowAllWarehouses}
+          />
+        ))}
 
         {filteredProducts.length === 0 && (
           <div className="col-span-full py-16 text-center text-light font-bold bg-white rounded-3xl border border-slate-100 p-8 space-y-3">

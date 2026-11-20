@@ -1,43 +1,10 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import {
-  ShoppingCart,
-  Users,
-  Receipt,
-  Wallet,
-  CalendarCheck,
-  Package,
-  Layers,
-  RotateCcw,
-  Plus,
-  Sparkles,
-  Search,
-  Bell,
-  Clock,
-  MapPin,
-  CheckCircle2,
-  TrendingUp,
-  FileSpreadsheet,
-  Download,
-  Smartphone,
-  ArrowUpRight,
-  ShieldCheck,
-  ChevronLeft,
-  ChevronDown,
-  LayoutGrid,
-  BarChart3,
-  Wifi,
-  WifiOff,
-  Store,
-  DollarSign,
-  Tag,
-  ClipboardList,
-  Check,
-  ArrowLeft,
-  ArrowRight,
-  Camera,
-  Trophy,
-  Flame,
-  Percent,
+  ShoppingCart, Users, Receipt, Wallet, CalendarCheck, Package, Layers,
+  RotateCcw, Plus, Sparkles, Search, Bell, MapPin, CheckCircle2, TrendingUp,
+  FileSpreadsheet, Download, Smartphone, ArrowUpRight, ShieldCheck,
+  ChevronLeft, ChevronDown, LayoutGrid, BarChart3, Wifi, WifiOff, Store,
+  DollarSign, Tag, ClipboardList, ArrowLeft, ArrowRight, Camera, Trophy, Flame, Percent,
   Target
 } from 'lucide-react';
 import type { LucideProps } from 'lucide-react';
@@ -47,6 +14,8 @@ import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../servic
 import { Customer, CustomerVisit, Invoice, TargetRecord } from '../types';
 import { IconBadge } from './ui/IconBadge';
 import { UserProfileAvatarModal } from './UserProfileAvatarModal';
+import { LiveClock } from './LiveClock';
+import { KPICard } from './KPICard';
 
 interface DashboardHomeProps {
   onNavigateToTab: (tab: string) => void;
@@ -95,13 +64,6 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
   const [selectedTargetMonth, setSelectedTargetMonth] = useState<number>(11); // 11: نوفمبر, 10: أكتوبر
-
-  // Live Real-Time Clock
-  const [currentTime, setCurrentTime] = useState<Date>(new Date());
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Filter mode for Today vs All
   const [metricPeriod, setMetricPeriod] = useState<'today' | 'all'>('today');
@@ -164,14 +126,6 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   const totalCustomerDebt = useMemo(() => {
     return visibleCustomers.reduce((sum, c) => sum + (Number(c.balance) || Number((c as any).currentDebt) || 0), 0);
   }, [visibleCustomers]);
-
-  // Formatted Time Parts
-  const timeString = currentTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-  const dateDayNum = currentTime.getDate();
-  const dateDayNameAr = currentTime.toLocaleDateString('ar-EG', { weekday: 'long' });
-  const dateMonthNameAr = currentTime.toLocaleDateString('ar-EG', { month: 'long', year: 'numeric' });
-  const dateDayNameEn = currentTime.toLocaleDateString('en-US', { weekday: 'short' });
-  const dateMonthNameEn = currentTime.toLocaleDateString('en-US', { month: 'short' });
 
   // Handle Create Order Action
   const handleStartOrder = () => {
@@ -658,16 +612,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
             </div>
           </div>
 
-          <div className="shrink-0 rounded-2xl border border-slate-200 dark:border-[#26364D] bg-slate-50 dark:bg-[#17243A] px-3.5 py-2.5">
-            <div className="text-[10px] font-bold text-slate-500 dark:text-[#94A3B8]">التوقيت والتاريخ</div>
-            <div className="flex items-center gap-1.5 text-base sm:text-lg font-black font-mono tracking-tight text-[var(--app-text)] dark:text-white">
-              <Clock className="w-4 h-4 text-[#2563EB]" aria-hidden="true" />
-              <span>{timeString}</span>
-            </div>
-            <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">
-              {dateDayNameAr}، {dateDayNum} {dateMonthNameAr}
-            </div>
-          </div>
+          <LiveClock />
         </div>
       </div>
 
@@ -709,80 +654,47 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {/* Sales */}
-          <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-[var(--app-text)] dark:text-[#F1F5F9]">إجمالي المبيعات</span>
-              <IconBadge icon={DollarSign} variant="primary" size="md" />
-            </div>
-            <div className="space-y-1 my-2">
-              <div className="text-lg sm:text-2xl font-black font-mono tracking-tight text-[var(--app-text)] dark:text-white whitespace-nowrap">
-                <span className="sm:hidden">{formatCompactCurrency(salesMetricValue)}</span>
-                <span className="hidden sm:inline">{formatCurrency(salesMetricValue)}</span>
-              </div>
-              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">جنيه مصري</div>
-            </div>
-            <div className="pt-2 border-t border-slate-100 dark:border-[#26364D] text-[10px] font-bold text-[#0D9488] dark:text-[#2DD4BF]">
-              {todayInvoices.length} طلبات اليوم
-            </div>
-          </div>
-
+          <KPICard
+            label="إجمالي المبيعات"
+            value={salesMetricValue}
+            subtitle="جنيه مصري"
+            variant="primary"
+            icon={DollarSign}
+            iconBadgeVariant="primary"
+            smallLabel={`${todayInvoices.length} طلبات اليوم`}
+          />
           {/* Orders */}
-          <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-[var(--app-text)] dark:text-[#F1F5F9]">عدد الطلبات</span>
-              <IconBadge icon={Package} variant="warning" size="md" />
-            </div>
-            <div className="space-y-1 my-2">
-              <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-[#F59E0B]">
-                {metricPeriod === 'today' ? todayInvoices.length : visibleInvoices.length}
-              </div>
-              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">فاتورة مسجلة</div>
-            </div>
-            <div className="pt-2 border-t border-slate-100 dark:border-[#26364D] text-[10px] font-bold text-slate-500 dark:text-[#94A3B8]">
-              {visibleCustomers.length} عميل
-            </div>
-          </div>
-
+          <KPICard
+            label="عدد الطلبات"
+            value={metricPeriod === 'today' ? todayInvoices.length : visibleInvoices.length}
+            subtitle="فاتورة مسجلة"
+            variant="warning"
+            icon={Package}
+            iconBadgeVariant="warning"
+            smallLabel={`${visibleCustomers.length} عميل`}
+          />
           {/* Collections */}
-          <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-[var(--app-text)] dark:text-[#F1F5F9]">التحصيلات</span>
-              <IconBadge icon={Wallet} variant="success" size="md" />
-            </div>
-            <div className="space-y-1 my-2">
-              <div className="text-lg sm:text-xl font-black font-mono tracking-tight text-[#16A34A] dark:text-[#4ADE80] whitespace-nowrap">
-                <span className="sm:hidden">{formatCompactCurrency(collectionsMetricValue)}</span>
-                <span className="hidden sm:inline">{formatCurrency(collectionsMetricValue)}</span>
-              </div>
-              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">المحصل فعلياً</div>
-            </div>
-            <div className="pt-2 border-t border-slate-100 dark:border-[#26364D] text-[10px] font-bold text-[#16A34A] dark:text-[#4ADE80] flex items-center gap-1">
-              <Check className="w-3 h-3 stroke-[2.5]" aria-hidden="true" />
-              <span>نقدي ومسجل</span>
-            </div>
-          </div>
-
+          <KPICard
+            label="التحصيلات"
+            value={collectionsMetricValue}
+            subtitle="المحصل فعلياً"
+            variant="success"
+            icon={Wallet}
+            iconBadgeVariant="success"
+            smallLabel="نقدي ومسجل"
+          />
           {/* Visits */}
-          <div className="bg-white dark:bg-[#111C2E] border border-slate-200 dark:border-[#26364D] rounded-2xl p-4 flex flex-col justify-between shadow-xs">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-[var(--app-text)] dark:text-[#F1F5F9]">الزيارات</span>
-              <IconBadge icon={MapPin} variant="violet" size="md" />
-            </div>
-            <div className="space-y-1 my-2">
-              <div className="text-2xl sm:text-3xl font-black font-mono tracking-tight text-[#7C3AED] dark:text-[#A78BFA]">
-                {metricPeriod === 'today' ? todayVisits.length : visits.length}
-              </div>
-              <div className="text-[10px] text-slate-500 dark:text-[#94A3B8] font-bold">زيارة مسجلة</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => onNavigateToTab('visits')}
-              className="pt-2 border-t border-slate-100 dark:border-[#26364D] text-[10px] font-bold text-[#7C3AED] dark:text-[#A78BFA] flex items-center justify-between cursor-pointer hover:underline"
-            >
-              <span>فتح الزيارات</span>
-              <ChevronLeft className="w-3 h-3" aria-hidden="true" />
-            </button>
-          </div>
+          <KPICard
+            label="الزيارات"
+            value={metricPeriod === 'today' ? todayVisits.length : visits.length}
+            subtitle="زيارة مسجلة"
+            variant="violet"
+            icon={MapPin}
+            iconBadgeVariant="violet"
+            smallLabel="فتح الزيارات"
+            smallOnClickLabel="فتح الزيارات"
+            onClick={() => onNavigateToTab('visits')}
+          />
         </div>
       </div>
 
