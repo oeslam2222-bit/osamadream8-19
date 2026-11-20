@@ -233,7 +233,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         if (parsed.onlyInStock !== undefined) setOnlyInStock(parsed.onlyInStock);
         if (parsed.sortBy !== undefined) setSortBy(parsed.sortBy);
         if (parsed.activeSectorFilter !== undefined) {
-          setActiveSectorFilter(parsed.activeSectorFilter === 'all' ? defaultSector : parsed.activeSectorFilter);
+          setActiveSectorFilter(
+            parsed.activeSectorFilter === 'all' && !canManageSectorGate
+              ? defaultSector
+              : parsed.activeSectorFilter
+          );
         }
         if (parsed.minPrice !== undefined) setMinPrice(parsed.minPrice);
         if (parsed.maxPrice !== undefined) setMaxPrice(parsed.maxPrice);
@@ -305,16 +309,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       : currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
   }, [currentUser, selectedBranchFilter]);
 
-  // القطاع الأساسي للبرنامج اتنين بس: منزلي / كهرباء.
-  // أي فلتر قديم متسجل «كل القطاعات» بيتحوّل لقطاع المستخدم الأساسي.
   const defaultSector: 'home' | 'electrical' =
     currentUser?.sector === 'electrical' ? 'electrical' : 'home';
-
-  useEffect(() => {
-    if (canManageSectorGate && activeSectorFilter === 'all') {
-      setActiveSectorFilter(defaultSector);
-    }
-  }, [canManageSectorGate, activeSectorFilter, defaultSector, setActiveSectorFilter]);
 
   // كاش رصيد الفرع: حساب رصيد الصنف (مطابقة عربية) كان بيتكرر 3–4 مرات
   // لكل صنف في الفلترة والترتيب والمؤشرات وتصدير الـ PDF — ده كان تقل الصفحة.
@@ -424,11 +420,43 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     return result;
   }, []);
 
+  // Precomputed promo lookup per visible product
+  const promoByProductId = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof resolveProductPromotion>>();
+    getVisibleProducts().forEach((p) => {
+      const key = p.id || p.code || p.name;
+      map.set(key, resolveProductPromotion(p, promotions));
+    });
+    return map;
+  }, [getVisibleProducts, promotions]);
+
+  // Sector-scoped product families summary (توزيع الأصناف بالعائلة)
+  const familyBreakdown = useMemo(() => {
+    const counts = new Map<string, { name: string; count: number; stock: number }>();
+    getVisibleProducts().forEach((p) => {
+      if (effectiveSectorFilter === 'none') return;
+      if (effectiveSectorFilter !== 'all') {
+        const isElec = isProductElectrical(p);
+        if (effectiveSectorFilter === 'electrical' && !isElec) return;
+        if (effectiveSectorFilter === 'home' && isElec && p.sector !== 'both' && p.sector !== 'all') return;
+      }
+      const rawBrand = p.familyName || p.classification || '';
+      const fam = stripPlaceholderText(rawBrand).trim();
+      if (!fam || fam === 'عام' || fam === 'فئة A' || fam.toLowerCase().includes('blank')) return;
+      const cur = counts.get(fam) || { name: fam, count: 0, stock: 0 };
+      cur.count += 1;
+      cur.stock += Math.max(0, getProductBranchStock(p)) + Math.max(0, p.mainWarehouseActual || 0);
+      counts.set(fam, cur);
+    });
+    return Array.from(counts.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 12);
+  }, [getVisibleProducts, effectiveSectorFilter, isProductElectrical, getProductBranchStock]);
+
   // Filtered Products
   const filteredProducts = useMemo(() => {
     let result = getVisibleProducts().filter((p) => {
-      // 1. Sector filter — القطاع الفعلي بعد قواعد الأدوار (admin بيبقى اختياره،
-      //    باقي الأدوار محصورة بقطاع حسابها، و'none' = محجوب عن القطاعين).
+      // 1. Sector filter — القطاع الفعلي بعد قواعد الأدوار
       if (effectiveSectorFilter === 'none') return false;
       if (effectiveSectorFilter !== 'all') {
         const isElec = isProductElectrical(p);
@@ -484,7 +512,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       }
 
       // 8. Promotions filter (خصم خاص)
-      if (onlyPromos && !resolveProductPromotion(p, promotions).hasPromo) {
+      if (onlyPromos && !promoByProductId.get(p.id || p.code || p.name)?.hasPromo) {
         return false;
       }
 
@@ -507,8 +535,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     return result;
   }, [
     getVisibleProducts,
-    promotions,
-    currentUser,
+    promoByProductId,
     effectiveSectorFilter,
     onlyInStock,
     onlyPromos,
@@ -583,14 +610,44 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     return [...priorityMatches, ...secondaryMatches].slice(0, 8);
   }, [searchTerm, getVisibleProducts, searchIndex]);
 
+  const isAllBranchesView = useMemo(() => {
+    const isAdminLevel =
+      currentUser?.role === 'admin' ||
+      currentUser?.role === 'developer' ||
+      currentUser?.role === 'technical_support';
+    return isAdminLevel && selectedBranchFilter === 'الكل';
+  }, [currentUser?.role, selectedBranchFilter]);
+
   // Focused Inventory Stock Metrics
   const stats = useMemo(() => {
     let branchCartons = 0;
     let octoberCartons = 0;
     let availableItemsCount = 0;
 
+    const getRegionalBranchesStock = (p: Product): number => {
+      if (p.branchStocks && typeof p.branchStocks === 'object') {
+        const entries = Object.entries(p.branchStocks);
+        if (entries.length > 0) {
+          let sum = 0;
+          for (const [k, val] of entries) {
+            if (typeof val !== 'number' || Number.isNaN(val)) continue;
+            if (k.includes('أكتوبر') || k.includes('اكتوبر') || k.includes('الرئيسي')) continue;
+            sum += Math.max(0, val);
+          }
+          return sum;
+        }
+      }
+      if (
+        p.branchName &&
+        (p.branchName.includes('أكتوبر') || p.branchName.includes('اكتوبر') || p.branchName.includes('الرئيسي'))
+      ) {
+        return 0;
+      }
+      return Math.max(0, p.branchStockActual || 0);
+    };
+
     filteredProducts.forEach((p) => {
-      const bStock = getProductBranchStock(p);
+      const bStock = isAllBranchesView ? getRegionalBranchesStock(p) : getProductBranchStock(p);
       const oStock = p.mainWarehouseActual || 0;
       if (bStock > 0 || oStock > 0) {
         availableItemsCount += 1;
@@ -604,7 +661,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       octoberCartons,
       availableItemsCount,
     };
-  }, [filteredProducts, getProductBranchStock]);
+  }, [filteredProducts, getProductBranchStock, isAllBranchesView]);
 
   // عدّادات تشغيلية للكروت العلوية: مرتجعات تحتاج مراجعة + عمليات التحصيل
   const opsStats = useMemo(() => {
@@ -756,7 +813,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setOnlyInStock(true);
     setOnlyPromos(false);
     setSortBy('default');
-    setActiveSectorFilter(defaultSector);
+    setActiveSectorFilter(canManageSectorGate ? 'all' : defaultSector);
     saveCatalogFilters();
   };
 
@@ -945,18 +1002,25 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
       {/* 2. Focused Inventory Stock KPI Cards (3 Cards) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 sm:gap-3.5">
-        {/* مخزون فرع المندوب */}
+        {/* مخزون فرع المندوب / إجمالي الفروع */}
         <div className="tg-kpi tg-kpi--blue min-w-0">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
             <div className="tg-kpi__icon">
               <Store className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="tg-kpi__label">مخزون فرع المندوب</p>
-              <p className="tg-kpi__value whitespace-nowrap truncate">
-                {stats.branchCartons.toLocaleString('en-US')} <span className="text-xs font-bold text-slate-500">كرتونة</span>
+              <p className="tg-kpi__label">
+                {isAllBranchesView ? 'إجمالي مخزون الفروع' : 'مخزون فرع المندوب'}
               </p>
-              <p className="tg-kpi__hint">رصيد متاح بالفرع ({currentActiveBranch})</p>
+              <p className="tg-kpi__value whitespace-nowrap truncate">
+                {stats.branchCartons.toLocaleString('en-US')}{' '}
+                <span className="text-xs font-bold text-white/90">كرتونة</span>
+              </p>
+              <p className="tg-kpi__hint">
+                {isAllBranchesView
+                  ? 'مجموع أرصدة الـ 7 فروع (بدون أكتوبر)'
+                  : `رصيد متاح بالفرع (${currentActiveBranch})`}
+              </p>
             </div>
           </div>
           <button
@@ -964,7 +1028,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             onClick={() => setSortBy('branch_stock_desc')}
             title="ترتيب حسب مخزون الفرع"
             aria-label="ترتيب حسب مخزون الفرع"
-            className="w-8 h-8 rounded-full bg-[#0B1220]/10 text-[#0B1220] hover:bg-[#0B1220]/20 dark:bg-white/10 dark:text-slate-100 dark:hover:bg-white/20 flex items-center justify-center shrink-0 transition cursor-pointer"
+            className="w-8 h-8 rounded-full bg-white/15 text-white border border-white/25 hover:bg-white/25 flex items-center justify-center shrink-0 transition cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -979,7 +1043,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <div className="min-w-0 flex-1">
               <p className="tg-kpi__label">المخزن الرئيسي (أكتوبر)</p>
               <p className="tg-kpi__value whitespace-nowrap truncate">
-                {stats.octoberCartons.toLocaleString('en-US')} <span className="text-xs font-bold text-slate-500 dark:text-slate-300">كرتونة</span>
+                {stats.octoberCartons.toLocaleString('en-US')}{' '}
+                <span className="text-xs font-bold text-white/90">كرتونة</span>
               </p>
               <p className="tg-kpi__hint">رصيد مركزي متاح للسحب</p>
             </div>
@@ -989,7 +1054,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             onClick={() => setSortBy('october_stock_desc')}
             title="ترتيب حسب مخزون أكتوبر"
             aria-label="ترتيب حسب مخزون أكتوبر"
-            className="w-8 h-8 rounded-full bg-[#0B1220]/10 text-[#0B1220] hover:bg-[#0B1220]/20 dark:bg-white/10 dark:text-slate-100 dark:hover:bg-white/20 flex items-center justify-center shrink-0 transition cursor-pointer"
+            className="w-8 h-8 rounded-full bg-white/15 text-white border border-white/25 hover:bg-white/25 flex items-center justify-center shrink-0 transition cursor-pointer"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
@@ -1004,7 +1069,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <div className="min-w-0 flex-1">
               <p className="tg-kpi__label">الأصناف المتوفرة للطلب</p>
               <p className="tg-kpi__value whitespace-nowrap truncate">
-                {stats.availableItemsCount.toLocaleString('en-US')} <span className="text-xs font-bold text-slate-500">صنف متاح</span>
+                {stats.availableItemsCount.toLocaleString('en-US')}{' '}
+                <span className="text-xs font-bold text-white/90">صنف متاح</span>
               </p>
               <p className="tg-kpi__hint">بمخزون &gt; 0 في الفرع أو أكتوبر</p>
             </div>
@@ -1018,6 +1084,20 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           {/* القطاعات — تبديل القطاع ميزة إدارة عليا فقط (admin/developer) */}
           {canManageSectorGate && (
           <div className="catalog-sectors flex flex-wrap items-center gap-1 p-1.5 bg-slate-50 rounded-[20px] border border-slate-200 shadow-sm">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSectorFilter('all');
+                saveCatalogFilters();
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                activeSectorFilter === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              🌐 الكل
+            </button>
             <button
               type="button"
               onClick={() => {
@@ -1270,6 +1350,15 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
               <button
                 type="button"
+                onClick={() => setActiveSectorFilter('all')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                  activeSectorFilter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'text-muted hover:text-primary'
+                }`}
+              >
+                🌐 الكل
+              </button>
+              <button
+                type="button"
                 onClick={() => setActiveSectorFilter('home')}
                 className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
                   activeSectorFilter === 'home' ? 'bg-blue-600 text-white shadow-xs' : 'text-muted hover:text-primary'
@@ -1405,9 +1494,54 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         </div>
       </div>
 
-      {/* ERP Table View (Desktop/Laptop) — يظهر فقط عند اختيار وضع "جدول" */}
-      <div className={`catalog-erp-wrap ${catalogView === 'table' ? 'block' : 'hidden'} w-full overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs bg-white dark:bg-[#0f172a] animate-in fade-in`}>
-        <table className="catalog-erp-table w-full min-w-[1100px] text-right border-collapse text-xs">
+      {/* Family Breakdown Summary Strip — توزيع الأصناف بالعائلة */}
+      {familyBreakdown.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-3.5 space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-black text-slate-900">
+              <Layers className="w-4 h-4 text-blue-600" />
+              <span>توزيع الأصناف بالعائلة</span>
+              <span className="text-[11px] font-bold text-slate-500">({brandsList.length} عائلة مسجلة)</span>
+            </div>
+            {selectedBrand !== 'الكل' && (
+              <button
+                type="button"
+                onClick={() => setSelectedBrand('الكل')}
+                className="text-[11px] font-black text-blue-600 hover:underline cursor-pointer"
+              >
+                عرض كل العائلات
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            {familyBreakdown.map((fam) => {
+              const active = selectedBrand === fam.name;
+              return (
+                <button
+                  key={fam.name}
+                  type="button"
+                  onClick={() => setSelectedBrand(active ? 'الكل' : fam.name)}
+                  className={`shrink-0 rounded-xl border px-3 py-2 text-right transition cursor-pointer ${
+                    active
+                      ? 'bg-[#0f2b38] text-white border-[#0f2b38] shadow-sm'
+                      : 'bg-slate-50 hover:bg-blue-50/70 text-slate-800 border-slate-200'
+                  }`}
+                >
+                  <div className="text-xs font-black truncate max-w-[140px]">{fam.name}</div>
+                  <div className={`text-[10px] font-bold mt-0.5 tabular-nums ${active ? 'text-blue-200' : 'text-slate-500'}`}>
+                    {fam.count} صنف · {fam.stock.toLocaleString('en-US')} ك
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 4. Conditional View: ERP Table OR Product Cards Grid (never both in DOM) */}
+      {catalogView === 'table' ? (
+      <div className="catalog-erp-wrap w-full overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs bg-white dark:bg-[#0f172a] animate-in fade-in">
+        <table className="catalog-erp-table w-full min-w-[1250px] text-right border-collapse text-xs">
           <thead className="bg-[var(--tg-card-2)] text-[var(--app-text)] font-black border-b border-[var(--tg-line-strong)] select-none sticky top-0 z-10">
             <tr>
               <th className="p-3 text-center font-black w-12">#</th>
@@ -1415,6 +1549,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               <th className="p-3 text-right font-black w-28">كود المنتج</th>
               <th className="p-3 text-right font-black w-24">الكود الموحد</th>
               <th className="p-3 text-right font-black min-w-[200px]">اسم المنتج</th>
+              <th className="p-3 text-right font-black w-32">الصنف بالعائلة</th>
+              <th className="p-3 text-right font-black w-32">المجموعة</th>
               <th className="p-3 text-center font-black w-24">القطاع</th>
               <th className="p-3 text-right font-black w-24">سعر القطعة</th>
               <th className="p-3 text-right font-black w-24">سعر الكرتونة</th>
@@ -1451,8 +1587,10 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 cartonPrice: p.cartonPrice,
                 factor: p.cartonQuantity ?? p.factor,
               });
-              const promoInfo = resolveProductPromotion(p, promotions);
+              const promoInfo = promoByProductId.get(p.id || p.code || p.name) || resolveProductPromotion(p, promotions);
               const displayName = stripPlaceholderText(p.name);
+              const familyLabel = stripPlaceholderText(p.familyName || p.classification || '').trim() || '—';
+              const groupLabel = stripPlaceholderText(p.itemGroup || p.department || p.category || '').trim() || '—';
               const globalIdx = (currentPage - 1) * itemsPerPage + rowIdx + 1;
               const isOutOfStock = branchStock <= 0 && octoberStock <= 0;
 
@@ -1500,6 +1638,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                         خصم خاص -{promoInfo.discountPercentage}%
                       </span>
                     )}
+                  </td>
+                  <td className="p-3 text-right text-xs font-bold text-slate-700 dark:text-slate-300 max-w-[140px] truncate" title={familyLabel}>
+                    {familyLabel}
+                  </td>
+                  <td className="p-3 text-right text-xs font-bold text-slate-600 dark:text-slate-400 max-w-[140px] truncate" title={groupLabel}>
+                    {groupLabel}
                   </td>
                   <td className="p-3 text-center">
                     <span className={`inline-block px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold shrink-0 ${
@@ -1629,7 +1773,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             })}
             {paginatedProducts.length === 0 && (
               <tr>
-                <td colSpan={showAllWarehouses ? COMPANY_WAREHOUSES.length + 11 : 13} className="p-8 text-center text-slate-500 font-bold">
+                <td colSpan={showAllWarehouses ? COMPANY_WAREHOUSES.length + 13 : 15} className="p-8 text-center text-slate-500 font-bold">
                   <Package className="w-8 h-8 mx-auto text-slate-400 mb-2" />
                   <p className="text-slate-600 dark:text-slate-400">لم يتم العثور على أصناف مطابقة للبحث أو الفلاتر المحددة</p>
                 </td>
@@ -1638,9 +1782,8 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           </tbody>
         </table>
       </div>
-
-      {/* 4b. Product Cards Grid — شبكة الكروت (زي المرجع): 4 أعمدة على الويب */}
-      <div className={`${catalogView === 'cards' ? 'grid' : 'hidden'} cat-grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:gap-4`}>
+      ) : (
+      <div className="grid cat-grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:gap-4">
         {paginatedProducts.map((p) => (
           <ProductCard
             key={p.id}
@@ -1675,9 +1818,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <button
               type="button"
               onClick={() => {
-                // الفلاتر محفوظة على الجهاز — فلتر قطاع/مخزون قديم كان بيخلي
-                // الصفحة تفضل فاضية بعد رفع الشيت من غير ما حد يفهم السبب.
-                setActiveSectorFilter(defaultSector);
+                setActiveSectorFilter(canManageSectorGate ? 'all' : defaultSector);
                 setSelectedDept('الكل');
                 setSelectedBrand('الكل');
                 setSelectedStatus('الكل');
@@ -1694,6 +1835,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           </div>
         )}
       </div>
+      )}
 
       {/* 5. Pagination Bar */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5 flex flex-col md:flex-row items-center justify-between gap-3 select-none">

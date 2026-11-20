@@ -1,13 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import {
-  ShoppingCart, Wallet, PackageSearch, MapPin, RotateCcw, TrendingUp,
+  ShoppingCart, Wallet, PackageSearch, MapPin, TrendingUp,
   Users, Target, CalendarCheck, ReceiptText,
   Activity, Boxes, Flame,
-  Sparkles, CreditCard, AlertTriangle, Coins, ArrowLeft, Tag,
+  Sparkles, CreditCard, Coins, ArrowLeft, Tag, Home, Zap,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { filterPromotionsForUser } from '../services/promotionService';
-import type { Invoice } from '../types';
+import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from '../services/customerDues';
+import { inferCustomerSector } from '../data/branchDefinitions';
+import { inferTargetSector } from '../services/targetService';
+import { applyCustomerSectorHeuristic, isElectricalLabel } from '../services/sectorResolver';
+import { isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
+import type { Customer, CustomerVisit, Invoice } from '../types';
 
 interface DreamDeliveryDashboardProps {
   onNavigate?: (tab: string) => void;
@@ -34,11 +39,39 @@ function invoiceValue(invoice: Invoice): number {
   return Number(invoice.totalAmount ?? invoice.estimatedGrandTotal ?? 0) || 0;
 }
 
+interface SectorDashboardStats {
+  sector: 'home' | 'electrical';
+  title: string;
+  badgeText: string;
+  customersCount: number;
+  monthSales: number;
+  monthSalesTarget: number;
+  salesPercent: number;
+  salesRemaining: number;
+  monthCollection: number;
+  monthCollectionTarget: number;
+  collectionPercent: number;
+  collectionRemaining: number;
+  totalDebt: number;
+  totalDues: number;
+  ordersTodayCount: number;
+  totalSalesToday: number;
+  visitsTodayCount: number;
+  totalCollectedToday: number;
+  periodInvoicesCount: number;
+  returnsCount: number;
+  monthlySeries: { key: string; label: string; sales: number; collection: number }[];
+  maxSeries: number;
+}
+
 export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ onNavigate }) => {
   const {
     currentUser,
+    users,
+    selectedBranchFilter,
     invoices,
     customers,
+    visits,
     visibleVisits,
     targets,
     promotions,
@@ -48,90 +81,259 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
     getVisibleTargets,
   } = useApp();
 
-  const visibleInvoices = useMemo(() => getVisibleInvoices(), [invoices, currentUser?.id, currentUser?.role, currentUser?.branchName]);
-  const visibleCustomers = useMemo(() => getVisibleCustomers(), [customers, currentUser?.id, currentUser?.role, currentUser?.branchName]);
-  const visibleTargetRows = useMemo(() => getVisibleTargets(), [targets, currentUser?.id, currentUser?.role, currentUser?.branchName]);
+  const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+
+  // Admin / Developer always see both sectors separately on Home (filtered only by selected branch),
+  // whereas role-restricted users stay strictly isolated to their RBAC scope.
+  const scopedCustomers = useMemo(() => {
+    if (!isAdminOrDev) return getVisibleCustomers();
+    return selectedBranchFilter === 'الكل'
+      ? customers
+      : customers.filter((c) => Boolean(c.branchName) && isBranchMatch(c.branchName, selectedBranchFilter, { allowUnassigned: false }));
+  }, [isAdminOrDev, getVisibleCustomers, customers, selectedBranchFilter]);
+
+  const scopedTargets = useMemo(() => {
+    if (!isAdminOrDev) return getVisibleTargets();
+    return selectedBranchFilter === 'الكل'
+      ? targets
+      : targets.filter((t) => Boolean(t.branch) && isBranchMatch(t.branch, selectedBranchFilter, { allowUnassigned: false }));
+  }, [isAdminOrDev, getVisibleTargets, targets, selectedBranchFilter]);
+
+  const scopedInvoices = useMemo(() => {
+    if (!isAdminOrDev) return getVisibleInvoices();
+    const active = invoices.filter((i) => !i.isArchived);
+    return selectedBranchFilter === 'الكل'
+      ? active
+      : active.filter((i) => Boolean(i.branchName) && isBranchMatch(i.branchName, selectedBranchFilter, { allowUnassigned: false }));
+  }, [isAdminOrDev, getVisibleInvoices, invoices, selectedBranchFilter]);
+
+  const scopedVisits = useMemo(() => {
+    if (!isAdminOrDev) return visibleVisits;
+    return selectedBranchFilter === 'الكل'
+      ? visits
+      : visits.filter((v) => isBranchMatch(v.branchName || '', selectedBranchFilter, { allowUnassigned: false }));
+  }, [isAdminOrDev, visibleVisits, visits, selectedBranchFilter]);
 
   const today = new Date();
   const todayKey = today.toISOString().slice(0, 10);
 
-  const latestPeriod = useMemo(() => {
-    let latest: { year: number; month: number; key: string } | null = null;
-    for (const row of visibleTargetRows) {
+  const { latestPeriod, latestPeriodBySector } = useMemo(() => {
+    const fallback = { year: today.getFullYear(), month: today.getMonth() + 1, key: todayKey.slice(0, 7) };
+    let globalLatest: { year: number; month: number; key: string } | null = null;
+    let homeLatest: { year: number; month: number; key: string } | null = null;
+    let elecLatest: { year: number; month: number; key: string } | null = null;
+
+    const pickLater = (
+      curr: { year: number; month: number; key: string } | null,
+      year: number,
+      month: number
+    ) => {
+      if (!curr || year > curr.year || (year === curr.year && month > curr.month)) {
+        return { year, month, key: monthKey(year, month) };
+      }
+      return curr;
+    };
+
+    for (const row of scopedTargets) {
       const year = Number(row.year);
       const month = Number(row.month);
       if (!year || !month) continue;
-      if (!latest || year > latest.year || (year === latest.year && month > latest.month)) {
-        latest = { year, month, key: monthKey(year, month) };
+      globalLatest = pickLater(globalLatest, year, month);
+      const sec = inferTargetSector(row, users, scopedCustomers);
+      if (sec === 'electrical') {
+        elecLatest = pickLater(elecLatest, year, month);
+      } else {
+        homeLatest = pickLater(homeLatest, year, month);
       }
     }
-    if (latest) return latest;
-    return { year: today.getFullYear(), month: today.getMonth() + 1, key: todayKey.slice(0, 7) };
-  }, [visibleTargetRows]);
+    const base = globalLatest || fallback;
+    return {
+      latestPeriod: base,
+      latestPeriodBySector: {
+        home: homeLatest || base,
+        electrical: elecLatest || base,
+      },
+    };
+  }, [scopedTargets, users, scopedCustomers, todayKey]);
 
-  const monthRows = useMemo(
-    () => visibleTargetRows.filter((r) => Number(r.year) === latestPeriod.year && Number(r.month) === latestPeriod.month),
-    [visibleTargetRows, latestPeriod.year, latestPeriod.month]
-  );
+  const { homeStats, electricalStats } = useMemo(() => {
+    const customerSectorByRef = new Map<string, 'home' | 'electrical'>();
+    const customersByNormName = new Map<string, 'home' | 'electrical' | 'mixed'>();
 
-  const monthSales = monthRows.reduce((sum, r) => sum + (Number(r.salesAchieved) || 0), 0);
-  const monthSalesTarget = monthRows.reduce((sum, r) => sum + (Number(r.salesTarget) || 0), 0);
-  const monthCollection = monthRows.reduce((sum, r) => sum + (Number(r.collectionAchieved) || 0), 0);
-  const monthCollectionTarget = monthRows.reduce((sum, r) => sum + (Number(r.collectionTarget) || 0), 0);
+    const resolveCustSector = (c: Customer): 'home' | 'electrical' => {
+      const resolved = applyCustomerSectorHeuristic(c) || inferCustomerSector(c, users);
+      return resolved === 'electrical' ? 'electrical' : 'home';
+    };
 
-  const salesPercent = monthSalesTarget > 0 ? Math.round((monthSales / monthSalesTarget) * 100) : 0;
-  const collectionPercent = monthCollectionTarget > 0 ? Math.round((monthCollection / monthCollectionTarget) * 100) : 0;
-  const salesRemaining = Math.max(0, monthSalesTarget - monthSales);
-  const collectionRemaining = Math.max(0, monthCollectionTarget - monthCollection);
+    const resolveInvSector = (inv: Invoice): 'home' | 'electrical' => {
+      if (inv.sector === 'electrical') return 'electrical';
+      if (inv.sector === 'home') return 'home';
+      const refSector =
+        (inv.customerId ? customerSectorByRef.get(inv.customerId) : undefined) ||
+        (inv.customerCode ? customerSectorByRef.get(inv.customerCode) : undefined);
+      if (refSector) return refSector;
+      const byName = customersByNormName.get(normalizeArabicText(inv.customerName || ''));
+      if (byName === 'home' || byName === 'electrical') return byName;
+      if (isElectricalLabel(inv.customerName, inv.repName)) return 'electrical';
+      return 'home';
+    };
 
-  const periodInvoices = useMemo(
-    () => visibleInvoices.filter((inv) => invoiceMonth(inv) === latestPeriod.key),
-    [visibleInvoices, latestPeriod.key]
-  );
+    const resolveVisitSector = (v: CustomerVisit): 'home' | 'electrical' => {
+      if (v.sector === 'electrical') return 'electrical';
+      if (v.sector === 'home') return 'home';
+      const refSector =
+        (v.customerId ? customerSectorByRef.get(v.customerId) : undefined) ||
+        (v.customerCode ? customerSectorByRef.get(v.customerCode) : undefined);
+      if (refSector) return refSector;
+      const byName = customersByNormName.get(normalizeArabicText(v.customerName || ''));
+      if (byName === 'home' || byName === 'electrical') return byName;
+      if (isElectricalLabel(v.customerName, v.repName)) return 'electrical';
+      return 'home';
+    };
 
-  const ordersToday = useMemo(
-    () => visibleInvoices.filter((inv) => String(inv.date || '').slice(0, 10) === todayKey),
-    [visibleInvoices, todayKey]
-  );
-
-  const returnsCount = useMemo(() => {
-    const keys = new Set<string>();
-    visibleInvoices.forEach((inv) => {
-      if (inv.hasReturns || inv.status === 'مرتجع' || inv.status === 'مرتجع جزئي') keys.add(inv.id);
+    const initAccumulator = (sector: 'home' | 'electrical') => ({
+      sector,
+      customersCount: 0,
+      totalDebt: 0,
+      totalDues: 0,
+      monthSales: 0,
+      monthSalesTarget: 0,
+      monthCollection: 0,
+      monthCollectionTarget: 0,
+      ordersTodayCount: 0,
+      totalSalesToday: 0,
+      visitsTodayCount: 0,
+      totalCollectedToday: 0,
+      periodInvoicesCount: 0,
+      returnsSet: new Set<string>(),
+      seriesMap: new Map<string, { sales: number; collection: number }>(),
     });
-    return keys.size;
-  }, [visibleInvoices]);
 
-  const periodVisits = useMemo(
-    () => visibleVisits.filter((v) => String(v.date || '').slice(0, 7) === latestPeriod.key),
-    [visibleVisits, latestPeriod.key]
-  );
+    const acc = {
+      home: initAccumulator('home'),
+      electrical: initAccumulator('electrical'),
+    };
 
-  const visitsToday = useMemo(
-    () => visibleVisits.filter((v) => String(v.date || '').slice(0, 10) === todayKey),
-    [visibleVisits, todayKey]
-  );
-
-  const monthlySeries = useMemo(() => {
-    const rows: { key: string; label: string; sales: number; collection: number }[] = [];
+    const monthKeys: { key: string; label: string }[] = [];
     for (let offset = 5; offset >= 0; offset--) {
       const d = new Date(latestPeriod.year, latestPeriod.month - 1 - offset, 1);
       const year = d.getFullYear();
       const month = d.getMonth() + 1;
       const key = monthKey(year, month);
-      let sales = 0;
-      let collection = 0;
-      for (const row of visibleTargetRows) {
-        if (monthKey(Number(row.year), Number(row.month)) !== key) continue;
-        sales += Number(row.salesAchieved) || 0;
-        collection += Number(row.collectionAchieved) || 0;
-      }
-      rows.push({ key, label: MONTHS_AR[month - 1], sales, collection });
+      monthKeys.push({ key, label: MONTHS_AR[month - 1] });
+      acc.home.seriesMap.set(key, { sales: 0, collection: 0 });
+      acc.electrical.seriesMap.set(key, { sales: 0, collection: 0 });
     }
-    return rows;
-  }, [visibleTargetRows, latestPeriod.year, latestPeriod.month]);
 
-  const maxSeries = Math.max(1, ...monthlySeries.map((m) => Math.max(m.sales, m.collection)));
+    for (const c of scopedCustomers) {
+      const sec = resolveCustSector(c);
+      if (c.id) customerSectorByRef.set(c.id, sec);
+      if (c.code) customerSectorByRef.set(c.code, sec);
+      const normName = normalizeArabicText(c.name || '');
+      if (normName) {
+        const prev = customersByNormName.get(normName);
+        if (!prev) customersByNormName.set(normName, sec);
+        else if (prev !== sec) customersByNormName.set(normName, 'mixed');
+      }
+      const bucket = acc[sec];
+      bucket.customersCount += 1;
+      bucket.totalDebt += resolveCustomerBalanceValue(c);
+      bucket.totalDues += resolveCustomerDuesValue(c);
+    }
+
+    for (const row of scopedTargets) {
+      const sec: 'home' | 'electrical' =
+        inferTargetSector(row, users, scopedCustomers) === 'electrical' ? 'electrical' : 'home';
+      const bucket = acc[sec];
+      const sectorPeriod = latestPeriodBySector[sec];
+      const y = Number(row.year);
+      const m = Number(row.month);
+      if (y === sectorPeriod.year && m === sectorPeriod.month) {
+        bucket.monthSales += Number(row.salesAchieved) || 0;
+        bucket.monthSalesTarget += Number(row.salesTarget) || 0;
+        bucket.monthCollection += Number(row.collectionAchieved) || 0;
+        bucket.monthCollectionTarget += Number(row.collectionTarget) || 0;
+      }
+      const mk = monthKey(y, m);
+      const seriesPoint = bucket.seriesMap.get(mk);
+      if (seriesPoint) {
+        seriesPoint.sales += Number(row.salesAchieved) || 0;
+        seriesPoint.collection += Number(row.collectionAchieved) || 0;
+      }
+    }
+
+    for (const inv of scopedInvoices) {
+      const sec = resolveInvSector(inv);
+      const bucket = acc[sec];
+      const invMonth = invoiceMonth(inv);
+      const invDay = String(inv.date || '').slice(0, 10);
+      if (invMonth === latestPeriod.key) bucket.periodInvoicesCount += 1;
+      if (invDay === todayKey) {
+        bucket.ordersTodayCount += 1;
+        bucket.totalSalesToday += invoiceValue(inv);
+      }
+      if (inv.hasReturns || inv.status === 'مرتجع' || inv.status === 'مرتجع جزئي') {
+        bucket.returnsSet.add(inv.id);
+      }
+    }
+
+    for (const v of scopedVisits) {
+      const sec = resolveVisitSector(v);
+      const bucket = acc[sec];
+      if (String(v.date || '').slice(0, 10) === todayKey) {
+        bucket.visitsTodayCount += 1;
+        if (v.collectedAmount) bucket.totalCollectedToday += Number(v.collectedAmount) || 0;
+      }
+    }
+
+    const finalize = (sector: 'home' | 'electrical'): SectorDashboardStats => {
+      const b = acc[sector];
+      const salesPercent = b.monthSalesTarget > 0 ? Math.round((b.monthSales / b.monthSalesTarget) * 100) : 0;
+      const collectionPercent = b.monthCollectionTarget > 0 ? Math.round((b.monthCollection / b.monthCollectionTarget) * 100) : 0;
+      const monthlySeries = monthKeys.map((mk) => {
+        const pt = b.seriesMap.get(mk.key) || { sales: 0, collection: 0 };
+        return { key: mk.key, label: mk.label, sales: pt.sales, collection: pt.collection };
+      });
+      const maxSeries = Math.max(1, ...monthlySeries.map((m) => Math.max(m.sales, m.collection)));
+      return {
+        sector,
+        title: sector === 'home' ? 'قطاع منزلي' : 'قطاع كهرباء',
+        badgeText: sector === 'home' ? 'أدوات منزلية' : 'كهرباء وإضاءة',
+        customersCount: b.customersCount,
+        monthSales: b.monthSales,
+        monthSalesTarget: b.monthSalesTarget,
+        salesPercent,
+        salesRemaining: Math.max(0, b.monthSalesTarget - b.monthSales),
+        monthCollection: b.monthCollection,
+        monthCollectionTarget: b.monthCollectionTarget,
+        collectionPercent,
+        collectionRemaining: Math.max(0, b.monthCollectionTarget - b.monthCollection),
+        totalDebt: b.totalDebt,
+        totalDues: b.totalDues,
+        ordersTodayCount: b.ordersTodayCount,
+        totalSalesToday: b.totalSalesToday,
+        visitsTodayCount: b.visitsTodayCount,
+        totalCollectedToday: b.totalCollectedToday,
+        periodInvoicesCount: b.periodInvoicesCount,
+        returnsCount: b.returnsSet.size,
+        monthlySeries,
+        maxSeries,
+      };
+    };
+
+    return {
+      homeStats: finalize('home'),
+      electricalStats: finalize('electrical'),
+    };
+  }, [scopedCustomers, scopedTargets, scopedInvoices, scopedVisits, users, latestPeriod.year, latestPeriod.month, latestPeriod.key, latestPeriodBySector, todayKey]);
+
+  const visibleSectorCards = useMemo<SectorDashboardStats[]>(() => {
+    if (!isAdminOrDev) {
+      if (currentUser?.sector === 'electrical') return [electricalStats];
+      if (currentUser?.sector === 'home') return [homeStats];
+    }
+    return [homeStats, electricalStats];
+  }, [isAdminOrDev, currentUser?.sector, homeStats, electricalStats]);
 
   const promoSummary = useMemo(() => {
     const scoped = filterPromotionsForUser(promotions, currentUser, products);
@@ -143,15 +345,8 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
     };
   }, [promotions, currentUser, products]);
 
-  const totalDebt = visibleCustomers.reduce((sum, c) => sum + (Number(c.currentBalance ?? c.balance ?? 0) || 0), 0);
-  const totalReceivable = visibleCustomers.reduce((sum, c) => sum + (Number(c.creditLimit ?? 0) || 0), 0);
-  const totalCollectedToday = periodVisits
-    .filter((v) => String(v.date || '').slice(0, 10) === todayKey && v.collectedAmount)
-    .reduce((sum, v) => sum + (v.collectedAmount || 0), 0);
-  const totalSalesToday = ordersToday.reduce((sum, inv) => sum + invoiceValue(inv), 0);
-
   const activities = useMemo(() => {
-    const invoiceEvents = [...visibleInvoices]
+    const invoiceEvents = [...scopedInvoices]
       .sort((a, b) => String(b.createdAt || `${b.date} ${b.time}`).localeCompare(String(a.createdAt || `${a.date} ${a.time}`)))
       .slice(0, 4)
       .map((inv) => ({
@@ -163,7 +358,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
         tone: 'blue' as const,
       }));
 
-    const visitEvents = [...visibleVisits]
+    const visitEvents = [...scopedVisits]
       .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
       .slice(0, 2)
       .map((visit) => ({
@@ -178,7 +373,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
     return [...invoiceEvents, ...visitEvents]
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 5);
-  }, [visibleInvoices, visibleVisits]);
+  }, [scopedInvoices, scopedVisits]);
 
   const displayName = (currentUser?.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'بك';
   const initials = displayName.charAt(0).toUpperCase();
@@ -187,43 +382,54 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
     { label: 'الكتالوج', icon: Boxes, onClick: () => onNavigate?.('catalog'), primary: true },
     { label: 'قاعدة العملاء', icon: Users, onClick: () => onNavigate?.('customers') },
     { label: 'التارجت', icon: Target, onClick: () => onNavigate?.('targets') },
-    { label: 'التحصيلات', icon: Wallet, onClick: () => onNavigate?.('collections') },
+    { label: 'التحصيلات', icon: Wallet, onClick: () => onNavigate?.('collection') },
   ];
 
   const AVATAR_COLORS = ['#3b82f6', '#059669', '#d97706', '#7c3aed', '#e11d48'];
   const avatarBg = AVATAR_COLORS[displayName.length % AVATAR_COLORS.length];
 
-  // Primary KPIs stay on top; the rest of the dashboard is split into tabs so
-  // the first screen shows numbers, not a wall of cards.
   const [activeSection, setActiveSection] = useState<'today' | 'performance' | 'activity'>('today');
   const dashboardSections = [
     { id: 'today' as const, label: 'ملخص اليوم', icon: CalendarCheck },
-    { id: 'performance' as const, label: 'الأداء', icon: TrendingUp },
+    { id: 'performance' as const, label: 'الأداء والرسومات', icon: TrendingUp },
     { id: 'activity' as const, label: 'الأنشطة والاختصارات', icon: Activity },
   ];
 
+  const pctBadgeTone = (pct: number) =>
+    pct >= 80
+      ? 'text-emerald-600 dark:text-emerald-400'
+      : pct >= 50
+      ? 'text-amber-600 dark:text-amber-400'
+      : 'text-red-600 dark:text-red-400';
+
+  const pctBadgeLabel = (pct: number) => (pct >= 80 ? 'ممتاز' : pct >= 50 ? 'جيد' : 'يحتاج تحسين');
+
   return (
     <div className="tg-dash" dir="rtl">
-      {/* ---------- كارت مبيعات اليوم (موبايل) — زي المرجع ---------- */}
+      {/* ---------- كارت مبيعات اليوم (موبايل) — منفصل حسب القطاع ---------- */}
       <section className="tg-daycard lg:hidden">
         <span className="tg-daycard__glow" aria-hidden="true" />
-        <div className="tg-daycard__row">
-          <div className="min-w-0">
-            <span className="tg-daycard__label">مبيعات اليوم</span>
-            <span className="tg-daycard__value tg-num">
-              {fmt(totalSalesToday)} <span className="tg-daycard__unit">ج.م</span>
-            </span>
-          </div>
-          <TrendingUp size={46} className="tg-daycard__chart" aria-hidden="true" />
-        </div>
-        <div className="tg-daycard__foot">
-          <span className="tg-daycard__chip">
-            <TrendingUp size={13} />
-            <span className="tg-num">{salesPercent}%</span>
-          </span>
-          <span className="tg-daycard__sub">
-            تحصيل اليوم: <b className="tg-num">{fmt(totalCollectedToday)}</b> ج.م
-          </span>
+        <div className="flex flex-col gap-2.5 relative z-10">
+          {visibleSectorCards.map((sec) => (
+            <div
+              key={`mob-day-${sec.sector}`}
+              className="flex items-center justify-between gap-2 rounded-xl bg-white/10 px-3 py-2 backdrop-blur-xs"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold opacity-90">
+                  {sec.sector === 'home' ? <Home size={12} /> : <Zap size={12} />}
+                  <span>{sec.title} • مبيعات اليوم</span>
+                </div>
+                <div className="text-base font-black tg-num">
+                  {fmt(sec.totalSalesToday)} <span className="text-[11px] font-bold opacity-80">ج.م</span>
+                </div>
+              </div>
+              <div className="text-left shrink-0">
+                <div className="text-[11px] font-black tg-num">تحقيق {sec.salesPercent}%</div>
+                <div className="text-[10px] opacity-85 tg-num">تحصيل اليوم: {fmt(sec.totalCollectedToday)} ج.م</div>
+              </div>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -242,9 +448,9 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                 {initials}
               </div>
               <div className="tg-welcome">
-                <div className="tg-hero__title">أهلاً بك، {displayName} 👋</div>
+                <div className="tg-hero__title">أهلاً بك، {displayName}</div>
                 <p className="tg-hero__sub">
-                  نظرة سريعة على أدائك في {MONTHS_AR[latestPeriod.month - 1]} {latestPeriod.year} — مبيعاتك وتحصيلاتك وزياراتك في مكان واحد.
+                  متابعة أداء {MONTHS_AR[latestPeriod.month - 1]} {latestPeriod.year} — عرض مستقل لكل قطاع (منزلي وكهرباء) بدون دمج.
                 </p>
               </div>
             </div>
@@ -257,74 +463,172 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                 <Users size={16} />
                 قاعدة العملاء
               </button>
+              <button type="button" onClick={() => onNavigate?.('product_sales')} className="tg-btn tg-btn--ghost">
+                <PackageSearch size={16} />
+                مبيعات الأصناف
+              </button>
             </div>
           </div>
 
           <div className="tg-hero__stats">
-            <div className="tg-mini">
-              <div className="tg-mini__label">تحقيق المبيعات</div>
-              <div className="tg-mini__value">
-                {salesPercent}%
-                <TrendingUp size={15} className="tg-mini__trend" />
+            {visibleSectorCards.map((sec) => (
+              <div key={`hero-${sec.sector}`} className="tg-mini">
+                <div className="tg-mini__label flex items-center gap-1.5">
+                  {sec.sector === 'home' ? (
+                    <Home size={13} className="text-sky-300 shrink-0" />
+                  ) : (
+                    <Zap size={13} className="text-amber-300 shrink-0" />
+                  )}
+                  <span>{sec.title}</span>
+                </div>
+                <div className="tg-mini__value flex items-baseline justify-between gap-2">
+                  <span className="tg-num">{sec.salesPercent}%</span>
+                  <span className="tg-mini__unit">مبيعات</span>
+                </div>
+                <div className="tg-mini__bar">
+                  <div
+                    className={`tg-mini__fill ${sec.sector === 'electrical' ? 'tg-mini__fill--amber' : ''}`}
+                    style={{ width: `${Math.min(100, Math.max(0, sec.salesPercent))}%` }}
+                  />
+                </div>
+                <div className="tg-mini__meta">
+                  <span className="whitespace-nowrap">
+                    تحصيل: <strong className="tg-num font-black text-white">{sec.collectionPercent}%</strong>
+                  </span>
+                  <span className="whitespace-nowrap">
+                    متبقي: <strong className="tg-num font-black text-white">{fmt(sec.salesRemaining)}</strong>
+                  </span>
+                </div>
               </div>
-              <div className="tg-mini__bar">
-                <div className="tg-mini__fill" style={{ width: `${Math.min(100, Math.max(0, salesPercent))}%` }} />
-              </div>
-            </div>
-            <div className="tg-mini">
-              <div className="tg-mini__label">تحقيق التحصيل</div>
-              <div className="tg-mini__value">
-                {collectionPercent}%
-                <TrendingUp size={15} className="tg-mini__trend tg-mini__trend--blue" />
-              </div>
-              <div className="tg-mini__bar">
-                <div className="tg-mini__fill tg-mini__fill--blue" style={{ width: `${Math.min(100, Math.max(0, collectionPercent))}%` }} />
-              </div>
-            </div>
-            <div className="tg-mini tg-mini--wide">
-              <span className="tg-mini__rem-label">متبقي مبيعات الشهر</span>
-              <span className="tg-mini__rem-value">{fmt(salesRemaining)} ج.م</span>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ---------- 4 مؤشرات أساسية ---------- */}
-      <section className="tg-target-row">
-        <div className="tg-target-card tg-target-card--sales">
-          <div className="tg-target__icon"><ShoppingCart size={20} className="text-blue-500" /></div>
-          <div className="tg-target__value">{fmt(monthSales)} ج.م</div>
-          <div className="tg-target__label">مبيعات الشهر — المحقق</div>
-          <div className="tg-target__sub">
-            من {fmt(monthSalesTarget)} ج.م — {salesPercent}%
-            <span className={`tg-target__pct ${salesPercent >= 80 ? 'text-emerald-600' : salesPercent >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-              {salesPercent >= 80 ? 'ممتاز' : salesPercent >= 50 ? 'جيد' : 'يحتاج تحسين'}
-            </span>
-          </div>
-        </div>
-        <div className="tg-target-card tg-target-card--collection">
-          <div className="tg-target__icon"><Wallet size={20} className="text-purple-500" /></div>
-          <div className="tg-target__value">{fmt(monthCollection)} ج.م</div>
-          <div className="tg-target__label">تحصيل الشهر — المحقق</div>
-          <div className="tg-target__sub">
-            من {fmt(monthCollectionTarget)} ج.م — {collectionPercent}%
-            <span className={`tg-target__pct ${collectionPercent >= 80 ? 'text-emerald-600' : collectionPercent >= 50 ? 'text-amber-600' : 'text-red-600'}`}>
-              {collectionPercent >= 80 ? 'ممتاز' : collectionPercent >= 50 ? 'جيد' : 'يحتاج تحسين'}
-            </span>
-          </div>
-        </div>
-        <div className="tg-target-card tg-target-card--debt">
-          <div className="tg-target__icon"><CreditCard size={20} className="text-red-500" /></div>
-          <div className="tg-target__value">{fmt(totalDebt)} ج.م</div>
-          <div className="tg-target__label">مديونيات العملاء</div>
-          <div className="tg-target__sub">إجمالي الرصيد القائم على العملاء</div>
-        </div>
-        <div className="tg-target-card tg-target-card--receivable">
-          <div className="tg-target__icon"><Coins size={20} className="text-emerald-500" /></div>
-          <div className="tg-target__value">{fmt(totalReceivable)} ج.م</div>
-          <div className="tg-target__label">مستحقات العملاء</div>
-          <div className="tg-target__sub">إجمالي سقف الائتمان الممنوح</div>
-        </div>
+      {/* ---------- بطاقات القطاعات المنفصلة (منزلي ≠ كهرباء) ---------- */}
+      <section className={`grid gap-4 ${visibleSectorCards.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
+        {visibleSectorCards.map((sec) => {
+          const isHome = sec.sector === 'home';
+          const accentBorder = isHome
+            ? 'border-blue-200/80 dark:border-blue-800/60'
+            : 'border-amber-200/80 dark:border-amber-800/60';
+          const badgeCls = isHome
+            ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800'
+            : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800';
+          return (
+            <div
+              key={`panel-${sec.sector}`}
+              className={`rounded-2xl border ${accentBorder} bg-white dark:bg-[#0F1E36] p-4 shadow-xs flex flex-col gap-3.5`}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-[#1E314E]">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                      isHome
+                        ? 'bg-blue-100 text-blue-600 dark:bg-blue-950/80 dark:text-blue-300'
+                        : 'bg-amber-100 text-amber-600 dark:bg-amber-950/80 dark:text-amber-300'
+                    }`}
+                  >
+                    {isHome ? <Home size={18} /> : <Zap size={18} />}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white leading-tight">
+                      {sec.title}
+                    </h3>
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 tg-num">
+                      {fmt(sec.customersCount)} عميل • {fmt(sec.periodInvoicesCount)} أمر بيع هذا الشهر
+                    </span>
+                  </div>
+                </div>
+                <span className={`px-2.5 py-1 rounded-lg border text-[11px] font-black shrink-0 ${badgeCls}`}>
+                  {sec.badgeText}
+                </span>
+              </div>
+
+              {/* 4 KPI cards per sector */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Sales */}
+                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    <span>مبيعات الشهر — المحقق</span>
+                    <ShoppingCart size={15} className="text-blue-500" />
+                  </div>
+                  <div className="mt-1 text-lg font-black text-slate-900 dark:text-white tg-num">
+                    {fmt(sec.monthSales)} <span className="text-xs font-bold text-slate-500">ج.م</span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-blue-500"
+                      style={{ width: `${Math.min(100, Math.max(0, sec.salesPercent))}%` }}
+                    />
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] font-bold">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      المستهدف: <span className="tg-num">{fmt(sec.monthSalesTarget)}</span>
+                    </span>
+                    <span className={`${pctBadgeTone(sec.salesPercent)} whitespace-nowrap`}>
+                      <span className="tg-num">{sec.salesPercent}%</span> ({pctBadgeLabel(sec.salesPercent)})
+                    </span>
+                  </div>
+                </div>
+
+                {/* Collection */}
+                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    <span>تحصيل الشهر — المحقق</span>
+                    <Wallet size={15} className="text-purple-500" />
+                  </div>
+                  <div className="mt-1 text-lg font-black text-slate-900 dark:text-white tg-num">
+                    {fmt(sec.monthCollection)} <span className="text-xs font-bold text-slate-500">ج.م</span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                    <div
+                      className="h-full rounded-full bg-purple-500"
+                      style={{ width: `${Math.min(100, Math.max(0, sec.collectionPercent))}%` }}
+                    />
+                  </div>
+                  <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] font-bold">
+                    <span className="text-slate-500 dark:text-slate-400">
+                      المستهدف: <span className="tg-num">{fmt(sec.monthCollectionTarget)}</span>
+                    </span>
+                    <span className={`${pctBadgeTone(sec.collectionPercent)} whitespace-nowrap`}>
+                      <span className="tg-num">{sec.collectionPercent}%</span> ({pctBadgeLabel(sec.collectionPercent)})
+                    </span>
+                  </div>
+                </div>
+
+                {/* Debts */}
+                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    <span>مديونيات العملاء ({sec.title})</span>
+                    <CreditCard size={15} className="text-red-500" />
+                  </div>
+                  <div className="mt-1 text-lg font-black text-red-600 dark:text-red-400 tg-num">
+                    {fmt(sec.totalDebt)} <span className="text-xs font-bold opacity-80">ج.م</span>
+                  </div>
+                  <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    إجمالي الرصيد القائم على عملاء القطاع
+                  </div>
+                </div>
+
+                {/* Dues */}
+                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                    <span>مستحقات العملاء ({sec.title})</span>
+                    <Coins size={15} className="text-emerald-500" />
+                  </div>
+                  <div className="mt-1 text-lg font-black text-emerald-600 dark:text-emerald-400 tg-num">
+                    {fmt(sec.totalDues)} <span className="text-xs font-bold opacity-80">ج.م</span>
+                  </div>
+                  <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                    إجمالي المستحقات الفعلية لعملاء القطاع
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </section>
 
       {/* ---------- بانر عروض دريم طنطاوي ---------- */}
@@ -394,166 +698,153 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
         })}
       </div>
 
-      {/* ---------- كروت الأداء السريع (أداء اليوم) ---------- */}
+      {/* ---------- ملخص اليوم لكل قطاع بشكل مستقل ---------- */}
       {activeSection === 'today' && (
-      <section className="tg-quick-row">
-        <div className="tg-quick-card">
-          <div className="tg-q__icon"><CalendarCheck size={18} className="text-blue-500" /></div>
-          <div className="tg-q__body">
-            <div className="tg-q__label">أداء اليوم</div>
-            <div className="tg-q__value">{today.toLocaleDateString('ar-EG', { day: 'numeric', month: 'numeric' })}</div>
-            <div className="tg-q__sub">مبيعات اليوم: {fmt(totalSalesToday)} ج.م • تحصيل اليوم: {fmt(totalCollectedToday)} ج.م</div>
-          </div>
-        </div>
-        <div className="tg-quick-card">
-          <div className="tg-q__icon"><ShoppingCart size={18} className="text-emerald-500" /></div>
-          <div className="tg-q__body">
-            <div className="tg-q__label">طلبات اليوم</div>
-            <div className="tg-q__value">{fmt(ordersToday.length)}</div>
-            <div className="tg-q__sub">طلبية مسجلة في {todayKey}</div>
-          </div>
-        </div>
-        <div className="tg-quick-card">
-          <div className="tg-q__icon"><MapPin size={18} className="text-violet-500" /></div>
-          <div className="tg-q__body">
-            <div className="tg-q__label">زيارات اليوم</div>
-            <div className="tg-q__value">{fmt(visitsToday.length)}</div>
-            <div className="tg-q__sub">زيارات منفذة اليوم</div>
-          </div>
-        </div>
-        <div className="tg-quick-card">
-          <div className="tg-q__icon"><AlertTriangle size={18} className="text-amber-500" /></div>
-          <div className="tg-q__body">
-            <div className="tg-q__label">المرتجعات</div>
-            <div className="tg-q__value">{fmt(returnsCount)}</div>
-            <div className="tg-q__sub">طلبيات عليها مرتجع هذا الشهر</div>
-          </div>
-        </div>
-      </section>
+        <section className={`grid gap-4 ${visibleSectorCards.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
+          {visibleSectorCards.map((sec) => (
+            <div key={`today-${sec.sector}`} className="tg-card">
+              <div className="tg-card__head">
+                <span className="tg-card__title flex items-center gap-1.5">
+                  {sec.sector === 'home' ? <Home size={16} className="text-blue-500" /> : <Zap size={16} className="text-amber-500" />}
+                  ملخص اليوم — {sec.title}
+                </span>
+                <span className="text-[11px] font-bold text-slate-400 tg-num">{todayKey}</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2.5 border border-slate-200/70 dark:border-[#243756]">
+                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">مبيعات اليوم</div>
+                  <div className="mt-1 text-sm font-black text-blue-600 dark:text-blue-400 tg-num">{fmt(sec.totalSalesToday)} ج.م</div>
+                  <div className="text-[10px] text-slate-400 tg-num">{fmt(sec.ordersTodayCount)} طلبية</div>
+                </div>
+                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2.5 border border-slate-200/70 dark:border-[#243756]">
+                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">تحصيل اليوم</div>
+                  <div className="mt-1 text-sm font-black text-emerald-600 dark:text-emerald-400 tg-num">{fmt(sec.totalCollectedToday)} ج.م</div>
+                  <div className="text-[10px] text-slate-400">تحصيل ميداني</div>
+                </div>
+                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2.5 border border-slate-200/70 dark:border-[#243756]">
+                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">زيارات اليوم</div>
+                  <div className="mt-1 text-sm font-black text-violet-600 dark:text-violet-400 tg-num">{fmt(sec.visitsTodayCount)}</div>
+                  <div className="text-[10px] text-slate-400">زيارات مسجلة</div>
+                </div>
+                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2.5 border border-slate-200/70 dark:border-[#243756]">
+                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">المرتجعات</div>
+                  <div className="mt-1 text-sm font-black text-amber-600 dark:text-amber-400 tg-num">{fmt(sec.returnsCount)}</div>
+                  <div className="text-[10px] text-slate-400">أمر بيع عليه مرتجع</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </section>
       )}
 
-      {/* ---------- تحليلات ---------- */}
+      {/* ---------- رسومات الأداء آخر 6 شهور — منفصلة لكل قطاع ---------- */}
       {activeSection === 'performance' && (
-      <section className="tg-analytics">
-        {/* أداء المبيعات والتحصيلات — آخر 6 شهور */}
-        <div className="tg-card tg-analytics__wide">
-          <div className="tg-card__head">
-            <span className="tg-card__title">أداء المبيعات والتحصيلات — آخر 6 شهور</span>
-            <span className="tg-legend-inline">
-              <span className="tg-legend-inline__dot tg-legend-inline__dot--sales" /> مبيعات
-              <span className="tg-legend-inline__dot tg-legend-inline__dot--collection" /> تحصيلات
-            </span>
-          </div>
-          <div className="tg-chart">
-            <div className="tg-chart__bars">
-              {monthlySeries.map((m) => {
-                const salesH = Math.max(4, Math.round((m.sales / maxSeries) * 100));
-                const collectionH = Math.max(4, Math.round((m.collection / maxSeries) * 100));
-                return (
-                  <div key={m.key} className="tg-chart__col">
-                    <div className="tg-chart__pair">
-                      <div
-                        className="tg-chart__bar tg-chart__bar--sales"
-                        style={{ height: `${salesH}%` }}
-                        title={`مبيعات ${fmt(m.sales)} ج.م`}
-                      />
-                      <div
-                        className="tg-chart__bar tg-chart__bar--collection"
-                        style={{ height: `${collectionH}%` }}
-                        title={`تحصيلات ${fmt(m.collection)} ج.م`}
-                      />
-                    </div>
-                    <span className="tg-chart__label">{m.label}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* معلومات سريعة إضافية */}
-        <div className="tg-card">
-          <div className="tg-card__head">
-            <span className="tg-card__title">معلومات سريعة</span>
-            <CalendarCheck size={16} className="tg-card__head-icon" />
-          </div>
-          <div className="tg-stats">
-            {[
-              { label: 'مبيعات الشهر', value: `${fmt(monthSales)} ج.م`, icon: ShoppingCart, tone: 'blue', sub: `من ${fmt(monthSalesTarget)}` },
-              { label: 'تحصيلات الشهر', value: `${fmt(monthCollection)} ج.م`, icon: Wallet, tone: 'emerald', sub: `من ${fmt(monthCollectionTarget)}` },
-              { label: 'مرتجعات العملاء', value: fmt(returnsCount), icon: RotateCcw, tone: 'red', sub: 'هذا الشهر' },
-              { label: 'أوامر البيع', value: fmt(periodInvoices.length), icon: PackageSearch, tone: 'violet', sub: 'هذا الشهر' },
-            ].map((stat, i) => {
-              const Icon = stat.icon;
-              return (
-                <div key={stat.label} className={`tg-stat tg-stat--${stat.tone} tg-stat--colored`}>
-                  <Icon size={16} />
-                  <div className="tg-stat__body">
-                    <div className="tg-stat__value">{stat.value}</div>
-                    <div className="tg-stat__label">{stat.label}</div>
-                    {stat.sub && <div className="tg-stat__sub">{stat.sub}</div>}
-                  </div>
+        <section className={`grid gap-4 ${visibleSectorCards.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
+          {visibleSectorCards.map((sec) => (
+            <div key={`perf-${sec.sector}`} className="tg-card">
+              <div className="tg-card__head">
+                <span className="tg-card__title flex items-center gap-1.5">
+                  {sec.sector === 'home' ? <Home size={16} className="text-blue-500" /> : <Zap size={16} className="text-amber-500" />}
+                  {sec.title} — المبيعات والتحصيل (آخر 6 شهور)
+                </span>
+                <span className="tg-legend-inline">
+                  <span className="tg-legend-inline__dot tg-legend-inline__dot--sales" /> مبيعات
+                  <span className="tg-legend-inline__dot tg-legend-inline__dot--collection" /> تحصيلات
+                </span>
+              </div>
+              <div className="tg-chart">
+                <div className="tg-chart__bars">
+                  {sec.monthlySeries.map((m) => {
+                    const salesH = Math.max(4, Math.round((m.sales / sec.maxSeries) * 100));
+                    const collectionH = Math.max(4, Math.round((m.collection / sec.maxSeries) * 100));
+                    return (
+                      <div key={`${sec.sector}-${m.key}`} className="tg-chart__col">
+                        <div className="tg-chart__pair">
+                          <div
+                            className="tg-chart__bar tg-chart__bar--sales"
+                            style={{ height: `${salesH}%` }}
+                            title={`${sec.title} • مبيعات ${fmt(m.sales)} ج.م`}
+                          />
+                          <div
+                            className="tg-chart__bar tg-chart__bar--collection"
+                            style={{ height: `${collectionH}%` }}
+                            title={`${sec.title} • تحصيلات ${fmt(m.collection)} ج.م`}
+                          />
+                        </div>
+                        <span className="tg-chart__label">{m.label}</span>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+              </div>
+              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-[#1E314E] grid grid-cols-2 gap-2 text-[11px] font-bold tg-num">
+                <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                  <span>متبقي مبيعات الشهر:</span>
+                  <span className="text-blue-600 dark:text-blue-400">{fmt(sec.salesRemaining)} ج.م</span>
+                </div>
+                <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
+                  <span>متبقي تحصيل الشهر:</span>
+                  <span className="text-purple-600 dark:text-purple-400">{fmt(sec.collectionRemaining)} ج.م</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </section>
       )}
 
       {/* ---------- الأنشطة + اختصارات ---------- */}
       {activeSection === 'activity' && (
-      <section className="tg-dash-bottom">
-        <div className="tg-card">
-          <div className="tg-card__head">
-            <span className="tg-card__title">أحدث الأنشطة</span>
-            <button type="button" onClick={() => onNavigate?.('orders')} className="tg-linkbtn">عرض الكل</button>
-          </div>
-          <div className="tg-act-list">
-            {activities.length === 0 ? (
-              <div className="tg-empty">لا توجد أنشطة مسجلة بعد</div>
-            ) : (
-              activities.map((event) => {
-                const Icon = event.icon;
-                return (
-                  <div key={event.id} className="tg-act">
-                    <span className={`tg-act__icon${event.tone === 'emerald' ? ' tg-act__icon--emerald' : ''}`}>
-                      <Icon size={16} />
-                    </span>
-                    <div className="tg-act__body">
-                      <div className="tg-act__title">{event.title}</div>
-                      <div className="tg-act__detail">{event.detail}</div>
+        <section className="tg-dash-bottom">
+          <div className="tg-card">
+            <div className="tg-card__head">
+              <span className="tg-card__title">أحدث الأنشطة</span>
+              <button type="button" onClick={() => onNavigate?.('invoices')} className="tg-linkbtn">عرض الكل</button>
+            </div>
+            <div className="tg-act-list">
+              {activities.length === 0 ? (
+                <div className="tg-empty">لا توجد أنشطة مسجلة بعد</div>
+              ) : (
+                activities.map((event) => {
+                  const Icon = event.icon;
+                  return (
+                    <div key={event.id} className="tg-act">
+                      <span className={`tg-act__icon${event.tone === 'emerald' ? ' tg-act__icon--emerald' : ''}`}>
+                        <Icon size={16} />
+                      </span>
+                      <div className="tg-act__body">
+                        <div className="tg-act__title">{event.title}</div>
+                        <div className="tg-act__detail">{event.detail}</div>
+                      </div>
+                      <span className="tg-act__date">{event.date}</span>
                     </div>
-                    <span className="tg-act__date">{event.date}</span>
-                  </div>
-                );
-              })
-            )}
+                  );
+                })
+              )}
+            </div>
           </div>
-        </div>
 
-        <div className="tg-card">
-          <div className="tg-card__head">
-            <span className="tg-card__title">اختصارات سريعة</span>
+          <div className="tg-card">
+            <div className="tg-card__head">
+              <span className="tg-card__title">اختصارات سريعة</span>
+            </div>
+            <div className="tg-quick">
+              {quickActions.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <button
+                    key={action.label}
+                    type="button"
+                    onClick={action.onClick}
+                    className={`tg-quick__btn${action.primary ? ' tg-quick__btn--primary' : ''}`}
+                  >
+                    <Icon size={20} />
+                    {action.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-          <div className="tg-quick">
-            {quickActions.map((action) => {
-              const Icon = action.icon;
-              return (
-                <button
-                  key={action.label}
-                  type="button"
-                  onClick={action.onClick}
-                  className={`tg-quick__btn${action.primary ? ' tg-quick__btn--primary' : ''}`}
-                >
-                  <Icon size={20} />
-                  {action.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </section>
+        </section>
       )}
     </div>
   );

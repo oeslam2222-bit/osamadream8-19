@@ -251,12 +251,12 @@ export const TotalsAnalysisView: React.FC<TotalsAnalysisViewProps> = ({
         byCustomer,
         row.custCode,
         row.custName,
-        `${row.custRep} · ${row.custBranch}`,
+        `${row.custRep} · ${row.custBranch} · كود: ${row.custCode}`,
         row
       );
       push(byBranch, row.branch, row.branch, undefined, row);
       push(byRep, row.rep, row.rep, undefined, row);
-      push(byCustRep, `${row.custCode}||${row.rep}`, row.custName, row.rep, row);
+      push(byCustRep, `${row.custCode}||${row.rep}`, row.custName, `${row.rep} · كود: ${row.custCode}`, row);
       push(byItem, row.itemCode, row.itemName, row.fam, row);
       push(byFamily, row.fam, row.fam, undefined, row);
     });
@@ -294,6 +294,7 @@ export const TotalsAnalysisView: React.FC<TotalsAnalysisViewProps> = ({
       ? source.filter(
           (row) =>
             row.label.toLowerCase().includes(needle) ||
+            row.key.toLowerCase().includes(needle) ||
             (row.sub || '').toLowerCase().includes(needle)
         )
       : source;
@@ -728,11 +729,15 @@ export const TotalsAnalysisView: React.FC<TotalsAnalysisViewProps> = ({
                                   >
                                     {row.label}
                                   </span>
-                                  {row.sub && (
+                                  {tab === 'item' ? (
+                                    <span className="block text-[9.5px] font-bold text-[var(--app-text-muted)] font-mono truncate max-w-[220px]">
+                                      كود: {row.key} · {row.sub || '—'}
+                                    </span>
+                                  ) : row.sub ? (
                                     <span className="block text-[9.5px] font-bold text-[var(--app-text-muted)] truncate max-w-[220px]">
                                       {row.sub}
                                     </span>
-                                  )}
+                                  ) : null}
                                 </span>
                                 {canExpand && (
                                   <ChevronDown

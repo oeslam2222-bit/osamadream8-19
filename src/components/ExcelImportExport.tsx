@@ -1179,47 +1179,47 @@ function onEdit(e) {
       <div className="ds-pagehead space-y-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 border border-white/15 text-[#7fc0ff] rounded-xl text-xs font-black">
-              <Sparkles className="w-4 h-4" />
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 border border-white/20 text-sky-200 rounded-xl text-xs font-bold">
+              <Sparkles className="w-4 h-4 text-sky-300" />
               <span>مركز إدارة الشيتات السحابية الخمس المركزية (صفحة واحدة موحدة)</span>
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight flex items-center gap-3">
-              <FileSpreadsheet className="w-8 h-8 text-[#7fc0ff]" />
+              <FileSpreadsheet className="w-8 h-8 text-sky-300 shrink-0" />
               <span>لوحة الربط والمزامنة المركزية لملفات الإكسل وجوجل شيت</span>
             </h1>
 
-            <p className="text-xs sm:text-sm text-slate-300 max-w-3xl leading-relaxed">
-              تم تلخيص كافة مصادر البيانات في <strong>صفحة واحدة مركزية تضم الـ 5 شيتات المعتمدة</strong>. يمكنك حفظ روابط Google Sheets بشكل دائم، المزامنة السحابية الفورية أو رفع ملفات إكسل بديلة، مع <strong>ضمان منع التكرار بنسبة 100%</strong> وتحديث بيانات المناديب والمشرفين فورياً.
+            <p className="text-xs sm:text-sm text-slate-100/90 max-w-3xl leading-relaxed font-medium">
+              تم تلخيص كافة مصادر البيانات في <strong className="text-white font-black">صفحة واحدة مركزية تضم الـ 5 شيتات المعتمدة</strong>. يمكنك حفظ روابط Google Sheets بشكل دائم، المزامنة السحابية الفورية أو رفع ملفات إكسل بديلة، مع <strong className="text-white font-black">ضمان منع التكرار بنسبة 100%</strong> وتحديث بيانات المناديب والمشرفين فورياً.
             </p>
           </div>
 
           {/* Quick Header Counter Badges */}
           <div className="flex items-center gap-3 shrink-0 flex-wrap">
-            <div className="bg-white/10 backdrop-blur-xs border border-white/10 rounded-2xl p-4 text-center min-w-[120px]">
-              <div className="text-[11px] text-slate-300 font-bold">الشيتات المتصلة</div>
-              <div className="text-2xl font-black text-[#7fc0ff] font-mono mt-0.5">
+            <div className="bg-white/10 backdrop-blur-xs border border-white/15 rounded-2xl p-4 text-center min-w-[130px]">
+              <div className="text-[11px] text-slate-200 font-bold">الشيتات المتصلة</div>
+              <div className="text-2xl font-black text-white font-mono tabular-nums mt-0.5">
                 {metrics.connectedSheetsCount} / 5
               </div>
-              <div className="text-[10px] text-[#7fc0ff] font-bold mt-1">🟢 سحابية Live</div>
+              <div className="text-[11px] text-emerald-300 font-bold mt-1">سحابية مباشرة</div>
             </div>
 
-            <div className="bg-white/10 backdrop-blur-xs border border-white/10 rounded-2xl p-4 text-center min-w-[120px]">
-              <div className="text-[11px] text-slate-300 font-bold">قاعدة العملاء</div>
-              <div className="text-2xl font-black text-[#7fc0ff] font-mono mt-0.5">
+            <div className="bg-white/10 backdrop-blur-xs border border-white/15 rounded-2xl p-4 text-center min-w-[130px]">
+              <div className="text-[11px] text-slate-200 font-bold">قاعدة العملاء</div>
+              <div className="text-2xl font-black text-white font-mono tabular-nums mt-0.5">
                 {metrics.totalCustomers.toLocaleString('ar-EG')}
               </div>
-              <div className="text-[10px] text-slate-300 mt-1">عميل فريد (0 تكرار)</div>
+              <div className="text-[11px] text-sky-200 font-semibold mt-1">عميل فريد (0 تكرار)</div>
             </div>
           </div>
         </div>
 
         {/* Master Control Buttons */}
-        <div className="pt-4 border-t border-white/10 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-white/5 border border-white/10 rounded-2xl p-3">
+        <div className="pt-4 border-t border-white/15 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white/10 border border-white/15 rounded-2xl p-3.5">
             <div>
-              <div className="text-xs font-black text-white">مصدر قراءة البيانات</div>
-              <div className="text-[11px] text-slate-300 mt-0.5">
+              <div className="text-xs sm:text-sm font-black text-white">مصدر قراءة البيانات</div>
+              <div className="text-[11px] sm:text-xs text-slate-200 font-medium mt-0.5">
                 اختر {`"Google Sheets مباشر"`} لتقليل استهلاك Supabase egress. (يتطلب روابط شيتات محفوظة ومفعّلة)
               </div>
             </div>
@@ -1227,21 +1227,21 @@ function onEdit(e) {
               <button
                 type="button"
                 onClick={() => handleDataReadModeChange('supabase')}
-                className={`px-3 py-2 rounded-xl text-xs font-black border transition ${dataReadMode === 'supabase' ? 'bg-white text-slate-900 border-white' : 'bg-transparent text-white border-white/20 hover:bg-white/10'}`}
+                className={`px-3.5 py-2 rounded-xl text-xs font-black border transition cursor-pointer ${dataReadMode === 'supabase' ? 'bg-sky-500 text-white border-sky-300 shadow-sm' : 'bg-white/10 text-slate-100 border-white/20 hover:bg-white/20'}`}
               >
                 Supabase
               </button>
               <button
                 type="button"
                 onClick={() => handleDataReadModeChange('google_sheets')}
-                className={`px-3 py-2 rounded-xl text-xs font-black border transition ${dataReadMode === 'google_sheets' ? 'bg-emerald-400 text-slate-900 border-emerald-300' : 'bg-transparent text-white border-white/20 hover:bg-white/10'}`}
+                className={`px-3.5 py-2 rounded-xl text-xs font-black border transition cursor-pointer ${dataReadMode === 'google_sheets' ? 'bg-emerald-500 text-white border-emerald-300 shadow-sm' : 'bg-white/10 text-slate-100 border-white/20 hover:bg-white/20'}`}
               >
                 Google Sheets مباشر
               </button>
             </div>
           </div>
           {dataReadMode === 'google_sheets' && (
-            <div className="text-[11px] text-amber-200 bg-amber-500/10 border border-amber-400/20 rounded-xl px-3 py-2">
+            <div className="text-xs text-amber-100 font-semibold bg-amber-500/15 border border-amber-300/30 rounded-xl px-3.5 py-2.5 leading-relaxed">
               وضع القراءة من Google Sheets مفعّل على هذا الجهاز. حمّل/زامن الشيتات (عملاء، أصناف، تارجت) من الأسفل ثم حدّث الصفحة لتظهر البيانات مباشرة من الشيت وتوفير استهلاك Supabase.
             </div>
           )}
@@ -1467,19 +1467,19 @@ function onEdit(e) {
       </div>
 
       {/* Sector Selector Tab: قطاع الأدوات المنزلية (Single Source) */}
-      <div className="bg-slate-900 p-1.5 rounded-2xl flex items-center gap-2 border border-slate-700 shadow-lg">
+      <div className="bg-[#0f2b38] dark:bg-slate-900 p-1.5 rounded-2xl flex items-center gap-2 border border-slate-700/80 shadow-md">
         <button
           type="button"
           onClick={() => setActiveSectorTab('home')}
           className={`flex-1 py-3 px-4 rounded-xl font-black text-xs sm:text-sm flex items-center justify-center gap-2.5 transition cursor-pointer ${
             activeSectorTab === 'home'
-              ? 'bg-[var(--app-accent)] text-white shadow-md ring-2 ring-[var(--app-accent)]'
-              : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              ? 'bg-[var(--app-primary)] text-white shadow-md ring-1 ring-white/25'
+              : 'text-slate-200 hover:text-white hover:bg-white/10'
           }`}
         >
           <Home className="w-4 h-4" />
           <span>قطاع الأدوات المنزلية (Household)</span>
-          <span className="text-[10px] sm:text-[11px] px-2 py-0.5 rounded-full font-bold bg-slate-950/20">
+          <span className="text-[11px] px-2.5 py-0.5 rounded-lg font-bold bg-white/15 text-white tabular-nums">
             {products.filter((p) => !p.sector || p.sector === 'home').length} صنف
           </span>
         </button>
@@ -1493,31 +1493,33 @@ function onEdit(e) {
           const custKey = getSectorKey('customers');
           const isConnected = isValidPublishedSource(sources[custKey]);
           const sectorTitle = activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية';
-          const sectorColor = activeSectorTab === 'electrical' ? 'text-teal-800 bg-teal-50 border-teal-100' : 'text-blue-600 bg-blue-50 border-blue-100';
+          const sectorColor = activeSectorTab === 'electrical'
+            ? 'text-teal-800 bg-teal-50 border-teal-200 dark:text-teal-200 dark:bg-teal-500/20 dark:border-teal-400/35'
+            : 'text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-200 dark:bg-blue-500/20 dark:border-blue-400/35';
           return (
-            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200 group">
+            <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                 <div className="flex items-start sm:items-center gap-3.5">
-                  <div className={`w-14 h-14 rounded-2xl ${sectorColor} flex items-center justify-center font-black shrink-0 shadow-lg shadow-[0_0_20px_rgba(0,0,0,0.08)]`}>
+                  <div className={`w-14 h-14 rounded-2xl border ${sectorColor} flex items-center justify-center font-black shrink-0`}>
                     <Users className="w-7 h-7" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-lg font-black text-slate-900 group-hover:text-[var(--app-accent)] transition-colors">
+                      <h3 className="text-base sm:text-lg font-black text-slate-900">
                         1. شيت قاعدة العملاء والمديونيات ({sectorTitle})
                       </h3>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
+                      <span className={`text-[11px] px-2 py-0.5 rounded-lg font-bold ${
                         isConnected
                           ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
-                          : 'bg-slate-100 text-slate-600 border border-slate-300'
+                          : 'bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600'
                       }`}>
                         {isConnected ? '● متصل سحابياً' : '○ غير متصل'}
                       </span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${sectorColor}`}>
+                      <span className={`text-[11px] px-2 py-0.5 rounded-lg font-bold border ${sectorColor}`}>
                         {sectorTitle}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500 mt-1">
+                    <p className="text-xs sm:text-[13px] font-medium text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
                       قاعدة بيانات عملاء {sectorTitle}، الأكواد، الفروع، المديونيات الحالية، الحد الائتماني، وتعيين المناديب والمشرفين
                     </p>
                   </div>
@@ -1525,15 +1527,15 @@ function onEdit(e) {
 
                 {/* Quick Metrics */}
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-center group-hover:bg-blue-50 group-hover:border-blue-200 transition-colors">
-                    <div className="text-[10px] text-slate-500 font-bold">العملاء الحاليين</div>
-                    <div className="text-sm font-black text-slate-900 font-mono">
+                  <div className="bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-center">
+                    <div className="text-[11px] text-slate-600 dark:text-slate-300 font-bold">العملاء الحاليين</div>
+                    <div className="text-sm font-black text-slate-900 font-mono tabular-nums mt-0.5">
                       {customers.filter((c) => activeSectorTab === 'electrical' ? c.sector === 'electrical' : (!c.sector || c.sector === 'home')).length.toLocaleString('ar-EG')} عميل
                     </div>
                   </div>
-                  <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] px-3 py-1.5 rounded-xl text-center group-hover:bg-rose-50 group-hover:border-rose-200 transition-colors">
-                    <div className="text-[10px] text-[var(--app-risk-text)] font-bold">إجمالي المديونيات</div>
-                    <div className="text-sm font-black text-[var(--app-risk-text)] font-mono">
+                  <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] px-3.5 py-2 rounded-xl text-center">
+                    <div className="text-[11px] text-[var(--app-risk-text)] font-bold">إجمالي المديونيات</div>
+                    <div className="text-sm font-black text-[var(--app-risk-text)] font-mono tabular-nums mt-0.5">
                       {formatCurrency(customers.filter((c) => activeSectorTab === 'electrical' ? c.sector === 'electrical' : (!c.sector || c.sector === 'home')).reduce((sum, c) => sum + (c.currentBalance ?? c.balance ?? 0), 0))}
                     </div>
                   </div>
@@ -1542,7 +1544,7 @@ function onEdit(e) {
 
               {/* URL Input Form */}
               <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
                   <label htmlFor="customer-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                     <Globe className="w-3.5 h-3.5 text-[var(--app-ok-text)]" />
                     <span>رابط Google Sheet الخاص بعملاء {sectorTitle} (Anyone with the link can view):</span>
@@ -1569,14 +1571,14 @@ function onEdit(e) {
                       value={sourceUrls[custKey] || ''}
                       onChange={(e) => setSourceUrls((prev) => ({ ...prev, [custKey]: e.target.value }))}
                       placeholder={`رابط شيت Google Sheet لعملاء ${sectorTitle}...`}
-                      className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
+                      className="w-full h-11 pr-10 pl-3 bg-white dark:bg-[#0b1926] border border-slate-300 dark:border-slate-600 rounded-xl text-xs sm:text-[13px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
                     />
                   </div>
 
                   <button
                     type="button"
                     onClick={() => handleSaveUrl(custKey)}
-                    className={`bg-gradient-to-r from-[var(--app-accent)] to-blue-600 hover:from-blue-500 hover:to-[var(--app-accent)] text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer shadow-md active:scale-95 disabled:opacity-50`}
+                    className="bg-[var(--app-primary)] hover:bg-[var(--app-primary-hover)] text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
                   >
                     {savedUrlNotice === custKey ? (
                       <>
@@ -1592,17 +1594,17 @@ function onEdit(e) {
                     type="button"
                     onClick={() => handleSyncCustomers()}
                     disabled={syncingKey === custKey || !(sourceUrls[custKey] || '').trim()}
-                    className={`bg-white border border-slate-200 text-slate-700 font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm active:scale-95 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed`}
+                    className="bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-200 dark:border-blue-400/40 font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {syncingKey === custKey ? (
                       <>
-                        <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
-                        <span className="text-blue-700">جاري المزامنة...</span>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>جاري المزامنة...</span>
                       </>
                     ) : (
                       <>
-                        <RefreshCw className="w-4 h-4 text-blue-600" />
-                        <span className="text-blue-700">مزامنة سحابية فورية</span>
+                        <RefreshCw className="w-4 h-4" />
+                        <span>مزامنة سحابية فورية</span>
                       </>
                     )}
                   </button>
@@ -1610,13 +1612,13 @@ function onEdit(e) {
 
                 {/* Notifications */}
                 {sheetSuccess[custKey] && (
-                  <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs flex items-center gap-2">
+                  <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs flex items-center gap-2 font-bold">
                     <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)] shrink-0" />
                     <span>{sheetSuccess[custKey]}</span>
                   </div>
                 )}
                 {sheetErrors[custKey] && (
-                  <div className="p-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-xl text-xs flex items-center gap-2">
+                  <div className="p-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-xl text-xs flex items-center gap-2 font-bold">
                     <AlertCircle className="w-4 h-4 text-[var(--app-risk-text)] shrink-0" />
                     <span>{sheetErrors[custKey]}</span>
                   </div>
@@ -1632,18 +1634,18 @@ function onEdit(e) {
               <button
                 type="button"
                 onClick={() => fileInputCustomersRef.current?.click()}
-                className="bg-slate-50 border border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-700 font-bold px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                className="bg-slate-50 border border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-600 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer active:scale-95"
               >
-                <Upload className="w-3.5 h-3.5 text-blue-600" />
+                <Upload className="w-3.5 h-3.5 text-blue-600 dark:text-blue-300" />
                 <span>رفع ملف إكسل محلي (.xlsx)</span>
               </button>
 
               <button
                 type="button"
                 onClick={generateSampleCustomersTemplate}
-                className="bg-white border border-slate-200 hover:bg-teal-50 hover:border-teal-300 text-teal-800 font-bold px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                className="bg-teal-50 border border-teal-200 hover:bg-teal-100 text-teal-800 dark:bg-teal-500/15 dark:border-teal-400/35 dark:hover:bg-teal-500/25 dark:text-teal-200 font-bold px-3.5 py-2.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer active:scale-95"
               >
-                <Download className="w-3.5 h-3.5 text-[var(--app-accent)]" />
+                <Download className="w-3.5 h-3.5" />
                 <span>تحميل نموذج إكسل معتمد</span>
               </button>
             </div>
@@ -1651,7 +1653,7 @@ function onEdit(e) {
             <button
               type="button"
               onClick={() => exportCustomersToExcel(customers, selectedBranchFilter)}
-              className="bg-[var(--app-accent)] hover:bg-[#00827a] text-white font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer"
+              className="bg-[var(--app-primary)] hover:bg-[var(--app-primary-hover)] text-white font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
             >
               <FileSpreadsheet className="w-3.5 h-3.5 text-white" />
               <span>تصدير قاعدة العملاء ({customers.length})</span>
@@ -1660,29 +1662,29 @@ function onEdit(e) {
         </div>
 
         {/* ---------------- CARD 2: Customer Sales by Item (شيت مبيعات العملاء بالصنف) ---------------- */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200 group">
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 shadow-sm space-y-5 hover:border-[var(--app-accent)] transition duration-200">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div className="flex items-start sm:items-center gap-3.5">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-r from-[var(--app-accent)] to-teal-700 text-white flex items-center justify-center font-black shrink-0 shadow-lg shadow-[0_0_20px_rgba(0,0,0,0.08)]">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-r from-[var(--app-accent)] to-teal-700 text-white flex items-center justify-center font-black shrink-0">
                 <BarChart3 className="w-7 h-7" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-lg font-black text-slate-900 group-hover:text-[var(--app-accent)] transition-colors">
+                  <h3 className="text-base sm:text-lg font-black text-slate-900">
                     2. شيت مبيعات العملاء بالصنف
                   </h3>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
+                  <span className={`text-[11px] px-2 py-0.5 rounded-lg font-bold ${
                     isValidPublishedSource(sources.customerSales)
                       ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
-                      : 'bg-slate-100 text-slate-600 border border-slate-300'
+                      : 'bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600'
                   }`}>
                     {isValidPublishedSource(sources.customerSales) ? '● متصل سحابياً' : '○ غير متصل'}
                   </span>
-                  <span className="bg-teal-50 text-teal-800 text-[10px] px-2 py-0.5 rounded-lg font-bold border border-teal-100">
+                  <span className="bg-teal-50 text-teal-800 dark:bg-teal-500/20 dark:text-teal-200 text-[11px] px-2 py-0.5 rounded-lg font-bold border border-teal-200 dark:border-teal-400/35">
                     مبيعات الأصناف وأوامر البيع 2026
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1 leading-5">
+                <p className="text-xs sm:text-[13px] font-medium text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
                   مبيعات الأصناف التفصيلية: Customer account, Invoicing name, Sales order, Date, المندوب, الشهر, Warehouse, Item, Name, Quantity, Amount, Item group, Family Dimension
                 </p>
               </div>
@@ -1690,15 +1692,15 @@ function onEdit(e) {
 
             {/* Quick Metrics */}
             <div className="flex items-center gap-2.5 flex-wrap">
-              <div className="bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] px-3 py-1.5 rounded-xl text-center group-hover:bg-emerald-50 group-hover:border-emerald-200 transition-colors">
-                <div className="text-[10px] text-[var(--app-ok-text)] font-bold">مبيعات 2026 المسجلة</div>
-                <div className="text-sm font-black text-[var(--app-ok-text)] font-mono">
+              <div className="bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] px-3.5 py-2 rounded-xl text-center">
+                <div className="text-[11px] text-[var(--app-ok-text)] font-bold">مبيعات 2026 المسجلة</div>
+                <div className="text-sm font-black text-[var(--app-ok-text)] font-mono tabular-nums mt-0.5">
                   {formatCurrency(metrics.totalSales2026)}
                 </div>
               </div>
-              <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-3 py-1.5 rounded-xl text-center group-hover:bg-blue-50 group-hover:border-blue-200 transition-colors">
-                <div className="text-[10px] text-[var(--app-navy-text)] font-bold">تحصيلات 2026</div>
-                <div className="text-sm font-black text-[var(--app-navy-text)] font-mono">
+              <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-3.5 py-2 rounded-xl text-center">
+                <div className="text-[11px] text-[var(--app-navy-text)] font-bold">تحصيلات 2026</div>
+                <div className="text-sm font-black text-[var(--app-navy-text)] font-mono tabular-nums mt-0.5">
                   {formatCurrency(metrics.totalCollections2026)}
                 </div>
               </div>
@@ -1707,7 +1709,7 @@ function onEdit(e) {
 
           {/* URL Input Form */}
           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <label htmlFor="customer-sales-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
                 <span>رابط Google Sheet الخاص بمبيعات العملاء الشهرية والتحصيل (دمج مباشر بدون تكرار):</span>
@@ -1734,14 +1736,14 @@ function onEdit(e) {
                   value={sourceUrls.customerSales}
                   onChange={(e) => setSourceUrls((prev) => ({ ...prev, customerSales: e.target.value }))}
                   placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
+                  className="w-full h-11 pr-10 pl-3 bg-white dark:bg-[#0b1926] border border-slate-300 dark:border-slate-600 rounded-xl text-xs sm:text-[13px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
                 />
               </div>
 
               <button
                 type="button"
                 onClick={() => handleSaveUrl('customerSales')}
-                className={`bg-gradient-to-r from-[var(--app-accent)] to-blue-600 hover:from-blue-500 hover:to-[var(--app-accent)] text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer shadow-md active:scale-95 disabled:opacity-50`}
+                className="bg-[var(--app-primary)] hover:bg-[var(--app-primary-hover)] text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
               >
                 {savedUrlNotice === 'customerSales' ? (
                   <>
@@ -1757,17 +1759,17 @@ function onEdit(e) {
                 type="button"
                 onClick={() => handleSyncCustomerSales()}
                 disabled={syncingKey === 'customerSales' || !sourceUrls.customerSales.trim()}
-                className={`bg-white border border-slate-200 text-slate-700 font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm active:scale-95 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed`}
+                className="bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-200 dark:border-blue-400/40 font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {syncingKey === 'customerSales' ? (
                   <>
-                    <RefreshCw className="w-4 h-4 animate-spin text-blue-600" />
-                    <span className="text-blue-700">جاري دمج المبيعات...</span>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>جاري دمج المبيعات...</span>
                   </>
                 ) : (
                   <>
-                    <RefreshCw className="w-4 h-4 text-blue-600" />
-                    <span className="text-blue-700">مزامنة سحابية وتحديث فوري</span>
+                    <RefreshCw className="w-4 h-4" />
+                    <span>مزامنة سحابية وتحديث فوري</span>
                   </>
                 )}
               </button>
@@ -1775,13 +1777,13 @@ function onEdit(e) {
 
             {/* Notifications */}
             {sheetSuccess.customerSales && (
-              <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs flex items-center gap-2">
+              <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs flex items-center gap-2 font-bold">
                 <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)] shrink-0" />
                 <span>{sheetSuccess.customerSales}</span>
               </div>
             )}
             {sheetErrors.customerSales && (
-              <div className="p-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-xl text-xs flex items-center gap-2">
+              <div className="p-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-xl text-xs flex items-center gap-2 font-bold">
                 <AlertCircle className="w-4 h-4 text-[var(--app-risk-text)] shrink-0" />
                 <span>{sheetErrors.customerSales}</span>
               </div>
@@ -1794,18 +1796,18 @@ function onEdit(e) {
               <button
                 type="button"
                 onClick={() => fileInputSalesRef.current?.click()}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-600 font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
               >
-                <Upload className="w-3.5 h-3.5 text-slate-600" />
+                <Upload className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
                 <span>رفع ملف إكسل لمبيعات العملاء (.xlsx)</span>
               </button>
 
               <button
                 type="button"
                 onClick={downloadCustomerAnalyticsTemplate}
-                className="text-slate-600 hover:text-slate-900 font-bold px-3 py-2 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5 cursor-pointer"
+                className="text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white font-bold px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1.5 cursor-pointer"
               >
-                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <Download className="w-3.5 h-3.5 text-slate-500 dark:text-slate-300" />
                 <span>تحميل قالب مبيعات العملاء والتحليل</span>
               </button>
             </div>
@@ -1814,9 +1816,9 @@ function onEdit(e) {
               <button
                 type="button"
                 onClick={() => exportCustomerAnalyticsToExcel(customers, 'تقرير_مبيعات_كافة_العملاء_2026')}
-                className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                className="bg-[#0f2b38] hover:bg-[#153847] dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
-                <FileSpreadsheet className="w-3.5 h-3.5 text-[#7fc0ff]" />
+                <FileSpreadsheet className="w-3.5 h-3.5 text-sky-300" />
                 <span>تصدير إكسل (مبيعات العملاء)</span>
               </button>
             </div>
@@ -1832,21 +1834,21 @@ function onEdit(e) {
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-lg font-black text-slate-900">
+                  <h3 className="text-base sm:text-lg font-black text-slate-900">
                     3. شيت الأصناف والمخزون وقوائم الأسعار
                   </h3>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
+                  <span className={`text-[11px] px-2 py-0.5 rounded-lg font-bold ${
                     isValidPublishedSource(sources.products)
                       ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
-                      : 'bg-slate-100 text-slate-600 border border-slate-300'
+                      : 'bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600'
                   }`}>
                     {isValidPublishedSource(sources.products) ? '● متصل سحابياً' : '○ غير متصل'}
                   </span>
-                  <span className="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] text-[10px] px-2 py-0.5 rounded-lg font-bold">
+                  <span className="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)] text-[11px] px-2 py-0.5 rounded-lg font-bold">
                     الكتالوج والمخازن والكرتونة
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs sm:text-[13px] font-medium text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
                   كتالوج المنتجات، أسعار الكرتونة والقطعة، رصيد الفروع ومخزن أكتوبر المركزي، وروابط الصور
                 </p>
               </div>
@@ -1854,15 +1856,15 @@ function onEdit(e) {
 
             {/* Quick Metrics */}
             <div className="flex items-center gap-2.5 flex-wrap">
-              <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-3 py-1.5 rounded-xl text-center">
-                <div className="text-[10px] text-[var(--app-navy-text)] font-bold">الأصناف المسجلة</div>
-                <div className="text-sm font-black text-[var(--app-navy-text)] font-mono">
+              <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-3.5 py-2 rounded-xl text-center">
+                <div className="text-[11px] text-[var(--app-navy-text)] font-bold">الأصناف المسجلة</div>
+                <div className="text-sm font-black text-[var(--app-navy-text)] font-mono tabular-nums mt-0.5">
                   {metrics.totalProducts.toLocaleString('ar-EG')} صنف
                 </div>
               </div>
-              <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-center">
-                <div className="text-[10px] text-slate-500 font-bold">إجمالي الكراتين المتاحة</div>
-                <div className="text-sm font-black text-slate-900 font-mono">
+              <div className="bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-center">
+                <div className="text-[11px] text-slate-600 dark:text-slate-300 font-bold">إجمالي الكراتين المتاحة</div>
+                <div className="text-sm font-black text-slate-900 font-mono tabular-nums mt-0.5">
                   {metrics.totalCartons.toLocaleString('ar-EG')} كرتونة
                 </div>
               </div>
@@ -1871,7 +1873,7 @@ function onEdit(e) {
 
           {/* URL Input Form */}
           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <label htmlFor="products-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
                 <span>رابط Google Sheet الخاص بالأصناف والمخزون والأسعار:</span>
@@ -1898,18 +1900,18 @@ function onEdit(e) {
                   value={sourceUrls.products}
                   onChange={(e) => setSourceUrls((prev) => ({ ...prev, products: e.target.value }))}
                   placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
+                  className="w-full h-11 pr-10 pl-3 bg-white dark:bg-[#0b1926] border border-slate-300 dark:border-slate-600 rounded-xl text-xs sm:text-[13px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
                 />
               </div>
 
               <button
                 type="button"
                 onClick={() => handleSaveUrl('products')}
-                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer"
+                className="bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer"
               >
                 {savedUrlNotice === 'products' ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-[#60a5fa]" />
+                    <Check className="w-3.5 h-3.5 text-sky-300" />
                     <span>تم حفظ الرابط ✓</span>
                   </>
                 ) : (
@@ -1921,7 +1923,7 @@ function onEdit(e) {
                 type="button"
                 onClick={() => handleSyncProducts()}
                 disabled={syncingKey === 'products' || !sourceUrls.products.trim()}
-                className="bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+                className="bg-[var(--app-primary)] hover:bg-[var(--app-primary-hover)] text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
               >
                 {syncingKey === 'products' ? (
                   <>
@@ -1939,13 +1941,13 @@ function onEdit(e) {
 
             {/* Notifications */}
             {sheetSuccess.products && (
-              <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs flex items-center gap-2">
+              <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs flex items-center gap-2 font-bold">
                 <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)] shrink-0" />
                 <span>{sheetSuccess.products}</span>
               </div>
             )}
             {sheetErrors.products && (
-              <div className="p-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-xl text-xs flex items-center gap-2">
+              <div className="p-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-xl text-xs flex items-center gap-2 font-bold">
                 <AlertCircle className="w-4 h-4 text-[var(--app-risk-text)] shrink-0" />
                 <span>{sheetErrors.products}</span>
               </div>
@@ -1958,18 +1960,18 @@ function onEdit(e) {
               <button
                 type="button"
                 onClick={() => fileInputProductsRef.current?.click()}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-600 font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
               >
-                <Upload className="w-3.5 h-3.5 text-slate-600" />
+                <Upload className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
                 <span>رفع ملف إكسل للأصناف والمخزون (.xlsx)</span>
               </button>
 
               <button
                 type="button"
                 onClick={generateSampleExcelTemplate}
-                className="text-slate-600 hover:text-slate-900 font-bold px-3 py-2 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5 cursor-pointer"
+                className="text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white font-bold px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1.5 cursor-pointer"
               >
-                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <Download className="w-3.5 h-3.5 text-slate-500 dark:text-slate-300" />
                 <span>تحميل نموذج أصناف معتمد</span>
               </button>
             </div>
@@ -1977,9 +1979,9 @@ function onEdit(e) {
             <button
               type="button"
               onClick={() => exportProductsToExcel(products, selectedBranchFilter)}
-              className="bg-slate-900 hover:bg-slate-800 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+              className="bg-[#0f2b38] hover:bg-[#153847] dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-[#60a5fa]" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-sky-300" />
               <span>تصدير المخزون الحالي ({products.length} صنف)</span>
             </button>
           </div>
@@ -1994,21 +1996,21 @@ function onEdit(e) {
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-lg font-black text-slate-900">
+                  <h3 className="text-base sm:text-lg font-black text-slate-900">
                     4. شيت أهداف ومبيعات وتحصيلات المناديب
                   </h3>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
+                  <span className={`text-[11px] px-2 py-0.5 rounded-lg font-bold ${
                     isValidPublishedSource(sources.targets)
                       ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
-                      : 'bg-slate-100 text-slate-600 border border-slate-300'
+                      : 'bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600'
                   }`}>
                     {isValidPublishedSource(sources.targets) ? '● متصل سحابياً' : '○ غير متصل'}
                   </span>
-                  <span className="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] text-[10px] px-2 py-0.5 rounded-lg font-bold">
+                  <span className="bg-[var(--app-navy-tint)] text-[var(--app-navy-text)] border border-[var(--app-navy-line)] text-[11px] px-2 py-0.5 rounded-lg font-bold">
                     تارجت المناديب والمشرفين
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs sm:text-[13px] font-medium text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
                   تارجت المبيعات والتحصيل الشهري والربع سنوي لكل مندوب ومشرف، والمحققات الفعلية ونسب الإنجاز
                 </p>
               </div>
@@ -2016,15 +2018,15 @@ function onEdit(e) {
 
             {/* Quick Metrics */}
             <div className="flex items-center gap-2.5 flex-wrap">
-              <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-3 py-1.5 rounded-xl text-center">
-                <div className="text-[10px] text-[var(--app-navy-text)] font-bold">سجلات الأهداف</div>
-                <div className="text-sm font-black text-[var(--app-navy-text)] font-mono">
+              <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-3.5 py-2 rounded-xl text-center">
+                <div className="text-[11px] text-[var(--app-navy-text)] font-bold">سجلات الأهداف</div>
+                <div className="text-sm font-black text-[var(--app-navy-text)] font-mono tabular-nums mt-0.5">
                   {metrics.totalTargets.toLocaleString('ar-EG')} سجل
                 </div>
               </div>
-              <div className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-center">
-                <div className="text-[10px] text-slate-500 font-bold">إجمالي مستهدف المبيعات</div>
-                <div className="text-sm font-black text-slate-900 font-mono">
+              <div className="bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-center">
+                <div className="text-[11px] text-slate-600 dark:text-slate-300 font-bold">إجمالي مستهدف المبيعات</div>
+                <div className="text-sm font-black text-slate-900 font-mono tabular-nums mt-0.5">
                   {formatCurrency(metrics.totalTargetSales)}
                 </div>
               </div>
@@ -2033,7 +2035,7 @@ function onEdit(e) {
 
           {/* URL Input Form */}
           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <label htmlFor="targets-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-[var(--app-navy-text)]" />
                 <span>رابط Google Sheet الخاص بأهداف ومبيعات المناديب:</span>
@@ -2060,18 +2062,18 @@ function onEdit(e) {
                   value={sourceUrls.targets}
                   onChange={(e) => setSourceUrls((prev) => ({ ...prev, targets: e.target.value }))}
                   placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
+                  className="w-full h-11 pr-10 pl-3 bg-white dark:bg-[#0b1926] border border-slate-300 dark:border-slate-600 rounded-xl text-xs sm:text-[13px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
                 />
               </div>
 
               <button
                 type="button"
                 onClick={() => handleSaveUrl('targets')}
-                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer"
+                className="bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer"
               >
                 {savedUrlNotice === 'targets' ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-[#60a5fa]" />
+                    <Check className="w-3.5 h-3.5 text-sky-300" />
                     <span>تم حفظ الرابط ✓</span>
                   </>
                 ) : (
@@ -2083,7 +2085,7 @@ function onEdit(e) {
                 type="button"
                 onClick={() => handleSyncTargets()}
                 disabled={syncingKey === 'targets' || !sourceUrls.targets.trim()}
-                className="bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
+                className="bg-[var(--app-primary)] hover:bg-[var(--app-primary-hover)] text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm shrink-0 cursor-pointer disabled:opacity-50"
               >
                 {syncingKey === 'targets' ? (
                   <>
@@ -2101,13 +2103,13 @@ function onEdit(e) {
 
             {/* Notifications */}
             {sheetSuccess.targets && (
-              <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs flex items-center gap-2">
+              <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs flex items-center gap-2 font-bold">
                 <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)] shrink-0" />
                 <span>{sheetSuccess.targets}</span>
               </div>
             )}
             {sheetErrors.targets && (
-              <div className="p-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-xl text-xs flex items-center gap-2">
+              <div className="p-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-xl text-xs flex items-center gap-2 font-bold">
                 <AlertCircle className="w-4 h-4 text-[var(--app-risk-text)] shrink-0" />
                 <span>{sheetErrors.targets}</span>
               </div>
@@ -2120,18 +2122,18 @@ function onEdit(e) {
               <button
                 type="button"
                 onClick={() => fileInputTargetsRef.current?.click()}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-600 font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
               >
-                <Upload className="w-3.5 h-3.5 text-slate-600" />
+                <Upload className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
                 <span>رفع ملف إكسل للأهداف (.xlsx)</span>
               </button>
 
               <button
                 type="button"
                 onClick={generateSampleCustomerTargetTemplate}
-                className="text-slate-600 hover:text-slate-900 font-bold px-3 py-2 rounded-xl hover:bg-slate-100 transition flex items-center gap-1.5 cursor-pointer"
+                className="text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white font-bold px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1.5 cursor-pointer"
               >
-                <Download className="w-3.5 h-3.5 text-slate-500" />
+                <Download className="w-3.5 h-3.5 text-slate-500 dark:text-slate-300" />
                 <span>تحميل نموذج أهداف معتمد</span>
               </button>
             </div>
@@ -2139,9 +2141,9 @@ function onEdit(e) {
             <button
               type="button"
               onClick={exportTargetsReport}
-              className="bg-[var(--app-navy)] hover:bg-[var(--app-navy)] text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+              className="bg-[var(--app-primary)] hover:bg-[var(--app-primary-hover)] text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-[#7fc0ff]" />
+              <FileSpreadsheet className="w-3.5 h-3.5 text-sky-200" />
               <span>تصدير تقرير أهداف المناديب ({targets.length})</span>
             </button>
           </div>
@@ -2156,21 +2158,21 @@ function onEdit(e) {
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-lg font-black text-slate-900">
+                  <h3 className="text-base sm:text-lg font-black text-slate-900">
                     5. شيت العروض الترويجية والخصومات
                   </h3>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-lg font-bold ${
+                  <span className={`text-[11px] px-2 py-0.5 rounded-lg font-bold ${
                     isValidPublishedSource(sources.offers)
                       ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border border-[var(--app-ok-line)]'
-                      : 'bg-slate-100 text-slate-600 border border-slate-300'
+                      : 'bg-slate-100 text-slate-700 border border-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600'
                   }`}>
                     {isValidPublishedSource(sources.offers) ? '● متصل سحابياً' : '○ غير متصل'}
                   </span>
-                  <span className="bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] text-[10px] px-2 py-0.5 rounded-lg font-bold">
+                  <span className="bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border border-[var(--app-risk-line)] text-[11px] px-2 py-0.5 rounded-lg font-bold">
                     الأسعار الترويجية الفورية
                   </span>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs sm:text-[13px] font-medium text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
                   عروض المنتجات الترويجية، الأسعار المخفضة، وجدول العروض والخصومات الفورية المطبقة بالكتالوج والفواتير
                 </p>
               </div>
@@ -2178,9 +2180,9 @@ function onEdit(e) {
 
             {/* Quick Metrics */}
             <div className="flex items-center gap-2.5 flex-wrap">
-              <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] px-3 py-1.5 rounded-xl text-center">
-                <div className="text-[10px] text-[var(--app-risk-text)] font-bold">العروض النشطة بالكتالوج</div>
-                <div className="text-sm font-black text-[var(--app-risk-text)] font-mono">
+              <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] px-3.5 py-2 rounded-xl text-center">
+                <div className="text-[11px] text-[var(--app-risk-text)] font-bold">العروض النشطة بالكتالوج</div>
+                <div className="text-sm font-black text-[var(--app-risk-text)] font-mono tabular-nums mt-0.5">
                   {metrics.activeOffersCount} عرض مفعل
                 </div>
               </div>
@@ -2189,7 +2191,7 @@ function onEdit(e) {
 
           {/* URL Input Form */}
           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 space-y-2.5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <label htmlFor="offers-sheet-url" className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
                 <Globe className="w-3.5 h-3.5 text-[var(--app-risk-text)]" />
                 <span>رابط Google Sheet الخاص بجدول العروض والخصومات الترويجية:</span>
@@ -2216,18 +2218,18 @@ function onEdit(e) {
                   value={sourceUrls.offers}
                   onChange={(e) => setSourceUrls((prev) => ({ ...prev, offers: e.target.value }))}
                   placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                  className="w-full h-11 pr-10 pl-3 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
+                  className="w-full h-11 pr-10 pl-3 bg-white dark:bg-[#0b1926] border border-slate-300 dark:border-slate-600 rounded-xl text-xs sm:text-[13px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
                 />
               </div>
 
               <button
                 type="button"
                 onClick={() => handleSaveUrl('offers')}
-                className="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer"
+                className="bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer"
               >
                 {savedUrlNotice === 'offers' ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-[#7fc0ff]" />
+                    <Check className="w-3.5 h-3.5 text-sky-300" />
                     <span>تم حفظ الرابط ✓</span>
                   </>
                 ) : (
@@ -2257,13 +2259,13 @@ function onEdit(e) {
 
             {/* Notifications */}
             {sheetSuccess.offers && (
-              <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs flex items-center gap-2">
+              <div className="p-3 bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] text-[var(--app-ok-text)] rounded-xl text-xs flex items-center gap-2 font-bold">
                 <CheckCircle2 className="w-4 h-4 text-[var(--app-ok-text)] shrink-0" />
                 <span>{sheetSuccess.offers}</span>
               </div>
             )}
             {sheetErrors.offers && (
-              <div className="p-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-xl text-xs flex items-center gap-2">
+              <div className="p-3 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-xl text-xs flex items-center gap-2 font-bold">
                 <AlertCircle className="w-4 h-4 text-[var(--app-risk-text)] shrink-0" />
                 <span>{sheetErrors.offers}</span>
               </div>
@@ -2272,37 +2274,37 @@ function onEdit(e) {
         </div>
 
       {/* Quick Recognized Columns Reference */}
-      <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-sm space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+      <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-sm space-y-4 border border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 dark:border-slate-700 pb-3">
           <div className="flex items-center gap-2">
-            <FileCheck className="w-5 h-5 text-[#7fc0ff]" />
-            <h4 className="font-extrabold text-sm text-[#7fc0ff]">
+            <FileCheck className="w-5 h-5 text-sky-300 shrink-0" />
+            <h4 className="font-black text-sm sm:text-base text-white">
               الأعمدة الأساسية المقروءة والمدعومة تلقائياً في الشيتات الخمس:
             </h4>
           </div>
-          <span className="text-[11px] text-slate-400 font-medium">
+          <span className="text-xs text-sky-200 font-semibold">
             تطابق ذكي فوري مع أسماء الأعمدة العربية والإنجليزية
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
-          <div className="bg-white/5 p-3 rounded-2xl border border-white/10 space-y-1.5">
-            <strong className="text-[#7fc0ff] block font-black">شيت العملاء والمديونيات:</strong>
-            <p className="text-slate-300 text-[11px] leading-5">
+          <div className="bg-white/10 p-4 rounded-2xl border border-white/15 space-y-2">
+            <strong className="text-sky-300 block font-black text-sm">شيت العملاء والمديونيات:</strong>
+            <p className="text-slate-100 text-xs font-medium leading-6">
               كود العميل، اسم العميل، الفرع، اسم المندوب، المشرف، المنطقة، رقم الهاتف، المديونية الحالية، الحد الائتماني، حالة الدين، صلاحية التعامل.
             </p>
           </div>
 
-          <div className="bg-white/5 p-3 rounded-2xl border border-white/10 space-y-1.5">
-            <strong className="text-[#7fc0ff] block font-black">شيت مبيعات العملاء والتارجت:</strong>
-            <p className="text-slate-300 text-[11px] leading-5">
+          <div className="bg-white/10 p-4 rounded-2xl border border-white/15 space-y-2">
+            <strong className="text-sky-300 block font-black text-sm">شيت مبيعات العملاء والتارجت:</strong>
+            <p className="text-slate-100 text-xs font-medium leading-6">
               كود العميل، اسم العميل، مبيعات 2026، مبيعات 2025، نسبة النمو %، تحصيلات 2026، مبيعات الشهور 1 إلى 12، تحصيلات الشهور 1 إلى 12، تارجت العميل.
             </p>
           </div>
 
-          <div className="bg-white/5 p-3 rounded-2xl border border-white/10 space-y-1.5">
-            <strong className="text-[#60a5fa] block font-black">شيت الأصناف والمخزون:</strong>
-            <p className="text-slate-300 text-[11px] leading-5">
+          <div className="bg-white/10 p-4 rounded-2xl border border-white/15 space-y-2">
+            <strong className="text-sky-300 block font-black text-sm">شيت الأصناف والمخزون:</strong>
+            <p className="text-slate-100 text-xs font-medium leading-6">
               الكود الموحد، كود المنتج، اسم المنتج، الحجم، عدد القطع بالكرتونة، سعر الكرتونة، سعر القطعة، رصيد الفروع (المنيا، الفيوم، البحيرة...)، مخزون أكتوبر، لينك الصورة.
             </p>
           </div>
@@ -2317,32 +2319,32 @@ function onEdit(e) {
           className="w-full p-5 flex items-center justify-between text-right font-black text-xs sm:text-sm text-slate-800 hover:bg-slate-50 transition cursor-pointer"
         >
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-slate-700">
+            <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-700 dark:text-slate-200">
               <FolderOpen className="w-4 h-4" />
             </div>
             <span>أداة مساعدة: استخراج روابط صور الأصناف من Google Drive تلقائياً (Apps Script)</span>
           </div>
-          {isDriveScannerOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+          {isDriveScannerOpen ? <ChevronUp className="w-4 h-4 text-slate-500 dark:text-slate-300" /> : <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-300" />}
         </button>
 
         {isDriveScannerOpen && (
           <div className="p-6 bg-slate-50 border-t border-slate-200 space-y-4 text-xs animate-in fade-in">
-            <p className="text-slate-600 leading-relaxed">
+            <p className="text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
               إذا كانت لديك صور الأصناف مخزنة في مجلد Google Drive، يمكنك استخدام هذا السكربت المجاني داخل Google Sheets (من قائمة Extensions ⬅️ Apps Script) ليقوم بجلب كل الصور وتوليد روابط مباشرة لها ووضعها في شيت الإكسل:
             </p>
 
             <div className="relative">
-              <pre className="bg-slate-950 text-[#7fc0ff] p-4 rounded-2xl overflow-x-auto text-[11px] font-mono leading-relaxed" dir="ltr">
+              <pre className="bg-slate-950 text-sky-300 p-4 rounded-2xl overflow-x-auto text-xs font-mono leading-relaxed" dir="ltr">
                 {sampleAppsScript}
               </pre>
               <button
                 type="button"
                 onClick={handleCopyScript}
-                className="absolute top-3 left-3 bg-white/20 hover:bg-white/30 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                className="absolute top-3 left-3 bg-white/15 hover:bg-white/25 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
               >
                 {copiedScript ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-[#7fc0ff]" />
+                    <Check className="w-3.5 h-3.5 text-sky-300" />
                     <span>تم النسخ ✓</span>
                   </>
                 ) : (
@@ -2367,7 +2369,7 @@ function onEdit(e) {
 
             <div className="text-center space-y-1">
               <h3 className="text-lg font-black text-slate-900">تأكيد مسح وتصفير كافة البيانات</h3>
-              <p className="text-xs text-slate-500 leading-relaxed">
+              <p className="text-xs font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
                 هل أنت متأكد من رغبتك في مسح كافة المنتجات والصور الحالية؟ سيتم تفريغ النظام لتتمكن من رفع شيت الإكسل الجديد الخاص بك من البداية.
               </p>
             </div>
@@ -2388,7 +2390,7 @@ function onEdit(e) {
               <button
                 type="button"
                 onClick={() => setIsWipeModalOpen(false)}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold flex-1 py-2.5 text-xs rounded-xl cursor-pointer"
+                className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-bold flex-1 py-2.5 text-xs rounded-xl cursor-pointer"
               >
                 إلغاء
               </button>
@@ -2409,7 +2411,7 @@ function onEdit(e) {
                   }
                 }}
                 disabled={isWiping}
-                className="bg-[var(--app-risk)] hover:bg-[var(--app-risk)] text-white font-bold flex-1 py-2.5 text-xs rounded-xl shadow-md cursor-pointer disabled:opacity-50"
+                className="bg-[var(--app-risk)] hover:opacity-90 text-white font-bold flex-1 py-2.5 text-xs rounded-xl shadow-md cursor-pointer disabled:opacity-50"
               >
                 {isWiping ? 'جاري المسح...' : 'نعم، مسح والبدء من جديد'}
               </button>

@@ -11,6 +11,7 @@ import {
   encodeVisitGeoVerificationTag,
   extractVisitGeoFromNotes,
 } from './geoVerificationService';
+import { encodeTargetNotesWithSector, inferTargetSector } from './targetService';
 
 export const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').trim();
 export const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
@@ -460,7 +461,7 @@ const isPermissionDeniedError = (err: any): boolean => {
  * لو العمود اتنشر بعدين ما يفضلش مستثنى للأبد.
  */
 const MISSING_COLUMN_CACHE_KEY = 'tantawy:missing_columns_v1';
-const MISSING_COLUMN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MISSING_COLUMN_TTL_MS = 10 * 60 * 1000;
 
 type MissingColumnEntry = { columns: string[]; savedAt: number };
 
@@ -547,33 +548,39 @@ async function fetchAllRows(
 ): Promise<{ data: any[]; error: any }> {
   const pageSize = 1000;
   const rows: any[] = [];
-  let selectCols =
+  const columnList =
     table === 'customers'
-      ? scope?.slimFieldColumns
-        ? CUSTOMERS_FIELD_SELECT_COLUMNS
-        : CUSTOMERS_FULL_SELECT_COLUMNS
-      : '*';
+      ? (scope?.slimFieldColumns ? CUSTOMERS_FIELD_SELECT_COLUMNS : CUSTOMERS_FULL_SELECT_COLUMNS).split(',')
+      : [];
+  let selectCols = table === 'customers' ? buildSelectList('customers', columnList) : '*';
 
   for (let from = 0; ; from += pageSize) {
-    let query = supabase.from(table).select(selectCols);
-    query = applyScopeToQuery(query, scope);
-    // ترتيب ثابت ضروري لصفحات `.range()` — من غيره الصفحات ممكن تكرر
-    // أو تتخطى صفوف لو السيرفر رجّعهم بترتيب مختلف بين الطلبات.
-    query = query.order('id', { ascending: true });
-    // مزامنة تدريجية: بنجيب بس الصفوف اللي اتغيرت بعد آخر مزامنة ناجحة
-    // بدل تنزيل نطاق العملاء كامل عند أي تعديل. `gte` مش `gt` عشان صفوف
-    // اللحظة الحدودية ترجع تاني بدل ما تتخطى (الدمج بالـ id idempotent).
-    if (updatedSince) {
-      query = query.gte('updated_at', updatedSince);
-    }
-    let { data, error } = await query.range(from, from + pageSize - 1);
+    let attempts = 0;
+    let data: any[] | null = null;
+    let error: any = null;
 
-    if (error && selectCols !== '*' && isMissingColumnError(error)) {
-      selectCols = '*';
-      let fallbackQuery = supabase.from(table).select('*');
-      fallbackQuery = applyScopeToQuery(fallbackQuery, scope).order('id', { ascending: true });
-      if (updatedSince) fallbackQuery = fallbackQuery.gte('updated_at', updatedSince);
-      ({ data, error } = await fallbackQuery.range(from, from + pageSize - 1));
+    while (attempts < 10) {
+      let query = supabase.from(table).select(selectCols);
+      query = applyScopeToQuery(query, scope);
+      query = query.order('id', { ascending: true });
+      if (updatedSince) {
+        query = query.gte('updated_at', updatedSince);
+      }
+      ({ data, error } = await query.range(from, from + pageSize - 1));
+
+      if (error && selectCols !== '*' && isMissingColumnError(error)) {
+        const missingCol = extractMissingColumn(error);
+        if (missingCol && columnList.length > 0) {
+          rememberMissingColumn('customers', missingCol);
+          selectCols = buildSelectList('customers', columnList);
+          attempts += 1;
+          continue;
+        }
+        selectCols = '*';
+        attempts += 1;
+        continue;
+      }
+      break;
     }
 
     if (error) return { data: rows, error };
@@ -715,7 +722,10 @@ async function fetchCustomersFromSupabaseImpl(
           repId: c.rep_id || c.repId || '',
           taxNumber: c.tax_number || c.taxNumber || '',
           tier: c.tier || 'متوسط',
-          creditLimit: Number(c.credit_limit ?? c.creditLimit ?? 0),
+          creditLimit: (() => {
+            const v = Number(c.credit_limit ?? c.creditLimit ?? 0);
+            return Number.isFinite(v) && v >= 100 ? v : 0;
+          })(),
           balance: Number(c.balance ?? c.current_balance ?? 0),
           currentBalance: Number(c.current_balance ?? c.balance ?? 0),
           notes: cleanNotes,
@@ -882,6 +892,35 @@ export async function fetchTargetContentStamp(
       .order('updated_at', { ascending: false, nullsFirst: false })
       .limit(1);
     query = applyTargetScope(query, scope);
+    const { data, error, count } = await query;
+    if (error) return null;
+    const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
+    return {
+      count: typeof count === 'number' ? count : null,
+      maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export interface ProductContentStamp {
+  count: number | null;
+  maxUpdatedAt: string | null;
+}
+
+export async function fetchProductContentStamp(
+  sector?: 'home' | 'electrical'
+): Promise<ProductContentStamp | null> {
+  try {
+    let query = supabase
+      .from('products')
+      .select('updated_at', { count: 'exact' })
+      .order('updated_at', { ascending: false, nullsFirst: false })
+      .limit(1);
+    if (sector === 'home' || sector === 'electrical') {
+      query = query.or(`sector.in.(${sector},both,all),sector.is.null`);
+    }
     const { data, error, count } = await query;
     if (error) return null;
     const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
@@ -1124,23 +1163,36 @@ export async function saveCustomersToSupabase(
 
     const dedupedPayload = Array.from(new Map(payload.map((r) => [r.id, r])).values());
     const failures: string[] = [];
-    const OMITTABLE_COLUMNS = [
-      'total_overdue_and_due', 'overdue_balance', 'due_balance', 'total_overdue',
-      'deal_eligibility', 'dealt_2026', 'dealt_in_2026',
-    ];
 
     for (let i = 0; i < dedupedPayload.length; i += 100) {
       const chunk = dedupedPayload.slice(i, i + 100);
-      // هذه الأعمدة قد تكون غير موجودة في جدول العملاء لدى العميل (لا يوجد migration)،
-      // لذلك تُحذف قبل الإرسال لمنع خطأ 400 وتكمل عملية الرفع بالأعمدة المتاحة فقط.
-      const cleanChunk = chunk.map((row: any) => {
-        const rest: any = { ...row };
-        OMITTABLE_COLUMNS.forEach((k) => delete rest[k]);
-        return rest;
-      });
-      const { error: err1 } = await supabase.from('customers').upsert(cleanChunk);
-      if (err1) {
-        failures.push(err1.message);
+      let chunkError: any = null;
+
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const missing = activeMissingColumns('customers');
+        const cleanChunk = chunk.map((row: any) => {
+          if (missing.size === 0) return row;
+          const rest: any = { ...row };
+          missing.forEach((col) => delete rest[col]);
+          return rest;
+        });
+
+        const { error } = await supabase.from('customers').upsert(cleanChunk);
+        if (!error) {
+          chunkError = null;
+          break;
+        }
+        chunkError = error;
+        const missingCol = extractMissingColumn(error);
+        if (missingCol && missingCol !== 'id' && !missing.has(missingCol)) {
+          rememberMissingColumn('customers', missingCol);
+          continue;
+        }
+        break;
+      }
+
+      if (chunkError) {
+        failures.push(chunkError.message);
       }
     }
 
@@ -1457,6 +1509,7 @@ async function fetchTargetsFromSupabaseImpl(
 }
 
 function buildTargetComparableSig(target: any): string {
+  const sector = target.sector === 'home' || target.sector === 'electrical' ? target.sector : inferTargetSector(target);
   return JSON.stringify([
     target.branch || '',
     target.repName || '',
@@ -1472,7 +1525,7 @@ function buildTargetComparableSig(target: any): string {
     target.quarter || '',
     Number(target.remainingSales || 0),
     Number(target.remainingCollection || 0),
-    target.notes || '',
+    encodeTargetNotesWithSector(target.notes, sector) || '',
   ]);
 }
 
@@ -1501,25 +1554,31 @@ export async function saveTargetsToSupabase(
     }
 
     const nowIso = new Date().toISOString();
-    const payload = targetsToWrite.map((target) => ({
-      id: target.id,
-      branch: target.branch,
-      rep_name: target.repName,
-      sales_target: Number(target.salesTarget || 0),
-      sales_achieved: Number(target.salesAchieved || 0),
-      sales_percentage: Number(target.salesPercentage || 0),
-      collection_target: Number(target.collectionTarget || 0),
-      collection_achieved: Number(target.collectionAchieved || 0),
-      collection_percentage: Number(target.collectionPercentage || 0),
-      target_date: target.date,
-      month: Number(target.month),
-      year: Number(target.year),
-      quarter: target.quarter,
-      remaining_sales: Number(target.remainingSales || 0),
-      remaining_collection: Number(target.remainingCollection || 0),
-      notes: target.notes || null,
-      updated_at: nowIso,
-    }));
+    const payload = targetsToWrite.map((target) => {
+      const resolvedSector =
+        target.sector === 'home' || target.sector === 'electrical'
+          ? target.sector
+          : inferTargetSector(target);
+      return {
+        id: target.id,
+        branch: target.branch,
+        rep_name: target.repName,
+        sales_target: Number(target.salesTarget || 0),
+        sales_achieved: Number(target.salesAchieved || 0),
+        sales_percentage: Number(target.salesPercentage || 0),
+        collection_target: Number(target.collectionTarget || 0),
+        collection_achieved: Number(target.collectionAchieved || 0),
+        collection_percentage: Number(target.collectionPercentage || 0),
+        target_date: target.date,
+        month: Number(target.month),
+        year: Number(target.year),
+        quarter: target.quarter,
+        remaining_sales: Number(target.remainingSales || 0),
+        remaining_collection: Number(target.remainingCollection || 0),
+        notes: encodeTargetNotesWithSector(target.notes, resolvedSector),
+        updated_at: nowIso,
+      };
+    });
     for (let i = 0; i < payload.length; i += 500) {
       const { error } = await supabase.from('targets').upsert(payload.slice(i, i + 500), { onConflict: 'id' });
       if (error) return { success: false, error: error.message };
@@ -1541,13 +1600,13 @@ const USER_PAGE_SIZE = 1000;
 const MAX_USER_PAGES = 5;
 
 const USER_SELECT_BY_TABLE: Record<'users' | 'app_users' | 'profiles', string> = {
-  users: 'id,name,username,email,password,role,branch_name,supervisor_id,phone,commission_rate,is_active,approval_status',
+  users: 'id,name,username,email,password,role,branch_name,sector,supervisor_id,phone,commission_rate,is_active,approval_status',
   app_users: 'id,name,username,email,password,role,branch_name,phone,is_active,approval_status',
   profiles: 'id,full_name,username,email,role,branch_name,phone,is_active,approval_status',
 };
 
 const USER_PUBLIC_SELECT_BY_TABLE: Record<'users' | 'app_users' | 'profiles', string> = {
-  users: 'id,name,username,email,role,branch_name,supervisor_id,phone,commission_rate,is_active,approval_status',
+  users: 'id,name,username,email,role,branch_name,sector,supervisor_id,phone,commission_rate,is_active,approval_status',
   app_users: 'id,name,username,email,role,branch_name,phone,is_active,approval_status',
   profiles: 'id,full_name,username,email,role,branch_name,phone,is_active,approval_status',
 };
@@ -1589,6 +1648,7 @@ export async function fetchUsersFromSupabase(
           password: String(u.password || u.pass || '').trim(),
           role: normalizeUserRole(u.role, u.is_admin),
           branchName: u.branch_name || u.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
+          sector: ['home', 'electrical', 'both', 'all'].includes(u.sector) ? u.sector : undefined,
           supervisorId: u.supervisor_id || u.supervisorId,
           phone: u.phone || u.mobile || u.tel || '',
           commissionRate: Number(u.commission_rate || u.commissionRate || 2.5),
@@ -4756,6 +4816,8 @@ export const CUSTOMER_SELECT_COLUMNS = [
   'total_overall_collections', 'monthly_sales_2026', 'monthly_collections_2026',
   'sales_2025', 'collections_2025', 'overdue_2025', 'overdue_2026',
   'due_until_period', 'opening_balance_2026', 'has_dealt_in_2026',
+  'total_overdue', 'total_overdue_and_due', 'overdue_balance', 'due_balance',
+  'deal_eligibility', 'dealt_2026', 'dealt_in_2026',
   'activity_type', 'client_type', 'payment_terms', 'guarantee_docs',
   'guarantee_amount', 'region', 'last_collection_date', 'last_collection_amount',
   'updated_at', 'created_at',
@@ -4775,15 +4837,25 @@ export async function fetchCustomersIncremental(
     const cursor = getSyncCursor('customers');
     const isFullFetch = !cursor;
 
-    const MINIMAL_CUSTOMER_COLUMNS = 'id, code, name, phone, branch_name, updated_at';
+    const columnList = CUSTOMER_SELECT_COLUMNS.split(',');
     const scopeDecorator = (query: any) => applyScopeToQuery(query, scope);
 
-    let read = await readRowsPaged('customers', CUSTOMER_SELECT_COLUMNS, cursor?.ts, scopeDecorator);
+    let selectCols = buildSelectList('customers', columnList);
+    let read = await readRowsPaged('customers', selectCols, cursor?.ts, scopeDecorator);
 
-    if (read.error) {
-      // لو جداول العملاء ناقصة أعمدة (total_overdue, deal_eligibility ...)،
-      // إعادة المحاولة بأعمدة أساسية فقط لتحميل البيانات بدلاً من حظر الصفحة نهائياً.
-      read = await readRowsPaged('customers', MINIMAL_CUSTOMER_COLUMNS, cursor?.ts, scopeDecorator);
+    for (let attempt = 0; read.error && isMissingColumnError(read.error) && attempt < 10; attempt++) {
+      const missingCol = extractMissingColumn(read.error);
+      if (missingCol && selectCols !== '*') {
+        rememberMissingColumn('customers', missingCol);
+        selectCols = buildSelectList('customers', columnList);
+      } else {
+        selectCols = '*';
+      }
+      read = await readRowsPaged('customers', selectCols, cursor?.ts, scopeDecorator);
+    }
+
+    if (read.error && selectCols !== '*') {
+      read = await readRowsPaged('customers', '*', cursor?.ts, scopeDecorator);
     }
 
     if (read.error) return { success: false, error: read.error.message };
@@ -4799,6 +4871,18 @@ export async function fetchCustomersIncremental(
     let nextCursor: SyncCursor | null = cursor;
     for (const r of rows) nextCursor = advanceSyncCursor(nextCursor, r);
     const maxUpdatedAt = nextCursor?.ts ?? null;
+
+    const parseMonthlyMap = (raw: any): Record<number, number> | undefined => {
+      if (!raw) return undefined;
+      try {
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (parsed && typeof parsed === 'object') return parsed;
+      } catch {}
+      return undefined;
+    };
+
+    const numOrUndefined = (val: any): number | undefined =>
+      val !== undefined && val !== null && !Number.isNaN(Number(val)) ? Number(val) : undefined;
 
     const mapped: Customer[] = changedRows.map((c: any, idx: number) => {
       const { cleanNotes, meta: geoMeta } = extractCustomerGeoFromNotes(c.notes);
@@ -4819,7 +4903,10 @@ export async function fetchCustomersIncremental(
         repId: c.rep_id || c.repId || '',
         taxNumber: c.tax_number || c.taxNumber || '',
         tier: c.tier || 'نشيط',
-        creditLimit: Number(c.credit_limit ?? c.creditLimit ?? 0),
+        creditLimit: (() => {
+          const v = Number(c.credit_limit ?? c.creditLimit ?? 0);
+          return Number.isFinite(v) && v >= 100 ? v : 0;
+        })(),
         balance: Number(c.balance ?? c.current_balance ?? 0),
         currentBalance: Number(c.current_balance ?? c.balance ?? 0),
         notes: cleanNotes,
@@ -4834,7 +4921,7 @@ export async function fetchCustomersIncremental(
         locationPhotoUrl: c.location_photo_url || geoMeta?.photo || undefined,
         locationAccuracy: geoMeta?.acc,
         lastVisitDate: c.last_visit_date || c.lastVisitDate || undefined,
-        visitCount2026: c.visit_count_2026 !== undefined ? Number(c.visit_count_2026) : undefined,
+        visitCount2026: numOrUndefined(c.visit_count_2026),
         visitHistory: c.visit_history
           ? typeof c.visit_history === 'string'
             ? JSON.parse(c.visit_history)
@@ -4845,29 +4932,32 @@ export async function fetchCustomersIncremental(
         totalMonthlySales: Number(c.total_monthly_sales || c.totalMonthlySales || c.sales_2026 || 0),
         totalOverallSales: Number(c.total_overall_sales || c.totalOverallSales || 0),
         collections2026: Number(c.collections_2026 || c.collections2026 || 0),
-        totalMonthlyCollections: Number(c.total_monthly_collections || c.totalMonthlyCollections || 0),
+        totalMonthlyCollections: Number(c.total_monthly_collections || c.totalMonthlyCollections || c.collections_2026 || 0),
         totalOverallCollections: Number(c.total_overall_collections || c.totalOverallCollections || 0),
-        sales2025: c.sales_2025 !== undefined ? Number(c.sales_2025) : null,
-        collections2025: c.collections_2025 !== undefined ? Number(c.collections_2025) : null,
-        overdue2025: c.overdue_2025 !== undefined ? Number(c.overdue_2025) : null,
-        overdue2026: c.overdue_2026 !== undefined ? Number(c.overdue_2026) : null,
-        dueUntilPeriod: c.due_until_period !== undefined ? Number(c.due_until_period) : null,
-        openingBalance2026: c.opening_balance_2026 !== undefined ? Number(c.opening_balance_2026) : null,
-        hasDealtIn2026: c.has_dealt_in_2026 !== undefined ? Boolean(c.has_dealt_in_2026) : undefined,
-        totalOverdue: c.total_overdue !== undefined ? Number(c.total_overdue) : 0,
-        totalOverdueAndDue: c.total_overdue_and_due !== undefined ? Number(c.total_overdue_and_due) : undefined,
-        overdueBalance: c.overdue_balance !== undefined ? Number(c.overdue_balance) : undefined,
-        dueBalance: c.due_balance !== undefined ? Number(c.due_balance) : undefined,
+        monthlySales2026: parseMonthlyMap(c.monthly_sales_2026 || c.monthlySales2026),
+        monthlyCollections2026: parseMonthlyMap(c.monthly_collections_2026 || c.monthlyCollections2026),
+        sales2025: numOrUndefined(c.sales_2025),
+        collections2025: numOrUndefined(c.collections_2025),
+        overdue2025: numOrUndefined(c.overdue_2025),
+        overdue2026: numOrUndefined(c.overdue_2026),
+        dueUntilPeriod: numOrUndefined(c.due_until_period),
+        openingBalance2026: numOrUndefined(c.opening_balance_2026),
+        hasDealtIn2026: c.dealt_in_2026 !== undefined && c.dealt_in_2026 !== null
+          ? Boolean(c.dealt_in_2026)
+          : (c.has_dealt_in_2026 !== undefined && c.has_dealt_in_2026 !== null ? Boolean(c.has_dealt_in_2026) : undefined),
+        totalOverdue: numOrUndefined(c.total_overdue),
+        totalOverdueAndDue: numOrUndefined(c.total_overdue_and_due),
+        overdueBalance: numOrUndefined(c.overdue_balance),
+        dueBalance: numOrUndefined(c.due_balance),
         dealEligibility: c.deal_eligibility || undefined,
-        dealt2026: c.dealt_2026 || null,
-        dealtIn2026: c.dealt_in_2026 !== undefined ? Boolean(c.dealt_in_2026) : undefined,
-        activityType: c.activity_type || null,
-        clientType: c.client_type || null,
-        paymentTerms: c.payment_terms || null,
-        guaranteeDocs: c.guarantee_docs || null,
+        dealt2026: c.dealt_2026 || undefined,
+        activityType: c.activity_type || undefined,
+        clientType: c.client_type || undefined,
+        paymentTerms: c.payment_terms || undefined,
+        guaranteeDocs: c.guarantee_docs || undefined,
         guaranteeAmount: Number(c.guarantee_amount || 0),
-        region: c.region || c.district || c.route || null,
-        lastCollectionDate: c.last_collection_date || null,
+        region: c.region || c.district || c.route || undefined,
+        lastCollectionDate: c.last_collection_date || undefined,
         lastCollectionAmount: Number(c.last_collection_amount || 0),
       };
     });

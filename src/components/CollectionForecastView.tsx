@@ -212,7 +212,6 @@ export default function CollectionForecastView() {
   // الصفحة تركز افتراضياً على العملاء ذوي المديونية الموجبة. لا نشترط وجود
   // مستحقات مسجلة لأن بعض صفوف الشيت لا تحمل هذا الرقم رغم وجود مديونية.
   const [debtOnly, setDebtOnly] = useState<boolean>(true);
-  const [classFilter, setClassFilter] = useState<string>('ALL');
 
   // Draft inputs state for week forecasts
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -489,12 +488,6 @@ export default function CollectionForecastView() {
 
       if (debtOnly && !hasPositiveDebt(c)) return false;
 
-      if (classFilter !== 'ALL') {
-        const fin = calculateCustomerFinancials(c, 'ALL');
-        if (classFilter === 'eligible' && !fin.isEligible) return false;
-        if (classFilter === 'blocked' && fin.isEligible) return false;
-      }
-
       if (!q) return true;
 
       const name = (c.name || '').toLowerCase();
@@ -504,7 +497,7 @@ export default function CollectionForecastView() {
 
       return name.includes(q) || code.includes(q) || rName.includes(q) || branch.includes(q);
     });
-  }, [scopedCustomers, deferredSearch, branchFilter, repFilter, supervisorFilter, debtOnly, classFilter, hasPositiveDebt, supervisorForCustomer]);
+  }, [scopedCustomers, deferredSearch, branchFilter, repFilter, supervisorFilter, debtOnly, hasPositiveDebt, supervisorForCustomer]);
 
   // أظهر أصحاب المستحقات الأعلى أولاً، ثم استخدم المديونية لكسر التعادل.
   const sortedCustomers = useMemo(() => {
@@ -530,7 +523,7 @@ export default function CollectionForecastView() {
   // وإلا المستخدم يبقى واقف على صفحة 5 وفلتره سايبه صفحة فاضية.
   useEffect(() => {
     setPage(1);
-  }, [deferredSearch, branchFilter, repFilter, supervisorFilter, weekFilter, monthKey, pageSize, debtOnly, classFilter]);
+  }, [deferredSearch, branchFilter, repFilter, supervisorFilter, weekFilter, monthKey, pageSize, debtOnly]);
 
   /* ---------- إجماليات سريعة للبطاقات القيادية ---------- */
   const dashboardScope = useMemo(() => {
@@ -1798,16 +1791,6 @@ export default function CollectionForecastView() {
               ))}
             </select>
             )}
-
-            <select
-              value={classFilter}
-              onChange={(e) => setClassFilter(e.target.value)}
-              className="tg-select"
-            >
-              <option value="ALL">كل التصنيفات</option>
-              <option value="eligible">قابل للتعامل فقط</option>
-              <option value="blocked">غير قابل للتعامل فقط</option>
-            </select>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -1883,7 +1866,6 @@ export default function CollectionForecastView() {
                 <th className="p-3">المندوب والفرع</th>
                 <th className="p-3 text-[#ef4444]">المديونية</th>
                 <th className="p-3 text-[#d97706]">إجمالي المستحقات</th>
-                <th className="p-3 text-center whitespace-nowrap">قابل / غير</th>
                 <th className="p-3 text-center whitespace-nowrap min-w-[110px]">
                   <div>عدد الزيارات</div>
                   <span className="text-[9.5px] font-normal text-slate-400 block">منفّذة / الإجمالي</span>
@@ -1923,13 +1905,6 @@ export default function CollectionForecastView() {
                 const branchName = c.branchName || 'الفرع';
                 const returnInfo = returnsByCode.get(c.code || '');
                 const commentRecord = commentByCode.get(c.code || '');
-                const fin = calculateCustomerFinancials(c, 'ALL');
-
-                // نص تصنيف الشيت كما هو. لو الخانة فاضية في الشيت بنبقى عند
-                // قابل/غير بس — وده برضه زي ما الشيت بيقوله، مش تخمين.
-                const sheetClassificationText =
-                  fin.sheetClassificationLabel?.trim() ||
-                  (fin.isEligible ? 'قابل' : 'غير');
 
 const visitStats = visitStatsByCustomer.get(c.id);
 
@@ -1985,25 +1960,6 @@ const visitStats = visitStatsByCustomer.get(c.id);
                     <td className="p-3 font-mono font-black text-[var(--app-warn-text)] whitespace-nowrap">
                       {formatCurrency(dues || 0)}
                     </td>
-
-                    {/* التصنيف — خانة واحدة بس: قابل / غير، زي ما الشيت مكتوب.
-                        إعادة صياغة العمود هنا هي بالظبط اللي بتخلي الشاشة تقول حاجات
-                        الشيت ما قالهاش (cell مكتوب فيه «قابل» بيتعرض «قابل للتعامل»)،
-                        فبنعرض خام الأعمدة في خانة مستقلة ونكتفي باللون للتمييز.
-                        حالة المتعامل مش معروضة في الصفحة دي خالص، والفلتر بيمسّها كمان. */}
-                    <td className="p-3 text-center whitespace-nowrap">
-                      <span
-                        className={`px-2.5 py-1 rounded-lg font-black text-[11px] border inline-block ${
-                          fin.isEligible
-                            ? 'bg-[var(--app-ok-tint)] text-[var(--app-ok-text)] border-[var(--app-ok-line)]'
-                            : 'bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] border-[var(--app-risk-line)]'
-                        }`}
-                        title={`تصنيف الشيت: ${sheetClassificationText}`}
-                      >
-                        {sheetClassificationText}
-                      </span>
-                    </td>
-
 
                     {/* عدد الزيارات — منفّذة من الإجمالي */}
                     <td className="p-3 text-center whitespace-nowrap">
@@ -2180,7 +2136,7 @@ const visitStats = visitStatsByCustomer.get(c.id);
 
               {pageCustomers.length === 0 && (
                 <tr>
-                  <td colSpan={11 + shownWeeks.length} className="p-8 text-center">
+                  <td colSpan={10 + shownWeeks.length} className="p-8 text-center">
                     <div className="space-y-2">
                       <p className="text-slate-400 font-bold text-xs">لا يوجد عملاء مطابقين للبحث والفلاتر المحددة حالياً.</p>
                       {/* الرسالة بتقول السبب الحقيقي للمشكلة بدل ما تسيب الم��تخدم يفكر
@@ -2191,12 +2147,11 @@ const visitStats = visitStatsByCustomer.get(c.id);
                           في {scopedCustomers.length} عميل في نطاقك، بس مفيش ولا واحد مديونيته أكبر من صفر.
                         </p>
                       )}
-                      {(debtOnly || classFilter !== 'ALL' || branchFilter !== 'ALL' || supervisorFilter !== 'ALL' || repFilter !== 'ALL' || deferredSearch.trim()) && (
+                      {(debtOnly || branchFilter !== 'ALL' || supervisorFilter !== 'ALL' || repFilter !== 'ALL' || deferredSearch.trim()) && (
                         <button
                           type="button"
                           onClick={() => {
                             setDebtOnly(false);
-                            setClassFilter('ALL');
                             setBranchFilter('ALL');
                             setSupervisorFilter('ALL');
                             setRepFilter('ALL');

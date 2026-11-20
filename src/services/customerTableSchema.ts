@@ -1,5 +1,5 @@
 import { Customer } from '../types';
-import { normalizeArabicText } from './arabicMatchingService';
+import { calculateCustomerFinancials } from './customerFinancialService';
 import {
   getCustomerBalance,
   getCustomerCollectionRate,
@@ -32,7 +32,6 @@ export type CustomerColumnKey =
   | 'collectionRate'
   | 'status'
   | 'dealt'
-  | 'eligibility'
   | 'paymentTerms'
   | 'activityType'
   | 'guarantee'
@@ -83,7 +82,6 @@ export const CUSTOMER_COLUMNS: CustomerColumnDef[] = [
   { key: 'collections2026', label: 'تحصيلات 2026', group: 'المالية', type: 'currency', align: 'end', sortKey: 'collections2026', defaultVisible: false },
   { key: 'status', label: 'حالة السداد', group: 'الحالة والتصنيف', type: 'status', align: 'center', defaultVisible: true },
   { key: 'dealt', label: 'متعامل / غير متعامل', group: 'الحالة والتصنيف', type: 'status', align: 'center', defaultVisible: true },
-  { key: 'eligibility', label: 'تصنيف الشيت (قابل / غير)', group: 'الحالة والتصنيف', type: 'status', align: 'center', defaultVisible: false },
   { key: 'paymentTerms', label: 'طريقة الدفع', group: 'الحالة والتصنيف', type: 'text', align: 'start', defaultVisible: false },
   { key: 'guarantee', label: 'أوراق الضمان', group: 'الحالة والتصنيف', type: 'text', align: 'start', defaultVisible: false },
   { key: 'activityType', label: 'طبيعة النشاط', group: 'النشاط والمتابعة', type: 'text', align: 'start', defaultVisible: false },
@@ -95,25 +93,11 @@ export const CUSTOMER_COLUMNS: CustomerColumnDef[] = [
 export const getColumnDef = (key: CustomerColumnKey): CustomerColumnDef | undefined =>
   CUSTOMER_COLUMNS.find((column) => column.key === key);
 
-const monthlySalesTotal = (c: Customer): number => {
-  if (!c.monthlySales2026) return 0;
-  return Object.values(c.monthlySales2026).reduce((sum, value) => sum + (Number(value) || 0), 0);
-};
-
 export const getCustomerSales2026 = (c: Customer): number =>
-  Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySalesTotal(c));
+  calculateCustomerFinancials(c, 'ALL').sales2026;
 
-export const getCustomerPaid = (c: Customer): number => {
-  const monthly = c.monthlyCollections2026
-    ? Object.values(c.monthlyCollections2026).reduce((sum, value) => sum + Math.abs(Number(value) || 0), 0)
-    : 0;
-  return Math.max(
-    Math.abs(Number(c.collections2026) || 0),
-    Math.abs(Number(c.totalMonthlyCollections) || 0),
-    Math.abs(Number(c.totalOverallCollections) || 0),
-    monthly
-  );
-};
+export const getCustomerPaid = (c: Customer): number =>
+  Math.abs(calculateCustomerFinancials(c, 'ALL').collections2026);
 
 /** قيمة العمود كنص أو رقم — تُستخدم في الفلترة المخصصة. */
 export const getCustomerColumnValue = (
@@ -149,8 +133,6 @@ export const getCustomerColumnValue = (
       return getCustomerStatusBadge(c).label;
     case 'dealt':
       return getCustomerDealtBadge(c).label;
-    case 'eligibility':
-      return (c.dealEligibility || '').trim() || 'غير محدد';
     case 'paymentTerms':
       return (c.paymentTerms || '').trim() || 'غير محدد';
     case 'activityType':

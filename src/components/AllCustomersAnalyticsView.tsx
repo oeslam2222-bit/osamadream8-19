@@ -85,7 +85,6 @@ import {
   CollectionRateFilter,
   DealtFilter,
   DebtFilter,
-  EligibilityFilter,
   OrderFilter,
   VisitFilter,
   getCreditUsagePercent,
@@ -94,17 +93,16 @@ import {
   getCustomerOverdue,
   getCustomerStatusBadge,
   getCustomerDealtBadge,
-  getEligibilityBadge,
   isDealtCustomer,
   matchesActivityFilter,
   matchesCollectionRateFilter,
   matchesDealtFilter,
   matchesDebtFilter,
-  matchesEligibilityFilter,
   matchesOrderFilter,
   matchesVisitFilter,
 } from '../services/customerFilterPredicates';
-import { classifyEligibilityColumn } from '../services/customerFinancialService';
+import { calculateCustomerFinancials } from '../services/customerFinancialService';
+import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from '../services/customerDues';
 import { CustomerFilterBar, CustomerFilterBarState } from './customers/CustomerFilterBar';
 import { CustomerQuickDrawer } from './customers/CustomerQuickDrawer';
 import { CustomerTableSettings } from './customers/CustomerTableSettings';
@@ -165,6 +163,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     syncWithSupabase,
     isSupabaseSyncing,
     supabaseStatus,
+    targets = [],
+    getVisibleTargets,
   } = useApp();
 
   // Roles
@@ -258,7 +258,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [selectedSector, setSelectedSector] = useState<'all' | 'home' | 'electrical' | 'both'>('all');
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>('ALL');
   const [debtFilter, setDebtFilter] = useState<DebtFilter>('ALL');
-  const [eligibilityFilter, setEligibilityFilter] = useState<EligibilityFilter>('ALL');
   const [debtStatusFilter, setDebtStatusFilter] = useState<string>('ALL');
   const [dealtFilter, setDealtFilter] = useState<DealtFilter>('ALL');
   const [orderFilter, setOrderFilter] = useState<OrderFilter>('ALL');
@@ -282,7 +281,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         if (parsed.selectedSector !== undefined) setSelectedSector(parsed.selectedSector);
         if (parsed.activityFilter !== undefined) setActivityFilter(parsed.activityFilter);
         if (parsed.debtFilter !== undefined) setDebtFilter(parsed.debtFilter);
-        if (parsed.eligibilityFilter !== undefined) setEligibilityFilter(parsed.eligibilityFilter);
         if (parsed.debtStatusFilter !== undefined) setDebtStatusFilter(parsed.debtStatusFilter);
         if (parsed.dealtFilter !== undefined) setDealtFilter(parsed.dealtFilter);
         if (parsed.orderFilter !== undefined) setOrderFilter(parsed.orderFilter);
@@ -311,7 +309,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         selectedRegion,
         activityFilter,
         debtFilter,
-        eligibilityFilter,
         debtStatusFilter,
         dealtFilter,
         orderFilter,
@@ -321,7 +318,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         sortOrder,
       }));
     } catch {}
-  }, [searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, selectedSector, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, dealtFilter, orderFilter, visitFilter, collectionRateFilter, sortBy, sortOrder, CUSTOMER_FILTERS_KEY]);
+  }, [searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, selectedSector, activityFilter, debtFilter, debtStatusFilter, dealtFilter, orderFilter, visitFilter, collectionRateFilter, sortBy, sortOrder, CUSTOMER_FILTERS_KEY]);
 
   // Pagination for high-performance (4000+ items) - Default to 5 customers per page
   const [currentPage, setCurrentPage] = useState(1);
@@ -355,7 +352,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     if (selectedCustomer) {
       setEditCreditLimit(selectedCustomer.creditLimit || 0);
       setEditGuaranteeDocs(selectedCustomer.guaranteeDocs || (selectedCustomer.creditLimit && selectedCustomer.creditLimit > 0 ? 'شيك بنكي' : 'بدون ضمان'));
-      setEditOverdueBalance(selectedCustomer.totalOverdueAndDue ?? selectedCustomer.overdueBalance ?? 0);
+      setEditOverdueBalance(resolveCustomerDuesValue(selectedCustomer));
       setEditNextVisitDate(selectedCustomer.nextVisitDate || '');
       setIsEditingDossier(false);
     }
@@ -384,6 +381,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     targetCollections: number;
     monthlySales: Record<number, number>;
     monthlyCollections: Record<number, number>;
+    monthlyTargetSales: Record<number, number>;
+    monthlyTargetCollections: Record<number, number>;
   } | null>(null);
 
   // Rep Customer Hub State
@@ -617,7 +616,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   // Supervisor Team Reps Performance Summary
   const supervisorRepsSummary = useMemo(() => {
     if (!isSupervisor && !isBranchManager && !isAdminOrDev) return [];
-    
+
+    const visibleTargets = getVisibleTargets ? getVisibleTargets() : targets;
+
     // Reps for this supervisor/branch
     const repUsers = users.filter((u) => {
       if (u.role !== 'sales_rep') return false;
@@ -640,20 +641,45 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         isArabicNameMatch(c.salesRepName || c.repName || '', rep.name)
       );
 
-      const repDebt = repCusts.reduce((sum, c) => sum + (c.currentBalance ?? c.balance ?? 0), 0);
-      const repOverdue = repCusts.reduce((sum, c) => sum + (c.totalOverdueAndDue ?? c.overdueBalance ?? 0), 0);
-      const repSales2026 = repCusts.reduce((sum, c) => sum + (c.sales2026 || 0), 0);
-      const repCollections2026 = repCusts.reduce((sum, c) => sum + (c.collections2026 || 0), 0);
+      let repDebt = 0;
+      let repOverdue = 0;
+      let repSales2026 = 0;
+      let repCollections2026 = 0;
+      repCusts.forEach((c) => {
+        repDebt += resolveCustomerBalanceValue(c);
+        repOverdue += resolveCustomerDuesValue(c);
+        const fin = calculateCustomerFinancials(c, 'ALL');
+        repSales2026 += fin.sales2026;
+        repCollections2026 += Math.abs(fin.collections2026);
+      });
 
       const monthlySales: Record<number, number> = {};
       const monthlyCollections: Record<number, number> = {};
+      const monthlyTargetSales: Record<number, number> = {};
+      const monthlyTargetCollections: Record<number, number> = {};
       for (let m = 1; m <= 12; m++) {
         monthlySales[m] = repCusts.reduce((sum, c) => sum + (c.monthlySales2026?.[m] || 0), 0);
         monthlyCollections[m] = repCusts.reduce((sum, c) => sum + (c.monthlyCollections2026?.[m] || 0), 0);
+        monthlyTargetSales[m] = 0;
+        monthlyTargetCollections[m] = 0;
       }
 
-      const targetSales = repSales2026 > 0 ? Math.round(repSales2026 * 1.15) : 500000;
-      const targetCollections = repDebt > 0 ? Math.round(repDebt * 0.8) : 400000;
+      const repTargets = (visibleTargets || []).filter((t) =>
+        isArabicNameMatch(t.repName || '', rep.name)
+      );
+      let targetSales = 0;
+      let targetCollections = 0;
+      repTargets.forEach((t) => {
+        const st = Number(t.salesTarget || 0);
+        const ct = Number(t.collectionTarget || 0);
+        targetSales += st;
+        targetCollections += ct;
+        const mNum = Number(t.month);
+        if (mNum >= 1 && mNum <= 12) {
+          monthlyTargetSales[mNum] = (monthlyTargetSales[mNum] || 0) + st;
+          monthlyTargetCollections[mNum] = (monthlyTargetCollections[mNum] || 0) + ct;
+        }
+      });
 
       return {
         id: rep.id,
@@ -669,9 +695,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         targetCollections,
         monthlySales,
         monthlyCollections,
+        monthlyTargetSales,
+        monthlyTargetCollections,
       };
     });
-  }, [isSupervisor, isBranchManager, isAdminOrDev, users, currentUser, userVisibleCustomers]);
+  }, [isSupervisor, isBranchManager, isAdminOrDev, users, currentUser, userVisibleCustomers, targets, getVisibleTargets]);
 
   // Rep Customers Dedicated List & Mirrored Analytics Charts
   const repCustomersList = useMemo(() => {
@@ -696,31 +724,24 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       }));
   }, [repCustomersList]);
 
-  const repEligibilityDistribution = useMemo(() => {
-    let eligible = 0;
-    let notEligible = 0;
+  const repDealtDistribution = useMemo(() => {
     let dealt = 0;
-    let unknown = 0;
+    let notDealt = 0;
 
     repCustomersList.forEach((c) => {
-      const info = classifyEligibilityColumn(c.dealEligibility);
-      if (!info) unknown += 1;
-      else if (!info.eligible) notEligible += 1;
-      else if (info.dealt === true) dealt += 1;
-      else eligible += 1;
+      if (isDealtCustomer(c)) dealt += 1;
+      else notDealt += 1;
     });
 
     return [
-      { name: 'قابل للتعامل', value: eligible, color: '#1F9D74' },
-      { name: 'غير قابل', value: notEligible, color: '#E05B5B' },
-      { name: 'متعامل', value: dealt, color: '#2F6FD0' },
-      { name: 'غير محدد', value: unknown, color: '#8FA0B8' },
+      { name: 'متعامل', value: dealt, color: '#1F9D74' },
+      { name: 'غير متعامل', value: notDealt, color: '#8FA0B8' },
     ].filter((bucket) => bucket.value > 0);
   }, [repCustomersList]);
 
   const repDistributionTotal = useMemo(
-    () => repEligibilityDistribution.reduce((sum, item) => sum + item.value, 0),
-    [repEligibilityDistribution]
+    () => repDealtDistribution.reduce((sum, item) => sum + item.value, 0),
+    [repDealtDistribution]
   );
 
   const repIndebtedCount = useMemo(
@@ -813,11 +834,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       });
     }
 
-    // Deal eligibility filter (قابل / غير قابل)
-    if (eligibilityFilter !== 'ALL') {
-      list = list.filter((c) => matchesEligibilityFilter(c, eligibilityFilter));
-    }
-
     // Payment status / reason filter (حالة السداد)
     if (debtStatusFilter !== 'ALL') {
       list = list.filter((c) => (c.debtStatus || '') === debtStatusFilter);
@@ -858,7 +874,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     selectedRep,
     selectedRegion,
     selectedSector,
-    eligibilityFilter,
     debtStatusFilter,
     dealtFilter,
     searchQuery,
@@ -896,21 +911,17 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       let valB: any = 0;
 
       if (sortBy === 'sales2026') {
-        const sumA = a.monthlySales2026 ? Object.values(a.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-        valA = Math.max(a.sales2026 || 0, a.totalMonthlySales || 0, a.totalOverallSales || 0, sumA);
-        const sumB = b.monthlySales2026 ? Object.values(b.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-        valB = Math.max(b.sales2026 || 0, b.totalMonthlySales || 0, b.totalOverallSales || 0, sumB);
+        valA = calculateCustomerFinancials(a, 'ALL').sales2026;
+        valB = calculateCustomerFinancials(b, 'ALL').sales2026;
       } else if (sortBy === 'collections2026') {
-        const sumA = a.monthlyCollections2026 ? Object.values(a.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-        valA = Math.max(a.collections2026 || 0, a.totalMonthlyCollections || 0, a.totalOverallCollections || 0, sumA);
-        const sumB = b.monthlyCollections2026 ? Object.values(b.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-        valB = Math.max(b.collections2026 || 0, b.totalMonthlyCollections || 0, b.totalOverallCollections || 0, sumB);
+        valA = Math.abs(calculateCustomerFinancials(a, 'ALL').collections2026);
+        valB = Math.abs(calculateCustomerFinancials(b, 'ALL').collections2026);
       } else if (sortBy === 'balance') {
-        valA = a.currentBalance ?? a.balance ?? 0;
-        valB = b.currentBalance ?? b.balance ?? 0;
+        valA = resolveCustomerBalanceValue(a);
+        valB = resolveCustomerBalanceValue(b);
       } else if (sortBy === 'overdue') {
-        valA = a.totalOverdueAndDue ?? a.overdueBalance ?? 0;
-        valB = b.totalOverdueAndDue ?? b.overdueBalance ?? 0;
+        valA = resolveCustomerDuesValue(a);
+        valB = resolveCustomerDuesValue(b);
       } else if (sortBy === 'creditLimit') {
         valA = a.creditLimit || 0;
         valB = b.creditLimit || 0;
@@ -960,29 +971,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     [filteredCustomers]
   );
 
-  // توزيع العملاء حسب تصنيف التعامل — التصنيفات الثلاثة الموجودة في عمود الشيت «قابل / غير»
-  const eligibilityDistribution = useMemo(() => {
-    let eligible = 0;
-    let notEligible = 0;
-    let dealt = 0;
-    let unknown = 0;
-
-    filteredCustomers.forEach((c) => {
-      const info = classifyEligibilityColumn(c.dealEligibility);
-      if (!info) unknown += 1;
-      else if (!info.eligible) notEligible += 1;
-      else if (info.dealt === true) dealt += 1;
-      else eligible += 1;
-    });
-
-    return [
-      { name: 'قابل للتعامل', value: eligible, color: '#1F9D74' },
-      { name: 'غير قابل', value: notEligible, color: '#E05B5B' },
-      { name: 'متعامل', value: dealt, color: '#2F6FD0' },
-      { name: 'غير محدد', value: unknown, color: '#8FA0B8' },
-    ].filter((bucket) => bucket.value > 0);
-  }, [filteredCustomers]);
-
   // أعلى 5 عملاء في المديونية الحالية (اسم + كود + مبلغ)
   const topDebtCustomers = useMemo(
     () =>
@@ -999,8 +987,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     [filteredCustomers]
   );
 
-  const distributionTotal = eligibilityDistribution.reduce((sum, item) => sum + item.value, 0);
-
   // اختصار الأرقام الكبيرة فوق أعمدة الرسم (1.82 مليون / 840 ألف)
   const formatCompactAmount = (value: number): string => {
     if (isPrivacyMode) return '•••';
@@ -1013,7 +999,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   // Reset pagination on filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedBranch, selectedRep, selectedRegion, selectedSupervisor, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, orderFilter, visitFilter, collectionRateFilter, dealtFilter, searchQuery, pageSize]);
+  }, [selectedBranch, selectedRep, selectedRegion, selectedSupervisor, activityFilter, debtFilter, debtStatusFilter, orderFilter, visitFilter, collectionRateFilter, dealtFilter, searchQuery, pageSize]);
 
   const handleFilterChange = (patch: Partial<CustomerFilterBarState>) => {
     if (patch.searchQuery !== undefined) setSearchQuery(patch.searchQuery);
@@ -1027,7 +1013,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         setActiveSectorFilter(patch.selectedSector);
       }
     }
-    if (patch.eligibilityFilter !== undefined) setEligibilityFilter(patch.eligibilityFilter);
     if (patch.debtStatusFilter !== undefined) setDebtStatusFilter(patch.debtStatusFilter);
     if (patch.dealtFilter !== undefined) setDealtFilter(patch.dealtFilter);
     if (patch.debtFilter !== undefined) setDebtFilter(patch.debtFilter);
@@ -1044,7 +1029,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     setSelectedRegion('ALL');
     setSelectedSector('all');
     setSelectedSupervisor('ALL');
-    setEligibilityFilter('ALL');
     setDebtStatusFilter('ALL');
     setDealtFilter('ALL');
     setDebtFilter('ALL');
@@ -1067,7 +1051,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   // Save filters whenever they change
   useEffect(() => {
     saveCustomerFilters();
-  }, [searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, selectedSector, activityFilter, debtFilter, eligibilityFilter, debtStatusFilter, dealtFilter, orderFilter, visitFilter, collectionRateFilter, saveCustomerFilters]);
+  }, [searchQuery, selectedBranch, selectedSupervisor, selectedRep, selectedRegion, selectedSector, activityFilter, debtFilter, debtStatusFilter, dealtFilter, orderFilter, visitFilter, collectionRateFilter, saveCustomerFilters]);
 
   const filterBarValue: CustomerFilterBarState = {
     searchQuery,
@@ -1076,7 +1060,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     selectedRep,
     selectedRegion,
     selectedSector,
-    eligibilityFilter,
     debtStatusFilter,
     dealtFilter,
     debtFilter,
@@ -1137,14 +1120,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     }
 
     filteredCustomers.forEach((c) => {
+      const fin = calculateCustomerFinancials(c, 'ALL');
       const s25 = c.sales2025 || 0;
-      const monthlySalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-      const s26 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySalesSum);
+      const s26 = fin.sales2026;
       const c25 = Math.abs(Number(c.collections2025) || 0);
-      const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + Math.abs(Number(v) || 0), 0) : 0;
-      const c26 = Math.max(Math.abs(Number(c.collections2026) || 0), Math.abs(Number(c.totalMonthlyCollections) || 0), Math.abs(Number(c.totalOverallCollections) || 0), monthlyColsSum);
-      const bal = c.currentBalance ?? c.balance ?? 0;
-      const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
+      const c26 = Math.abs(fin.collections2026);
+      const bal = resolveCustomerBalanceValue(c);
+      const overdue = resolveCustomerDuesValue(c);
       const cLimit = c.creditLimit || 0;
       const g = (c.guaranteeDocs || '').toLowerCase();
 
@@ -1227,12 +1209,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     filteredCustomers.forEach((c) => {
       const b = c.branchName || 'الفرع الرئيسي';
       const cur = map.get(b) || { branch: b, sales: 0, collections: 0, customers: 0 };
-      const sumS = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-      const s = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, sumS);
-      const sumC = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-      const col = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, sumC);
-      cur.sales += s;
-      cur.collections += col;
+      const fin = calculateCustomerFinancials(c, 'ALL');
+      cur.sales += fin.sales2026;
+      cur.collections += Math.abs(fin.collections2026);
       cur.customers += 1;
       map.set(b, cur);
     });
@@ -1245,12 +1224,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       const r = c.salesRepName || c.repName;
       if (!r || r === 'غير محدد') return;
       const cur = map.get(r) || { rep: r, sales: 0, collections: 0, customers: 0 };
-      const sumS = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-      const s = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, sumS);
-      const sumC = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-      const col = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, sumC);
-      cur.sales += s;
-      cur.collections += col;
+      const fin = calculateCustomerFinancials(c, 'ALL');
+      cur.sales += fin.sales2026;
+      cur.collections += Math.abs(fin.collections2026);
       cur.customers += 1;
       map.set(r, cur);
     });
@@ -1301,7 +1277,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       visitCount2026: (selectedCustomer.visitCount2026 || 0) + 1,
       visitHistory: updatedVisits,
       currentBalance: visitCollected
-        ? Math.max(0, (selectedCustomer.currentBalance ?? selectedCustomer.balance ?? 0) - parseFloat(visitCollected))
+        ? Math.max(0, resolveCustomerBalanceValue(selectedCustomer) - parseFloat(visitCollected))
         : selectedCustomer.currentBalance,
     };
 
@@ -1523,11 +1499,6 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         );
       }
 
-      case 'eligibility': {
-        const badge = getEligibilityBadge(c);
-        return <span className={`pill pill-${badge.tone}`}>{badge.label}</span>;
-      }
-
       case 'paymentTerms':
         return <span className="text-slate-600">{c.paymentTerms || 'غير محدد'}</span>;
 
@@ -1541,7 +1512,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         return <span className="app-num font-black text-[var(--app-navy)]">{formatMoney(getCustomerSales2026(c))}</span>;
 
       case 'collections2026':
-        return <span className="app-num font-black t-ok">{formatMoney(Math.abs(Number(c.collections2026) || 0))}</span>;
+        return <span className="app-num font-black t-ok">{formatMoney(getCustomerPaid(c))}</span>;
 
       case 'lastTouch':
         return lastTouch ? (
@@ -2158,14 +2129,13 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
           <>
           <div className="md:hidden p-3 flex flex-col gap-3">
             {paginatedCustomers.map((c, index) => {
-              const bal = c.currentBalance ?? c.balance ?? 0;
-              const overdue = c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
+              const fin = calculateCustomerFinancials(c, 'ALL');
+              const bal = resolveCustomerBalanceValue(c);
+              const overdue = resolveCustomerDuesValue(c);
               const limit = c.creditLimit || 0;
               const isOverLimit = limit > 0 && bal > limit;
-              const monthlySalesSum = c.monthlySales2026 ? Object.values(c.monthlySales2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-              const s26 = Math.max(c.sales2026 || 0, c.totalMonthlySales || 0, c.totalOverallSales || 0, monthlySalesSum);
-              const monthlyColsSum = c.monthlyCollections2026 ? Object.values(c.monthlyCollections2026).reduce((acc, v) => acc + (Number(v) || 0), 0) : 0;
-              const col26 = Math.max(c.collections2026 || 0, c.totalMonthlyCollections || 0, c.totalOverallCollections || 0, monthlyColsSum);
+              const s26 = fin.sales2026;
+              const col26 = Math.abs(fin.collections2026);
               const colRate = s26 > 0 ? Math.round((col26 / s26) * 100) : 0;
               const guaranteeInfo = getGuaranteeBadge(c.guaranteeDocs, c.guaranteeAmount, limit);
               
@@ -2185,11 +2155,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
               const statusBadge = getCustomerStatusBadge(c);
               const dealtBadge = getCustomerDealtBadge(c);
               const creditUsage = getCreditUsagePercent(c);
-              const paidAmount = Math.max(
-                Math.abs(Number(c.collections2026) || 0),
-                Math.abs(Number(c.totalMonthlyCollections) || 0),
-                Math.abs(Number(c.totalOverallCollections) || 0)
-              );
+              const paidAmount = col26;
 
               return (
                 <div
@@ -2707,7 +2673,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <span className="w-2 h-2 rounded-full bg-[var(--app-navy)]" />
                   </div>
                   <div className="text-lg sm:text-2xl font-black font-mono text-[var(--app-navy-text)] mt-1">
-                    {formatMoney(selectedCustomer.sales2026 || 0)}
+                    {formatMoney(calculateCustomerFinancials(selectedCustomer, 'ALL').sales2026)}
                   </div>
                   <div className="text-[11px] font-bold text-[var(--app-navy-text)] mt-1 border-t border-[var(--app-navy-line)] pt-1 flex items-center justify-between">
                     <span>سنة 2025:</span>
@@ -2721,7 +2687,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <span className="w-2 h-2 rounded-full bg-[var(--app-ok)]" />
                   </div>
                   <div className="text-lg sm:text-2xl font-black font-mono text-[var(--app-ok-text)] mt-1">
-                    {formatMoney(selectedCustomer.collections2026 || 0)}
+                    {formatMoney(Math.abs(calculateCustomerFinancials(selectedCustomer, 'ALL').collections2026))}
                   </div>
                   <div className="text-[11px] font-bold text-[var(--app-ok-text)] mt-1 border-t border-[var(--app-ok-line)] pt-1 flex items-center justify-between">
                     <span>سنة 2025:</span>
@@ -2735,7 +2701,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <span className="w-2 h-2 rounded-full bg-[var(--app-violet)]" />
                   </div>
                   <div className="text-lg sm:text-2xl font-black font-mono text-[var(--app-violet-text)] mt-1">
-                    {formatMoney(selectedCustomer.currentBalance ?? selectedCustomer.balance ?? 0)}
+                    {formatMoney(resolveCustomerBalanceValue(selectedCustomer))}
                   </div>
                   <div className="text-[11px] font-bold text-[var(--app-violet-text)] mt-1 border-t border-[var(--app-violet-line)] pt-1 flex items-center justify-between">
                     <span>الحد الائتماني:</span>
@@ -2749,7 +2715,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     <span className="w-2 h-2 rounded-full bg-[var(--app-risk)]" />
                   </div>
                   <div className="text-lg sm:text-2xl font-black font-mono text-[var(--app-risk-text)] mt-1">
-                    {formatMoney(selectedCustomer.totalOverdueAndDue ?? selectedCustomer.overdueBalance ?? 0)}
+                    {formatMoney(resolveCustomerDuesValue(selectedCustomer))}
                   </div>
                   <div className="text-[11px] font-bold text-[var(--app-risk-text)] mt-1 border-t border-[var(--app-risk-line)] pt-1 flex items-center justify-between">
                     <span>الحالة:</span>
@@ -2803,7 +2769,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                     </div>
                     <div className="text-[11px] font-medium text-slate-500 mt-1">
                       {selectedCustomer.creditLimit && selectedCustomer.creditLimit > 0
-                        ? `المتبقي: ${formatMoney(Math.max(0, (selectedCustomer.creditLimit || 0) - (selectedCustomer.currentBalance ?? selectedCustomer.balance ?? 0)))}`
+                        ? `المتبقي: ${formatMoney(Math.max(0, (selectedCustomer.creditLimit || 0) - resolveCustomerBalanceValue(selectedCustomer)))}`
                         : 'بدون تسهيل ائتماني'}
                     </div>
                   </div>
@@ -2946,9 +2912,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                   }
                 }
 
-                // Fallback to customer general totals if monthly columns were not broken down in the sheet
-                const grandSales2026 = Math.max(totalMonthSales, selectedCustomer.sales2026 || 0);
-                const grandCol2026 = Math.max(totalMonthCol, selectedCustomer.collections2026 || 0);
+                const modalFin = calculateCustomerFinancials(selectedCustomer, 'ALL');
+                const grandSales2026 = modalFin.sales2026;
+                const grandCol2026 = Math.abs(modalFin.collections2026);
                 const grandRate = grandSales2026 > 0
                   ? Math.min(100, Math.round((grandCol2026 / grandSales2026) * 100))
                   : (grandCol2026 > 0 ? 100 : 0);
@@ -3470,12 +3436,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
             <div className="p-4 sm:p-6 space-y-6 overflow-y-auto max-h-[82vh]">
               {analyzedRepTab === 'customers' ? (
                 <>
-                  {/* الرسوم التحليلية المتطابقة لعملاء المندوب: تصنيف التعامل + أعلى 5 عملاء في المديونية */}
+                  {/* الرسوم التحليلية المتطابقة لعملاء المندوب: حالة التعامل + أعلى 5 عملاء في المديونية */}
                   <div className="cchart-row">
-                    {/* Donut Chart: توزيع عملاء المندوب حسب تصنيف التعامل */}
+                    {/* Donut Chart: توزيع عملاء المندوب (متعامل / غير متعامل) */}
                     <section className="cchart-card">
                       <header className="cchart-head">
-                        <h3>توزيع عملاء المندوب حسب تصنيف التعامل (قابل / غير قابل)</h3>
+                        <h3>توزيع عملاء المندوب (متعامل / غير متعامل)</h3>
                         <span className="cchart-chip">{repDistributionTotal.toLocaleString()} عميل</span>
                       </header>
                       <div className="cchart-body">
@@ -3483,7 +3449,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           <ResponsiveContainer width="100%" height={240}>
                             <RechartsPieChart>
                               <Pie
-                                data={repEligibilityDistribution}
+                                data={repDealtDistribution}
                                 dataKey="value"
                                 nameKey="name"
                                 innerRadius={62}
@@ -3491,7 +3457,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                                 paddingAngle={3}
                                 stroke="none"
                               >
-                                {repEligibilityDistribution.map((entry) => (
+                                {repDealtDistribution.map((entry) => (
                                   <Cell key={`rep-status-${entry.name}`} fill={entry.color} />
                                 ))}
                               </Pie>
@@ -3508,7 +3474,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         </div>
 
                         <ul className="cchart-legend">
-                          {repEligibilityDistribution.map((item) => {
+                          {repDealtDistribution.map((item) => {
                             const pct = repDistributionTotal > 0 ? (item.value / repDistributionTotal) * 100 : 0;
                             return (
                               <li key={`rep-legend-${item.name}`}>
@@ -3664,8 +3630,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                           const paid = getCustomerPaid(cust);
                           const creditLimit = cust.creditLimit || 0;
                           const creditPercent = creditLimit > 0 ? Math.min(100, Math.round((debt / creditLimit) * 100)) : 0;
-                          const eligibilityInfo = classifyEligibilityColumn(cust.dealEligibility);
-                          const isEligible = eligibilityInfo ? eligibilityInfo.eligible : true;
+                          const isDealt = isDealtCustomer(cust);
 
                           return (
                             <div
@@ -3700,12 +3665,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                                 <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
                                   <span
                                     className={`px-2 py-0.5 rounded-md font-bold ${
-                                      isEligible
+                                      isDealt
                                         ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-                                        : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
+                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
                                     }`}
                                   >
-                                    {isEligible ? 'قابل للتعامل' : 'غير قابل / موقوف'}
+                                    {isDealt ? 'متعامل' : 'غير متعامل'}
                                   </span>
 
                                   <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-medium">
@@ -3933,7 +3898,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                             {MONTH_NAMES_AR.map((mName, idx) => {
                               const mNum = idx + 1;
                               const col = analyzedRep.monthlyCollections[mNum] || 0;
-                              const targetMonth = Math.round(analyzedRep.targetCollections / 12);
+                              const targetMonth = analyzedRep.monthlyTargetCollections?.[mNum] || 0;
                               const rate = targetMonth > 0 ? Math.min(100, Math.round((col / targetMonth) * 100)) : 0;
                               return (
                                 <tr key={`col-${mNum}`} className="hover:bg-emerald-50/50 dark:hover:bg-slate-800/50 transition">
@@ -3991,7 +3956,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                             {MONTH_NAMES_AR.map((mName, idx) => {
                               const mNum = idx + 1;
                               const s = analyzedRep.monthlySales[mNum] || 0;
-                              const targetMonth = Math.round(analyzedRep.targetSales / 12);
+                              const targetMonth = analyzedRep.monthlyTargetSales?.[mNum] || 0;
                               const rate = targetMonth > 0 ? Math.min(100, Math.round((s / targetMonth) * 100)) : 0;
                               return (
                                 <tr key={`sale-${mNum}`} className="hover:bg-blue-50/50 dark:hover:bg-slate-800/50 transition">

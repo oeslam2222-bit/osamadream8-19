@@ -163,13 +163,10 @@ export const CustomerQuickDrawer: React.FC<CustomerQuickDrawerProps> = ({
             </div>
           </div>
 
-          {(customer.activityType || customer.paymentTerms || customer.debtStatus || customer.dealEligibility) && (
+          {(customer.activityType || customer.paymentTerms || customer.debtStatus) && (
             <div className="cq-notes">
               <h4>بيانات التعامل</h4>
               <ul>
-                {customer.dealEligibility && (
-                  <li><span>تصنيف الشيت</span><strong>{customer.dealEligibility}</strong></li>
-                )}
                 {customer.activityType && <li><span>النشاط</span><strong>{customer.activityType}</strong></li>}
                 {customer.paymentTerms && <li><span>طريقة الدفع</span><strong>{customer.paymentTerms}</strong></li>}
                 {customer.debtStatus && <li><span>حالة السداد</span><strong>{customer.debtStatus}</strong></li>}

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
   MapPin,
   Clock,
@@ -114,7 +114,7 @@ export const VisitsDashboard: React.FC = () => {
   } = useApp();
 
   // استبعاد المرتجعات تماماً من شاشة الزيارات لأن طلب المرتجع له دورته المستقلة
-  const getVisibleVisitsSafe = (): CustomerVisit[] => {
+  const visits = useMemo<CustomerVisit[]>(() => {
     const v = getVisibleVisits();
     const arr = Array.isArray(v) ? v : [];
     return arr.filter(
@@ -125,10 +125,10 @@ export const VisitsDashboard: React.FC = () => {
         visit.outcome !== 'مرتجع لدي العميل' &&
         !visit.returnStatus
     );
-  };
-  const visits: CustomerVisit[] = getVisibleVisitsSafe();
+  }, [getVisibleVisits]);
 
   const [search, setSearch] = useState('');
+  const deferredSearch = useDeferredValue(search);
   const [timeFilter, setTimeFilter] = useState<'all' | 'today' | 'week' | 'month'>('month');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'منفذة' | 'معلقة' | 'ملغاة'>('all');
@@ -230,6 +230,7 @@ export const VisitsDashboard: React.FC = () => {
 
   // عملاء للمودال: فلتر مندوب + فلتر منطقة + بحث، مرتّبين حسب المديونية (الأعلى أولًا)
   const filteredModalCustomers = useMemo(() => {
+    if (!showForm) return [];
     let list = myCustomers;
     if (customerRepFilter !== 'all') {
       list = list.filter((c) => (c.salesRepName || c.repName) === customerRepFilter);
@@ -246,7 +247,7 @@ export const VisitsDashboard: React.FC = () => {
       );
     }
     return [...list].sort((a, b) => (Number(b.currentBalance ?? b.balance ?? 0)) - (Number(a.currentBalance ?? a.balance ?? 0)));
-  }, [myCustomers, customerSearch, customerRepFilter, customerBranchFilter]);
+  }, [showForm, myCustomers, customerSearch, customerRepFilter, customerBranchFilter]);
 
   // Request Rep live GPS position (maximumAge: 0 prohibits stale cache)
   const requestCurrentRepGps = async (): Promise<LiveGpsReading | null> => {
@@ -273,13 +274,26 @@ export const VisitsDashboard: React.FC = () => {
   }, [showForm]);
 
   const liveGeoCheck = useMemo(() => {
+    if (!showForm || !selectedCustomerObj) {
+      return {
+        status: 'unverified' as const,
+        distanceMeters: undefined,
+        accuracyMeters: undefined,
+        speedKmh: undefined,
+        flags: [],
+        verifiedAt: '',
+        requiresLivePhoto: false,
+        requiresSupervisorReview: false,
+        label: '',
+      };
+    }
     return verifyVisitLocation({
       repGps,
       customer: selectedCustomerObj,
       repVisits: visits,
       repId: form.repId || currentUser?.id,
     });
-  }, [repGps, selectedCustomerObj, visits, form.repId, currentUser?.id]);
+  }, [showForm, repGps, selectedCustomerObj, visits, form.repId, currentUser?.id]);
 
   const handleCaptureProofPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -522,8 +536,8 @@ export const VisitsDashboard: React.FC = () => {
   const filtered = useMemo(() => {
     let result = visits;
 
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
+    if (deferredSearch.trim()) {
+      const q = deferredSearch.trim().toLowerCase();
       result = result.filter(
         (v) =>
           v.customerName?.toLowerCase().includes(q) ||
@@ -608,7 +622,7 @@ export const VisitsDashboard: React.FC = () => {
     return result;
   }, [
     visits,
-    search,
+    deferredSearch,
     timeFilter,
     typeFilter,
     statusFilter,

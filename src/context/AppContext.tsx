@@ -36,6 +36,7 @@ import {
   fetchInvoiceContentStamp,
   fetchProductsFromSupabase,
   fetchProductsIncremental,
+  fetchProductContentStamp,
   isProductsTableAuthoritative,
   mergeProductsIncremental,
   fetchTargetsFromSupabase,
@@ -108,6 +109,7 @@ import {
   exportTargetsToExcel,
   inferTargetSector,
   filterTargetsForUser,
+  extractTargetSectorFromNotes,
 } from '../services/targetService';
 import { saveSingleSourceUrl, getPublishedDataSources, getSavedSourceUrl, isGoogleSheetsReadMode } from '../services/dataSourceService';
 import {
@@ -257,6 +259,29 @@ function readCustomerContentStamp(): { count: number | null; maxUpdatedAt: strin
 function saveCustomerContentStamp(stamp: { count: number | null; maxUpdatedAt: string | null }): void {
   try {
     safeLocalStorageSet(CUSTOMER_CONTENT_STAMP_KEY, JSON.stringify(stamp));
+  } catch {}
+}
+
+const PRODUCT_CONTENT_STAMP_KEY = 'tantawy_product_content_stamp_v1';
+
+function readProductContentStamp(): { count: number | null; maxUpdatedAt: string | null } | null {
+  try {
+    const raw = localStorage.getItem(PRODUCT_CONTENT_STAMP_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && (parsed.count !== undefined || parsed.maxUpdatedAt !== undefined)) {
+      return {
+        count: typeof parsed.count === 'number' ? parsed.count : null,
+        maxUpdatedAt: parsed.maxUpdatedAt ?? null,
+      };
+    }
+  } catch {}
+  return null;
+}
+
+function saveProductContentStamp(stamp: { count: number | null; maxUpdatedAt: string | null }): void {
+  try {
+    safeLocalStorageSet(PRODUCT_CONTENT_STAMP_KEY, JSON.stringify(stamp));
   } catch {}
 }
 
@@ -589,10 +614,13 @@ function buildInvoiceFetchScope(currentUser: User | null, users: User[]): Invoic
  * تستخدم نفس التحويل، وإلا الصفحة تستقبل حقول snake_case ومتعرضش أرقام.
  */
 function mapTargetRowToRecord(row: any): TargetRecord {
+  const { cleanNotes, sector: noteSector } = extractTargetSectorFromNotes(row.notes);
+  const rowSector = row.sector === 'home' || row.sector === 'electrical' ? row.sector : undefined;
   return {
     id: String(row.id),
     branch: resolveBranchName(row.branch) || row.branch || '',
     repName: row.rep_name || '',
+    sector: rowSector || noteSector,
     salesTarget: Number(row.sales_target || 0),
     salesAchieved: Number(row.sales_achieved || 0),
     salesPercentage: Number(row.sales_percentage || 0),
@@ -606,7 +634,7 @@ function mapTargetRowToRecord(row: any): TargetRecord {
     remainingSales: Number(row.remaining_sales || 0),
     remainingCollection: Number(row.remaining_collection || 0),
     updatedAt: row.updated_at,
-    notes: row.notes || undefined,
+    notes: cleanNotes,
   };
 }
 
@@ -1180,7 +1208,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (src?.enabled && src?.url && /^https?:\/\//i.test(String(src.url).trim())) {
           try {
             const sheetTargets = await fetchTargetsFromGoogleSheetUrl(String(src.url).trim());
-            if (sheetTargets?.length) all.push(...sheetTargets);
+            if (sheetTargets?.length) {
+              const sourceSector: 'home' | 'electrical' = key === 'targets_electrical' ? 'electrical' : 'home';
+              all.push(
+                ...sheetTargets.map((t) => {
+                  const resolvedSec = t.sector && t.sector !== 'all' ? t.sector : sourceSector;
+                  return {
+                    ...t,
+                    sector: resolvedSec,
+                    id: t.id.endsWith(`__${resolvedSec}`) ? t.id : `${t.id}__${resolvedSec}`,
+                  };
+                })
+              );
+            }
           } catch (e: any) {
             console.warn('Target Google Sheet load warning:', key, e?.message || e);
           }
@@ -1230,20 +1270,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => { cancelled = true; };
   }, [targetFetchScope, currentUser?.id, currentUser?.role, dataEpoch]);
 
-  const getVisibleTargets = () => {
-    const scoped = filterBySector(targets, currentUser?.sector, (record) => inferTargetSector(record, users));
-    return filterTargetsForUser(scoped, currentUser, users, customers);
-  };
 
   // 🏠⚡ وسم سجلات الأهداف بالقطاع المستهدف عند الاستيراد (منزلي / كهربائي)
   const tagTargetsSector = (rows: TargetRecord[]): TargetRecord[] => {
     const incoming: 'home' | 'electrical' | undefined =
       activeSectorFilter === 'home' || activeSectorFilter === 'electrical' ? activeSectorFilter : undefined;
     if (!incoming) return rows;
-    return rows.map((r) => ({
-      ...r,
-      sector: r.sector && r.sector !== 'all' ? r.sector : incoming,
-    }));
+    return rows.map((r) => {
+      const sec = r.sector && r.sector !== 'all' ? r.sector : incoming;
+      return {
+        ...r,
+        sector: sec,
+        id: r.id.endsWith(`__${sec}`) ? r.id : `${r.id}__${sec}`,
+      };
+    });
   };
 
   // منع مسح قطاع آخر عند رفع شيت قطاع واحد (نفس منطق المنتجات/العملاء)
@@ -1253,7 +1293,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const incomingIds = new Set(incoming.map((r) => r.id));
     const others = targetsRef.current.filter((t) => {
       if (incomingIds.has(t.id)) return false;
-      const s = inferTargetSector(t, users);
+      const s = inferTargetSector(t, users, customers);
       return s !== undefined && s !== incomingSector;
     });
     return others.length ? [...others, ...incoming] : incoming;
@@ -1307,7 +1347,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         targetsCount: merged.length,
         forcePurge: true,
       }).catch(() => {});
-      saveSingleSourceUrl('targets', cleanUrl);
+      saveSingleSourceUrl(activeSectorFilter === 'electrical' ? 'targets_electrical' : 'targets', cleanUrl);
       return { success: true, count: deduplicated.length, message: `تمت مزامنة وتحديث ${deduplicated.length} هدف بنجاح بدون تكرار وحفظ الرابط!` };
     } catch (err: any) {
       return { success: false, count: 0, message: err?.message || 'فشل الاتصال برابط شيت Google Sheets' };
@@ -1622,7 +1662,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeSectorFilter, setActiveSectorFilterState] = useState<'all' | 'home' | 'electrical'>(() => {
     try {
-      const saved = localStorage.getItem('tantawy_active_sector_filter');
+      const saved = localStorage.getItem('tantawy_active_sector_filter_v2');
       if (saved === 'home' || saved === 'electrical' || saved === 'all') return saved;
     } catch {}
     return 'all';
@@ -1633,40 +1673,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [currentUser?.role]
   );
 
-  /**
-   * القطاعين الأساسيين بس: منزلي / كهرباء.
-   * أي قيمة قديمة «all» متسجلة من نسخة أقدم بتتحوّل لقطاع المستخدم الأساسي،
-   * وإلا الصفحات اللي بتقرأ effectiveSectorFilter كانت بتفضل تعرض القطاعين.
-   */
-  const defaultSector: 'home' | 'electrical' =
-    currentUser?.sector === 'electrical' ? 'electrical' : 'home';
-
-  useEffect(() => {
-    if (canManageSectorGate && activeSectorFilter === 'all') {
-      setActiveSectorFilterState(defaultSector);
-      try {
-        localStorage.setItem('tantawy_active_sector_filter', defaultSector);
-      } catch {}
-    }
-  }, [canManageSectorGate, activeSectorFilter, defaultSector]);
-
   /** القطاع الفعلي بعد تطبيق قواعد الأدوار — `'none'` يعني محجوب عن القطاعين. */
   const effectiveSectorFilter = useMemo(
     () => resolveEffectiveSector(currentUser, activeSectorFilter),
     [currentUser, activeSectorFilter]
   );
 
-  const setActiveSectorFilter = (sector: 'all' | 'home' | 'electrical') => {
+  const setActiveSectorFilter = useCallback((sector: 'all' | 'home' | 'electrical') => {
     // تبديل القطاع ميزة إدارة عليا فقط. باقي الأدوار مقيّدة بقطاع حسابها أصلًا،
     // ومن غير البوابة دي الاختيار كان بيتسجل في localStorage ويبقى مضلّل للواجهة.
     if (!canManageSectorGate) return;
-    // القطاعين الأساسيين بس في البرنامج — «كل القطاعات» مرفوض.
-    if (sector === 'all') return;
     setActiveSectorFilterState(sector);
     try {
-      localStorage.setItem('tantawy_active_sector_filter', sector);
+      localStorage.setItem('tantawy_active_sector_filter_v2', sector);
     } catch {}
-  };
+  }, [canManageSectorGate]);
 
   const {
     installPromptEvent,
@@ -2755,9 +2776,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           if (stampNow) saveCustomerContentStamp(stampNow);
           const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers), users);
           const valid = deduplicateCustomersArray(linked);
+          const nextFingerprint = buildCustomersFingerprint(valid);
           setCustomers((current) => {
-            if (current.length === valid.length) return current;
+            if (buildCustomersFingerprint(current) === nextFingerprint) return current;
+            customersRef.current = valid;
             idbSet(STORAGE_KEYS.CUSTOMERS, valid).catch(() => {});
+            saveLocalCustomersFingerprint(valid);
             return valid;
           });
         }
@@ -3608,8 +3632,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                   }
                 })().catch(() => {});
               } else {
-                fetchProductsFromSupabase({ sector: productSectorScope }).then((pRes) => {
+                Promise.all([
+                  fetchProductsFromSupabase({ sector: productSectorScope }),
+                  fetchProductContentStamp(productSectorScope).catch(() => null),
+                ]).then(([pRes, pStamp]) => {
                   if (pRes.success && pRes.products && pRes.products.length > 0) {
+                    if (pStamp) saveProductContentStamp(pStamp);
                     setProducts((curr) => {
                       if (curr.length === 0) {
                         const valid = sanitizeProducts(pRes.products!);
@@ -3621,13 +3649,38 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                   }
                 });
               }
+            } else if (!isGoogleSheetsReadMode() && navigator.onLine !== false) {
+              // Verify if Supabase products table changed (e.g., Google Sheets pushed new rows/prices/families without bumping data version)
+              fetchProductContentStamp(productSectorScope).then(async (remotePStamp) => {
+                if (!remotePStamp || (remotePStamp.count === null && remotePStamp.maxUpdatedAt === null)) return;
+                const storedPStamp = readProductContentStamp();
+                if (
+                  storedPStamp &&
+                  storedPStamp.count === remotePStamp.count &&
+                  storedPStamp.maxUpdatedAt === remotePStamp.maxUpdatedAt
+                ) {
+                  return;
+                }
+                const pRes = await fetchProductsFromSupabase({ sector: productSectorScope });
+                if (pRes.success && pRes.products && pRes.products.length > 0) {
+                  const valid = sanitizeProducts(pRes.products);
+                  setProducts(valid);
+                  idbSet(STORAGE_KEYS.PRODUCTS, valid).catch(() => {});
+                  saveProductContentStamp(remotePStamp);
+                }
+              }).catch(() => {});
             }
             const hasLocalCusts = (customersRef.current?.length || 0) > 0;
+            if (hasLocalCusts && navigator.onLine !== false) {
+              // Run a 1-row content stamp check so fresh Google Sheet updates in Supabase aren't hidden by IDB
+              realtimeCheckCustomersRef.current?.();
+            }
             if (!hasLocalCusts) {
               idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS).then((cached) => {
                 if (!isFreshLogin && cached && cached.length > 0) {
                   customersRef.current = cached;
                   setCustomers(cached);
+                  if (navigator.onLine !== false) realtimeCheckCustomersRef.current?.();
                   return;
                 }
                 if (isGoogleSheetsReadMode()) {
@@ -8486,6 +8539,18 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     [visibleProductsScoped]
   );
 
+  const visibleTargetsScoped = useMemo(() => {
+    const scoped = filterBySector(targets, currentUser?.sector, (record) =>
+      inferTargetSector(record, users, customers)
+    );
+    return filterTargetsForUser(scoped, currentUser, users, customers);
+  }, [targets, currentUser, users, customers, activeSectorFilter]);
+
+  const getVisibleTargets = useCallback(
+    (): TargetRecord[] => visibleTargetsScoped,
+    [visibleTargetsScoped]
+  );
+
   const getSupervisorsInBranch = (branchName?: string): User[] => {
     const targetBranch = branchName || currentUser?.branchName;
   return users.filter(
@@ -8773,179 +8838,238 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     };
   }, []);
 
+  const contextValue = useMemo(
+    () => ({
+      currentUser,
+      isAuthenticated,
+      users,
+      branches,
+      products,
+      customers,
+      visits,
+      invoices,
+      cart,
+      cloudinaryConfig,
+      accountingLogs,
+      inventoryLogs,
+      auditLogs,
+      recordAuditLog,
+      clearAuditLogs,
+      isOffline,
+      pendingInvoicesCount,
+      offlineQueueCount,
+      deadLetterCount,
+      storageQuotaExceeded,
+      flushOfflineQueue,
+      flushPendingInvoices,
+      selectedBranchFilter,
+      setSelectedBranchFilter,
+      activeSectorFilter,
+      setActiveSectorFilter,
+      canManageSectorGate,
+      effectiveSectorFilter,
+      refreshInvoicesNow,
+      supabaseStatus,
+      isSupabaseSyncing,
+      syncWithSupabase,
+      checkDatabaseConnection,
+      addCustomer,
+      updateCustomer,
+      deleteCustomer,
+      saveCustomersToSupabase,
+      importCustomersList,
+      cleanAndDeduplicateCustomers,
+      clearCustomersCacheAndReset,
+      refreshCustomerRepLinks,
+      autoCreateMissingRepsFromCustomers,
+      mergeDuplicateUsers,
+      login,
+      register,
+      logout,
+      updateCurrentUserAvatar,
+      addToCart,
+      updateCartItem,
+      removeFromCart,
+      clearCart,
+      getCartSummary,
+      addProduct,
+      updateProduct,
+      deleteProduct,
+      importProductsList,
+      adjustStock,
+      recordInventoryTransaction,
+      checkProductAvailability,
+      createOrder,
+      syncCustomersIncrementally,
+      syncTargetsIncrementally,
+      loadAllTargets,
+      syncProductsIncrementally,
+      syncCustomerItemSalesIncrementally,
+      approveOrder,
+      resendInvoiceEmail,
+      forwardOrderToManager,
+      rejectOrder,
+      editPendingOrder,
+      cancelPendingOrderByRep,
+      updateOrderStatus,
+      requestOctoberSupplyForInvoice,
+      dispatchOctoberSupplyForInvoice,
+      bulkDispatchOctoberSupply,
+      processOrderReturn,
+      createStandaloneReturn,
+      deleteInvoice,
+      syncToAccounting,
+      dispatchOrderToMicrosoft,
+      updateBranchEmails,
+      addUser,
+      updateUser,
+      deleteUser,
+      approveUser,
+      rejectUser,
+      assignSupervisor,
+      authTerminationNotice,
+      clearAuthTerminationNotice,
+      authMode: getAuthMode(),
+      serverAuthEnabled: isServerAuthEnabled(),
+      serverAuthProbe,
+      updateCloudinarySettings,
+      saveMatchedProductImages,
+      clearAllAppData,
+      wipeAllProductsAndData,
+      dataSaverMode,
+      setDataSaverMode,
+      toggleDataSaverMode,
+      isPrivacyMode,
+      togglePrivacyMode,
+      setPrivacyMode,
+      formatConfidentialCurrency,
+      installPromptEvent,
+      canInstallPwa,
+      triggerInstallPrompt,
+      isInstallModalOpen,
+      setIsInstallModalOpen,
+      companyInfo,
+      branchCompanyInfo,
+      updateCompanyInfo,
+      resetCompanyInfo,
+      updateBranchCompanyInfo,
+      resetBranchCompanyInfo,
+      getCompanyInfoForBranch,
+      getVisibleInvoices,
+      getVisibleCustomers,
+      getVisibleVisits,
+      visibleVisits,
+      addVisit,
+      addImportedVisits,
+      updateVisit,
+      toggleArchiveVisit,
+      reviewVisit,
+      deleteVisit,
+      syncVisitsWithDatabase,
+      getCustomerVisitSummary,
+      getVisibleProducts,
+      getSupervisorsInBranch,
+      getSalesRepsForSupervisor,
+      loginAs,
+      targets,
+      forecasts,
+      loadForecastsForMonth,
+      loadForecastsForYear,
+      forecastPlans,
+      customerComments,
+      loadCustomerComments,
+      saveForecast,
+      saveForecastBatch,
+      deleteForecast,
+      deleteCustomerForecasts,
+      submitForecastWeek,
+      approveForecastWeek,
+      approveForecastBatch,
+      requestForecastChange,
+      saveForecastPlan,
+      saveCustomerComment,
+      toggleArchiveCustomerComment,
+      deleteCustomerComment,
+      getVisibleTargets,
+      importTargetsFromExcel,
+      importTargetsFromGoogleSheet,
+      exportTargetsReport,
+      resetTargetsToDefault,
+      addOrUpdateTargetRecord,
+      deleteTargetRecord,
+      globalDataVersion,
+      isVersionSyncing,
+      lastVersionSyncNotice,
+      clearVersionSyncNotice,
+      checkAndSyncDataVersion,
+      publishDataVersionUpdate,
+      forcePurgeCacheAndReload,
+      promotions,
+      saveAndSyncPromotions,
+      announcements,
+      saveAndSyncAnnouncements,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      currentUser,
+      isAuthenticated,
+      users,
+      branches,
+      products,
+      customers,
+      visits,
+      invoices,
+      cart,
+      cloudinaryConfig,
+      accountingLogs,
+      inventoryLogs,
+      auditLogs,
+      isOffline,
+      pendingInvoicesCount,
+      offlineQueueCount,
+      deadLetterCount,
+      storageQuotaExceeded,
+      selectedBranchFilter,
+      activeSectorFilter,
+      canManageSectorGate,
+      effectiveSectorFilter,
+      supabaseStatus,
+      isSupabaseSyncing,
+      dataSaverMode,
+      isPrivacyMode,
+      installPromptEvent,
+      canInstallPwa,
+      isInstallModalOpen,
+      companyInfo,
+      branchCompanyInfo,
+      visibleVisits,
+      visibleCustomersScoped,
+      visibleProductsScoped,
+      visibleTargetsScoped,
+      roleScopedInvoices,
+      activeRoleScopedInvoices,
+      getVisibleInvoices,
+      getVisibleCustomers,
+      getVisibleVisits,
+      getVisibleProducts,
+      getVisibleTargets,
+      setActiveSectorFilter,
+      targets,
+      forecasts,
+      forecastPlans,
+      customerComments,
+      globalDataVersion,
+      isVersionSyncing,
+      lastVersionSyncNotice,
+      promotions,
+      announcements,
+      authTerminationNotice,
+      serverAuthProbe,
+    ]
+  );
+
   return (
-    <AppContext.Provider
-      value={{
-        currentUser,
-        isAuthenticated,
-        users,
-        branches,
-        products,
-        customers,
-        visits,
-        invoices,
-        cart,
-        cloudinaryConfig,
-        accountingLogs,
-        inventoryLogs,
-        auditLogs,
-        recordAuditLog,
-        clearAuditLogs,
-        isOffline,
-        pendingInvoicesCount,
-        offlineQueueCount,
-        deadLetterCount,
-        storageQuotaExceeded,
-        flushOfflineQueue,
-        flushPendingInvoices,
-        selectedBranchFilter,
-        setSelectedBranchFilter,
-        activeSectorFilter,
-        setActiveSectorFilter,
-        canManageSectorGate,
-        effectiveSectorFilter,
-        refreshInvoicesNow,
-        supabaseStatus,
-        isSupabaseSyncing,
-        syncWithSupabase,
-        checkDatabaseConnection,
-        addCustomer,
-        updateCustomer,
-        deleteCustomer,
-        saveCustomersToSupabase,
-        importCustomersList,
-        cleanAndDeduplicateCustomers,
-        clearCustomersCacheAndReset,
-        refreshCustomerRepLinks,
-        autoCreateMissingRepsFromCustomers,
-        mergeDuplicateUsers,
-        login,
-        register,
-        logout,
-        updateCurrentUserAvatar,
-        addToCart,
-        updateCartItem,
-        removeFromCart,
-        clearCart,
-        getCartSummary,
-        addProduct,
-        updateProduct,
-        deleteProduct,
-        importProductsList,
-        adjustStock,
-        recordInventoryTransaction,
-        checkProductAvailability,
-        createOrder,
-        syncCustomersIncrementally,
-        syncTargetsIncrementally,
-        loadAllTargets,
-        syncProductsIncrementally,
-        syncCustomerItemSalesIncrementally,
-        approveOrder,
-  resendInvoiceEmail,
-  forwardOrderToManager,
-        rejectOrder,
-        editPendingOrder,
-        cancelPendingOrderByRep,
-        updateOrderStatus,
-        requestOctoberSupplyForInvoice,
-        dispatchOctoberSupplyForInvoice,
-        bulkDispatchOctoberSupply,
-        processOrderReturn,
-        createStandaloneReturn,
-        deleteInvoice,
-        syncToAccounting,
-        dispatchOrderToMicrosoft,
-        updateBranchEmails,
-        addUser,
-        updateUser,
-        deleteUser,
-        approveUser,
-        rejectUser,
-        assignSupervisor,
-        authTerminationNotice,
-        clearAuthTerminationNotice,
-        authMode: getAuthMode(),
-        serverAuthEnabled: isServerAuthEnabled(),
-        serverAuthProbe,
-        updateCloudinarySettings,
-        saveMatchedProductImages,
-        clearAllAppData,
-        wipeAllProductsAndData,
-        dataSaverMode,
-        setDataSaverMode,
-        toggleDataSaverMode,
-        isPrivacyMode,
-        togglePrivacyMode,
-        setPrivacyMode,
-        formatConfidentialCurrency,
-        installPromptEvent,
-        canInstallPwa,
-        triggerInstallPrompt,
-        isInstallModalOpen,
-        setIsInstallModalOpen,
-        companyInfo,
-        branchCompanyInfo,
-        updateCompanyInfo,
-        resetCompanyInfo,
-        updateBranchCompanyInfo,
-        resetBranchCompanyInfo,
-        getCompanyInfoForBranch,
-        getVisibleInvoices,
-        getVisibleCustomers,
-        getVisibleVisits,
-        visibleVisits,
-        addVisit,
-        addImportedVisits,
-        updateVisit,
-        toggleArchiveVisit,
-        reviewVisit,
-        deleteVisit,
-        syncVisitsWithDatabase,
-        getCustomerVisitSummary,
-        getVisibleProducts,
-        getSupervisorsInBranch,
-        getSalesRepsForSupervisor,
-        loginAs,
-        targets,
-        forecasts,
-        loadForecastsForMonth,
-        loadForecastsForYear,
-        forecastPlans,
-        customerComments,
-        loadCustomerComments,
-        saveForecast,
-        saveForecastBatch,
-        deleteForecast,
-        deleteCustomerForecasts,
-        submitForecastWeek,
-        approveForecastWeek,
-        approveForecastBatch,
-        requestForecastChange,
-        saveForecastPlan,
-        saveCustomerComment,
-        toggleArchiveCustomerComment,
-        deleteCustomerComment,
-        getVisibleTargets,
-        importTargetsFromExcel,
-        importTargetsFromGoogleSheet,
-        exportTargetsReport,
-        resetTargetsToDefault,
-        addOrUpdateTargetRecord,
-        deleteTargetRecord,
-        globalDataVersion,
-        isVersionSyncing,
-        lastVersionSyncNotice,
-        clearVersionSyncNotice,
-        checkAndSyncDataVersion,
-        publishDataVersionUpdate,
-        forcePurgeCacheAndReload,
-        promotions,
-        saveAndSyncPromotions,
-        announcements,
-        saveAndSyncAnnouncements,
-      }}
-    >
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

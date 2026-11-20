@@ -20,7 +20,7 @@ import {
   X,
   Scale,
 } from 'lucide-react';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
 import { inferCustomerSector } from '../data/branchDefinitions';
@@ -209,8 +209,10 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     [repoCustomers]
   );
 
+  const deferredSearch = useDeferredValue(search);
+
   const overdueCustomers = useMemo(() => {
-    const q = search.trim();
+    const q = deferredSearch.trim();
     const qNorm = normalizeArabicText(q);
     const qLower = q.toLowerCase();
     const qDigits = q.replace(/\D/g, '');
@@ -242,7 +244,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     });
 
     return filtered.sort((a, b) => getCustomerDebt(b) - getCustomerDebt(a));
-  }, [repoCustomers, search, branchFilter, repFilter]);
+  }, [repoCustomers, deferredSearch, branchFilter, repFilter]);
 
   const topOverdueCustomers = useMemo(() => overdueCustomers.slice(0, 5), [overdueCustomers]);
 
@@ -286,16 +288,28 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     return map;
   }, [visits]);
 
+  const userAvatarLookup = useMemo(() => {
+    const byId = new Map<string, string>();
+    const byName = new Map<string, string>();
+    users.forEach((u) => {
+      const av = u.avatar || '/assets/rep-avatar.jpg';
+      if (u.id) byId.set(u.id, av);
+      if (u.username) byId.set(u.username, av);
+      if (u.name) {
+        const norm = normalizeArabicText(u.name);
+        if (norm) byName.set(norm, av);
+      }
+    });
+    return { byId, byName };
+  }, [users]);
+
   const repSummaries = useMemo<RepSummary[]>(() => {
     const map = new Map<string, RepSummary>();
     const resolveRepAvatarUrl = (repId?: string, repName?: string): string => {
+      if (repId && userAvatarLookup.byId.has(repId)) return userAvatarLookup.byId.get(repId)!;
       const targetName = normalizeArabicText(repName || '');
-      const matched = users.find(
-        (u) =>
-          (repId && (u.id === repId || u.username === repId)) ||
-          (targetName && normalizeArabicText(u.name || '') === targetName)
-      );
-      return matched?.avatar || '/assets/rep-avatar.jpg';
+      if (targetName && userAvatarLookup.byName.has(targetName)) return userAvatarLookup.byName.get(targetName)!;
+      return '/assets/rep-avatar.jpg';
     };
 
     repoCustomers.forEach((customer) => {
@@ -366,7 +380,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         rate: rep.sales > 0 ? Math.min(100, Math.round((rep.collections / rep.sales) * 100)) : 0,
       }))
       .sort((a, b) => b.collections - a.collections || b.sales - a.sales);
-  }, [repoCustomers, invoices, visits, users]);
+  }, [repoCustomers, invoices, visits, userAvatarLookup]);
 
   const topRep = repSummaries[0];
   const managerKpis = useMemo(() => {
@@ -404,19 +418,37 @@ export const CollectionRecoveryDashboard: React.FC = () => {
   }, [repSummaries, totalDebt, todayCollectionValue]);
 
   const dailyCollectionRows = useMemo(() => {
+    const today = todayKey();
+    const todayByRep = new Map<string, { collected: number; count: number }>();
+    for (const visit of visits) {
+      if (visit.type !== 'تحصيل' || visit.date !== today) continue;
+      const amt = Number(visit.collectedAmount || 0);
+      if (visit.repId) {
+        const cur = todayByRep.get(`id:${visit.repId}`) || { collected: 0, count: 0 };
+        cur.collected += amt;
+        cur.count += 1;
+        todayByRep.set(`id:${visit.repId}`, cur);
+      }
+      if (visit.repName) {
+        const cur = todayByRep.get(`name:${visit.repName}`) || { collected: 0, count: 0 };
+        cur.collected += amt;
+        cur.count += 1;
+        todayByRep.set(`name:${visit.repName}`, cur);
+      }
+    }
+
     const rows = repSummaries.map((rep) => {
-      const repVisits = visits.filter(
-        (visit) => (visit.repId === rep.repId || visit.repName === rep.repName) && visit.type === 'تحصيل' && visit.date === todayKey()
-      );
-      const collected = repVisits.reduce((sum, visit) => sum + Number(visit.collectedAmount || 0), 0);
-      const count = repVisits.length;
+      const stats =
+        (rep.repId ? todayByRep.get(`id:${rep.repId}`) : undefined) ||
+        todayByRep.get(`name:${rep.repName}`) ||
+        { collected: 0, count: 0 };
       return {
         id: rep.repId,
         repName: rep.repName,
         avatar: rep.avatar,
         avatarUrl: rep.avatarUrl,
-        collected,
-        count,
+        collected: stats.collected,
+        count: stats.count,
         proportion: rep.rate,
       };
     });

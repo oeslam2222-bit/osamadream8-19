@@ -74,14 +74,19 @@ export const ItemRankingCard: React.FC<ItemRankingCardProps> = ({
                 title={`${item.itemName} — ${item.quantity.toLocaleString('en-US')} ${item.unit}`}
               >
                 <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className="flex items-center gap-1.5 min-w-0">
-                    <span className="w-4 h-4 rounded-md bg-slate-100 text-slate-500 text-[9px] font-black flex items-center justify-center shrink-0">
-                      {index + 1}
-                    </span>
-                    <span className="text-[10.5px] font-bold text-slate-700 truncate group-hover:text-deep-slate">
-                      {item.itemName}
-                    </span>
-                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="w-4 h-4 rounded-md bg-slate-100 text-slate-500 text-[9px] font-black flex items-center justify-center shrink-0">
+                        {index + 1}
+                      </span>
+                      <span className="text-[10.5px] font-bold text-slate-700 truncate group-hover:text-deep-slate">
+                        {item.itemName}
+                      </span>
+                    </div>
+                    <div className="text-[9px] text-slate-400 font-mono truncate pr-5">
+                      كود: {item.itemCode || '—'} · {item.itemGroup || 'عام'} · {item.customersCount} عميل
+                    </div>
+                  </div>
                   <span className="text-[10px] font-black text-slate-900 font-mono shrink-0">
                     {item.quantity.toLocaleString('en-US')}
                     <span className="text-[9px] text-slate-400 font-bold ms-1">{item.unit}</span>
@@ -178,11 +183,16 @@ export const ItemRankingCard: React.FC<ItemRankingCardProps> = ({
             key={`${item.itemCode}-top-${index}`}
             type="button"
             onClick={() => onSelectItem?.(item.itemCode)}
-            className="flex items-center justify-between gap-2 rounded-lg px-2 py-1 hover:bg-slate-50 transition cursor-pointer"
+            className="flex items-center justify-between gap-2 rounded-lg px-2 py-1 hover:bg-slate-50 transition cursor-pointer text-right"
           >
-            <span className="text-[10px] font-bold text-slate-600 truncate">
-              {index + 1}. {item.itemName}
-            </span>
+            <div className="min-w-0">
+              <div className="text-[10px] font-bold text-slate-700 truncate">
+                {index + 1}. {item.itemName}
+              </div>
+              <div className="text-[8.5px] font-mono text-slate-400 truncate">
+                كود: {item.itemCode || '—'} · {item.itemGroup || 'عام'} · {item.customersCount} عميل
+              </div>
+            </div>
             <GrowthPill growth={item.growthPct} emptyLabel="جديد" />
           </button>
         ))}

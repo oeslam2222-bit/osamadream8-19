@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useDeferredValue, useMemo, useState } from 'react';
 import { Filter, RotateCcw, Search, Target, TrendingUp, Users, Layers, Package, BarChart3 } from 'lucide-react';
 import type { Customer, CustomerItemSaleRecord } from '../../types';
 import { formatCurrency } from '../../services/invoiceService';
@@ -85,25 +85,28 @@ export const SalesFocusV4: React.FC<Props> = ({ records, baseRecords, customers 
     return map;
   }, [customers]);
 
+  const deferredItemQuery = useDeferredValue(f.item);
+
   const enriched = useMemo(() => {
     return allRows.map(r => {
       const fam = resolveItemGroup(r) || r.familyDimension || r.itemGroup || 'عام';
-      // نفس ترتيب باقي الشاشات: فرع العميل المعتمد أولًا ثم مخزن الحركة
       const branch = (r.linkedBranch || r.warehouse || 'غير محدد').trim() || 'غير محدد';
       const rep = (r.repName || 'غير محدد').trim() || 'غير محدد';
       const code = (r.customerAccount || '').trim();
       const linked = customerByCode.get(code.toLowerCase()) || (r.invoicingName ? customerByCode.get(r.invoicingName.trim().toLowerCase()) : undefined);
+      const rawItemCode = (r.itemCode || '').trim();
+      const rawUnified = (r.unifiedCode || '').trim();
       return {
         raw: r,
-        // 0 = شهر غير معروف، ميدخلش في مصفوفة الشهور بدل ما يتحسب يناير
         month: Math.min(12, Math.max(0, Math.round(num(r.month) || 0))),
         amount: num(r.amount),
         qty: num(r.quantity),
         fam,
         branch,
         rep,
-        itemCode: (r.itemCode || r.itemName || '').trim() || '—',
-        itemName: (r.itemName || r.definitions || r.itemCode || 'صنف غير محدد').trim(),
+        itemCode: rawItemCode || rawUnified || (r.itemName || '').trim() || '—',
+        unifiedCode: rawUnified,
+        itemName: (r.itemName || r.definitions || rawItemCode || 'صنف غير محدد').trim(),
         custCode: code || (linked?.code || r.invoicingName || '—'),
         custName: (linked?.name || r.invoicingName || code || 'عميل غير محدد').trim(),
         custRep: (linked as any)?.repName || (linked as any)?.salesRepName || rep,
@@ -125,33 +128,33 @@ export const SalesFocusV4: React.FC<Props> = ({ records, baseRecords, customers 
   }, [enriched]);
 
   const filtered = useMemo(() => {
-    const q = f.item.trim().toLowerCase();
+    const q = deferredItemQuery.trim().toLowerCase();
     return enriched.filter(r => {
       if (f.month !== 'all' && r.month !== f.month) return false;
       if (f.branch !== 'all' && r.branch !== f.branch) return false;
       if (f.rep !== 'all' && r.rep !== f.rep) return false;
       if (f.family !== 'all' && r.fam !== f.family) return false;
       if (f.customer !== 'all' && r.custCode !== f.customer) return false;
-      if (q && !r.itemName.toLowerCase().includes(q) && !r.itemCode.toLowerCase().includes(q)) return false;
+      if (q && !r.itemName.toLowerCase().includes(q) && !r.itemCode.toLowerCase().includes(q) && !r.unifiedCode.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [enriched, f]);
+  }, [enriched, f.month, f.branch, f.rep, f.family, f.customer, deferredItemQuery]);
 
   const allMonthFiltered = useMemo(() => {
-    const q = f.item.trim().toLowerCase();
+    const q = deferredItemQuery.trim().toLowerCase();
     return enriched.filter(r => {
       if (f.branch !== 'all' && r.branch !== f.branch) return false;
       if (f.rep !== 'all' && r.rep !== f.rep) return false;
       if (f.family !== 'all' && r.fam !== f.family) return false;
       if (f.customer !== 'all' && r.custCode !== f.customer) return false;
-      if (q && !r.itemName.toLowerCase().includes(q) && !r.itemCode.toLowerCase().includes(q)) return false;
+      if (q && !r.itemName.toLowerCase().includes(q) && !r.itemCode.toLowerCase().includes(q) && !r.unifiedCode.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [enriched, f.branch, f.rep, f.family, f.customer, f.item]);
+  }, [enriched, f.branch, f.rep, f.family, f.customer, deferredItemQuery]);
 
   const A = useMemo(() => {
     const famMap = new Map<string, { name: string; sales: number; qty: number }>();
-    const itemMap = new Map<string, { code: string; name: string; fam: string; sales: number; qty: number }>();
+    const itemMap = new Map<string, { code: string; unifiedCode: string; name: string; fam: string; sales: number; qty: number }>();
     const repMap = new Map<string, { name: string; sales: number; qty: number; custs: Set<string>; fam: Map<string, number>; item: Map<string, number> }>();
     const custMap = new Map<string, { code: string; name: string; rep: string; branch: string; phone: string; sector: string; linked: boolean; sales: number; qty: number; item: Map<string, number> }>();
     const branchMap = new Map<string, { name: string; sales: number; qty: number; custs: Set<string> }>();
@@ -164,7 +167,7 @@ export const SalesFocusV4: React.FC<Props> = ({ records, baseRecords, customers 
     for (const r of filtered) {
       total += r.amount; totalQty += r.qty; moves++; custSet.add(r.custCode); itemSet.add(r.itemCode);
       const fm = famMap.get(r.fam) || { name: r.fam, sales: 0, qty: 0 }; fm.sales += r.amount; fm.qty += r.qty; famMap.set(r.fam, fm);
-      const im = itemMap.get(r.itemCode) || { code: r.itemCode, name: r.itemName, fam: r.fam, sales: 0, qty: 0 }; im.sales += r.amount; im.qty += r.qty; if (!im.name) im.name = r.itemName; itemMap.set(r.itemCode, im);
+      const im = itemMap.get(r.itemCode) || { code: r.itemCode, unifiedCode: r.unifiedCode, name: r.itemName, fam: r.fam, sales: 0, qty: 0 }; im.sales += r.amount; im.qty += r.qty; if (!im.name) im.name = r.itemName; if (!im.unifiedCode && r.unifiedCode) im.unifiedCode = r.unifiedCode; itemMap.set(r.itemCode, im);
       const rm = repMap.get(r.rep) || { name: r.rep, sales: 0, qty: 0, custs: new Set<string>(), fam: new Map<string, number>(), item: new Map<string, number>() };
       rm.sales += r.amount; rm.qty += r.qty; rm.custs.add(r.custCode); rm.fam.set(r.fam, (rm.fam.get(r.fam)||0)+r.amount); rm.item.set(r.itemCode, (rm.item.get(r.itemCode)||0)+r.amount); repMap.set(r.rep, rm);
       const cm = custMap.get(r.custCode) || { code: r.custCode, name: r.custName, rep: r.custRep, branch: r.custBranch, phone: r.custPhone, sector: r.custSector, linked: r.linked, sales: 0, qty: 0, item: new Map<string, number>() };
@@ -380,7 +383,7 @@ export const SalesFocusV4: React.FC<Props> = ({ records, baseRecords, customers 
             <div className="space-y-2 max-h-[340px] overflow-y-auto pr-1">
               {A.items.slice(0,10).map((it,idx)=>{ const share=A.total?(it.sales/A.total)*100:0; const active=f.item===it.code; return (
                 <button key={it.code} type="button" onClick={()=>setFilter({item: active?'':it.code, family: it.fam})} className={`w-full text-right rounded-xl p-2 border cursor-pointer ${active?'border-[var(--app-navy)] bg-[var(--app-navy-tint)]':'border-slate-200 hover:border-slate-300'}`}>
-                  <div className="flex items-center gap-2"><span className="w-5 h-5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-black inline-flex items-center justify-center">{idx+1}</span><div className="flex-1 min-w-0"><div className="text-[11px] font-black text-slate-800 truncate">{it.name}</div><div className="text-[9px] text-slate-400 font-mono">{it.code} · {it.fam}</div></div><div className="text-left"><div className="text-[11px] font-black text-slate-900 font-mono">{fmtCompact(it.sales)}</div><div className="text-[9px] font-bold text-slate-500">{share.toFixed(1)}%</div></div></div>
+                  <div className="flex items-center gap-2"><span className="w-5 h-5 rounded-md bg-slate-100 text-slate-600 text-[10px] font-black inline-flex items-center justify-center">{idx+1}</span><div className="flex-1 min-w-0"><div className="text-[11px] font-black text-slate-800 truncate">{it.name}</div><div className="text-[9px] text-slate-500 font-mono">كود: {it.code}{it.unifiedCode ? ` · موحد: #${it.unifiedCode}` : ''} · {it.fam}</div></div><div className="text-left"><div className="text-[11px] font-black text-slate-900 font-mono">{fmtCompact(it.sales)}</div><div className="text-[9px] font-bold text-slate-500">{share.toFixed(1)}%</div></div></div>
                   <div className="mt-1.5 h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{width:`${(it.sales/(A.items[0].sales||1))*100}%`, background:A.famColor.get(it.fam)||'#102b4e'}} /></div>
                 </button>
               ); })}

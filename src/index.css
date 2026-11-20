@@ -48,9 +48,9 @@ html:not(.dark) [class*="bg-slate-900"] .text-slate-400 { color: #94a3b8 !import
 /* cancel buttons on soft red */
 html:not(.dark) .app-btn-risk-soft { color: #b91c1c !important; }
 /* Customers page muted text contrast fix */
-html:not(.dark) .tantawy-screen .text-slate-400 { color: #475569 !important; }
+html:not(.dark) .tantawy-screen .text-slate-400:not(.tg-kpi *):not(.tg-hero *):not(.tg-daycard *):not(.tg-target-card *):not(.tg-quick-card *):not(.tg-report-kpi *):not(.tg-stage-card *):not(.ds-pagehead *) { color: #475569 !important; }
 /* Customers page muted text contrast fix (slate-500) */
-html:not(.dark) .tantawy-screen .text-slate-500 { color: #475569 !important; }
+html:not(.dark) .tantawy-screen .text-slate-500:not(.tg-kpi *):not(.tg-hero *):not(.tg-daycard *):not(.tg-target-card *):not(.tg-quick-card *):not(.tg-report-kpi *):not(.tg-stage-card *):not(.ds-pagehead *) { color: #475569 !important; }
 /* Customers page remaining contrast fixes */
 html:not(.dark) .cf-bar-sub { color: #475569 !important; }
 html:not(.dark) .cf-bar-sub strong { color: #334155 !important; }
@@ -58,10 +58,10 @@ html:not(.dark) .cdebt-foot { color: #475569 !important; }
 html:not(.dark) .cf-badge { color: #475569 !important; }
 /* Muted text contrast fix */
 html:not(.dark) .t-muted { color: #64748b !important; }
-/* Global light-mode text visibility boost */
-html:not(.dark) .text-slate-300 { color: #64748b !important; }
-html:not(.dark) .text-slate-400 { color: #475569 !important; }
-html:not(.dark) .text-slate-500 { color: #334155 !important; }
+/* Global light-mode text visibility boost (excluding dark/colored gradient cards) */
+html:not(.dark) .text-slate-300:not(.ds-topbar *):not(.ds-sidebar *):not(.tg-kpi *):not(.tg-hero *):not(.tg-daycard *):not(.tg-target-card *):not(.tg-quick-card *):not(.tg-report-kpi *):not(.tg-stage-card *):not(.ds-pagehead *):not(footer *) { color: #64748b !important; }
+html:not(.dark) .text-slate-400:not(.ds-topbar *):not(.ds-sidebar *):not(.tg-kpi *):not(.tg-hero *):not(.tg-daycard *):not(.tg-target-card *):not(.tg-quick-card *):not(.tg-report-kpi *):not(.tg-stage-card *):not(.ds-pagehead *):not(footer *) { color: #475569 !important; }
+html:not(.dark) .text-slate-500:not(.ds-topbar *):not(.ds-sidebar *):not(.tg-kpi *):not(.tg-hero *):not(.tg-daycard *):not(.tg-target-card *):not(.tg-quick-card *):not(.tg-report-kpi *):not(.tg-stage-card *):not(.ds-pagehead *):not(footer *) { color: #334155 !important; }
 /* ===== Prevent horizontal page scroll (screen lock fix) ===== */
 html, body { overflow-x: hidden; }
 

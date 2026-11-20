@@ -775,16 +775,35 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     ) {
       colMap.currentBalance = idx;
     }
-    // 17. Credit Limit
+    // 17. Credit Limit — never match "فترة الائتمان" / "مدة الائتمان" / "أيام الائتمان"
     else if (
       colMap.creditLimit === -1 &&
+      !h.includes('فترة') &&
+      !h.includes('فتره') &&
+      !h.includes('مدة') &&
+      !h.includes('مده') &&
+      !h.includes('أيام') &&
+      !h.includes('ايام') &&
+      !h.includes('يوم') &&
+      !h.includes('شروط') &&
+      !h.includes('تجاوز') &&
+      !h.includes('نسبة') &&
+      !h.includes('نسبه') &&
+      !h.includes('period') &&
+      !h.includes('day') &&
+      !h.includes('term') &&
+      !h.includes('ratio') &&
+      !h.includes('exceed') &&
       (h.includes('حد ائتماني') ||
         h.includes('حد الائتمان') ||
         h.includes('الحد الائتماني') ||
         h.includes('الحد الائتمانى') ||
         h.includes('الحد المسموح') ||
-        h.includes('الائتمان') ||
-        h.includes('credit limit'))
+        h.includes('سقف الائتمان') ||
+        h === 'الائتمان' ||
+        h === 'ائتمان' ||
+        h.includes('credit limit') ||
+        h.includes('max credit'))
     ) {
       colMap.creditLimit = idx;
     }
@@ -836,7 +855,7 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
     ) {
       colMap.guaranteeDocs = idx;
     }
-    // 22. Payment Terms (طرق الدفع / شروط السداد)
+    // 22. Payment Terms (طرق الدفع / شروط السداد / فترة الائتمان)
     else if (
       colMap.paymentTerms === -1 &&
       (h.includes('طرق الدفع') ||
@@ -847,6 +866,12 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
         h.includes('شروط السداد') ||
         h.includes('طريقة السداد') ||
         h.includes('طرق السداد') ||
+        h.includes('فترة الائتمان') ||
+        h.includes('فتره الائتمان') ||
+        h.includes('مدة الائتمان') ||
+        h.includes('مده الائتمان') ||
+        h.includes('أيام الائتمان') ||
+        h.includes('ايام الائتمان') ||
         h.includes('payment terms') ||
         h.includes('payment method'))
     ) {
@@ -895,7 +920,8 @@ export function parseRowsToDetailedCustomers(rawRows: any[][]): {
 
     // Financials
     const balance = colMap.currentBalance !== -1 ? cleanNumber(row[colMap.currentBalance]) : 0;
-    const creditLimit = colMap.creditLimit !== -1 ? cleanNumber(row[colMap.creditLimit]) : 0;
+    const rawCreditLimit = colMap.creditLimit !== -1 ? cleanNumber(row[colMap.creditLimit]) : 0;
+    const creditLimit = Number.isFinite(rawCreditLimit) && rawCreditLimit >= 100 ? rawCreditLimit : 0;
     const s2025 = colMap.sales2025 !== -1 ? cleanNumber(row[colMap.sales2025]) : 0;
     // Keep signed collections from sheet (can be negative or positive as in source)
     const c2025 = colMap.collections2025 !== -1 ? cleanNumber(row[colMap.collections2025]) : 0;

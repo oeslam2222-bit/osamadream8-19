@@ -1057,7 +1057,7 @@ body footer span.font-black {
 .tg-act__date {
   color: #64748b !important;
 }
-.app-main .text-slate-300 {
+html:not(.dark) .app-main .text-slate-300:not(.ds-pagehead *):not(.tg-hero *):not(.tg-kpi *):not(.tg-daycard *):not(.tg-stage-card *):not([class*="bg-slate-9"] *):not([class*="bg-[#101a27]"] *):not(footer *) {
   color: #475569 !important;
 }
 

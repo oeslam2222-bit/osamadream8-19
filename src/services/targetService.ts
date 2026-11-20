@@ -1,6 +1,15 @@
 import { TargetQuarter, TargetRecord, User } from '../types';
-import { isArabicNameMatch, isBranchMatch, normalizeArabicText, resolveBranchName, BRANCH_CODE_MAP } from './arabicMatchingService';
+import {
+  isArabicNameMatch,
+  isBranchMatch,
+  normalizeArabicText,
+  resolveBranchName,
+  resolveSectorFromBranch,
+  inferSectorFromText,
+  BRANCH_CODE_MAP,
+} from './arabicMatchingService';
 import { getPublishedCsvUrl } from './dataSourceService';
+import { applyCustomerSectorHeuristic, isElectricalLabel } from './sectorResolver';
 
 // The Excel engines (xlsx-js-style + the Arabic encoding helpers) are heavy and
 // only needed when a target sheet is imported or exported. They are imported
@@ -53,16 +62,51 @@ export function formatEGP(amount: number): string {
 }
 
 /**
- * Clean and parse numeric values from Excel cells
+ * Clean and parse numeric values from Excel cells (including Arabic-Indic digits)
  */
 function cleanNumber(val: any): number {
   if (val === null || val === undefined || val === '') return 0;
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
-  const cleaned = String(val)
+  let str = String(val);
+  const arabicDigits = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
+  for (let i = 0; i < 10; i++) {
+    str = str.split(arabicDigits[i]).join(String(i));
+  }
+  const cleaned = str
+    .replace(/[,٬]/g, '')
+    .replace(/٫/g, '.')
     .replace(/[^\d.-]/g, '')
     .trim();
   const num = parseFloat(cleaned);
   return isNaN(num) ? 0 : num;
+}
+
+const TARGET_SECTOR_TAG_RE = /\s*\[\[sector:(home|electrical)\]\]\s*/gi;
+
+export function extractTargetSectorFromNotes(notes?: string | null): {
+  cleanNotes?: string;
+  sector?: 'home' | 'electrical';
+} {
+  const raw = String(notes || '');
+  const match = raw.match(/\[\[sector:(home|electrical)\]\]/i);
+  const sector = match ? (match[1].toLowerCase() as 'home' | 'electrical') : undefined;
+  const clean = raw.replace(TARGET_SECTOR_TAG_RE, ' ').trim();
+  return {
+    cleanNotes: clean || undefined,
+    sector,
+  };
+}
+
+export function encodeTargetNotesWithSector(
+  notes?: string | null,
+  sector?: 'home' | 'electrical' | 'all'
+): string | null {
+  const { cleanNotes } = extractTargetSectorFromNotes(notes);
+  if (sector !== 'home' && sector !== 'electrical') {
+    return cleanNotes || null;
+  }
+  const tag = `[[sector:${sector}]]`;
+  return cleanNotes ? `${cleanNotes} ${tag}` : tag;
 }
 
 /**
@@ -307,6 +351,8 @@ export function parseTargetRawRows(rawRows: any[][]): TargetRecord[] {
         cell.includes('period')
       ) {
         tempMap['date'] = idx;
+      } else if (cell === 'قطاع' || cell === 'القطاع' || cell.includes('قطاع') || cell.includes('sector')) {
+        tempMap['sector'] = idx;
       }
     });
 
@@ -378,12 +424,25 @@ export function parseTargetRawRows(rawRows: any[][]): TargetRecord[] {
     // Resolve the branch ONCE and use it for both the id and the value. Building
     // the id from the raw cell meant the same branch uploaded as "15" and as
     // "فرع الفيوم" produced two different records.
+    const rawSectorCell = colMap['sector'] !== undefined ? normalizeArabicText(String(row[colMap['sector']] || '')) : '';
+    const detectedSector: 'home' | 'electrical' | undefined =
+      rawSectorCell.includes('كهرب') || rawSectorCell.includes('electrical')
+        ? 'electrical'
+        : rawSectorCell.includes('منزل') || rawSectorCell.includes('home')
+        ? 'home'
+        : resolveSectorFromBranch(branch) ||
+          inferSectorFromText(branch) ||
+          (isElectricalLabel(branch, repName) ? 'electrical' : undefined) ||
+          (normalizeArabicText(branch).includes('منزل') ? 'home' : undefined);
+
     const resolvedBranch = resolveBranchName(branch) || branch || 'الفرع الرئيسي';
+    const sectorSuffix = detectedSector ? `__${detectedSector}` : '';
 
     const record: TargetRecord = {
-      id: `trg-${normalizeArabicText(resolvedBranch).replace(/\s+/g, '_')}__${normalizeArabicText(repName).replace(/\s+/g, '_')}__${dateStr || 'nodate'}_${month || 'm0'}_${year || 'y0'}`,
+      id: `trg-${normalizeArabicText(resolvedBranch).replace(/\s+/g, '_')}__${normalizeArabicText(repName).replace(/\s+/g, '_')}__${dateStr || 'nodate'}_${month || 'm0'}_${year || 'y0'}${sectorSuffix}`,
       branch: resolvedBranch,
       repName: repName || 'مندوب غير محدد',
+      sector: detectedSector,
       salesTarget,
       salesAchieved,
       salesPercentage: Number(salesPercentage.toFixed(1)),
@@ -413,25 +472,66 @@ export function parseTargetRawRows(rawRows: any[][]): TargetRecord[] {
  * - admin / developer: full visibility across all branches and reps.
  */
 /**
- * استنتاج قطاع هدف المندوب (منزلي / كهربائي) بدون أي تعديل على قاعدة البيانات:
- * 1) إذا كان السجل يحمل sector صريحاً يُستخدم.
- * 2) يُبحث اسم الفرع (كلمة "كهربا" / "منزل").
- * 3) ثم قطاع المندوب نفسه من قائمة المستخدمين.
+ * استنتاج قطاع هدف المندوب (منزلي / كهربائي):
+ * 1) إذا كان السجل يحمل sector صريحاً أو وسم قطاع في الملاحظات.
+ * 2) فحص اسم/كود الفرع واسم المندوب (أكواد الفروع الكهربائية أو كلمة "كهرب" / "منزل").
+ * 3) قطاع المندوب نفسه أو كود فرعه من قائمة المستخدمين.
+ * 4) استنتاج القطاع من عملاء المندوب (إن وُجدت قائمة العملاء).
  */
 export function inferTargetSector(
   record: TargetRecord,
-  allUsers: User[] = []
+  allUsers: User[] = [],
+  customers: Array<{
+    sector?: 'home' | 'electrical' | 'both' | 'all';
+    name?: string;
+    storeName?: string;
+    repName?: string;
+    salesRepName?: string;
+    branchName?: string;
+  }> = []
 ): 'home' | 'electrical' | undefined {
   if (record.sector === 'home' || record.sector === 'electrical') return record.sector;
+
+  const { sector: noteSector } = extractTargetSectorFromNotes(record.notes);
+  if (noteSector) return noteSector;
+
+  const branchSector = resolveSectorFromBranch(record.branch) || inferSectorFromText(record.branch);
+  if (branchSector) return branchSector;
+
+  if (isElectricalLabel(record.branch, record.repName)) return 'electrical';
+
   const branch = normalizeArabicText(record.branch || '');
-  if (branch.includes('كهربا') || branch.includes('كهرب')) return 'electrical';
   if (branch.includes('منزل') || branch.includes('منزلي')) return 'home';
+
   if (record.repName && allUsers.length) {
     const owner = allUsers.find(
-      (u) => u?.name && isArabicNameMatch(u.name, record.repName as string)
+      (u) =>
+        (u?.name && isArabicNameMatch(u.name, record.repName as string)) ||
+        (u?.username && normalizeArabicText(u.username) === normalizeArabicText(record.repName as string))
     );
-    if (owner?.sector === 'home' || owner?.sector === 'electrical') return owner.sector;
+    if (owner) {
+      if (owner.sector === 'home' || owner.sector === 'electrical') return owner.sector;
+      const ownerBranchSector =
+        resolveSectorFromBranch(owner.branchName) || inferSectorFromText(owner.branchName);
+      if (ownerBranchSector) return ownerBranchSector;
+      if (isElectricalLabel(owner.name, owner.branchName)) return 'electrical';
+    }
   }
+
+  if (record.repName && customers.length) {
+    let electricalHits = 0;
+    let homeHits = 0;
+    for (const c of customers) {
+      const custRep = c.salesRepName || c.repName;
+      if (!custRep || !isArabicNameMatch(custRep, record.repName)) continue;
+      const cs = applyCustomerSectorHeuristic(c) || inferSectorFromText(c.branchName);
+      if (cs === 'electrical') electricalHits++;
+      else if (cs === 'home') homeHits++;
+    }
+    if (electricalHits > 0 && electricalHits >= homeHits) return 'electrical';
+    if (homeHits > 0 && electricalHits === 0) return 'home';
+  }
+
   return undefined;
 }
 

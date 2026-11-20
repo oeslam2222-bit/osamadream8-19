@@ -12,7 +12,6 @@ import {
   LayoutDashboard,
   Link2,
   Loader2,
-  Lock,
   Phone,
   Plus,
   RefreshCw,
@@ -99,7 +98,9 @@ interface CustomerItemSalesViewProps {
   onNavigateToExcel?: () => void;
 }
 
-type SalesViewMode = 'overview' | 'customers' | 'focus';
+const SalesFocusV4 = React.lazy(() => import('./itemSales/SalesFocusV4'));
+
+type SalesViewMode = 'overview' | 'visuals' | 'focus' | 'customers';
 
 const initials = (name: string): string => {
   const parts = (name || '').trim().split(/\s+/).filter(Boolean);
@@ -281,11 +282,10 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         await saveCustomerItemSales(localBackup);
       }
 
-      // 2. قراءة عدد السجلات في Supabase فقط (استعلام خفيف مفلتر بالنطاق) للمقارنة والتنبيه
-      //    throttled: لو الكاش موجود وفحص العدد حصل خلال آخر نص ساعة، مش بنبعته تاني.
+      // 2. قراءة عدد السجلات في Supabase فقط (استعلام خفيف مفلتر بالنطاق) للمقارنة والمزامنة الآلية
       let remoteCount = -1;
-      const skipCountCheck = localBackup.length > 0 && isItemSalesCountCheckFresh();
-      if (!skipCountCheck) {
+      const isOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
+      if (isOnline && (!localBackup.length || !isItemSalesCountCheckFresh() || forceRemote)) {
         try {
           remoteCount = await getSupabaseCustomerItemSalesCount(itemSalesScope);
           if (remoteCount >= 0) {
@@ -297,20 +297,14 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         }
       }
 
-      const shouldAutoPull = localBackup.length === 0 && remoteCount > 0;
+      const shouldAutoPull =
+        isOnline &&
+        remoteCount > 0 &&
+        (localBackup.length === 0 || remoteCount !== localBackup.length);
       if (!forceRemote && !shouldAutoPull) {
-        // عرض الكاش المحلي فوراً بدون تنزيل كامل لجدول مبيعات الأصناف (قد يكون ضخم جداً)
         setSalesRecords(localBackup);
-        if (remoteCount > 0 && localBackup.length === 0) {
-          setSyncErrorMsg(
-            `يوجد ${remoteCount.toLocaleString('ar-EG')} سجل على Supabase. اضغط "جلب من Supabase" لتحميلها عند الحاجة (قد تستهلك بيانات).`
-          );
-        } else if (remoteCount > 0 && localBackup.length > 0 && remoteCount !== localBackup.length) {
-          setSyncSuccessMsg(
-            `تم عرض ${localBackup.length.toLocaleString('ar-EG')} حركة من الكاش المحلي. (${remoteCount.toLocaleString('ar-EG')} على Supabase — استخدم "جلب من Supabase" للتحديث الكامل عند الحاجة)`
-          );
-        } else if (localBackup.length > 0) {
-          setSyncSuccessMsg(`تم عرض ${localBackup.length.toLocaleString('ar-EG')} حركة من الكاش المحلي.`);
+        if (localBackup.length > 0) {
+          setSyncSuccessMsg(`تم عرض ${localBackup.length.toLocaleString('ar-EG')} حركة محدّثة.`);
         }
         return;
       }
@@ -1525,9 +1519,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                 'المندوب', 'الشهر', 'Warehouse', 'Item', 'Name', 'Unit',
                 'factor', 'Unit price', 'Discount', 'Quantity', 'Amount',
                 'Item group', 'التعريفات', 'Family Dimension',
-                'كود العميل', 'الشهر', 'الصنف', 'الصنف بالعائله', 'القطاع', 'عدد القطع', 'اجمالي المبلغ'
-              ].map((col) => (
-                <span key={col} className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                'كود العميل', 'الصنف', 'الصنف بالعائله', 'القطاع', 'عدد القطع', 'اجمالي المبلغ'
+              ].map((col, idx) => (
+                <span key={`${col}-${idx}`} className="bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
                   {col}
                 </span>
               ))}
@@ -1799,6 +1793,18 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         </button>
         <button
           type="button"
+          onClick={() => setActiveView('visuals')}
+          className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black transition cursor-pointer ${
+            activeView === 'visuals'
+              ? 'bg-[#102b4e] text-white shadow-sm'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          الرسومات التفاعلية وخريطة الأصناف
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveView('customers')}
           className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-xl text-[11px] font-black transition cursor-pointer ${
             activeView === 'customers'
@@ -1827,7 +1833,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         >
           <BarChart3 className="w-3.5 h-3.5" />
           تحليل الإجماليات
-          {!isAdminOrDev && <Lock className="w-3 h-3" />}
         </button>
 
         <span className="ms-auto text-[9px] text-slate-400 font-bold px-2 hidden sm:inline-flex items-center gap-1">
@@ -1838,33 +1843,30 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         </span>
       </div>
 
-      {activeView === 'focus' ? (
-        isAdminOrDev ? (
-          <TotalsAnalysisView
+      {activeView === 'visuals' ? (
+        <React.Suspense
+          fallback={
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 p-10 flex items-center justify-center gap-2 text-xs font-black text-slate-500">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              جارٍ تحميل الرسومات التفاعلية وخريطة الأصناف...
+            </div>
+          }
+        >
+          <SalesFocusV4
             records={filteredSales}
+            baseRecords={rbacSales}
             customers={customers}
-            sector={selectedSector}
-            onSelectSector={setSelectedSector}
-            resolveSector={resolveItemSaleSector}
-            subtitle={analysisSubtitle}
           />
-        ) : (
-          <section className="bg-[var(--app-card)] rounded-3xl border border-[var(--app-border)] p-8 sm:p-12 text-center shadow-xs">
-            <div className="w-16 h-16 rounded-3xl bg-[var(--app-card-hover)] text-[var(--app-text-muted)] mx-auto flex items-center justify-center mb-4">
-              <Lock className="w-8 h-8" />
-            </div>
-            <h2 className="text-base sm:text-lg font-black text-[var(--app-text)]">
-              تحليل الإجماليات متاح للإدارة فقط حالياً
-            </h2>
-            <p className="text-xs text-[var(--app-text-muted)] max-w-xl mx-auto mt-2 leading-relaxed">
-              الشاشة دي بتعرض إجماليات مبيعات الأصناف حسب القطاع والعميل والفرع والمندوب
-              (إدارة فقط لحد ما يتم فتح الصلاحيات لباقي الأدوار).
-            </p>
-            <div className="mt-4 text-[11px] font-black text-[var(--app-text-muted)]">
-              الحساب الحالي: {currentUser?.name || '—'} • {currentUser?.role || '—'}
-            </div>
-          </section>
-        )
+        </React.Suspense>
+      ) : activeView === 'focus' ? (
+        <TotalsAnalysisView
+          records={filteredSales}
+          customers={customers}
+          sector={selectedSector}
+          onSelectSector={setSelectedSector}
+          resolveSector={resolveItemSaleSector}
+          subtitle={analysisSubtitle}
+        />
       ) : activeView === 'overview' ? (
         <>
           {salesRecords.length > 0 && periodTotals.amount === 0 && (

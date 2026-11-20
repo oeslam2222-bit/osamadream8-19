@@ -8,7 +8,8 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { normalizeArabicText } from '../services/arabicMatchingService';
-import { classifyEligibilityColumn } from '../services/customerFinancialService';
+import { calculateCustomerFinancials } from '../services/customerFinancialService';
+import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from '../services/customerDues';
 import { normalizeCloudinaryConfig, optimizeImageUrl, uploadImageToCloudinary } from '../services/cloudinaryService';
 import customerMerchantAvatar from '../assets/images/customer_merchant_avatar_1794559829020.jpg';
 import { ItemSalesProfilePanel } from './itemSales/ItemSalesProfilePanel';
@@ -217,26 +218,16 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
     [visits]
   );
 
-  const balance = Number(customer?.balance ?? customer?.currentBalance ?? 0);
-  const overdue = Number(customer?.overdue ?? customer?.overdueBalance ?? customer?.totalOverdueAndDue ?? 0);
+  const balance = resolveCustomerBalanceValue(customer);
+  const overdue = resolveCustomerDuesValue(customer);
   const limit = Number(customer?.creditLimit ?? 0);
   const exceeded = limit > 0 && (balance + overdue) > limit;
   const sector = customer?.sector;
   const avatarTone = sector === 'home' ? 'home' : sector === 'electrical' ? 'electrical' : 'default';
-  
-  // تصنيف العميل — من عامود «قابل / غير» حصريًا (نفس الدالة اللي في الشيت imports والتحليلات)
-  const eligibilityInfo = classifyEligibilityColumn(customer?.dealEligibility);
-  const isEligible = eligibilityInfo ? eligibilityInfo.eligible : true;
-  const eligibilityLabel = eligibilityInfo?.raw || (isEligible ? 'قابل للتعامل' : 'غير قابل للتعامل');
 
-  const totalSales = Math.max(
-    Number(customer?.totalSales ?? customer?.sales2026 ?? 0),
-    invoiceSalesSum
-  );
-  const totalColl = Math.max(
-    Number(customer?.totalCollections ?? customer?.collections2026 ?? 0),
-    visitsCollSum
-  );
+  const fin = customer ? calculateCustomerFinancials(customer, 'ALL') : null;
+  const totalSales = Math.max(fin?.sales2026 || 0, invoiceSalesSum);
+  const totalColl = Math.max(Math.abs(fin?.collections2026 || 0), visitsCollSum);
   const customerReturns = useMemo(() => visits.filter((v) => v.isReturn), [visits]);
   const totalReturnsValue = useMemo(
     () => customerReturns.reduce((sum, v) => sum + Number(v.returnValue || 0), 0),
@@ -534,15 +525,6 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 mb-1 flex-wrap">
-                {/* شارة تصنيف الشيت المعتمدة (قابل / غير قابل) */}
-                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black border shadow-xs ${
-                  isEligible
-                    ? 'bg-emerald-500/25 text-emerald-200 border-emerald-400/50'
-                    : 'bg-rose-500/25 text-rose-200 border-rose-400/50'
-                }`}>
-                  {isEligible ? <CheckCircle2 size={12} className="text-emerald-300" /> : <AlertTriangle size={12} className="text-rose-300" />}
-                  <span>{eligibilityLabel}</span>
-                </span>
 
                 <span className={`tg-cp__badge ${
                   sector === 'home' ? 'tg-cp__badge--blue' : sector === 'electrical' ? 'tg-cp__badge--violet' : ''
@@ -794,36 +776,6 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                 </div>
               </div>
 
-              {/* تصنيف العميل المعتمد من عمود قابل /غير في الشيت */}
-              <div className={`p-4 rounded-2xl border transition-all ${
-                isEligible
-                  ? 'bg-emerald-50/90 dark:bg-emerald-950/25 border-emerald-200 dark:border-emerald-800/60'
-                  : 'bg-rose-50/90 dark:bg-rose-950/25 border-rose-200 dark:border-rose-800/60'
-              }`}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
-                      isEligible ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'
-                    }`}>
-                      {isEligible ? <CheckCircle2 size={20} /> : <AlertTriangle size={20} />}
-                    </div>
-                    <div>
-                      <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">تصنيف العميل (قابل / غير)</div>
-                      <div className={`text-base font-black ${isEligible ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>
-                        {eligibilityLabel}
-                      </div>
-                    </div>
-                  </div>
-                  <span className={`text-[11px] font-black px-3 py-1 rounded-xl shrink-0 ${
-                    isEligible
-                      ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200 border border-emerald-200/60'
-                      : 'bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200 border border-rose-200/60'
-                  }`}>
-                    {isEligible ? '✓ مؤهل للتعامل' : '✕ غير مؤهل'}
-                  </span>
-                </div>
-              </div>
-
               {/* حد الائتمان ومؤشر الاستخدام */}
               {limit > 0 && (
                 <div className="tg-card p-4 bg-white dark:bg-[#131e36] border border-slate-200 dark:border-slate-800">
@@ -918,12 +870,6 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                   بيانات العميل والمسؤولين
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6">
-                  <div className="tg-cp__row">
-                    <span className="tg-cp__row-label">تصنيف الشيت (قابل / غير)</span>
-                    <span className={`tg-cp__row-value font-black ${isEligible ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                      {eligibilityLabel}
-                    </span>
-                  </div>
                   <div className="tg-cp__row"><span className="tg-cp__row-label">المندوب المسؤول</span><span className="tg-cp__row-value truncate">{customer.salesRepName || customer.repName || 'غير محدد'}</span></div>
                   <div className="tg-cp__row"><span className="tg-cp__row-label">المشرف</span><span className="tg-cp__row-value truncate">{customer.supervisorName || customer.supervisor || 'غير محدد'}</span></div>
                   <div className="tg-cp__row"><span className="tg-cp__row-label">الفرع</span><span className="tg-cp__row-value">{customer.branchName || customer.branch || '—'}</span></div>

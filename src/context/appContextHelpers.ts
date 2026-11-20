@@ -121,11 +121,24 @@ export const CUSTOMERS_FINGERPRINT_KEY = 'dream_customers_fingerprint_v1';
 export const buildCustomersFingerprint = (list: Customer[]): string => {
   let debt = 0;
   let dues = 0;
+  let sales26 = 0;
+  let coll26 = 0;
+  let credit = 0;
+  let overdue = 0;
+  let metaHash = 0;
   list.forEach((c) => {
     debt += Number(c.currentBalance ?? c.balance ?? 0);
     dues += resolveCustomerDuesValue(c);
+    sales26 += Number(c.sales2026 ?? c.totalMonthlySales ?? 0);
+    coll26 += Number(c.collections2026 ?? c.totalMonthlyCollections ?? 0);
+    credit += Number(c.creditLimit ?? 0);
+    overdue += Number(c.overdue2026 ?? c.overdue2025 ?? 0);
+    const meta = `${c.sector || ''}|${c.branchName || ''}|${c.repName || c.salesRepName || ''}`;
+    for (let i = 0; i < meta.length; i++) {
+      metaHash = ((metaHash * 31) + meta.charCodeAt(i)) | 0;
+    }
   });
-  return `${list.length}:${Math.round(debt)}:${Math.round(dues)}`;
+  return `${list.length}:${Math.round(debt)}:${Math.round(dues)}:${Math.round(sales26)}:${Math.round(coll26)}:${Math.round(credit)}:${Math.round(overdue)}:${metaHash}`;
 };
 
 export const saveLocalCustomersFingerprint = (list: Customer[]) => {
@@ -259,16 +272,23 @@ export const deduplicateCustomersArray = (list: Customer[]): Customer[] => {
   return deduplicateAndMergeCustomers(list).customers;
 };
 
-// Deduplicate target records by branch + rep + date
+// Deduplicate target records by branch + rep + date + sector
 export const deduplicateTargetRecords = (records: TargetRecord[]): TargetRecord[] => {
   const map = new Map<string, TargetRecord>();
   records.forEach((r) => {
     const branchKey = (r.branch || '').trim().toLowerCase();
     const repKey = (r.repName || '').trim().toLowerCase();
     const dateKey = (r.date || '').trim();
-    const key = `${branchKey}__${repKey}__${dateKey}`;
+    const sectorKey = r.sector === 'electrical' || r.sector === 'home' ? r.sector : '';
+    const key = `${branchKey}__${repKey}__${dateKey}__${sectorKey}`;
     if (map.has(key)) {
-      map.set(key, { ...map.get(key)!, ...r, id: map.get(key)!.id });
+      const existing = map.get(key)!;
+      map.set(key, {
+        ...existing,
+        ...r,
+        id: existing.id,
+        sector: r.sector || existing.sector,
+      });
     } else {
       map.set(key, r);
     }

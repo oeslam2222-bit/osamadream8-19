@@ -1,5 +1,6 @@
 import { Customer } from '../types';
-import { classifyEligibilityColumn } from './customerFinancialService';
+import { calculateCustomerFinancials, classifyEligibilityColumn } from './customerFinancialService';
+import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from './customerDues';
 
 /**
  * شروط فلترة شاشة العملاء في مكان واحد.
@@ -24,26 +25,17 @@ export interface CustomerOrderSummaryLike {
   hasActiveOrder: boolean;
 }
 
-/** الرصيد الحالي (بيدعم الحقلين القديم والجديد). */
-export const getCustomerBalance = (c: Customer): number => c.currentBalance ?? c.balance ?? 0;
+/** الرصيد الحالي (المصدر الموحد من قاعدة البيانات). */
+export const getCustomerBalance = (c: Customer): number => resolveCustomerBalanceValue(c);
 
-/** إجمالي المتأخرات والمستحق. */
-export const getCustomerOverdue = (c: Customer): number =>
-  c.totalOverdueAndDue ?? c.overdueBalance ?? 0;
+/** إجمالي المتأخرات والمستحق (المصدر الموحد من قاعدة البيانات). */
+export const getCustomerOverdue = (c: Customer): number => resolveCustomerDuesValue(c);
 
 /**
- * كفاءة التحصيل = التحصيلات ÷ المبيعات.
- * نفس المعادلة المستخدمة في عمود كفاءة التحصيل وفي الفلتر الأصلي.
+ * كفاءة التحصيل = التحصيلات ÷ المبيعات من الأرقام الموحدة بقاعدة البيانات.
  */
 export const getCustomerCollectionRate = (c: Customer): number => {
-  const sales = c.sales2026 || c.totalMonthlySales || 0;
-  const collected = Math.max(
-    Math.abs(Number(c.collections2026) || 0),
-    Math.abs(Number(c.totalMonthlyCollections) || 0),
-    Math.abs(Number(c.totalOverallCollections) || 0)
-  );
-  if (sales > 0) return (collected / sales) * 100;
-  return collected > 0 ? 100 : 0;
+  return calculateCustomerFinancials(c, 'ALL').collectionRate;
 };
 
 /**
@@ -184,10 +176,8 @@ export const getEligibilityBadge = (c: Customer): { label: string; tone: Custome
 export const getCustomerDealtBadge = (
   c: Customer
 ): { label: string; tone: CustomerTone; raw: string } => {
-  const info = classifyEligibilityColumn(c.dealEligibility);
-  if (!info) return { label: 'غير محدد', tone: 'muted', raw: '' };
-  if (info.dealt === false) return { label: 'غير متعامل', tone: 'risk', raw: info.raw };
-  if (info.dealt === true) return { label: 'متعامل', tone: 'ok', raw: info.raw };
-  // العامود بيقول فقط "قابل" أو "غير قابل" من غير حكم على الشراء — نخزن eligible فقط.
-  return { label: info.eligible ? 'قابل للتعامل' : 'غير قابل', tone: info.eligible ? 'ok' : 'risk', raw: info.raw };
+  const dealt = isDealtCustomer(c);
+  return dealt
+    ? { label: 'متعامل', tone: 'ok', raw: '' }
+    : { label: 'غير متعامل', tone: 'muted', raw: '' };
 };

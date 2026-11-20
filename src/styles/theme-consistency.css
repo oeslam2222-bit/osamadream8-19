@@ -89,8 +89,8 @@ html:not(.dark) .app-main .text-slate-800 {
   color: var(--app-text);
 }
 
-html:not(.dark) .app-main .text-slate-500,
-html:not(.dark) .app-main .text-slate-600 {
+html:not(.dark) .app-main .text-slate-500:not(.tg-kpi *):not(.tg-hero *):not(.tg-daycard *):not(.tg-target-card *):not(.tg-quick-card *):not(.tg-report-kpi *):not(.tg-stage-card *):not(.ds-pagehead *),
+html:not(.dark) .app-main .text-slate-600:not(.tg-kpi *):not(.tg-hero *):not(.tg-daycard *):not(.tg-target-card *):not(.tg-quick-card *):not(.tg-report-kpi *):not(.tg-stage-card *):not(.ds-pagehead *) {
   color: var(--app-text-muted);
 }
 
@@ -145,6 +145,11 @@ html.dark .app-main .bg-amber-50 {
 html.dark .app-main .bg-rose-50 {
   background-color: rgba(225, 29, 72, 0.16) !important;
   color: #fecdd3 !important;
+}
+
+html.dark .app-main .bg-teal-50 {
+  background-color: rgba(13, 148, 136, 0.18) !important;
+  color: #99f6e4 !important;
 }
 
 /* ============================================================
@@ -726,7 +731,7 @@ html.dark .tg-stat--colored .tg-stat__sub {
   color: rgba(255, 255, 255, 0.84) !important;
 }
 
-/* أي وسوم جوه القيمة (زي «كرتونة» أو «ج.م») تورث الأبيض */
+/* أي وسوم جوه القيمة (زي «كرتونة» أو «ج.م» أو «صنف متاح») تورث الأبيض الواضح */
 .tg-target-card .tg-target__value *,
 .tg-target-card .tg-target__label *,
 .tg-quick-card .tg-q__value *,
@@ -735,7 +740,55 @@ html.dark .tg-stat--colored .tg-stat__sub {
 .tg-kpi .tg-kpi__label *,
 .tg-stat--colored .tg-stat__value *,
 .tg-stat--colored .tg-stat__label * {
-  color: inherit !important;
+  color: rgba(255, 255, 255, 0.94) !important;
+}
+
+/* ---------- كروت قطاعات الهيرو (.tg-hero .tg-mini) — تباين واضح في النهار والليل ---------- */
+.tg-hero .tg-mini {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  backdrop-filter: blur(10px);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+.tg-hero .tg-mini__label {
+  color: rgba(226, 232, 240, 0.96) !important;
+  font-size: 12px;
+  font-weight: 800;
+}
+.tg-hero .tg-mini__value {
+  color: #ffffff !important;
+  font-size: 22px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+.tg-hero .tg-mini__unit {
+  color: rgba(219, 234, 254, 0.88) !important;
+  font-size: 11px;
+  font-weight: 700;
+}
+.tg-hero .tg-mini__bar {
+  background: rgba(255, 255, 255, 0.16) !important;
+  height: 6px;
+  border-radius: 999px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.tg-hero .tg-mini__fill {
+  background: linear-gradient(90deg, #34d399, #10b981) !important;
+}
+.tg-hero .tg-mini__fill--amber {
+  background: linear-gradient(90deg, #fbbf24, #f59e0b) !important;
+}
+.tg-hero .tg-mini__meta {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: rgba(226, 232, 240, 0.92) !important;
 }
 
 /* نسبة التحقيق داخل الكارت → شيبس أبيض شفاف */

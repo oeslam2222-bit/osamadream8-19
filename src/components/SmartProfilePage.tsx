@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import {
   Users, Search, Building2, Wallet, ShoppingCart, TrendingUp, Trophy, Scale,
   ChevronRight, ChevronLeft, X, Clock, MapPin, CreditCard, Star, Phone,
@@ -10,7 +10,8 @@ import { useApp } from '../context/AppContext';
 import { inferTargetSector } from '../services/targetService';
 import { normalizeArabicText } from '../services/arabicMatchingService';
 import { optimizeImageUrl } from '../services/cloudinaryService';
-import { classifyEligibilityColumn } from '../services/customerFinancialService';
+import { calculateCustomerFinancials } from '../services/customerFinancialService';
+import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from '../services/customerDues';
 import { getLegalCases, subscribeToLegalCases, referCustomerToLegal, isCustomerReferredToLegal } from '../services/legalAffairsService';
 import type { LegalCase } from '../services/legalAffairsService';
 import { LegalTransferModal } from './LegalTransferModal';
@@ -105,6 +106,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     users,
     customers,
     targets,
+    invoices,
     visits: ctxVisits,
     getVisibleTargets,
     getVisibleCustomers,
@@ -113,6 +115,8 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     selectedBranchFilter,
     canManageSectorGate,
     setSelectedBranchFilter,
+    syncWithSupabase,
+    checkAndSyncDataVersion,
   } = useApp();
 
   const canViewReps = ['admin', 'developer', 'branch_manager', 'supervisor', 'technical_support'].includes(
@@ -127,7 +131,6 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
   const [selectedSector, setSelectedSector] = useState<'all' | 'home' | 'electrical'>('all');
   const [selectedBranch, setSelectedBranch] = useState('الكل');
   const [selectedSupervisor, setSelectedSupervisor] = useState('الكل');
-  const [selectedEligibility, setSelectedEligibility] = useState<'all' | 'eligible' | 'ineligible'>('all');
   const [repPeriodMode, setRepPeriodMode] = useState<'all' | 'month' | 'quarter'>('all');
   const [selectedRepMonth, setSelectedRepMonth] = useState<number>(() => new Date().getMonth() + 1);
   const [selectedRepQuarter, setSelectedRepQuarter] = useState<1 | 2 | 3 | 4>(
@@ -154,12 +157,32 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     setVisibleRepsCount(5);
     setOpenCustomerId(null);
     setOpenRepId(null);
-  }, [searchQuery, selectedSector, selectedBranch, selectedSupervisor, selectedEligibility, repPeriodMode, selectedRepMonth, selectedRepQuarter, selectedRepYear, activeTab]);
+  }, [searchQuery, selectedSector, selectedBranch, selectedSupervisor, repPeriodMode, selectedRepMonth, selectedRepQuarter, selectedRepYear, activeTab]);
+
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   /* ---------- البيانات ---------- */
   const allTargets = useMemo(() => getVisibleTargets(), [targets, currentUser, users, customers, getVisibleTargets]);
   const allCustomers = useMemo(() => getVisibleCustomers(), [customers, currentUser, getVisibleCustomers]);
-  const allInvoices = useMemo(() => getVisibleInvoices(), [targets, currentUser, getVisibleInvoices]);
+  const allInvoices = useMemo(() => getVisibleInvoices(), [invoices, currentUser, getVisibleInvoices]);
+
+  const userIndex = useMemo(() => {
+    const byId = new Map<string, User>();
+    const byKey = new Map<string, User>();
+    for (const u of users) {
+      if (!u) continue;
+      if (u.id) byId.set(u.id, u);
+      if (u.name) {
+        const k = repMatchKey(u.name);
+        if (k && !byKey.has(k)) byKey.set(k, u);
+      }
+      if (u.username) {
+        const uk = repMatchKey(u.username);
+        if (uk && !byKey.has(uk)) byKey.set(uk, u);
+      }
+    }
+    return { byId, byKey };
+  }, [users]);
 
   /* ---------- فتح بروفايل عميل محدد من خارج الصفحة (id / كود / اسم) ---------- */
   useEffect(() => {
@@ -225,7 +248,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     ): RepProfile => {
       const repName = normalizeRepName(rawName);
       const repKey = repMatchKey(repName) || repName;
-      const user = findRepUser(users, repName);
+      const user = userIndex.byKey.get(repKey);
 
       let entry = map.get(repKey);
       if (!entry) {
@@ -249,7 +272,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
         if (user.username) entry.repUsername = user.username;
         const supervisorName =
           user.supervisorName ||
-          (user.supervisorId ? users.find((u) => u.id === user.supervisorId)?.name : '') ||
+          (user.supervisorId ? userIndex.byId.get(user.supervisorId)?.name : '') ||
           '';
         if (supervisorName) entry.supervisor = supervisorName;
       }
@@ -295,12 +318,12 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
         sector: c.sector || undefined,
       });
       entry.customerCount += 1;
-      entry.debt += Number(c.currentBalance ?? c.balance ?? 0);
-      entry.overdue += Number(c.overdueBalance ?? c.totalOverdueAndDue ?? 0);
+      entry.debt += resolveCustomerBalanceValue(c);
+      entry.overdue += resolveCustomerDuesValue(c);
     }
 
     return Array.from(map.values()).sort((a, b) => b.salesAchieved - a.salesAchieved);
-  }, [allTargets, allCustomers, users, repPeriodMode, selectedRepMonth, selectedRepQuarter, selectedRepYear]);
+  }, [allTargets, allCustomers, users, userIndex, repPeriodMode, selectedRepMonth, selectedRepQuarter, selectedRepYear]);
 
   const branchOptions = useMemo(() => {
     const set = new Set<string>();
@@ -315,7 +338,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
   }, [repsMap]);
 
   const filteredReps = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = deferredSearchQuery.trim().toLowerCase();
     return repsMap.filter((rep) => {
       const matchesSearch = !q || rep.repName.toLowerCase().includes(q) || (rep.repUsername || '').toLowerCase().includes(q) || rep.repId.toLowerCase().includes(q) || rep.branch.toLowerCase().includes(q);
       const matchesBranch = selectedBranch === 'الكل' || rep.branch === selectedBranch;
@@ -323,7 +346,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
       const matchesSector = selectedSector === 'all' || !rep.sector || rep.sector === 'all' || rep.sector === 'both' || rep.sector === selectedSector;
       return matchesSearch && matchesBranch && matchesSupervisor && matchesSector;
     });
-  }, [repsMap, searchQuery, selectedBranch, selectedSupervisor, selectedSector]);
+  }, [repsMap, deferredSearchQuery, selectedBranch, selectedSupervisor, selectedSector]);
 
   const displayedReps = useMemo(() => filteredReps.slice(0, visibleRepsCount), [filteredReps, visibleRepsCount]);
 
@@ -365,8 +388,8 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
       referredByRole: currentUser?.role || 'branch_manager',
       reason: reason || `تعثر العميل ${cust.name} في السداد وتم تجاوز فترة الائتمان المسموح بها — تمت الإحالة للشؤون القانونية.`,
       transferIcon: transferIcon || '😟',
-      totalDebt: customerLike.currentBalance ?? customerLike.balance ?? 0,
-      overdueAmount: customerLike.totalOverdueAndDue ?? customerLike.overdueBalance ?? 0,
+      totalDebt: resolveCustomerBalanceValue(customerLike),
+      overdueAmount: resolveCustomerDuesValue(customerLike),
     });
     if (res.success) setLegalCases(getLegalCases());
     return res;
@@ -400,8 +423,6 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     returnsCount: number;
     returnsValue: number;
     pendingReturnsCount: number;
-    dealEligibility?: string;
-    isEligible?: boolean;
     latitude?: number;
     longitude?: number;
     locationAddress?: string;
@@ -461,8 +482,9 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     }
 
     for (const c of allCustomers) {
-      const balance = Number(c.currentBalance ?? c.balance ?? 0);
-      const overdue = Number(c.overdueBalance ?? c.totalOverdueAndDue ?? 0);
+      const fin = calculateCustomerFinancials(c, 'ALL');
+      const balance = resolveCustomerBalanceValue(c);
+      const overdue = resolveCustomerDuesValue(c);
       const creditLimit = Number(c.creditLimit ?? 0);
       const inv =
         invoiceByCustomer.get(c.id) ||
@@ -474,43 +496,17 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
         (c.code ? visitsStatsByCustomer.get(c.code) : undefined) ||
         { collected: 0, returnsCount: 0, returnsValue: 0, pendingReturnsCount: 0 };
 
-      const monthlySalesSum = c.monthlySales2026
-        ? Object.values(c.monthlySales2026).reduce((s, val) => s + (Number(val) || 0), 0)
-        : 0;
-      const monthlyCollSum = c.monthlyCollections2026
-        ? Object.values(c.monthlyCollections2026).reduce((s, val) => s + Math.abs(Number(val) || 0), 0)
-        : 0;
-
-      const totalSales = Math.max(
-        Number(c.sales2026 || 0),
-        Number(c.totalMonthlySales || 0),
-        Number(c.totalOverallSales || 0),
-        monthlySalesSum,
-        inv.sales
-      );
-      const totalCollections = Math.max(
-        Number(c.collections2026 || 0),
-        Number(c.totalMonthlyCollections || 0),
-        Number(c.totalOverallCollections || 0),
-        monthlyCollSum,
-        inv.collection + vStats.collected
-      );
+      const totalSales = Math.max(fin.sales2026, inv.sales);
+      const totalCollections = Math.max(Math.abs(fin.collections2026), inv.collection + vStats.collected);
 
       let supervisor = 'بدون مشرف';
       const repName = normalizeRepName(c.salesRepName || c.repName);
-      const user = findRepUser(users, repName);
+      const user = userIndex.byKey.get(repMatchKey(repName));
       if (user?.supervisorName) supervisor = user.supervisorName;
       else if (user?.supervisorId) {
-        const sup = users.find((u) => u.id === user.supervisorId);
+        const sup = userIndex.byId.get(user.supervisorId);
         if (sup) supervisor = sup.name;
       }
-
-      // تصنيف العميل — من عامود «قابل / غير» حصريًا
-      const eligibilityInfo = classifyEligibilityColumn(
-        c.dealEligibility || (c as any).deal_eligibility
-      );
-      const isEligible = eligibilityInfo ? eligibilityInfo.eligible : true;
-      const eligibilityLabel = eligibilityInfo?.raw || (isEligible ? 'قابل للتعامل' : 'غير قابل للتعامل');
 
       const rawPhoto =
         c.locationPhotoUrl ||
@@ -537,8 +533,6 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
         totalCollections,
         tier: c.tier || 'عادي',
         lastOrderDate: c.lastOrderDate || undefined,
-        dealEligibility: eligibilityLabel,
-        isEligible,
         latitude: c.latitude,
         longitude: c.longitude,
         locationAddress: c.locationAddress,
@@ -560,22 +554,18 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     }
 
     return Array.from(map.values()).sort((a, b) => b.balance - a.balance);
-  }, [allCustomers, allInvoices, allVisitsList, users]);
+  }, [allCustomers, allInvoices, allVisitsList, userIndex]);
 
   const filteredCustomers = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = deferredSearchQuery.trim().toLowerCase();
     return customersMap.filter((c) => {
       const matchesSearch = !q || c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || c.phone.includes(q) || c.repName.toLowerCase().includes(q);
       const matchesBranch = selectedBranch === 'الكل' || c.branch === selectedBranch;
       const matchesSupervisor = selectedSupervisor === 'الكل' || c.supervisor === selectedSupervisor;
       const matchesSector = selectedSector === 'all' || !c.sector || c.sector === 'all' || c.sector === 'both' || c.sector === selectedSector;
-      const matchesEligibility =
-        selectedEligibility === 'all' ||
-        (selectedEligibility === 'eligible' && (c as any).isEligible) ||
-        (selectedEligibility === 'ineligible' && !(c as any).isEligible);
-      return matchesSearch && matchesBranch && matchesSupervisor && matchesSector && matchesEligibility;
+      return matchesSearch && matchesBranch && matchesSupervisor && matchesSector;
     });
-  }, [customersMap, searchQuery, selectedBranch, selectedSupervisor, selectedSector, selectedEligibility]);
+  }, [customersMap, deferredSearchQuery, selectedBranch, selectedSupervisor, selectedSector]);
 
   const displayedCustomers = useMemo(() => filteredCustomers.slice(0, visibleCustomersCount), [filteredCustomers, visibleCustomersCount]);
 
@@ -591,8 +581,16 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
   const repTotalCollections = filteredReps.reduce((sum, r) => sum + r.collectionAchieved, 0);
 
   const handleRefresh = async () => {
+    if (isRefreshing) return;
     setIsRefreshing(true);
-    setTimeout(() => setIsRefreshing(false), 1200);
+    try {
+      await Promise.allSettled([
+        syncWithSupabase?.('fetch'),
+        checkAndSyncDataVersion?.(true),
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const handleOpenCustomer = (id: string) => setOpenCustomerId((prev) => (prev === id ? null : id));
@@ -848,19 +846,6 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                     ))}
                   </select>
                 </div>
-
-                <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
-                  <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1 whitespace-nowrap">تصنيف الشيت</span>
-                  <select
-                    value={selectedEligibility}
-                    onChange={(e) => setSelectedEligibility(e.target.value as any)}
-                    className="bg-transparent font-black text-[var(--app-text)] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
-                  >
-                    <option value="all">كل التصنيفات</option>
-                    <option value="eligible">قابل للتعامل</option>
-                    <option value="ineligible">غير قابل للتعامل</option>
-                  </select>
-                </div>
               </div>
             </div>
           </section>
@@ -927,18 +912,9 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className="text-base sm:text-[17px] font-black text-slate-950 leading-snug line-clamp-2 group-hover:text-blue-900 transition-colors">
-                              {cust.name}
-                            </h3>
-                            <span
-                              className={`shrink-0 text-xs font-black ${
-                                cust.isEligible ? 'text-emerald-700' : 'text-rose-700'
-                              }`}
-                            >
-                              {cust.isEligible ? 'قابل' : 'غير قابل'}
-                            </span>
-                          </div>
+                          <h3 className="text-base sm:text-[17px] font-black text-slate-950 leading-snug line-clamp-2 group-hover:text-blue-900 transition-colors">
+                            {cust.name}
+                          </h3>
 
                           {/* سطر بيانات وصفية نظيف بفواصل نقطية (Zero-Pill) وتباين عالٍ */}
                           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-bold text-slate-700">

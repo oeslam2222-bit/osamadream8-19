@@ -7,7 +7,6 @@ import {
   CollectionRateFilter,
   DealtFilter,
   DebtFilter,
-  EligibilityFilter,
   OrderFilter,
   VisitFilter,
 } from '../../services/customerFilterPredicates';
@@ -19,7 +18,6 @@ export interface CustomerFilterBarState {
   selectedRep: string;
   selectedSector: 'all' | 'home' | 'electrical' | 'both';
   selectedRegion: string;
-  eligibilityFilter: EligibilityFilter;
   debtStatusFilter: string;
   dealtFilter: DealtFilter;
   debtFilter: DebtFilter;
@@ -139,7 +137,6 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
 
   const advancedCount = [
     value.selectedRegion,
-    value.eligibilityFilter,
     value.debtStatusFilter,
     value.dealtFilter,
     value.activityFilter,
@@ -161,7 +158,6 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
       });
     }
     if (value.selectedRegion !== 'ALL') tags.push({ key: 'selectedRegion', label: `المنطقة: ${value.selectedRegion}` });
-    if (value.eligibilityFilter !== 'ALL') tags.push({ key: 'eligibilityFilter', label: `التصنيف: ${value.eligibilityFilter}` });
     if (value.debtStatusFilter !== 'ALL') tags.push({ key: 'debtStatusFilter', label: `حالة السداد: ${value.debtStatusFilter}` });
     if (value.dealtFilter !== 'ALL') tags.push({ key: 'dealtFilter', label: DEALT_LABELS[value.dealtFilter] || value.dealtFilter });
     if (value.debtFilter !== 'ALL') tags.push({ key: 'debtFilter', label: DEBT_LABELS[value.debtFilter] || value.debtFilter });
@@ -407,18 +403,6 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
                 </select>
               </label>
             )}
-
-            <label className="cf-field">
-              <span>التصنيف</span>
-              <select
-                value={value.eligibilityFilter}
-                onChange={(event) => onChange({ eligibilityFilter: event.target.value as EligibilityFilter })}
-              >
-                <option value="ALL">الكل</option>
-                <option value="قابل">قابل للتعامل</option>
-                <option value="غير قابل">غير قابل / موقوف</option>
-              </select>
-            </label>
 
           </div>
         </div>

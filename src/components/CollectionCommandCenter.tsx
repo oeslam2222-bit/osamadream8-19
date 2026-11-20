@@ -1,7 +1,10 @@
-import React, { Suspense, useState } from 'react';
+import React, { lazy, Suspense, useState } from 'react';
 import { CalendarCheck, Loader2, Wallet } from 'lucide-react';
-import { CollectionRecoveryDashboard } from './CollectionRecoveryDashboard';
-import CollectionForecastView from './CollectionForecastView';
+
+const CollectionRecoveryDashboard = lazy(() =>
+  import('./CollectionRecoveryDashboard').then((m) => ({ default: m.CollectionRecoveryDashboard }))
+);
+const CollectionForecastView = lazy(() => import('./CollectionForecastView'));
 
 export const CollectionCommandCenter: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'recovery' | 'forecast'>('recovery');
@@ -51,20 +54,16 @@ export const CollectionCommandCenter: React.FC = () => {
         </div>
       </section>
 
-      {activeSubTab === 'recovery' ? (
-        <CollectionRecoveryDashboard />
-      ) : (
-        <Suspense
-          fallback={
-            <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-500">
-              <Loader2 className="w-7 h-7 animate-spin text-emerald-600" />
-              <span className="text-xs font-black">جاري تحميل جدول توقعات التحصيل...</span>
-            </div>
-          }
-        >
-          <CollectionForecastView />
-        </Suspense>
-      )}
+      <Suspense
+        fallback={
+          <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-500">
+            <Loader2 className="w-7 h-7 animate-spin text-emerald-600" />
+            <span className="text-xs font-black">جاري تحميل بيانات التحصيل...</span>
+          </div>
+        }
+      >
+        {activeSubTab === 'recovery' ? <CollectionRecoveryDashboard /> : <CollectionForecastView />}
+      </Suspense>
     </div>
   );
 };

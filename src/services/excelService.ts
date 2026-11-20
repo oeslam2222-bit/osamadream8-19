@@ -1820,7 +1820,7 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     ) {
       if (colMap.guaranteeDocs === -1) colMap.guaranteeDocs = idx;
     }
-    // 4. Check Payment Terms (طريقة الدفع)
+    // 4. Check Payment Terms (طريقة الدفع / فترة الائتمان)
     else if (
       norm.includes('طريقةالدفع') ||
       norm.includes('طريقهالدفع') ||
@@ -1829,6 +1829,15 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       norm.includes('شروطالدفع') ||
       norm.includes('شروطالسداد') ||
       norm.includes('طريقةالسداد') ||
+      norm.includes('فترةالائتمان') ||
+      norm.includes('فترهالائتمان') ||
+      norm.includes('مدةالائتمان') ||
+      norm.includes('مدهالائتمان') ||
+      norm.includes('ايامالائتمان') ||
+      norm.includes('فترةالسداد') ||
+      norm.includes('فترهالسداد') ||
+      norm.includes('مدةالسداد') ||
+      norm.includes('مدهالسداد') ||
       norm.includes('paymentterms') ||
       norm.includes('paymentmethod')
     ) {
@@ -2092,29 +2101,45 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
       if (colMap.totalOverallCollections === -1) colMap.totalOverallCollections = idx;
       if (colMap.collections2026 === -1) colMap.collections2026 = idx;
     }
-    // 22. Check Credit Limit (الحد الائتماني)
+    // 22. Check Credit Limit (الحد الائتماني) — exclude credit-period/days/ratio/exceed columns
     else if (
-      norm.includes('حدائتمان') ||
-      norm.includes('الحدالائتماني') ||
-      norm.includes('الحدالائتمانى') ||
-      norm.includes('الحدالائتمان') ||
-      norm.includes('الحدالمسموح') ||
-      norm.includes('الحدالمسموحبه') ||
-      norm.includes('سقفالائتمان') ||
-      norm.includes('الائتمانالمعتمد') ||
-      norm.includes('حدالائتمان') ||
-      norm.includes('حدالبيعالاجل') ||
-      norm.includes('حدالدين') ||
-      norm.includes('حدالاجل') ||
-      norm.includes('حدالآجل') ||
-      norm.includes('حدالكريديت') ||
-      norm.includes('كريديت') ||
-      norm.includes('ائتمان') ||
-      norm.includes('الائتمان') ||
-      norm.includes('creditlimit') ||
-      norm.includes('cred') ||
-      norm.includes('limit') ||
-      norm.includes('credit')
+      !norm.includes('فتره') &&
+      !norm.includes('فترة') &&
+      !norm.includes('مده') &&
+      !norm.includes('مدة') &&
+      !norm.includes('ايام') &&
+      !norm.includes('يوم') &&
+      !norm.includes('شروط') &&
+      !norm.includes('تجاوز') &&
+      !norm.includes('نسبه') &&
+      !norm.includes('نسبة') &&
+      !norm.includes('period') &&
+      !norm.includes('day') &&
+      !norm.includes('term') &&
+      !norm.includes('duration') &&
+      !norm.includes('ratio') &&
+      !norm.includes('exceed') &&
+      (
+        norm.includes('حدائتمان') ||
+        norm.includes('حدالائتمان') ||
+        norm.includes('الحدالائتماني') ||
+        norm.includes('الحدالائتمانى') ||
+        norm.includes('الحدالائتمان') ||
+        norm.includes('الحدالمسموح') ||
+        norm.includes('الحدالمسموحبه') ||
+        norm.includes('سقفالائتمان') ||
+        norm.includes('الائتمانالمعتمد') ||
+        norm.includes('حدالبيعالاجل') ||
+        norm.includes('حدالدين') ||
+        norm.includes('حدالاجل') ||
+        norm.includes('حدالآجل') ||
+        norm.includes('حدالكريديت') ||
+        norm === 'ائتمان' ||
+        norm === 'الائتمان' ||
+        norm === 'كريديت' ||
+        norm.includes('creditlimit') ||
+        norm.includes('maxcredit')
+      )
     ) {
       if (colMap.creditLimit === -1) colMap.creditLimit = idx;
     }
@@ -2314,18 +2339,16 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
   monthlySalesCols.sort((a, b) => a.month - b.month);
   monthlyCollectionCols.sort((a, b) => a.month - b.month);
 
-  // Positional fallback if standard 4-column format without specific header keywords
+  // Positional fallback ONLY when headers were completely unrecognized (legacy 4/6-col sheets)
   if (colMap.code === -1 && colMap.name === -1 && headers.length >= 4) {
     colMap.code = 0;
     colMap.name = 1;
     colMap.branchName = 2;
     colMap.repName = 3;
-  }
-
-  // Positional fallback for debt & credit if headers weren't matched but sheet has 5+ columns
-  if (colMap.balance === -1 && colMap.creditLimit === -1 && headers.length >= 6) {
-    colMap.balance = 4;
-    colMap.creditLimit = 5;
+    if (colMap.balance === -1 && colMap.creditLimit === -1 && headers.length >= 6) {
+      colMap.balance = 4;
+      colMap.creditLimit = 5;
+    }
   }
 
   const getVal = (row: any[], colIdx: number, def = ''): string => {
@@ -2502,7 +2525,8 @@ export function parseRawRowsToCustomers(rawRows: any[]): {
     const resolvedCollections2026 = rawResolvedCollections;
     const finalTotalMonthlyCollections = resolvedCollections2026;
 
-    const finalCreditLimit = parsedCredit !== undefined ? parsedCredit : 0;
+    const rawCreditLimit = parsedCredit !== undefined ? parsedCredit : 0;
+    const finalCreditLimit = Number.isFinite(rawCreditLimit) && rawCreditLimit >= 100 ? rawCreditLimit : 0;
 
     // Overdue balance calculation: User noted: "اجمالي المتأخرات دي المبالغ المستحقة الي بتظهر للمندوب عند طلب طلبية"
     const hasExplicitOverdueCol = colMap.totalOverdue !== -1 || colMap.totalOverdueAndDue !== -1 || colMap.dueUntilPeriod !== -1;

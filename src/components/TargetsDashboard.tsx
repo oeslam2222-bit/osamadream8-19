@@ -113,6 +113,25 @@ export const TargetsDashboard: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
   const [openRepName, setOpenRepName] = useState<string | null>(null);
   const [repModalTab, setRepModalTab] = useState<'overview' | 'monthly' | 'customers' | 'visits'>('overview');
+  const [visibleRepsLimit, setVisibleRepsLimit] = useState(24);
+
+  const userIndex = useMemo(() => {
+    const byId = new Map<string, User>();
+    const byKey = new Map<string, User>();
+    for (const u of users) {
+      if (!u) continue;
+      if (u.id) byId.set(u.id, u);
+      if (u.name) {
+        const k = repMatchKey(u.name);
+        if (k && !byKey.has(k)) byKey.set(k, u);
+      }
+      if (u.username) {
+        const uk = repMatchKey(u.username);
+        if (uk && !byKey.has(uk)) byKey.set(uk, u);
+      }
+    }
+    return { byId, byKey };
+  }, [users]);
 
   const repNames = useMemo(() => {
     const set = new Set<string>();
@@ -214,10 +233,10 @@ export const TargetsDashboard: React.FC = () => {
         },
         { salesTarget: 0, salesAchieved: 0, collectionTarget: 0, collectionAchieved: 0 }
       );
-      const user = findRepUser(users, rep);
+      const user = userIndex.byKey.get(repMatchKey(rep));
       const supervisor =
         user?.supervisorName ||
-        (user?.supervisorId ? users.find((u) => u.id === user.supervisorId)?.name : '') ||
+        (user?.supervisorId ? userIndex.byId.get(user.supervisorId)?.name : '') ||
         'بدون مشرف';
       const branch = records.find((r) => r.branch)?.branch || user?.branchName || 'غير محدد';
       const sector = records.map((r) => inferTargetSector(r, users)).find(Boolean) || user?.sector;
@@ -231,7 +250,7 @@ export const TargetsDashboard: React.FC = () => {
         sector,
       };
     }).sort((a, b) => b.salesAchieved - a.salesAchieved);
-  }, [filtered, users]);
+  }, [filtered, users, userIndex]);
 
   const activeRepProfile = useMemo(() => {
     if (!openRepName) return null;
@@ -555,7 +574,7 @@ export const TargetsDashboard: React.FC = () => {
                   <td colSpan={9} className="p-8 text-center text-slate-500 font-bold">لا توجد بيانات للفلاتر المحددة</td>
                 </tr>
               ) : (
-                groupedByRep.map((row) => {
+                groupedByRep.slice(0, visibleRepsLimit).map((row) => {
                   const sRem = Math.max(0, row.salesTarget - row.salesAchieved);
                   const cRem = Math.max(0, row.collectionTarget - row.collectionAchieved);
                   const sPct = pct(row.salesAchieved, row.salesTarget);
@@ -610,6 +629,17 @@ export const TargetsDashboard: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {groupedByRep.length > visibleRepsLimit && (
+          <div className="p-3 border-t border-slate-100 flex items-center justify-center bg-slate-50/50">
+            <button
+              type="button"
+              onClick={() => setVisibleRepsLimit((prev) => prev + 24)}
+              className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-xs font-black text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+            >
+              عرض المزيد ({groupedByRep.length - visibleRepsLimit} مندوب متبقي)
+            </button>
+          </div>
+        )}
       </section>
 
       {/* Rep Profile Modal (tg-cp style) */}

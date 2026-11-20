@@ -22,7 +22,7 @@ import { Onboarding } from "./components/Onboarding";
 import { SyncStatusCenter } from './components/SyncStatusCenter';
 import { SplashScreen } from "./components/SplashScreen";
 import { ToastProvider } from "./components/ui/Toast";
-import React, { Component, ErrorInfo, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Component, ErrorInfo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DreamDeliveryDashboard } from './components/DreamDeliveryDashboard';
 import { LoginPage } from './components/LoginPage';
 import { Navbar } from './components/Navbar';
@@ -133,8 +133,33 @@ const ElectronicInvoiceModal = lazyNamed(() => import('./components/ElectronicIn
  * حد أقصى 5 تبويبات (الأحدث آخرًا) عشان الذاكرة والخلفية ما يزيدوش، والرئيسية
  * مثبّتة لأنها أكثر وجهة رجوع عند المندوبين.
  */
-const MOUNTED_TABS_LIMIT = 5;
+const MOUNTED_TABS_LIMIT = 2;
 const PINNED_TABS: readonly string[] = ['home'];
+const ACTIVE_TAB_STORAGE_KEY = 'tantawy_active_tab';
+
+function readSavedActiveTab(userId?: string, allowGlobalFallback = true): string {
+  try {
+    if (userId) {
+      const userScoped = localStorage.getItem(`${ACTIVE_TAB_STORAGE_KEY}:${userId}`);
+      if (userScoped && userScoped.trim()) return userScoped.trim();
+    }
+    if (allowGlobalFallback) {
+      const saved = localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+      if (saved && saved.trim()) return saved.trim();
+    }
+  } catch {}
+  return 'home';
+}
+
+function persistActiveTab(tab: string, userId?: string): void {
+  const clean = tab && tab.trim() ? tab.trim() : 'home';
+  try {
+    localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, clean);
+    if (userId) {
+      localStorage.setItem(`${ACTIVE_TAB_STORAGE_KEY}:${userId}`, clean);
+    }
+  } catch {}
+}
 
 /** غلاف تبويب: بيختفي بـ display:none وهو محفوظ، وبيظهر فورًا عند الرجوع. */
 const TabPane: React.FC<{ hidden: boolean; children: React.ReactNode }> = ({ hidden, children }) => (
@@ -155,7 +180,15 @@ const MainLayout: React.FC = () => {
     pendingInvoicesCount, flushPendingInvoices, offlineQueueCount, flushOfflineQueue,
   } = useApp();
 
-  const [activeTab, setActiveTab] = useState<string>('home');
+  const [activeTab, setActiveTabState] = useState<string>(() => readSavedActiveTab(currentUser?.id));
+  const setActiveTab = useCallback((nextTab: React.SetStateAction<string>) => {
+    setActiveTabState((prev) => {
+      const resolved = typeof nextTab === 'function' ? nextTab(prev) : nextTab;
+      const clean = resolved && resolved.trim() ? resolved.trim() : 'home';
+      persistActiveTab(clean, currentUser?.id);
+      return clean;
+    });
+  }, [currentUser?.id]);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
@@ -189,13 +222,16 @@ const MainLayout: React.FC = () => {
   };
 
   const [customPermissionOverrides, setCustomPermissionOverrides] = useState<UserPermissionOverride[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
   // Load custom permission overrides (admin-customized per user)
   useEffect(() => {
     let active = true;
     getCustomPermissions().then((overrides) => {
       if (active) setCustomPermissionOverrides(overrides);
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => {
+      if (active) setPermissionsLoaded(true);
+    });
     return () => { active = false; };
   }, []);
 
@@ -214,15 +250,30 @@ const MainLayout: React.FC = () => {
     return Array.from(new Set([...baseTabs, 'settings']));
   }, [currentUser, customPermissionOverrides]);
 
-  // Land on authorized tab and strictly guard unauthorized tabs
+  // Restore user-scoped tab on account switch and keep localStorage synced
+  const lastActiveTabUserIdRef = useRef<string | undefined>(currentUser?.id);
   useEffect(() => {
-    if (currentUser) {
+    if (currentUser?.id && lastActiveTabUserIdRef.current !== currentUser.id) {
+      lastActiveTabUserIdRef.current = currentUser.id;
+      const savedForUser = readSavedActiveTab(currentUser.id, false);
+      persistActiveTab(savedForUser, currentUser.id);
+      if (savedForUser !== activeTab) {
+        setActiveTabState(savedForUser);
+        return;
+      }
+    } else if (!currentUser?.id) {
+      lastActiveTabUserIdRef.current = undefined;
+    }
+
+    if (currentUser && permissionsLoaded) {
       const allowed = allowedTabs.includes(activeTab);
       if (!allowed) {
         setActiveTab('home');
+      } else {
+        persistActiveTab(activeTab, currentUser.id);
       }
     }
-  }, [currentUser?.id, currentUser?.role, activeTab, allowedTabs]);
+  }, [currentUser?.id, currentUser?.role, activeTab, allowedTabs, permissionsLoaded, setActiveTab]);
 
   /**
    * سجل التبويبات المحفوظة mounted (مخفية) — كل تبويب جديد بيتسجّل آخر القائمة
@@ -230,7 +281,9 @@ const MainLayout: React.FC = () => {
    * ما يفضلش محتوى الحساب القديم مخفيًا شغّال في الخلفية.
    */
   const lastMountedUserIdRef = useRef<string | undefined>(currentUser?.id);
-  const [mountedTabs, setMountedTabs] = useState<string[]>(['home']);
+  const [mountedTabs, setMountedTabs] = useState<string[]>(() =>
+    activeTab && activeTab !== 'home' ? ['home', activeTab].slice(-MOUNTED_TABS_LIMIT) : ['home']
+  );
   useEffect(() => {
     const userChanged = lastMountedUserIdRef.current !== currentUser?.id;
     lastMountedUserIdRef.current = currentUser?.id;

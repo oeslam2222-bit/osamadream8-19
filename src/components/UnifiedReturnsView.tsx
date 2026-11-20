@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { CustomerSearchSelect } from './CustomerSearchSelect';
 import { DebouncedSearchInput } from './DebouncedSearchInput';
 import {
@@ -76,11 +76,22 @@ export const UnifiedReturnsView: React.FC = () => {
     setActiveSectorFilter
   } = useApp();
 
-  const visibleVisits = getVisibleVisits();
+  const visibleVisits = useMemo(() => getVisibleVisits(), [getVisibleVisits]);
+
+  const customerIndex = useMemo(() => {
+    const byId = new Map<string, Customer>();
+    const byCode = new Map<string, Customer>();
+    for (const c of customers) {
+      if (c.id) byId.set(c.id, c);
+      if (c.code) byCode.set(c.code, c);
+    }
+    return { byId, byCode };
+  }, [customers]);
 
   // Filters & State
   const [activeTabFilter, setActiveTabFilter] = useState<'all' | 'at_customer' | 'at_warehouse' | 'closed' | 'rejected'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const deferredSearchTerm = useDeferredValue(searchTerm);
   const [visibleReturnsCount, setVisibleReturnsCount] = useState(RETURNS_PAGE_SIZE);
 
   useEffect(() => {
@@ -249,8 +260,8 @@ export const UnifiedReturnsView: React.FC = () => {
       }
 
       // 3. Search query
-      if (searchTerm.trim()) {
-        const q = searchTerm.trim().toLowerCase();
+      if (deferredSearchTerm.trim()) {
+        const q = deferredSearchTerm.trim().toLowerCase();
         const custName = (v.customerName || '').toLowerCase();
         const custCode = (v.customerCode || '').toLowerCase();
         const repName = (v.repName || '').toLowerCase();
@@ -264,10 +275,9 @@ export const UnifiedReturnsView: React.FC = () => {
       return true;
     });
     if (sortByDebtDesc) {
-      const custMap = new Map(customers.map((c) => [c.id || '', c]));
       list.sort((a, b) => {
-        const ca = custMap.get(a.customerId || '') || customers.find((c) => c.code === a.customerCode);
-        const cb = custMap.get(b.customerId || '') || customers.find((c) => c.code === b.customerCode);
+        const ca = (a.customerId ? customerIndex.byId.get(a.customerId) : undefined) || (a.customerCode ? customerIndex.byCode.get(a.customerCode) : undefined);
+        const cb = (b.customerId ? customerIndex.byId.get(b.customerId) : undefined) || (b.customerCode ? customerIndex.byCode.get(b.customerCode) : undefined);
         const da = Number(ca?.currentBalance ?? ca?.balance ?? 0);
         const db = Number(cb?.currentBalance ?? cb?.balance ?? 0);
         if (db !== da) return db - da;
@@ -277,7 +287,7 @@ export const UnifiedReturnsView: React.FC = () => {
       list.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     }
     return list;
-  }, [returnVisits, selectedBranchFilter, activeTabFilter, searchTerm, sortByDebtDesc, customers]);
+  }, [returnVisits, selectedBranchFilter, activeTabFilter, deferredSearchTerm, sortByDebtDesc, customerIndex]);
 
   // Aggregate Metrics
   const metrics = useMemo(() => {
@@ -311,6 +321,7 @@ export const UnifiedReturnsView: React.FC = () => {
   // 🔒 الفلترة حسب الصلاحية: المندوب يرى عملاءه فقط، المشرف يرى عملاء مناديبه،
   //    مدير الفرع يرى فرعه، والقطاع (منزلي/كهربائي) مطبّق تلقائياً.
   const matchedCustomers = useMemo(() => {
+    if (!isCreateModalOpen) return [];
     const pool = getVisibleCustomers();
     if (!customerSearch.trim()) return pool.slice(0, 15);
     const q = customerSearch.trim().toLowerCase();
@@ -321,12 +332,13 @@ export const UnifiedReturnsView: React.FC = () => {
         (c.phone && c.phone.includes(q)) ||
         (c.branchName && c.branchName.toLowerCase().includes(q))
     ).slice(0, 20);
-  }, [customers, customerSearch, currentUser, getVisibleCustomers]);
+  }, [isCreateModalOpen, customerSearch, getVisibleCustomers]);
 
   // 🔎 البحث الذكي في الأصناف (مقيّد بـ sector/فرع الموظف من getVisibleProducts)
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const editingDraft = itemsDraft.find((d) => d.id === editingDraftId);
   const productSuggestions = useMemo(() => {
+    if (!isCreateModalOpen) return [];
     const q = (editingDraft?.productName || '').trim().toLowerCase();
     if (q.length < 1) return [];
     return getVisibleProducts()
@@ -337,7 +349,7 @@ export const UnifiedReturnsView: React.FC = () => {
           (p.unifiedCode && p.unifiedCode.toLowerCase().includes(q))
       )
       .slice(0, 6);
-  }, [editingDraftId, editingDraft?.productName, products, currentUser, getVisibleProducts]);
+  }, [isCreateModalOpen, editingDraft?.productName, getVisibleProducts]);
 
   // Handler: Add Item Draft Row
   const handleAddItemRow = () => {
@@ -782,7 +794,9 @@ export const UnifiedReturnsView: React.FC = () => {
       ) : (
         <div className="ret-list space-y-3.5">
           {filteredReturns.slice(0, visibleReturnsCount).map((visit) => {
-            const customer = customers.find((c) => c.id === visit.customerId || c.code === visit.customerCode);
+            const customer =
+              (visit.customerId ? customerIndex.byId.get(visit.customerId) : undefined) ||
+              (visit.customerCode ? customerIndex.byCode.get(visit.customerCode) : undefined);
             const status = visit.returnStatus || 'عند العميل';
             const photos = visit.returnImages || [];
 
