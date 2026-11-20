@@ -47,23 +47,68 @@ try {
 
 const CHUNK_RECOVERY_KEY = 'tantawy:chunk-recovery';
 
-window.addEventListener('vite:preloadError', (event) => {
-  let shouldReload = true;
+/**
+ * بيحصل لما نسخة جديدة تتنشر: ملف chunk قديم اتشال من السيرفر، أو الـservice
+ * worker لسه ماسك index.html قديم بيشاور على الملفات القديمة. الرد على الطلب
+ * الغلط بيرجع index.html بنوع text/html فالـmodule بيفشل.
+ *
+ * الإصلاح: نتأكد إنه مايتكررش أكتر من مرة كل دقيقة، ونلغي تسجيل الـservice
+ * worker ونمسح كاش الأصول قبل الريلود — من غير كده الريلود بيرجع لنفس
+ * النسخة القديمة والخطأ يفضل زي ما هو.
+ */
+const recoverFromStaleBuild = (): boolean => {
   try {
     const lastRecovery = Number(sessionStorage.getItem(CHUNK_RECOVERY_KEY));
     if (Number.isFinite(lastRecovery) && Date.now() - lastRecovery < 60_000) {
-      shouldReload = false;
-    } else {
-      sessionStorage.setItem(CHUNK_RECOVERY_KEY, String(Date.now()));
-      window.setTimeout(() => sessionStorage.removeItem(CHUNK_RECOVERY_KEY), 60_000);
+      return false;
     }
+    sessionStorage.setItem(CHUNK_RECOVERY_KEY, String(Date.now()));
+    window.setTimeout(() => sessionStorage.removeItem(CHUNK_RECOVERY_KEY), 60_000);
   } catch {
-    shouldReload = false;
+    return false;
   }
 
-  if (!shouldReload) return;
+  const reload = () => window.location.reload();
+  try {
+    const clearServiceWorker =
+      'serviceWorker' in navigator
+        ? navigator.serviceWorker
+            .getRegistrations()
+            .then((registrations) =>
+              Promise.all(registrations.map((registration) => registration.unregister())),
+            )
+            .catch(() => {})
+        : Promise.resolve();
+    const clearCaches =
+      typeof caches !== 'undefined'
+        ? caches
+            .keys()
+            .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+            .catch(() => {})
+        : Promise.resolve();
+    Promise.all([clearServiceWorker, clearCaches]).finally(reload);
+  } catch {
+    reload();
+  }
+  return true;
+};
+
+window.addEventListener('vite:preloadError', (event) => {
+  if (!recoverFromStaleBuild()) return;
   event.preventDefault();
-  window.location.reload();
+});
+
+// بعض الـimport() الديناميكية بترجع خطأ مباشر من غير حدث vite:preloadError،
+// فبنغطيها من هنا — بس لو الرسالة فعلاً بتاعة نسخة قديمة/ملف مش موجود،
+// عشان ما نعملش reload مع أي خطأ شبكة عادي.
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason as { message?: unknown } | undefined;
+  const message = typeof reason?.message === 'string' ? reason.message : '';
+  if (!/Failed to fetch dynamically imported module|MIME type|Importing a module script failed/i.test(message)) {
+    return;
+  }
+  if (!recoverFromStaleBuild()) return;
+  event.preventDefault();
 });
 
 /**

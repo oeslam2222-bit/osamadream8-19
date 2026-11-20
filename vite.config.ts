@@ -12,6 +12,9 @@ export default defineConfig(() => {
       VitePWA({
         registerType: 'autoUpdate',
         workbox: {
+          // من غير ده الكاش القديم بيفضل متسجل بعد كل نشر، والـservice worker
+          // القديم يفضل يخدم index.html بيشاور على chunk اتشال من السيرفر.
+          cleanupOutdatedCaches: true,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
           // صور aistudio القديمة (16MB+) مش مستخدمة في التطبيق، وكانت بتتحمّل
           // كلها في الخلفية أول ما الـservice worker يتثبّت وبتزاحم باقي الملفات
