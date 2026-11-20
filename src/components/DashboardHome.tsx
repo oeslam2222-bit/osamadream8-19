@@ -55,6 +55,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
     isOffline,
     activeSectorFilter,
     setActiveSectorFilter,
+    canManageSectorGate,
+    effectiveSectorFilter,
     setIsInstallModalOpen
   } = useApp();
 
@@ -606,7 +608,37 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                 <span aria-hidden="true">•</span>
                 <span className="inline-flex items-center gap-1">
                   <Tag className="w-3 h-3 text-[#F59E0B]" aria-hidden="true" />
-                  {sectorLabel}
+                  {canManageSectorGate ? (
+                    /* تصنيف البرنامج قطاعين أساسيين فقط: منزلي / كهرباء */
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-slate-100 dark:bg-[#17243A] border border-slate-200 dark:border-[#26364D] p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setActiveSectorFilter('home')}
+                        aria-pressed={effectiveSectorFilter !== 'electrical'}
+                        className={`px-2 py-0.5 rounded-full transition-colors cursor-pointer ${
+                          effectiveSectorFilter !== 'electrical'
+                            ? 'bg-white dark:bg-[#0F1E36] text-[#2563EB] dark:text-[#93C5FD] shadow-xs'
+                            : 'text-slate-600 dark:text-[#94A3B8]'
+                        }`}
+                      >
+                        🏠 منزلي
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveSectorFilter('electrical')}
+                        aria-pressed={effectiveSectorFilter === 'electrical'}
+                        className={`px-2 py-0.5 rounded-full transition-colors cursor-pointer ${
+                          effectiveSectorFilter === 'electrical'
+                            ? 'bg-white dark:bg-[#0F1E36] text-[#2563EB] dark:text-[#93C5FD] shadow-xs'
+                            : 'text-slate-600 dark:text-[#94A3B8]'
+                        }`}
+                      >
+                        ⚡ كهرباء
+                      </button>
+                    </span>
+                  ) : (
+                    sectorLabel
+                  )}
                 </span>
               </div>
             </div>

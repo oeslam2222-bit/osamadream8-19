@@ -232,7 +232,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
         if (parsed.selectedStatus !== undefined) setSelectedStatus(parsed.selectedStatus);
         if (parsed.onlyInStock !== undefined) setOnlyInStock(parsed.onlyInStock);
         if (parsed.sortBy !== undefined) setSortBy(parsed.sortBy);
-        if (parsed.activeSectorFilter !== undefined) setActiveSectorFilter(parsed.activeSectorFilter);
+        if (parsed.activeSectorFilter !== undefined) {
+          setActiveSectorFilter(parsed.activeSectorFilter === 'all' ? defaultSector : parsed.activeSectorFilter);
+        }
         if (parsed.minPrice !== undefined) setMinPrice(parsed.minPrice);
         if (parsed.maxPrice !== undefined) setMaxPrice(parsed.maxPrice);
       }
@@ -303,9 +305,37 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       : currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
   }, [currentUser, selectedBranchFilter]);
 
+  // القطاع الأساسي للبرنامج اتنين بس: منزلي / كهرباء.
+  // أي فلتر قديم متسجل «كل القطاعات» بيتحوّل لقطاع المستخدم الأساسي.
+  const defaultSector: 'home' | 'electrical' =
+    currentUser?.sector === 'electrical' ? 'electrical' : 'home';
+
+  useEffect(() => {
+    if (canManageSectorGate && activeSectorFilter === 'all') {
+      setActiveSectorFilter(defaultSector);
+    }
+  }, [canManageSectorGate, activeSectorFilter, defaultSector, setActiveSectorFilter]);
+
+  // كاش رصيد الفرع: حساب رصيد الصنف (مطابقة عربية) كان بيتكرر 3–4 مرات
+  // لكل صنف في الفلترة والترتيب والمؤشرات وتصدير الـ PDF — ده كان تقل الصفحة.
+  const branchStockCacheRef = useRef<{ branch: string; map: Map<string, number> }>({
+    branch: '',
+    map: new Map(),
+  });
+
   const getProductBranchStock = useCallback(
     (p: Product) => {
-      return getBranchStockForProduct(p, currentActiveBranch);
+      const cache = branchStockCacheRef.current;
+      if (cache.branch !== currentActiveBranch) {
+        cache.branch = currentActiveBranch;
+        cache.map.clear();
+      }
+      const key = p.id || p.code || p.name;
+      const cached = cache.map.get(key);
+      if (cached !== undefined) return cached;
+      const value = getBranchStockForProduct(p, currentActiveBranch);
+      cache.map.set(key, value);
+      return value;
     },
     [currentActiveBranch]
   );
@@ -343,42 +373,55 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
   }, [products]);
 
+  // كاش تصنيف القطاع — بيوفّر إعادة بناء النص لكل صنف في كل فلترة.
+  const electricalCacheRef = useRef<Map<string, boolean>>(new Map());
+
+  useEffect(() => {
+    electricalCacheRef.current.clear();
+  }, [products, currentUser?.sector]);
+
   // Check if a product belongs to electrical sector (القطاع الكهربائي)
   const isProductElectrical = useCallback((p: Product) => {
-    if (p.sector === 'electrical') return true;
-    if (p.sector === 'both' || p.sector === 'all') return true;
-    const checkStr = `${p.sector || ''} ${p.department || ''} ${p.category || ''} ${p.itemGroup || ''} ${p.familyName || ''} ${p.name || ''}`.toLowerCase();
-    const hasElectricalKeywords =
-      // Arabic keywords
-      checkStr.includes('كهربا') ||
-      checkStr.includes('لمبة') ||
-      checkStr.includes('مفتاح') ||
-      checkStr.includes('كابل') ||
-      checkStr.includes('سلك') ||
-      checkStr.includes('شاسيه') ||
-      checkStr.includes('قاطع') ||
-      checkStr.includes('فيشة') ||
-      checkStr.includes('لقمة') ||
-      checkStr.includes('دواية') ||
-      checkStr.includes('وش') ||
-      checkStr.includes('سبوت') ||
-      checkStr.includes('كشاف') ||
-      // English keywords
-      checkStr.includes('electrical') ||
-      checkStr.includes('electric') ||
-      checkStr.includes('cable') ||
-      checkStr.includes('wire') ||
-      checkStr.includes('switch') ||
-      checkStr.includes('bulb') ||
-      checkStr.includes('lamp') ||
-      checkStr.includes('socket') ||
-      checkStr.includes('plug') ||
-      checkStr.includes('breaker') ||
-      checkStr.includes('fuse');
+    const key = p.id || p.code || p.name;
+    const cached = electricalCacheRef.current.get(key);
+    if (cached !== undefined) return cached;
 
-    if (hasElectricalKeywords) return true;
-    if (p.sector === 'home') return false;
-    return false;
+    let result = false;
+    if (p.sector === 'electrical' || p.sector === 'both' || p.sector === 'all') {
+      result = true;
+    } else {
+      const checkStr = `${p.sector || ''} ${p.department || ''} ${p.category || ''} ${p.itemGroup || ''} ${p.familyName || ''} ${p.name || ''}`.toLowerCase();
+      result =
+        // Arabic keywords
+        checkStr.includes('كهربا') ||
+        checkStr.includes('لمبة') ||
+        checkStr.includes('مفتاح') ||
+        checkStr.includes('كابل') ||
+        checkStr.includes('سلك') ||
+        checkStr.includes('شاسيه') ||
+        checkStr.includes('قاطع') ||
+        checkStr.includes('فيشة') ||
+        checkStr.includes('لقمة') ||
+        checkStr.includes('دواية') ||
+        checkStr.includes('وش') ||
+        checkStr.includes('سبوت') ||
+        checkStr.includes('كشاف') ||
+        // English keywords
+        checkStr.includes('electrical') ||
+        checkStr.includes('electric') ||
+        checkStr.includes('cable') ||
+        checkStr.includes('wire') ||
+        checkStr.includes('switch') ||
+        checkStr.includes('bulb') ||
+        checkStr.includes('lamp') ||
+        checkStr.includes('socket') ||
+        checkStr.includes('plug') ||
+        checkStr.includes('breaker') ||
+        checkStr.includes('fuse');
+    }
+
+    electricalCacheRef.current.set(key, result);
+    return result;
   }, []);
 
   // Filtered Products
@@ -490,6 +533,20 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     return map;
   }, [filteredProducts]);
 
+  // فهرس بحث جاهز (أحرف صغيرة) — بيتبني مرة واحدة بدل ما يتحسب مع كل حرف يتكتب.
+  const searchIndex = useMemo(() => {
+    const map = new Map<string, { name: string; code: string; unified: string; dept: string }>();
+    getVisibleProducts().forEach((p) => {
+      map.set(p.id || p.code || p.name, {
+        name: (p.name || '').toLowerCase(),
+        code: (p.code || '').toLowerCase(),
+        unified: (p.unifiedCode || '').toLowerCase(),
+        dept: (p.department || p.category || p.itemGroup || '').toLowerCase(),
+      });
+    });
+    return map;
+  }, [getVisibleProducts]);
+
   // Smart Search Suggestions: لو كتب حرف يظهرله اقتراحات فورية وأقرب أصناف مطابقة
   const searchSuggestions = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -501,10 +558,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     const secondaryMatches: Product[] = [];
 
     for (const p of pool) {
-      const name = (p.name || '').toLowerCase();
-      const code = (p.code || '').toLowerCase();
-      const unified = (p.unifiedCode || '').toLowerCase();
-      const dept = (p.department || p.category || p.itemGroup || '').toLowerCase();
+      const idx = searchIndex.get(p.id || p.code || p.name);
+      if (!idx) continue;
+      const name = idx.name;
+      const code = idx.code;
+      const unified = idx.unified;
+      const dept = idx.dept;
 
       // Check if starts with query (highest relevance)
       if (name.startsWith(q) || code.startsWith(cleanQ) || unified.startsWith(cleanQ)) {
@@ -522,7 +581,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     }
 
     return [...priorityMatches, ...secondaryMatches].slice(0, 8);
-  }, [searchTerm, getVisibleProducts]);
+  }, [searchTerm, getVisibleProducts, searchIndex]);
 
   // Focused Inventory Stock Metrics
   const stats = useMemo(() => {
@@ -687,7 +746,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
 
   // عدد الفلاتر المتقدمة المفعّلة — بيظهر كشعار على زر "المزيد من الفلتر"
   const activeAdvancedCount =
-    (onlyInStock ? 0 : 1) + (onlyPromos ? 1 : 0) + (isAdminOrDev && activeSectorFilter !== 'all' ? 1 : 0);
+    (onlyInStock ? 0 : 1) + (onlyPromos ? 1 : 0);
 
   const handleResetFilters = () => {
     setSearchTerm('');
@@ -697,7 +756,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setOnlyInStock(true);
     setOnlyPromos(false);
     setSortBy('default');
-    setActiveSectorFilter('all');
+    setActiveSectorFilter(defaultSector);
     saveCatalogFilters();
   };
 
@@ -962,20 +1021,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <button
               type="button"
               onClick={() => {
-                setActiveSectorFilter('all');
-                saveCatalogFilters();
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
-                activeSectorFilter === 'all'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              🌐 كل القطاعات
-            </button>
-            <button
-              type="button"
-              onClick={() => {
                 setActiveSectorFilter('home');
                 saveCatalogFilters();
               }}
@@ -1223,16 +1268,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             {/* أزرار القطاع — للإدارة العليا فقط (admin/developer) */}
             {canManageSectorGate && (
             <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
-              <button
-                type="button"
-                onClick={() => setActiveSectorFilter('all')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                  activeSectorFilter === 'all' ? 'bg-blue-600 text-white shadow-xs' : 'text-muted hover:text-primary'
-                }`}
-                title="عرض جميع أصناف المنزلي والكهرباء معاً"
-              >
-                🌐 كل القطاعات ({products.length})
-              </button>
               <button
                 type="button"
                 onClick={() => setActiveSectorFilter('home')}
@@ -1642,7 +1677,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
               onClick={() => {
                 // الفلاتر محفوظة على الجهاز — فلتر قطاع/مخزون قديم كان بيخلي
                 // الصفحة تفضل فاضية بعد رفع الشيت من غير ما حد يفهم السبب.
-                setActiveSectorFilter('all');
+                setActiveSectorFilter(defaultSector);
                 setSelectedDept('الكل');
                 setSelectedBrand('الكل');
                 setSelectedStatus('الكل');

@@ -134,7 +134,10 @@ export const CollectionRecoveryDashboard: React.FC = () => {
   const [search, setSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState('الكل');
   const [repFilter, setRepFilter] = useState('الكل');
-  const [sectorFilter, setSectorFilter] = useState<'all' | 'home' | 'electrical' | 'both'>('all');
+  // القطاعين الأساسيين بس: منزلي / كهرباء (مفيش «كل القطاعات»).
+  const [sectorFilter, setSectorFilter] = useState<'home' | 'electrical'>(
+    currentUser?.sector === 'electrical' ? 'electrical' : 'home'
+  );
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [amountByCustomer, setAmountByCustomer] = useState<Record<string, number>>({});
   const [notesByCustomer, setNotesByCustomer] = useState<Record<string, string>>({});
@@ -185,13 +188,13 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         ? true
         : customer.repId === currentUser.id || customer.salesRepName === currentUser.name || customer.repName === currentUser.name;
       const resolvedSector = inferCustomerSector(customer, users);
+      // عميل بلا قطاع واضح مبنخفيهوش (كان هيختفي من التحصيل بالكامل)،
+      // لكن عميل القطاع التاني ممنوع يظهر.
       const matchesSector =
-        sectorFilter === 'all' ||
         customer.sector === 'both' ||
         customer.sector === 'all' ||
-        (sectorFilter === 'both'
-          ? resolvedSector === 'home' || resolvedSector === 'electrical'
-          : resolvedSector === sectorFilter);
+        !resolvedSector ||
+        resolvedSector === sectorFilter;
       return assignedToRep && matchesSector && getCustomerDebt(customer) > 0;
     });
   }, [getVisibleCustomers, customers, users, currentUser, sectorFilter]);
@@ -741,11 +744,9 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                 ))}
               </select>
               {canManageSectorGate && (
-              <select value={sectorFilter} onChange={(event) => setSectorFilter(event.target.value as 'all' | 'home' | 'electrical' | 'both')} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15">
-                <option value="all">كل القطاعات</option>
+              <select value={sectorFilter} onChange={(event) => setSectorFilter(event.target.value as 'home' | 'electrical')} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15">
                 <option value="home">منزلي</option>
                 <option value="electrical">كهربائي</option>
-                <option value="both">كلاهما</option>
               </select>
               )}
             </div>

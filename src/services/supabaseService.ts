@@ -1326,6 +1326,13 @@ export const PROMOTIONS_SYNC_STORE_ID = 'dream_promotions_store_v1';
  */
 const MAX_PRODUCT_PAGES = 60;
 export const USER_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000002';
+/**
+ * صف صغير مخصوص لصور المستخدمين (خريطة: معرّف المستخدم → رابط الصورة).
+ * جدول users مالوش عمود avatar، والنسخة الكاملة من المستخدمين صف تقيل فيه كل
+ * الحسابات — فمش منطقي كل جهاز يقراها كاملة عشان صورة. ده بيقلل الـ egress
+ * من ميجابايتات لصفحة صغيرة واحدة.
+ */
+export const USER_AVATARS_STORE_ID = '00000000-0000-0000-0000-000000000003';
 
 /** خمسين ألف صف تارجت ≈ 125 شهر لكل مندوب (10 سنين). */
 const MAX_TARGET_PAGES = 50;
@@ -1587,6 +1594,7 @@ export async function fetchUsersFromSupabase(
           commissionRate: Number(u.commission_rate || u.commissionRate || 2.5),
           isActive: u.is_active !== undefined ? Boolean(u.is_active) : true,
           approvalStatus: u.approval_status || u.approvalStatus || 'active',
+          avatar: String(u.avatar || u.avatar_url || u.avatarUrl || '').trim() || undefined,
         };
       };
 
@@ -1676,25 +1684,54 @@ export async function fetchUsersFromSupabase(
         }
       }
 
-      // Check central snapshot ONLY if primary tables yielded zero users
-      if (byId.size === 0) {
-        try {
-          const { data } = await supabase.from('orders').select('items').eq('id', USER_SYNC_STORE_ID).limit(1);
-          const items = data?.[0]?.items;
-          const snapshot = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
-          snapshot.forEach((row: any, idx: number) => {
-            const user = mapUser(row, 'snapshot', idx);
-            const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
-            if (!existing) {
-              byId.set(user.id, user);
-              if (user.email) byEmail.set(user.email.toLowerCase(), user);
-            } else if ((!existing.password || existing.password.trim().length === 0) && user.password && user.password.trim().length > 0) {
-              existing.password = user.password.trim();
-            }
-          });
-        } catch {
-          // snapshot optional
+      const tablesEmpty = byId.size === 0;
+
+      /**
+       * الصور الشخصية (جدول users مالوش عمود avatar) بتتقرأ من الصف الصغير
+       * المخصوص. النسخة الكاملة من المستخدمين بتتقرأ في حالتين بس:
+       *  1) الجداول الأساسية رجعت فاضية → استرجاع الحسابات الطارئ.
+       *  2) ترحيل مرة واحدة لصور قديمة كانت متخزنة في النسخة القديمة.
+       */
+      const avatarMap = await fetchUserAvatarsFromSupabase();
+      Object.entries(avatarMap).forEach(([userId, url]) => {
+        const target = byId.get(userId);
+        if (target) target.avatar = url;
+      });
+
+      const usersMissingAvatar = () =>
+        Array.from(byId.values()).filter((user) => !user.avatar);
+
+      if (tablesEmpty) {
+        const snapshot = await readUserSnapshotRows();
+        snapshot.forEach((row: any, idx: number) => {
+          const user = mapUser(row, 'snapshot', idx);
+          const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
+          if (existing) return;
+          byId.set(user.id, user);
+          if (user.email) byEmail.set(user.email.toLowerCase(), user);
+        });
+      } else if (!isAvatarMigrationDone() && usersMissingAvatar().length > 0) {
+        /**
+         * ترحيل آمن مرة واحدة: أي حساب مش لاقيين صورته في الصف الصغير
+         * بتتاخد صورته من النسخة القديمة (لو موجودة) وتتكتب في الصف الصغير،
+         * فالنسخة الكاملة مش هتتقرأ تاني بعد كده على الجهاز ده.
+         */
+        const legacyRows = await readUserSnapshotRows();
+        const merged: Record<string, string> = { ...avatarMap };
+        legacyRows.forEach((row: any) => {
+          const id = String(row?.id || '').trim();
+          const legacyAvatar = String(row?.avatar || row?.avatar_url || '').trim();
+          if (!id || !legacyAvatar || merged[id]) return;
+          merged[id] = legacyAvatar;
+          const target = byId.get(id);
+          if (target) target.avatar = legacyAvatar;
+        });
+        markAvatarMigrationDone();
+        if (Object.keys(merged).length > Object.keys(avatarMap).length) {
+          await persistUserAvatars(merged);
         }
+      } else if (usersMissingAvatar().length === 0) {
+        markAvatarMigrationDone();
       }
 
       const users = Array.from(byId.values());
@@ -2213,6 +2250,98 @@ async function syncMirrorRows(
   return results.filter((result) => result.status === 'fulfilled').length;
 }
 
+const AVATAR_MIGRATION_STORAGE_KEY = 'dream_user_avatars_migrated_v1';
+
+/** هل تم ترحيل الصور القديمة (من نسخة المستخدمين الكاملة) على الجهاز ده؟ */
+function isAvatarMigrationDone(): boolean {
+  try {
+    if (typeof localStorage === 'undefined') return true;
+    return localStorage.getItem(AVATAR_MIGRATION_STORAGE_KEY) === '1';
+  } catch {
+    return true;
+  }
+}
+
+function markAvatarMigrationDone(): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(AVATAR_MIGRATION_STORAGE_KEY, '1');
+  } catch {}
+}
+
+/** قراءة صفوف نسخة المستخدمين الكاملة — بقت للاسترجاع الطارئ والترحيل بس. */
+async function readUserSnapshotRows(): Promise<any[]> {
+  try {
+    const { data } = await supabase.from('orders').select('items').eq('id', USER_SYNC_STORE_ID).limit(1);
+    const items = data?.[0]?.items;
+    const rows = Array.isArray(items) ? items : typeof items === 'string' ? JSON.parse(items) : [];
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
+/** كتابة خريطة الصور كلها في الصف الصغير. */
+async function persistUserAvatars(avatars: Record<string, string>): Promise<boolean> {
+  try {
+    const { error } = await supabase.from('orders').upsert({
+      id: USER_AVATARS_STORE_ID,
+      status: 'user_avatars_snapshot',
+      total: Object.keys(avatars).length,
+      items: avatars as any,
+    });
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * صور المستخدمين المحفوظة في الصف الصغير المخصوص (id → رابط الصورة).
+ * صفحة واحدة صغيرة بدل النسخة الكاملة اللي فيها كل الحسابات.
+ */
+export async function fetchUserAvatarsFromSupabase(): Promise<Record<string, string>> {
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('items')
+      .eq('id', USER_AVATARS_STORE_ID)
+      .limit(1);
+    if (error || !data || data.length === 0) return {};
+    const raw = data[0].items;
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!parsed || typeof parsed !== 'object') return {};
+    const map: Record<string, string> = {};
+    Object.entries(parsed as Record<string, unknown>).forEach(([key, value]) => {
+      if (typeof value === 'string' && value.trim()) map[key] = value.trim();
+    });
+    return map;
+  } catch {
+    return {};
+  }
+}
+
+/** يحفظ صورة مستخدم واحدة في الصف الصغير من غير ما يلمس النسخة الكاملة. */
+export async function saveUserAvatarToSupabase(userId: string, avatarUrl: string): Promise<boolean> {
+  const cleanId = String(userId || '').trim();
+  const cleanUrl = String(avatarUrl || '').trim();
+  if (!cleanId || !cleanUrl) return false;
+  try {
+    const avatars = await fetchUserAvatarsFromSupabase();
+    avatars[cleanId] = cleanUrl;
+    const saved = await persistUserAvatars(avatars);
+    // كاش المستخدمين في الذاكرة لازم يتصفّر عشان الصورة الجديدة تظهر
+    // على طول (ولو غيّرها تاني، الأحدث هي اللي تتقرأ).
+    invalidateUsersCache();
+    try {
+      if (typeof localStorage !== 'undefined') localStorage.removeItem(AVATAR_MIGRATION_STORAGE_KEY);
+    } catch {}
+    return saved;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Upsert / Save single user into Supabase directly
  */
@@ -2257,6 +2386,11 @@ export async function saveUserToSupabase(user: User, currentUsersList?: User[]):
         }
       ])
     ];
+
+    // الصورة الشخصية: صف صغير مخصوص — مش محتاجة إعادة كتابة نسخة المستخدمين.
+    if (user.avatar) {
+      mirrorWrites.push(saveUserAvatarToSupabase(user.id, user.avatar));
+    }
 
     if (currentUsersList && currentUsersList.length > 0) {
       const map = new Map<string, User>();
@@ -3034,6 +3168,7 @@ export async function deleteInvoiceFromSupabase(
 export const NON_INVOICE_ORDER_IDS: readonly string[] = [
   GLOBAL_SYNC_VERSION_RECORD_ID,
   USER_SYNC_STORE_ID,
+  USER_AVATARS_STORE_ID,
   CATALOG_SYNC_STORE_ID,
   PROMOTIONS_SYNC_STORE_ID,
 ];

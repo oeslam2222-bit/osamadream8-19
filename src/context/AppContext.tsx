@@ -84,6 +84,7 @@ import {
   mergeCustomerItemSalesIncremental,
   saveUsersToSupabase,
   saveUserToSupabase,
+  saveUserAvatarToSupabase,
   supabase,
   SupabaseSyncStatus,
   testSupabaseConnection,
@@ -1632,6 +1633,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     [currentUser?.role]
   );
 
+  /**
+   * القطاعين الأساسيين بس: منزلي / كهرباء.
+   * أي قيمة قديمة «all» متسجلة من نسخة أقدم بتتحوّل لقطاع المستخدم الأساسي،
+   * وإلا الصفحات اللي بتقرأ effectiveSectorFilter كانت بتفضل تعرض القطاعين.
+   */
+  const defaultSector: 'home' | 'electrical' =
+    currentUser?.sector === 'electrical' ? 'electrical' : 'home';
+
+  useEffect(() => {
+    if (canManageSectorGate && activeSectorFilter === 'all') {
+      setActiveSectorFilterState(defaultSector);
+      try {
+        localStorage.setItem('tantawy_active_sector_filter', defaultSector);
+      } catch {}
+    }
+  }, [canManageSectorGate, activeSectorFilter, defaultSector]);
+
   /** القطاع الفعلي بعد تطبيق قواعد الأدوار — `'none'` يعني محجوب عن القطاعين. */
   const effectiveSectorFilter = useMemo(
     () => resolveEffectiveSector(currentUser, activeSectorFilter),
@@ -1642,6 +1660,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // تبديل القطاع ميزة إدارة عليا فقط. باقي الأدوار مقيّدة بقطاع حسابها أصلًا،
     // ومن غير البوابة دي الاختيار كان بيتسجل في localStorage ويبقى مضلّل للواجهة.
     if (!canManageSectorGate) return;
+    // القطاعين الأساسيين بس في البرنامج — «كل القطاعات» مرفوض.
+    if (sector === 'all') return;
     setActiveSectorFilterState(sector);
     try {
       localStorage.setItem('tantawy_active_sector_filter', sector);
@@ -5285,7 +5305,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     idbSet(STORAGE_KEYS.CURRENT_USER_DATA, updatedUser).catch(() => {});
 
     try {
-      saveUserToSupabase(updatedUser, users).catch(() => {});
+      // الصورة بتتحفظ في صفها الصغير المخصوص بس — مفيش أي كتابة على صف
+      // الحساب، فبيانات زي المشرف/الفرع/الصلاحية/كلمة السر مش بتتلمس خالص،
+      // ومفيش إعادة كتابة لنسخة المستخدمين الكاملة (egress).
+      saveUserAvatarToSupabase(currentUser.id, cleanUrl).catch(() => {});
     } catch {}
 
     return true;

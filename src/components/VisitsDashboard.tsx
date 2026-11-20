@@ -134,7 +134,10 @@ export const VisitsDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'منفذة' | 'معلقة' | 'ملغاة'>('all');
   const [geoFilter, setGeoFilter] = useState<'all' | 'verified' | 'flagged'>('all');
   const [repFilter, setRepFilter] = useState<string>('all');
-  const [sectorFilter, setSectorFilter] = useState<'all' | 'home' | 'electrical'>('all');
+  // القطاعين الأساسيين بس: منزلي / كهرباء (مفيش «كل القطاعات»).
+  const [sectorFilter, setSectorFilter] = useState<'home' | 'electrical'>(
+    currentUser?.sector === 'electrical' ? 'electrical' : 'home'
+  );
   const [branchFilter, setBranchFilter] = useState<string>('all');
   const VISITS_CHUNK = 10;
   const [visibleVisitsCount, setVisibleVisitsCount] = useState(VISITS_CHUNK);
@@ -572,23 +575,21 @@ export const VisitsDashboard: React.FC = () => {
       result = result.filter((v) => (v.branchName || '') === branchFilter);
     }
 
-    // Sector filter
-    const userSector = currentUser?.sector;
-    const effectiveSector =
-      sectorFilter !== 'all'
-        ? sectorFilter
-        : userSector === 'home' || userSector === 'electrical'
-        ? userSector
-        : undefined;
+    // Sector filter — منزلي/كهرباء بس. حساب مسجّل على القطاعين بيشوفهم،
+    // وغيره (بما فيهم الإدارة اللي بتختار من الفلتر) بيتفلتر بالقطاع المختار.
+    const accountSeesBothSectors = currentUser?.sector === 'both' || currentUser?.sector === 'all';
 
-    if (effectiveSector) {
+    if (!accountSeesBothSectors) {
+      const effectiveSector = sectorFilter;
       const sectorRepIds = new Set(
         users
           .filter((u) => u.sector === effectiveSector)
           .map((u) => u.id)
       );
+      // زيارة قطاعها غير واضح (اتسجلت قبل ما القطاع يتحدد) بتفضل ظاهرة،
+      // بدل ما تختفي من الفلتر.
       result = result.filter(
-        (v) => v.sector === effectiveSector || (v.repId && sectorRepIds.has(v.repId))
+        (v) => !v.sector || v.sector === effectiveSector || (v.repId && sectorRepIds.has(v.repId))
       );
     }
 
@@ -672,7 +673,6 @@ export const VisitsDashboard: React.FC = () => {
     statusFilter !== 'all' ||
     geoFilter !== 'all' ||
     repFilter !== 'all' ||
-    sectorFilter !== 'all' ||
     branchFilter !== 'all';
 
   const resetFilters = () => {
@@ -682,7 +682,7 @@ export const VisitsDashboard: React.FC = () => {
     setStatusFilter('all');
     setGeoFilter('all');
     setRepFilter('all');
-    setSectorFilter('all');
+    setSectorFilter(currentUser?.sector === 'electrical' ? 'electrical' : 'home');
     setBranchFilter('all');
   };
 
@@ -919,7 +919,6 @@ export const VisitsDashboard: React.FC = () => {
               }}
               className="tg-select"
             >
-              <option value="all">كل القطاعات</option>
               <option value="home">منزلي 🏠</option>
               <option value="electrical">كهرباء ⚡</option>
             </select>
