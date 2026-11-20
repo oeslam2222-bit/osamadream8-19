@@ -46,6 +46,8 @@ export interface AppContextType {
   isOffline: boolean;
   pendingInvoicesCount: number;
   offlineQueueCount: number;
+  deadLetterCount: number;
+  storageQuotaExceeded: boolean;
   flushOfflineQueue: () => Promise<{ success: boolean; syncedCount: number }>;
   flushPendingInvoices: () => Promise<{ success: boolean; syncedCount: number }>;
   selectedBranchFilter: string;

@@ -3,7 +3,7 @@ import { COMPANY_INFO, INITIAL_AUDIT_LOGS, INITIAL_BRANCHES, INITIAL_USERS } fro
 import { inferCustomerSector, BRANCHES } from '../data/branchDefinitions';
 import { DEFAULT_CLOUDINARY_CONFIG, normalizeCloudinaryConfig } from '../services/cloudinaryService';
 import { clearCachedImages } from '../services/imageCacheService';
-import { idbClear, idbDelete, idbGet, idbSet, debouncedIdbSet, safeLocalStorageSet } from '../services/storageService';
+import { idbClear, idbDelete, idbGet, idbSet, debouncedIdbSet, safeLocalStorageSet, isStorageQuotaExceeded } from '../services/storageService';
 import { appendAuditLog, clearAuditLogsStorage, createAuditLog, getAuditLogs } from '../services/auditLogService';
 import {
   doesCustomerBelongToBranch,
@@ -31,7 +31,7 @@ import {
   mergeCustomersIncremental,
   fetchCustomerContentStamp,
   fetchInvoicesFromSupabase,
-  fetchInvoiceRowById,
+  fetchInvoiceRowsByIds,
   INVOICE_SIGNAL_ID,
   fetchInvoiceContentStamp,
   fetchProductsFromSupabase,
@@ -185,6 +185,8 @@ import {
   enqueueMutation,
   enqueueMutations,
   countQueuedMutations,
+  MAX_ATTEMPTS,
+  isDeadLetter,
   getQueuedMutations,
   markQueuedMutationFailure,
   removeQueuedMutations,
@@ -1790,6 +1792,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isSupabaseSyncing, setIsSupabaseSyncing] = useState<boolean>(false);
   const [pendingInvoicesCount, setPendingInvoicesCount] = useState<number>(0);
   const [offlineQueueCount, setOfflineQueueCount] = useState<number>(0);
+  const [deadLetterCount, setDeadLetterCount] = useState<number>(0);
+  const [storageQuotaExceeded, setStorageQuotaExceeded] = useState<boolean>(false);
 
   const refreshPendingInvoicesCount = async () => {
     try {
@@ -1854,9 +1858,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => { targetsRef.current = targets; }, [targets]);
 
   const refreshOfflineQueueCount = async () => {
-    const queued = await countQueuedMutations();
-    setOfflineQueueCount(queued);
-    return queued;
+    const queued = await getQueuedMutations();
+    const live = queued.filter((q) => !isDeadLetter(q)).length;
+    const dead = queued.filter((q) => isDeadLetter(q)).length;
+    setOfflineQueueCount(live);
+    setDeadLetterCount(dead);
+    setStorageQuotaExceeded(isStorageQuotaExceeded());
+    return live;
   };
 
   /**
@@ -2133,10 +2141,18 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
    * shift offline costs a handful of requests instead of one per tap.
    */
   const flushOfflineQueue = async (): Promise<{ success: boolean; syncedCount: number }> => {
-    const queued = await getQueuedMutations();
+    const allQueued = await getQueuedMutations();
+    const dead = allQueued.filter((q) => isDeadLetter(q));
+    const queued = allQueued.filter((q) => !isDeadLetter(q));
+    // dead letters are not retried — they stay in the queue for manual review
+    // (surfaced via deadLetterCount) and no longer spam the server.
+    if (dead.length > 0) {
+      console.warn(`[offline-queue] ${dead.length} permanently-failed mutation(s) skipped (>= ${MAX_ATTEMPTS} attempts).`);
+    }
     if (queued.length === 0) {
       setOfflineQueueCount(0);
-      return { success: true, syncedCount: 0 };
+      setDeadLetterCount(dead.length);
+      return { success: dead.length === 0, syncedCount: 0 };
     }
     if (!navigator.onLine) {
       setOfflineQueueCount(queued.length);
@@ -2565,7 +2581,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             previous.forEach((invoice) => merged.set(invoice.id, invoice));
             remoteInvoices.forEach((invoice) => merged.set(invoice.id, invoice));
             const next = Array.from(merged.values());
-            idbSet(STORAGE_KEYS.INVOICES, next);
             return next;
           });
         }
@@ -3047,7 +3062,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             }
           });
           const next = Array.from(nextMap.values());
-          idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
           return next;
         });
       }
@@ -3731,7 +3745,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                 });
               }
               const next = Array.from(merged.values());
-              idbSet(STORAGE_KEYS.INVOICES, next);
               return next;
             });
           }
@@ -3917,22 +3930,26 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       invoicePullTimer = null;
       const ids = Array.from(pendingInvoiceIds).slice(0, 25);
       ids.forEach((queuedId) => pendingInvoiceIds.delete(queuedId));
-      for (const invoiceId of ids) {
-        const row = await fetchInvoiceRowById(invoiceId).catch(() => null);
-        if (!row) continue;
+      if (ids.length === 0) return;
+      // طلب دفعة واحد بدل حلقة N+1: كل الإشارات في `in('id', ids)` —
+      // بدل ما كل فاتورة تاخد طلب لوحدها (حتى 50 طلب لكل إشارة).
+      const rows = await fetchInvoiceRowsByIds(ids).catch(() => [] as any[]);
+      const scopedToBranch = currentUser.role === 'supervisor' || currentUser.role === 'branch_manager';
+      const mapped: Invoice[] = [];
+      for (const row of rows) {
         // نفس نطاق البث القديم: مشرف الفرع مايشوفش فواتير فرع تاني.
         const rowBranch = String((row as any).branch_name || (row as any).branchName || '');
-        const scopedToBranch = currentUser.role === 'supervisor' || currentUser.role === 'branch_manager';
         if (scopedToBranch && currentUser.branchName && rowBranch && rowBranch !== currentUser.branchName) continue;
-        const mappedInv = mapInvoiceRow(row);
+        mapped.push(mapInvoiceRow(row));
+      }
+      if (mapped.length > 0) {
         setInvoices((prev) => {
           const map = new Map<string, Invoice>();
           prev.forEach((inv) => map.set(inv.id, inv));
-          map.set(mappedInv.id, mappedInv);
-          const next = Array.from(map.values());
-          idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
-          return next;
+          mapped.forEach((inv) => map.set(inv.id, inv));
+          return Array.from(map.values());
         });
+        // الحفظ المحلي بيتعمل في effect منفصل (debouncedIdbSet) — مش هنكتبه هنا.
       }
       if (pendingInvoiceIds.size > 0) {
         invoicePullTimer = window.setTimeout(() => { void flushInvoiceSignals(); }, 1500);
@@ -3988,32 +4005,28 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'customers' }, (payload) => {
           const deleted = payload.old as any;
           if (deleted?.id) {
-            setCustomers((prev) => {
-              const next = prev.filter((c) => c.id !== deleted.id);
-              idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
-              saveLocalCustomersFingerprint(next);
-              return next;
-            });
+            // الـupdater لازم يفضل نقي — الحفظ وبصمة المحتوى برّه (ref متزامن مع الحالة).
+            const next = customersRef.current.filter((c) => c.id !== deleted.id);
+            customersRef.current = next;
+            setCustomers(next);
+            idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
+            saveLocalCustomersFingerprint(next);
           }
         })
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'customer_comments' }, (payload) => {
           const deleted = payload.old as any;
           if (deleted?.id) {
-            setCustomerComments((prev) => {
-              const next = prev.filter((c) => c.id !== deleted.id);
-              idbSet(STORAGE_KEYS.CUSTOMER_COMMENTS, next).catch(() => {});
-              return next;
-            });
+            const next = customerCommentsRef.current.filter((c) => c.id !== deleted.id);
+            customerCommentsRef.current = next;
+            setCustomerComments(next);
           }
         })
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'collection_forecasts' }, (payload) => {
           const deleted = payload.old as any;
           if (deleted?.id) {
-            setForecasts((prev) => {
-              const next = prev.filter((f) => f.id !== deleted.id);
-              idbSet(STORAGE_KEYS.FORECASTS, next).catch(() => {});
-              return next;
-            });
+            const next = forecastsRef.current.filter((f) => f.id !== deleted.id);
+            forecastsRef.current = next;
+            setForecasts(next);
           }
         })
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'targets' }, (payload) => {
@@ -4026,11 +4039,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           const deleted = payload.old as any;
           if (deleted?.id) {
             markVisitAsDeletedInStorage(deleted.id);
-            setVisits((prev) => {
-              const next = prev.filter((v) => v.id !== deleted.id);
-              persistVisits(next);
-              return next;
-            });
+            const next = visitsRef.current.filter((v) => v.id !== deleted.id);
+            visitsRef.current = next;
+            setVisits(next);
           }
         })
         .subscribe();
@@ -4196,7 +4207,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             });
           }
           const next = Array.from(merged.values());
-          idbSet(STORAGE_KEYS.INVOICES, next);
           return next;
         });
       } catch (err) {
@@ -4289,7 +4299,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           });
         }
         const next = Array.from(merged.values());
-        idbSet(STORAGE_KEYS.INVOICES, next);
         return next;
       });
       return {
@@ -4726,9 +4735,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         }
         return inv;
       });
-      if (changed) {
-        idbSet(STORAGE_KEYS.INVOICES, updated);
-      }
+      // الحفظ بيتعمل في effect منفصل (debouncedIdbSet) — مش هنكتبه هنا.
       return changed ? updated : prev;
     });
 
@@ -4798,6 +4805,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     if (!isLocalDataHydrated) return;
     return debouncedIdbSet(STORAGE_KEYS.FORECASTS, forecasts, 1500);
   }, [forecasts, isLocalDataHydrated]);
+
+  // كومنتات العملاء — كانت بتتحفظ جوه الـupdater بس (side effect مكرر في
+  // StrictMode)؛ هنا بتتحفظ زي باقي المفاتيح بالظبط.
+  useEffect(() => {
+    if (!isLocalDataHydrated) return;
+    return debouncedIdbSet(STORAGE_KEYS.CUSTOMER_COMMENTS, customerComments, 1500);
+  }, [customerComments, isLocalDataHydrated]);
 
   useEffect(() => {
     idbSet(STORAGE_KEYS.USERS, users);
@@ -6267,15 +6281,16 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       });
     });
 
-    setInvoices((prev) => {
-      const next = [primaryInvoice, ...prev];
-      // كتابة الفاتورة في IndexedDB هنا مش تحسين شكلي: بدونها الفاتورة اللي
-      // اتعملت أوف لاين بتتخزن في PENDING_INVOICES بس، والدمج في الحالة
-      // بيحصل بس بعد جلب ناجح من السيرفر — يعني reload والجهاز لسه
-      // أوف لاين = الفاتورة بتختفي من الشاشة (وبتفضل في الـoutbox بس).
-      idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
-      return next;
-    });
+    // كتابة الفاتورة في IndexedDB هنا مش تحسين شكلي: بدونها الفاتورة اللي
+    // اتعملت أوف لاين بتتخزن في PENDING_INVOICES بس، والدمج في الحالة
+    // بيحصل بس بعد جلب ناجح من السيرفر — يعني reload والجهاز لسه
+    // أوف لاين = الفاتورة بتختفي من الشاشة (وبتفضل في الـoutbox بس).
+    // الـupdater بس لازم يبقى نقي (بدون side effect) — نحسب next من الـref
+    // (متزامن مع الحالة) ونحفظ برّه.
+    const next = [primaryInvoice, ...invoicesRef.current];
+    invoicesRef.current = next;
+    setInvoices(next);
+    idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
 
     // Auto-detect and register new customer or link to representative
     if (orderData.customerName && orderData.customerName.trim() !== 'عميل تجزئة عام') {
@@ -8756,6 +8771,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         isOffline,
         pendingInvoicesCount,
         offlineQueueCount,
+        deadLetterCount,
+        storageQuotaExceeded,
         flushOfflineQueue,
         flushPendingInvoices,
         selectedBranchFilter,

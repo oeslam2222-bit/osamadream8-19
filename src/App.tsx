@@ -33,7 +33,6 @@ import { EncouragementProvider } from './components/EncouragementSystem';
 import { AuthProvider } from './context/authContext';
 import { InvoiceProvider } from './context/invoiceContext';
 import { CustomerProvider } from './context/customerContext';
-import { SyncProvider } from './context/syncContext';
 import { Customer, Invoice, UserRole } from './types';
 
 export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
@@ -718,15 +717,13 @@ export function App() {
       <AuthProvider>
         <InvoiceProvider>
           <CustomerProvider>
-            <SyncProvider>
-              <AppProvider>
-                <ThemeProvider>
-                  <EncouragementProvider>
-                    <MainLayout />
-                  </EncouragementProvider>
-                </ThemeProvider>
-              </AppProvider>
-            </SyncProvider>
+            <AppProvider>
+              <ThemeProvider>
+                <EncouragementProvider>
+                  <MainLayout />
+                </EncouragementProvider>
+              </ThemeProvider>
+            </AppProvider>
           </CustomerProvider>
         </InvoiceProvider>
       </AuthProvider>
