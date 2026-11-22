@@ -2960,6 +2960,17 @@ async function fetchInvoicesFromSupabaseImpl(
       'is_shortage_invoice', 'parent_invoice_id', 'parent_invoice_number', 'qr_payload',
     ].join(',');
 
+    // Fallback columns without the problematic one — never use '*' (drags items JSON + all columns)
+    const INVOICES_FALLBACK_COLUMNS = [
+      'id', 'invoice_number', 'customer_code', 'customer_name', 'customer_phone',
+      'customer_address', 'customer_tax_number', 'date', 'time', 'created_at',
+      'rep_id', 'rep_name', 'supervisor_name', 'branch_name',
+      'total_cartons', 'total_pieces', 'subtotal', 'discount_percentage',
+      'discount_amount', 'estimated_grand_total', 'payment_method', 'status', 'notes',
+      'synced_to_accounting', 'has_shortage_split', 'shortage_invoice_number',
+      'is_shortage_invoice', 'parent_invoice_id', 'parent_invoice_number', 'qr_payload',
+    ].join(',');
+
     const buildQuery = async (table: 'invoices' | 'orders') => {
       const makeQuery = (selectCols: string, filterCol: 'updated_at' | 'created_at' | null) => {
         let query = supabase
@@ -2983,7 +2994,13 @@ async function fetchInvoicesFromSupabaseImpl(
         first = await makeQuery(INVOICES_SELECT_COLUMNS, 'created_at');
       }
       if (first?.error && isMissingColumnError(first.error)) {
-        return makeQuery('*', updatedSince ? 'created_at' : null);
+        // Never use '*': it pulls items JSON + all columns = massive egress
+        // Instead, retry with safe fallback list (excludes the missing column dynamically)
+        const missing = extractMissingColumn(first.error);
+        const safeCols = missing
+          ? INVOICES_FALLBACK_COLUMNS.split(',').filter((c) => c !== missing).join(',')
+          : INVOICES_FALLBACK_COLUMNS;
+        return makeQuery(safeCols, updatedSince ? 'created_at' : null);
       }
       return first;
     };

@@ -3970,7 +3970,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           const activeUser = currentUserRef.current || currentUser;
           // للمندوب: لو في كاش محلي، نكتفي بالبصمة (1 row) ولا نحمل فواتير أبداً عند الدخول
           const role = activeUser?.role;
-          const hasLocalInvCache = invoicesRef.current.length > 0 || (await idbGet<Invoice[]>(STORAGE_KEYS.INVOICES)).then((d) => d && d.length > 0);
+          const cachedInvoices = await idbGet<Invoice[]>(STORAGE_KEYS.INVOICES);
+          const hasLocalInvCache = invoicesRef.current.length > 0 || (cachedInvoices && cachedInvoices.length > 0);
           if (role === 'sales_rep' && hasLocalInvCache && navigator.onLine !== false) {
             // بصمة سريعة فقط — التحميل الكامل عند الطلب
             const invScope = { ...buildInvoiceFetchScope(activeUser, usersRef.current.length > 0 ? usersRef.current : users), limit: 50 };
@@ -4066,7 +4067,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           const activeUser = currentUserRef.current || currentUser;
           // للمندوب: لو في كاش محلي، نكتفي بالبصمة (1 row) ولا نحمل زيارات أبداً عند الدخول
           const role = activeUser?.role;
-          const hasLocalVisitCache = visitsRef.current.length > 0 || (await idbGet<CustomerVisit[]>(STORAGE_KEYS.VISITS)).then((d) => d && d.length > 0);
+          const cachedVisits = await idbGet<CustomerVisit[]>(STORAGE_KEYS.VISITS);
+          const hasLocalVisitCache = visitsRef.current.length > 0 || (cachedVisits && cachedVisits.length > 0);
           if (role === 'sales_rep' && hasLocalVisitCache && navigator.onLine !== false) {
             // بصمة سريعة فقط — التحميل الكامل عند الطلب
             const stamp = await fetchVisitContentStamp(visitFetchScope);
