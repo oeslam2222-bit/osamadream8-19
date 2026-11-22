@@ -27,7 +27,6 @@ import { useApp } from '../context/AppContext';
 import { Customer, Invoice, PaymentMethod } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { exportElectronicInvoiceToExcel, downloadInvoiceBoth } from '../services/excelService';
-import { downloadInvoicePDF } from '../services/pdfService';
 import { ProductImage } from './ProductImage';
 import { CustomerFinancialSummaryCard } from './CustomerFinancialSummaryCard';
 import { findCustomerMatch } from '../services/arabicMatchingService';

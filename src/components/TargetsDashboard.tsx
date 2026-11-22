@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+  ComposedChart, Line, ReferenceLine, LabelList,
 } from 'recharts';
 import {
   Target, TrendingUp, Wallet, Award, Filter, Users, Calendar, ChevronDown,
@@ -10,6 +11,7 @@ import { useApp } from '../context/AppContext';
 import { ARABIC_MONTHS, formatEGP, inferTargetSector, QUARTER_LABELS } from '../services/targetService';
 import { normalizeArabicText } from '../services/arabicMatchingService';
 import type { TargetQuarter, TargetRecord, User } from '../types';
+import { MiniGauge, PerformanceGauge, gaugeTone } from './ui/PerformanceGauge';
 
 function repMatchKey(raw?: string | null): string {
   return normalizeArabicText(String(raw || '').trim())
@@ -108,6 +110,9 @@ export const TargetsDashboard: React.FC = () => {
 
   const now = new Date();
   const [selectedRep, setSelectedRep] = useState<string>('all');
+  const [repSearch, setRepSearch] = useState<string>('');
+  const [selectedBranch, setSelectedBranch] = useState<string>('all');
+  const [selectedSupervisor, setSelectedSupervisor] = useState<string>('all');
   const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1);
   const [selectedQuarter, setSelectedQuarter] = useState<TargetQuarter | 'all'>('all');
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
@@ -139,6 +144,45 @@ export const TargetsDashboard: React.FC = () => {
     return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
   }, [allTargets]);
 
+  // البحث الذكي: يفلتر أسماء المناديب بالاسم أو اليوزرネーム (مطابقة عربية مرنة)
+  const filteredRepNames = useMemo(() => {
+    const q = normalizeArabicText(repSearch.trim());
+    if (!q) return repNames;
+    return repNames.filter((n) => {
+      const user = findRepUser(users, n);
+      const hay = normalizeArabicText(`${n} ${user?.username || ''} ${user?.name || ''}`);
+      return hay.includes(q);
+    });
+  }, [repSearch, repNames, users]);
+
+  // الفروع من التارجتات + المستخدمين. نفس اسم الفرع可能 موجود في القطاعين،
+  // فبنضمّن القطاع في قيمة الفلتر (branch|sector) عشان نفرّقهم.
+  const branchOptions = useMemo(() => {
+    const map = new Map<string, { branch: string; sector?: string }>();
+    const add = (branch?: string, sector?: string) => {
+      if (!branch) return;
+      const sec = sector === 'home' || sector === 'electrical' ? sector : '';
+      const key = `${branch}|${sec}`;
+      if (!map.has(key)) map.set(key, { branch, sector: sec });
+    };
+    allTargets.forEach((t) => add(t.branch, inferTargetSector(t, users)));
+    users.forEach((u) => add(u.branchName, u.sector));
+    return Array.from(map.entries())
+      .map(([key, v]) => ({
+        key,
+        label: v.sector ? `${v.branch} — ${getSectorLabel(v.sector)}` : v.branch,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'ar'));
+  }, [allTargets, users]);
+
+  // المشرفون: من المستخدمين + من عمود supervisorName في العملاء
+  const supervisorOptions = useMemo(() => {
+    const set = new Set<string>();
+    users.forEach((u) => { if (u.role === 'supervisor' && u.name) set.add(u.name); });
+    allCustomers.forEach((c) => { if (c.supervisorName) set.add(c.supervisorName); });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [users, allCustomers]);
+
   const years = useMemo(() => {
     const set = new Set<number>();
     allTargets.forEach((t) => { if (t.year) set.add(t.year); });
@@ -147,9 +191,36 @@ export const TargetsDashboard: React.FC = () => {
     return arr;
   }, [allTargets]);
 
+  // helper: هل التارجت ينتمي لفرع/قطاع المطلوب؟
+  const matchesBranch = (t: TargetRecord): boolean => {
+    if (selectedBranch === 'all') return true;
+    const [branch, sector] = selectedBranch.split('|');
+    if (t.branch !== branch) return false;
+    if (sector && inferTargetSector(t, users) !== sector) return false;
+    return true;
+  };
+  // helper: هل مندوب التارجت تابع للمشرف المختار؟
+  const matchesSupervisor = (t: TargetRecord): boolean => {
+    if (selectedSupervisor === 'all') return true;
+    const u = findRepUser(users, t.repName || '');
+    const supName =
+      u?.supervisorName ||
+      (u?.supervisorId ? userIndex.byId.get(u.supervisorId)?.name : '') ||
+      '';
+    if (supName && normalizeArabicText(supName) === normalizeArabicText(selectedSupervisor)) return true;
+    // كمان لو المشرف مكتوب صراحة في بيانات العميل بنفس اسم المندوب
+    return allCustomers.some(
+      (c) =>
+        normalizeArabicText(c.supervisorName || '') === normalizeArabicText(selectedSupervisor) &&
+        normalizeArabicText(c.salesRepName || c.repName || '') === repMatchKey(t.repName)
+    );
+  };
+
   const filtered = useMemo(() => {
     return allTargets.filter((t) => {
       if (selectedRep !== 'all' && t.repName !== selectedRep) return false;
+      if (!matchesBranch(t)) return false;
+      if (!matchesSupervisor(t)) return false;
       if (selectedYear && t.year !== selectedYear) return false;
       if (selectedQuarter !== 'all') {
         if (t.quarter !== selectedQuarter) return false;
@@ -158,7 +229,7 @@ export const TargetsDashboard: React.FC = () => {
       }
       return true;
     });
-  }, [allTargets, selectedRep, selectedMonth, selectedQuarter, selectedYear]);
+  }, [allTargets, selectedRep, selectedMonth, selectedQuarter, selectedYear, selectedBranch, selectedSupervisor, users, userIndex, allCustomers]);
 
   const summary = useMemo(() => {
     return filtered.reduce(
@@ -176,6 +247,10 @@ export const TargetsDashboard: React.FC = () => {
   const salesRemaining = Math.max(0, summary.salesTarget - summary.salesAchieved);
   const collectionRemaining = Math.max(0, summary.collectionTarget - summary.collectionAchieved);
 
+  const withRate = (row: { salesTarget: number; salesAchieved: number }) => ({
+    'نسبة التحقيق': row.salesTarget > 0 ? Math.round((row.salesAchieved / row.salesTarget) * 100) : 0,
+  });
+
   const chartData = useMemo(() => {
     if (selectedQuarter === 'all') {
       return [
@@ -185,6 +260,7 @@ export const TargetsDashboard: React.FC = () => {
           'محقق البيع': summary.salesAchieved,
           'هدف التحصيل': summary.collectionTarget,
           'محقق التحصيل': summary.collectionAchieved,
+          ...withRate(summary),
         },
       ];
     }
@@ -192,6 +268,8 @@ export const TargetsDashboard: React.FC = () => {
     return months.map((m) => {
       const monthRecords = allTargets.filter((t) => {
         if (selectedRep !== 'all' && t.repName !== selectedRep) return false;
+        if (!matchesBranch(t)) return false;
+        if (!matchesSupervisor(t)) return false;
         if (t.year !== selectedYear) return false;
         return t.month === m;
       });
@@ -211,9 +289,10 @@ export const TargetsDashboard: React.FC = () => {
         'محقق البيع': agg.salesAchieved,
         'هدف التحصيل': agg.collectionTarget,
         'محقق التحصيل': agg.collectionAchieved,
+        ...withRate(agg),
       };
     });
-  }, [allTargets, selectedQuarter, selectedMonth, selectedYear, selectedRep, summary]);
+  }, [allTargets, selectedQuarter, selectedMonth, selectedYear, selectedRep, selectedBranch, selectedSupervisor, summary, users, userIndex, allCustomers]);
 
   const groupedByRep = useMemo(() => {
     const map = new Map<string, TargetRecord[]>();
@@ -337,18 +416,68 @@ export const TargetsDashboard: React.FC = () => {
           <Filter className="w-4 h-4" />
           <span className="font-black text-sm">الفلاتر</span>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-bold text-slate-600 flex items-center gap-1"><Users className="w-3.5 h-3.5" /> المندوب</span>
+            <span className="text-xs font-bold text-slate-600 flex items-center gap-1"><Users className="w-3.5 h-3.5" /> المندوب (بحث ذكي)</span>
+            <input
+              type="text"
+              value={repSearch}
+              onChange={(e) => { setRepSearch(e.target.value); setSelectedRep('all'); }}
+              placeholder="اكتب اسم المندوب أو اليوزرネーム..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+            />
+            {repSearch.trim() && (
+              <div className="mt-1 max-h-36 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => { setSelectedRep('all'); setRepSearch(''); }}
+                  className={`w-full text-right px-3 py-2 text-xs font-bold ${selectedRep === 'all' ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                >
+                  كل المندوبين
+                </button>
+                {filteredRepNames.map((name) => (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => { setSelectedRep(name); setRepSearch(name); }}
+                    className={`w-full text-right px-3 py-2 text-xs font-bold ${selectedRep === name ? 'bg-blue-50 text-blue-700' : 'text-slate-600 hover:bg-slate-50'}`}
+                  >
+                    {name} <span className="text-[10px] text-slate-400">— {findRepUser(users, name)?.username || ''}</span>
+                  </button>
+                ))}
+                {filteredRepNames.length === 0 && <p className="px-3 py-2 text-xs text-slate-400">لا يوجد مندوب مطابق</p>}
+              </div>
+            )}
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-bold text-slate-600 flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> الفرع (مميّز بالقطاع)</span>
             <div className="relative">
               <select
-                value={selectedRep}
-                onChange={(e) => setSelectedRep(e.target.value)}
+                value={selectedBranch}
+                onChange={(e) => setSelectedBranch(e.target.value)}
                 className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-8 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
               >
-                <option value="all">كل المندوبين</option>
-                {repNames.map((name) => (
-                  <option key={name} value={name}>{name}</option>
+                <option value="all">كل الفروع</option>
+                {branchOptions.map((b) => (
+                  <option key={b.key} value={b.key}>{b.label}</option>
+                ))}
+              </select>
+              <ChevronDown className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="text-xs font-bold text-slate-600 flex items-center gap-1"><UserCheck className="w-3.5 h-3.5" /> مشرف الفرع</span>
+            <div className="relative">
+              <select
+                value={selectedSupervisor}
+                onChange={(e) => setSelectedSupervisor(e.target.value)}
+                className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 pr-8 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <option value="all">كل المشرفين</option>
+                {supervisorOptions.map((s) => (
+                  <option key={s} value={s}>{s}</option>
                 ))}
               </select>
               <ChevronDown className="w-4 h-4 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -405,9 +534,23 @@ export const TargetsDashboard: React.FC = () => {
             </div>
           </label>
         </div>
-        {selectedQuarter !== 'all' && (
-          <p className="text-[11px] text-slate-500 mt-2">* عند اختيار كوارتر يتم عرض الأشهر الثلاثة الخاصة به في الرسم البياني.</p>
-        )}
+        <div className="flex items-center justify-between flex-wrap gap-2 mt-3 pt-3 border-t border-slate-100">
+          {selectedQuarter !== 'all' ? (
+            <p className="text-[11px] text-slate-500">* عند اختيار كوارتر يتم عرض الأشهر الثلاثة الخاصة به في الرسم البياني.</p>
+          ) : (
+            <span className="text-[11px] text-slate-500">* الفرع مميّز بالقطاع: «فرع القاهرة — منزلي» يختلف عن «فرع القاهرة — كهربائي».</span>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedRep('all'); setRepSearch(''); setSelectedBranch('all'); setSelectedSupervisor('all');
+              setSelectedYear(now.getFullYear()); setSelectedMonth(now.getMonth() + 1); setSelectedQuarter('all');
+            }}
+            className="text-xs font-black text-blue-600 hover:underline"
+          >
+            إعادة تعيين الفلاتر
+          </button>
+        </div>
       </section>
 
       {/* Summary Cards */}
@@ -448,24 +591,162 @@ export const TargetsDashboard: React.FC = () => {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#334155' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => fmt(Number(v))} width={70} />
+              <ComposedChart data={chartData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }} barGap={4}>
+                <defs>
+                  <linearGradient id="targetBar" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#93c5fd" />
+                    <stop offset="100%" stopColor="#bfdbfe" />
+                  </linearGradient>
+                  <linearGradient id="achievedBar" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#2563eb" />
+                    <stop offset="100%" stopColor="#1d4ed8" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#334155', fontWeight: 700 }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
+                <YAxis yAxisId="money" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => fmt(Number(v))} width={72} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="rate" orientation="right" domain={[0, 150]} tick={{ fontSize: 11, fill: '#b45309' }} tickFormatter={(v) => `${v}%`} width={46} axisLine={false} tickLine={false} />
                 <Tooltip
-                  formatter={(value: number, name: string) => [`${fmt(Number(value))} ج.م`, name]}
-                  contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontFamily: 'inherit' }}
+                  formatter={(value: number, name: string) =>
+                    name === 'نسبة التحقيق'
+                      ? [`${fmt(Number(value))}%`, name]
+                      : [`${fmt(Number(value))} ج.م`, name]
+                  }
+                  contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontFamily: 'inherit', boxShadow: '0 8px 24px rgba(0,0,0,.08)' }}
+                  cursor={{ fill: 'rgba(148,163,184,.1)' }}
                 />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="هدف البيع" fill="#93c5fd" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="محقق البيع" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="هدف التحصيل" fill="#86efac" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="محقق التحصيل" fill="#16a34a" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
+                <ReferenceLine yAxisId="rate" y={100} stroke="#f59e0b" strokeDasharray="5 5" strokeOpacity={0.7} label={{ value: '100%', fill: '#b45309', fontSize: 10, position: 'right' }} />
+                <Bar yAxisId="money" dataKey="هدف البيع" fill="url(#targetBar)" radius={[5, 5, 0, 0]} maxBarSize={36}>
+                  <LabelList dataKey="هدف البيع" position="top" formatter={(v: number) => v > 0 ? fmt(v) : ''} style={{ fontSize: 9, fill: '#64748b' }} />
+                </Bar>
+                <Bar yAxisId="money" dataKey="محقق البيع" fill="url(#achievedBar)" radius={[5, 5, 0, 0]} maxBarSize={36} />
+                <Bar yAxisId="money" dataKey="هدف التحصيل" fill="#86efac" radius={[5, 5, 0, 0]} maxBarSize={36} />
+                <Bar yAxisId="money" dataKey="محقق التحصيل" fill="#16a34a" radius={[5, 5, 0, 0]} maxBarSize={36} />
+                <Line yAxisId="rate" type="monotone" dataKey="نسبة التحقيق" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: '#f59e0b', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 7 }} name="نسبة التحقيق %" />
+              </ComposedChart>
             </ResponsiveContainer>
           )}
         </div>
       </section>
+
+      {/* مؤشر أداء المناديب */}
+      {groupedByRep.length > 0 && (() => {
+        const totals = groupedByRep.reduce(
+          (acc, r) => ({
+            st: acc.st + r.salesTarget,
+            sa: acc.sa + r.salesAchieved,
+            ct: acc.ct + r.collectionTarget,
+            ca: acc.ca + r.collectionAchieved,
+          }),
+          { st: 0, sa: 0, ct: 0, ca: 0 },
+        );
+        const salesPct = pct(totals.sa, totals.st);
+        const collPct = pct(totals.ca, totals.ct);
+        const overall = Math.round((salesPct + collPct) / 2);
+        const tone = gaugeTone(overall);
+        const scored = groupedByRep.map((r) => ({
+          rep: r.rep,
+          score: Math.round((pct(r.salesAchieved, r.salesTarget) + pct(r.collectionAchieved, r.collectionTarget)) / 2),
+        }));
+        const best = scored.reduce((a, b) => (b.score > a.score ? b : a), { rep: '—', score: 0 });
+        const lagging = scored.filter((r) => r.score < 70).length;
+        const laggingPct = groupedByRep.length ? (lagging / groupedByRep.length) * 100 : 0;
+
+        return (
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
+              <div className="flex items-start gap-2.5">
+                <span className="w-8 h-8 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                  <Activity className="w-4 h-4" />
+                </span>
+                <div>
+                  <h2 className="text-base font-black text-slate-900">مؤشر أداء المناديب</h2>
+                  <p className="text-xs font-bold text-slate-600 mt-0.5">
+                    مبيعات + تحصيل مقابل المستهدف — لنفس الفلاتر المختارة
+                  </p>
+                </div>
+              </div>
+              <span
+                className="text-[11px] font-black px-2.5 py-1 rounded-full"
+                style={{ background: tone.soft, color: tone.solid }}
+              >
+                {tone.label}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,240px)_minmax(0,1fr)] gap-4 items-center">
+              <div className="flex min-w-0 justify-center rounded-2xl border border-slate-200 bg-slate-50/70 p-3">
+                <PerformanceGauge
+                  value={overall}
+                  label="الأداء العام"
+                  caption={`متوسط مبيعات ${salesPct}% · تحصيل ${collPct}%`}
+                />
+              </div>
+
+              <div className="grid min-w-0 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-2.5">
+                <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-3">
+                  <div className="text-[10px] font-black text-blue-900 flex items-center gap-1">
+                    <TrendingUp className="w-3.5 h-3.5" /> نسبة البيع
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <MiniGauge value={salesPct} size={40} />
+                    <div className="min-w-0">
+                      <div className="text-sm font-black text-blue-800 tabular-nums">{salesPct}%</div>
+                      <div className="text-[9px] font-bold text-slate-500 tabular-nums truncate">
+                        {fmt(totals.sa)} / {fmt(totals.st)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3">
+                  <div className="text-[10px] font-black text-emerald-900 flex items-center gap-1">
+                    <Wallet className="w-3.5 h-3.5" /> نسبة التحصيل
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <MiniGauge value={collPct} size={40} />
+                    <div className="min-w-0">
+                      <div className="text-sm font-black text-emerald-800 tabular-nums">{collPct}%</div>
+                      <div className="text-[9px] font-bold text-slate-500 tabular-nums truncate">
+                        {fmt(totals.ca)} / {fmt(totals.ct)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3">
+                  <div className="text-[10px] font-black text-indigo-900 flex items-center gap-1">
+                    <Award className="w-3.5 h-3.5" /> أفضل مندوب
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <MiniGauge value={best.score} size={40} />
+                    <div className="min-w-0">
+                      <div className="text-[12px] font-black text-indigo-900 truncate">{best.rep}</div>
+                      <div className="text-[9px] font-bold text-slate-500 tabular-nums">{best.score}% أداء</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-3">
+                  <div className="text-[10px] font-black text-rose-900 flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5" /> يحتاجون متابعة
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <MiniGauge value={laggingPct} size={40} invert />
+                    <div className="min-w-0">
+                      <div className="text-sm font-black text-rose-800 tabular-nums">
+                        {lagging} / {groupedByRep.length}
+                      </div>
+                      <div className="text-[9px] font-bold text-slate-500">أقل من 70%</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* Rep Profile Cards Strip */}
       {groupedByRep.length > 0 && (
@@ -519,7 +800,10 @@ export const TargetsDashboard: React.FC = () => {
                         <div className="text-[11px] font-bold text-slate-600 truncate">{row.branch}</div>
                       </div>
                     </div>
-                    <ChevronLeft className="w-4 h-4 text-slate-400 group-hover:text-blue-600 shrink-0" />
+                    <div className="flex flex-col items-center gap-1 shrink-0">
+                      <MiniGauge value={Math.round((sPct + cPct) / 2)} size={40} />
+                      <ChevronLeft className="w-4 h-4 text-slate-400 group-hover:text-blue-600" />
+                    </div>
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-2 text-xs">

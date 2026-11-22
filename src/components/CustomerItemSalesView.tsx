@@ -313,8 +313,13 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       //    جلب جزئي: لو عندنا كاش وسبق الجلب، بنطلب الصفوف اللي اتغيرت بعد آخر جلب
       //    بدل تنزيل الجدول كله كل مرة (توفير egress حقيقي).
       const syncMeta = getItemSalesSyncMeta();
+      // التحديث الصريح (زرار «تحديث») لازم يجلب الجدول كامل — لو استخدمنا
+      // lastPullAt القديم هيجيب صفر صفوف ويظهر كأن السيرفر فاضي رغم إن البيانات
+      // موجودة (وده اللي حصل لما اترفعت البيانات قبل تسجيل آخر جلب).
       const incrementalSince =
-        localBackup.length > 0 && syncMeta.lastPullAt ? syncMeta.lastPullAt : undefined;
+        !forceRemote && localBackup.length > 0 && syncMeta.lastPullAt
+          ? syncMeta.lastPullAt
+          : undefined;
       let supabaseSales: CustomerItemSaleRecord[] = [];
       let supabaseError: string | null = null;
       try {
@@ -1117,12 +1122,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     setSelectedItem('all');
   };
 
-  // التصدير بيحمّل **البيانات المجمّعة** (عميل + شهر + صنف + عائلة) مش عشرات آلاف الصفوف الخام
+  // التصدير معطل — متاح للفواتير فقط
   const handleExportExcel = () => {
-    downloadItemSalesRowsCsv(
-      aggregateItemSalesRows(filteredSales, resolveItemSaleSector, customerNameByCode),
-      `مبيعات_الأصناف_مجمعة_${new Date().toISOString().slice(0, 10)}.csv`
-    );
+    alert('تصدير Excel معطل — متاح للفواتير فقط');
   };
 
   const handleStartOrderForCustomer = (account: string, itemCode?: string) => {
@@ -1246,11 +1248,12 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             )}
             <button
               type="button"
-              onClick={() => { setToolsOpen(false); void handleExportExcel(); }}
-              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg border border-white/15 bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] transition cursor-pointer"
+              disabled
+              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg border border-white/15 bg-white/10 text-white font-bold text-[11px] transition cursor-not-allowed opacity-50"
+              title="تصدير Excel معطل — متاح للفواتير فقط"
             >
               <Download className="w-3.5 h-3.5" />
-              تصدير Excel
+              تصدير Excel (مغلق)
             </button>
           </div>
         )}

@@ -56,11 +56,8 @@ import { filterPromotionsForUser, resolveProductPromotion } from '../services/pr
 import { ProductVariantPicker } from './catalog/ProductVariantPicker';
 import { cacheProductImages, getCachedImagesStats } from '../services/imageCacheService';
 import { parseExcelProducts, fetchAndParseGoogleSheet } from '../services/excelService';
-import {
-  buildClientCatalogPDF,
-  type ClientCatalogProduct,
-  type CatalogExportProgress,
-} from '../services/pdfService';
+// نوع فقط: لا نسحب jsPDF/html2canvas لحزمة الكتالوج. الدالة بتتحمّل عند الضغط.
+import type { ClientCatalogProduct, CatalogExportProgress } from '../services/pdfService';
 import { Customer, Product } from '../types';
 import { getBranchStockForProduct } from '../services/arabicMatchingService';
 export const COMPANY_WAREHOUSES = [
@@ -776,6 +773,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
           ? 'القطاع المنزلي'
           : 'الكتالوج العام';
 
+      const { buildClientCatalogPDF } = await import('../services/pdfService');
       const res = await buildClientCatalogPDF(catalogItems, {
         categoryName: catLabel,
         onProgress: (prog) => {
@@ -814,7 +812,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     setOnlyInStock(true);
     setOnlyPromos(false);
     setSortBy('default');
-    setActiveSectorFilter(canManageSectorGate ? 'all' : defaultSector);
+    setActiveSectorFilter(defaultSector);
     saveCatalogFilters();
   };
 
@@ -1088,20 +1086,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <button
               type="button"
               onClick={() => {
-                setActiveSectorFilter('all');
-                saveCatalogFilters();
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
-                activeSectorFilter === 'all'
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              🌐 الكل
-            </button>
-            <button
-              type="button"
-              onClick={() => {
                 setActiveSectorFilter('home');
                 saveCatalogFilters();
               }}
@@ -1349,15 +1333,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             {/* أزرار القطاع — للإدارة العليا فقط (admin/developer) */}
             {canManageSectorGate && (
             <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
-              <button
-                type="button"
-                onClick={() => setActiveSectorFilter('all')}
-                className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
-                  activeSectorFilter === 'all' ? 'bg-slate-900 text-white shadow-xs' : 'text-muted hover:text-primary'
-                }`}
-              >
-                🌐 الكل
-              </button>
               <button
                 type="button"
                 onClick={() => setActiveSectorFilter('home')}
@@ -1819,7 +1794,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
             <button
               type="button"
               onClick={() => {
-                setActiveSectorFilter(canManageSectorGate ? 'all' : defaultSector);
+                setActiveSectorFilter(defaultSector);
                 setSelectedDept('الكل');
                 setSelectedBrand('الكل');
                 setSelectedStatus('الكل');

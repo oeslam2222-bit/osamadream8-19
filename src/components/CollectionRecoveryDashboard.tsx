@@ -1177,7 +1177,11 @@ export const CollectionRecoveryDashboard: React.FC = () => {
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {repSummaries.map((rep) => (
-            <div key={rep.repId} className="rounded-2xl border border-slate-200 bg-gradient-to-b from-white to-slate-50 p-4 shadow-sm hover:shadow-md transition">
+            <div
+              key={rep.repId}
+              data-tone={rep.rate >= 90 ? 'ok' : rep.rate >= 60 ? 'warn' : 'risk'}
+              className="sc-card p-4 transition"
+            >
               <div className="flex items-center gap-3">
                 <img
                   src={rep.avatarUrl || '/assets/rep-avatar.jpg'}
@@ -1190,7 +1194,9 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                       img.src = '/assets/rep-avatar.jpg';
                     }
                   }}
-                  className="h-12 w-12 rounded-2xl object-cover object-top border-2 border-emerald-200 shadow-sm shrink-0"
+                  className={`h-12 w-12 rounded-2xl object-cover object-top border-2 shadow-sm shrink-0 ${
+                    rep.rate >= 90 ? 'border-emerald-400' : rep.rate >= 60 ? 'border-amber-400' : 'border-rose-400'
+                  }`}
                 />
                 <div className="min-w-0">
                   <div className="text-base font-black text-[#0b2337] truncate">{rep.repName}</div>
@@ -1198,14 +1204,14 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-2 grid-cols-2">
-                <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">إجمالي البيع</div>
-                  <div className="mt-1 text-sm font-black text-slate-900 tabular-nums">{formatCurrency(rep.sales)}</div>
+              <div className="mt-4 sc-rows sc-rows--2">
+                <div className="sc-cell sc-row--sales">
+                  <div className="sc-cell__label">إجمالي البيع</div>
+                  <div className="sc-cell__value sc-cell__value--sales">{formatCurrency(rep.sales)}</div>
                 </div>
-                <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.1em] text-emerald-700">المحصّل</div>
-                  <div className="mt-1 text-sm font-black text-emerald-800 tabular-nums">{formatCurrency(rep.collections)}</div>
+                <div className="sc-cell sc-row--collect">
+                  <div className="sc-cell__label">المحصّل</div>
+                  <div className="sc-cell__value sc-cell__value--money">{formatCurrency(rep.collections)}</div>
                 </div>
               </div>
 

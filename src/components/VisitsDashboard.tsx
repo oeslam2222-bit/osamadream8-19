@@ -1179,11 +1179,20 @@ export const VisitsDashboard: React.FC = () => {
           {paginated.map((v, idx) => {
             const isCollection = v.type?.includes('تحصيل') || Number(v.collectedAmount || 0) > 0;
             const isReturn = v.type?.includes('مرتجع') || v.outcome?.includes('مرتجع');
+            const collectedValue = Number(v.collectedAmount || 0);
+            // حالة الزيارة بنفس منطق باقي الكروت: منفذة منتظمة، معلقة/مجدولة متأخرة، لم تتم متعثرة
+            const visitTone =
+              v.status === 'منفذة'
+                ? 'ok'
+                : v.status === 'لم تتم' || v.status === 'ملغاة'
+                  ? 'risk'
+                  : 'warn';
 
             return (
               <div
                 key={v.id || idx}
-                className="visit-card tg-card p-4 sm:p-5 space-y-3 active:scale-[0.99] transition"
+                data-tone={visitTone}
+                className="visit-card sc-card tg-card p-4 sm:p-5 space-y-3 active:scale-[0.99] transition"
                 onClick={() => setSelectedVisit(v)}
               >
                 {/* Header: Customer Store Avatar + Name + Status Badge */}
@@ -1241,24 +1250,40 @@ export const VisitsDashboard: React.FC = () => {
                   </span>
                 </div>
 
-                {/* Key Metrics Row */}
-                <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-[var(--app-card-secondary)] border border-[var(--tg-line)] text-xs">
-                  <div>
-                    <span className="text-[10px] font-bold text-[var(--tg-muted)] block mb-0.5">نوع الزيارة</span>
-                    <span className={`tg-badge tg-badge--${isCollection ? 'ok' : isReturn ? 'risk' : 'blue'}`}>
-                      {v.type || 'دورية'}
-                    </span>
+                {/* Key Metrics Row — بنود ملوّنة بنفس نظام كارت العميل */}
+                <div className="sc-rows sc-rows--2">
+                  <div
+                    className={`sc-cell ${
+                      isReturn ? 'sc-row--returns' : isCollection ? 'sc-row--collect' : 'sc-row--clear'
+                    }`}
+                  >
+                    <div className="sc-cell__label">
+                      <span
+                        className={`sc-icon ${
+                          isReturn ? 'sc-icon--returns' : isCollection ? 'sc-icon--collect' : 'sc-icon--clear'
+                        }`}
+                      >
+                        {isReturn ? <RotateCcw className="h-3.5 w-3.5" /> : <Tag className="h-3.5 w-3.5" />}
+                      </span>
+                      <span>نوع الزيارة</span>
+                    </div>
+                    <div className="sc-cell__value">{v.type || 'دورية'}</div>
                   </div>
 
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-500 block mb-0.5">المبلغ المحصل</span>
-                    {isCollection && Number(v.collectedAmount || 0) > 0 ? (
-                      <div className="text-emerald-600 dark:text-emerald-400 font-mono font-black text-sm">
-                        {formatCurrency(Number(v.collectedAmount))} <span className="text-[10px] font-normal">ج.م</span>
-                      </div>
-                    ) : (
-                      <span className="text-slate-400 font-bold">—</span>
-                    )}
+                  <div className={`sc-cell ${collectedValue > 0 ? 'sc-row--collect' : 'sc-row--clear'}`}>
+                    <div className="sc-cell__label">
+                      <span className={`sc-icon ${collectedValue > 0 ? 'sc-icon--collect' : 'sc-icon--clear'}`}>
+                        <Wallet className="h-3.5 w-3.5" />
+                      </span>
+                      <span>المبلغ المحصل</span>
+                    </div>
+                    <div
+                      className={`sc-cell__value ${
+                        collectedValue > 0 ? 'sc-cell__value--money' : 'sc-cell__value--muted'
+                      }`}
+                    >
+                      {collectedValue > 0 ? `${formatCurrency(collectedValue)} ج.م` : '—'}
+                    </div>
                   </div>
                 </div>
 
@@ -1284,7 +1309,7 @@ export const VisitsDashboard: React.FC = () => {
                     e.stopPropagation();
                     setSelectedVisit(v);
                   }}
-                  className="w-full min-h-[44px] rounded-2xl bg-[#0b2337] hover:bg-[#123a52] text-white font-black text-xs flex items-center justify-center gap-2 transition active:scale-95 shadow-sm"
+                  className="sc-btn sc-btn--primary w-full min-h-[44px] rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition active:scale-95"
                 >
                   <Eye className="w-4 h-4 text-white" />
                   <span>عرض التفاصيل الكاملة</span>

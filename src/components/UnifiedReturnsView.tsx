@@ -184,47 +184,7 @@ export const UnifiedReturnsView: React.FC = () => {
   }, [isCreateModalOpen, selectedCustomer, returnRepGps, visits, currentUser?.id]);
 
   const handleExportReturnExcel = (visit: CustomerVisit) => {
-    let rows: Array<{ code: string; name: string; cartons: number; pieces: number; condition: string; reason: string }> = [];
-    if (visit.returnItemsList && Array.isArray(visit.returnItemsList) && visit.returnItemsList.length > 0) {
-      rows = visit.returnItemsList.map((item: any) => ({
-        code: item.productCode || '---',
-        name: item.productName || 'صنف مرتجع',
-        cartons: item.cartonCount || 0,
-        pieces: item.pieceCount || 0,
-        condition: item.condition === 'good_condition' ? 'سليمة قابلة للبيع' : item.condition === 'damaged' ? 'تالفة كسر/عيب' : 'منتهية الصلاحية',
-        reason: item.reason || visit.returnReason || 'مرتجع عميل',
-      }));
-    } else {
-      rows = [{
-        code: '---',
-        name: visit.returnItems || 'أصناف مرتجعة متنوعة',
-        cartons: visit.returnedCartons || 0,
-        pieces: 0,
-        condition: 'تحت الفحص بالمخزن',
-        reason: visit.returnReason || 'مرتجع عميل',
-      }];
-    }
-
-    const headers = ['كود الصنف', 'اسم الصنف', 'عدد الكراتين', 'عدد القطع', 'حالة البضاعة', 'سبب الارتجاع'];
-    const csvContent = '\uFEFF' + [
-      `إذن استلام بضاعة مرتجعة - مجموعة الطنطاوي للتجارة والتوزيع`,
-      `العميل: ${visit.customerName || ''} (كود: ${visit.customerCode || ''})`,
-      `المندوب المستلم: ${visit.repName || ''} - الفرع: ${visit.branchName || ''} - التاريخ: ${visit.date || ''}`,
-      `قيمة المرتجع التقديرية: ${visit.returnValue || 0} ج.م`,
-      '',
-      headers.join(','),
-      ...rows.map((r) => `"${r.code}","${r.name}",${r.cartons},${r.pieces},"${r.condition}","${r.reason}"`),
-    ].join('\r\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `اذن_استلام_مرتجع_${visit.customerCode || 'عميل'}_${visit.date}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    alert('تصدير Excel معطل — متاح للفواتير فقط');
   };
 
   // Extract all return visits
@@ -807,13 +767,8 @@ export const UnifiedReturnsView: React.FC = () => {
             return (
               <div
                 key={visit.id}
-                className={`ret-card bg-white rounded-[22px] border p-4 sm:p-5 shadow-[var(--tg-shadow)] transition hover:shadow-md space-y-3.5 ${
-                  isClosed
-                    ? 'border-slate-200/80 bg-slate-50/40'
-                    : isAtWarehouse
-                    ? 'border-[var(--app-navy-line)] ring-1 ring-[var(--app-navy)]'
-                    : 'border-[var(--app-warn-line)] ring-1 ring-[var(--app-warn)]'
-                }`}
+                data-tone={isClosed ? 'ok' : status === 'مرفوض' ? 'risk' : 'warn'}
+                className="ret-card sc-card rounded-[22px] border p-4 sm:p-5 transition space-y-3.5"
               >
                 {/* Header: Customer Name, Status Badge, Handled info */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
@@ -1101,12 +1056,12 @@ export const UnifiedReturnsView: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={() => handleExportReturnExcel(visit)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-[11px] border border-emerald-300 transition cursor-pointer"
-                      title="تصدير جدول الأصناف إكسل لأمين المخزن"
+                      disabled
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-500 text-slate-300 font-bold text-[11px] border border-slate-700 transition cursor-not-allowed opacity-50"
+                      title="تصدير Excel معطل — متاح للفواتير فقط"
                     >
-                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>إكسل الأصناف 📊</span>
+                      <FileSpreadsheet className="w-3.5 h-3.5" />
+                      <span>إكسل الأصناف (مغلق)</span>
                     </button>
                   </div>
                 </div>
@@ -1548,11 +1503,12 @@ export const UnifiedReturnsView: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleExportReturnExcel(printReturnVoucher)}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs shadow transition cursor-pointer"
+                  disabled
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-500 text-slate-300 font-black text-xs shadow transition cursor-not-allowed opacity-50"
+                  title="تصدير Excel معطل — متاح للفواتير فقط"
                 >
                   <Download className="w-4 h-4" />
-                  <span>تحميل كـ Excel</span>
+                  <span>تحميل كـ Excel (مغلق)</span>
                 </button>
                 <button
                   type="button"

@@ -16,6 +16,10 @@ import { IconBadge } from './ui/IconBadge';
 import { UserProfileAvatarModal } from './UserProfileAvatarModal';
 import { LiveClock } from './LiveClock';
 import { KPICard } from './KPICard';
+import { MiniGauge } from './ui/PerformanceGauge';
+import { TargetGaugeSummary } from './home/TargetGaugeSummary';
+import { useSnapshotCache } from '../hooks/useSnapshotCache';
+import { formatSnapshotTime } from '../services/dashboardSnapshot';
 
 interface DashboardHomeProps {
   onNavigateToTab: (tab: string) => void;
@@ -149,7 +153,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   const repTargetData = useMemo(() => {
     if (!currentUser) return null;
     const cleanUser = (currentUser.name || '').trim();
-    const allTargets = targets || [];
+    const allTargets = getVisibleTargets();
 
     const repTargets = allTargets.filter((t) => {
       if (!t.repName) return false;
@@ -250,10 +254,20 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
       remainingCollection: Math.max(0, cTarget - cAchieved),
       performanceTier,
     };
-  }, [targets, currentUser, selectedTargetMonth]);
+  }, [getVisibleTargets, currentUser, selectedTargetMonth]);
+
+  // آخر لقطة صحيحة لأرقام التارجت — بتتحفظ محليًا وبتتعرض لو مفيش داتا جديدة أو النت قطع
+  const targetSnapshotKey = `target:${currentUser?.id || 'anon'}:${selectedTargetMonth}`;
+  const {
+    data: cachedTargetData,
+    stale: targetIsStale,
+    savedAt: targetSavedAt,
+  } = useSnapshotCache(targetSnapshotKey, repTargetData);
+  const repTargetView = repTargetData ?? cachedTargetData;
 
   // Reusable Dedicated Sales Rep Target KPI Panel with Primary #2563EB & Success #16A34A
   const renderRepTargetDashboard = (isMobileView: boolean) => {
+    const repTargetData = repTargetView;
     if (!repTargetData) return null;
 
     return (
@@ -273,6 +287,14 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-[#2563EB] dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                   {repTargetData.isPersonal ? 'شخصي للمندوب' : 'تارجت الفرع'}
                 </span>
+                {targetIsStale && (
+                  <span
+                    title="مفيش تحديث جديد من قاعدة البيانات — دي آخر أرقام محفوظة على الجهاز"
+                    className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                  >
+                    بيانات محفوظة{targetSavedAt ? ` · ${formatSnapshotTime(targetSavedAt)}` : ''}
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-bold mt-0.5">
                 {repTargetData.isPersonal ? `المندوب: ${repTargetData.repName} (${repTargetData.branch})` : `فرع: ${repTargetData.branch}`} • مسترجعة من شيت التارجت (TargetPerformanceDashboard)
@@ -319,6 +341,18 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
           </div>
         </div>
 
+        {/* المؤشر القوسي — متوسط تحقيق المبيعات والتحصيل لنفس الشهر */}
+        <TargetGaugeSummary
+          salesPct={repTargetData.salesPct}
+          collectionPct={repTargetData.collectionPct}
+          salesTarget={repTargetData.salesTarget}
+          salesAchieved={repTargetData.salesAchieved}
+          collectionTarget={repTargetData.collectionTarget}
+          collectionAchieved={repTargetData.collectionAchieved}
+          monthName={repTargetData.monthName}
+          year={repTargetData.year}
+        />
+
         {/* 2 Main KPI Cards: Sales (#2563EB Primary) and Collections (#16A34A Success) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           
@@ -338,9 +372,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   </span>
                 </div>
               </div>
-              <div className="px-2.5 py-1 rounded-full text-xs font-black bg-[#2563EB] text-white shadow-xs">
-                {repTargetData.salesPct}%
-              </div>
+              <MiniGauge value={repTargetData.salesPct} size={46} />
             </div>
 
             <div className="space-y-1">
@@ -389,9 +421,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
                   </span>
                 </div>
               </div>
-              <div className="px-2.5 py-1 rounded-full text-xs font-black bg-[#16A34A] text-white shadow-xs">
-                {repTargetData.collectionPct}%
-              </div>
+              <MiniGauge value={repTargetData.collectionPct} size={46} />
             </div>
 
             <div className="space-y-1">

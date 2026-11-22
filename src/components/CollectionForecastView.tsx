@@ -42,7 +42,6 @@ import {
   Zap,
   LoaderCircle,
 } from 'lucide-react';
-import * as XLSX from 'xlsx-js-style';
 import { useApp } from '../context/AppContext';
 import type {
   CollectionForecastRecord,
@@ -793,29 +792,6 @@ export default function CollectionForecastView() {
      بيقفل الشهر يلاقي الشبكة كاملة في ملف واحد. الأعمدة الجديدة (التوقع الشهري
      المستقل وفرقه عن الأسابيع) ليها عرض أكبر لأنها أرقام كبيرة وبتتقرا جنب
      بعض للمقارنة. */
-  const handleExport = () => {
-    const data = buildForecastExportRows({
-      forecasts: visibleForecasts,
-      comments: customerComments,
-      customers: scopedCustomers,
-      returnsByCustomerCode: returnsByCode,
-      lastVisitByCustomerId: lastVisitMap,
-      visitStatsByCustomer,
-    });
-    if (!data.length) return;
-    const ws = XLSX.utils.json_to_sheet(data);
-    ws['!cols'] = [
-      { wch: 12 }, { wch: 24 }, { wch: 16 }, { wch: 16 }, { wch: 10 }, { wch: 18 },
-      { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 14 }, { wch: 16 },
-      { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 22 }, { wch: 22 },
-      { wch: 20 }, { wch: 20 }, { wch: 14 }, { wch: 14 }, { wch: 14 },
-      { wch: 16 }, { wch: 40 }, { wch: 16 }, { wch: 16 },
-    ];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'توقع التحصيلات');
-    XLSX.writeFile(wb, `توقع_التحصيلات_${monthKey}.xlsx`);
-  };
-
   /* ---------- خطة الشهر: تقسيم مرن للأيام (الأدمن والمطوّر فقط) ---------- */
   const openPlanEditor = () => {
     setPlanDraft({
@@ -1465,11 +1441,12 @@ export default function CollectionForecastView() {
 
             <button
               type="button"
-              onClick={handleExport}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-sm transition cursor-pointer"
+              disabled
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-500 text-white text-xs font-black shadow-sm transition cursor-not-allowed"
+              title="تصدير Excel معطل — متاح للفواتير فقط"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              <span>تصدير Excel</span>
+              <span>تصدير Excel (مغلق)</span>
             </button>
 
             {/* One-Click Approve All Button for Supervisor / Admin */}

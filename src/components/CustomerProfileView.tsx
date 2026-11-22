@@ -18,6 +18,7 @@ import {
   Eye,
   Trash2,
   RefreshCcw,
+  FileText,
 } from 'lucide-react';
 import { formatCurrency } from '../services/invoiceService';
 import { useApp } from '../context/AppContext';
@@ -111,6 +112,13 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
   const balance = getCustomerBalance(customer);
   const paid = getCustomerPaid(customer);
   const overdue = getCustomerOverdue(customer);
+
+  const customerCommentsFiltered = useMemo(() => {
+    return customerComments
+      .filter((c) => c.customerId === customer.id || c.customerCode === customer.code)
+      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+      .slice(0, 5);
+  }, [customerComments, customer.id, customer.code]);
   const creditLimit = customer.creditLimit || 0;
   const isOverLimit = creditLimit > 0 && balance > creditLimit;
 
@@ -542,15 +550,10 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                       <AlertCircle className="w-3.5 h-3.5 text-[var(--app-risk-text)]" /> آخر التعليقات
                     </h3>
                     <div className="space-y-2">
-                      {() => {
-                        const customerCommentsFiltered = customerComments
-                          .filter((c) => c.customerId === customer.id || c.customerCode === customer.code)
-                          .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-                          .slice(0, 5);
-                        if (customerCommentsFiltered.length === 0) {
-                          return <div className="p-3 text-center text-slate-400 text-xs font-bold">لا توجد تعليقات مسجلة</div>;
-                        }
-                        return customerCommentsFiltered.map((c) => (
+                      {customerCommentsFiltered.length === 0 ? (
+                        <div className="p-3 text-center text-slate-400 text-xs font-bold">لا توجد تعليقات مسجلة</div>
+                      ) : (
+                        customerCommentsFiltered.map((c) => (
                           <div key={c.id} className="p-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50">
                             <div className="flex items-center justify-between mb-1">
                               <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200">{c.authorName}</span>
@@ -565,8 +568,8 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
                             <div className="text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed">{c.body}</div>
                             <div className="text-[9px] text-slate-400 mt-1 font-mono">{c.createdAt}</div>
                           </div>
-                        ));
-                      }}()
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>

@@ -44,7 +44,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import * as XLSX from 'xlsx-js-style';
 import { useApp } from '../context/AppContext';
 import { calculateCustomerFinancials } from '../services/customerFinancialService';
 import { resolveCustomerDuesValue } from '../services/customerDues';
@@ -825,78 +824,9 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     };
   }, [filteredData, users, sortBy, searchQuery, selectedMonth, selectedQuarter]);
 
-  // Export Power BI Styled Report to Excel
+  // Export Power BI Styled Report to Excel — معطل (متاح للفواتير فقط)
   const handleExportPowerBIReport = () => {
-    const wb = XLSX.utils.book_new();
-
-    // 1. Executive Summary Sheet
-    const summaryData = [
-      ['تقرير لوحة الإدارة وPower BI التنفيذي - مجموعة الطنطاوي'],
-      [`السنة: ${selectedYear}`, `الفترة: ${selectedPeriodLabel}`, `الفرع: ${selectedBranch}`],
-      [''],
-      ['المؤشر التنفيذي (KPI)', 'القيمة المحققة', 'الهدف المخطط', 'نسبة الإنجاز %', 'ملاحظات الأداء'],
-      ['مبيعات الفترة المختارة', metrics.salesAchieved, metrics.salesTarget, `${metrics.salesRate}%`, metrics.salesRate >= 90 ? 'أداء ممتاز' : 'يحتاج متابعة'],
-      ['تحصيل الفترة المختارة', metrics.collectionAchieved, metrics.collectionTarget, `${metrics.collectionRate}%`, metrics.collectionRate >= 90 ? 'تحصيل فائق' : 'متوسط'],
-      ['التوقع الأسبوعي المرسل أو المعتمد', metrics.forecastExpected, '—', '—', 'توقع المندوب؛ لا يُجمع مع التوقع الشهري المستقل'],
-      ['توقعات مسودة أو مطلوبة التعديل', metrics.forecastNeedsAttention, '—', '—', `${metrics.forecastNeedsAttentionCount} سجل؛ غير داخلة في إجمالي التوقع المرسل/المعتمد`],
-      ['إجمالي المستحقات الحالية', metrics.totalDues, '—', '—', 'لقطة أرصدة حالية وليست رقمًا خاصًا بالفترة المختارة'],
-      ['عدد العملاء ذوي المستحقات الحالية', metrics.customersWithDues, '—', '—', 'ضمن الفروع والمناديب المطابقين للفلاتر'],
-      ['تغطية العملاء القابلين', metrics.dealtCount, metrics.eligibleCount, `${metrics.customerCoverageRate}%`, 'تغطية شبكة التوزيع'],
-      ['الزيارات المنفذة', metrics.completedVisits, metrics.executionScopeVisits, `${metrics.visitsExecutionRate}%`, `من الزيارات المستحقة للتنفيذ؛ إجمالي السجلات: ${metrics.totalVisits}`],
-      ['قيمة المبيعات المسلّمة من الفواتير المحمّلة', metrics.deliveredSalesValue, '—', '—', `مبنية على ${metrics.validInvoicesCount} فاتورة محمّلة؛ قد لا تشمل كامل سجل الفترة`],
-      ['قيمة المرتجعات الميدانية', metrics.totalReturnsValue, '—', '—', `عدد ${metrics.returnVisitsCount} زيارة مرتجع`],
-    ];
-
-    const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
-    XLSX.utils.book_append_sheet(wb, wsSummary, 'المؤشرات التنفيذية');
-
-    // 2. Reps Matrix Sheet
-    const repHeader = [
-      ['مصفوفة أداء المناديب والمشرفين'],
-      ['اسم المندوب', 'الفرع', 'المشرف المباشر', 'هدف البيع', 'المحقق بيع', 'نسبة بيع %', 'هدف التحصيل', 'المحقق تحصيل', 'نسبة تحصيل %', 'الزيارات المنفذة المستحقة', 'زيارات مسجلة', 'التوقع الأسبوعي المرسل/المعتمد'],
-    ];
-
-    const repRows = metrics.repMatrixList.map((r) => [
-      r.repName,
-      r.branch,
-      r.supervisorName,
-      r.salesTarget,
-      r.salesAchieved,
-      `${r.salesRate}%`,
-      r.collectionTarget,
-      r.collectionAchieved,
-      `${r.collectionRate}%`,
-      r.visitsCompleted,
-      r.visitsTotal,
-      r.forecastExpected,
-    ]);
-
-    const wsReps = XLSX.utils.aoa_to_sheet([...repHeader, ...repRows]);
-    XLSX.utils.book_append_sheet(wb, wsReps, 'مصفوفة أداء الفريق');
-
-    // 3. Monthly Trends Sheet
-    const monthHeader = [
-      ['الاتجاه الشهري للمبيعات والتحصيلات'],
-      ['الشهر', 'هدف البيع', 'المحقق بيع', 'نسبة البيع %', 'هدف التحصيل', 'المحقق تحصيل', 'نسبة التحصيل %', 'التوقع الأسبوعي المرسل/المعتمد', 'توقع أسبوعي يحتاج متابعة', 'عدد الزيارات'],
-    ];
-
-    const monthRows = metrics.monthlyTrend.map((m) => [
-      m.month,
-      m['هدف البيع'],
-      m['المحقق بيع'],
-      `${m['نسبة إنجاز البيع']}%`,
-      m['هدف التحصيل'],
-      m['المحقق تحصيل'],
-      `${m['نسبة إنجاز التحصيل']}%`,
-      m['التوقع الأسبوعي المرسل/المعتمد'],
-      m['توقع أسبوعي يحتاج متابعة'],
-      m.visitsCount,
-    ]);
-
-    const wsMonths = XLSX.utils.aoa_to_sheet([...monthHeader, ...monthRows]);
-    XLSX.utils.book_append_sheet(wb, wsMonths, 'الاتجاه الشهري');
-
-    XLSX.writeFile(wb, `PowerBI_Executive_Dashboard_${selectedYear}_${Date.now()}.xlsx`);
+    alert('تصدير Excel معطل — متاح للفواتير فقط');
   };
 
   const chartConfig = chartMetric === 'sales'
@@ -984,11 +914,12 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
           <div className="flex items-center gap-2 self-start lg:self-center flex-wrap">
             <button
               type="button"
-              onClick={handleExportPowerBIReport}
-              className="btn-brass h-11 px-4 text-xs cursor-pointer"
+              disabled
+              className="btn-brass h-11 px-4 text-xs cursor-not-allowed opacity-50"
+              title="تصدير Excel معطل — متاح للفواتير فقط"
             >
               <Download className="w-4 h-4" />
-              <span>تصدير تقرير Power BI إلى Excel 📥</span>
+              <span>تصدير تقرير Power BI إلى Excel (مغلق)</span>
             </button>
             <button
               type="button"

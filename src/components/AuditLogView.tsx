@@ -10,7 +10,6 @@ import {
   FileSpreadsheet,
   Filter,
 } from 'lucide-react';
-import * as XLSX from 'xlsx-js-style';
 import { useApp } from '../context/AppContext';
 import type { AuditLog } from '../types';
 
@@ -71,20 +70,7 @@ export const AuditLogView: React.FC = () => {
   }, [auditLogs]);
 
   const handleExportExcel = () => {
-    const rows = filteredLogs.map((item) => ({
-      'التوقيت': item.formattedTime || item.timestamp,
-      'المستخدم': item.userName,
-      'الصلاحية': item.userRole,
-      'الفرع': item.branchName,
-      'العملية': item.actionTitle,
-      'التفاصيل': item.details,
-      'رقم الفاتورة': item.invoiceNumber || '—',
-      'التصنيف': BADGE_META[item.badgeType || 'neutral']?.label || 'عام',
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'سجل_التدقيق');
-    XLSX.writeFile(wb, `سجل_التدقيق_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    alert('تصدير Excel معطل — متاح للفواتير فقط');
   };
 
   return (
@@ -106,12 +92,12 @@ export const AuditLogView: React.FC = () => {
           <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
-              onClick={handleExportExcel}
-              disabled={filteredLogs.length === 0}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-black transition cursor-pointer"
+              disabled
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-500 disabled:opacity-50 text-white text-xs font-black transition cursor-not-allowed"
+              title="تصدير Excel معطل — متاح للفواتير فقط"
             >
               <FileSpreadsheet className="w-4 h-4" />
-              <span>تصدير Excel</span>
+              <span>تصدير Excel (مغلق)</span>
             </button>
 
             {canClear && auditLogs.length > 0 && (

@@ -13,7 +13,6 @@ import {
   Database,
   Edit2,
   Eye,
-  EyeOff,
   Key,
   Link,
   Lock,
@@ -47,6 +46,7 @@ import {
   sanitizeAndDeduplicateUsers,
 } from '../services/arabicMatchingService';
 import { formatCurrency } from '../services/invoiceService';
+import { createFullUser } from '../services/authService';
 import { User, UserApprovalStatus, UserRole } from '../types';
 
 export const UserManager: React.FC = () => {
@@ -69,12 +69,14 @@ export const UserManager: React.FC = () => {
   } = useApp();
 
   const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [creatingAuth, setCreatingAuth] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState<string | null>(null);
   const [copiedCredentials, setCopiedCredentials] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('الكل');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('الكل');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [showPassword, setShowPassword] = useState<boolean>(false);
   const [userFormError, setUserFormError] = useState<string | null>(null);
   const [syncToast, setSyncToast] = useState<string | null>(null);
   const [syncModalData, setSyncModalData] = useState<{ open: boolean; result?: any } | null>(null);
@@ -535,7 +537,6 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 
   const handleOpenAddModal = () => {
     setEditingUser(null);
-    setShowPassword(false);
     setFormData({
       name: '',
       username: '',
@@ -550,22 +551,22 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       approvalStatus: 'active',
     });
     setUserFormError(null);
+    setCreatedCredentials(null);
     setShowAddUserModal(true);
   };
 
   const handleOpenEditModal = (user: User) => {
     setEditingUser(user);
-    setShowPassword(false);
     setFormData({
       ...user,
-      password: user.password || '',
       commissionRate: user.commissionRate || 2.5,
     });
     setUserFormError(null);
+    setCreatedCredentials(null);
     setShowAddUserModal(true);
   };
 
-  const handleSaveUser = (e: React.FormEvent) => {
+  const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     setUserFormError(null);
     if (!formData.name?.trim() || !isSuperAdminOrDev) return;
@@ -603,23 +604,30 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       } as User);
       setEditingUser(null);
     } else {
-      const newUser: User = {
-        id: `u-${Date.now()}`,
+      // إنشاء كامل: Auth + users مع بعض عبر Edge Function (service_role على السيرفر فقط)
+      const pass = newUserPassword.trim();
+      if (pass.length < 6) {
+        setUserFormError('كلمة المرور المؤقتة مطلوبة (6 أحرف على الأقل) عشان المستخدم يقدر يسجل دخول.');
+        return;
+      }
+      setCreatingAuth(true);
+      const result = await createFullUser({
         name: formData.name.trim(),
         username: cleanUsername,
         email: cleanEmail,
-        password: formData.password || '',
-        role: formData.role || 'sales_rep',
-        sector: formData.sector || 'home',
-        branchName: assignedBranch,
-        supervisorId: formData.role === 'sales_rep' ? (formData.supervisorId || undefined) : undefined,
+        password: pass,
         phone: formData.phone || '',
-        avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80`,
-        commissionRate: formData.commissionRate || 2.5,
-        isActive: formData.isActive ?? true,
-        approvalStatus: 'active',
-      };
-      addUser(newUser);
+        branchName: assignedBranch,
+        role: formData.role || 'sales_rep',
+        sector: (formData.sector === 'electrical' ? 'electrical' : 'home') as 'home' | 'electrical',
+        supervisorId: formData.role === 'sales_rep' ? (formData.supervisorId || undefined) : undefined,
+      });
+      setCreatingAuth(false);
+      if (!result.success) {
+        setUserFormError(result.message);
+        return;
+      }
+      setCreatedCredentials(`تم إنشاء المستخدم ${cleanEmail} — كلمة المرور المؤقتة: ${pass}. احفظها وأرسلها للموظف.`);
     }
 
     // Immediately trigger rep linking
@@ -628,6 +636,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     }, 100);
 
     setShowAddUserModal(false);
+    setNewUserPassword('');
   };
 
   const handleCopyUserCredentials = (user: User) => {
@@ -636,7 +645,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
 الصفة: ${roleConfigs[user.role]?.label || user.role}
 الفرع: ${user.branchName}
 البريد الإلكتروني لتسجيل الدخول: ${user.email}
-كلمة المرور: ${user.password || '(كلمة المرور الخاصة بالمستخدم)'}
+كلمة المرور: تُنشأ وتُدار من إدارة النظام عبر المصادقة المركزية (Supabase Auth)
 رابط المنظومة: ${window.location.origin}`;
 
     navigator.clipboard.writeText(credText);
@@ -1272,6 +1281,11 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   {userFormError}
                 </div>
               )}
+              {createdCredentials && (
+                <div className="rounded-xl px-3 py-2.5 font-bold text-xs bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  {createdCredentials}
+                </div>
+              )}
               
               {/* 1. VISUAL ROLE SELECTOR CARDS */}
               <div className="space-y-2">
@@ -1371,26 +1385,27 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     </p>
                   </div>
 
-                  <div>
-                    <div className="flex justify-between items-center mb-1">
-                      <label className="font-bold text-slate-700">كلمة المرور *</label>
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="text-[10px] text-slate-500 hover:text-slate-800 font-bold flex items-center gap-0.5"
-                      >
-                        {showPassword ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                        <span>{showPassword ? 'إخفاء' : 'إظهار'}</span>
-                      </button>
+                  {!editingUser && (
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">كلمة المرور المؤقتة <span className="text-rose-600">*</span></label>
+                      <input
+                        type="text"
+                        value={newUserPassword}
+                        onChange={(e) => setNewUserPassword(e.target.value)}
+                        placeholder="مثال: Dream@2026"
+                        className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 text-xs"
+                      />
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        سيتم إنشاء حساب دخول (Auth) بهذه الكلمة تلقائيًا — انسخها وأرسلها للموظف. (6 أحرف على الأقل)
+                      </p>
                     </div>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={formData.password || ''}
-                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                      placeholder="أدخل كلمة مرور الحساب"
-                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold text-slate-900 text-xs"
-                    />
-                  </div>
+                  )}
+                  {editingUser && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-900">
+                      <strong className="block mb-1">كلمة المرور تُدار مركزيًا</strong>
+                      لتغيير كلمة مرور موظف موجود: Supabase → Authentication → Users → Reset password.
+                    </div>
+                  )}
                 </div>
 
                 {/* Phone */}
@@ -1530,10 +1545,11 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                 </button>
                 <button
                   type="submit"
-                  className="app-btn app-btn-primary px-7 py-2.5 text-xs sm:text-sm active:scale-95"
+                  disabled={creatingAuth}
+                  className="app-btn app-btn-primary px-7 py-2.5 text-xs sm:text-sm active:scale-95 disabled:opacity-60"
                 >
                   <Check className="w-4 h-4" />
-                  <span>{editingUser ? 'حفظ التعديلات' : 'إنشاء وحفظ الحساب سحابياً'}</span>
+                  <span>{creatingAuth ? 'جاري الإنشاء...' : editingUser ? 'حفظ التعديلات' : 'إنشاء المستخدم + حساب الدخول'}</span>
                 </button>
               </div>
             </form>

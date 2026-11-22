@@ -53,7 +53,6 @@ import { StatGrid } from './ui/StatGrid';
 import { isArabicNameMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import {
   ARABIC_MONTHS,
-  downloadTargetTemplateExcel,
   formatEGP,
   getQuarterFromMonth,
   inferTargetSector,
@@ -2014,15 +2013,16 @@ export const TargetPerformanceDashboard: React.FC = () => {
                 <span className="text-[10px] text-slate-400">ملفات Excel (.xlsx, .xls)</span>
               </label>
 
-              {/* Template Download Prompt */}
+              {/* Template Download Prompt — معطل (متاح للفواتير فقط) */}
               <div className="mt-4 flex items-center justify-between text-xs pt-3 border-t border-slate-100">
-                <span className="text-slate-500 font-bold">هل تحتاج قالباً منسقاً؟</span>
+                <span className="text-slate-500 font-bold">تحميل قالب إكسل فارغ</span>
                 <button
-                  onClick={downloadTargetTemplateExcel}
-                  className="text-[var(--app-warn-text)] hover:text-[var(--app-warn-text)] font-black flex items-center gap-1 cursor-pointer"
+                  disabled
+                  className="text-slate-400 font-black flex items-center gap-1 cursor-not-allowed opacity-50"
+                  title="تحميل القالب معطل — متاح للفواتير فقط"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  <span>تحميل قالب إكسل فارغ</span>
+                  <span>تحميل قالب إكسل فارغ (مغلق)</span>
                 </button>
               </div>
             </div>

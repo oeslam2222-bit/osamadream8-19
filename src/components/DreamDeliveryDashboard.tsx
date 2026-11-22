@@ -157,22 +157,37 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
   }, [scopedTargets, users, scopedCustomers, todayKey]);
 
   const { homeStats, electricalStats } = useMemo(() => {
-    const customerSectorByRef = new Map<string, 'home' | 'electrical'>();
-    const customersByNormName = new Map<string, 'home' | 'electrical' | 'mixed'>();
+    const customerSectorCache = new Map<string, 'home' | 'electrical'>();
+    const customerNormNameCache = new Map<string, 'home' | 'electrical' | 'mixed'>();
+    const customerSectorById = new Map<string, 'home' | 'electrical'>();
+    const customerSectorByCode = new Map<string, 'home' | 'electrical'>();
 
     const resolveCustSector = (c: Customer): 'home' | 'electrical' => {
       const resolved = applyCustomerSectorHeuristic(c) || inferCustomerSector(c, users);
       return resolved === 'electrical' ? 'electrical' : 'home';
     };
 
+    for (const c of scopedCustomers) {
+      const sec = resolveCustSector(c);
+      if (c.id) customerSectorById.set(c.id, sec);
+      if (c.code) customerSectorByCode.set(c.code, sec);
+      const normName = normalizeArabicText(c.name || '');
+      if (normName) {
+        const prev = customerNormNameCache.get(normName);
+        if (!prev) customerNormNameCache.set(normName, sec);
+        else if (prev !== sec) customerNormNameCache.set(normName, 'mixed');
+      }
+      customerSectorCache.set(`${c.id}|${c.code || ''}`, sec);
+    }
+
     const resolveInvSector = (inv: Invoice): 'home' | 'electrical' => {
       if (inv.sector === 'electrical') return 'electrical';
       if (inv.sector === 'home') return 'home';
       const refSector =
-        (inv.customerId ? customerSectorByRef.get(inv.customerId) : undefined) ||
-        (inv.customerCode ? customerSectorByRef.get(inv.customerCode) : undefined);
+        (inv.customerId ? customerSectorById.get(inv.customerId) : undefined) ||
+        (inv.customerCode ? customerSectorByCode.get(inv.customerCode) : undefined);
       if (refSector) return refSector;
-      const byName = customersByNormName.get(normalizeArabicText(inv.customerName || ''));
+      const byName = customerNormNameCache.get(normalizeArabicText(inv.customerName || ''));
       if (byName === 'home' || byName === 'electrical') return byName;
       if (isElectricalLabel(inv.customerName, inv.repName)) return 'electrical';
       return 'home';
@@ -182,10 +197,10 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
       if (v.sector === 'electrical') return 'electrical';
       if (v.sector === 'home') return 'home';
       const refSector =
-        (v.customerId ? customerSectorByRef.get(v.customerId) : undefined) ||
-        (v.customerCode ? customerSectorByRef.get(v.customerCode) : undefined);
+        (v.customerId ? customerSectorById.get(v.customerId) : undefined) ||
+        (v.customerCode ? customerSectorByCode.get(v.customerCode) : undefined);
       if (refSector) return refSector;
-      const byName = customersByNormName.get(normalizeArabicText(v.customerName || ''));
+      const byName = customerNormNameCache.get(normalizeArabicText(v.customerName || ''));
       if (byName === 'home' || byName === 'electrical') return byName;
       if (isElectricalLabel(v.customerName, v.repName)) return 'electrical';
       return 'home';
@@ -226,16 +241,9 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
     }
 
     for (const c of scopedCustomers) {
-      const sec = resolveCustSector(c);
-      if (c.id) customerSectorByRef.set(c.id, sec);
-      if (c.code) customerSectorByRef.set(c.code, sec);
-      const normName = normalizeArabicText(c.name || '');
-      if (normName) {
-        const prev = customersByNormName.get(normName);
-        if (!prev) customersByNormName.set(normName, sec);
-        else if (prev !== sec) customersByNormName.set(normName, 'mixed');
-      }
-      const bucket = acc[sec];
+      const sec = applyCustomerSectorHeuristic(c) || inferCustomerSector(c, users);
+      const finalSec = sec === 'electrical' ? 'electrical' : 'home';
+      const bucket = acc[finalSec];
       bucket.customersCount += 1;
       bucket.totalDebt += resolveCustomerBalanceValue(c);
       bucket.totalDues += resolveCustomerDuesValue(c);
@@ -450,7 +458,10 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
               <div className="tg-welcome">
                 <div className="tg-hero__title">أهلاً بك، {displayName}</div>
                 <p className="tg-hero__sub">
-                  متابعة أداء {MONTHS_AR[latestPeriod.month - 1]} {latestPeriod.year} — عرض مستقل لكل قطاع (منزلي وكهرباء) بدون دمج.
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/15 border border-white/25 px-2 py-0.5 font-black text-white ml-1.5">
+                    📅 بيانات شهر {MONTHS_AR[latestPeriod.month - 1]} {latestPeriod.year} (الشهر الحالي)
+                  </span>
+                  جميع الأرقام أدناه خاصة بهذا الشهر — عرض مستقل لكل قطاع (منزلي وكهرباء) بدون دمج.
                 </p>
               </div>
             </div>
@@ -537,7 +548,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                       {sec.title}
                     </h3>
                     <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 tg-num">
-                      {fmt(sec.customersCount)} عميل • {fmt(sec.periodInvoicesCount)} أمر بيع هذا الشهر
+                      {fmt(sec.customersCount)} عميل • {fmt(sec.periodInvoicesCount)} أمر بيع في {MONTHS_AR[latestPeriod.month - 1]}
                     </span>
                   </div>
                 </div>
@@ -551,7 +562,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                 {/* Sales */}
                 <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
                   <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                    <span>مبيعات الشهر — المحقق</span>
+                    <span>مبيعات {MONTHS_AR[latestPeriod.month - 1]} — المحقق</span>
                     <ShoppingCart size={15} className="text-blue-500" />
                   </div>
                   <div className="mt-1 text-lg font-black text-slate-900 dark:text-white tg-num">
@@ -576,7 +587,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                 {/* Collection */}
                 <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
                   <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                    <span>تحصيل الشهر — المحقق</span>
+                    <span>تحصيل {MONTHS_AR[latestPeriod.month - 1]} — المحقق</span>
                     <Wallet size={15} className="text-purple-500" />
                   </div>
                   <div className="mt-1 text-lg font-black text-slate-900 dark:text-white tg-num">
@@ -710,6 +721,9 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                 </span>
                 <span className="text-[11px] font-bold text-slate-400 tg-num">{todayKey}</span>
               </div>
+              <p className="text-[10px] font-bold text-slate-400 mt-1 -mb-1">
+                حركة اليوم ضمن شهر {MONTHS_AR[latestPeriod.month - 1]} {latestPeriod.year}
+              </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2.5 border border-slate-200/70 dark:border-[#243756]">
                   <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">مبيعات اليوم</div>
@@ -779,11 +793,11 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
               </div>
               <div className="mt-3 pt-3 border-t border-slate-100 dark:border-[#1E314E] grid grid-cols-2 gap-2 text-[11px] font-bold tg-num">
                 <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
-                  <span>متبقي مبيعات الشهر:</span>
+                  <span>متبقي مبيعات {MONTHS_AR[latestPeriod.month - 1]}:</span>
                   <span className="text-blue-600 dark:text-blue-400">{fmt(sec.salesRemaining)} ج.م</span>
                 </div>
                 <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
-                  <span>متبقي تحصيل الشهر:</span>
+                  <span>متبقي تحصيل {MONTHS_AR[latestPeriod.month - 1]}:</span>
                   <span className="text-purple-600 dark:text-purple-400">{fmt(sec.collectionRemaining)} ج.م</span>
                 </div>
               </div>

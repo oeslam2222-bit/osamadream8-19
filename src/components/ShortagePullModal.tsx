@@ -321,32 +321,10 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
     }, 4500);
   };
 
-  // Handler 3: Export Excel ERP for Central Warehouse
+  // Handler 3: Export Excel ERP for Central Warehouse — معطل (متاح للفواتير فقط)
   const handleExportExcel = async () => {
-    setIsExportingExcel(true);
-    try {
-      const branchLabel = currentUser?.branchName || (selectedBranch !== 'الكل' ? selectedBranch : 'كافة الفروع');
-      const report = buildDispatchReport(scopedInvoices, products, {
-        from: dateFilter === 'custom' ? customDate : todayIso,
-        to: dateFilter === 'custom' ? customDate : todayIso,
-        scope: 'shortage',
-        scopeLabel: branchLabel,
-      });
-
-      if (report.shortageLines.length === 0) {
-        alert('لا توجد بنود نواقص لتصديرها.');
-        return;
-      }
-
-      await downloadDispatchReport(report);
-      setSuccessNotice(`تم تحميل شيت إكسيل ERP المعتمد للسيستم (${report.shortageLines.length} بند نواقص) 📑`);
-      setTimeout(() => setSuccessNotice(null), 4500);
-    } catch (err: any) {
-      console.error('Excel dispatch export error:', err);
-      alert(`حدث خطأ أثناء تصدير شيت الإكسيل: ${err?.message || ''}`);
-    } finally {
-      setIsExportingExcel(false);
-    }
+    alert('تصدير Excel معطل — متاح للفواتير فقط');
+    setIsExportingExcel(false);
   };
 
   // Handler 4: Confirm Dispatch in System
@@ -517,15 +495,14 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
               <span>{copiedEmail ? 'تم النسخ! ✓' : 'نسخ نص الإيميل'}</span>
             </button>
 
-            {/* 3. Export Excel ERP */}
+            {/* 3. Export Excel ERP — معطل (متاح للفواتير فقط) */}
             <button
-              onClick={handleExportExcel}
-              disabled={isExportingExcel || scopedInvoices.length === 0}
-              className="bg-[var(--app-ok)] hover:bg-[var(--app-ok)] text-white px-3 py-2 rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-pointer disabled:opacity-40 active:scale-95"
-              title="تصدير شيت إكسيل بصيغة ERP 25 عمود المعتمدة للسيستم"
+              disabled
+              className="bg-slate-500 text-white px-3 py-2 rounded-xl text-xs font-black shadow-sm transition flex items-center gap-1.5 cursor-not-allowed opacity-50"
+              title="تصدير Excel معطل — متاح للفواتير فقط"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>{isExportingExcel ? 'جاري التصدير...' : 'تصدير للسيستم (Excel ERP) 📑'}</span>
+              <span>تصدير للسيستم (مغلق)</span>
             </button>
 
             {/* 4. Confirm in System */}

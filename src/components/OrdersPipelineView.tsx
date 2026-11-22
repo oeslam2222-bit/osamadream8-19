@@ -108,7 +108,11 @@ export const OrdersPipelineView: React.FC<{
     isOffline,
     offlineQueueCount,
     products,
+    activeSectorFilter,
+    setActiveSectorFilter,
   } = useApp() as any;
+
+  const canManageSectorGate = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   const [search, setSearch] = useState('');
   const [activeStage, setActiveStage] = useState<StageKey | 'all'>('all');
@@ -417,6 +421,33 @@ export const OrdersPipelineView: React.FC<{
           </div>
         </div>
       </section>
+
+      {/* فصل القطاعات — للإدارة والمطور فقط (منزلي / كهرباء، من غير «كل القطاعات») */}
+      {canManageSectorGate && (
+        <div className="tg-card !p-2 flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] font-black text-[var(--tg-muted)]">القطاع:</span>
+          <div className="inline-flex items-center gap-1 p-1 rounded-xl border border-[var(--tg-line)] bg-[var(--app-card)]">
+            <button
+              type="button"
+              onClick={() => setActiveSectorFilter('home')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition ${
+                activeSectorFilter === 'home' ? 'bg-blue-600 text-white shadow-xs' : 'text-[var(--tg-ink)] hover:bg-[var(--app-card-hover)]'
+              }`}
+            >
+              🏠 منزلي
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSectorFilter('electrical')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition ${
+                activeSectorFilter === 'electrical' ? 'bg-blue-600 text-white shadow-xs' : 'text-[var(--tg-ink)] hover:bg-[var(--app-card-hover)]'
+              }`}
+            >
+              ⚡ كهرباء
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="tg-card">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:flex-wrap sm:items-center">

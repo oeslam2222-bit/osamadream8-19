@@ -255,7 +255,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [selectedSupervisor, setSelectedSupervisor] = useState<string>('ALL');
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
   const [selectedRegion, setSelectedRegion] = useState<string>('ALL');
-  const [selectedSector, setSelectedSector] = useState<'all' | 'home' | 'electrical' | 'both'>('all');
+  const [selectedSector, setSelectedSector] = useState<'home' | 'electrical'>('home');
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>('ALL');
   const [debtFilter, setDebtFilter] = useState<DebtFilter>('ALL');
   const [debtStatusFilter, setDebtStatusFilter] = useState<string>('ALL');
@@ -278,7 +278,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         if (parsed.selectedSupervisor !== undefined) setSelectedSupervisor(parsed.selectedSupervisor);
         if (parsed.selectedRep !== undefined) setSelectedRep(parsed.selectedRep);
         if (parsed.selectedRegion !== undefined) setSelectedRegion(parsed.selectedRegion);
-        if (parsed.selectedSector !== undefined) setSelectedSector(parsed.selectedSector);
+        if (parsed.selectedSector === 'home' || parsed.selectedSector === 'electrical') {
+          setSelectedSector(parsed.selectedSector);
+        } else if (parsed.selectedSector === 'all' || parsed.selectedSector === 'both') {
+          // التوافق مع الفلاتر المحفوظة القديمة: نختار الافتراضي منزلي.
+          setSelectedSector('home');
+        }
         if (parsed.activityFilter !== undefined) setActivityFilter(parsed.activityFilter);
         if (parsed.debtFilter !== undefined) setDebtFilter(parsed.debtFilter);
         if (parsed.debtStatusFilter !== undefined) setDebtStatusFilter(parsed.debtStatusFilter);
@@ -816,23 +821,12 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       list = list.filter((c) => c.region === selectedRegion);
     }
 
-    if (selectedSector !== 'all') {
-      list = list.filter((c) => {
-        if (c.sector === 'both' || c.sector === 'all') return true;
-        return inferCustomerSector(c, users) === selectedSector;
-      });
-    }
-
-    // Sector filter (منزلي / كهربائي) — كان `!c.sector` بيعدّي العملاء غير المحددين
-    // فكان الفلتر بيعرض نفس القائمة. دلوقتي بنستنتج القطاع بدل ما نعدّيهم.
-    // بنطبّق فلتر الشاشة أولًا؛ الفلتر العام (الهيدر) بيشتغل بس لو الشاشة على «الكل»
-    // عشان الفلترين ما يتضاربوش ويطلعوا صفر نتائج.
-    if (selectedSector === 'all' && activeSectorFilter && activeSectorFilter !== 'all') {
-      list = list.filter((c) => {
-        if (c.sector === 'both' || c.sector === 'all') return true;
-        return inferCustomerSector(c, users) === activeSectorFilter;
-      });
-    }
+    // فلتر القطاع: كرتين فقط (منزلي / كهرباء). عملاء "both/all/غير محدد"
+    // بيظهروا في الكرتين لأنهم مش محصورين على قطاع واحد.
+    list = list.filter((c) => {
+      if (c.sector === 'both' || c.sector === 'all') return true;
+      return inferCustomerSector(c, users) === selectedSector;
+    });
 
     // Payment status / reason filter (حالة السداد)
     if (debtStatusFilter !== 'ALL') {
@@ -1009,9 +1003,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     if (patch.selectedRegion !== undefined) setSelectedRegion(patch.selectedRegion);
     if (patch.selectedSector !== undefined) {
       setSelectedSector(patch.selectedSector);
-      if (patch.selectedSector === 'all' || patch.selectedSector === 'home' || patch.selectedSector === 'electrical') {
-        setActiveSectorFilter(patch.selectedSector);
-      }
+      setActiveSectorFilter(patch.selectedSector);
     }
     if (patch.debtStatusFilter !== undefined) setDebtStatusFilter(patch.debtStatusFilter);
     if (patch.dealtFilter !== undefined) setDealtFilter(patch.dealtFilter);
@@ -1027,7 +1019,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     setSelectedBranch('ALL');
     setSelectedRep('ALL');
     setSelectedRegion('ALL');
-    setSelectedSector('all');
+    setSelectedSector('home');
+    setActiveSectorFilter('home');
     setSelectedSupervisor('ALL');
     setDebtStatusFilter('ALL');
     setDealtFilter('ALL');

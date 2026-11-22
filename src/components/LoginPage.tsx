@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useContext, useState } from 'react';
 import {
   AlertCircle, ArrowLeft, Eye, EyeOff, Lock, User as UserIcon,
   Building2, BarChart3, ShoppingCart, Users, Sparkles,
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { AppContext } from '../context/AppContext';
 
 const REMEMBER_ID_KEY = 'tantawy_remembered_login_id';
 
@@ -12,7 +12,10 @@ interface LoginPageProps {
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onSuccess }) => {
-  const { login, authTerminationNotice, clearAuthTerminationNotice } = useApp();
+  const ctx = useContext(AppContext);
+  const login = ctx?.login ?? (async () => ({ success: false, message: 'التطبيق لم يكتمل تحميله بعد، يرجى المحاولة مرة أخرى.' }));
+  const authTerminationNotice = ctx?.authTerminationNotice ?? null;
+  const clearAuthTerminationNotice = ctx?.clearAuthTerminationNotice ?? (() => {});
 
   const [rememberMe, setRememberMe] = useState<boolean>(() => {
     try {

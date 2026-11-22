@@ -10,7 +10,6 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Clock,
-  Download,
   Eye,
   FileSpreadsheet,
   Filter,
@@ -37,12 +36,12 @@ import { useApp } from '../context/AppContext';
 import { StatGrid } from './ui/StatGrid';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
-import { downloadInvoicePDF } from '../services/pdfService';
 import { isBranchMatch, isArabicNameMatch } from '../services/arabicMatchingService';
 import { Invoice, OrderStatus } from '../types';
 import { CreditAuditModal } from './CreditAuditModal';
 import { CreditStatusBadge } from './CreditStatusBadge';
 import { OrderReturnModal } from './OrderReturnModal';
+import { LazyPDFDownload } from './ui/LazyPDFDownload';
 
 interface SupervisorDashboardProps {
   onOpenNewOrder?: () => void;
@@ -57,7 +56,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
   const {
     invoices,
     getVisibleInvoices,
-    products,
+    getVisibleProducts,
     users,
     currentUser,
     branches,
@@ -341,12 +340,13 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
 
   // Product Inventory Metrics
   const productMetrics = useMemo(() => {
-    const total = products.length;
+    const visible = getVisibleProducts();
+    const total = visible.length;
     let availableCount = 0;
     let outOfStockCount = 0;
     let lowStockCount = 0;
 
-    products.forEach((p) => {
+    visible.forEach((p) => {
       const branchUnits = p.branchStockActual || 0;
       const mainUnits = p.mainWarehouseActual || 0;
       const totalUnits = branchUnits + mainUnits;
@@ -368,7 +368,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       outOfStockCount,
       lowStockCount,
     };
-  }, [products]);
+  }, [getVisibleProducts]);
 
   // List of unique reps in accessible invoices (Strict branch privacy)
   const repsList = useMemo(() => {
@@ -1298,13 +1298,10 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
                             <FileSpreadsheet className="w-3.5 h-3.5" />
                           </button>
 
-                          <button
-                            onClick={() => downloadInvoicePDF(inv)}
+                          <LazyPDFDownload
+                            invoice={inv}
                             className="chip-btn p-1.5"
-                            title="تحميل فاتورة PDF رسمية"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
+                          />
 
                           {/* Delete (Admin & Developer only) */}
                           {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && (

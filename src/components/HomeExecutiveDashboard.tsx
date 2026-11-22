@@ -34,7 +34,6 @@ import {
   Smartphone,
   RefreshCw
 } from 'lucide-react';
-import * as XLSX from 'xlsx-js-style';
 import { useApp } from '../context/AppContext';
 import { formatCompactCurrency, formatCurrency } from '../services/invoiceService';
 import { getBranchStockForProduct } from '../services/arabicMatchingService';
@@ -222,64 +221,10 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
     }
   };
 
-  // ONE-CLICK EXECUTIVE EXPORT (Power BI / Excel briefing for Top Management)
+  // ONE-CLICK EXECUTIVE EXPORT — معطل (متاح للفواتير فقط)
   const handleExportExecutiveBriefing = () => {
-    setIsExportingReport(true);
-    try {
-      const todayDate = new Date().toLocaleDateString('ar-EG');
-      const wb = XLSX.utils.book_new();
-
-      // Sheet 1: Executive KPI Overview
-      const overviewRows = [
-        ['تقرير الإدارة والتشغيل التنفيذي — مجموعة الطنطاوي (النظام الاحتياطي الميداني)'],
-        [`تاريخ استخراج التقرير: ${todayDate}`, `الفرع المشمول: ${activeBranchName}`, `المستخدم: ${currentUser?.name || 'الإدارة'}`],
-        [],
-        ['المؤشر المالي والتشغيلي', 'القيمة الإجمالية', 'البيان والتفاصيل'],
-        ['إجمالي المبيعات المعتمدة والمسلمة', totalSalesRevenue, 'إجمالي قيمة الفواتير المعتمدة خلال الفترة'],
-        ['الطلبيات المعلقة قيد المراجعة', totalPendingAmount, `عدد ${pendingOrders.length} طلبية بانتظار الاعتماد المخزني`],
-        ['أصناف المخزون الحرج (أقل من 5 كراتين)', stockAlerts.criticalCount, 'أصناف تتطلب إعادة طلب فورية لتفادي توقف البيع'],
-        ['أصناف نفدت بالكامل (0 متاح بالفرع)', stockAlerts.depletedCount, 'أصناف غير متوفرة بالفرع حالياً'],
-        ['إجمالي الزيارات الميدانية المسجلة', visibleVisits.length, `منها ${todayVisitsCount} زيارات اليوم`],
-        ['عدد العملاء المسجلين والنشطين', visibleCustomers.length, 'كافة العملاء في نطاق الفرع'],
-      ];
-      const wsOverview = XLSX.utils.aoa_to_sheet(overviewRows);
-      XLSX.utils.book_append_sheet(wb, wsOverview, 'الملخص التنفيذي');
-
-      // Sheet 2: Critical Stock List
-      const stockHeaders = ['كود الصنف', 'الكود الموحد', 'اسم الصنف', 'مخزون الفرع الحالي (كرتونة)', 'مخزون مخزن أكتوبر المركزي (كرتونة)', 'حالة التنبيه'];
-      const stockRows = [...stockAlerts.criticalList, ...stockAlerts.depletedList].map((it) => [
-        it.product.code,
-        it.product.unifiedCode || '---',
-        it.product.name,
-        it.branchStock,
-        it.octoberStock,
-        it.branchStock <= 0 ? 'نفد المخزون بالفرع' : 'مخزون حرج (<= 5)',
-      ]);
-      const wsStock = XLSX.utils.aoa_to_sheet([stockHeaders, ...stockRows]);
-      XLSX.utils.book_append_sheet(wb, wsStock, 'نواقص ومخزون حرج');
-
-      // Sheet 3: Pending Orders
-      const orderHeaders = ['رقم الطلبية', 'تاريخ الطلب', 'اسم العميل', 'المندوب', 'الفرع', 'إجمالي المبلغ (ج.م)', 'الحالة'];
-      const orderRows = pendingOrders.map((inv) => [
-        inv.invoiceNumber,
-        inv.date,
-        inv.customerName,
-        inv.repName || (inv as any).salesRepName || '---',
-        inv.branchName || 'الفرع الرئيسي',
-        getInvoiceTotal(inv),
-        inv.status,
-      ]);
-      const wsOrders = XLSX.utils.aoa_to_sheet([orderHeaders, ...orderRows]);
-      XLSX.utils.book_append_sheet(wb, wsOrders, 'الطلبيات المعلقة');
-
-      XLSX.writeFile(wb, `تقرير_الادارة_التنفيذي_${new Date().toISOString().slice(0, 10)}.xlsx`);
-      setSuccessToast('تم بنجاح تصدير التقرير التنفيذي الشامل للإدارة بصيغة Excel 📊');
-      setTimeout(() => setSuccessToast(null), 4000);
-    } catch (err: any) {
-      alert('حدث خطأ أثناء تصدير التقرير: ' + err.message);
-    } finally {
-      setIsExportingReport(false);
-    }
+    alert('تصدير Excel معطل — متاح للفواتير فقط');
+    setIsExportingReport(false);
   };
 
   return (
@@ -330,13 +275,12 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
 
             <button
               type="button"
-              onClick={handleExportExecutiveBriefing}
-              disabled={isExportingReport}
-              className="bg-slate-800 hover:bg-slate-750 text-slate-200 border border-slate-700 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95"
-              title="تصدير شيت Excel تنفيذي لاجتماعات الإدارة ومراجعة الفرع"
+              disabled
+              className="bg-slate-500 text-white border border-slate-600 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-not-allowed"
+              title="تصدير Excel معطل — متاح للفواتير فقط"
             >
               <FileSpreadsheet className="w-4 h-4 text-[#0d9488]" />
-              <span>{isExportingReport ? 'جاري التصدير...' : 'تقرير الإدارة الشامل 📊'}</span>
+              <span>تقرير الإدارة الشامل (مغلق)</span>
             </button>
           </div>
         </div>

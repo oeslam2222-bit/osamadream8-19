@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Image as ImageIcon, Plus, X, Camera, RefreshCw, MapPin,
   AlertTriangle, CheckCircle2, Building2, ShoppingCart, Phone,
@@ -90,6 +90,11 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
   const [toast, setToast] = useState<{ ok: boolean; text: string } | null>(null);
   const [tab, setTab] = useState<TabKey>('overview');
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    bodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [tab]);
 
   useEffect(() => {
     if (!isOpen || !customer) return;
@@ -574,36 +579,36 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
           </div>
 
           {/* شريط الإحصائيات المالية المباشرة */}
-          <div className="tg-cp__stats grid grid-cols-2 sm:grid-cols-4 gap-2 mt-3.5">
-            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-xl p-2.5">
-              <div className="tg-cp__stat-label text-blue-200 text-[10px]">المديونية الحالية</div>
-              <div className="tg-cp__stat-value text-white font-black text-sm">{fmt(balance)} ج.م</div>
+          <div className="tg-cp__stats grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-2 mt-2.5 sm:mt-3.5">
+            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-lg sm:rounded-xl p-1.5 sm:p-2.5">
+              <div className="tg-cp__stat-label text-blue-200 text-[9px] sm:text-[10px]">المديونية الحالية</div>
+              <div className="tg-cp__stat-value text-white font-black text-xs sm:text-sm">{fmt(balance)} ج.م</div>
             </div>
-            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-xl p-2.5">
-              <div className="tg-cp__stat-label text-blue-200 text-[10px]">المتأخرات</div>
-              <div className="tg-cp__stat-value font-black text-sm" style={{ color: overdue > 0 ? '#fecdd3' : '#a7f3d0' }}>
+            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-lg sm:rounded-xl p-1.5 sm:p-2.5">
+              <div className="tg-cp__stat-label text-blue-200 text-[9px] sm:text-[10px]">المتأخرات</div>
+              <div className="tg-cp__stat-value font-black text-xs sm:text-sm" style={{ color: overdue > 0 ? '#fecdd3' : '#a7f3d0' }}>
                 {fmt(overdue)} ج.م
               </div>
             </div>
-            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-xl p-2.5">
-              <div className="tg-cp__stat-label text-blue-200 text-[10px]">إجمالي المبيعات</div>
-              <div className="tg-cp__stat-value font-black text-sm" style={{ color: '#bfdbfe' }}>{fmt(totalSales)} ج.م</div>
+            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-lg sm:rounded-xl p-1.5 sm:p-2.5">
+              <div className="tg-cp__stat-label text-blue-200 text-[9px] sm:text-[10px]">إجمالي المبيعات</div>
+              <div className="tg-cp__stat-value font-black text-xs sm:text-sm" style={{ color: '#bfdbfe' }}>{fmt(totalSales)} ج.م</div>
             </div>
-            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-xl p-2.5">
-              <div className="tg-cp__stat-label text-blue-200 text-[10px]">إجمالي التحصيل</div>
-              <div className="tg-cp__stat-value font-black text-sm" style={{ color: '#a7f3d0' }}>{fmt(totalColl)} ج.م</div>
+            <div className="tg-cp__stat bg-white/10 border border-white/15 rounded-lg sm:rounded-xl p-1.5 sm:p-2.5">
+              <div className="tg-cp__stat-label text-blue-200 text-[9px] sm:text-[10px]">إجمالي التحصيل</div>
+              <div className="tg-cp__stat-value font-black text-xs sm:text-sm" style={{ color: '#a7f3d0' }}>{fmt(totalColl)} ج.م</div>
             </div>
           </div>
         </div>
 
         {/* ====== التبويبات ====== */}
         <div className="border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0f172a] sticky top-0 z-10">
-          <div className="px-3 sm:px-4 pt-2.5 sm:pt-3 pb-2">
-            <div className="flex items-center justify-between gap-2 mb-1.5 sm:mb-2">
-              <span className="text-[11px] font-black text-slate-600 dark:text-slate-300">أقسام ملف العميل</span>
-              <span className="text-[10px] font-bold text-slate-400">التفاصيل المالية • الزيارات • صور المحل</span>
+          <div className="px-3 sm:px-4 pt-1.5 sm:pt-3 pb-1.5 sm:pb-2">
+            <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
+              <span className="text-[10px] sm:text-[11px] font-black text-slate-600 dark:text-slate-300">أقسام ملف العميل</span>
+              <span className="hidden sm:inline text-[10px] font-bold text-slate-400">التفاصيل المالية • الزيارات • صور المحل</span>
             </div>
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 sm:gap-2">
+            <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 sm:grid sm:grid-cols-7 sm:gap-2 sm:overflow-visible sm:mx-0 sm:px-0 tg-cp__tabstrip">
               {tabs.map((t) => {
                 const Icon = t.icon;
                 const isActive = tab === t.key;
@@ -612,7 +617,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                     key={t.key}
                     type="button"
                     onClick={() => setTab(t.key)}
-                    className={`relative flex flex-col items-center justify-center gap-1 rounded-xl border px-1.5 sm:px-2 py-2 sm:py-2.5 text-center transition min-h-[54px] sm:min-h-[58px] ${
+                    className={`relative shrink-0 min-w-[78px] sm:min-w-0 flex-1 flex flex-col items-center justify-center gap-1 rounded-xl border px-1.5 sm:px-2 py-2 sm:py-2.5 text-center transition min-h-[52px] sm:min-h-[58px] ${
                       isActive
                         ? 'bg-[#0b2337] text-white border-[#0b2337] shadow-sm'
                         : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800/60 dark:text-slate-200 dark:border-slate-700'
@@ -638,7 +643,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
         </div>
 
         {/* ====== المحتوى الداخلي ====== */}
-        <div className="tg-cp__body flex-1 overflow-y-auto bg-slate-50 dark:bg-[#0b1329] p-3 sm:p-5 space-y-3 sm:space-y-4">
+        <div ref={bodyRef} className="tg-cp__body flex-1 min-h-0 overflow-y-auto overscroll-contain bg-slate-50 dark:bg-[#0b1329] p-3 sm:p-5 pb-6 sm:pb-5 space-y-3 sm:space-y-4">
           {/* التبويب 1: التفاصيل المالية والنظرة العامة */}
           {tab === 'overview' && (
             <div className="space-y-4">
@@ -732,34 +737,37 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                 </div>
               </div>
 
-              {/* التفاصيل المالية: التحصيل والمديونيات والمرتجعات */}
-              <div className="tg-card p-4 bg-white dark:bg-[#131e36] border border-slate-200 dark:border-slate-800">
+              {/* التفاصيل المالية — الأرقام الأساسية (المديونية/المتأخرات/المبيعات/التحصيل)
+                  بتظهر مرة واحدة في هيدر البطاقة، هنا بنعرض بس البيانات الإضافية
+                  اللي مش متكررة: المرتجعات ونسبة التحصيل. */}
+              <div
+                data-tone={overdue > 0 ? 'risk' : balance > 0 ? 'warn' : 'ok'}
+                className="tg-card sc-card p-4"
+              >
                 <div className="tg-cp__section-title text-[var(--app-text)] dark:text-white font-black mb-3">
-                  <Wallet size={15} className="text-blue-600" />
-                  التحصيل والمديونيات والمرتجعات
+                  <RotateCcw size={15} className="text-amber-600" />
+                  المرتجعات ونسبة التحصيل
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <div className="text-[11px] font-extrabold text-slate-700 mb-0.5">المديونية الحالية</div>
-                    <div className="text-sm sm:text-base font-black text-slate-950 tabular-nums">{fmt(balance)} ج.م</div>
-                  </div>
-                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
-                    <div className="text-[11px] font-extrabold text-rose-800 mb-0.5">المتأخرات</div>
-                    <div className="text-sm sm:text-base font-black text-rose-700 tabular-nums">{fmt(overdue)} ج.م</div>
-                  </div>
-                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-                    <div className="text-[11px] font-extrabold text-emerald-800 mb-0.5">إجمالي التحصيل</div>
-                    <div className="text-sm sm:text-base font-black text-emerald-800 tabular-nums">{fmt(totalColl)} ج.م</div>
-                  </div>
-                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-3">
-                    <div className="text-[11px] font-extrabold text-blue-800 mb-0.5">إجمالي المبيعات</div>
-                    <div className="text-sm sm:text-base font-black text-blue-800 tabular-nums">{fmt(totalSales)} ج.م</div>
-                  </div>
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
-                    <div className="text-[11px] font-extrabold text-amber-900 mb-0.5 flex items-center gap-1">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div
+                    className={`rounded-xl border p-3 ${
+                      customerReturns.length || totalReturnsValue
+                        ? 'border-amber-200 bg-amber-50'
+                        : 'border-slate-200 bg-slate-50'
+                    }`}
+                  >
+                    <div
+                      className={`text-[11px] font-extrabold mb-0.5 flex items-center gap-1 ${
+                        customerReturns.length || totalReturnsValue ? 'text-amber-900' : 'text-slate-700'
+                      }`}
+                    >
                       <RotateCcw size={12} /> المرتجعات ({customerReturns.length})
                     </div>
-                    <div className="text-sm sm:text-base font-black text-amber-800 tabular-nums">
+                    <div
+                      className={`text-sm sm:text-base font-black tabular-nums ${
+                        customerReturns.length || totalReturnsValue ? 'text-amber-800' : 'text-slate-900'
+                      }`}
+                    >
                       {totalReturnsValue > 0 ? `${fmt(totalReturnsValue)} ج.م` : `${customerReturns.length} إذن`}
                     </div>
                     {pendingReturnsCount > 0 && (
@@ -1022,20 +1030,31 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
                 </div>
               ) : (
                 <>
-                  <div className="tg-cp__months">
-                    {monthly.map((r) => (
-                      <div key={r.m} className="tg-cp__month">
-                        <div className="tg-cp__month-label">{r.label}</div>
-                        <div className="tg-cp__month-sales">{fmt(r.sales)} ج.م</div>
-                        <div className="tg-cp__month-coll">{fmt(r.coll)} ج.م</div>
-                        <div className="tg-cp__bar">
-                          <div
-                            className="tg-cp__bar-fill"
-                            style={{ width: `${Math.max(6, Math.round((r.sales / monthlyMax) * 100))}%` }}
-                          />
+                  <div className="tg-card overflow-hidden">
+                    <div className="grid grid-cols-[72px_1fr_1fr] gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200 text-[10px] font-black text-slate-500">
+                      <span>الشهر</span>
+                      <span>المبيعات</span>
+                      <span>التحصيل</span>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {monthly.map((r) => (
+                        <div key={r.m} className="grid grid-cols-[72px_1fr_1fr] gap-2 px-3 py-2.5 items-center">
+                          <div className="text-[11px] font-black text-slate-700">{r.label}</div>
+                          <div>
+                            <div className="text-[11px] font-black text-blue-700 tabular-nums">{fmt(r.sales)} <span className="text-[9px] font-bold text-slate-400">ج.م</span></div>
+                            <div className="mt-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                              <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.max(4, Math.round((r.sales / monthlyMax) * 100))}%` }} />
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[11px] font-black text-emerald-700 tabular-nums">{fmt(r.coll)} <span className="text-[9px] font-bold text-slate-400">ج.م</span></div>
+                            <div className="mt-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                              <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.max(4, Math.round((r.coll / monthlyMax) * 100))}%` }} />
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
 
                   <div className="tg-card p-4">

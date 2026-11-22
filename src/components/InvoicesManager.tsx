@@ -40,7 +40,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { fetchInvoiceRowById } from '../services/supabaseService';
 import { exportElectronicInvoiceToExcel, exportInvoiceForERP, downloadInvoiceBoth, exportInvoicesListToExcel } from '../services/excelService';
-import { downloadInvoicePDF } from '../services/pdfService';
 import { formatArabicDate, formatCurrency } from '../services/invoiceService';
 import { Invoice, OrderStatus } from '../types';
 import { CreditAuditModal } from './CreditAuditModal';
@@ -49,6 +48,7 @@ import { OrderReturnModal } from './OrderReturnModal';
 import { ExcelInvoicePreviewModal } from './ExcelInvoicePreviewModal';
 import { InvoiceItemsTable } from './InvoiceItemsTable';
 import { EmptyState } from './ui/EmptyState';
+import { LazyPDFDownload } from './ui/LazyPDFDownload';
 
 interface InvoicesManagerProps {
   onOpenNewOrder: () => void;
@@ -864,7 +864,14 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                 return (
                   <div
                     key={invoice.id}
-                    className="tg-card p-4 sm:p-5 space-y-3 group hover:border-blue-300/60 transition border-[var(--tg-line)]"
+                    data-tone={
+                      style.variant === 'risk'
+                        ? 'risk'
+                        : style.variant === 'ok' || style.variant === 'emerald'
+                          ? 'ok'
+                          : 'warn'
+                    }
+                    className="sc-card tg-card p-4 sm:p-5 space-y-3 group transition border-[var(--tg-line)]"
                   >
                     {/* Header: Number + Status */}
                     <div className="flex items-start justify-between gap-2">
@@ -917,17 +924,27 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                       </div>
                     </div>
 
-                    {/* Stats Strip */}
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--app-card-secondary)] border border-[var(--tg-line)]">
-                      <div>
-                        <div className="text-[10px] text-slate-500 font-bold">الكميات المطلوبة</div>
-                        <div className="text-xs font-black text-[var(--app-text)] mt-0.5">
+                    {/* Stats Strip — بنود ملوّنة بنفس نظام كارت العميل */}
+                    <div className="sc-rows sc-rows--2">
+                      <div className="sc-cell sc-row--clear">
+                        <div className="sc-cell__label">
+                          <span className="sc-icon sc-icon--clear">
+                            <Boxes className="h-3.5 w-3.5" />
+                          </span>
+                          <span>الكميات المطلوبة</span>
+                        </div>
+                        <div className="sc-cell__value">
                           {invoice.totalCartons} كرتونة ({invoice.totalPieces} قطعة)
                         </div>
                       </div>
-                      <div className="text-left">
-                        <div className="text-[10px] text-slate-500 font-bold">إجمالي الفاتورة</div>
-                        <div className="text-sm font-black text-[var(--app-text)] mt-0.5 font-mono">
+                      <div className="sc-cell sc-row--sales">
+                        <div className="sc-cell__label">
+                          <span className="sc-icon sc-icon--sales">
+                            <Receipt className="h-3.5 w-3.5" />
+                          </span>
+                          <span>إجمالي الفاتورة</span>
+                        </div>
+                        <div className="sc-cell__value sc-cell__value--money">
                           {formatCurrency(invoice.estimatedGrandTotal)}
                         </div>
                       </div>
@@ -954,7 +971,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         <button
                           type="button"
                           onClick={() => onViewInvoice?.(invoice)}
-                          className="h-9 px-3.5 rounded-xl bg-[#0D9488] hover:bg-[#007a70] text-white font-black text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0"
+                          className="sc-btn sc-btn--primary h-9 px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer shrink-0"
                         >
                           <Eye className="w-4 h-4 text-white shrink-0" />
                           <span className="text-white font-black">عرض</span>
@@ -964,7 +981,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => onEditInvoice(invoice)}
-                            className="h-9 px-3 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                            className="sc-btn sc-btn--legal h-9 px-3 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer shrink-0"
                           >
                             <Pencil className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                             <span>تعديل</span>
@@ -975,7 +992,7 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                           <button
                             type="button"
                             onClick={() => handleApproveClick(invoice.id)}
-                            className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center gap-1.5 transition shadow-xs cursor-pointer shrink-0"
+                            className="sc-btn sc-btn--success h-9 px-3.5 rounded-xl font-black text-xs flex items-center gap-1.5 cursor-pointer shrink-0"
                           >
                             <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
                             <span>اعتماد</span>
@@ -1012,14 +1029,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                         >
                           <FileText className="w-4 h-4" />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => downloadInvoicePDF(invoice)}
+                        <LazyPDFDownload
+                          invoice={invoice}
                           className="w-9 h-9 rounded-xl bg-[var(--app-card-secondary)] hover:bg-[#e2e8f0] text-slate-700 border border-[var(--tg-line)] flex items-center justify-center transition cursor-pointer"
-                          title="تحميل PDF"
-                        >
-                          <Download className="w-4 h-4 text-slate-600" />
-                        </button>
+                        />
                       </div>
                     </div>
                   </div>
@@ -1191,14 +1204,10 @@ export const InvoicesManager: React.FC<InvoicesManagerProps> = ({
                               <FileText className="w-4 h-4" />
                             </button>
 
-                            <button
-                              type="button"
-                              onClick={() => downloadInvoicePDF(invoice)}
+                            <LazyPDFDownload
+                              invoice={invoice}
                               className="w-8 h-8 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 border border-[var(--tg-line)] flex items-center justify-center transition cursor-pointer"
-                              title="تحميل PDF"
-                            >
-                              <Download className="w-4 h-4 text-slate-600" />
-                            </button>
+                            />
                           </div>
                         </td>
                       </tr>
