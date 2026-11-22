@@ -219,3 +219,209 @@ export async function createFullUser(
     return { success: false, message: e instanceof Error ? e.message : String(e) };
   }
 }
+
+/**
+ * تغيير كلمة مرور الحساب الحالي مباشرة من داخل التطبيق بدون إرسال أي بريد إلكتروني.
+ * يتحقق من كلمة المرور الحالية أولاً ثم يحدّث كلمة المرور عبر جلسة Supabase Auth النشطة.
+ */
+export async function changeOwnPassword(params: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<{ success: boolean; message: string }> {
+  if (!isConfigured()) {
+    return { success: false, message: 'الاتصال بالخادم غير مهيأ.' };
+  }
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return { success: false, message: 'يلزم الاتصال بالإنترنت لتحديث كلمة المرور.' };
+  }
+
+  const currentPass = (params.currentPassword || '').trim();
+  const nextPass = (params.newPassword || '').trim();
+
+  if (!currentPass) {
+    return { success: false, message: 'يرجى إدخال كلمة المرور الحالية أولاً.' };
+  }
+  if (nextPass.length < 6) {
+    return { success: false, message: 'كلمة المرور الجديدة يجب أن لا تقل عن 6 أحرف.' };
+  }
+  if (currentPass === nextPass) {
+    return { success: false, message: 'كلمة المرور الجديدة مطابقة للحالية، اختر كلمة مرور مختلفة.' };
+  }
+
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const sessionEmail = sessionData?.session?.user?.email?.trim().toLowerCase();
+    if (!sessionData?.session || !sessionEmail) {
+      return { success: false, message: 'لا توجد جلسة دخول نشطة. سجّل الدخول أولاً.' };
+    }
+
+    // التحقق من كلمة المرور الحالية وتنشيط الجلسة قبل التحديث
+    const { error: verifyErr } = await supabase.auth.signInWithPassword({
+      email: sessionEmail,
+      password: currentPass,
+    });
+    if (verifyErr) {
+      const msg = (verifyErr.message || '').toLowerCase();
+      if (msg.includes('invalid login credentials')) {
+        return { success: false, message: 'كلمة المرور الحالية غير صحيحة.' };
+      }
+      return { success: false, message: verifyErr.message || 'تعذر التحقق من كلمة المرور الحالية.' };
+    }
+
+    const { error: updateErr } = await supabase.auth.updateUser({
+      password: nextPass,
+    });
+    if (updateErr) {
+      return { success: false, message: updateErr.message || 'تعذر تحديث كلمة المرور.' };
+    }
+
+    return {
+      success: true,
+      message: 'تم تغيير كلمة المرور بنجاح دون الحاجة لأي بريد إلكتروني — يمكنك الدخول بها فوراً.',
+    };
+  } catch (e) {
+    return { success: false, message: e instanceof Error ? e.message : 'حدث خطأ غير متوقع.' };
+  }
+}
+
+export const ADMIN_PASSWORD_RESET_SQL_SNIPPET = `CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE OR REPLACE FUNCTION public.admin_reset_user_password(
+  p_target_user_id text,
+  p_new_password text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, extensions, auth, pg_temp
+AS $$
+DECLARE
+  v_caller_uid uuid := auth.uid();
+  v_caller_role text;
+  v_caller_active boolean;
+  v_caller_status text;
+  v_clean_password text := trim(COALESCE(p_new_password, ''));
+  v_target_row public.users%ROWTYPE;
+  v_target_auth_id uuid;
+  v_target_email text;
+BEGIN
+  IF v_caller_uid IS NULL THEN
+    RAISE EXCEPTION 'يجب تسجيل الدخول أولاً.';
+  END IF;
+
+  SELECT u.role, COALESCE(u.is_active, true), COALESCE(u.approval_status, 'active')
+    INTO v_caller_role, v_caller_active, v_caller_status
+    FROM public.users u WHERE u.auth_user_id = v_caller_uid LIMIT 1;
+
+  IF v_caller_role IS NULL OR v_caller_role NOT IN ('admin', 'developer') OR NOT v_caller_active OR v_caller_status <> 'active' THEN
+    RAISE EXCEPTION 'غير مصرح: مقتصرة على الإدارة والمطور فقط.';
+  END IF;
+
+  IF length(v_clean_password) < 6 THEN
+    RAISE EXCEPTION 'كلمة المرور يجب أن لا تقل عن 6 أحرف.';
+  END IF;
+
+  SELECT * INTO v_target_row FROM public.users u WHERE u.id = p_target_user_id LIMIT 1;
+  IF NOT FOUND THEN RAISE EXCEPTION 'الموظف غير موجود.'; END IF;
+
+  v_target_auth_id := v_target_row.auth_user_id;
+  v_target_email := lower(trim(COALESCE(NULLIF(v_target_row.auth_email, ''), v_target_row.email, '')));
+
+  IF v_target_auth_id IS NULL AND v_target_email <> '' THEN
+    SELECT au.id INTO v_target_auth_id FROM auth.users au WHERE lower(trim(au.email)) = v_target_email LIMIT 1;
+    IF v_target_auth_id IS NOT NULL THEN
+      UPDATE public.users SET auth_user_id = v_target_auth_id, auth_email = v_target_email WHERE id = v_target_row.id;
+    END IF;
+  END IF;
+
+  IF v_target_auth_id IS NULL THEN RAISE EXCEPTION 'الحساب غير مربوط بـ Auth بعد.'; END IF;
+
+  UPDATE auth.users
+     SET encrypted_password = crypt(v_clean_password, gen_salt('bf')),
+         email_confirmed_at = COALESCE(email_confirmed_at, now()),
+         updated_at = now()
+   WHERE id = v_target_auth_id;
+
+  RETURN jsonb_build_object('success', true, 'user_id', v_target_row.id, 'email', v_target_email);
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.admin_reset_user_password(text, text) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_reset_user_password(text, text) TO authenticated;`;
+
+/**
+ * تعيين / تغيير كلمة مرور أي موظف بواسطة الإدارة مباشرة من التطبيق بدون إيميل.
+ * - يستدعي دالة RPC المحمية بصلاحية admin/developer على السيرفر.
+ * - وإذا لم تكن الدالة مضافة بعد وكان الآدمن يعدّل حسابه الحالي نفسه، يحدّث عبر الجلسة النشطة فوراً.
+ */
+export async function adminResetUserPassword(params: {
+  targetUserId: string;
+  targetEmail?: string;
+  targetAuthUserId?: string;
+  newPassword: string;
+}): Promise<{ success: boolean; message: string; rpcMissing?: boolean }> {
+  if (!isConfigured()) {
+    return { success: false, message: 'الاتصال بالخادم غير مهيأ.' };
+  }
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return { success: false, message: 'يلزم الاتصال بالإنترنت لتعيين كلمة المرور.' };
+  }
+
+  const nextPass = (params.newPassword || '').trim();
+  if (nextPass.length < 6) {
+    return { success: false, message: 'كلمة المرور الجديدة يجب أن لا تقل عن 6 أحرف.' };
+  }
+
+  try {
+    const { error } = await supabase.rpc('admin_reset_user_password', {
+      p_target_user_id: params.targetUserId,
+      p_new_password: nextPass,
+    });
+
+    if (!error) {
+      return {
+        success: true,
+        message: 'تم تعيين كلمة المرور الجديدة بنجاح بدون أي بريد إلكتروني — جاهزة للدخول فوراً.',
+      };
+    }
+
+    const status = Number((error as any)?.status || 0);
+    const code = String((error as any)?.code || '');
+    const rpcMissing =
+      status === 404 ||
+      code === 'PGRST202' ||
+      /could not find the function/i.test(error.message || '');
+
+    if (rpcMissing) {
+      // لو الآدمن بيغيّر كلمة مرور حسابه الحالي المسجّل بالجلسة دلوقتي، يقدر يحدّثها مباشرة بدون RPC
+      const { data: sessionData } = await supabase.auth.getSession();
+      const sessionUser = sessionData?.session?.user;
+      const isSelf =
+        Boolean(sessionUser) &&
+        ((params.targetAuthUserId && sessionUser?.id === params.targetAuthUserId) ||
+          (params.targetEmail && sessionUser?.email?.toLowerCase() === params.targetEmail.trim().toLowerCase()));
+
+      if (isSelf) {
+        const { error: selfErr } = await supabase.auth.updateUser({ password: nextPass });
+        if (!selfErr) {
+          return {
+            success: true,
+            message: 'تم تغيير كلمة مرور حسابك بنجاح بدون إيميل — يمكنك الدخول بها فوراً.',
+          };
+        }
+        return { success: false, message: selfErr.message || 'تعذر تحديث كلمة المرور.' };
+      }
+
+      return {
+        success: false,
+        rpcMissing: true,
+        message: 'ميزة تغيير كلمة مرور الموظفين الآخرين من التطبيق تحتاج تشغيل كود التفعيل (SQL) لمرة واحدة فقط في Supabase.',
+      };
+    }
+
+    return { success: false, message: error.message || 'تعذر تغيير كلمة المرور.' };
+  } catch (e) {
+    return { success: false, message: e instanceof Error ? e.message : 'حدث خطأ أثناء تغيير كلمة المرور.' };
+  }
+}
+

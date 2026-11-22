@@ -28,6 +28,8 @@ import { getCustomerPaid } from '../services/customerTableSchema';
 import { resolveBranchName, resolveSectorFromBranch, inferSectorFromText } from '../services/arabicMatchingService';
 import { uploadCustomerPhoto, normalizeCloudinaryConfig } from '../services/cloudinaryService';
 import { ItemSalesProfilePanel } from './itemSales/ItemSalesProfilePanel';
+import { referCustomerToLegal } from '../services/legalAffairsService';
+import { LegalTransferModal } from './LegalTransferModal';
 
 export interface CustomerProfileViewProps {
   onNavigateToTab?: (tab: string) => void;
@@ -67,6 +69,7 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
   const [showSearch, setShowSearch] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [pendingPhotos, setPendingPhotos] = useState<{ id: string; url: string; status: 'pending' | 'approved' | 'rejected' }[]>([]);
+  const [legalTransferOpen, setLegalTransferOpen] = useState(false);
 
   // قطاع المندوب الحالي (للفلترة)
   const userSector = currentUser?.sector;
@@ -221,7 +224,7 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
               <h1 className="font-black text-slate-900 dark:text-white text-lg sm:text-xl tracking-tight">
                 ملف العميل
                 <span className="text-xs px-2 py-0.5 rounded-full border border-[var(--app-line)] ml-2 font-bold text-[10px]">
-                  {activeSectorFilter === 'all' ? 'الكل' : activeSectorFilter === 'home' ? 'منزلي' : 'كهرباء'}
+                  {activeSectorFilter === 'home' ? 'منزلي' : 'كهرباء'}
                 </span>
               </h1>
               <p className="text-[10.5px] text-slate-500 dark:text-slate-400 mt-0.5">
@@ -443,7 +446,7 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
             </article>
           </div>
 
-          {/* أزرار الإجراءات السريعة — لمدير الفرع والإدارة فقط */}
+          {/* أزرار الإجراءات السريعة — للمشرف ومدير الفرع والإدارة فقط (لا تظهر للمندوب) */}
           {(isManager || isAdminOrDev) && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
               <button
@@ -456,16 +459,36 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  // التنقل الفعال لصفحة الشؤون القانونية للمستشار القانوني
-                  if (onNavigateToTab) onNavigateToTab('legal_advisor');
-                }}
-                className="flex items-center justify-center gap-2 p-3 rounded-2xl border border-[var(--app-risk-line)] bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] font-black text-sm hover:bg-[var(--app-risk)] hover:text-white transition-all"
-                title="الشؤون القانونية — تحويل العميل للمستشار القانوني"
+                onClick={() => setLegalTransferOpen(true)}
+                className="flex items-center justify-center gap-2 p-3 rounded-2xl border border-[var(--app-risk-line)] bg-[var(--app-risk-tint)] text-[var(--app-risk-text)] font-black text-sm hover:bg-[var(--app-risk)] hover:text-white transition-all cursor-pointer"
+                title="تحويل العميل للشؤون القانونية"
               >
-                <AlertCircle className="w-4 h-4" /> الشؤون القانونية
+                <AlertCircle className="w-4 h-4" /> تحويل للشؤون القانونية
               </button>
             </div>
+          )}
+          {legalTransferOpen && (
+            <LegalTransferModal
+              customer={customer}
+              referredByName={currentUser?.name || currentUser?.username || 'الإدارة'}
+              referredByRole={currentUser?.role || 'branch_manager'}
+              onClose={() => setLegalTransferOpen(false)}
+              onConfirm={(reason, transferIcon) => {
+                referCustomerToLegal({
+                  customer,
+                  referredByName: currentUser?.name || currentUser?.username || 'الإدارة',
+                  referredByRole: currentUser?.role || 'branch_manager',
+                  reason,
+                  transferIcon,
+                  totalDebt: balance,
+                  overdueAmount: overdue,
+                });
+                setLegalTransferOpen(false);
+                if (isAdminOrDev && onNavigateToTab) {
+                  onNavigateToTab('legal_advisor');
+                }
+              }}
+            />
           )}
 
           {/* مبيعات الأصناف المرتبطة بهذا العميل (من شيت مبيعات الأصناف) */}

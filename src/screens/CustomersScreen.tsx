@@ -26,7 +26,7 @@ import { formatCurrency } from '../services/invoiceService';
 import { normalizeArabicText } from '../services/arabicMatchingService';
 
 interface CustomerFilterState {
-  sector: 'all' | 'home' | 'electrical' | 'both';
+  sector: 'home' | 'electrical';
   branch: string;
   rep: string;
   supervisor: string;
@@ -52,7 +52,7 @@ export const CustomersScreen: React.FC = () => {
 
   // ---------- Filter State ----------
   const [filter, setFilter] = useState<CustomerFilterState>({
-    sector: 'all',
+    sector: activeSectorFilter,
     branch: 'ALL',
     rep: 'ALL',
     supervisor: 'ALL',
@@ -61,21 +61,22 @@ export const CustomersScreen: React.FC = () => {
 
   // Sync sector filter from global context (top bar / navbar)
   useEffect(() => {
-    if (activeSectorFilter && activeSectorFilter !== 'all') {
-      setFilter((prev) => ({ ...prev, sector: activeSectorFilter as CustomerFilterState['sector'] }));
-    }
+    setFilter((prev) => ({ ...prev, sector: activeSectorFilter }));
   }, [activeSectorFilter]);
 
   const handleFilterChange = useCallback(
     (key: keyof CustomerFilterState, value: string) => {
       setFilter((prev) => ({ ...prev, [key]: value }));
+      if (key === 'sector' && (value === 'home' || value === 'electrical')) {
+        setActiveSectorFilter(value);
+      }
     },
-    []
+    [setActiveSectorFilter]
   );
 
   const handleResetFilters = useCallback(() => {
-    setFilter({ sector: 'all', branch: 'ALL', rep: 'ALL', supervisor: 'ALL', search: '' });
-  }, []);
+    setFilter({ sector: activeSectorFilter, branch: 'ALL', rep: 'ALL', supervisor: 'ALL', search: '' });
+  }, [activeSectorFilter]);
 
   // ---------- RBAC: Which customers can this user see? ----------
   //  بوابة السياق نفسها: دور + فرع + قطاع ('none' = محجوب عن القطاعين).
@@ -116,10 +117,8 @@ export const CustomersScreen: React.FC = () => {
   const filteredCustomers = useMemo(() => {
     let list = userVisibleCustomers;
 
-    // Sector filter (منزلي / كهربائي / كلاهما)
-    if (filter.sector !== 'all') {
-      list = list.filter((c) => c.sector === filter.sector || c.sector === 'both');
-    }
+    // Sector filter (منزلي / كهربائي فقط)
+    list = list.filter((c) => !c.sector || c.sector === filter.sector || c.sector === 'both');
 
     // Branch filter
     if (filter.branch !== 'ALL') {
@@ -368,10 +367,8 @@ export const CustomersScreen: React.FC = () => {
                 onChange={(e) => handleFilterChange('sector', e.target.value as CustomerFilterState['sector'])}
                 className="w-full sm:w-36 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg px-2.5 py-1.5 text-sm font-black text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
               >
-                <option value="all">جميع القطاعات</option>
-                <option value="home">منزلي</option>
-                <option value="electrical">كهربائي</option>
-                <option value="both">القطاعين</option>
+                <option value="home">🏠 منزلي</option>
+                <option value="electrical">⚡ كهربائي</option>
               </select>
             </div>
 

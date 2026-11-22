@@ -1,4 +1,4 @@
-﻿import {
+import {
   AlertCircle,
   ArrowDownRight,
   ArrowUpRight,
@@ -179,10 +179,9 @@ export const TargetPerformanceDashboard: React.FC = () => {
   // 🏠⚡ فلتر قطاع التارجت — تبديل القطاع للإدارة العليا فقط، وبقية الأدوار
   // محصورة بقطاع حسابها ('none' = محجوب عن القطاعين).
   const canSwitchSector = canManageSectorGate;
-  const effectiveSector: 'all' | 'home' | 'electrical' =
-    effectiveSectorFilter === 'none'
-      ? (currentUser?.sector === 'electrical' ? 'electrical' : 'home')
-      : effectiveSectorFilter;
+  const effectiveSector: 'home' | 'electrical' | 'none' = canSwitchSector
+    ? activeSectorFilter
+    : effectiveSectorFilter;
 
   // User-visible records based on strict RBAC + sector
   const rawRecords = getVisibleTargets();
@@ -191,7 +190,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
     return inferTargetSector(r, users);
   };
   const sectorCounts = useMemo(() => {
-    const c = { all: rawRecords.length, home: 0, electrical: 0 };
+    const c = { home: 0, electrical: 0 };
     rawRecords.forEach((r) => {
       const s = recordSector(r);
       if (s === 'home') c.home += 1;
@@ -200,7 +199,7 @@ export const TargetPerformanceDashboard: React.FC = () => {
     return c;
   }, [rawRecords, users]);
   const visibleRecords = useMemo(() => {
-    if (effectiveSector === 'all') return rawRecords;
+    if (effectiveSector === 'none') return [];
     return rawRecords.filter((r) => recordSector(r) === effectiveSector);
   }, [rawRecords, users, effectiveSector]);
 
@@ -1321,7 +1320,6 @@ export const TargetPerformanceDashboard: React.FC = () => {
               {canSwitchSector && (
                 <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl w-full sm:w-auto overflow-x-auto">
                   {([
-                    { key: 'all', label: 'كل القطاعات', count: sectorCounts.all },
                     { key: 'home', label: '🏠 منزلي', count: sectorCounts.home },
                     { key: 'electrical', label: '⚡ كهربائي', count: sectorCounts.electrical },
                   ] as const).map((t) => (

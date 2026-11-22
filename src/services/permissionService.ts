@@ -15,13 +15,13 @@ export interface PermissionDefaults {
 
 // Default tab sets per role (mirrors ROLE_ALLOWED_TABS in App.tsx)
 export const DEFAULT_ROLE_TABS: PermissionDefaults = {
-  developer: ['home', 'catalog', 'offers', 'all_customers', 'customers', 'reps', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'excel', 'users', 'guide', 'permissions', 'audit_log'],
-  admin: ['home', 'catalog', 'offers', 'all_customers', 'customers', 'reps', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'excel', 'users', 'guide', 'permissions', 'audit_log'],
-  branch_manager: ['home', 'catalog', 'offers', 'all_customers', 'customers', 'reps', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'users', 'guide'],
-  supervisor: ['home', 'catalog', 'offers', 'all_customers', 'customers', 'reps', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'users'],
-  sales_rep: ['home', 'catalog', 'offers', 'all_customers', 'customers', 'customer_item_sales', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory'],
-  legal_advisor: ['home', 'legal_advisor'],
-  warehouse_keeper: ['home', 'returns', 'inventory', 'catalog', 'offers', 'guide'],
+  developer: ['home', 'catalog', 'offers', 'all_customers', 'customers', 'reps', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'excel', 'users', 'guide', 'permissions', 'audit_log', 'pending_sync'],
+  admin: ['home', 'catalog', 'offers', 'all_customers', 'customers', 'reps', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'excel', 'users', 'guide', 'permissions', 'audit_log', 'pending_sync'],
+  branch_manager: ['home', 'catalog', 'offers', 'all_customers', 'customers', 'reps', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'users', 'guide', 'pending_sync'],
+  supervisor: ['home', 'catalog', 'offers', 'all_customers', 'customers', 'reps', 'customer_item_sales', 'dashboard', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'users', 'pending_sync'],
+  sales_rep: ['home', 'catalog', 'offers', 'all_customers', 'customers', 'customer_item_sales', 'targets', 'visits', 'returns', 'returns_customers', 'invoices', 'inventory', 'pending_sync'],
+  legal_advisor: ['home', 'legal_advisor', 'pending_sync'],
+  warehouse_keeper: ['home', 'returns', 'inventory', 'catalog', 'offers', 'guide', 'pending_sync'],
 };
 
 // All available tabs with labels
@@ -41,6 +41,7 @@ export const ALL_AVAILABLE_TABS: { id: string; label: string; icon?: string }[] 
   { id: 'inventory', label: 'المخزون' },
   { id: 'excel', label: 'الإكسل والمزامنة' },
   { id: 'users', label: 'إدارة المستخدمين' },
+  { id: 'pending_sync', label: 'مزامنة معلقة' },
   { id: 'guide', label: 'دليل النظام' },
   { id: 'permissions', label: 'الصلاحيات' },
   { id: 'audit_log', label: 'سجل التدقيق' },

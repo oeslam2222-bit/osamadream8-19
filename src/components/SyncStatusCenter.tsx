@@ -1,14 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Cloud, Database, Info, Loader2, RefreshCw, UploadCloud, Wifi, WifiOff, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Cloud, Database, ExternalLink, Info, Loader2, RefreshCw, Trash2, UploadCloud, Wifi, WifiOff, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getQueuedMutations, MAX_ATTEMPTS, type QueuedMutation } from '../services/offlineQueueService';
 
 interface SyncStatusCenterProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenPendingSyncPage?: () => void;
 }
 
-export const SyncStatusCenter: React.FC<SyncStatusCenterProps> = ({ isOpen, onClose }) => {
+export const SyncStatusCenter: React.FC<SyncStatusCenterProps> = ({ isOpen, onClose, onOpenPendingSyncPage }) => {
   const {
     isOffline,
     pendingInvoicesCount,
@@ -17,6 +18,7 @@ export const SyncStatusCenter: React.FC<SyncStatusCenterProps> = ({ isOpen, onCl
     storageQuotaExceeded,
     flushPendingInvoices,
     flushOfflineQueue,
+    removeOfflineQueueItems,
     syncWithSupabase,
     checkDatabaseConnection,
     supabaseStatus,
@@ -145,7 +147,18 @@ export const SyncStatusCenter: React.FC<SyncStatusCenterProps> = ({ isOpen, onCl
           <div className="rounded-2xl border border-slate-200 bg-white">
             <div className="px-3.5 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 text-sm font-black text-slate-800"><Info size={15} className="text-[var(--app-text)]"/> تفاصيل طابور العمليات (Outbox)</div>
-              <button onClick={() => void loadQueue()} className="text-[11px] font-extrabold px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 inline-flex items-center gap-1"><RefreshCw size={12} className={loadingQueue?'animate-spin':''}/> تحديث</button>
+              <div className="flex items-center gap-1.5">
+                {onOpenPendingSyncPage && (
+                  <button
+                    type="button"
+                    onClick={onOpenPendingSyncPage}
+                    className="text-[11px] font-extrabold px-2.5 py-1.5 rounded-lg bg-[#102b4e] text-white hover:opacity-90 inline-flex items-center gap-1 cursor-pointer"
+                  >
+                    <ExternalLink size={12} /> إدارة وحذف العمليات
+                  </button>
+                )}
+                <button onClick={() => void loadQueue()} className="text-[11px] font-extrabold px-2.5 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 inline-flex items-center gap-1 cursor-pointer"><RefreshCw size={12} className={loadingQueue?'animate-spin':''}/> تحديث</button>
+              </div>
             </div>
             <div className="max-h-56 overflow-auto p-2 space-y-2">
               {loadingQueue ? (
@@ -163,14 +176,26 @@ export const SyncStatusCenter: React.FC<SyncStatusCenterProps> = ({ isOpen, onCl
                         <div className="text-[10px] font-bold text-slate-500 mt-0.5">وقت الإضافة: {new Date(it.queuedAt).toLocaleString('ar-EG')} · محاولات: {it.attempts || 0}</div>
                         {it.lastError && <div className="text-[10px] font-extrabold text-rose-700 mt-1">سبب/تنبيه: {it.lastError}</div>}
                       </div>
-                      <span className={`text-[10px] font-black px-2 py-1 rounded-lg shrink-0 ${conflictLike ? 'bg-amber-200 text-amber-900' : 'bg-blue-100 text-blue-800'}`}>{conflictLike ? 'فشل/تعارض محتمل' : 'بانتظار المزامنة'}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${conflictLike ? 'bg-amber-200 text-amber-900' : 'bg-blue-100 text-blue-800'}`}>{conflictLike ? 'فشل/تعارض محتمل' : 'بانتظار المزامنة'}</span>
+                        <button
+                          type="button"
+                          disabled={!!busy}
+                          onClick={() => void run(`del-${it.id}`, () => removeOfflineQueueItems([it.id]), 'تم حذف العملية من الطابور')}
+                          title="حذف العملية من الطابور"
+                          aria-label="حذف العملية من الطابور"
+                          className="w-7 h-7 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-700 inline-flex items-center justify-center transition cursor-pointer"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
               })}
-              {queue.length > 30 && <div className="text-[10px] font-bold text-slate-500 text-center">يُعرض أول 30 عنصر — استخدم المزامنة لتفريغ الطابور</div>}
+              {queue.length > 30 && <div className="text-[10px] font-bold text-slate-500 text-center">يُعرض أول 30 عنصر — افتح صفحة «مزامنة معلقة» لإدارة كل العناصر</div>}
             </div>
-            <div className="px-3.5 py-2.5 border-t border-slate-100 text-[11px] font-bold text-slate-500 bg-slate-50">عند تكرار الفشل قد يلزم مراجعة الاتصال/الصلاحيات أو إعادة المحاولة. التعارضات تُحل حسب منطق المزامنة (آخر كتابة/دمج حسب الكيان)؛ العناصر الناجحة تُزال تلقائيًا من الطابور.</div>
+            <div className="px-3.5 py-2.5 border-t border-slate-100 text-[11px] font-bold text-slate-500 bg-slate-50">عند تكرار الفشل قد يلزم مراجعة الاتصال/الصلاحيات أو حذف العملية العالقة من الطابور. العناصر الناجحة تُزال تلقائيًا.</div>
           </div>
 
           <div className="text-[11px] font-bold text-slate-500 leading-relaxed bg-slate-50 border border-slate-200 rounded-xl p-3">

@@ -40,12 +40,18 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
     getVisibleInvoices,
     selectedBranchFilter,
     canManageSectorGate,
+    activeSectorFilter,
+    setActiveSectorFilter,
+    effectiveSectorFilter,
     setSelectedBranchFilter,
   } = useApp();
 
+  const activeSector: 'home' | 'electrical' | 'none' = canManageSectorGate
+    ? activeSectorFilter
+    : effectiveSectorFilter;
+
   /* ---------- حالة الصفحة ---------- */
   const [searchRep, setSearchRep] = useState('');
-  const [selectedSector, setSelectedSector] = useState<'all' | 'home' | 'electrical'>('all');
   const [visibleRepsCount, setVisibleRepsCount] = useState(8);
   const [openRepId, setOpenRepId] = useState<string | null>(null);
   const [visibleCustomersCount, setVisibleCustomersCount] = useState(10);
@@ -56,7 +62,7 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
     setVisibleRepsCount(8);
     setVisibleCustomersCount(10);
     setOpenRepId(null);
-  }, [searchRep, selectedSector, selectedBranchFilter]);
+  }, [searchRep, activeSector, selectedBranchFilter]);
 
   /* ---------- البيانات المرئية للمستخدم ---------- */
   const visibleTargets = useMemo(() => {
@@ -69,7 +75,7 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
 
   const visibleInvoices = useMemo(() => {
     return getVisibleInvoices();
-  }, [targets, currentUser, getVisibleInvoices]);
+  }, [getVisibleInvoices]);
 
   /* ---------- تجميع بيانات المندوبين ---------- */
   type RepAgg = {
@@ -163,14 +169,14 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
       const matchesBranch =
         selectedBranchFilter === 'الكل' || rep.branch === selectedBranchFilter;
       const matchesSector =
-        selectedSector === 'all' ||
-        !rep.sector ||
-        rep.sector === 'all' ||
-        rep.sector === 'both' ||
-        rep.sector === selectedSector;
+        activeSector !== 'none' &&
+        (!rep.sector ||
+          rep.sector === 'all' ||
+          rep.sector === 'both' ||
+          rep.sector === activeSector);
       return matchesSearch && matchesBranch && matchesSector;
     });
-  }, [repsMap, searchRep, selectedBranchFilter, selectedSector]);
+  }, [repsMap, searchRep, selectedBranchFilter, activeSector]);
 
   const displayedReps = useMemo(() => {
     return filteredReps.slice(0, visibleRepsCount);
@@ -228,8 +234,8 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
     setOpenRepId(null);
   };
 
-  const handleSelectSector = (val: 'all' | 'home' | 'electrical') => {
-    setSelectedSector(val);
+  const handleSelectSector = (val: 'home' | 'electrical') => {
+    setActiveSectorFilter(val);
     setOpenRepId(null);
   };
 
@@ -347,13 +353,12 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
           <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-3 py-2 min-w-[150px]">
             <span className="text-[10px] font-bold text-slate-600 leading-none mb-1">القطاع</span>
             <select
-              value={selectedSector}
-              onChange={(e) => handleSelectSector(e.target.value as 'all' | 'home' | 'electrical')}
+              value={activeSectorFilter}
+              onChange={(e) => handleSelectSector(e.target.value as 'home' | 'electrical')}
               className="bg-transparent font-black text-[var(--app-text)] text-sm focus:outline-none cursor-pointer w-full"
             >
-              <option value="all">كل القطاعات</option>
-              <option value="home">المنزلي</option>
-              <option value="electrical">الكهربائي</option>
+              <option value="home">🏠 المنزلي</option>
+              <option value="electrical">⚡ الكهربائي</option>
             </select>
           </div>
           )}

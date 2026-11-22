@@ -28,8 +28,8 @@ import { useChartTheme } from '../../services/chartTheme';
 import { CardShell, ChartEmpty } from './ItemSalesPrimitives';
 
 type Metric = 'value' | 'qty';
-type TabKey = 'sector' | 'customer' | 'branch' | 'rep' | 'custRep' | 'item' | 'family';
-type SectorKey = 'all' | 'home' | 'electrical';
+type TabKey = 'customer' | 'branch' | 'rep' | 'custRep' | 'item' | 'family';
+type SectorKey = 'home' | 'electrical';
 
 interface TotalsAnalysisViewProps {
   /** سجلات مفلترة بالفعل (RBAC + فلاتر الصفحة + الشهر) — العرض إجماليات فقط. */
@@ -93,7 +93,6 @@ const trunc = (value: string, length: number): string =>
 const pctOf = (part: number, whole: number): number => (whole ? (part / whole) * 100 : 0);
 
 const TABS: Array<{ key: TabKey; label: string; icon: React.ComponentType<{ className?: string }> }> = [
-  { key: 'sector', label: 'بالقطاع', icon: LayoutGrid },
   { key: 'customer', label: 'بالعميل', icon: Users },
   { key: 'branch', label: 'بالفرع', icon: Store },
   { key: 'rep', label: 'بالمندوب', icon: UserSquare2 },
@@ -131,8 +130,6 @@ const sortByAmount = (map: Map<string, TotalsBucket>): TotalsBucket[] =>
 
 const pickRows = (totals: Totals, key: TabKey): TotalsBucket[] => {
   switch (key) {
-    case 'sector':
-      return totals.sectorRows;
     case 'customer':
       return totals.customerRows;
     case 'branch':
@@ -154,13 +151,11 @@ const columnCountOf = (key: TabKey): number => (key === 'customer' ? 7 : 5);
 export const TotalsAnalysisView: React.FC<TotalsAnalysisViewProps> = ({
   records,
   customers,
-  sector,
-  onSelectSector,
   resolveSector,
   subtitle
 }) => {
   const chart = useChartTheme();
-  const [tab, setTab] = useState<TabKey>('sector');
+  const [tab, setTab] = useState<TabKey>('customer');
   const [metric, setMetric] = useState<Metric>('value');
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -278,7 +273,6 @@ export const TotalsAnalysisView: React.FC<TotalsAnalysisViewProps> = ({
   }, [enriched]);
 
   const rowsByTab: Record<TabKey, TotalsBucket[]> = {
-    sector: totals.sectorRows,
     customer: totals.customerRows,
     branch: totals.branchRows,
     rep: totals.repRows,
@@ -414,46 +408,6 @@ export const TotalsAnalysisView: React.FC<TotalsAnalysisViewProps> = ({
 
   return (
     <div className="space-y-4" dir="rtl">
-      {/* القطاع أولًا — أولوية التقسيم */}
-      {sector === 'all' && totals.sectorRows.length > 1 && (
-        <section className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {totals.sectorRows.map((row) => {
-            const share = pctOf(row.amount, totals.amount);
-            return (
-              <button
-                key={row.key}
-                type="button"
-                onClick={() => onSelectSector?.(row.key as 'home' | 'electrical')}
-                className="text-right rounded-2xl border border-[var(--app-border)] bg-[var(--app-card)] p-4 shadow-[0_2px_10px_rgba(15,43,56,0.04)] hover:border-[var(--app-navy)] transition cursor-pointer"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[12px] font-black text-[var(--app-text)]">
-                    قطاع {row.label}
-                  </span>
-                  <span className="font-mono font-black text-[13px] text-[var(--app-text)]">
-                    {share.toFixed(1)}%
-                  </span>
-                </div>
-                <div className="mt-2 text-xl font-black text-[var(--app-text)] font-mono">
-                  {formatCurrency(row.amount)}
-                </div>
-                <div className="mt-2 h-2 rounded-full bg-[var(--app-card-hover)] overflow-hidden">
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: `${share}%`, background: chart.bar }}
-                  />
-                </div>
-                <div className="mt-2 flex items-center justify-between text-[10px] font-bold text-[var(--app-text-muted)]">
-                  <span className="font-mono">{row.qty.toLocaleString('en-US')} قطعة</span>
-                  <span>
-                    {row.custs.size} عميل · {row.items.size} صنف
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </section>
-      )}
 
       {/* إجماليات عامة */}
       <section className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-2.5">
@@ -692,7 +646,7 @@ export const TotalsAnalysisView: React.FC<TotalsAnalysisViewProps> = ({
                           {tab === 'item' ? 'العائلة' : 'عدد الأصناف'}
                         </th>
                       )}
-                      {(tab === 'sector' || tab === 'branch' || tab === 'rep') && (
+                      {(tab === 'branch' || tab === 'rep') && (
                         <th className="px-3 py-2.5 whitespace-nowrap">عدد العملاء</th>
                       )}
                       {tab === 'customer' && (
@@ -770,7 +724,7 @@ export const TotalsAnalysisView: React.FC<TotalsAnalysisViewProps> = ({
                                   : `${row.items.size} صنف`}
                               </td>
                             )}
-                            {(tab === 'sector' || tab === 'branch' || tab === 'rep') && (
+                            {(tab === 'branch' || tab === 'rep') && (
                               <td className="px-3 py-2.5 font-mono font-bold text-[11px]">
                                 {row.custs.size.toLocaleString('en-US')}
                               </td>

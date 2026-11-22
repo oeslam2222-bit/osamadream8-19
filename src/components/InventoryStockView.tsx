@@ -55,6 +55,8 @@ export const InventoryStockView: React.FC = () => {
     adjustStock,
     selectedBranchFilter,
     canManageSectorGate,
+    activeSectorFilter,
+    setActiveSectorFilter,
     effectiveSectorFilter,
     setSelectedBranchFilter
   } = useApp();
@@ -62,8 +64,6 @@ export const InventoryStockView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('الكل');
   const [stockLevelFilter, setStockLevelFilter] = useState<'all' | 'offers' | 'in_branch' | 'needs_transfer' | 'low_stock' | 'out_of_stock'>('all');
-  // 🏠⚡ فلتر القطاع: المخزون مقسوم لمنزلي / كهربائي
-  const [sectorTab, setSectorTab] = useState<'all' | 'home' | 'electrical'>('all');
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [viewLayout, setViewLayout] = useState<'table' | 'cards'>('cards');
@@ -132,27 +132,26 @@ export const InventoryStockView: React.FC = () => {
   // على قطاع حسابها ('none' = بلا قطاع → محجوب عن القطاعين).
   const canSwitchSector = canManageSectorGate;
 
-  const effectiveSector: 'all' | 'home' | 'electrical' | 'none' = canManageSectorGate
-    ? sectorTab
+  const effectiveSector: 'home' | 'electrical' | 'none' = canManageSectorGate
+    ? activeSectorFilter
     : effectiveSectorFilter;
 
   const matchesSector = (p: Product) => {
     if (effectiveSector === 'none') return false;
-    if (effectiveSector === 'all') return true;
     const s = p.sector;
     return !s || s === 'all' || s === 'both' || s === effectiveSector;
   };
 
   const sectorCounts = useMemo(() => {
-    const cnt = { all: 0, home: 0, electrical: 0 };
-    visibleProducts.forEach((p) => {
-      cnt.all += 1;
+    const cnt = { home: 0, electrical: 0 };
+    const source = canManageSectorGate ? products : visibleProducts;
+    source.forEach((p) => {
       const s = p.sector;
       if (!s || s === 'all' || s === 'both' || s === 'home') cnt.home += 1;
       if (!s || s === 'all' || s === 'both' || s === 'electrical') cnt.electrical += 1;
     });
     return cnt;
-  }, [visibleProducts]);
+  }, [canManageSectorGate, products, visibleProducts]);
 
   // Filtered Products Matrix
   const visibleBranch = currentUser && currentUser.role !== 'admin' && currentUser.role !== 'developer'
@@ -594,24 +593,25 @@ export const InventoryStockView: React.FC = () => {
               <span className="text-[11px] font-semibold text-slate-500">الفرع ثم المخزن الرئيسي عند اعتماد الطلبية</span>
             </div>
 
-            {/* 🏠⚡ Sector Tabs: المخزون بقطاعين (منزلي / كهربائي) */}
+            {/* 🏠⚡ Sector Tabs: المخزون بقطاعين منفصلين (منزلي / كهربائي) */}
             {canSwitchSector && (
               <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-2xl p-1.5 w-full sm:w-auto overflow-x-auto">
                 {([
-                  { key: 'all', label: 'كل القطاعات', icon: null, count: sectorCounts.all },
-                  { key: 'home', label: '🏠 منزلي', icon: null, count: sectorCounts.home },
-                  { key: 'electrical', label: '⚡ كهربائي', icon: null, count: sectorCounts.electrical },
+                  { key: 'home', label: '🏠 منزلي', count: sectorCounts.home },
+                  { key: 'electrical', label: '⚡ كهربائي', count: sectorCounts.electrical },
                 ] as const).map((tab) => (
                   <button
                     key={tab.key}
                     type="button"
                     onClick={() => {
-                      setSectorTab(tab.key);
+                      setActiveSectorFilter(tab.key);
                       setCurrentPage(1);
                     }}
                     className={`flex-1 sm:flex-none px-3.5 py-2 rounded-xl text-xs font-black whitespace-nowrap transition cursor-pointer min-h-[40px] ${
                       effectiveSector === tab.key
-                        ? 'bg-[var(--app-navy)] text-white shadow'
+                        ? tab.key === 'electrical'
+                          ? 'bg-amber-600 text-white shadow'
+                          : 'bg-[var(--app-navy)] text-white shadow'
                         : 'text-slate-600 hover:bg-slate-100'
                     }`}
                   >
@@ -627,7 +627,7 @@ export const InventoryStockView: React.FC = () => {
                 onClick={() => setStockLevelFilter('all')}
                 className={`pill-filter px-3 py-1.5 whitespace-nowrap ${stockLevelFilter === 'all' ? 'on' : ''}`}
               >
-                الكل ({sectorCounts[effectiveSector]})
+                الكل ({effectiveSector === 'none' ? 0 : sectorCounts[effectiveSector]})
               </button>
               <button
                 onClick={() => setStockLevelFilter('offers')}

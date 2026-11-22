@@ -112,7 +112,16 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   onOpenNewOrderForCustomer,
   onNavigateToExcel
 }) => {
-  const { currentUser, users, customers, products, activeSectorFilter, effectiveSectorFilter } = useApp();
+  const {
+    currentUser,
+    users,
+    customers,
+    products,
+    activeSectorFilter,
+    setActiveSectorFilter,
+    canManageSectorGate,
+    effectiveSectorFilter,
+  } = useApp();
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
   /** تشخيص أعداد السجلات للمطور والدعم الفني فقط. */
   const canSeeDiagnostics =
@@ -149,15 +158,15 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     [resolveItemSaleSector]
   );
 
-  /** القطاع الفعّال للعزل: الادمن/المطور بيختار، والباقي مقفول على قطاع حسابه
-   *  ('none' = بلا قطاع معيّن → محجوب عن القطاعين). */
-  const itemSalesSector = React.useMemo<'all' | 'home' | 'electrical' | 'none'>(() => {
-    if (isAdminOrDev) return activeSectorFilter;
+  /** القطاع الفعّال للعزل: الادمن/المطور/الدعم الفني يبدّل بين المنزلي والكهربائي بدون دمج،
+   *  والباقي مقفول على قطاع حسابه ('none' = بلا قطاع معيّن → محجوب عن القطاعين). */
+  const itemSalesSector = React.useMemo<'home' | 'electrical' | 'none'>(() => {
+    if (canManageSectorGate) return activeSectorFilter;
     return effectiveSectorFilter;
-  }, [isAdminOrDev, effectiveSectorFilter, activeSectorFilter]);
+  }, [canManageSectorGate, effectiveSectorFilter, activeSectorFilter]);
 
   /** حساب مبيعات بلا قطاع: ما نعرضش عليه أي حركة ولا نصرف egress لجلبها. */
-  const isSectorBlocked = !isAdminOrDev && itemSalesSector === 'none';
+  const isSectorBlocked = !canManageSectorGate && itemSalesSector === 'none';
 
   const itemSalesScope = React.useMemo<CustomerItemSalesFetchScope | undefined>(() => {
     if (!currentUser) return undefined;
@@ -246,7 +255,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
   const [selectedRep, setSelectedRep] = useState<string>('all');
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>('all');
-  const [selectedSector, setSelectedSector] = useState<'all' | 'home' | 'electrical'>('all');
   const [selectedFamily, setSelectedFamily] = useState<string>('all');
   const [selectedItem, setSelectedItem] = useState<string>('all');
   const [customerDisplayLimit, setCustomerDisplayLimit] = useState<number>(5);
@@ -259,7 +267,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const loadSalesInProgress = useRef(false);
   const excelFileInputRef = useRef<HTMLInputElement>(null);
 
-  const loadSalesData = async (options?: { forceRemote?: boolean }) => {
+  const loadSalesData = async (options?: { forceRemote?: boolean; mergeCache?: boolean }) => {
     // منع تكرار التحميل بسبب حدث الحفظ (save event) الذي يُطلق عند المزامنة/الجلب من Supabase
     if (loadSalesInProgress.current) return;
     // حساب بلا قطاع: محجوب عن بيانات القطاعين — بدون جلب ولا عرض.
@@ -271,6 +279,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     loadSalesInProgress.current = true;
 
     const forceRemote = options?.forceRemote === true;
+    const mergeCache = options?.mergeCache === true;
     setIsLoading(true);
     setSyncErrorMsg(null);
     if (!forceRemote) setSyncSuccessMsg(null);
@@ -336,14 +345,16 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       }
 
       if (supabaseSales.length > 0 && !supabaseError) {
-        if (incrementalSince) {
-          // دمج بالمعرّف: مايمسحش حركات تانية لنفس العميل/الصنف/الشهر
+        if (incrementalSince || (mergeCache && localBackup.length > 0)) {
+          // دمج بالمعرّف: يحفظ القطاعين معاً محلياً عند تبديل القطاع أو الجلب الجزئي
           await saveCustomerItemSales(supabaseSales, 'upsert');
           const merged = await getSavedCustomerItemSales();
           setSalesRecords(merged);
           setSupabaseCount(merged.length);
           setSyncSuccessMsg(
-            `تم تحديث ${supabaseSales.length.toLocaleString('ar-EG')} حركة متغيرة فقط من Supabase (جلب جزئي).`
+            incrementalSince
+              ? `تم تحديث ${supabaseSales.length.toLocaleString('ar-EG')} حركة متغيرة فقط من Supabase (جلب جزئي).`
+              : `تم جلب ${supabaseSales.length.toLocaleString('ar-EG')} حركة من Supabase ودمجها محلياً.`
           );
         } else {
           setSalesRecords(supabaseSales);
@@ -390,6 +401,20 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     window.addEventListener('tantawy-customer-item-sales-updated', handleUpdate);
     return () => window.removeEventListener('tantawy-customer-item-sales-updated', handleUpdate);
   }, []);
+
+  const lastLoadedSectorRef = useRef(itemSalesSector);
+  useEffect(() => {
+    if (lastLoadedSectorRef.current === itemSalesSector) return;
+    lastLoadedSectorRef.current = itemSalesSector;
+    if (itemSalesSector === 'none') {
+      setSalesRecords([]);
+      return;
+    }
+    const hasSectorRows = salesRecords.some((r) => sectorResolver.matches(r, itemSalesSector));
+    if (!hasSectorRows) {
+      void loadSalesData({ forceRemote: true, mergeCache: true });
+    }
+  }, [itemSalesSector, salesRecords, sectorResolver]);
 
   const handlePushToSupabase = async () => {
     if (salesRecords.length === 0) {
@@ -551,7 +576,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       ? enrichedSalesRecords
       : filterCustomerItemSalesByRBAC(enrichedSalesRecords, currentUser, users, customers);
     const effectiveSector = itemSalesSector;
-    if (effectiveSector === 'all') return authorizedSales;
     if (effectiveSector === 'none') return [];
     // نفس موحّد القطاع المستخدم في baseSales/التحليل — قطاع موحّد لكل المسارات.
     return authorizedSales.filter((record) => sectorResolver.matches(record, effectiveSector));
@@ -572,7 +596,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       if (selectedGroup !== 'all' && resolveItemGroup(record) !== selectedGroup) return false;
       if (selectedRep !== 'all' && record.repName !== selectedRep) return false;
       if (selectedWarehouse !== 'all' && resolveItemSaleBranch(record) !== selectedWarehouse) return false;
-      if (selectedSector !== 'all' && !sectorResolver.matches(record, selectedSector)) return false;
       if (selectedFamily !== 'all' && resolveItemGroup(record) !== selectedFamily) return false;
       if (
         selectedItem !== 'all' &&
@@ -607,12 +630,10 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     selectedGroup,
     selectedRep,
     selectedWarehouse,
-    selectedSector,
     selectedFamily,
     selectedItem,
     resolveItemSaleBranch,
     resolveItemSaleSector,
-    sectorResolver,
     debouncedSearchTerm,
     searchMode
   ]);
@@ -628,7 +649,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   /** وصف مختصر للنطاق الحالي بيظهر فوق جداول تحليل الإجماليات. */
   const analysisSubtitle = [
     selectedMonth === 'all' ? 'كل الشهور' : MONTH_NAMES_MAP[selectedMonth],
-    selectedSector === 'all' ? 'كل القطاعات' : selectedSector === 'home' ? 'منزلي' : 'كهربائي',
+    itemSalesSector === 'electrical' ? 'كهربائي' : itemSalesSector === 'home' ? 'منزلي' : '',
     selectedWarehouse !== 'all' ? `فرع ${selectedWarehouse}` : '',
     selectedRep !== 'all' ? `مندوب ${selectedRep}` : '',
     selectedFamily !== 'all' ? `عائلة ${selectedFamily}` : ''
@@ -683,7 +704,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
     for (const record of monthScopedSales) {
       if (!matchesSearchFilter(record)) continue;
-      if (selectedSector !== 'all' && !sectorResolver.matches(record, selectedSector)) continue;
 
       const group = resolveItemGroup(record);
       const branch = resolveItemSaleBranch(record);
@@ -712,11 +732,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     matchesSearchFilter,
     resolveItemGroup,
     resolveItemSaleBranch,
-    sectorResolver,
     selectedGroup,
     selectedRep,
     selectedWarehouse,
-    selectedSector,
     selectedFamily,
     selectedItem
   ]);
@@ -1117,7 +1135,6 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     setSelectedGroup('all');
     setSelectedRep('all');
     setSelectedWarehouse('all');
-    setSelectedSector('all');
     setSelectedFamily('all');
     setSelectedItem('all');
   };
@@ -1587,22 +1604,23 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             </div>
 
         <div className="flex items-center gap-1.5 flex-wrap">
-          {(isAdminOrDev
+          {(canManageSectorGate
             ? ([
-                { key: 'all' as const, label: 'كل القطاعات' },
-                { key: 'home' as const, label: 'منزلي' },
-                { key: 'electrical' as const, label: 'كهربائي' }
+                { key: 'home' as const, label: '🏠 منزلي' },
+                { key: 'electrical' as const, label: '⚡ كهربائي' },
               ])
             : itemSalesSector === 'home' || itemSalesSector === 'electrical'
-            ? [{ key: itemSalesSector, label: itemSalesSector === 'electrical' ? 'كهربائي' : 'منزلي' }]
+            ? [{ key: itemSalesSector, label: itemSalesSector === 'electrical' ? '⚡ كهربائي' : '🏠 منزلي' }]
             : []
           ).map((sectorOption) => {
-            const active = selectedSector === sectorOption.key;
+            const active = itemSalesSector === sectorOption.key;
             return (
               <button
                 key={sectorOption.key}
                 type="button"
-                onClick={() => setSelectedSector(sectorOption.key)}
+                onClick={() => {
+                  if (canManageSectorGate) setActiveSectorFilter(sectorOption.key);
+                }}
                 className={`h-8 px-3 rounded-xl text-[11px] font-black border transition cursor-pointer ${
                   active
                     ? sectorOption.key === 'electrical'
@@ -1865,8 +1883,10 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         <TotalsAnalysisView
           records={filteredSales}
           customers={customers}
-          sector={selectedSector}
-          onSelectSector={setSelectedSector}
+          sector={itemSalesSector === 'electrical' ? 'electrical' : 'home'}
+          onSelectSector={(s) => {
+            if (canManageSectorGate) setActiveSectorFilter(s);
+          }}
           resolveSector={resolveItemSaleSector}
           subtitle={analysisSubtitle}
         />

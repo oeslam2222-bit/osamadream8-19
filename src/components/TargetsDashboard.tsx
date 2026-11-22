@@ -103,7 +103,16 @@ const StatCard: React.FC<{
 };
 
 export const TargetsDashboard: React.FC = () => {
-  const { getVisibleTargets, users, getVisibleCustomers, getVisibleVisits, visits: ctxVisits } = useApp();
+  const {
+    getVisibleTargets,
+    users,
+    getVisibleCustomers,
+    getVisibleVisits,
+    visits: ctxVisits,
+    activeSectorFilter,
+    setActiveSectorFilter,
+    canManageSectorGate,
+  } = useApp();
   const allTargets = useMemo(() => getVisibleTargets(), [getVisibleTargets]);
   const allCustomers = useMemo(() => getVisibleCustomers(), [getVisibleCustomers]);
   const allVisits = useMemo(() => (getVisibleVisits ? getVisibleVisits() : (ctxVisits || [])), [getVisibleVisits, ctxVisits]);
@@ -155,25 +164,29 @@ export const TargetsDashboard: React.FC = () => {
     });
   }, [repSearch, repNames, users]);
 
-  // الفروع من التارجتات + المستخدمين. نفس اسم الفرع可能 موجود في القطاعين،
-  // فبنضمّن القطاع في قيمة الفلتر (branch|sector) عشان نفرّقهم.
+  // الفروع من التارجتات + المستخدمين للقطاع المختار فقط (بدون دمج بين القطاعين).
   const branchOptions = useMemo(() => {
     const map = new Map<string, { branch: string; sector?: string }>();
     const add = (branch?: string, sector?: string) => {
       if (!branch) return;
       const sec = sector === 'home' || sector === 'electrical' ? sector : '';
+      if (canManageSectorGate && sec !== activeSectorFilter) return;
       const key = `${branch}|${sec}`;
       if (!map.has(key)) map.set(key, { branch, sector: sec });
     };
     allTargets.forEach((t) => add(t.branch, inferTargetSector(t, users)));
-    users.forEach((u) => add(u.branchName, u.sector));
+    users.forEach((u) => {
+      if (!u.sector || u.sector === 'both' || u.sector === 'all') return;
+      if (canManageSectorGate && u.sector !== activeSectorFilter) return;
+      add(u.branchName, u.sector);
+    });
     return Array.from(map.entries())
       .map(([key, v]) => ({
         key,
         label: v.sector ? `${v.branch} — ${getSectorLabel(v.sector)}` : v.branch,
       }))
       .sort((a, b) => a.label.localeCompare(b.label, 'ar'));
-  }, [allTargets, users]);
+  }, [allTargets, users, canManageSectorGate, activeSectorFilter]);
 
   // المشرفون: من المستخدمين + من عمود supervisorName في العملاء
   const supervisorOptions = useMemo(() => {
@@ -412,9 +425,47 @@ export const TargetsDashboard: React.FC = () => {
 
       {/* Filters */}
       <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center gap-2 mb-3 text-slate-700">
-          <Filter className="w-4 h-4" />
-          <span className="font-black text-sm">الفلاتر</span>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3 text-slate-700">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4" />
+            <span className="font-black text-sm">الفلاتر</span>
+          </div>
+          {canManageSectorGate && (
+            <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1 gap-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveSectorFilter('home');
+                  setSelectedBranch('all');
+                  setSelectedRep('all');
+                  setRepSearch('');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                  activeSectorFilter === 'home'
+                    ? 'bg-[#102b4e] text-white shadow-2xs'
+                    : 'text-slate-600 hover:bg-white'
+                }`}
+              >
+                🏠 منزلي
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveSectorFilter('electrical');
+                  setSelectedBranch('all');
+                  setSelectedRep('all');
+                  setRepSearch('');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                  activeSectorFilter === 'electrical'
+                    ? 'bg-amber-600 text-white shadow-2xs'
+                    : 'text-slate-600 hover:bg-white'
+                }`}
+              >
+                ⚡ كهرباء
+              </button>
+            </div>
+          )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <label className="flex flex-col gap-1">

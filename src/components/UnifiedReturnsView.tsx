@@ -73,7 +73,8 @@ export const UnifiedReturnsView: React.FC = () => {
     updateCustomer,
     cloudinaryConfig,
     activeSectorFilter,
-    setActiveSectorFilter
+    setActiveSectorFilter,
+    canManageSectorGate,
   } = useApp();
 
   const visibleVisits = useMemo(() => getVisibleVisits(), [getVisibleVisits]);
@@ -410,7 +411,10 @@ export const UnifiedReturnsView: React.FC = () => {
       repId: currentUser?.id,
     });
 
-    if (geoCheck.requiresLivePhoto && attachedPhotos.length === 0) {
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    const isOfflineDeferredPhoto = isOffline && geoCheck.requiresLivePhoto && attachedPhotos.length === 0;
+
+    if (!isOffline && geoCheck.requiresLivePhoto && attachedPhotos.length === 0) {
       showErrorToast('الموقع خارج نطاق العميل أو عليه تنبيه GPS — يرجى التقاط صورة حية للبضاعة أو واجهة المحل قبل الحفظ');
       return;
     }
@@ -451,12 +455,18 @@ export const UnifiedReturnsView: React.FC = () => {
           distanceMeters: geoCheck.distanceMeters,
           accuracyMeters: geoCheck.accuracyMeters,
           speedKmh: geoCheck.speedKmh,
-          flags: geoCheck.flags,
+          flags: isOfflineDeferredPhoto
+            ? Array.from(new Set([...geoCheck.flags, 'offline_photo_deferred']))
+            : geoCheck.flags,
           proofPhotoUrl: attachedPhotos[0] || undefined,
           verifiedAt: geoCheck.verifiedAt,
         },
-        reviewStatus: geoCheck.requiresSupervisorReview ? 'pending' : 'approved',
-        reviewNote: geoCheck.requiresSupervisorReview ? `مراجعة موقع المرتجع: ${geoCheck.label}` : undefined,
+        reviewStatus: (geoCheck.requiresSupervisorReview || isOfflineDeferredPhoto) ? 'pending' : 'approved',
+        reviewNote: isOfflineDeferredPhoto
+          ? `تم تسجيل المرتجع أوفلاين (مؤجل إرفاق صورة التحقق): ${geoCheck.label}`
+          : geoCheck.requiresSupervisorReview
+            ? `مراجعة موقع المرتجع: ${geoCheck.label}`
+            : undefined,
         notes: `إذن مرتجع مسجل بواسطة المندوب: ${currentUser?.name} • الأصناف: ${validItems.length} صنف • الإجمالي التقديري: ${formatCurrency(draftTotalValue)}`
       });
 
@@ -724,6 +734,33 @@ export const UnifiedReturnsView: React.FC = () => {
                 ))}
               </select>
             )}
+            {canManageSectorGate && (
+              <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveSectorFilter('home')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
+                    activeSectorFilter === 'home'
+                      ? 'bg-[#102b4e] text-white shadow-2xs'
+                      : 'text-slate-600 hover:bg-white'
+                  }`}
+                >
+                  🏠 منزلي
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSectorFilter('electrical')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer whitespace-nowrap ${
+                    activeSectorFilter === 'electrical'
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'text-slate-600 hover:bg-white'
+                  }`}
+                >
+                  ⚡ كهرباء
+                </button>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={() => setSortByDebtDesc((v) => !v)}
@@ -1214,7 +1251,9 @@ export const UnifiedReturnsView: React.FC = () => {
                     )}
                     {returnGeoCheck?.requiresLivePhoto && attachedPhotos.length === 0 && (
                       <div className="text-[11px] font-black">
-                        تنبيه: يجب التقاط صورة واحدة على الأقل بالكاميرا في الخطوة (٤) بالأسفل لاعتماد المرتجع خارج النطاق.
+                        {typeof navigator !== 'undefined' && !navigator.onLine
+                          ? 'وضع الأوفلاين: يمكنك حفظ المرتجع الآن في طابور المزامنة وسيتم إرساله لمراجعة المشرف.'
+                          : 'تنبيه: يجب التقاط صورة واحدة على الأقل بالكاميرا في الخطوة (٤) بالأسفل لاعتماد المرتجع خارج النطاق.'}
                       </div>
                     )}
                   </div>

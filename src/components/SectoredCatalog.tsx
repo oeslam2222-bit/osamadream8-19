@@ -118,7 +118,7 @@ export const SectoredCatalog = ({ className }: SectoredCatalogProps) => {
     if (!currentUser) return undefined;
     const role = currentUser.role as 'sales_rep' | 'sales_supervisor' | 'branch_manager' | 'sales_department_manager' | 'sector_manager_home' | 'sector_manager_electrical' | 'top_management' | 'technical_support';
     if (role === 'top_management' || role === 'technical_support' || role === 'sales_department_manager') {
-      return activeSectorFilter === 'all' ? undefined : activeSectorFilter;
+      return activeSectorFilter;
     }
     if (role === 'sector_manager_home') return 'home';
     if (role === 'sector_manager_electrical') return 'electrical';

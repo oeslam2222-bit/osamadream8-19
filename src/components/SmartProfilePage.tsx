@@ -114,10 +114,17 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     getVisibleVisits,
     selectedBranchFilter,
     canManageSectorGate,
+    activeSectorFilter,
+    setActiveSectorFilter,
+    effectiveSectorFilter,
     setSelectedBranchFilter,
     syncWithSupabase,
     checkAndSyncDataVersion,
   } = useApp();
+
+  const activeSector: 'home' | 'electrical' | 'none' = canManageSectorGate
+    ? activeSectorFilter
+    : effectiveSectorFilter;
 
   const canViewReps = ['admin', 'developer', 'branch_manager', 'supervisor', 'technical_support'].includes(
     currentUser?.role || ''
@@ -128,7 +135,6 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     mode === 'reps' && canViewReps ? 'reps' : 'customers'
   );
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSector, setSelectedSector] = useState<'all' | 'home' | 'electrical'>('all');
   const [selectedBranch, setSelectedBranch] = useState('الكل');
   const [selectedSupervisor, setSelectedSupervisor] = useState('الكل');
   const [repPeriodMode, setRepPeriodMode] = useState<'all' | 'month' | 'quarter'>('all');
@@ -157,7 +163,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     setVisibleRepsCount(5);
     setOpenCustomerId(null);
     setOpenRepId(null);
-  }, [searchQuery, selectedSector, selectedBranch, selectedSupervisor, repPeriodMode, selectedRepMonth, selectedRepQuarter, selectedRepYear, activeTab]);
+  }, [searchQuery, activeSector, selectedBranch, selectedSupervisor, repPeriodMode, selectedRepMonth, selectedRepQuarter, selectedRepYear, activeTab]);
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
@@ -343,10 +349,12 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
       const matchesSearch = !q || rep.repName.toLowerCase().includes(q) || (rep.repUsername || '').toLowerCase().includes(q) || rep.repId.toLowerCase().includes(q) || rep.branch.toLowerCase().includes(q);
       const matchesBranch = selectedBranch === 'الكل' || rep.branch === selectedBranch;
       const matchesSupervisor = selectedSupervisor === 'الكل' || rep.supervisor === selectedSupervisor;
-      const matchesSector = selectedSector === 'all' || !rep.sector || rep.sector === 'all' || rep.sector === 'both' || rep.sector === selectedSector;
+      const matchesSector =
+        activeSector !== 'none' &&
+        (!rep.sector || rep.sector === 'all' || rep.sector === 'both' || rep.sector === activeSector);
       return matchesSearch && matchesBranch && matchesSupervisor && matchesSector;
     });
-  }, [repsMap, deferredSearchQuery, selectedBranch, selectedSupervisor, selectedSector]);
+  }, [repsMap, deferredSearchQuery, selectedBranch, selectedSupervisor, activeSector]);
 
   const displayedReps = useMemo(() => filteredReps.slice(0, visibleRepsCount), [filteredReps, visibleRepsCount]);
 
@@ -379,7 +387,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     setLegalCases(getLegalCases());
     return unsub;
   }, []);
-  const canTransferToLegal = ['admin', 'branch_manager', 'developer'].includes(currentUser?.role || '');
+  const canTransferToLegal = ['admin', 'branch_manager', 'supervisor', 'developer'].includes(currentUser?.role || '');
   const handleTransferToLegal = (cust: Customer | CustomerProfile, reason?: string, transferIcon?: string) => {
     const customerLike = cust as unknown as Customer;
     const res = referCustomerToLegal({
@@ -562,10 +570,12 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
       const matchesSearch = !q || c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q) || c.phone.includes(q) || c.repName.toLowerCase().includes(q);
       const matchesBranch = selectedBranch === 'الكل' || c.branch === selectedBranch;
       const matchesSupervisor = selectedSupervisor === 'الكل' || c.supervisor === selectedSupervisor;
-      const matchesSector = selectedSector === 'all' || !c.sector || c.sector === 'all' || c.sector === 'both' || c.sector === selectedSector;
+      const matchesSector =
+        activeSector !== 'none' &&
+        (!c.sector || c.sector === 'all' || c.sector === 'both' || c.sector === activeSector);
       return matchesSearch && matchesBranch && matchesSupervisor && matchesSector;
     });
-  }, [customersMap, deferredSearchQuery, selectedBranch, selectedSupervisor, selectedSector]);
+  }, [customersMap, deferredSearchQuery, selectedBranch, selectedSupervisor, activeSector]);
 
   const displayedCustomers = useMemo(() => filteredCustomers.slice(0, visibleCustomersCount), [filteredCustomers, visibleCustomersCount]);
 
@@ -810,13 +820,12 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                 <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
                   <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">القطاع</span>
                   <select
-                    value={selectedSector}
-                    onChange={(e) => setSelectedSector(e.target.value as 'all' | 'home' | 'electrical')}
+                    value={activeSectorFilter}
+                    onChange={(e) => setActiveSectorFilter(e.target.value as 'home' | 'electrical')}
                     className="bg-transparent font-black text-[var(--app-text)] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
                   >
-                    <option value="all">كل القطاعات</option>
-                    <option value="home">منزلي</option>
-                    <option value="electrical">كهربائي</option>
+                    <option value="home">🏠 منزلي</option>
+                    <option value="electrical">⚡ كهربائي</option>
                   </select>
                 </div>
                 )}
@@ -1357,13 +1366,12 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                 <div className="flex flex-col justify-center bg-[var(--app-card-secondary)] border border-[var(--tg-line)] rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2 min-w-0 sm:min-w-[140px]">
                   <span className="text-[10px] sm:text-[11px] font-extrabold text-slate-700 leading-none mb-1">القطاع</span>
                   <select
-                    value={selectedSector}
-                    onChange={(e) => setSelectedSector(e.target.value as 'all' | 'home' | 'electrical')}
+                    value={activeSectorFilter}
+                    onChange={(e) => setActiveSectorFilter(e.target.value as 'home' | 'electrical')}
                     className="bg-transparent font-black text-[var(--app-text)] text-xs sm:text-sm focus:outline-none cursor-pointer w-full"
                   >
-                    <option value="all">كل القطاعات</option>
-                    <option value="home">منزلي</option>
-                    <option value="electrical">كهربائي</option>
+                    <option value="home">🏠 منزلي</option>
+                    <option value="electrical">⚡ كهربائي</option>
                   </select>
                 </div>
                 )}

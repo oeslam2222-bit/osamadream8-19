@@ -1,11 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  AlertCircle,
   Bell,
   Boxes,
   Building2,
   Check,
   Database,
+  Eye,
+  EyeOff,
   FileSpreadsheet,
+  KeyRound,
+  Lock,
   Moon,
   Palette,
   Shield,
@@ -15,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { useTheme } from '../context/themeContext';
+import { changeOwnPassword } from '../services/authService';
 import { CANONICAL_BRANCHES } from '../services/branchDirectory';
 import '../styles/settings-center.css';
 
@@ -40,7 +46,7 @@ const SECTOR_LABELS: Record<string, string> = {
   home: 'منزلي',
   electrical: 'كهربائي',
   both: 'منزلي وكهربائي',
-  all: 'كل القطاعات'
+  all: 'الإدارة (منزلي / كهربائي)'
 };
 
 interface NotifySettings {
@@ -80,11 +86,54 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
   const [tab, setTab] = useState<SettingsTab>('profile');
   const [notify, setNotify] = useState<NotifySettings>(readNotify);
 
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwFeedback, setPwFeedback] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+
   useEffect(() => {
     try {
       localStorage.setItem(NOTIFY_KEY, JSON.stringify(notify));
     } catch {}
   }, [notify]);
+
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwFeedback(null);
+
+    if (!currentPassword.trim()) {
+      setPwFeedback({ tone: 'err', text: 'يرجى إدخال كلمة المرور الحالية.' });
+      return;
+    }
+    if (newPassword.trim().length < 6) {
+      setPwFeedback({ tone: 'err', text: 'كلمة المرور الجديدة يجب أن لا تقل عن 6 أحرف.' });
+      return;
+    }
+    if (newPassword.trim() !== confirmPassword.trim()) {
+      setPwFeedback({ tone: 'err', text: 'كلمة المرور الجديدة وتأكيدها غير متطابقين.' });
+      return;
+    }
+
+    setPwSaving(true);
+    const res = await changeOwnPassword({
+      currentPassword,
+      newPassword,
+    });
+    setPwSaving(false);
+
+    if (!res.success) {
+      setPwFeedback({ tone: 'err', text: res.message });
+      return;
+    }
+
+    setPwFeedback({ tone: 'ok', text: res.message });
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+  };
 
   const initials = useMemo(() => {
     const name = (currentUser?.name || '').trim();
@@ -256,6 +305,130 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
                 إدارة
               </button>
             </div>
+          </section>
+
+          <section className="sc-card" style={{ gridColumn: '1 / -1' }}>
+            <div className="sc-card__head">
+              <span className="sc-card__title">
+                <KeyRound size={14} />
+                تغيير كلمة المرور مباشرة (بدون إيميل)
+              </span>
+              <span className="sc-card__hint">
+                البريد المسجل: {currentUser?.email || '—'}
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold mb-3 leading-relaxed">
+              تقدر تغيّر كلمة المرور الصعبة أو العشوائية لحسابك إلى كلمة مرور سهلة الحفظ من هنا مباشرة، بدون إرسال أي رسالة لبريد إلكتروني.
+            </p>
+
+            {pwFeedback && (
+              <div
+                className={`mb-3 p-3 rounded-xl border text-xs font-bold flex items-center gap-2 ${
+                  pwFeedback.tone === 'ok'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-200'
+                    : 'bg-rose-50 border-rose-200 text-rose-800 dark:bg-rose-950/40 dark:border-rose-800 dark:text-rose-200'
+                }`}
+              >
+                {pwFeedback.tone === 'ok' ? (
+                  <Check size={15} className="shrink-0" />
+                ) : (
+                  <AlertCircle size={15} className="shrink-0" />
+                )}
+                <span>{pwFeedback.text}</span>
+              </div>
+            )}
+
+            <form onSubmit={handlePasswordSubmit} className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
+              <div>
+                <label className="block text-[11px] font-extrabold text-slate-700 dark:text-slate-200 mb-1">
+                  كلمة المرور الحالية
+                </label>
+                <div className="relative">
+                  <Lock size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type={showCurrentPw ? 'text' : 'password'}
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="اكتب كلمة المرور الحالية"
+                    autoComplete="current-password"
+                    className="w-full pr-9 pl-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 text-xs font-bold"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowCurrentPw((v) => !v)}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    aria-label={showCurrentPw ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                  >
+                    {showCurrentPw ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-extrabold text-slate-700 dark:text-slate-200 mb-1">
+                  كلمة المرور الجديدة (6 أحرف على الأقل)
+                </label>
+                <div className="relative">
+                  <KeyRound size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type={showNewPw ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="مثال: Osama@2026"
+                    autoComplete="new-password"
+                    className="w-full pr-9 pl-9 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 text-xs font-bold"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPw((v) => !v)}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    aria-label={showNewPw ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                  >
+                    {showNewPw ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-extrabold text-slate-700 dark:text-slate-200 mb-1">
+                  تأكيد كلمة المرور الجديدة
+                </label>
+                <input
+                  type={showNewPw ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="أعد كتابة كلمة المرور الجديدة"
+                  autoComplete="new-password"
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 text-xs font-bold"
+                />
+              </div>
+
+              <div className="sm:col-span-3 flex items-center justify-between gap-3 flex-wrap pt-1">
+                {(currentUser?.role === 'admin' || currentUser?.role === 'developer') && onNavigate ? (
+                  <button
+                    type="button"
+                    onClick={() => onNavigate('users')}
+                    className="text-[11px] font-extrabold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                  >
+                    تغيير كلمة مرور موظف آخر من شاشة الفريق والصلاحيات ←
+                  </button>
+                ) : (
+                  <span className="text-[11px] font-bold text-slate-500">
+                    يتم الحفظ مباشرة على حسابك دون الحاجة لفتح البريد الإلكتروني.
+                  </span>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={pwSaving}
+                  className="sc-btn sc-btn--primary disabled:opacity-60"
+                >
+                  <KeyRound size={13} />
+                  <span>{pwSaving ? 'جاري التحديث...' : 'حفظ كلمة المرور الجديدة'}</span>
+                </button>
+              </div>
+            </form>
           </section>
         </div>
       )}
@@ -439,6 +612,20 @@ export const SettingsCenterView: React.FC<SettingsCenterViewProps> = ({ onNaviga
               </div>
               {onNavigate && (
                 <button type="button" className="sc-btn sc-btn--ghost" onClick={() => onNavigate('all_customers')}>
+                  فتح
+                </button>
+              )}
+            </div>
+            <div className="sc-row">
+              <div className="sc-row__icon sc-row__icon--amber">
+                <Database size={15} />
+              </div>
+              <div className="sc-row__body">
+                <div className="sc-row__title">مزامنة معلقة (إدارة الطابور)</div>
+                <div className="sc-row__sub">مراجعة وحذف العمليات العالقة وتقليل الـ Egress</div>
+              </div>
+              {onNavigate && (
+                <button type="button" className="sc-btn sc-btn--ghost" onClick={() => onNavigate('pending_sync')}>
                   فتح
                 </button>
               )}

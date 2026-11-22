@@ -39,34 +39,34 @@ export const ROLE_ALLOWED_TABS: Record<UserRole, string[]> = {
   developer: [
     'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
     'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers',
-    'excel', 'users', 'guide', 'permissions', 'audit_log', 'legal_advisor'
+    'excel', 'users', 'guide', 'permissions', 'audit_log', 'legal_advisor', 'pending_sync'
   ],
   admin: [
     'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
     'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers',
-    'excel', 'users', 'guide', 'permissions', 'audit_log', 'legal_advisor'
+    'excel', 'users', 'guide', 'permissions', 'audit_log', 'legal_advisor', 'pending_sync'
   ],
   branch_manager: [
     'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
     'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers',
-    'users', 'guide'
+    'users', 'guide', 'pending_sync'
   ],
   supervisor: [
     'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
     'dashboard', 'product_sales', 'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers',
-    'users'
+    'users', 'pending_sync'
   ],
   sales_rep: [
     'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers',
-    'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers'
+    'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers', 'pending_sync'
   ],
   technical_support: [
     'home', 'catalog', 'offers', 'promotions', 'customer_item_sales', 'all_customers', 'customers', 'reps',
     'dashboard', 'targets', 'collection', 'visits', 'invoices', 'returns', 'returns_customers',
-    'excel', 'users', 'guide', 'permissions'
+    'excel', 'users', 'guide', 'permissions', 'pending_sync'
   ],
-  legal_advisor: ["home", "legal_advisor"],
-  warehouse_keeper: ["home", "returns", "guide"],
+  legal_advisor: ["home", "legal_advisor", "pending_sync"],
+  warehouse_keeper: ["home", "returns", "guide", "pending_sync"],
 };
 
 // Lightweight Skeleton for tab transitions
@@ -126,6 +126,7 @@ const PermissionManagerModal = lazyNamed(() => import('./components/PermissionMa
 const OrderBuilderModal = lazyNamed(() => import('./components/OrderBuilderModal'), 'OrderBuilderModal');
 const PromotionsOffersView = lazyNamed(() => import('./components/PromotionsOffersView'), 'PromotionsOffersView');
 const ElectronicInvoiceModal = lazyNamed(() => import('./components/ElectronicInvoiceModal'), 'ElectronicInvoiceModal');
+const PendingSyncView = lazyNamed(() => import('./components/PendingSyncView'), 'PendingSyncView');
 
 /**
  * التبويبات الزائرة بتفضل في DOM مخفية بـ display:none بدل ما تتفكّك مع كل
@@ -133,7 +134,7 @@ const ElectronicInvoiceModal = lazyNamed(() => import('./components/ElectronicIn
  * حد أقصى 5 تبويبات (الأحدث آخرًا) عشان الذاكرة والخلفية ما يزيدوش، والرئيسية
  * مثبّتة لأنها أكثر وجهة رجوع عند المندوبين.
  */
-const MOUNTED_TABS_LIMIT = 2;
+const MOUNTED_TABS_LIMIT = 5;
 const PINNED_TABS: readonly string[] = ['home'];
 const ACTIVE_TAB_STORAGE_KEY = 'tantawy_active_tab';
 
@@ -181,14 +182,17 @@ const MainLayout: React.FC = () => {
   } = useApp();
 
   const [activeTab, setActiveTabState] = useState<string>(() => readSavedActiveTab(currentUser?.id));
+  const [, startTabTransition] = React.useTransition();
   const setActiveTab = useCallback((nextTab: React.SetStateAction<string>) => {
-    setActiveTabState((prev) => {
-      const resolved = typeof nextTab === 'function' ? nextTab(prev) : nextTab;
-      const clean = resolved && resolved.trim() ? resolved.trim() : 'home';
-      persistActiveTab(clean, currentUser?.id);
-      return clean;
+    startTabTransition(() => {
+      setActiveTabState((prev) => {
+        const resolved = typeof nextTab === 'function' ? nextTab(prev) : nextTab;
+        const clean = resolved && resolved.trim() ? resolved.trim() : 'home';
+        persistActiveTab(clean, currentUser?.id);
+        return clean;
+      });
     });
-  }, [currentUser?.id]);
+  }, [currentUser?.id, startTabTransition]);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
@@ -245,9 +249,9 @@ const MainLayout: React.FC = () => {
     const override = customPermissionOverrides.find((o) => o.userId === currentUser.id);
     if (override && Array.isArray(override.allowedTabs) && override.allowedTabs.length > 0) {
       // Merge role base tabs with custom override tabs so system screens are never inadvertently blocked
-      return Array.from(new Set([...baseTabs, ...override.allowedTabs, 'settings']));
+      return Array.from(new Set([...baseTabs, ...override.allowedTabs, 'settings', 'pending_sync']));
     }
-    return Array.from(new Set([...baseTabs, 'settings']));
+    return Array.from(new Set([...baseTabs, 'settings', 'pending_sync']));
   }, [currentUser, customPermissionOverrides]);
 
   // Restore user-scoped tab on account switch and keep localStorage synced
@@ -304,6 +308,39 @@ const MainLayout: React.FC = () => {
   // التبويب النشط بيتسجّل فورًا في نفس الـrender (قبل ما الـeffect يشتغل) عشان
   // ما يظهرش إطار فاضي وقت التنقل.
   const openTabs = useMemo(() => new Set([...mountedTabs, activeTab]), [mountedTabs, activeTab]);
+
+  // تسخين حزم الشاشات الميدانية الأساسية في الخلفية بعد الدخول (أونلاين فقط، وقت الخمول)
+  // حتى تفتح شاشات الكتالوج والزيارات والمرتجعات والتحصيل والفواتير فوراً وتكون جاهزة أوفلاين
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser || isOffline) return;
+    let cancelled = false;
+    const warmFieldChunks = () => {
+      if (cancelled || navigator.onLine === false) return;
+      const loaders: Array<() => Promise<unknown>> = [
+        () => import('./components/ProductCatalog'),
+        () => import('./components/VisitsDashboard'),
+        () => import('./components/UnifiedReturnsView'),
+        () => import('./components/CollectionCommandCenter'),
+        () => import('./components/CollectionRecoveryDashboard'),
+        () => import('./components/OrdersPipelineView'),
+        () => import('./components/OrderBuilderModal'),
+        () => import('./components/ElectronicInvoiceModal'),
+        () => import('./components/SmartProfilePage'),
+      ];
+      let idx = 0;
+      const step = () => {
+        if (cancelled || idx >= loaders.length || navigator.onLine === false) return;
+        loaders[idx++]().catch(() => {});
+        window.setTimeout(step, 350);
+      };
+      step();
+    };
+    const timer = window.setTimeout(warmFieldChunks, 1600);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [isAuthenticated, currentUser?.id, isOffline]);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     try {
@@ -421,6 +458,13 @@ const MainLayout: React.FC = () => {
           )}
           <button
             type="button"
+            onClick={() => setActiveTab('pending_sync')}
+            className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-[11px] font-black cursor-pointer hover:bg-white/25 transition"
+          >
+            مزامنة معلقة
+          </button>
+          <button
+            type="button"
             onClick={() => setSyncCenterOpen(true)}
             className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-0.5 text-[11px] font-black cursor-pointer hover:bg-white/25 transition"
           >
@@ -450,7 +494,14 @@ const MainLayout: React.FC = () => {
       )}
 
       {/* مركز حالة المزامنة — تفاصيل الطابور المعلق والمزامنة اليدوية */}
-      <SyncStatusCenter isOpen={syncCenterOpen} onClose={() => setSyncCenterOpen(false)} />
+      <SyncStatusCenter
+        isOpen={syncCenterOpen}
+        onClose={() => setSyncCenterOpen(false)}
+        onOpenPendingSyncPage={() => {
+          setSyncCenterOpen(false);
+          setActiveTab('pending_sync');
+        }}
+      />
 
       {/* Main Responsive Navbar — هوية واحدة ثابتة لكل الصفحات */}
       <Navbar
@@ -632,6 +683,12 @@ const MainLayout: React.FC = () => {
           {openTabs.has('permissions') && allowedTabs.includes('permissions') && (
             <TabPane hidden={activeTab !== 'permissions'}>
               <PermissionManagerModal isOpen={true} onClose={() => setActiveTab('home')} />
+            </TabPane>
+          )}
+
+          {openTabs.has('pending_sync') && allowedTabs.includes('pending_sync') && (
+            <TabPane hidden={activeTab !== 'pending_sync'}>
+              <PendingSyncView onNavigate={(tab) => setActiveTab(tab)} />
             </TabPane>
           )}
 

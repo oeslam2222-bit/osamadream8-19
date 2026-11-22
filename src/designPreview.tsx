@@ -84,10 +84,9 @@ export const DesignPreview: React.FC = () => {
         <div className="dp-filters">
           <label className="dp-field">
             <span>القطاع</span>
-            <select className="dp-input" defaultValue="all">
-              <option value="all">كل القطاعات</option>
-              <option value="home">منزلي</option>
-              <option value="gift">هدايا</option>
+            <select className="dp-input" defaultValue="home">
+              <option value="home">🏠 منزلي</option>
+              <option value="electrical">⚡ كهربائي</option>
             </select>
           </label>
           <label className="dp-field">

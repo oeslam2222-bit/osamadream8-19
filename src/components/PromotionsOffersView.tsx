@@ -55,15 +55,19 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
     announcements,
     saveAndSyncAnnouncements,
     canManageSectorGate,
+    activeSectorFilter,
+    setActiveSectorFilter,
     effectiveSectorFilter,
   } = useApp();
 
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
   const canManageOffers = ['admin', 'developer', 'branch_manager'].includes(currentUser?.role || '');
+  const activeSector: 'home' | 'electrical' | 'none' = canManageSectorGate
+    ? activeSectorFilter
+    : effectiveSectorFilter;
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('الكل');
-  const [selectedSectorFilter, setSelectedSectorFilter] = useState<'all' | 'home' | 'electrical'>('all');
   const [selectedRepFilter, setSelectedRepFilter] = useState('الكل');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'expired'>('all');
 
@@ -135,10 +139,12 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
 
   // نطاق العروض المسموح للمستخدم حسب القطاع والفرع والمندوب
   const scopedPromotions = useMemo(() => {
-    // حساب مبيعات بلا قطاع ('none'): محجوب عن عروض القطاعين.
-    if (effectiveSectorFilter === 'none' && !isAdminOrDev) return [];
-    return filterPromotionsForUser(promotions, currentUser, products);
-  }, [promotions, currentUser, products, effectiveSectorFilter, isAdminOrDev]);
+    if (activeSector === 'none') return [];
+    return filterPromotionsForUser(promotions, currentUser, products).filter((p) => {
+      const sec = inferOfferSector(p, products);
+      return !sec || sec === activeSector;
+    });
+  }, [promotions, currentUser, products, activeSector]);
 
   const repFilterOptions = useMemo(() => {
     const set = new Set<string>();
@@ -175,11 +181,6 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
         if (!codeMatch && !unifiedMatch && !nameMatch && !titleMatch && !branchMatch && !groupMatch && !repMatch) return false;
       }
 
-      if (selectedSectorFilter !== 'all') {
-        const inferred = inferOfferSector(p, products);
-        if (inferred && inferred !== selectedSectorFilter) return false;
-      }
-
       if (selectedBranchFilter !== 'الكل' && !doesOfferApplyToBranch(p, selectedBranchFilter)) {
         return false;
       }
@@ -194,7 +195,7 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
 
       return true;
     });
-  }, [scopedPromotions, searchTerm, selectedSectorFilter, selectedBranchFilter, selectedRepFilter, statusFilter, products, users]);
+  }, [scopedPromotions, searchTerm, selectedBranchFilter, selectedRepFilter, statusFilter, users]);
 
   // Statistics (بناءً على القائمة المتقيدة بالقطاع والفلترات الحالية)
   const stats = useMemo(() => {
@@ -745,14 +746,13 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
 
           {canManageSectorGate && (
             <select
-              value={selectedSectorFilter}
-              onChange={(e) => setSelectedSectorFilter(e.target.value as 'all' | 'home' | 'electrical')}
+              value={activeSectorFilter}
+              onChange={(e) => setActiveSectorFilter(e.target.value as 'home' | 'electrical')}
               className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs sm:text-sm font-bold text-slate-700 outline-none cursor-pointer focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15"
               aria-label="فلترة القطاع"
             >
-              <option value="all">كل القطاعات</option>
-              <option value="home">قطاع المنزلي</option>
-              <option value="electrical">قطاع الكهربائي</option>
+              <option value="home">🏠 قطاع المنزلي</option>
+              <option value="electrical">⚡ قطاع الكهربائي</option>
             </select>
           )}
 
@@ -1122,7 +1122,7 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
                     onChange={(e) => setFormData({ ...formData, sector: (e.target.value || undefined) as any })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs text-slate-900 font-bold"
                   >
-                    <option value="">كل القطاعات</option>
+                    <option value="">تلقائي حسب الصنف</option>
                     <option value="home">منزلي</option>
                     <option value="electrical">كهربائي</option>
                   </select>

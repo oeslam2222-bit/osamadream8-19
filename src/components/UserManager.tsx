@@ -13,6 +13,7 @@ import {
   Database,
   Edit2,
   Eye,
+  EyeOff,
   Key,
   Link,
   Lock,
@@ -46,7 +47,11 @@ import {
   sanitizeAndDeduplicateUsers,
 } from '../services/arabicMatchingService';
 import { formatCurrency } from '../services/invoiceService';
-import { createFullUser } from '../services/authService';
+import {
+  ADMIN_PASSWORD_RESET_SQL_SNIPPET,
+  adminResetUserPassword,
+  createFullUser,
+} from '../services/authService';
 import { User, UserApprovalStatus, UserRole } from '../types';
 
 export const UserManager: React.FC = () => {
@@ -72,6 +77,15 @@ export const UserManager: React.FC = () => {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [creatingAuth, setCreatingAuth] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState<string | null>(null);
+  const [editResetPassword, setEditResetPassword] = useState('');
+  const [showEditResetPassword, setShowEditResetPassword] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [resetPasswordResult, setResetPasswordResult] = useState<{
+    tone: 'ok' | 'err';
+    text: string;
+    rpcMissing?: boolean;
+  } | null>(null);
+  const [copiedSqlSnippet, setCopiedSqlSnippet] = useState(false);
   const [copiedCredentials, setCopiedCredentials] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('الكل');
@@ -552,6 +566,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     });
     setUserFormError(null);
     setCreatedCredentials(null);
+    setEditResetPassword('');
+    setResetPasswordResult(null);
     setShowAddUserModal(true);
   };
 
@@ -563,7 +579,47 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     });
     setUserFormError(null);
     setCreatedCredentials(null);
+    setEditResetPassword('');
+    setShowEditResetPassword(false);
+    setResetPasswordResult(null);
     setShowAddUserModal(true);
+  };
+
+  const handleDirectAdminPasswordReset = async () => {
+    if (!editingUser || !isSuperAdminOrDev) return;
+    setResetPasswordResult(null);
+
+    if (editResetPassword.trim().length < 6) {
+      setResetPasswordResult({
+        tone: 'err',
+        text: 'يرجى كتابة كلمة مرور جديدة لا تقل عن 6 أحرف.',
+      });
+      return;
+    }
+
+    setResettingPassword(true);
+    const res = await adminResetUserPassword({
+      targetUserId: editingUser.id,
+      targetEmail: editingUser.email,
+      targetAuthUserId: editingUser.auth_user_id,
+      newPassword: editResetPassword,
+    });
+    setResettingPassword(false);
+
+    if (!res.success) {
+      setResetPasswordResult({
+        tone: 'err',
+        text: res.message,
+        rpcMissing: res.rpcMissing,
+      });
+      return;
+    }
+
+    setResetPasswordResult({
+      tone: 'ok',
+      text: `${res.message} (${editingUser.email})`,
+    });
+    setEditResetPassword('');
   };
 
   const handleSaveUser = async (e: React.FormEvent) => {
@@ -1209,15 +1265,24 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                           <span>{isCurrent ? 'الحالي' : 'تجربة'}</span>
                         </button>
 
-                        {/* Edit (Admin & Dev only) */}
+                        {/* Edit & Direct Password Reset (Admin & Dev only) */}
                         {isSuperAdminOrDev && (
-                          <button
-                            onClick={() => handleOpenEditModal(user)}
-                            className="chip-btn p-2 cursor-pointer"
-                            title="تعديل بيانات الموظف"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleOpenEditModal(user)}
+                              className="chip-btn p-2 cursor-pointer text-amber-700 hover:bg-amber-50"
+                              title="تغيير كلمة مرور الموظف مباشرة (بدون إيميل)"
+                            >
+                              <Key className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleOpenEditModal(user)}
+                              className="chip-btn p-2 cursor-pointer"
+                              title="تعديل بيانات الموظف"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
                         )}
 
                         {/* Delete (Admin & Dev only, if not self) */}
@@ -1401,9 +1466,84 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                     </div>
                   )}
                   {editingUser && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-900">
-                      <strong className="block mb-1">كلمة المرور تُدار مركزيًا</strong>
-                      لتغيير كلمة مرور موظف موجود: Supabase → Authentication → Users → Reset password.
+                    <div className="sm:col-span-2 rounded-2xl border border-blue-200 bg-blue-50/70 p-3.5 space-y-2.5">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="font-black text-slate-900 text-xs flex items-center gap-1.5">
+                          <Key className="w-4 h-4 text-blue-600" />
+                          تغيير / تعيين كلمة المرور مباشرة (بدون بريد إلكتروني)
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-600">
+                          الحساب: {editingUser.email}
+                        </span>
+                      </div>
+
+                      {resetPasswordResult && (
+                        <div
+                          className={`rounded-xl p-2.5 text-[11px] font-bold border space-y-2 ${
+                            resetPasswordResult.tone === 'ok'
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                              : 'bg-rose-50 border-rose-200 text-rose-800'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            {resetPasswordResult.tone === 'ok' ? (
+                              <CheckCircle2 className="w-4 h-4 shrink-0" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 shrink-0" />
+                            )}
+                            <span>{resetPasswordResult.text}</span>
+                          </div>
+                          {resetPasswordResult.rpcMissing && (
+                            <div className="pt-1 flex items-center justify-between gap-2 flex-wrap">
+                              <span className="text-[10px] text-rose-700">
+                                انسخ الكود وشغّله مرة واحدة في Supabase ← SQL Editor، وبعدها هيشتغل تغيير أي باسورد من هنا للأبد.
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(ADMIN_PASSWORD_RESET_SQL_SNIPPET);
+                                  setCopiedSqlSnippet(true);
+                                  setTimeout(() => setCopiedSqlSnippet(false), 3000);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-[10px] font-black flex items-center gap-1 cursor-pointer"
+                              >
+                                <Copy className="w-3 h-3" />
+                                <span>{copiedSqlSnippet ? 'تم نسخ كود التفعيل ✅' : 'نسخ كود التفعيل SQL'}</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="relative flex-1">
+                          <input
+                            type={showEditResetPassword ? 'text' : 'password'}
+                            value={editResetPassword}
+                            onChange={(e) => setEditResetPassword(e.target.value)}
+                            placeholder="اكتب كلمة مرور جديدة سهلة الحفظ (6 أحرف على الأقل)..."
+                            autoComplete="new-password"
+                            className="w-full p-2.5 pl-9 bg-white border border-blue-200 rounded-xl font-mono font-bold text-slate-900 text-xs"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowEditResetPassword((v) => !v)}
+                            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 cursor-pointer"
+                            aria-label={showEditResetPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+                          >
+                            {showEditResetPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={resettingPassword}
+                          onClick={handleDirectAdminPasswordReset}
+                          className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs flex items-center justify-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-60"
+                        >
+                          <Key className="w-3.5 h-3.5" />
+                          <span>{resettingPassword ? 'جاري التعيين...' : 'تعيين كلمة المرور الآن'}</span>
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

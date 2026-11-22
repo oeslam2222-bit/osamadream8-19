@@ -421,9 +421,12 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   // Precomputed promo lookup per visible product
   const promoByProductId = useMemo(() => {
     const map = new Map<string, ReturnType<typeof resolveProductPromotion>>();
+    if (!promotions || promotions.length === 0) return map;
+    const activePromos = promotions.filter((pr) => pr.status === 'نشط');
+    if (activePromos.length === 0) return map;
     getVisibleProducts().forEach((p) => {
       const key = p.id || p.code || p.name;
-      map.set(key, resolveProductPromotion(p, promotions));
+      map.set(key, resolveProductPromotion(p, activePromos));
     });
     return map;
   }, [getVisibleProducts, promotions]);
@@ -433,11 +436,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     const counts = new Map<string, { name: string; count: number; stock: number }>();
     getVisibleProducts().forEach((p) => {
       if (effectiveSectorFilter === 'none') return;
-      if (effectiveSectorFilter !== 'all') {
-        const isElec = isProductElectrical(p);
-        if (effectiveSectorFilter === 'electrical' && !isElec) return;
-        if (effectiveSectorFilter === 'home' && isElec && p.sector !== 'both' && p.sector !== 'all') return;
-      }
+      const isElec = isProductElectrical(p);
+      if (effectiveSectorFilter === 'electrical' && !isElec) return;
+      if (effectiveSectorFilter === 'home' && isElec && p.sector !== 'both' && p.sector !== 'all') return;
       const rawBrand = p.familyName || p.classification || '';
       const fam = stripPlaceholderText(rawBrand).trim();
       if (!fam || fam === 'عام' || fam === 'فئة A' || fam.toLowerCase().includes('blank')) return;
@@ -456,11 +457,9 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     let result = getVisibleProducts().filter((p) => {
       // 1. Sector filter — القطاع الفعلي بعد قواعد الأدوار
       if (effectiveSectorFilter === 'none') return false;
-      if (effectiveSectorFilter !== 'all') {
-        const isElec = isProductElectrical(p);
-        if (effectiveSectorFilter === 'electrical' && !isElec) return false;
-        if (effectiveSectorFilter === 'home' && isElec && p.sector !== 'both' && p.sector !== 'all') return false;
-      }
+      const isElec = isProductElectrical(p);
+      if (effectiveSectorFilter === 'electrical' && !isElec) return false;
+      if (effectiveSectorFilter === 'home' && isElec && p.sector !== 'both' && p.sector !== 'all') return false;
 
       // 2. Hide products with 0 stock in both main warehouse and rep's branch
       const branchStock = getProductBranchStock(p);

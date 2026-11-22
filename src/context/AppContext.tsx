@@ -193,13 +193,15 @@ import {
   getQueuedMutations,
   markQueuedMutationFailure,
   removeQueuedMutations,
+  resetQueuedMutationAttempts,
+  clearQueuedMutations,
 } from '../services/offlineQueueService';
 
 /**
  * القطاع الفعّال للمستخدم. `'none'` = حساب مبيعات بلا قطاع معيّن → محجوب عن
  * بيانات القطاعين كلهم لحد ما الإدارة تعيّنله قطاعًا (matchesSector بيرجّع false).
  */
-type ActiveSector = 'all' | 'home' | 'electrical' | 'none';
+type ActiveSector = 'home' | 'electrical' | 'none';
 
 /**
  * دالة التحقق من كلمة المرور على السيرفر (supabase/harden_login_rpc.sql) اختيارية:
@@ -490,7 +492,7 @@ function areContentStampsEqual(
   return a.count === b.count && a.maxUpdatedAt === b.maxUpdatedAt;
 }
 
-/** أدوار إدارية غير مبيعية: شغلها بيغطي القطاعين، فتشوفهما حتى لو قطاعه غير معيّن. */
+/** أدوار إدارية غير مبيعية: تدير القطاعين بشكل منفصل (منزلي أو كهربائي، بدون دمج). */
 const SECTORLESS_ADMIN_ROLES: ReadonlySet<string> = new Set([
   'technical_support',
   'legal_advisor',
@@ -498,25 +500,28 @@ const SECTORLESS_ADMIN_ROLES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * الحد الصارم للقطاع — القاعدة: ممنوع قطاع يشوف القطاع الآخر، والخروج للإدارة العليا فقط.
- *  - admin/developer (الإدارة العليا): حرية الاختيار بين منزلي/كهربائي/الكل.
- *  - أي دور تاني: مقيّد بقطاع حسابه (home/electrical/both/all) مهما اختارت الواجهة.
+ * الحد الصارم للقطاع — القاعدة: ممنوع قطاع يشوف القطاع الآخر أو دمج القطاعين في شاشة واحدة.
+ *  - admin/developer/الأدوار الإدارية متعددة القطاعات: حرية التبديل بين منزلي أو كهربائي.
+ *  - أي دور تاني: مقيّد بقطاع حسابه (home/electrical) مهما اختارت الواجهة.
  *  - أدوار المبيعات (مندوب/مشرف/مدير فرع) بلا قطاع معيّن: محجوبة بالكامل ('none').
- *    مش بنرجّع 'all' هنا — ده بالظبط كان الثغرة اللي كانت بتخلي المندوب يشوف القطاعين.
  */
-function resolveEffectiveSector(user: User | null, activeSector: ActiveSector, fallbackSector?: string): ActiveSector {
-  if (user?.role === 'admin' || user?.role === 'developer') return activeSector;
-  const accountSector = user?.sector || fallbackSector;
-  if (accountSector === 'home' || accountSector === 'electrical' || accountSector === 'both' || accountSector === 'all') {
-    return accountSector as ActiveSector;
+function resolveEffectiveSector(user: User | null, activeSector: 'home' | 'electrical', fallbackSector?: string): ActiveSector {
+  if (!user) return activeSector;
+  if (user.role === 'admin' || user.role === 'developer' || SECTORLESS_ADMIN_ROLES.has(user.role)) {
+    return activeSector;
   }
-  if (user && SECTORLESS_ADMIN_ROLES.has(user.role)) return 'all';
+  const accountSector = user.sector || fallbackSector;
+  if (accountSector === 'home' || accountSector === 'electrical') {
+    return accountSector;
+  }
+  if (accountSector === 'both' || accountSector === 'all') {
+    return activeSector;
+  }
   return 'none';
 }
 
 function matchesSector(recordSector: string | undefined, effectiveSector: ActiveSector): boolean {
   if (effectiveSector === 'none') return false; // حساب مبيعات بلا قطاع: محجوب عن الاتنين
-  if (effectiveSector === 'all') return true;
   return recordSector === effectiveSector || recordSector === 'both' || recordSector === 'all';
 }
 
@@ -1199,7 +1204,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       currentUser.role === 'admin' ||
       currentUser.role === 'developer' ||
       currentUser.role === 'technical_support';
-    const monthsWindow = isAdminLevel ? 24 : 12;
+    const monthsWindow = 12;
 
     const loadTargetsFromSheets = async (): Promise<boolean> => {
       const savedSources = getPublishedDataSources();
@@ -1481,23 +1486,116 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     supabase.auth.getSession().catch(() => null);
   }, []);
 
-  // استعادة الجلسة بعد إعادة التحميل: قبل كده المستخدم كان لازم يسجّل دخول
-  // كل مرة يفتح التطبيق، لأن currentUser كان بيبدأ null والـisAuthenticated
-  // كانت جاية من localStorage بس. هنا بنتحقق من جلسة Supabase Auth الحقيقية
-  // وبنقرأ الملف عبر RPC آمن — وإلا بنصفّر الحالة بدل جلسة وهمية.
+  const OFFLINE_PROFILE_KEY = 'tantawy_offline_profile_v1';
+
+  const saveOfflineSafeProfile = (u: User) => {
+    try {
+      const sanitized: User = {
+        id: u.id,
+        name: u.name,
+        username: u.username,
+        email: u.email,
+        role: u.role,
+        branchName: u.branchName,
+        sector: u.sector,
+        code: u.code,
+        supervisorId: u.supervisorId,
+        supervisorName: u.supervisorName,
+        phone: u.phone,
+        avatar: u.avatar,
+        isActive: u.isActive,
+        approvalStatus: u.approvalStatus,
+        commissionRate: u.commissionRate,
+        auth_user_id: u.auth_user_id,
+      };
+      safeLocalStorageSet(OFFLINE_PROFILE_KEY, JSON.stringify(sanitized));
+    } catch {}
+  };
+
+  const readOfflineSafeProfile = (expectedUserId?: string | null): User | null => {
+    try {
+      const raw = localStorage.getItem(OFFLINE_PROFILE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as User;
+      if (!parsed || !parsed.id || !parsed.role) return null;
+      if (expectedUserId && parsed.id !== expectedUserId && parsed.auth_user_id !== expectedUserId) {
+        return null;
+      }
+      if (parsed.isActive === false || parsed.approvalStatus === 'pending_approval' || parsed.approvalStatus === 'rejected') {
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const clearOfflineSafeProfile = () => {
+    try {
+      localStorage.removeItem(OFFLINE_PROFILE_KEY);
+    } catch {}
+  };
+
+  // استعادة الجلسة بعد إعادة التحميل:
+  // في الأونلاين نتحقق من جلسة Supabase Auth الحقيقية ونقرأ الملف عبر RPC آمن.
+  // في الأوفلاين (بعد أول دخول ناجح على الجهاز) نحتفظ بآخر ملف مصادق عليه
+  // بشرط وجود جلسة محلية أو معرف دخول محفوظ، وبدون تخزين أي كلمات مرور،
+  // ثم نعيد التحقق من السيرفر تلقائياً فور عودة الإنترنت.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+
+    const restoreSession = async () => {
+      const isOfflineNow = typeof navigator !== 'undefined' && navigator.onLine === false;
       try {
         const session = await getServerSessionAsync();
+        const savedUserId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
+        const wasAuth = localStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true';
+
         if (!session?.user) {
-          if (!cancelled) setIsAuthenticated(false);
+          if (isOfflineNow && wasAuth && savedUserId) {
+            const offlineUser = readOfflineSafeProfile(savedUserId);
+            if (offlineUser && !cancelled) {
+              currentUserRef.current = offlineUser;
+              setCurrentUser(offlineUser);
+              setIsAuthenticated(true);
+              return;
+            }
+          }
+          if (!cancelled && !isOfflineNow) {
+            clearOfflineSafeProfile();
+            setIsAuthenticated(false);
+          } else if (!cancelled && (!wasAuth || !savedUserId)) {
+            setIsAuthenticated(false);
+          }
           return;
         }
+
+        if (isOfflineNow) {
+          const offlineUser = readOfflineSafeProfile(savedUserId || session.user.id) || readOfflineSafeProfile();
+          if (offlineUser && !cancelled) {
+            currentUserRef.current = offlineUser;
+            setCurrentUser(offlineUser);
+            setIsAuthenticated(true);
+            return;
+          }
+        }
+
         const profile = await fetchMyProfile();
         if (cancelled) return;
         if (!profile) {
+          // إذا انقطع الاتصال أثناء الطلب، لا تمسح جلسة المندوب أوفلاين
+          const stillOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+          if (stillOffline) {
+            const offlineUser = readOfflineSafeProfile(savedUserId || session.user.id) || readOfflineSafeProfile();
+            if (offlineUser) {
+              currentUserRef.current = offlineUser;
+              setCurrentUser(offlineUser);
+              setIsAuthenticated(true);
+              return;
+            }
+          }
           await signOutServer().catch(() => {});
+          clearOfflineSafeProfile();
           setIsAuthenticated(false);
           return;
         }
@@ -1507,18 +1605,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           profile.approvalStatus === 'rejected'
         ) {
           await signOutServer().catch(() => {});
+          clearOfflineSafeProfile();
           setIsAuthenticated(false);
           return;
         }
+        saveOfflineSafeProfile(profile);
         currentUserRef.current = profile;
         setCurrentUser(profile);
         setIsAuthenticated(true);
       } catch {
-        if (!cancelled) setIsAuthenticated(false);
+        if (cancelled) return;
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          const savedUserId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
+          const offlineUser = readOfflineSafeProfile(savedUserId);
+          if (offlineUser) {
+            currentUserRef.current = offlineUser;
+            setCurrentUser(offlineUser);
+            setIsAuthenticated(true);
+            return;
+          }
+        }
+        setIsAuthenticated(false);
       }
-    })();
+    };
+
+    void restoreSession();
+
+    const handleOnlineReverify = () => {
+      if (!cancelled) {
+        void restoreSession();
+      }
+    };
+    window.addEventListener('online', handleOnlineReverify);
     return () => {
       cancelled = true;
+      window.removeEventListener('online', handleOnlineReverify);
     };
   }, []);
 
@@ -1562,6 +1683,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isLocalDataHydrated, setIsLocalDataHydrated] = useState(false);
 
   const justLoggedInRef = useRef<boolean>(false);
+  const dataVersionCheckInFlightRef = useRef<Promise<{ updated: boolean; version?: number; message: string }> | null>(null);
 
   const [promotions, setPromotions] = useState<PromotionOffer[]>(() => getSavedPromotions());
   const promotionsRef = useRef<PromotionOffer[]>(promotions);
@@ -1712,8 +1834,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const canManageSectorGate = useMemo(
-    () => currentUser?.role === 'admin' || currentUser?.role === 'developer',
-    [currentUser?.role]
+    () =>
+      Boolean(
+        currentUser &&
+          (currentUser.role === 'admin' ||
+            currentUser.role === 'developer' ||
+            SECTORLESS_ADMIN_ROLES.has(currentUser.role) ||
+            currentUser.sector === 'both' ||
+            currentUser.sector === 'all')
+      ),
+    [currentUser?.role, currentUser?.sector]
   );
 
   /** القطاع الفعلي بعد تطبيق قواعد الأدوار — `'none'` يعني محجوب عن القطاعين. */
@@ -1950,6 +2080,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStorageQuotaExceeded(isStorageQuotaExceeded());
     return live;
   };
+
+  const getPendingInvoicesQueue = useCallback(async (): Promise<Invoice[]> => {
+    try {
+      const queued = (await idbGet<Invoice[]>(STORAGE_KEYS.PENDING_INVOICES)) || [];
+      return Array.isArray(queued) ? queued : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const removePendingInvoices = useCallback(async (invoiceIds: string[]): Promise<number> => {
+    if (invoiceIds.length === 0) return pendingInvoicesCount;
+    const dropped = new Set(invoiceIds);
+    const queued = (await idbGet<Invoice[]>(STORAGE_KEYS.PENDING_INVOICES)) || [];
+    const next = Array.isArray(queued) ? queued.filter((inv) => !dropped.has(inv.id)) : [];
+    await idbSet(STORAGE_KEYS.PENDING_INVOICES, next);
+    setPendingInvoicesCount(next.length);
+    return next.length;
+  }, [pendingInvoicesCount]);
+
+  const clearPendingInvoicesQueue = useCallback(async (): Promise<void> => {
+    await idbSet(STORAGE_KEYS.PENDING_INVOICES, []);
+    setPendingInvoicesCount(0);
+  }, []);
+
+  const removeOfflineQueueItems = useCallback(async (mutationIds: string[]): Promise<number> => {
+    const remaining = await removeQueuedMutations(mutationIds);
+    await refreshOfflineQueueCount();
+    return remaining;
+  }, []);
+
+  const retryOfflineQueueItems = useCallback(async (mutationIds: string[]): Promise<number> => {
+    const count = await resetQueuedMutationAttempts(mutationIds);
+    await refreshOfflineQueueCount();
+    return count;
+  }, []);
+
+  const clearOfflineQueueItems = useCallback(async (): Promise<void> => {
+    await clearQueuedMutations();
+    await refreshOfflineQueueCount();
+  }, []);
 
   /**
    * Send a mutation now, or park it in the offline outbox when that is not
@@ -2489,15 +2660,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const customerFetchScope = useMemo<CustomerFetchScope | undefined>(() => {
     if (!currentUser) return undefined;
     const role = currentUser.role;
-    const selectedSector = activeSectorFilter === 'home' || activeSectorFilter === 'electrical' ? activeSectorFilter : undefined;
-    if (role === 'admin' || role === 'developer') {
-      // الإدارة العليا لازم تحمّل القطاعين مع بعض — الداشبورد بيعرض كرتين
-      // (منزلي/كهرباء) جنب بعض، ولو حمّلنا قطاع واحد بس الكرت التاني يطلع 0.
-      // الفلترة النهائية بتحصل في الواجهة عبر activeSectorFilter.
+    if (role === 'admin' || role === 'developer' || SECTORLESS_ADMIN_ROLES.has(role)) {
+      // الإدارة العليا والأدوار متعددة القطاعات بتحمّل القطاعين في الذاكرة مرة واحدة
+      // (وبتقسمهم في الرئيسية لكرتين منفصلين، وفي باقي الصفحات بفلتر القطاع الواحد)
+      // عشان التبديل بين منزلي وكهربائي يبقى لحظي من غير إعادة تنزيل.
       return undefined;
-    }
-    if (role === 'technical_support' || role === 'legal_advisor' || role === 'warehouse_keeper') {
-      return selectedSector ? { sector: selectedSector } : undefined;
     }
 
     const cleanName = (value?: string) =>
@@ -2542,7 +2709,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     currentUser?.branchName,
     currentUser?.role,
     currentUser?.sector,
-    activeSectorFilter,
   ]);
 
   /**
@@ -2568,8 +2734,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
    */
   const visitFetchScope = useMemo<VisitFetchScope | undefined>(() => {
     const role = currentUser?.role;
-    if (!currentUser || (role !== 'sales_rep' && role !== 'branch_manager' && role !== 'supervisor')) {
-      return undefined;
+    if (!currentUser) return undefined;
+    if (role !== 'sales_rep' && role !== 'branch_manager' && role !== 'supervisor') {
+      // للإدارة العليا: نافذة 7 أشهر (~210 يوم) في الإقلاع تغطي رسم الـ6 أشهر وكل النشاط التشغيلي الحديث بدون سحب 24 شهر وتهنيج الدخول.
+      const adminSince = new Date();
+      adminSince.setDate(adminSince.getDate() - 210);
+      return { sinceDate: adminSince.toISOString().slice(0, 10) };
     }
 
     const since = new Date();
@@ -2784,10 +2954,17 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   // التغييرات المقيّدة بنطاق المستخدم تلقائياً، من غير أي زر على الشاشات.
   const itemSalesSyncRef = useRef<null | (() => Promise<unknown>)>(null);
 
-  const checkAndSyncDataVersion = async (force: boolean = false): Promise<{ updated: boolean; version?: number; message: string }> => {
+  const checkAndSyncDataVersion = (force: boolean = false): Promise<{ updated: boolean; version?: number; message: string }> => {
     if (!isSupabaseConfigured) {
-      return { updated: false, message: 'وضع التخزين المحلي' };
+      return Promise.resolve({ updated: false, message: 'وضع التخزين المحلي' });
     }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return Promise.resolve({ updated: false, message: 'أوفلاين — استخدام البيانات المحفوظة محلياً' });
+    }
+    if (!force && dataVersionCheckInFlightRef.current) {
+      return dataVersionCheckInFlightRef.current;
+    }
+    const run = (async (): Promise<{ updated: boolean; version?: number; message: string }> => {
     try {
       // Never purge and re-pull while our own authoritative write is still
       // landing on the server: the old copy would overwrite the fresh one.
@@ -2997,7 +3174,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             targets: mergeTargetsIncremental(targetsRef.current, inc.targets.map(mapTargetRowToRecord)),
           };
         }
-        return fetchTargetsRecentMonths(isAdminOrDev ? 24 : 12, targetFetchScope);
+        return fetchTargetsRecentMonths(12, targetFetchScope);
       };
 
       const pullInvoicesForVersionSync = async (): Promise<Awaited<ReturnType<typeof fetchInvoicesFromSupabase>> | null> => {
@@ -3204,6 +3381,16 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     } finally {
       setIsVersionSyncing(false);
     }
+    })();
+    if (!force) {
+      dataVersionCheckInFlightRef.current = run;
+      run.finally(() => {
+        if (dataVersionCheckInFlightRef.current === run) {
+          dataVersionCheckInFlightRef.current = null;
+        }
+      });
+    }
+    return run;
   };
 
   /**
@@ -3503,16 +3690,16 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     const custScopeSig = customerFetchScope ? JSON.stringify(customerFetchScope) : 'all';
     const nowBoot = Date.now();
+    // عند الدخول المباشر (justLoggedInRef)، تأثير الإقلاع التالي يتولى الفحص الشامل مرة واحدة بالتسلسل.
     const shouldRunImmediateCheck =
       Boolean(currentUserRef.current) &&
-      (justLoggedInRef.current ||
-        lastBootCustScopeSigRef.current !== custScopeSig ||
+      !justLoggedInRef.current &&
+      (lastBootCustScopeSigRef.current !== custScopeSig ||
         nowBoot - lastBootHeartbeatAtRef.current >= 15_000);
     if (shouldRunImmediateCheck) {
       lastBootCustScopeSigRef.current = custScopeSig;
       lastBootHeartbeatAtRef.current = nowBoot;
       const bootHasLocalCache =
-        !justLoggedInRef.current &&
         (productsRef.current?.length || 0) > 0 &&
         (customersRef.current?.length || 0) > 0;
       const bootStampCheckDelay =
@@ -3545,7 +3732,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       realtimeCheckCustomersRef.current = null;
       realtimeCheckRef.current = null;
     };
-  }, [users, isLocalDataHydrated, dataEpoch, currentUser?.id]);
+  }, [isLocalDataHydrated, dataEpoch, currentUser?.id]);
 
   // Initial Supabase connection check, fetch users, products, invoices & real-time sync
   useEffect(() => {
@@ -3653,8 +3840,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                 bootJitterTimersRef.current.add(t);
               })
             : Promise.resolve();
+        // تشغيل فحص الفواتير والزيارات بعد انتهاء checkAndSyncDataVersion حتى لا يتكرر السحب مرتين بالتوازي عند دخول الأدمن.
+        let secondaryBootTimer: number | null = null;
+        let bootCancelled = false;
+
         bootJitterWait.then(() => {
         checkAndSyncDataVersion(false).then((syncRes) => {
+          if (bootCancelled) return;
           if (!syncRes.updated) {
             if (productsRef.current.length === 0) {
               if (isGoogleSheetsReadMode()) {
@@ -3789,6 +3981,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
               });
             }
           }
+
+          // تأخير بسيط (50ms) بعد تحديث الحالة الأساسية عشان الواجهة ترسم بسرعة،
+          // ثم فحص الفواتير والزيارات بالبصمة (لو متحدثتش بالفعل في checkAndSyncDataVersion).
+          secondaryBootTimer = window.setTimeout(() => {
+            if (bootCancelled) return;
+            loadInitialInvoices().catch(() => {});
+            loadInitialVisits().catch(() => {});
+          }, 50);
         });
         });
 
@@ -3872,7 +4072,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             });
           }
         };
-        loadInitialInvoices().catch(() => {});
 
         // 5. Fetch Visits from Supabase (narrowed by the role scope)
         const deletedVisitIds = getDeletedVisitIds();
@@ -3968,8 +4167,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             return next;
           });
         };
-        loadInitialVisits().catch(() => {});
         return () => {
+          bootCancelled = true;
+          if (secondaryBootTimer !== null) window.clearTimeout(secondaryBootTimer);
           bootJitterTimersRef.current.forEach((t) => window.clearTimeout(t));
           bootJitterTimersRef.current.clear();
         };
@@ -4897,35 +5097,78 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     });
   }, [users]);
 
+  // Skip redundant IndexedDB writebacks on initial hydration mount (we just read these arrays from IDB).
+  const initialIdbSkipRef = useRef<{
+    products: boolean;
+    customers: boolean;
+    invoices: boolean;
+    cart: boolean;
+    targets: boolean;
+    forecasts: boolean;
+    comments: boolean;
+  }>({
+    products: true,
+    customers: true,
+    invoices: true,
+    cart: true,
+    targets: true,
+    forecasts: true,
+    comments: true,
+  });
+
   // Sync high-capacity data directly to IndexedDB (preventing LocalStorage quota overflow & main-thread freezes).
   // Debounced per-key inside debouncedIdbSet; returning the cancel handle ensures overlapping edits coalesce cleanly.
   useEffect(() => {
     if (!isLocalDataHydrated) return;
+    if (initialIdbSkipRef.current.products) {
+      initialIdbSkipRef.current.products = false;
+      return;
+    }
     return debouncedIdbSet(STORAGE_KEYS.PRODUCTS, products, 1800);
   }, [products, isLocalDataHydrated]);
 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
+    if (initialIdbSkipRef.current.customers) {
+      initialIdbSkipRef.current.customers = false;
+      return;
+    }
     return debouncedIdbSet(STORAGE_KEYS.CUSTOMERS, customers, 1800);
   }, [customers, isLocalDataHydrated]);
 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
+    if (initialIdbSkipRef.current.invoices) {
+      initialIdbSkipRef.current.invoices = false;
+      return;
+    }
     return debouncedIdbSet(STORAGE_KEYS.INVOICES, invoices, 1500);
   }, [invoices, isLocalDataHydrated]);
 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
+    if (initialIdbSkipRef.current.cart) {
+      initialIdbSkipRef.current.cart = false;
+      return;
+    }
     return debouncedIdbSet(STORAGE_KEYS.CART, cart, 800);
   }, [cart, isLocalDataHydrated]);
 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
+    if (initialIdbSkipRef.current.targets) {
+      initialIdbSkipRef.current.targets = false;
+      return;
+    }
     return debouncedIdbSet(STORAGE_KEYS.TARGETS, targets, 1500);
   }, [targets, isLocalDataHydrated]);
 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
+    if (initialIdbSkipRef.current.forecasts) {
+      initialIdbSkipRef.current.forecasts = false;
+      return;
+    }
     return debouncedIdbSet(STORAGE_KEYS.FORECASTS, forecasts, 1500);
   }, [forecasts, isLocalDataHydrated]);
 
@@ -4933,6 +5176,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   // StrictMode)؛ هنا بتتحفظ زي باقي المفاتيح بالظبط.
   useEffect(() => {
     if (!isLocalDataHydrated) return;
+    if (initialIdbSkipRef.current.comments) {
+      initialIdbSkipRef.current.comments = false;
+      return;
+    }
     return debouncedIdbSet(STORAGE_KEYS.CUSTOMER_COMMENTS, customerComments, 1500);
   }, [customerComments, isLocalDataHydrated]);
 
@@ -5142,14 +5389,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     justLoggedInRef.current = true;
     clearScopedContentStamps();
+    saveOfflineSafeProfile(found);
     currentUserRef.current = found;
     setCurrentUser(found);
     setIsAuthenticated(true);
     localStorage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, found.id);
     // Server-auth migration: do not persist full user object (may include
-    // password hash) in localStorage. Keep only the user id as a session
-    // reference; full profile is resolved from Supabase on session restore.
+    // password hash) in localStorage. Keep only the user id and sanitized offline profile;
+    // full profile is re-verified with Supabase whenever online.
     setDataEpoch((n) => n + 1);
 
     return { success: true, message: `مرحباً بك ${found.name}`, user: found };
@@ -5216,6 +5464,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     currentUserRef.current = null;
     setCurrentUser(null);
     setIsAuthenticated(false);
+    clearOfflineSafeProfile();
     localStorage.removeItem(STORAGE_KEYS.IS_AUTH);
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_DATA);
@@ -6305,8 +6554,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           totalOrdersCount: (matched.totalOrdersCount || 0) + 1,
           totalSpent: (matched.totalSpent || 0) + primaryTotals.estimatedGrandTotal,
         };
-        setCustomers((prev) => prev.map((c) => (c.id === matched.id ? updatedCust : c)));
-        saveCustomersToSupabase([updatedCust]).catch((e) => console.warn('Supabase customer update failed:', e));
+        setCustomers((prev) => {
+          const nextCusts = prev.map((c) => (c.id === matched.id ? updatedCust : c));
+          idbSet(STORAGE_KEYS.CUSTOMERS, nextCusts).catch(() => {});
+          return nextCusts;
+        });
+        syncOrQueue('customers', 'upsert', updatedCust.id, updatedCust, () =>
+          saveCustomersToSupabase([updatedCust])
+        ).catch((e) => console.warn('Supabase customer update failed:', e));
       }
     }
 
@@ -7202,19 +7457,29 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     // 2. Adjust Customer Debt / Balance if applicable
     if (totalRefundAmount > 0 && inv.customerName) {
-      setCustomers((prev) =>
-        prev.map((c) => {
-          const match = (inv.customerCode && c.code === inv.customerCode) || c.name === inv.customerName;
-          if (!match) return c;
-          const currentBal = c.currentBalance ?? c.balance ?? 0;
-          const updatedBal = Math.max(0, currentBal - totalRefundAmount);
-          return {
-            ...c,
-            currentBalance: updatedBal,
-            balance: updatedBal,
-          };
-        })
-      );
+      let updatedCustomerRecord: Customer | null = null;
+      const nextCusts = customersRef.current.map((c) => {
+        const match = (inv.customerCode && c.code === inv.customerCode) || c.name === inv.customerName;
+        if (!match) return c;
+        const currentBal = c.currentBalance ?? c.balance ?? 0;
+        const updatedBal = Math.max(0, currentBal - totalRefundAmount);
+        const updated = {
+          ...c,
+          currentBalance: updatedBal,
+          balance: updatedBal,
+        };
+        updatedCustomerRecord = updated;
+        return updated;
+      });
+      if (updatedCustomerRecord) {
+        customersRef.current = nextCusts;
+        setCustomers(nextCusts);
+        idbSet(STORAGE_KEYS.CUSTOMERS, nextCusts).catch(() => {});
+        const toSync = updatedCustomerRecord;
+        syncOrQueue('customers', 'upsert', toSync.id, toSync, () =>
+          saveCustomersToSupabase([toSync])
+        ).catch((e) => console.warn('Supabase customer refund update failed:', e));
+      }
     }
 
     // 3. Determine if Full or Partial Return
@@ -7230,25 +7495,26 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const newStatus: OrderStatus = isFullReturn ? 'مرتجع' : 'مرتجع جزئي';
     const netGrandTotal = Math.max(0, inv.estimatedGrandTotal - allRefunded);
 
-    setInvoices((prev) =>
-      prev.map((i) => {
-        if (i.id !== invoiceId) return i;
-        const updated: Invoice = {
-          ...i,
-          status: newStatus,
-          hasReturns: true,
-          isPartialReturn: !isFullReturn,
-          returnRecords: updatedRecords,
-          totalRefundedAmount: allRefunded,
-          netAmountAfterReturns: netGrandTotal,
-          lastReturnDate: dateStr,
-          restoredStockDetails: `تم استرجاع ${totalReturnedCartons} كرتونة بقيمة ${totalRefundAmount.toLocaleString()} ج.م (إذن #${returnVoucherNumber})`,
-          notes: `${i.notes ? i.notes + ' | ' : ''}مرتجع ${isFullReturn ? 'كلي' : 'جز��ي'} إذن #${returnVoucherNumber} بقيمة ${totalRefundAmount.toLocaleString()} ج.م (${reason})`,
-        };
-        saveInvoiceWithQueue(updated).catch((e) => console.warn('Supabase return sync failed:', e));
-        return updated;
-      })
-    );
+    const nextInvoices = invoicesRef.current.map((i) => {
+      if (i.id !== invoiceId) return i;
+      const updated: Invoice = {
+        ...i,
+        status: newStatus,
+        hasReturns: true,
+        isPartialReturn: !isFullReturn,
+        returnRecords: updatedRecords,
+        totalRefundedAmount: allRefunded,
+        netAmountAfterReturns: netGrandTotal,
+        lastReturnDate: dateStr,
+        restoredStockDetails: `تم استرجاع ${totalReturnedCartons} كرتونة بقيمة ${totalRefundAmount.toLocaleString()} ج.م (إذن #${returnVoucherNumber})`,
+        notes: `${i.notes ? i.notes + ' | ' : ''}مرتجع ${isFullReturn ? 'كلي' : 'جزئي'} إذن #${returnVoucherNumber} بقيمة ${totalRefundAmount.toLocaleString()} ج.م (${reason})`,
+      };
+      saveInvoiceWithQueue(updated).catch((e) => console.warn('Supabase return sync failed:', e));
+      return updated;
+    });
+    invoicesRef.current = nextInvoices;
+    setInvoices(nextInvoices);
+    idbSet(STORAGE_KEYS.INVOICES, nextInvoices).catch(() => {});
 
     // 4. Record Audit Log
     recordAuditLog({
@@ -7324,15 +7590,25 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     // المبلغ المرتجع يُخصم من رصيد العميل فور فتح الإذن. أما المخزون فيتحدّث
     // بعد استلام أمين المخزن للكمميات فعلياً.
     if (payload.totalRefundAmount > 0 && payload.customerName) {
-      setCustomers((prev) =>
-        prev.map((c) => {
-          const match = (payload.customerCode && c.code === payload.customerCode) || c.name === payload.customerName;
-          if (!match) return c;
-          const currentBal = c.currentBalance ?? c.balance ?? 0;
-          const updatedBal = Math.max(0, currentBal - payload.totalRefundAmount);
-          return { ...c, currentBalance: updatedBal, balance: updatedBal };
-        })
-      );
+      let updatedCust: Customer | null = null;
+      const nextCusts = customersRef.current.map((c) => {
+        const match = (payload.customerCode && c.code === payload.customerCode) || c.name === payload.customerName;
+        if (!match) return c;
+        const currentBal = c.currentBalance ?? c.balance ?? 0;
+        const updatedBal = Math.max(0, currentBal - payload.totalRefundAmount);
+        const next = { ...c, currentBalance: updatedBal, balance: updatedBal };
+        updatedCust = next;
+        return next;
+      });
+      if (updatedCust) {
+        customersRef.current = nextCusts;
+        setCustomers(nextCusts);
+        idbSet(STORAGE_KEYS.CUSTOMERS, nextCusts).catch(() => {});
+        const toSync = updatedCust;
+        syncOrQueue('customers', 'upsert', toSync.id, toSync, () =>
+          saveCustomersToSupabase([toSync])
+        ).catch((e) => console.warn('Supabase customer standalone return sync failed:', e));
+      }
     }
 
     return {
@@ -7570,7 +7846,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     resolveItemSector?: (item: T) => string | undefined
   ): T[] => {
     const effectiveSector = resolveEffectiveSector(currentUser, activeSectorFilter, userSector);
-    if (effectiveSector === 'all') return items;
     return items.filter((item) => matchesSector(item.sector || resolveItemSector?.(item), effectiveSector));
   };
 
@@ -8366,7 +8641,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   // Scoped customer list, resolved once per real change (stable getter below).
   const visibleCustomersScoped = useMemo((): Customer[] => {
     if (!currentUser) return [];
-    // القطاع: admin/developer يشاهدون كل القطاعات، 나머ج يُفلتر حسب قطاع المستخدم
+    // القطاع: كل الأدوار بتفلتر حسب القطاع المحدد (منزلي أو كهربائي، من غير دمج)
     // نمرّر resolver لأن معظم العملاء المستوردين حقل sector عندهم فاضي.
     const sectorFiltered = filterBySector(customers, currentUser.sector, (c) => inferCustomerSector(c, users));
     if (currentUser.role === 'admin' || currentUser.role === 'developer') {
@@ -8767,6 +9042,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       storageQuotaExceeded,
       flushOfflineQueue,
       flushPendingInvoices,
+      getPendingInvoicesQueue,
+      removePendingInvoices,
+      clearPendingInvoicesQueue,
+      removeOfflineQueueItems,
+      retryOfflineQueueItems,
+      clearOfflineQueueItems,
       selectedBranchFilter,
       setSelectedBranchFilter,
       activeSectorFilter,

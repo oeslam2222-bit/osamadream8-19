@@ -82,12 +82,16 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
     currentUser,
     users,
     branches,
+    activeSectorFilter,
+    setActiveSectorFilter,
     effectiveSectorFilter,
     canManageSectorGate,
     syncCustomersIncrementally,
     updateCustomer,
     cloudinaryConfig,
   } = useApp();
+
+  const activeSector = canManageSectorGate ? activeSectorFilter : effectiveSectorFilter;
 
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [uploadNotice, setUploadNotice] = useState<string | null>(null);
@@ -101,14 +105,12 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
       setSearchQuery(initialSearchQuery);
       setSelectedRep('all');
       setSelectedBranch('all');
-      setSelectedSector('all');
       setOnlyFavorites(false);
       setDisplayLimit(10);
     }
   }, [initialSearchQuery, searchSeq]);
   const [selectedRep, setSelectedRep] = useState('all');
   const [selectedBranch, setSelectedBranch] = useState('all');
-  const [selectedSector, setSelectedSector] = useState<'all' | 'home' | 'electrical'>('all');
   const [onlyFavorites, setOnlyFavorites] = useState(false);
 
   // Pagination / Load More state (defaults to 10 matching screenshot "10 عملاء معروضين")
@@ -184,7 +186,6 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
     // عزل القطاع: حساب مبيعات بلا قطاع = محجوب، وغيره مقفول على قطاعه.
     if (effectiveSectorFilter === 'none') return [];
     const inAllowedSector = (c: Customer): boolean => {
-      if (effectiveSectorFilter === 'all') return true;
       const s = c.sector;
       if (s === 'both' || s === 'all') return true;
       return (s || inferCustomerSector(c, users)) === effectiveSectorFilter;
@@ -269,14 +270,12 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
         if (cust.branchName?.trim() !== selectedBranch.trim()) return false;
       }
 
-      // Sector filter
-      if (selectedSector !== 'all') {
-        const rawSector = cust.sector;
-        // both/all = قطاعين → يظهر في الفلترين
-        if (rawSector !== 'both' && rawSector !== 'all') {
-          const resolved = resolveSector(cust);
-          if (resolved !== selectedSector) return false;
-        }
+      // Sector filter (منفصل تماماً: منزلي أو كهربائي فقط)
+      if (activeSector === 'none') return false;
+      const rawSector = cust.sector;
+      if (rawSector !== 'both' && rawSector !== 'all') {
+        const resolved = resolveSector(cust);
+        if (resolved !== activeSector) return false;
       }
 
       // Favorites only
@@ -286,7 +285,7 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
 
       return true;
     });
-  }, [scopedCustomers, searchQuery, selectedRep, selectedBranch, selectedSector, onlyFavorites, favoriteIds, resolveSector]);
+  }, [scopedCustomers, searchQuery, selectedRep, selectedBranch, activeSector, onlyFavorites, favoriteIds, resolveSector]);
 
   // Displayed slice
   const displayedCustomers = useMemo(() => {
@@ -464,16 +463,15 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
           {canManageSectorGate && (
           <div className="min-w-[130px]">
             <select
-              value={selectedSector}
+              value={activeSectorFilter}
               onChange={(e) => {
-                setSelectedSector(e.target.value as any);
+                setActiveSectorFilter(e.target.value as 'home' | 'electrical');
                 setDisplayLimit(10);
               }}
               className="w-full px-3 py-2.5 rounded-xl bg-[var(--app-card-secondary)] border border-[var(--app-border)] text-[var(--app-text)] text-xs font-medium focus:outline-none focus:ring-2 focus:ring-[var(--app-focus)] cursor-pointer"
             >
-              <option value="all">القطاع: كل القطاعات</option>
-              <option value="electrical">قطاع الكهرباء</option>
-              <option value="home">قطاع المنزلي</option>
+              <option value="home">🏠 قطاع المنزلي</option>
+              <option value="electrical">⚡ قطاع الكهرباء</option>
             </select>
           </div>
           )}

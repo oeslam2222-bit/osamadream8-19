@@ -55,6 +55,8 @@ import type {
 } from '../types';
 import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from '../services/customerDues';
 import { calculateCustomerFinancials, parseCleanNumber } from '../services/customerFinancialService';
+import { inferCustomerSector } from '../data/branchDefinitions';
+import { inferTargetSector } from '../services/targetService';
 import {
   COMMENT_KIND_COLORS,
   buildDefaultMonthPlan,
@@ -180,7 +182,15 @@ export default function CollectionForecastView() {
     saveForecastPlan,
     saveCustomerComment,
     deleteCustomerForecasts,
+    activeSectorFilter,
+    setActiveSectorFilter,
+    canManageSectorGate,
+    effectiveSectorFilter,
   } = useApp();
+
+  const activeSector: 'home' | 'electrical' | 'none' = canManageSectorGate
+    ? activeSectorFilter
+    : effectiveSectorFilter;
 
   const [monthKey, setMonthKey] = useState<string>(currentMonthKey());
   const [search, setSearch] = useState('');
@@ -408,15 +418,21 @@ export default function CollectionForecastView() {
     return map;
   }, [invoices]);
 
-  /* ---------- العملاء: عميل واحد لكل (مندوب، عميل) مرتبط بالصلاحية ---------- */
+  /* ---------- العملاء: عميل واحد لكل (مندوب، عميل) مرتبط بالصلاحية والقطاع ---------- */
   const scopedCustomers = useMemo(() => {
+    if (activeSector === 'none') return [];
     return customers.filter((c) => {
       const repId = c.repId || '';
       const repName = c.salesRepName || c.repName || '';
       if (!repName) return false;
-      return canSeeRepForecasts(currentUser, users, c.branchName || '', repId, repName);
+      if (!canSeeRepForecasts(currentUser, users, c.branchName || '', repId, repName)) return false;
+      if (c.sector !== 'both' && c.sector !== 'all') {
+        const sec = inferCustomerSector(c, users);
+        if (sec !== activeSector) return false;
+      }
+      return true;
     });
-  }, [customers, currentUser, users]);
+  }, [customers, currentUser, users, activeSector]);
 
   const branchOptions = useMemo(
     () => Array.from(new Set(scopedCustomers.map((customer) => customer.branchName).filter(Boolean)))
@@ -535,6 +551,7 @@ export default function CollectionForecastView() {
     const scopedTargets = targets.filter((target) => {
       if (monthKeyOf(target.year, target.month) !== monthKey) return false;
       if (branchFilter !== 'ALL' && !isArabicNameMatch(target.branch, branchFilter)) return false;
+      if (activeSector === 'none' || inferTargetSector(target, users, scopedCustomers) !== activeSector) return false;
       return repNames.has(target.repName);
     });
     return {
@@ -545,7 +562,7 @@ export default function CollectionForecastView() {
       repCount: repIds.size,
       supervisorCount: supervisorNames.size,
     };
-  }, [filteredCustomers, visibleForecasts, targets, monthKey, branchFilter, supervisorForCustomer]);
+  }, [filteredCustomers, visibleForecasts, targets, users, scopedCustomers, activeSector, monthKey, branchFilter, supervisorForCustomer]);
 
   const approvalScope = useMemo(() => {
     const customerIds = new Set(filteredCustomers.map((customer) => customer.id));
@@ -555,10 +572,12 @@ export default function CollectionForecastView() {
       scopedTargets: targets.filter((target) =>
         monthKeyOf(target.year, target.month) === monthKey
         && (branchFilter === 'ALL' || isArabicNameMatch(target.branch, branchFilter))
+        && activeSector !== 'none'
+        && inferTargetSector(target, users, scopedCustomers) === activeSector
         && repNames.has(target.repName)
       ),
     };
-  }, [filteredCustomers, visibleForecasts, targets, monthKey, branchFilter]);
+  }, [filteredCustomers, visibleForecasts, targets, users, scopedCustomers, activeSector, monthKey, branchFilter]);
 
   const kpiTotals = useMemo(() => {
     let weeklyTotal = 0;
@@ -1712,6 +1731,43 @@ export default function CollectionForecastView() {
                 delay={250}
               />
             </div>
+
+            {canManageSectorGate && (
+              <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1 gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveSectorFilter('home');
+                    setBranchFilter('ALL');
+                    setSupervisorFilter('ALL');
+                    setRepFilter('ALL');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                    activeSectorFilter === 'home'
+                      ? 'bg-[#102b4e] text-white shadow-2xs'
+                      : 'text-slate-600 hover:bg-white'
+                  }`}
+                >
+                  🏠 منزلي
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveSectorFilter('electrical');
+                    setBranchFilter('ALL');
+                    setSupervisorFilter('ALL');
+                    setRepFilter('ALL');
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                    activeSectorFilter === 'electrical'
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'text-slate-600 hover:bg-white'
+                  }`}
+                >
+                  ⚡ كهرباء
+                </button>
+              </div>
+            )}
 
             <select
               value={branchFilter}

@@ -45,7 +45,8 @@ import {
   Camera,
   Percent,
   Moon,
-  Sun
+  Sun,
+  UploadCloud
 } from 'lucide-react';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
@@ -92,12 +93,15 @@ export const Navbar: React.FC<NavbarProps> = ({
     getVisibleInvoices,
     isOffline,
     pendingInvoicesCount,
+    offlineQueueCount,
+    deadLetterCount,
     flushPendingInvoices,
     getCartSummary,
     selectedBranchFilter,
     setSelectedBranchFilter,
     activeSectorFilter,
     setActiveSectorFilter,
+    canManageSectorGate,
     dataSaverMode,
     toggleDataSaverMode,
     isPrivacyMode,
@@ -220,6 +224,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'guide', label: 'الدليل', icon: BookOpen, roles: isFieldRole ? [] : ['admin', 'branch_manager', 'developer', 'warehouse_keeper'] },
     { id: 'users', label: 'الفريق', icon: UserCheck, roles: ['admin', 'developer', 'branch_manager', 'supervisor'], badge: pendingApprovalsCount },
     { id: 'permissions', label: 'الصلاحيات', icon: ShieldCheck, roles: ['admin', 'developer'] },
+    { id: 'pending_sync', label: 'مزامنة معلقة', icon: UploadCloud, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper', 'legal_advisor'], badge: (pendingInvoicesCount || 0) + (offlineQueueCount || 0) + (deadLetterCount || 0) },
     { id: 'settings', label: 'الإعدادات', icon: Settings, roles: ['admin', 'branch_manager', 'supervisor', 'sales_rep', 'developer', 'warehouse_keeper', 'legal_advisor'] },
 
   ];
@@ -229,7 +234,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'selling', label: 'البيع والكتالوج', items: ['invoices', 'catalog', 'product_sales', 'offers'] },
     { id: 'field', label: 'العملاء والتحصيل', items: ['customers', 'collection', 'returns', 'visits'] },
     { id: 'reports', label: 'التقارير والأهداف', items: ['targets', 'reps', 'excel'] },
-    { id: 'admin', label: 'الإدارة والنظام', items: ['users', 'permissions', 'guide', 'legal_advisor', 'settings'] },
+    { id: 'admin', label: 'الإدارة والنظام', items: ['users', 'permissions', 'pending_sync', 'guide', 'legal_advisor', 'settings'] },
   ];
 
   const filteredNavItems = navItems.filter((item) => item.roles.includes(currentUser.role));
@@ -288,6 +293,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     excel: { bg: 'bg-emerald-100', text: 'text-[#16A34A]', darkBg: 'dark:bg-emerald-950/60', darkText: 'dark:text-emerald-300' },
     users: { bg: 'bg-slate-200', text: 'text-slate-700', darkBg: 'dark:bg-slate-800', darkText: 'dark:text-slate-300' },
     permissions: { bg: 'bg-blue-100', text: 'text-[#2563EB]', darkBg: 'dark:bg-blue-950/60', darkText: 'dark:text-blue-300' },
+    pending_sync: { bg: 'bg-amber-100', text: 'text-[#D97706]', darkBg: 'dark:bg-amber-950/60', darkText: 'dark:text-amber-300' },
     guide: { bg: 'bg-teal-100', text: 'text-[#0D9488]', darkBg: 'dark:bg-teal-950/60', darkText: 'dark:text-teal-300' },
   };
 
@@ -451,6 +457,38 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="ds-vis-ge-md">مزامنة ({pendingInvoicesCount})</span>
                 <span className="ds-count ds-count--float ds-vis-lt-md">{pendingInvoicesCount}</span>
               </button>
+            )}
+
+            {/* مبدّل القطاع (أدمن / مطور / دعم فني) — فصل كامل بين المنزلي والكهرباء */}
+            {canManageSectorGate && (
+              <div
+                className="ds-vis-ge-md inline-flex items-center rounded-xl border border-slate-200 dark:border-[#243756] bg-slate-100/90 dark:bg-[#132542] p-0.5 gap-0.5"
+                role="group"
+                aria-label="اختيار القطاع"
+              >
+                <button
+                  type="button"
+                  onClick={() => setActiveSectorFilter('home')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer whitespace-nowrap ${
+                    activeSectorFilter === 'home'
+                      ? 'bg-[#102b4e] text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-white/10'
+                  }`}
+                >
+                  🏠 منزلي
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSectorFilter('electrical')}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-black transition cursor-pointer whitespace-nowrap ${
+                    activeSectorFilter === 'electrical'
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-white/10'
+                  }`}
+                >
+                  ⚡ كهرباء
+                </button>
+              </div>
             )}
 
             {/* فلتر الفرع (أدمن / مطور) */}
@@ -685,6 +723,36 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             </div>
 
+            {canManageSectorGate && (
+              <div className="px-4 py-2 border-b border-slate-100 dark:border-[#1E314E]">
+                <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 mb-1.5">القطاع المعروض</div>
+                <div className="grid grid-cols-2 gap-1.5 bg-slate-100 dark:bg-[#132542] p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setActiveSectorFilter('home')}
+                    className={`py-2 rounded-lg text-xs font-black transition cursor-pointer ${
+                      activeSectorFilter === 'home'
+                        ? 'bg-[#102b4e] text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    🏠 منزلي
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveSectorFilter('electrical')}
+                    className={`py-2 rounded-lg text-xs font-black transition cursor-pointer ${
+                      activeSectorFilter === 'electrical'
+                        ? 'bg-amber-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-300'
+                    }`}
+                  >
+                    ⚡ كهرباء
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="ds-drawer__list">
               {groupedNav.map((group) => (
                 <div className="ds-drawer__group" key={`drawer-group-${group.id}`}>
@@ -767,7 +835,14 @@ export const Navbar: React.FC<NavbarProps> = ({
         isOpen={isDbModalOpen}
         onClose={() => setIsDbModalOpen(false)}
       />
-      <SyncStatusCenter isOpen={isSyncCenterOpen} onClose={() => setIsSyncCenterOpen(false)} />
+      <SyncStatusCenter
+        isOpen={isSyncCenterOpen}
+        onClose={() => setIsSyncCenterOpen(false)}
+        onOpenPendingSyncPage={() => {
+          setIsSyncCenterOpen(false);
+          setActiveTab('pending_sync');
+        }}
+      />
 
       {/* بحث ذكي عام */}
       <GlobalSearch

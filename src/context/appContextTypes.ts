@@ -50,14 +50,20 @@ export interface AppContextType {
   storageQuotaExceeded: boolean;
   flushOfflineQueue: () => Promise<{ success: boolean; syncedCount: number }>;
   flushPendingInvoices: () => Promise<{ success: boolean; syncedCount: number }>;
+  getPendingInvoicesQueue: () => Promise<Invoice[]>;
+  removePendingInvoices: (invoiceIds: string[]) => Promise<number>;
+  clearPendingInvoicesQueue: () => Promise<void>;
+  removeOfflineQueueItems: (mutationIds: string[]) => Promise<number>;
+  retryOfflineQueueItems: (mutationIds: string[]) => Promise<number>;
+  clearOfflineQueueItems: () => Promise<void>;
   selectedBranchFilter: string;
   setSelectedBranchFilter: (branch: string) => void;
-  activeSectorFilter: 'home' | 'electrical' | 'all';
-  setActiveSectorFilter: (sector: 'home' | 'electrical' | 'all') => void;
-  /** true بس للإدارة العليا (admin/developer) — للتحكم في واجهات تبديل القطاع. */
+  activeSectorFilter: 'home' | 'electrical';
+  setActiveSectorFilter: (sector: 'home' | 'electrical') => void;
+  /** true للإدارة والأدوار متعددة القطاعات — للتحكم في واجهات تبديل القطاع بين منزلي أو كهربائي. */
   canManageSectorGate: boolean;
   /** القطاع الفعلي بعد قواعد الأدوار — 'none' = محجوب عن القطاعين. */
-  effectiveSectorFilter: 'home' | 'electrical' | 'all' | 'none';
+  effectiveSectorFilter: 'home' | 'electrical' | 'none';
   refreshInvoicesNow: (force?: boolean) => Promise<{ success: boolean; count: number; message: string }>;
   
   // Supabase Sync

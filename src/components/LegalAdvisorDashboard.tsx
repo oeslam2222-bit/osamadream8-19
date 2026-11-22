@@ -83,7 +83,21 @@ const fmt = (n: number) => formatCurrency(n || 0);
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 export const LegalAdvisorDashboard: React.FC = () => {
-  const { customers, branches, currentUser, users, recordAuditLog, effectiveSectorFilter } = useApp();
+  const {
+    customers,
+    branches,
+    currentUser,
+    users,
+    recordAuditLog,
+    activeSectorFilter,
+    setActiveSectorFilter,
+    canManageSectorGate,
+    effectiveSectorFilter,
+  } = useApp();
+
+  const activeSector: 'home' | 'electrical' | 'none' = canManageSectorGate
+    ? activeSectorFilter
+    : effectiveSectorFilter;
 
   const [activeTab, setActiveTab] = useState<TabKey>('cases');
   const [searchTerm, setSearchTerm] = useState('');
@@ -158,20 +172,17 @@ export const LegalAdvisorDashboard: React.FC = () => {
     return unsub;
   }, []);
 
-  // Privacy: legal advisor sees only referred customers
+  // Privacy: legal advisor sees only referred customers in active sector
   const accessibleCustomers = useMemo(() => {
-    // العزل القطاعي الصارم: حساب بلا قطاع = محجوب، ولو مختار قطاع معين نشوفه بس
-    // (الأدوار الإدارية بترجّع 'all' من السياق فسلوكها زي ما هو).
-    if (effectiveSectorFilter === 'none') return [];
+    if (activeSector === 'none') return [];
     const base = currentUser?.role === 'legal_advisor' ? customers : filterCustomersByRBAC(customers, currentUser, users);
-    const sectorScoped =
-      effectiveSectorFilter === 'all'
-        ? base
-        : base.filter((c) => (c.sector || inferCustomerSector(c, users)) === effectiveSectorFilter);
+    const sectorScoped = base.filter(
+      (c) => c.sector === 'both' || c.sector === 'all' || (c.sector || inferCustomerSector(c, users)) === activeSector
+    );
     const ids = new Set(legalCases.map((c) => c.customerId).filter(Boolean));
     const codes = new Set(legalCases.map((c) => c.customerCode).filter(Boolean));
     return sectorScoped.filter((c) => ids.has(c.id) || (!!c.code && codes.has(c.code as string)) || isCustomerReferredToLegal(c));
-  }, [customers, currentUser, users, legalCases, effectiveSectorFilter]);
+  }, [customers, currentUser, users, legalCases, activeSector]);
 
   // Modals / forms
   const [selectedCustomerForNotice, setSelectedCustomerForNotice] = useState<Customer | null>(null);
@@ -496,6 +507,32 @@ export const LegalAdvisorDashboard: React.FC = () => {
               <option value="الكل">كل الفروع</option>
               {branches.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}
             </select>
+            {canManageSectorGate && (
+              <div className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveSectorFilter('home')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                    activeSectorFilter === 'home'
+                      ? 'bg-[#102b4e] text-white shadow-2xs'
+                      : 'text-slate-600 hover:bg-white'
+                  }`}
+                >
+                  🏠 منزلي
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSectorFilter('electrical')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                    activeSectorFilter === 'electrical'
+                      ? 'bg-amber-600 text-white shadow-2xs'
+                      : 'text-slate-600 hover:bg-white'
+                  }`}
+                >
+                  ⚡ كهرباء
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

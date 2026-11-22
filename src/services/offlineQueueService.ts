@@ -118,6 +118,17 @@ export async function markQueuedMutationFailure(
   return next.length;
 }
 
+export async function resetQueuedMutationAttempts(ids: string[]): Promise<number> {
+  if (ids.length === 0) return (await getQueuedMutations()).length;
+  const items = await getQueuedMutations();
+  const target = new Set(ids);
+  const next = items.map((item) =>
+    target.has(item.id) ? { ...item, attempts: 0, lastError: undefined } : item
+  );
+  await writeQueue(next);
+  return next.length;
+}
+
 export const MAX_ATTEMPTS = 5;
 
 /** هل تجاوز العنصر الحد الأقصى للمحاولات → "dead letter" (لا إعادة محاولة). */

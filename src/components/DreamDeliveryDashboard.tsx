@@ -6,7 +6,7 @@ import {
   Sparkles, CreditCard, Coins, ArrowLeft, Tag, Home, Zap,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { filterPromotionsForUser } from '../services/promotionService';
+import { filterPromotionsForUser, inferOfferSector } from '../services/promotionService';
 import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from '../services/customerDues';
 import { inferCustomerSector } from '../data/branchDefinitions';
 import { inferTargetSector } from '../services/targetService';
@@ -79,6 +79,9 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
     getVisibleInvoices,
     getVisibleCustomers,
     getVisibleTargets,
+    activeSectorFilter,
+    setActiveSectorFilter,
+    canManageSectorGate,
   } = useApp();
 
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
@@ -346,15 +349,69 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
   const promoSummary = useMemo(() => {
     const scoped = filterPromotionsForUser(promotions, currentUser, products);
     const active = scoped.filter((p) => p.status !== 'منتهي');
-    const maxDiscount = active.reduce((mx, p) => Math.max(mx, Number(p.discountPercentage || 0)), 0);
+    let homeCount = 0;
+    let homeMaxDiscount = 0;
+    let elecCount = 0;
+    let elecMaxDiscount = 0;
+    for (const p of active) {
+      const sec = inferOfferSector(p, products);
+      const disc = Number(p.discountPercentage || 0);
+      if (sec === 'electrical') {
+        elecCount += 1;
+        if (disc > elecMaxDiscount) elecMaxDiscount = disc;
+      } else {
+        homeCount += 1;
+        if (disc > homeMaxDiscount) homeMaxDiscount = disc;
+      }
+    }
     return {
-      count: active.length,
-      maxDiscount: Math.round(maxDiscount),
+      home: { count: homeCount, maxDiscount: Math.round(homeMaxDiscount) },
+      electrical: { count: elecCount, maxDiscount: Math.round(elecMaxDiscount) },
+      hasAny: homeCount > 0 || elecCount > 0,
     };
   }, [promotions, currentUser, products]);
 
+  const activitySector: 'home' | 'electrical' = canManageSectorGate
+    ? activeSectorFilter
+    : currentUser?.sector === 'electrical'
+    ? 'electrical'
+    : 'home';
+
   const activities = useMemo(() => {
-    const invoiceEvents = [...scopedInvoices]
+    const customerSectorLookup = new Map<string, 'home' | 'electrical'>();
+    for (const c of scopedCustomers) {
+      const resolved = applyCustomerSectorHeuristic(c) || inferCustomerSector(c, users);
+      const sec: 'home' | 'electrical' = resolved === 'electrical' ? 'electrical' : 'home';
+      if (c.id) customerSectorLookup.set(`id:${c.id}`, sec);
+      if (c.code) customerSectorLookup.set(`code:${c.code}`, sec);
+      const norm = normalizeArabicText(c.name || '');
+      if (norm && !customerSectorLookup.has(`name:${norm}`)) {
+        customerSectorLookup.set(`name:${norm}`, sec);
+      }
+    }
+
+    const resolveInvSec = (inv: Invoice): 'home' | 'electrical' => {
+      if (inv.sector === 'electrical' || inv.sector === 'home') return inv.sector;
+      const byRef =
+        (inv.customerId ? customerSectorLookup.get(`id:${inv.customerId}`) : undefined) ||
+        (inv.customerCode ? customerSectorLookup.get(`code:${inv.customerCode}`) : undefined) ||
+        customerSectorLookup.get(`name:${normalizeArabicText(inv.customerName || '')}`);
+      if (byRef) return byRef;
+      return isElectricalLabel(inv.customerName, inv.repName) ? 'electrical' : 'home';
+    };
+
+    const resolveVisitSec = (v: CustomerVisit): 'home' | 'electrical' => {
+      if (v.sector === 'electrical' || v.sector === 'home') return v.sector;
+      const byRef =
+        (v.customerId ? customerSectorLookup.get(`id:${v.customerId}`) : undefined) ||
+        (v.customerCode ? customerSectorLookup.get(`code:${v.customerCode}`) : undefined) ||
+        customerSectorLookup.get(`name:${normalizeArabicText(v.customerName || '')}`);
+      if (byRef) return byRef;
+      return isElectricalLabel(v.customerName, v.repName) ? 'electrical' : 'home';
+    };
+
+    const invoiceEvents = scopedInvoices
+      .filter((inv) => resolveInvSec(inv) === activitySector)
       .sort((a, b) => String(b.createdAt || `${b.date} ${b.time}`).localeCompare(String(a.createdAt || `${a.date} ${a.time}`)))
       .slice(0, 4)
       .map((inv) => ({
@@ -366,7 +423,8 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
         tone: 'blue' as const,
       }));
 
-    const visitEvents = [...scopedVisits]
+    const visitEvents = scopedVisits
+      .filter((visit) => resolveVisitSec(visit) === activitySector)
       .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))
       .slice(0, 2)
       .map((visit) => ({
@@ -381,7 +439,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
     return [...invoiceEvents, ...visitEvents]
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 5);
-  }, [scopedInvoices, scopedVisits]);
+  }, [scopedInvoices, scopedVisits, scopedCustomers, users, activitySector]);
 
   const displayName = (currentUser?.name || '').replace(/\s*\([^)]*\)/g, '').trim() || 'بك';
   const initials = displayName.charAt(0).toUpperCase();
@@ -659,15 +717,21 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                 <Tag size={11} />
                 خصم خاص
               </span>
-              {promoSummary.count > 0 && (
+              {(isAdminOrDev || currentUser?.sector !== 'electrical') && promoSummary.home.count > 0 && (
                 <span className="tg-offers-banner__count">
-                  {promoSummary.count} عرض نشط
-                  {promoSummary.maxDiscount > 0 ? ` • حتى ${promoSummary.maxDiscount}%` : ''}
+                  🏠 منزلي: {promoSummary.home.count} عرض
+                  {promoSummary.home.maxDiscount > 0 ? ` • حتى ${promoSummary.home.maxDiscount}%` : ''}
+                </span>
+              )}
+              {(isAdminOrDev || currentUser?.sector === 'electrical') && promoSummary.electrical.count > 0 && (
+                <span className="tg-offers-banner__count">
+                  ⚡ كهرباء: {promoSummary.electrical.count} عرض
+                  {promoSummary.electrical.maxDiscount > 0 ? ` • حتى ${promoSummary.electrical.maxDiscount}%` : ''}
                 </span>
               )}
             </div>
             <p className="tg-offers-banner__sub">
-              {promoSummary.count > 0
+              {promoSummary.hasAny
                 ? 'اضغط هنا لفتح صفحة العروض واستعراض الأصناف المشمولة بالخصم الخاص المرتبط بأكواد المنتجات'
                 : 'اضغط لفتح مركز العروض والخصومات لمتابعة أحدث عروض دريم طنطاوي المربوطة بكود الصنف'}
             </p>
@@ -811,7 +875,35 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
         <section className="tg-dash-bottom">
           <div className="tg-card">
             <div className="tg-card__head">
-              <span className="tg-card__title">أحدث الأنشطة</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="tg-card__title">أحدث الأنشطة</span>
+                {canManageSectorGate && (
+                  <div className="inline-flex items-center rounded-lg bg-slate-100 dark:bg-[#132542] p-0.5 gap-0.5 text-[11px] font-black">
+                    <button
+                      type="button"
+                      onClick={() => setActiveSectorFilter('home')}
+                      className={`px-2 py-0.5 rounded-md cursor-pointer transition ${
+                        activeSectorFilter === 'home'
+                          ? 'bg-[#102b4e] text-white'
+                          : 'text-slate-600 dark:text-slate-300'
+                      }`}
+                    >
+                      🏠 منزلي
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSectorFilter('electrical')}
+                      className={`px-2 py-0.5 rounded-md cursor-pointer transition ${
+                        activeSectorFilter === 'electrical'
+                          ? 'bg-amber-600 text-white'
+                          : 'text-slate-600 dark:text-slate-300'
+                      }`}
+                    >
+                      ⚡ كهرباء
+                    </button>
+                  </div>
+                )}
+              </div>
               <button type="button" onClick={() => onNavigate?.('invoices')} className="tg-linkbtn">عرض الكل</button>
             </div>
             <div className="tg-act-list">

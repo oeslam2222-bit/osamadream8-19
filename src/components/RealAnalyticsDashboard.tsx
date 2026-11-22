@@ -31,7 +31,6 @@ import {
 } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import { formatCurrency } from "../services/invoiceService";
-import { fetchSalesSummaryFromSupabase, type SalesSummary } from "../services/supabaseService";
 import { normalizeArabicText } from "../services/arabicMatchingService";
 import { useEncouragement } from "./EncouragementSystem";
 import { chartPalette } from "../templates/theme";
@@ -85,12 +84,24 @@ export const RealAnalyticsDashboard: React.FC<{
   /** فتح بروفايل عميل من داخل الشاشة (مربوط بـ SmartProfilePage من App). */
   onOpenCustomerProfile?: (customerRef: string) => void;
 }> = ({ isDark, onOpenCustomerProfile }) => {
-  const { currentUser, getVisibleInvoices, getVisibleCustomers, getVisibleVisits, isOffline } = useApp();
+  const {
+    currentUser,
+    getVisibleInvoices,
+    getVisibleCustomers,
+    getVisibleVisits,
+    isOffline,
+    activeSectorFilter,
+    setActiveSectorFilter,
+    canManageSectorGate,
+    effectiveSectorFilter,
+  } = useApp();
   const palette = isDark ? chartPalette.dark : chartPalette.light;
 
+  const activeSector: "home" | "electrical" | "none" = canManageSectorGate
+    ? activeSectorFilter
+    : effectiveSectorFilter;
+
   const [period, setPeriod] = useState<Period>("week");
-  /* فصل القطاع المنزلي عن الكهربي + فلتر المنطقة للزيارات */
-  const [sectorFilter, setSectorFilter] = useState<"all" | "home" | "electrical">("all");
   const [visitRegion, setVisitRegion] = useState<string>("all");
   const { showEncouragement } = useEncouragement();
   /* مبيعات باليوم — اختيار اليوم */
@@ -98,29 +109,6 @@ export const RealAnalyticsDashboard: React.FC<{
   const [dayBranch, setDayBranch] = useState<string>("all");
   const [dayRep, setDayRep] = useState<string>("all");
   const [dayCustomer, setDayCustomer] = useState<string>("all");
-
-  /* ------------- 🚀 تجميع على السيرفر (RPC) مع fallback محلي ------------- */
-  const [summary, setSummary] = useState<SalesSummary | null>(null);
-  const [summaryState, setSummaryState] = useState<"loading" | "ready" | "unavailable">("loading");
-
-  useEffect(() => {
-    let cancelled = false;
-    const days = period === "today" ? 1 : period === "week" ? 7 : 30;
-    setSummaryState("loading");
-    fetchSalesSummaryFromSupabase(days).then((res) => {
-      if (cancelled) return;
-      if (res.success && res.summary) {
-        setSummary(res.summary);
-        setSummaryState("ready");
-      } else {
-        setSummary(null);
-        setSummaryState("unavailable");
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [period]);
 
   const todayStr = useMemo(() => localISO(new Date()), []);
 
@@ -176,16 +164,19 @@ export const RealAnalyticsDashboard: React.FC<{
     (name && customerRefMap.get(`name:${normalizeArabicText(name)}`));
 
   const sectorMatches = (sector?: string): boolean => {
-    if (sectorFilter === "all") return true;
+    if (activeSector === "none") return false;
     if (!sector || sector === "all" || sector === "both") return true;
-    return sector === sectorFilter;
+    return sector === activeSector;
   };
 
-  const invoiceSectorOk = (inv: Invoice): boolean =>
-    sectorFilter === "all" || sectorMatches(refOf(inv.customerId, inv.customerCode, inv.customerName)?.sector);
+  const invoiceSectorOk = (inv: Invoice): boolean => {
+    if (activeSector === "none") return false;
+    if (inv.sector === "home" || inv.sector === "electrical") return inv.sector === activeSector;
+    return sectorMatches(refOf(inv.customerId, inv.customerCode, inv.customerName)?.sector);
+  };
 
   const visitSectorOk = (v: CustomerVisit): boolean => {
-    if (sectorFilter === "all") return true;
+    if (activeSector === "none") return false;
     if (v.sector) return sectorMatches(v.sector);
     return sectorMatches(refOf(v.customerId, v.customerCode, v.customerName)?.sector);
   };
@@ -196,12 +187,12 @@ export const RealAnalyticsDashboard: React.FC<{
   const periodInvoices = useMemo(
     () => invoices.filter((inv) => inRange(invDate(inv)) && invoiceSectorOk(inv)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [invoices, range.start, range.end, sectorFilter, customerRefMap]
+    [invoices, range.start, range.end, activeSector, customerRefMap]
   );
   const periodVisits = useMemo(
     () => visits.filter((v) => inRange(v.date || "") && visitSectorOk(v)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [visits, range.start, range.end, sectorFilter, customerRefMap]
+    [visits, range.start, range.end, activeSector, customerRefMap]
   );
 
   /* ---------------------- مبيعات باليوم (بيانات محلية بالكامل — صفر EGRESS إضافي) ---------------------- */
@@ -216,17 +207,23 @@ export const RealAnalyticsDashboard: React.FC<{
     };
   }, [selectedDay]);
 
+  const sectorInvoices = useMemo(
+    () => invoices.filter((inv) => invoiceSectorOk(inv)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [invoices, activeSector, customerRefMap]
+  );
+
   const dayBranches = useMemo(
-    () => [...new Set(invoices.map((i) => i.branchName).filter(Boolean))].sort(),
-    [invoices]
+    () => [...new Set(sectorInvoices.map((i) => i.branchName).filter(Boolean))].sort(),
+    [sectorInvoices]
   );
   const dayReps = useMemo(
-    () => [...new Set(invoices.map((i) => i.repName).filter(Boolean))].sort(),
-    [invoices]
+    () => [...new Set(sectorInvoices.map((i) => i.repName).filter(Boolean))].sort(),
+    [sectorInvoices]
   );
   const dayCustomers = useMemo(
-    () => [...new Set(invoices.map((i) => i.customerName).filter(Boolean))].sort(),
-    [invoices]
+    () => [...new Set(sectorInvoices.map((i) => i.customerName).filter(Boolean))].sort(),
+    [sectorInvoices]
   );
 
   const dayInvoices = useMemo(
@@ -238,7 +235,7 @@ export const RealAnalyticsDashboard: React.FC<{
         .filter((inv) => dayRep === "all" || inv.repName === dayRep)
         .filter((inv) => dayCustomer === "all" || inv.customerName === dayCustomer),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [invoices, selectedDay, dayBranch, dayRep, dayCustomer, sectorFilter, customerRefMap]
+    [invoices, selectedDay, dayBranch, dayRep, dayCustomer, activeSector, customerRefMap]
   );
 
   const dayCollections = useMemo(
@@ -251,7 +248,7 @@ export const RealAnalyticsDashboard: React.FC<{
         .filter((v) => dayRep === "all" || v.repName === dayRep)
         .filter((v) => dayCustomer === "all" || v.customerName === dayCustomer),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [visits, selectedDay, dayBranch, dayRep, dayCustomer, sectorFilter, customerRefMap]
+    [visits, selectedDay, dayBranch, dayRep, dayCustomer, activeSector, customerRefMap]
   );
 
   const dayKpis = useMemo(() => {
@@ -294,7 +291,7 @@ export const RealAnalyticsDashboard: React.FC<{
     }
     return points;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoices, dayMeta.prefix, todayStr, sectorFilter, customerRefMap]);
+  }, [invoices, dayMeta.prefix, todayStr, activeSector, customerRefMap]);
 
   /* ---------------------- تحليل الزيارات (المنطقة + الأكثر←الأقل) ---------------------- */
   const visitRegions = useMemo(
@@ -496,94 +493,25 @@ export const RealAnalyticsDashboard: React.FC<{
     [periodInvoices]
   );
 
-  /* ------------- 🚀 العرض من التجميع السيرفري لو متاح (fallback محلي) ------------- */
-  const server = summaryState === "ready" && summary ? summary : null;
-
-  const fmtDayLabel = (iso: string) => {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return new Intl.DateTimeFormat("ar-EG", { day: "numeric", month: "short" }).format(d);
-  };
-
-  const displayKpis = server
-    ? {
-        sales: Number(server.kpis.sales) || 0,
-        collections: kpis.collections, // التحصيلات من الزيارات المحلية
-        cartons: Number(server.kpis.cartons) || 0,
-        orders: Number(server.kpis.orders) || 0,
-        active: Number(server.kpis.orders) || 0,
-      }
-    : kpis;
-
-  const displayTrend = useMemo(() => {
-    if (!server || period === "today") return trendData; // "اليوم" بالساعات من المحلي
-    const daily = server.daily.map((d) => ({ day: d.day, sales: Number(d.sales) || 0 }));
-    if (period === "week") {
-      return daily.map((d) => ({ label: fmtDayLabel(d.day), sales: d.sales, collections: 0 }));
-    }
-    // الشهر: تجميع كل 3 أيام في نقطة
-    const buckets: { label: string; sales: number; collections: number }[] = [];
-    daily.forEach((d, i) => {
-      const bi = Math.floor(i / 3);
-      if (!buckets[bi]) buckets[bi] = { label: fmtDayLabel(d.day), sales: 0, collections: 0 };
-      buckets[bi].sales += d.sales;
-    });
-    return buckets;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [server, trendData, period]);
-
-  const displayBranches = useMemo(
-    () =>
-      server
-        ? server.by_branch.map((b) => ({ name: (b.name || "غير محدد").replace(/^فرع\s*/, ""), sales: Math.round(Number(b.sales) || 0) }))
-        : branchData,
-    [server, branchData]
-  );
-
-  const displayProducts = useMemo(() => {
-    if (!server) return topProducts;
-    const list = server.top_products.map((p) => ({
-      name: p.product_name,
-      sales: Number(p.sales) || 0,
-      cartons: Number(p.cartons) || 0,
-    }));
-    const max = list[0]?.sales || 1;
-    return list.map((p) => ({ ...p, pct: Math.round((p.sales / max) * 100) }));
-  }, [server, topProducts]);
-
-  const displayCustomers = useMemo(() => {
-    if (!server) return topCustomers;
-    const list = server.top_customers.map((c) => ({
-      name: c.name || "غير محدد",
-      sales: Number(c.sales) || 0,
-      orders: Number(c.orders) || 0,
-    }));
-    const max = list[0]?.sales || 1;
-    return list.map((c) => ({ ...c, pct: Math.round((c.sales / max) * 100) }));
-  }, [server, topCustomers]);
+  /* ------------- العرض المحسوب محلياً حسب القطاع المختار بدقة ------------- */
+  const displayKpis = kpis;
+  const displayTrend = trendData;
+  const displayBranches = branchData;
+  const displayProducts = topProducts;
+  const displayCustomers = topCustomers;
 
   const displayRecent = useMemo(
     () =>
-      server
-        ? server.recent.map((r) => ({
-            id: r.id,
-            invoiceNumber: r.invoice_number || "—",
-            customerName: r.customer_name || "—",
-            branchName: r.branch_name || "—",
-            dateStr: r.date || "",
-            total: Number(r.estimated_grand_total) || 0,
-            status: r.status || "معتمدة",
-          }))
-        : recentInvoices.map((inv) => ({
-            id: inv.id,
-            invoiceNumber: inv.invoiceNumber,
-            customerName: inv.customerName,
-            branchName: inv.branchName,
-            dateStr: invDate(inv).slice(5),
-            total: invTotal(inv),
-            status: inv.status,
-          })),
-    [server, recentInvoices]
+      recentInvoices.map((inv) => ({
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        customerName: inv.customerName,
+        branchName: inv.branchName,
+        dateStr: invDate(inv).slice(5),
+        total: invTotal(inv),
+        status: inv.status,
+      })),
+    [recentInvoices]
   );
 
   /* ---------------------- بطاقات KPI ---------------------- */
@@ -622,19 +550,6 @@ export const RealAnalyticsDashboard: React.FC<{
             أوفلاين — بيانات محلية
           </span>
         )}
-        {summaryState === "loading" && (
-          <span className="rounded-full bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary">
-            جاري التجميع على السيرفر…
-          </span>
-        )}
-        {server && (
-          <span
-            className="rounded-full bg-success/10 px-3 py-1 text-[11px] font-semibold text-success"
-            title="الأرقام مجمعة داخل قاعدة البيانات (طلب واحد صغير) — توفير في التحميل"
-          >
-            ⚡ تجميع على السيرفر
-          </span>
-        )}
       </div>
 
       {/* مبدّل الفترة + فصل القطاع (منزلي/كهربائي) */}
@@ -654,26 +569,34 @@ export const RealAnalyticsDashboard: React.FC<{
             </button>
           ))}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-bold text-[color:var(--app-muted,theme(colors.slate.500))]">القطاع:</span>
-          {([
-            ["all", "الكل"],
-            ["home", "منزلي"],
-            ["electrical", "كهربائي"],
-          ] as const).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setSectorFilter(key as "all" | "home" | "electrical")}
-              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors duration-200 ${
-                sectorFilter === key
-                  ? "bg-[var(--app-ok,#0D9488)] text-white shadow-sm"
-                  : "border border-border bg-card text-[color:var(--app-muted,theme(colors.slate.500))] hover:border-[var(--app-ok,#0D9488)]/40 hover:text-slate-900 dark:hover:text-slate-100"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {canManageSectorGate ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-bold text-[color:var(--app-muted,theme(colors.slate.500))]">القطاع:</span>
+            {([
+              ["home", "🏠 منزلي"],
+              ["electrical", "⚡ كهربائي"],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setActiveSectorFilter(key)}
+                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors duration-200 cursor-pointer ${
+                  activeSectorFilter === key
+                    ? key === "electrical"
+                      ? "bg-amber-600 text-white shadow-sm"
+                      : "bg-[var(--app-ok,#0D9488)] text-white shadow-sm"
+                    : "border border-border bg-card text-[color:var(--app-muted,theme(colors.slate.500))] hover:border-[var(--app-ok,#0D9488)]/40 hover:text-slate-900 dark:hover:text-slate-100"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : activeSector !== "none" ? (
+          <span className="rounded-full border border-border bg-card px-3.5 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200">
+            {activeSector === "electrical" ? "⚡ قطاع الكهربائي" : "🏠 قطاع المنزلي"}
+          </span>
+        ) : null}
       </div>
 
       {/* بطاقات KPI */}

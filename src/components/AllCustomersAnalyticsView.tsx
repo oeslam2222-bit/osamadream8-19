@@ -255,7 +255,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [selectedSupervisor, setSelectedSupervisor] = useState<string>('ALL');
   const [selectedRep, setSelectedRep] = useState<string>('ALL');
   const [selectedRegion, setSelectedRegion] = useState<string>('ALL');
-  const [selectedSector, setSelectedSector] = useState<'home' | 'electrical'>('home');
+  const [selectedSector, setSelectedSector] = useState<'home' | 'electrical'>(activeSectorFilter);
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>('ALL');
   const [debtFilter, setDebtFilter] = useState<DebtFilter>('ALL');
   const [debtStatusFilter, setDebtStatusFilter] = useState<string>('ALL');
@@ -281,8 +281,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
         if (parsed.selectedSector === 'home' || parsed.selectedSector === 'electrical') {
           setSelectedSector(parsed.selectedSector);
         } else if (parsed.selectedSector === 'all' || parsed.selectedSector === 'both') {
-          // التوافق مع الفلاتر المحفوظة القديمة: نختار الافتراضي منزلي.
-          setSelectedSector('home');
+          setSelectedSector(activeSectorFilter);
         }
         if (parsed.activityFilter !== undefined) setActivityFilter(parsed.activityFilter);
         if (parsed.debtFilter !== undefined) setDebtFilter(parsed.debtFilter);
@@ -296,6 +295,10 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       }
     } catch {}
   }, [CUSTOMER_FILTERS_KEY, currentUser?.id]);
+
+  useEffect(() => {
+    setSelectedSector(activeSectorFilter);
+  }, [activeSectorFilter]);
 
   // Power BI Visuals Tab
   const [activeChartTab, setActiveChartTab] = useState<'monthly' | 'branches' | 'reps' | 'payment_guarantee'>('monthly');
@@ -993,7 +996,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   // Reset pagination on filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedBranch, selectedRep, selectedRegion, selectedSupervisor, activityFilter, debtFilter, debtStatusFilter, orderFilter, visitFilter, collectionRateFilter, dealtFilter, searchQuery, pageSize]);
+  }, [selectedBranch, selectedRep, selectedRegion, selectedSupervisor, selectedSector, activityFilter, debtFilter, debtStatusFilter, orderFilter, visitFilter, collectionRateFilter, dealtFilter, searchQuery, pageSize]);
 
   const handleFilterChange = (patch: Partial<CustomerFilterBarState>) => {
     if (patch.searchQuery !== undefined) setSearchQuery(patch.searchQuery);

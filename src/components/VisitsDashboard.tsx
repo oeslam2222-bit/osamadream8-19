@@ -108,10 +108,17 @@ export const VisitsDashboard: React.FC = () => {
     getVisibleVisits,
     getVisibleCustomers,
     canManageSectorGate,
+    activeSectorFilter,
+    setActiveSectorFilter,
+    effectiveSectorFilter,
     addVisit,
     updateVisit,
     updateCustomer,
   } = useApp();
+
+  const activeSector: 'home' | 'electrical' | 'none' = canManageSectorGate
+    ? activeSectorFilter
+    : effectiveSectorFilter;
 
   // استبعاد المرتجعات تماماً من شاشة الزيارات لأن طلب المرتجع له دورته المستقلة
   const visits = useMemo<CustomerVisit[]>(() => {
@@ -134,10 +141,6 @@ export const VisitsDashboard: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'منفذة' | 'معلقة' | 'ملغاة'>('all');
   const [geoFilter, setGeoFilter] = useState<'all' | 'verified' | 'flagged'>('all');
   const [repFilter, setRepFilter] = useState<string>('all');
-  // القطاعين الأساسيين بس: منزلي / كهرباء (مفيش «كل القطاعات»).
-  const [sectorFilter, setSectorFilter] = useState<'home' | 'electrical'>(
-    currentUser?.sector === 'electrical' ? 'electrical' : 'home'
-  );
   const [branchFilter, setBranchFilter] = useState<string>('all');
   const VISITS_CHUNK = 10;
   const [visibleVisitsCount, setVisibleVisitsCount] = useState(VISITS_CHUNK);
@@ -411,10 +414,11 @@ export const VisitsDashboard: React.FC = () => {
     if (req.includes('collectedAmount') && form.collectedAmount <= 0) errors.push('يرجى إدخال مبلغ التحصيل');
     if (form.completionStatus === 'postponed' && !form.postponementReason) errors.push('يرجى اختيار سبب التأجيل');
     if (form.completionStatus === 'failed' && !form.failureReason) errors.push('يرجى اختيار سبب عدم الإتمام');
-    if (selectedCustomerObj && !repGps && !proofPhotoUrl && currentUser?.role === 'sales_rep') {
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    if (!isOffline && selectedCustomerObj && !repGps && !proofPhotoUrl && currentUser?.role === 'sales_rep') {
       errors.push('يرجى تفعيل GPS لالتقاط موقعك الحي أو التقاط صورة حية لواجهة المحل بالكاميرا');
     }
-    if (liveGeoCheck.requiresLivePhoto && !proofPhotoUrl) {
+    if (!isOffline && liveGeoCheck.requiresLivePhoto && !proofPhotoUrl) {
       errors.push(
         liveGeoCheck.status === 'suspected_spoof'
           ? 'تم رصد اشتباه في إشارة الـ GPS — يرجى التقاط صورة حية لواجهة المحل بالكاميرا للمتابعة'
@@ -444,12 +448,20 @@ export const VisitsDashboard: React.FC = () => {
         }
       : undefined;
 
+    const isOfflineDeferredPhoto =
+      typeof navigator !== 'undefined' &&
+      !navigator.onLine &&
+      !proofPhotoUrl &&
+      (liveGeoCheck.requiresLivePhoto || (!repGps && currentUser?.role === 'sales_rep'));
+
     const finalGeoVerification = {
       status: liveGeoCheck.status,
       distanceMeters: liveGeoCheck.distanceMeters,
       accuracyMeters: liveGeoCheck.accuracyMeters,
       speedKmh: liveGeoCheck.speedKmh,
-      flags: liveGeoCheck.flags,
+      flags: isOfflineDeferredPhoto
+        ? Array.from(new Set([...liveGeoCheck.flags, 'offline_photo_deferred']))
+        : liveGeoCheck.flags,
       proofPhotoUrl: proofPhotoUrl || undefined,
       verifiedAt: liveGeoCheck.verifiedAt,
     };
@@ -493,7 +505,10 @@ export const VisitsDashboard: React.FC = () => {
       notes: form.notes,
       location: visitLocation,
       geoVerification: finalGeoVerification,
-      reviewStatus: liveGeoCheck.requiresSupervisorReview ? 'pending' : 'approved',
+      reviewStatus: (liveGeoCheck.requiresSupervisorReview || isOfflineDeferredPhoto) ? 'pending' : 'approved',
+      reviewNote: isOfflineDeferredPhoto
+        ? 'تم تسجيل الزيارة في وضع الأوفلاين — مؤجل إرفاق صورة التحقق لحين المزامنة ومراجعة المشرف'
+        : undefined,
       productPhotos: productPhotos.length ? productPhotos : undefined,
       completionStatus: form.completionStatus,
       postponementReason: form.completionStatus === 'postponed' ? form.postponementReason : undefined,
@@ -589,21 +604,17 @@ export const VisitsDashboard: React.FC = () => {
       result = result.filter((v) => (v.branchName || '') === branchFilter);
     }
 
-    // Sector filter — منزلي/كهرباء بس. حساب مسجّل على القطاعين بيشوفهم،
-    // وغيره (بما فيهم الإدارة اللي بتختار من الفلتر) بيتفلتر بالقطاع المختار.
-    const accountSeesBothSectors = currentUser?.sector === 'both' || currentUser?.sector === 'all';
-
-    if (!accountSeesBothSectors) {
-      const effectiveSector = sectorFilter;
+    // عزل قطاعي صارم — منزلي أو كهرباء فقط (ممنوع دمج القطاعين).
+    if (activeSector === 'none') {
+      result = [];
+    } else {
       const sectorRepIds = new Set(
         users
-          .filter((u) => u.sector === effectiveSector)
+          .filter((u) => u.sector === activeSector)
           .map((u) => u.id)
       );
-      // زيارة قطاعها غير واضح (اتسجلت قبل ما القطاع يتحدد) بتفضل ظاهرة،
-      // بدل ما تختفي من الفلتر.
       result = result.filter(
-        (v) => !v.sector || v.sector === effectiveSector || (v.repId && sectorRepIds.has(v.repId))
+        (v) => !v.sector || v.sector === activeSector || (v.repId && sectorRepIds.has(v.repId))
       );
     }
 
@@ -628,9 +639,8 @@ export const VisitsDashboard: React.FC = () => {
     statusFilter,
     geoFilter,
     repFilter,
-    sectorFilter,
+    activeSector,
     branchFilter,
-    currentUser?.sector,
     users,
   ]);
 
@@ -669,7 +679,7 @@ export const VisitsDashboard: React.FC = () => {
 
   useEffect(() => {
     setVisibleVisitsCount(VISITS_CHUNK);
-  }, [search, timeFilter, typeFilter, statusFilter, geoFilter, repFilter, sectorFilter, visits.length]);
+  }, [search, timeFilter, typeFilter, statusFilter, geoFilter, repFilter, activeSector, visits.length]);
 
   const repOptions = useMemo(() => {
     const reps = [...new Set(visits.map((v) => v.repName).filter(Boolean))];
@@ -696,7 +706,6 @@ export const VisitsDashboard: React.FC = () => {
     setStatusFilter('all');
     setGeoFilter('all');
     setRepFilter('all');
-    setSectorFilter(currentUser?.sector === 'electrical' ? 'electrical' : 'home');
     setBranchFilter('all');
   };
 
@@ -927,9 +936,9 @@ export const VisitsDashboard: React.FC = () => {
           <div>
             <label className="block text-[11px] font-bold text-slate-600 mb-1">القطاع</label>
             <select
-              value={sectorFilter}
+              value={activeSectorFilter}
               onChange={(e) => {
-                setSectorFilter(e.target.value as any);
+                setActiveSectorFilter(e.target.value as 'home' | 'electrical');
               }}
               className="tg-select"
             >
@@ -1536,9 +1545,11 @@ export const VisitsDashboard: React.FC = () => {
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <span className="text-[11px] font-black text-slate-800 flex items-center gap-1.5">
                           <Camera className="w-3.5 h-3.5 text-blue-600" />
-                          {liveGeoCheck.requiresLivePhoto
-                            ? 'إلزامي: صورة حية لواجهة المحل بالكاميرا (مختومة بالوقت والموقع)'
-                            : 'صورة حية للمحل بالكاميرا (تُرفع على Cloudinary)'}
+                          {typeof navigator !== 'undefined' && !navigator.onLine
+                            ? 'وضع الأوفلاين: يمكنك حفظ الزيارة مباشرة الآن وستُرفع لطابور المزامنة ومراجعة المشرف'
+                            : liveGeoCheck.requiresLivePhoto
+                              ? 'إلزامي: صورة حية لواجهة المحل بالكاميرا (مختومة بالوقت والموقع)'
+                              : 'صورة حية للمحل بالكاميرا (تُرفع على Cloudinary)'}
                         </span>
                         <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-black cursor-pointer transition">
                           {isUploadingProof ? <RotateCw className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}

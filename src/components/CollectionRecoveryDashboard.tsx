@@ -124,20 +124,24 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     users,
     invoices,
     getVisibleCustomers,
+    getVisibleVisits,
     canManageSectorGate,
+    activeSectorFilter,
+    setActiveSectorFilter,
+    effectiveSectorFilter,
     addVisit,
     updateCustomer,
     visits,
     cloudinaryConfig,
   } = useApp();
 
+  const activeSector: 'home' | 'electrical' | 'none' = canManageSectorGate
+    ? activeSectorFilter
+    : effectiveSectorFilter;
+
   const [search, setSearch] = useState('');
   const [branchFilter, setBranchFilter] = useState('الكل');
   const [repFilter, setRepFilter] = useState('الكل');
-  // القطاعين الأساسيين بس: منزلي / كهرباء (مفيش «كل القطاعات»).
-  const [sectorFilter, setSectorFilter] = useState<'home' | 'electrical'>(
-    currentUser?.sector === 'electrical' ? 'electrical' : 'home'
-  );
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [amountByCustomer, setAmountByCustomer] = useState<Record<string, number>>({});
   const [notesByCustomer, setNotesByCustomer] = useState<Record<string, string>>({});
@@ -176,28 +180,24 @@ export const CollectionRecoveryDashboard: React.FC = () => {
   // أي تغيير في البحث/الفلاتر يرجّع التحميل لأول دفعة
   useEffect(() => {
     setVisibleCustomersCount(CUSTOMERS_PAGE_SIZE);
-  }, [search, branchFilter, repFilter, sectorFilter]);
+  }, [search, branchFilter, repFilter, activeSector]);
 
   const repoCustomers = useMemo(() => {
-    // `getVisibleCustomers` بيتكفّل أصلًا بصلاحيات الفرع/المندوب/المشرف،
-    // فكان فيه فلتر فرع إضافي هنا بيقارن اسم الفرع بالنص الحرفي وبيخفّي
-    // كل عملاء الفروع التانية حتى عن الأدمن — وده سبب إن التحصيلات كانت فاضية.
+    if (activeSector === 'none') return [];
     const list = getVisibleCustomers ? getVisibleCustomers() : customers;
     return list.filter((customer) => {
       const assignedToRep = !currentUser || currentUser.role === 'admin' || currentUser.role === 'developer' || currentUser.role === 'branch_manager' || currentUser.role === 'supervisor'
         ? true
         : customer.repId === currentUser.id || customer.salesRepName === currentUser.name || customer.repName === currentUser.name;
       const resolvedSector = inferCustomerSector(customer, users);
-      // عميل بلا قطاع واضح مبنخفيهوش (كان هيختفي من التحصيل بالكامل)،
-      // لكن عميل القطاع التاني ممنوع يظهر.
       const matchesSector =
         customer.sector === 'both' ||
         customer.sector === 'all' ||
         !resolvedSector ||
-        resolvedSector === sectorFilter;
+        resolvedSector === activeSector;
       return assignedToRep && matchesSector && getCustomerDebt(customer) > 0;
     });
-  }, [getVisibleCustomers, customers, users, currentUser, sectorFilter]);
+  }, [getVisibleCustomers, customers, users, currentUser, activeSector]);
 
   const branchOptions = useMemo(
     () => ['الكل', ...Array.from(new Set(repoCustomers.map((customer) => customer.branchName).filter(Boolean)))],
@@ -258,16 +258,21 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     [overdueCustomers]
   );
 
+  const scopedVisits = useMemo(
+    () => (getVisibleVisits ? getVisibleVisits() : visits),
+    [getVisibleVisits, visits]
+  );
+
   const todayVisits = useMemo(
-    () => visits.filter((visit) => visit.date === todayKey()).length,
-    [visits]
+    () => scopedVisits.filter((visit) => visit.date === todayKey()).length,
+    [scopedVisits]
   );
 
   const todayCollectionValue = useMemo(
-    () => visits
+    () => scopedVisits
       .filter((visit) => visit.type === 'تحصيل' && visit.date === todayKey())
       .reduce((sum, visit) => sum + Number(visit.collectedAmount || 0), 0),
-    [visits]
+    [scopedVisits]
   );
 
   const returnsByCustomerKey = useMemo(() => {
@@ -280,13 +285,13 @@ export const CollectionRecoveryDashboard: React.FC = () => {
       if (v.returnStatus !== 'مغلق' && v.returnStatus !== 'مرفوض') cur.pending += 1;
       map.set(key, cur);
     };
-    visits.forEach((v) => {
+    scopedVisits.forEach((v) => {
       if (!v.isReturn) return;
       add(v.customerId, v);
       if (v.customerCode && v.customerCode !== v.customerId) add(v.customerCode, v);
     });
     return map;
-  }, [visits]);
+  }, [scopedVisits]);
 
   const userAvatarLookup = useMemo(() => {
     const byId = new Map<string, string>();
@@ -526,7 +531,10 @@ export const CollectionRecoveryDashboard: React.FC = () => {
       repId: currentUser.id,
     });
 
-    if (geoCheck.requiresLivePhoto && !confirmProofPhoto) {
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    const isOfflineDeferredPhoto = isOffline && geoCheck.requiresLivePhoto && !confirmProofPhoto;
+
+    if (!isOffline && geoCheck.requiresLivePhoto && !confirmProofPhoto) {
       setToast('يلزم التقاط صورة حية لمحل العميل قبل حفظ التحصيل لأن الموقع خارج النطاق أو مشتبه به');
       setTimeout(() => setToast(null), 4000);
       return;
@@ -563,15 +571,19 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         distanceMeters: geoCheck.distanceMeters,
         accuracyMeters: geoCheck.accuracyMeters,
         speedKmh: geoCheck.speedKmh,
-        flags: geoCheck.flags,
+        flags: isOfflineDeferredPhoto
+          ? Array.from(new Set([...geoCheck.flags, 'offline_photo_deferred']))
+          : geoCheck.flags,
         proofPhotoUrl: confirmProofPhoto || undefined,
         verifiedAt: geoCheck.verifiedAt,
       },
-      reviewStatus: geoCheck.requiresSupervisorReview ? 'pending' : 'approved',
-      reviewedByName: geoCheck.requiresSupervisorReview ? undefined : currentUser.name,
-      reviewNote: geoCheck.requiresSupervisorReview
-        ? `تنبيه موقع التحصيل: ${geoCheck.label}`
-        : 'تم تسجيل زيارة تحصيل من شاشة التحصيل',
+      reviewStatus: (geoCheck.requiresSupervisorReview || isOfflineDeferredPhoto) ? 'pending' : 'approved',
+      reviewedByName: (geoCheck.requiresSupervisorReview || isOfflineDeferredPhoto) ? undefined : currentUser.name,
+      reviewNote: isOfflineDeferredPhoto
+        ? `تم تسجيل التحصيل أوفلاين (مؤجل إرفاق صورة التحقق): ${geoCheck.label}`
+        : geoCheck.requiresSupervisorReview
+          ? `تنبيه موقع التحصيل: ${geoCheck.label}`
+          : 'تم تسجيل زيارة تحصيل من شاشة التحصيل',
       syncStatus: 'local_only',
     };
 
@@ -776,9 +788,9 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                 ))}
               </select>
               {canManageSectorGate && (
-              <select value={sectorFilter} onChange={(event) => setSectorFilter(event.target.value as 'home' | 'electrical')} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15">
-                <option value="home">منزلي</option>
-                <option value="electrical">كهربائي</option>
+              <select value={activeSectorFilter} onChange={(event) => setActiveSectorFilter(event.target.value as 'home' | 'electrical')} className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15">
+                <option value="home">🏠 منزلي</option>
+                <option value="electrical">⚡ كهربائي</option>
               </select>
               )}
             </div>
@@ -1333,7 +1345,9 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                   {confirmGeoCheck?.requiresLivePhoto && (
                     <div className="pt-1.5 border-t border-current/15 space-y-2">
                       <div className="font-black text-[11px]">
-                        مطلوب التقاط صورة حية لواجهة العميل (مختومة بالوقت والموقع) بسبب التحذير:
+                        {typeof navigator !== 'undefined' && !navigator.onLine
+                          ? 'وضع الأوفلاين: يمكنك حفظ التحصيل الآن في طابور المزامنة وسيتم إرساله لمراجعة المشرف'
+                          : 'مطلوب التقاط صورة حية لواجهة العميل (مختومة بالوقت والموقع) بسبب التحذير:'}
                       </div>
                       <label className="inline-flex items-center gap-2 rounded-xl bg-white border border-current/30 px-3 py-2 text-xs font-black cursor-pointer hover:bg-slate-50">
                         <Camera className="w-4 h-4" />
