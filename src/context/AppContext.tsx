@@ -1678,6 +1678,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
+  // Auth state listener: persist session changes & handle token refresh
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        // Session established or refreshed — re-verify profile if we have a user
+        if (session?.user) {
+          restoreSession().catch(() => {});
+        }
+      } else if (event === 'SIGNED_OUT') {
+        // Explicit sign out — clear local state
+        clearOfflineSafeProfile();
+        setIsAuthenticated(false);
+        setCurrentUser(null);
+        currentUserRef.current = null;
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
 
   const [products, setProducts] = useState<Product[]>(() => {
     return [];
