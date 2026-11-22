@@ -116,6 +116,7 @@ import {
   saveVisibleColumns,
 } from '../services/customerTableSchema';
 import { getSavedSourceUrl, saveSingleSourceUrl, getSavedSheetHistory } from '../services/dataSourceService';
+import { uploadCustomerPhoto, optimizeImageUrl } from '../services/cloudinaryService';
 
 const truncateLabel = (value: string, max = 16): string =>
   value.length > max ? `${value.slice(0, max)}…` : value;
@@ -165,6 +166,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
     supabaseStatus,
     targets = [],
     getVisibleTargets,
+    cloudinaryConfig,
   } = useApp();
 
   // Roles
@@ -403,6 +405,8 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
   const [selectedStoreImage, setSelectedStoreImage] = useState<string | null>(null);
   const [newStorePhotoUrl, setNewStorePhotoUrl] = useState<string>('');
   const [isAddingStorePhoto, setIsAddingStorePhoto] = useState<boolean>(false);
+  const [isUploadingStorePhoto, setIsUploadingStorePhoto] = useState<boolean>(false);
+  const [storePhotoError, setStorePhotoError] = useState<string | null>(null);
 
   // Fast Indexed Customer Orders Lookup
   const customerOrdersLookup = useMemo(() => {
@@ -3240,26 +3244,40 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-xl text-xs text-slate-900 dark:text-white font-medium"
                       />
                       <label className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center gap-1 cursor-pointer shrink-0">
-                        <Upload className="w-3.5 h-3.5" />
-                        <span>رفع ملف</span>
+                        <Upload className={`w-3.5 h-3.5 ${isUploadingStorePhoto ? 'animate-spin' : ''}`} />
+                        <span>{isUploadingStorePhoto ? 'جاري الضغط والرفع...' : 'رفع لـ Cloudinary'}</span>
                         <input
                           type="file"
                           accept="image/*"
+                          disabled={isUploadingStorePhoto}
                           className="hidden"
-                          onChange={(e) => {
+                          onChange={async (e) => {
                             const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = () => {
-                                if (typeof reader.result === 'string') {
-                                  const currentPhotos = selectedCustomer.storePhotos || [];
-                                  const updated = [...currentPhotos, reader.result];
-                                  updateCustomer({ ...selectedCustomer, storePhotos: updated });
-                                  setSelectedCustomer({ ...selectedCustomer, storePhotos: updated });
-                                  setIsAddingStorePhoto(false);
-                                }
-                              };
-                              reader.readAsDataURL(file);
+                            e.target.value = '';
+                            if (!file) return;
+                            setStorePhotoError(null);
+                            if (typeof navigator !== 'undefined' && !navigator.onLine) {
+                              setStorePhotoError('يلزم الاتصال بالإنترنت لرفع الصورة مضغوطة على Cloudinary (حفاظاً على خفة التطبيق).');
+                              return;
+                            }
+                            setIsUploadingStorePhoto(true);
+                            try {
+                              const { url } = await uploadCustomerPhoto(
+                                file,
+                                cloudinaryConfig,
+                                selectedCustomer.id,
+                                selectedCustomer.code,
+                                selectedCustomer.name
+                              );
+                              const currentPhotos = selectedCustomer.storePhotos || [];
+                              const updated = [...currentPhotos, url];
+                              updateCustomer({ ...selectedCustomer, storePhotos: updated });
+                              setSelectedCustomer({ ...selectedCustomer, storePhotos: updated });
+                              setIsAddingStorePhoto(false);
+                            } catch (err: any) {
+                              setStorePhotoError(err?.message || 'تعذر رفع الصورة إلى Cloudinary');
+                            } finally {
+                              setIsUploadingStorePhoto(false);
                             }
                           }}
                         />
@@ -3273,6 +3291,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                             updateCustomer({ ...selectedCustomer, storePhotos: updated });
                             setSelectedCustomer({ ...selectedCustomer, storePhotos: updated });
                             setNewStorePhotoUrl('');
+                            setStorePhotoError(null);
                             setIsAddingStorePhoto(false);
                           }
                         }}
@@ -3282,6 +3301,9 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         حفظ الصورة
                       </button>
                     </div>
+                    {storePhotoError && (
+                      <div className="text-[11px] font-bold text-rose-600">{storePhotoError}</div>
+                    )}
                   </div>
                 )}
 
@@ -3294,10 +3316,11 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
                         className="group relative aspect-4/3 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 shadow-2xs"
                       >
                         <img
-                          src={imgUrl}
+                          src={optimizeImageUrl(imgUrl, 400)}
+                          loading="lazy"
                           alt={`صورة محل ${selectedCustomer.name} #${pIdx + 1}`}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200 cursor-pointer"
-                          onClick={() => setSelectedStoreImage(imgUrl)}
+                          onClick={() => setSelectedStoreImage(optimizeImageUrl(imgUrl, 900))}
                         />
                         <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition-opacity">
                           <button

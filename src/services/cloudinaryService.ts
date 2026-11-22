@@ -362,8 +362,10 @@ export function compressImageFile(
   quality = 0.7
 ): Promise<File> {
   return new Promise((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
       const canvas = document.createElement('canvas');
       let width = img.width;
       let height = img.height;
@@ -404,8 +406,11 @@ export function compressImageFile(
         quality
       );
     };
-    img.onerror = () => reject(new Error('فشل تحميل الصورة للضغط'));
-    img.src = URL.createObjectURL(file);
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('فشل تحميل الصورة للضغط'));
+    };
+    img.src = objectUrl;
   });
 }
 
