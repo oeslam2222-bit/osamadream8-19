@@ -9,7 +9,9 @@ export interface User {
   name: string;
   username: string;
   email: string;
+  /** @deprecated لا يُقرأ ولا يُكتب من العميل. كلمات المرور في Supabase Auth فقط. */
   password?: string;
+  auth_user_id?: string;
   role: UserRole;
   branchName: string;
   sector?: 'home' | 'electrical' | 'both' | 'all';

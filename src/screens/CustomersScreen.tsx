@@ -12,6 +12,7 @@ import {
   ChevronDown,
   X,
   AlertTriangle,
+  AlertCircle,
   CheckCircle2,
   Home,
   Zap,

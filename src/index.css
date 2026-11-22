@@ -1,4 +1,9 @@
-@import"https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap";/*! tailwindcss v4.3.4 | MIT License | https://tailwindcss.com */
+/* ==========================================================================
+   Baseline المولّد من Tailwind (نسخة مجمّدة) + preflight التاريخي للتطبيق.
+   لا تعدّل هذا الملف يدويًا: كل utilities الجديدة تتولّد من src/styles/
+   tailwind-utilities.css (المصدر الوحيد للـ pipeline الحالي).
+   ========================================================================== */
+/*! tailwindcss v4.3.4 | MIT License | https://tailwindcss.com */
 /* التطبيق لا يدعم الوضع الليلي — نجعل متغير dark: يعتمد على كلاس .dark فقط
    (لا يوجد هذا الكلاس أبداً لأن main.tsx يزيله)، فلا تستجيب الألوان لإعداد
    نظام الجهاز ويظهر التطبيق فاتحاً ومتسقاً دائماً. */

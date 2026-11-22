@@ -25,12 +25,12 @@ import { ToastProvider } from "./components/ui/Toast";
 import React, { Component, ErrorInfo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DreamDeliveryDashboard } from './components/DreamDeliveryDashboard';
 import { LoginPage } from './components/LoginPage';
+import { UpdateRequiredGate } from './components/UpdateRequiredGate';
 import { Navbar } from './components/Navbar';
 import { AppProvider, useApp } from './context/AppContext';
 import { ThemeProvider, useTheme } from './context/themeContext';
 import { getUserAllowedTabs, getCustomPermissions, UserPermissionOverride } from './services/permissionService';
 import { EncouragementProvider } from './components/EncouragementSystem';
-import { AuthProvider } from './context/authContext';
 import { InvoiceProvider } from './context/invoiceContext';
 import { CustomerProvider } from './context/customerContext';
 import { Customer, Invoice, UserRole } from './types';
@@ -767,19 +767,21 @@ class MobileErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBound
 export function App() {
   return (
     <MobileErrorBoundary>
-      <AuthProvider>
-        <InvoiceProvider>
-          <CustomerProvider>
-            <AppProvider>
-              <ThemeProvider>
-                <EncouragementProvider>
+      <InvoiceProvider>
+        <CustomerProvider>
+          <AppProvider>
+            <ThemeProvider>
+              <EncouragementProvider>
+                {/* بوابة إصدار العميل: بتحجب التطبيق لو النسخة قديمة
+                    أو لو السيرفر رفض القراءة (RLS) بدل الفشل الصامت. */}
+                <UpdateRequiredGate>
                   <MainLayout />
-                </EncouragementProvider>
-              </ThemeProvider>
-            </AppProvider>
-          </CustomerProvider>
-        </InvoiceProvider>
-      </AuthProvider>
+                </UpdateRequiredGate>
+              </EncouragementProvider>
+            </ThemeProvider>
+          </AppProvider>
+        </CustomerProvider>
+      </InvoiceProvider>
     </MobileErrorBoundary>
   );
 }

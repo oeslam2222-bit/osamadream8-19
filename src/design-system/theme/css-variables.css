@@ -52,7 +52,7 @@
   --color-overlay: rgba(15, 23, 42, 0.45);
 
   /* Typography */
-  --font-sans: "Inter", "Cairo", system-ui, sans-serif;
+  --font-sans: "Cairo", "Tajawal", system-ui, sans-serif;
   --font-arabic: "Cairo", "Tajawal", system-ui, sans-serif;
 
   /* Border radius */

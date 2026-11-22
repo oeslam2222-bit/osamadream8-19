@@ -2,6 +2,24 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import TemplateApp from './templates/TemplateApp';
+// الخطوط مضمّنة محليًا (self-hosted) — مفيش طلبات لـ Google Fonts وقت التشغيل.
+import '@fontsource/cairo/arabic-400.css';
+import '@fontsource/cairo/latin-400.css';
+import '@fontsource/cairo/arabic-500.css';
+import '@fontsource/cairo/latin-500.css';
+import '@fontsource/cairo/arabic-600.css';
+import '@fontsource/cairo/latin-600.css';
+import '@fontsource/cairo/arabic-700.css';
+import '@fontsource/cairo/latin-700.css';
+import '@fontsource/cairo/arabic-800.css';
+import '@fontsource/cairo/latin-800.css';
+import '@fontsource/cairo/arabic-900.css';
+import '@fontsource/cairo/latin-900.css';
+import cairoArabic400 from '@fontsource/cairo/files/cairo-arabic-400-normal.woff2?url';
+import cairoArabic700 from '@fontsource/cairo/files/cairo-arabic-700-normal.woff2?url';
+import cairoArabic900 from '@fontsource/cairo/files/cairo-arabic-900-normal.woff2?url';
+import cairoLatin400 from '@fontsource/cairo/files/cairo-latin-400-normal.woff2?url';
+import cairoLatin700 from '@fontsource/cairo/files/cairo-latin-700-normal.woff2?url';
 import './index.css';
 import './styles/tailwind-utilities.css';
 import './styles/missing-utilities.css';
@@ -18,6 +36,15 @@ import './styles/electronic-invoice.css';
 import './styles/item-sales-page.css';
 // توحيد شكل الكروت والنصوص في الوضع الليلي على مستوى التطبيق
 import './styles/theme-consistency.css';
+// تلوين كارت العميل الدلالي — لازم بعد theme-consistency عشان ألوان البنود تثبت
+import './styles/customer-card.css';
+// عائلة الخط الموحدة — لازم يكون آخر ملف عشان يثبّت var(--app-font) فوق الكل
+import './styles/fonts.css';
+
+import { initMonitoring } from './services/monitoring';
+
+// Sentry بيتهيّأ فقط لو VITE_SENTRY_DSN مضبوط (بيتحمّل ديناميكيًا).
+initMonitoring();
 
 // Template preview (?template in the URL — captured before AppContext strips
 // the query string as a security measure).
@@ -44,6 +71,24 @@ try {
 } catch {
   document.documentElement.classList.add('tg-compact');
 }
+
+const preloadFont = (href: string) => {
+  if (typeof document === 'undefined') return;
+  if (document.querySelector(`link[href="${href}"]`)) return;
+  const link = document.createElement('link');
+  link.rel = 'preload';
+  link.as = 'font';
+  link.type = 'font/woff2';
+  link.crossOrigin = 'anonymous';
+  link.href = href;
+  document.head.appendChild(link);
+};
+
+preloadFont(cairoArabic400);
+preloadFont(cairoArabic700);
+preloadFont(cairoArabic900);
+preloadFont(cairoLatin400);
+preloadFont(cairoLatin700);
 
 const CHUNK_RECOVERY_KEY = 'tantawy:chunk-recovery';
 
