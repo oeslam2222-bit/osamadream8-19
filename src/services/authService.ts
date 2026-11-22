@@ -43,14 +43,29 @@ function isConfigured(): boolean {
 
 /**
  * يحوّل اسم المستخدم/الهاتف/الاسم لإيميل تسجيل الدخول عبر RPC.
+ * مع كاش محلي (7 أيام) لتسريع الدخول المتكرر.
  * ترجع rpcMissing=true لو الدالة لسه ما اتنفذتش على القاعدة (لرسالة واضحة).
  */
+const LOGIN_EMAIL_CACHE_KEY = 'tantawy_login_email_cache_v1';
+const LOGIN_EMAIL_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 أيام
+
 export async function resolveLoginEmail(
   identifier: string
 ): Promise<{ email: string | null; rpcMissing: boolean }> {
   const raw = (identifier || '').trim();
   if (!raw) return { email: null, rpcMissing: false };
   if (raw.includes('@')) return { email: raw.toLowerCase(), rpcMissing: false };
+
+  // --- Fast path: localStorage cache ---
+  try {
+    const cached = localStorage.getItem(LOGIN_EMAIL_CACHE_KEY);
+    if (cached) {
+      const { map, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < LOGIN_EMAIL_CACHE_TTL && map[raw]) {
+        return { email: map[raw], rpcMissing: false };
+      }
+    }
+  } catch {}
 
   try {
     const { data, error } = await supabase.rpc('lookup_login_email', { p_identifier: raw });
@@ -68,6 +83,17 @@ export async function resolveLoginEmail(
     const first = Array.isArray(data) ? data[0] : data;
     const emailValue = typeof first === 'string' ? first : first?.email;
     const email = typeof emailValue === 'string' ? emailValue.trim().toLowerCase() : '';
+
+    // --- Update cache ---
+    if (email) {
+      try {
+        const cached = localStorage.getItem(LOGIN_EMAIL_CACHE_KEY);
+        const map = cached ? JSON.parse(cached).map : {};
+        map[raw] = email;
+        localStorage.setItem(LOGIN_EMAIL_CACHE_KEY, JSON.stringify({ map, timestamp: Date.now() }));
+      } catch {}
+    }
+
     return { email: email || null, rpcMissing: false };
   } catch {
     return { email: null, rpcMissing: false };
