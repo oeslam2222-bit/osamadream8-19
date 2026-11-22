@@ -2911,10 +2911,12 @@ export async function saveInvoicesToSupabase(
  * بس بدل فواتير كل الفروع (اللي كانت 500 سطر × جدولين
  * في كل إقلاع). المندوب بيحمل فواتيره، المشرف فواتير
  * مناديبه، مدير الفرع فواتير فرعه، والإدارة الكل.
+ * فلترة القطاع: صارمة — لا دور يشوف قطاع تاني إلا بصلاحية صريحة.
  */
 export interface InvoiceFetchScope {
   repIds?: string[];
   limit?: number;
+  sector?: 'home' | 'electrical' | 'both' | 'all';
 }
 
 export function fetchInvoicesFromSupabase(
@@ -2984,6 +2986,14 @@ async function fetchInvoicesFromSupabaseImpl(
         if (repIds.length > 0) {
           query = query.in('rep_id', repIds);
         }
+        // فلترة القطاع صارمة — لا دور يشوف قطاع تاني
+        const sector = scope.sector;
+        if (sector === 'home' || sector === 'electrical') {
+          query = query.in('sector', [sector, 'both', 'all']);
+        } else if (sector === 'both') {
+          query = query.in('sector', ['both', 'all']);
+        }
+        // إذا مفيش sector محدد (admin/developer/technical_support) — مفيش فلترة قطاع
         if (updatedSince && filterCol) {
           query = query.gte(filterCol, updatedSince);
         }
@@ -4334,6 +4344,8 @@ export interface ForecastFetchScope {
   branchNames?: string[];
   repIds?: string[];
   repNames?: string[];
+  /** قطاع المستخدم للفلترة من السيرفر قبل التحميل. */
+  sector?: 'home' | 'electrical' | 'both' | 'all';
 }
 
 export interface ContentStampMeta {
@@ -4408,6 +4420,12 @@ function applyForecastScope(query: any, scope?: ForecastFetchScope): any {
   (scope.repNames || []).map((name) => String(name).trim()).filter(Boolean).forEach((name) => {
     clauses.push(`rep_name.ilike.${quoteOrValue(`*${name}*`)}`);
   });
+  // فلترة القطاع من السيرفر قبل التحميل.
+  if (scope.sector === 'home' || scope.sector === 'electrical') {
+    clauses.push(`sector.in.(${scope.sector},both,all),sector.is.null`);
+  } else if (scope.sector === 'both') {
+    clauses.push(`sector.in.(both,all),sector.is.null`);
+  }
   return clauses.length > 0 ? query.or(clauses.join(',')) : query;
 }
 
@@ -4421,6 +4439,12 @@ function applyCommentsScope(query: any, scope?: ForecastFetchScope): any {
   (scope.repNames || []).map((name) => String(name).trim()).filter(Boolean).forEach((name) => {
     clauses.push(`rep_name.ilike.${quoteOrValue(`*${name}*`)}`);
   });
+  // فلترة القطاع من السيرفر قبل التحميل.
+  if (scope.sector === 'home' || scope.sector === 'electrical') {
+    clauses.push(`sector.in.(${scope.sector},both,all),sector.is.null`);
+  } else if (scope.sector === 'both') {
+    clauses.push(`sector.in.(both,all),sector.is.null`);
+  }
   return clauses.length > 0 ? query.or(clauses.join(',')) : query;
 }
 

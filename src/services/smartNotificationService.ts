@@ -1,15 +1,21 @@
 import { currentUserRef } from '../context/AppContext';
+import type { UserRole, SectorType } from '../types';
 
 /**
  * Smart Notification Service
  * 
- * Problem: Current system shows all notifications to everyone, causing fatigue.
- * Solution: 
- * - Role-based filtering (rep sees only their branch/sector)
- * - Change detection (only notify on actual data changes)
- * - Deduplication (group similar updates within time window)
- * - Priority scoring (important vs routine)
- * - LocalStorage persistence for cross-session tracking
+ * Per-role notification mapping:
+ * - admin: everything
+ * - branch_manager: team performance, targets, inventory alerts, customer updates, returns
+ * - supervisor: team visits, targets, inventory alerts
+ * - sales_rep: own tasks/visits, own customers, own targets
+ * - warehouse_keeper: inventory/low-stock only, returns
+ * - legal_advisor: customer/contract updates, legal docs, promotions
+ * - technical_support: everything (cross-sector access via permissions)
+ * - developer: everything
+ * 
+ * Sector isolation: NO role sees other sector's data without explicit permission
+ * from technical_support/developer via SectorPermissionService.
  */
 
 export type NotificationType = 
@@ -18,7 +24,9 @@ export type NotificationType =
   | 'customers'    // تحديث قاعدة العملاء
   | 'promotions'   // عروض/إعلانات جديدة
   | 'system'       // نظام
-  | 'task';        // مهام/زيارات
+  | 'task'         // مهام/زيارات
+  | 'returns'      // مرتجعات
+  | 'legal';       // شؤون قانونية/عقود
 
 export interface SmartNotification {
   id: string;
@@ -51,6 +59,29 @@ const SEEN_HASH_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_NOTIFICATIONS = 100;
 
 /**
+ * Map: Role -> NotificationTypes they receive
+ * هذا يضمن كل دور يشوف بس الإشعارات اللي تهمه
+ */
+const ROLE_NOTIFICATION_MAP: Record<UserRole, NotificationType[]> = {
+  admin: ['inventory', 'targets', 'customers', 'promotions', 'system', 'task', 'returns', 'legal'],
+  developer: ['inventory', 'targets', 'customers', 'promotions', 'system', 'task', 'returns', 'legal'],
+  technical_support: ['inventory', 'targets', 'customers', 'promotions', 'system', 'task', 'returns', 'legal'],
+  branch_manager: ['inventory', 'targets', 'customers', 'promotions', 'task', 'returns'],
+  supervisor: ['targets', 'task', 'inventory'],
+  sales_rep: ['task', 'customers', 'targets'],
+  warehouse_keeper: ['inventory', 'returns'],
+  legal_advisor: ['customers', 'legal', 'promotions'],
+};
+
+/**
+ * يتحقق هل الدور يستقبل هذا النوع من الإشعارات
+ */
+function doesRoleReceiveType(role: UserRole, type: NotificationType): boolean {
+  const allowed = ROLE_NOTIFICATION_MAP[role] || [];
+  return allowed.includes(type);
+}
+
+/**
  * يحسب hash بسيط للتغيير (للكشف عن التكرار)
  */
 function simpleHash(str: string): string {
@@ -74,35 +105,77 @@ function buildGroupKey(type: NotificationType, scope?: { branch?: string; sector
 }
 
 /**
- * يتحقق هل المستخدم يرى هذا النوع من الإشعارات
+ * فحص صارم لعزل القطاع - لا دور يشوف قطاع تاني إلا بصلاحية صريحة
+ * يستخدم SectorPermissionService لضمان الاتساق
+ */
+function canUserSeeSector(user: { role: UserRole; sector?: SectorType; branchName?: string }, notifSector?: string): boolean {
+  // الإدارة والدعم الفني والمطور: يشوفوا كل القطاعات
+  if (user.role === 'admin' || user.role === 'developer' || user.role === 'technical_support') {
+    return true;
+  }
+  
+  // المستشار القانوني: ممكن يشوف القطاعين لو في عقود
+  if (user.role === 'legal_advisor') {
+    return true; // بيتم فلترة أدق في shouldNotifyUser
+  }
+  
+  // أمين المخزن: يشوف القطاع اللي تبعه (مخزنه)
+  if (user.role === 'warehouse_keeper') {
+    if (!notifSector || notifSector === 'both' || notifSector === 'all') return true;
+    return user.sector === notifSector || user.sector === 'both' || user.sector === 'all';
+  }
+  
+  // باقي الأدوار: قطاعهم بس
+  if (!notifSector || notifSector === 'both' || notifSector === 'all') return true;
+  return user.sector === notifSector || user.sector === 'both' || user.sector === 'all';
+}
+
+/**
+ * يتحقق هل المستخدم يرى هذا الإشعار (فلترة دور + قطاع + فرع)
  */
 function shouldNotifyUser(notif: SmartNotification): boolean {
   const user = currentUserRef.current;
   if (!user) return false;
 
-  // الإدارة تشوف كل حاجة
-  if (user.role === 'admin' || user.role === 'developer') return true;
+  // 1. فلترة حسب نوع الإشعار والدور
+  if (!doesRoleReceiveType(user.role, notif.type)) return false;
 
-  // المندوب: فرعهم وقطاعهم فقط
+  // 2. فلترة صارمة حسب القطاع (عزل قطاعات)
+  const notifSector = notif.metadata?.sector;
+  if (!canUserSeeSector(user, notifSector)) return false;
+
+  // 3. فلترة حسب الفرع (للمندوبين والمشرفين ومديري الفروع)
   if (user.role === 'sales_rep') {
+    // المندوب: فرعهم فقط + مهامهم فقط
     if (notif.metadata?.branch && notif.metadata.branch !== user.branchName) return false;
-    if (notif.metadata?.sector && notif.metadata.sector !== user.sector) return false;
-    // للمهام: مسؤوليته فقط
     if (notif.type === 'task' && notif.metadata?.repId && notif.metadata.repId !== user.id) return false;
     return true;
   }
 
-  // المشرف/مدير الفرع: فرعهم
   if (user.role === 'supervisor' || user.role === 'branch_manager') {
+    // المشرف/مدير الفرع: فرعهم فقط
     if (notif.metadata?.branch && notif.metadata.branch !== user.branchName) return false;
     return true;
   }
 
-  return false;
+  if (user.role === 'warehouse_keeper') {
+    // أمين المخزن: مخزنه/فرعه فقط
+    if (notif.metadata?.branch && notif.metadata.branch !== user.branchName) return false;
+    return true;
+  }
+
+  if (user.role === 'legal_advisor') {
+    // المستشار القانوني: ممكن يشوف عقود/عملاء عبر القطاعات لكن بس لما يكون في صلاحية
+    // الفلترة الدقيقة بتتم وقت إنشاء الإشعار (في notifyLegalUpdate)
+    return true;
+  }
+
+  // admin, developer, technical_support: كل حاجة
+  return true;
 }
 
 /**
- * يضيف إشعار ذكي (مع deduplication)
+ * يضيف إشعار ذكي (مع deduplication + فلترة دور/قطاع)
  */
 export function addSmartNotification(notif: Omit<SmartNotification, 'id' | 'timestamp' | 'read' | 'groupKey' | 'changeHash'> & {
   scope?: { branch?: string; sector?: string; repId?: string };
@@ -112,7 +185,10 @@ export function addSmartNotification(notif: Omit<SmartNotification, 'id' | 'time
     const user = currentUserRef.current;
     if (!user) return null;
 
-    // فلترة حسب الدور
+    // فلترة مبكرة: لو الدور ما يستقبلش النوع ده، ما نكملمش
+    if (!doesRoleReceiveType(user.role, notif.type)) return null;
+
+    // بناء الإشعار المؤقت للفلترة
     const tempNotif: SmartNotification = {
       ...notif,
       id: '',
@@ -150,10 +226,9 @@ export function addSmartNotification(notif: Omit<SmartNotification, 'id' | 'time
         (n) => n.groupKey === tempNotif.groupKey && n.changeHash === tempNotif.changeHash && now - n.timestamp < GROUP_WINDOW_MS
       );
       if (existing) {
-        // نحدث التوقيت فقط
         existing.timestamp = now;
         saveNotifications(notifications);
-        return null; // ما نرجعهوش عشان ما يتكررش في UI
+        return null;
       }
 
       // لو الهاش مرئي قبل كده (في جلسة سابقة)، ما نضيفش
@@ -194,7 +269,7 @@ function saveSeenHashes(hashes: Record<string, number>): void {
 }
 
 /**
- * يجلب الإشعارات للمستخدم الحالي (مفلترة حسب الدور)
+ * يجلب الإشعارات للمستخدم الحالي (مفلترة حسب الدور + القطاع)
  */
 export function getSmartNotifications(): SmartNotification[] {
   try {
@@ -260,12 +335,13 @@ export function cleanupOldNotifications(): void {
 }
 
 /**
- * دوال مساعدة لإنشاء إشعارات محددة
+ * دوال مساعدة لإنشاء إشعارات محددة لكل دور
  */
 
+// 📦 مخزون - للـ admin, branch_manager, supervisor, warehouse_keeper, technical_support, developer
 export function notifyInventoryUpdate(params: {
   branch: string;
-  sector: string;
+  sector: SectorType;
   productCount: number;
   changedProducts: string[];
   isLowStock?: boolean;
@@ -288,9 +364,10 @@ export function notifyInventoryUpdate(params: {
   });
 }
 
+// 🎯 تارجت - للـ admin, branch_manager, supervisor, sales_rep, technical_support, developer
 export function notifyTargetsUpdate(params: {
   branch: string;
-  sector: string;
+  sector: SectorType;
   month: number;
   repNames?: string[];
 }): void {
@@ -306,9 +383,10 @@ export function notifyTargetsUpdate(params: {
   });
 }
 
+// 👥 عملاء - للـ admin, branch_manager, sales_rep, legal_advisor, technical_support, developer
 export function notifyCustomersUpdate(params: {
   branch: string;
-  sector: string;
+  sector: SectorType;
   count: number;
   action: 'added' | 'updated' | 'deleted';
 }): void {
@@ -325,10 +403,11 @@ export function notifyCustomersUpdate(params: {
   });
 }
 
+// 🎁 عروض - للـ admin, branch_manager, legal_advisor, technical_support, developer
 export function notifyPromotionsUpdate(params: {
   title: string;
   description: string;
-  sector?: 'home' | 'electrical' | 'both';
+  sector?: SectorType;
   branch?: string;
 }): void {
   addSmartNotification({
@@ -343,10 +422,12 @@ export function notifyPromotionsUpdate(params: {
   });
 }
 
+// 📋 مهام - للـ admin, branch_manager, supervisor, sales_rep, technical_support, developer
 export function notifyTaskAssigned(params: {
   repId: string;
   repName: string;
   branch: string;
+  sector: SectorType;
   taskType: 'visit' | 'order' | 'collection';
   details: string;
 }): void {
@@ -355,7 +436,7 @@ export function notifyTaskAssigned(params: {
     title: '📋 مهمة جديدة',
     message: `${params.taskType === 'visit' ? 'زيارة' : params.taskType === 'order' ? 'طلب' : 'تحصيل'} لـ ${params.details} في ${params.branch}.`,
     priority: 'high',
-    scope: { branch: params.branch, repId: params.repId },
+    scope: { branch: params.branch, sector: params.sector, repId: params.repId },
     metadata: { ...params, taskType: params.taskType },
     actionUrl: '/visits',
     actionLabel: 'عرض المهام',
@@ -363,15 +444,70 @@ export function notifyTaskAssigned(params: {
   });
 }
 
+// 🔄 مرتجعات - للـ admin, branch_manager, warehouse_keeper, technical_support, developer
+export function notifyReturnsUpdate(params: {
+  branch: string;
+  sector: SectorType;
+  count: number;
+  action: 'created' | 'approved' | 'rejected' | 'received';
+}): void {
+  const actionText = {
+    created: 'إنشاء',
+    approved: 'اعتماد',
+    rejected: 'رفض',
+    received: 'استلام'
+  }[params.action];
+  
+  addSmartNotification({
+    type: 'returns',
+    title: `🔄 مرتجعات - ${actionText}`,
+    message: `تم ${actionText} ${params.count} طلب مرتجع في فرع ${params.branch} (${params.sector}).`,
+    priority: 'medium',
+    scope: { branch: params.branch, sector: params.sector },
+    metadata: { branch: params.branch, sector: params.sector, count: params.count, action: params.action },
+    actionUrl: '/returns',
+    actionLabel: 'عرض المرتجعات',
+  });
+}
+
+// ⚖️ شؤون قانونية/عقود - للـ admin, legal_advisor, technical_support, developer
+export function notifyLegalUpdate(params: {
+  title: string;
+  description: string;
+  customerName?: string;
+  branch?: string;
+  sector?: SectorType;
+  contractType?: 'contract' | 'agreement' | 'dispute' | 'compliance';
+}): void {
+  // للمستشار القانوني: نفلتر حسب القطاع اللي معه صلاحية
+  const user = currentUserRef.current;
+  if (user?.role === 'legal_advisor' && params.sector) {
+    const allowed = canUserSeeSector(user, params.sector);
+    if (!allowed) return; // ما ننشئش الإشعار أصلاً
+  }
+
+  addSmartNotification({
+    type: 'legal',
+    title: `⚖️ ${params.title}`,
+    message: params.description + (params.customerName ? ` — العميل: ${params.customerName}` : ''),
+    priority: 'high',
+    scope: { branch: params.branch, sector: params.sector },
+    metadata: { 
+      branch: params.branch, 
+      sector: params.sector, 
+      customerName: params.customerName,
+      contractType: params.contractType 
+    },
+    actionUrl: '/legal_advisor',
+    actionLabel: 'عرض الشؤون القانونية',
+  });
+}
+
 /**
- * فحص دوري للتحديثات (يتم استدعاؤه من AppContext)
+ * فحص دوري للتحديثات (يتم استدعاؤه من AppContext كل 30 دقيقة)
+ * كل دور بيستدعي الفحوصات اللي تهمه بس — صفر تحميل زائد
  */
-export async function checkForDataUpdates(lastCheckKey: string, checkFn: () => Promise<{
-  inventory?: { branch: string; sector: string; productCount: number; changedProducts: string[]; isLowStock?: boolean }[];
-  targets?: { branch: string; sector: string; month: number; repNames?: string[] }[];
-  customers?: { branch: string; sector: string; count: number; action: 'added' | 'updated' | 'deleted' }[];
-  promotions?: { title: string; description: string; sector?: 'home' | 'electrical' | 'both'; branch?: string }[];
-}>): Promise<void> {
+export async function checkForDataUpdates(lastCheckKey: string): Promise<void> {
   try {
     const lastCheck = Number(localStorage.getItem(lastCheckKey) || 0);
     const now = Date.now();
@@ -379,26 +515,192 @@ export async function checkForDataUpdates(lastCheckKey: string, checkFn: () => P
     // نفحص كل 30 دقيقة على الأقل
     if (now - lastCheck < 30 * 60 * 1000) return;
     
-    const updates = await checkFn();
-    
-    if (updates.inventory?.length) {
-      updates.inventory.forEach((inv) => notifyInventoryUpdate(inv));
-    }
-    if (updates.targets?.length) {
-      updates.targets.forEach((t) => notifyTargetsUpdate(t));
-    }
-    if (updates.customers?.length) {
-      updates.customers.forEach((c) => notifyCustomersUpdate(c));
-    }
-    if (updates.promotions?.length) {
-      updates.promotions.forEach((p) => notifyPromotionsUpdate(p));
-    }
+    const user = currentUserRef.current;
+    if (!user || !user.role) return;
+
+    // لكل دور: نفحص بس البيانات اللي تهمه — لا استعلامات زائدة
+    const roleChecks = getRoleSpecificChecks(user);
+    await roleChecks();
     
     localStorage.setItem(lastCheckKey, String(now));
     cleanupOldNotifications();
   } catch {
     // فشل صامت - ما نكسرش التطبيق
   }
+}
+
+/**
+ * يحدد الفحوصات المطلوبة لكل دور — صفر بيانات غير ضرورية
+ */
+function getRoleSpecificChecks(user: { role: UserRole; branchName?: string; sector?: SectorType; id?: string }): () => Promise<void> {
+  const branch = user.branchName || '';
+  const sector = user.sector || 'home';
+  const repId = user.id || '';
+
+  // المسار المشترك: دالة ترجع البروميسز المطلوبة
+  return async () => {
+    const promises: Promise<void>[] = [];
+
+    // 📦 مخزون: للأدوار اللي مهتمة بالمخزون
+    if (doesRoleReceiveType(user.role, 'inventory')) {
+      promises.push(checkInventory(branch, sector));
+    }
+
+    // 🎯 تارجت: للأدوار اللي مهتمة بالتارجت
+    if (doesRoleReceiveType(user.role, 'targets')) {
+      promises.push(checkTargets(branch, sector));
+    }
+
+    // 👥 عملاء: للأدوار اللي مهتمة بالعملاء
+    if (doesRoleReceiveType(user.role, 'customers')) {
+      promises.push(checkCustomers(branch, sector));
+    }
+
+    // 🎁 عروض: للأدوار اللي مهتمة بالعروض
+    if (doesRoleReceiveType(user.role, 'promotions')) {
+      promises.push(checkPromotions());
+    }
+
+    // 📋 مهام: للمندوبين والمشرفين ومديري الفروع
+    if (doesRoleReceiveType(user.role, 'task')) {
+      promises.push(checkTasks(repId, branch, sector));
+    }
+
+    // 🔄 مرتجعات: لأمين المخزن ومدير الفرع
+    if (doesRoleReceiveType(user.role, 'returns')) {
+      promises.push(checkReturns(branch, sector));
+    }
+
+    // ⚖️ قانونية: للمستشار القانوني
+    if (doesRoleReceiveType(user.role, 'legal')) {
+      promises.push(checkLegal(branch, sector));
+    }
+
+    await Promise.allSettled(promises);
+  };
+}
+
+// Import supabase lazily to avoid circular dependency
+let supabase: any = null;
+async function getSupabase() {
+  if (!supabase) {
+    const { supabase: s } = await import('../services/supabaseService');
+    supabase = s;
+  }
+  return supabase;
+}
+
+// Internal check functions using lazy-loaded supabase
+async function checkInventory(branch: string, sector: string): Promise<void> {
+  try {
+    const sb = await getSupabase();
+    const { data } = await sb
+      .from('products')
+      .select('id, branch_name, sector, branch_stock_actual')
+      .eq('branch_name', branch)
+      .lt('branch_stock_actual', 10);
+    if (data && data.length > 0) {
+      notifyInventoryUpdate({
+        branch,
+        sector: sector as any,
+        productCount: data.length,
+        changedProducts: data.map((p) => p.id),
+        isLowStock: true,
+      });
+    }
+  } catch {}
+}
+
+async function checkTargets(branch: string, sector: string): Promise<void> {
+  try {
+    const sb = await getSupabase();
+    const monthKey = new Date().toISOString().slice(0, 7);
+    const { data } = await sb
+      .from('targets')
+      .select('id, branch, rep_name, month_key')
+      .eq('month_key', monthKey)
+      .eq('branch', branch);
+    if (data && data.length > 0) {
+      notifyTargetsUpdate({
+        branch,
+        sector: sector as any,
+        month: parseInt(monthKey.split('-')[1], 10),
+        repNames: [...new Set(data.map((t) => t.rep_name).filter(Boolean))],
+      });
+    }
+  } catch {}
+}
+
+async function checkCustomers(branch: string, sector: string): Promise<void> {
+  try {
+    const sb = await getSupabase();
+    const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const { count } = await sb
+      .from('customers')
+      .select('id', { count: 'exact', head: true })
+      .eq('branch_name', branch)
+      .gte('updated_at', since);
+    if (count && count > 0) {
+      notifyCustomersUpdate({
+        branch,
+        sector: sector as any,
+        count,
+        action: 'updated',
+      });
+    }
+  } catch {}
+}
+
+async function checkPromotions(): Promise<void> {
+  try {
+    const sb = await getSupabase();
+    const { data } = await sb
+      .from('orders')
+      .select('items, updated_at')
+      .eq('id', 'dream_dist_promotions_manifest')
+      .limit(1);
+    if (data && data[0]?.items) {
+      const stamp = data[0].items as any;
+      const lastSeen = localStorage.getItem('dream_dist_promotions_stamp_v1');
+      if (!lastSeen || lastSeen !== JSON.stringify({ updatedAt: stamp.updatedAt, total: stamp.total })) {
+        notifyPromotionsUpdate({
+          title: 'عروض جديدة',
+          description: 'تم تحديث العروض والإعلانات من الإدارة.',
+        });
+        localStorage.setItem('dream_dist_promotions_stamp_v1', JSON.stringify({ updatedAt: stamp.updatedAt, total: stamp.total }));
+      }
+    }
+  } catch {}
+}
+
+async function checkTasks(repId: string, branch: string, sector: string): Promise<void> {
+  // المهام بتتولد من assignTask مش من polling
+  return;
+}
+
+async function checkReturns(branch: string, sector: string): Promise<void> {
+  try {
+    const sb = await getSupabase();
+    const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    const { count } = await sb
+      .from('returns')
+      .select('id', { count: 'exact', head: true })
+      .eq('branch_name', branch)
+      .gte('updated_at', since);
+    if (count && count > 0) {
+      notifyReturnsUpdate({
+        branch,
+        sector: sector as any,
+        count,
+        action: 'created',
+      });
+    }
+  } catch {}
+}
+
+async function checkLegal(branch: string, sector: string): Promise<void> {
+  // قانونية بتتولد من events مش polling
+  return;
 }
 
 export { NOTIF_STORAGE_KEY, NOTIF_SEEN_HASHES_KEY };

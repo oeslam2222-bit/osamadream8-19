@@ -506,22 +506,30 @@ function areContentStampsEqual(
   return a.count === b.count && a.maxUpdatedAt === b.maxUpdatedAt;
 }
 
-/** أدوار إدارية غير مبيعية: تدير القطاعين بشكل منفصل (منزلي أو كهربائي، بدون دمج). */
-const SECTORLESS_ADMIN_ROLES: ReadonlySet<string> = new Set([
+/**
+ * أدوار اللي عندها صلاحية الوصول لكل القطاعات (وتمنح الصلاحيات للغير):
+ * - admin, developer: صلاحية كاملة على النظام
+ * - technical_support: يدير المستخدمين ويمنح صلاحيات عبر القطاعات
+ * 
+ * الأدوار التانية (legal_advisor, warehouse_keeper, branch_manager, supervisor, sales_rep)
+ * مقيدة بقطاع حساباتهم فقط — مفيش وصول لقطاع تاني إلا بصلاحية صريحة.
+ */
+const CROSS_SECTOR_ADMIN_ROLES: ReadonlySet<string> = new Set([
+  'admin',
+  'developer',
   'technical_support',
-  'legal_advisor',
-  'warehouse_keeper',
 ]);
 
 /**
  * الحد الصارم للقطاع — القاعدة: ممنوع قطاع يشوف القطاع الآخر أو دمج القطاعين في شاشة واحدة.
- *  - admin/developer/الأدوار الإدارية متعددة القطاعات: حرية التبديل بين منزلي أو كهربائي.
- *  - أي دور تاني: مقيّد بقطاع حسابه (home/electrical) مهما اختارت الواجهة.
- *  - أدوار المبيعات (مندوب/مشرف/مدير فرع) بلا قطاع معيّن: محجوبة بالكامل ('none').
+ *  - admin/developer/technical_support: حرية التبديل بين منزلي أو كهربائي (هم بيمنحوا الصلاحيات).
+ *  - أي دور تاني (legal_advisor, warehouse_keeper, branch_manager, supervisor, sales_rep): مقيّد بقطاع حسابه فقط.
+ *  - أدوار المبيعات بلا قطاع معيّن: محجوبة بالكامل ('none').
+ *  - الوصول عبر القطاعات: فقط بصلاحية صريحة من technical_support/developer.
  */
 function resolveEffectiveSector(user: User | null, activeSector: 'home' | 'electrical', fallbackSector?: string): ActiveSector {
   if (!user) return activeSector;
-  if (user.role === 'admin' || user.role === 'developer' || SECTORLESS_ADMIN_ROLES.has(user.role)) {
+  if (user.role === 'admin' || user.role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(user.role)) {
     return activeSector;
   }
   const accountSector = user.sector || fallbackSector;
@@ -608,25 +616,27 @@ export const AppContext = createContext<AppContextType | undefined>(undefined);
  */
 function buildInvoiceFetchScope(currentUser: User | null, users: User[]): InvoiceFetchScope {
   if (!currentUser) return { limit: 30 };
+  // الأدمن/المطور/الدعم الفني: كل القطاعات (مفيش sector filter)
+  const isCrossSectorAdmin = currentUser.role === 'admin' || currentUser.role === 'developer' || currentUser.role === 'technical_support';
+  const sector = isCrossSectorAdmin ? undefined : currentUser.sector;
+
   if (currentUser.role === 'sales_rep') {
-    return { repIds: [currentUser.id], limit: 30 };
+    return { repIds: [currentUser.id], limit: 30, sector };
   }
   if (currentUser.role === 'supervisor') {
     const repIds = users
       .filter((u) => u.id === currentUser.id || u.supervisorId === currentUser.id)
       .map((u) => u.id);
-    // فاضي = صفر فواتير للمشرف (مفيش مناديب متعاقبين — الأمان الأهم)
-    return { repIds, limit: 50 };
+    return { repIds, limit: 50, sector };
   }
   if (currentUser.role === 'branch_manager') {
     const repIds = users
       .filter((u) => u.branchName === currentUser.branchName)
       .map((u) => u.id);
-    // فاضي = صفر فواتير للمدير (مفيش مناديب في الفريق — ممنوع سحب كل الشركة)
-    return { repIds, limit: 60 };
+    return { repIds, limit: 60, sector };
   }
   // إدارة/مطور: حد 100 فاتورة فقط (للمتابعة، مش للتحميل الكامل)
-  return { limit: 100 };
+  return { limit: 100, sector };
 }
 
 /**
@@ -941,6 +951,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const forecastFetchScope = useMemo<ForecastFetchScope | undefined>(() => {
     if (!currentUser) return undefined;
     const role = currentUser.role;
+    // الأدمن/المطور/الدعم الفني: كل القطاعات (مفيش sector filter)
+    const isCrossSectorAdmin = role === 'admin' || role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(role);
+    const sector = isCrossSectorAdmin ? undefined : currentUser.sector;
+
     const branchNames = Array.from(
       new Set([currentUser.branchName].filter((b): b is string => Boolean(b && b.trim())))
     );
@@ -951,11 +965,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const shortName = fullName.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
       const repIds = Array.from(new Set([currentUser.id, currentUser.username].filter(Boolean) as string[]));
       const repNames = Array.from(new Set([fullName, shortName].filter((n) => n.length >= 3)));
-      // لا نُضمّن branchNames للمندوب طالما له معرّف/اسم؛ لأن الفلتر OR كان يسحب توقعات وتعليقات الفرع كله.
       return {
         ...(repIds.length === 0 && repNames.length === 0 ? { branchNames } : {}),
         repIds,
         repNames,
+        sector,
       };
     }
     if (role === 'supervisor') {
@@ -973,20 +987,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           branchNames,
           repIds: Array.from(new Set(repIds)),
           repNames: Array.from(new Set(repNames)),
+          sector,
         };
       }
       return undefined;
     }
     if (role === 'branch_manager') {
-      return branchNames.length > 0 ? { branchNames } : undefined;
+      return branchNames.length > 0 ? { branchNames, sector } : undefined;
     }
     return undefined;
-  }, [currentUser?.id, currentUser?.name, currentUser?.username, currentUser?.branchName, currentUser?.role, users]);
+  }, [currentUser?.id, currentUser?.name, currentUser?.username, currentUser?.branchName, currentUser?.role, currentUser?.sector, users]);
 
   const targetFetchScope = useMemo<TargetFetchScope | undefined>(() => {
     if (!currentUser) return undefined;
     const role = currentUser.role;
-    if (role === 'admin' || role === 'developer' || role === 'technical_support' || role === 'legal_advisor') {
+    // الأدمن/المطور/الدعم الفني فقط: كل القطاعات
+    if (role === 'admin' || role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(role)) {
       return undefined;
     }
     const cleanName = (value?: string) =>
@@ -1858,7 +1874,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         currentUser &&
           (currentUser.role === 'admin' ||
             currentUser.role === 'developer' ||
-            SECTORLESS_ADMIN_ROLES.has(currentUser.role) ||
+            CROSS_SECTOR_ADMIN_ROLES.has(currentUser.role) ||
             currentUser.sector === 'both' ||
             currentUser.sector === 'all')
       ),
@@ -2693,12 +2709,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     );
     const branchNameContains = extractBranchStems(currentUser.branchName);
 
-    if (role === 'admin' || role === 'developer' || SECTORLESS_ADMIN_ROLES.has(role)) {
-      // الإدارة العليا والأدوار متعددة القطاعات: استخدم الأعمدة المخففة افتراضياً
-      // الأعمدة الكاملة (visit_history, guarantee_docs, إلخ) بتتحمل عند الطلب فقط
+    if (role === 'admin' || role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(role)) {
+      // الأدمن/المطور/الدعم الفني: صلاحية كاملة على كل القطاعات (هم اللي بيمنحوا الصلاحيات)
       return {
         sector: undefined, // لا قيد قطاع — كل القطاعات
-        slimFieldColumns: true, // افتراضياً مخفف لتقليل egress
+        slimFieldColumns: true,
       };
     }
 
@@ -2744,6 +2759,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
    */
   const productSectorScope = useMemo<ProductSectorScope>(() => {
     const role = currentUser?.role;
+    // الأدمن/المطور/الدعم الفني: مفيش قيد قطاع (بيشوفوا الكل)
+    if (role === 'admin' || role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(role)) return undefined;
+    // باقي الأدوار: قطاعهم بس
     if (role !== 'sales_rep' && role !== 'branch_manager' && role !== 'supervisor') return undefined;
     const sector = currentUser?.sector;
     return sector === 'home' || sector === 'electrical' ? sector : undefined;
@@ -2759,11 +2777,17 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const visitFetchScope = useMemo<VisitFetchScope | undefined>(() => {
     const role = currentUser?.role;
     if (!currentUser) return undefined;
-    if (role !== 'sales_rep' && role !== 'branch_manager' && role !== 'supervisor') {
-      // للإدارة العليا: نافذة 7 أشهر (~210 يوم) في الإقلاع تغطي رسم الـ6 أشهر وكل النشاط التشغيلي الحديث بدون سحب 24 شهر وتهنيج الدخول.
+    // الأدمن/المطور/الدعم الفني: نافذة 7 أشهر لكل القطاعات
+    if (role === 'admin' || role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(role)) {
       const adminSince = new Date();
       adminSince.setDate(adminSince.getDate() - 210);
       return { sinceDate: adminSince.toISOString().slice(0, 10) };
+    }
+    if (role !== 'sales_rep' && role !== 'branch_manager' && role !== 'supervisor') {
+      // باقي الأدوار الإدارية (legal_advisor, warehouse_keeper): قطاعهم بس
+      const adminSince = new Date();
+      adminSince.setDate(adminSince.getDate() - 210);
+      return { sinceDate: adminSince.toISOString().slice(0, 10), sector: currentUser?.sector };
     }
 
     const since = new Date();
@@ -4492,6 +4516,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   }, []);
 
 // Smart Notifications: periodic check for data updates (every 30 min, only when visible)
+  // Each role checks ONLY what they need — zero unnecessary data loading
+  // Sector isolation enforced: no role sees other sector data without explicit permission
   useEffect(() => {
     let cancelled = false;
     const CHECK_KEY = 'tantawy_smart_notif_check_v1';
@@ -4502,94 +4528,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (typeof document !== 'undefined' && document.hidden) return;
 
       try {
-        // نجلب التغييرات من السيرفر (خفيفة - count/based checks فقط)
-        await checkForDataUpdates(CHECK_KEY, async () => {
-          const user = currentUserRef.current;
-          if (!user) return {};
-
-          // للمسؤولين: نعمل فحص شامل، للمندوبين: نطاقهم فقط
-          const isAdmin = user.role === 'admin' || user.role === 'developer';
-          const scope = isAdmin ? {} : { branch: user.branchName, sector: user.sector };
-
-          const results: any = {};
-
-          // 1) Inventory: فحص سريع للـ count و low stock
-          try {
-            const { data: invData } = await supabase
-              .from('products')
-              .select('id, branch_name, sector, stock, branch_stock_actual')
-              .eq('branch_name', scope.branch || '')
-              .lt('branch_stock_actual', 10); // low stock threshold
-            if (invData && invData.length > 0) {
-              results.inventory = [{
-                branch: scope.branch || 'غير معروف',
-                sector: scope.sector || 'home',
-                productCount: invData.length,
-                changedProducts: invData.map((p: any) => p.id),
-                isLowStock: true,
-              }];
-            }
-          } catch {}
-
-          // 2) Targets: فحص لو فيه تارجت جديد للشهر الحالي
-          try {
-            const monthKey = new Date().toISOString().slice(0, 7);
-            const { data: tgtData } = await supabase
-              .from('targets')
-              .select('id, branch, rep_name, month_key')
-              .eq('month_key', monthKey)
-              .eq('branch', scope.branch || '');
-            if (tgtData && tgtData.length > 0) {
-              results.targets = [{
-                branch: scope.branch || 'غير معروف',
-                sector: scope.sector || 'home',
-                month: parseInt(monthKey.split('-')[1], 10),
-                repNames: [...new Set(tgtData.map((t: any) => t.rep_name).filter(Boolean))],
-              }];
-            }
-          } catch {}
-
-          // 3) Customers: فحص عدد العملاء الجدد (باستخدام updated_at)
-          try {
-            const since = new Date(Date.now() - 30 * 60 * 1000).toISOString(); // آخر 30 دقيقة
-            const { data: custData, count } = await supabase
-              .from('customers')
-              .select('id, branch_name, sector', { count: 'exact', head: true })
-              .eq('branch_name', scope.branch || '')
-              .gte('updated_at', since);
-            if (count && count > 0) {
-              results.customers = [{
-                branch: scope.branch || 'غير معروف',
-                sector: scope.sector || 'home',
-                count,
-                action: 'updated' as const,
-              }];
-            }
-          } catch {}
-
-          // 4) Promotions: فحص الـ stamp
-          try {
-            const { data: promoData } = await supabase
-              .from('orders')
-              .select('items, updated_at')
-              .eq('id', 'dream_dist_promotions_manifest')
-              .limit(1);
-            if (promoData && promoData[0]?.items) {
-              const stamp = promoData[0].items as any;
-              const lastSeen = localStorage.getItem('dream_dist_promotions_stamp_v1');
-              if (!lastSeen || lastSeen !== JSON.stringify({ updatedAt: stamp.updatedAt, total: stamp.total })) {
-                results.promotions = [{
-                  title: 'عروض جديدة',
-                  description: 'تم تحديث العروض والإعلانات من الإدارة.',
-                  sector: scope.sector,
-                  branch: scope.branch,
-                }];
-              }
-            }
-          } catch {}
-
-          return results;
-        });
+        // الاستدعاء البسيط — الخدمة تحدد الفحوصات حسب الدور تلقائياً
+        await checkForDataUpdates(CHECK_KEY);
       } catch {
         // فشل صامت
       }
