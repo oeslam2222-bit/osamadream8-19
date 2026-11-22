@@ -2,25 +2,27 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
+import { readFileSync } from 'fs';
 import {defineConfig} from 'vite';
+
+/** نسخة التطبيق تُحقن وقت البناء — بوابة التحديث بتقارن نفسها بيها. */
+const packageJson = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8')
+) as { version?: string };
+const APP_VERSION = packageJson.version || '0.0.0';
 
 export default defineConfig(() => {
   return {
+    define: {
+      __APP_VERSION__: JSON.stringify(APP_VERSION),
+    },
     plugins: [
       react(),
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
         workbox: {
-          // من غير ده الكاش القديم بيفضل متسجل بعد كل نشر، والـservice worker
-          // القديم يفضل يخدم index.html بيشاور على chunk اتشال من السيرفر.
-          cleanupOutdatedCaches: true,
-          // index.html مش بيتخزن في الـprecache: لو اتخزن، الـservice worker
-          // القديم يفضل يخدم نسخة بتشاور على chunk اتشال من السيرفر بعد النشر،
-          // والرد بيرجع HTML بدل JS (خطأ MIME). التنقل بياخد HTML من الشبكة
-          // (NetworkFirst تحت) والكاش بيفضل للاستخدام أوفلاين بس.
-          navigateFallback: null as unknown as string,
-          globPatterns: ['**/*.{js,css,ico,png,svg,woff2}'],
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
           // صور aistudio القديمة (16MB+) مش مستخدمة في التطبيق، وكانت بتتحمّل
           // كلها في الخلفية أول ما الـservice worker يتثبّت وبتزاحم باقي الملفات
           // على نفس الشبكة. بنستثنيها من الـprecache من غير ما نمسح ملفات المستخدم.
@@ -41,17 +43,6 @@ export default defineConfig(() => {
           // النتيجة: كل تشغيل بارد كان بينزّل خطوط Google تاني، وصور
           // Cloudinary/Drive ما كانتش بتتخزن على مستوى الـSW.
           runtimeCaching: [
-            {
-              // صفحات التنقل: من الشبكة الأول (عشان أي نشر جديد يتحمّل فوراً)،
-              // وكاش احتياطي لما النت يقطع.
-              urlPattern: ({ request }: { request: Request }) => request.mode === 'navigate',
-              handler: 'NetworkFirst',
-              options: {
-                cacheName: 'app-pages',
-                networkTimeoutSeconds: 5,
-                expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 30 },
-              },
-            },
             {
               // خطوط Google: نادرة التغيير — stale-while-revalidate كافي.
               urlPattern: ({ url }: { url: URL }) =>
@@ -149,6 +140,10 @@ export default defineConfig(() => {
           manualChunks: {
             'vendor-react': ['react', 'react-dom'],
             'vendor-supabase': ['@supabase/supabase-js'],
+            // jspdf / html2canvas / xlsx مقصود إنهم ما يكونوش manualChunks:
+            // لما كانوا هنا، Rollup كان بيحط helper مشترك جوّا vendor-pdf،
+            // والـ entry كان بيستورده فيتحمّل 680KB مع أول فتح. دلوقتي
+            // بيتحولوا لـ chunks ديناميكية بتتنزّل عند استخدام PDF/Excel فقط.
           },
         },
       },
