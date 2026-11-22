@@ -1576,37 +1576,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // في الأوفلاين (بعد أول دخول ناجح على الجهاز) نحتفظ بآخر ملف مصادق عليه
   // بشرط وجود جلسة محلية أو معرف دخول محفوظ، وبدون تخزين أي كلمات مرور،
   // ثم نعيد التحقق من السيرفر تلقائياً فور عودة الإنترنت.
-  useEffect(() => {
+  // definido como useCallback para ser acessível por outros useEffects (ex: onAuthStateChange)
+  const restoreSession = useCallback(async () => {
     let cancelled = false;
 
-    const restoreSession = async () => {
-      const isOfflineNow = typeof navigator !== 'undefined' && navigator.onLine === false;
-      try {
-        const session = await getServerSessionAsync();
-        const savedUserId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
-        const wasAuth = localStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true';
+    const isOfflineNow = typeof navigator !== 'undefined' && navigator.onLine === false;
+    try {
+      const session = await getServerSessionAsync();
+      const savedUserId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
+      const wasAuth = localStorage.getItem(STORAGE_KEYS.IS_AUTH) === 'true';
 
-        if (!session?.user) {
-          if (isOfflineNow && wasAuth && savedUserId) {
-            const offlineUser = readOfflineSafeProfile(savedUserId);
-            if (offlineUser && !cancelled) {
-              currentUserRef.current = offlineUser;
-              setCurrentUser(offlineUser);
-              setIsAuthenticated(true);
-              return;
-            }
-          }
-          if (!cancelled && !isOfflineNow) {
-            clearOfflineSafeProfile();
-            setIsAuthenticated(false);
-          } else if (!cancelled && (!wasAuth || !savedUserId)) {
-            setIsAuthenticated(false);
-          }
-          return;
-        }
-
-        if (isOfflineNow) {
-          const offlineUser = readOfflineSafeProfile(savedUserId || session.user.id) || readOfflineSafeProfile();
+      if (!session?.user) {
+        if (isOfflineNow && wasAuth && savedUserId) {
+          const offlineUser = readOfflineSafeProfile(savedUserId);
           if (offlineUser && !cancelled) {
             currentUserRef.current = offlineUser;
             setCurrentUser(offlineUser);
@@ -1614,45 +1596,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return;
           }
         }
+        if (!cancelled && !isOfflineNow) {
+          clearOfflineSafeProfile();
+          setIsAuthenticated(false);
+        } else if (!cancelled && (!wasAuth || !savedUserId)) {
+          setIsAuthenticated(false);
+        }
+        return;
+      }
 
-        const profile = await fetchMyProfile();
-        if (cancelled) return;
-        if (!profile) {
-          // إذا انقطع الاتصال أثناء الطلب، لا تمسح جلسة المندوب أوفلاين
-          const stillOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
-          if (stillOffline) {
-            const offlineUser = readOfflineSafeProfile(savedUserId || session.user.id) || readOfflineSafeProfile();
-            if (offlineUser) {
-              currentUserRef.current = offlineUser;
-              setCurrentUser(offlineUser);
-              setIsAuthenticated(true);
-              return;
-            }
-          }
-          await signOutServer().catch(() => {});
-          clearOfflineSafeProfile();
-          setIsAuthenticated(false);
+      if (isOfflineNow) {
+        const offlineUser = readOfflineSafeProfile(savedUserId || session.user.id) || readOfflineSafeProfile();
+        if (offlineUser && !cancelled) {
+          currentUserRef.current = offlineUser;
+          setCurrentUser(offlineUser);
+          setIsAuthenticated(true);
           return;
         }
-        if (
-          !profile.isActive ||
-          profile.approvalStatus === 'pending_approval' ||
-          profile.approvalStatus === 'rejected'
-        ) {
-          await signOutServer().catch(() => {});
-          clearOfflineSafeProfile();
-          setIsAuthenticated(false);
-          return;
-        }
-        saveOfflineSafeProfile(profile);
-        currentUserRef.current = profile;
-        setCurrentUser(profile);
-        setIsAuthenticated(true);
-      } catch {
-        if (cancelled) return;
-        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-          const savedUserId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
-          const offlineUser = readOfflineSafeProfile(savedUserId);
+      }
+
+      const profile = await fetchMyProfile();
+      if (cancelled) return;
+      if (!profile) {
+        // إذا انقطع الاتصال أثناء الطلب، لا تمسح جلسة المندوب أوفلاين
+        const stillOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+        if (stillOffline) {
+          const offlineUser = readOfflineSafeProfile(savedUserId || session.user.id) || readOfflineSafeProfile();
           if (offlineUser) {
             currentUserRef.current = offlineUser;
             setCurrentUser(offlineUser);
@@ -1660,9 +1629,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             return;
           }
         }
+        await signOutServer().catch(() => {});
+        clearOfflineSafeProfile();
         setIsAuthenticated(false);
+        return;
       }
-    };
+      if (
+        !profile.isActive ||
+        profile.approvalStatus === 'pending_approval' ||
+        profile.approvalStatus === 'rejected'
+      ) {
+        await signOutServer().catch(() => {});
+        clearOfflineSafeProfile();
+        setIsAuthenticated(false);
+        return;
+      }
+      saveOfflineSafeProfile(profile);
+      currentUserRef.current = profile;
+      setCurrentUser(profile);
+      setIsAuthenticated(true);
+    } catch {
+      if (cancelled) return;
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        const savedUserId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
+        const offlineUser = readOfflineSafeProfile(savedUserId);
+        if (offlineUser) {
+          currentUserRef.current = offlineUser;
+          setCurrentUser(offlineUser);
+          setIsAuthenticated(true);
+          return;
+        }
+      }
+      setIsAuthenticated(false);
+    }
+  }, []);
+
+  // Initial session restore + online re-verify
+  useEffect(() => {
+    let cancelled = false;
 
     void restoreSession();
 
@@ -1676,7 +1680,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       cancelled = true;
       window.removeEventListener('online', handleOnlineReverify);
     };
-  }, []);
+  }, [restoreSession]);
 
   // Auth state listener: persist session changes & handle token refresh
   useEffect(() => {
@@ -1695,7 +1699,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [restoreSession]);
 
 
   const [products, setProducts] = useState<Product[]>(() => {
