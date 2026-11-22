@@ -590,27 +590,29 @@ export const AppContext = createContext<AppContextType | undefined>(undefined);
  * فواتيره هو بس بدل فواتير كل الفروع — ده
  * أكبر بند في نقل البيانات (500 سطر × جدولين
  * في كل إقلاع على كل جهاز).
+ * حدود صارمة: المندوب 30، المشرف 50، مدير الفرع 60، الإدارة 100
  */
 function buildInvoiceFetchScope(currentUser: User | null, users: User[]): InvoiceFetchScope {
-  if (!currentUser) return { limit: 60 };
+  if (!currentUser) return { limit: 30 };
   if (currentUser.role === 'sales_rep') {
-    return { repIds: [currentUser.id], limit: 60 };
+    return { repIds: [currentUser.id], limit: 30 };
   }
   if (currentUser.role === 'supervisor') {
     const repIds = users
       .filter((u) => u.id === currentUser.id || u.supervisorId === currentUser.id)
       .map((u) => u.id);
     // فاضي = صفر فواتير للمشرف (مفيش مناديب متعاقبين — الأمان الأهم)
-    return { repIds, limit: 100 };
+    return { repIds, limit: 50 };
   }
   if (currentUser.role === 'branch_manager') {
     const repIds = users
       .filter((u) => u.branchName === currentUser.branchName)
       .map((u) => u.id);
     // فاضي = صفر فواتير للمدير (مفيش مناديب في الفريق — ممنوع سحب كل الشركة)
-    return { repIds, limit: 120 };
+    return { repIds, limit: 60 };
   }
-  return { limit: 200 };
+  // إدارة/مطور: حد 100 فاتورة فقط (للمتابعة، مش للتحميل الكامل)
+  return { limit: 100 };
 }
 
 /**
@@ -2696,13 +2698,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
     }
 
-    // مدير الفرع والمشرف: نطاق الفرع، وبعده الفلترة الدقيقة في الواجهة.
+    // مدير الفرع والمشرف: نطاق الفرع + مناديبهم فقط، منع fallback للجدول كامل.
     // slimFieldColumns يقلل أعمدة/حقول ثقيلة لتخفيف الـ egress.
+    // strictNoFullFallback: true = لو النطاق ما لقاش بيانات، نرجّع فاضي (ما نحمّلش كل الشركة).
     return {
       branchNames,
       branchNameContains,
       sector: currentUser?.sector,
-      includeUnassignedBranch: true,
+      includeUnassignedBranch: false, // لا عملاء من غير فرع
+      strictNoFullFallback: true, // ممنوع fallback للجدول كامل
       slimFieldColumns: true,
     };
   }, [
@@ -2789,6 +2793,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         repIds: Array.from(new Set(repIds)),
         sector: currentUser?.sector,
         includeUnassignedBranch: false,
+        strictNoFullFallback: true, // ممنوع fallback للجدول كامل
         sinceDate: since.toISOString().slice(0, 10),
       };
     }
@@ -2801,7 +2806,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       repNames: scope.repNames,
       repIds: scope.repIds,
       sector: scope.sector,
-      includeUnassignedBranch: scope.includeUnassignedBranch,
+      includeUnassignedBranch: false,
+      strictNoFullFallback: true, // ممنوع fallback للجدول كامل
       sinceDate: since.toISOString().slice(0, 10),
     };
   }, [currentUser?.id, currentUser?.name, currentUser?.username, currentUser?.branchName, currentUser?.role, currentUser?.sector, customerFetchScope, users]);
