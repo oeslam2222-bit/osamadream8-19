@@ -16,7 +16,7 @@ export interface CustomerFilterBarState {
   selectedBranch: string;
   selectedSupervisor: string;
   selectedRep: string;
-  selectedSector: 'all' | 'home' | 'electrical' | 'both';
+  selectedSector: 'home' | 'electrical';
   selectedRegion: string;
   debtStatusFilter: string;
   dealtFilter: DealtFilter;
@@ -151,12 +151,7 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
     if (value.selectedBranch !== 'ALL') tags.push({ key: 'selectedBranch', label: `الفرع: ${value.selectedBranch}` });
     if (value.selectedSupervisor !== 'ALL') tags.push({ key: 'selectedSupervisor', label: `المشرف: ${value.selectedSupervisor}` });
     if (value.selectedRep !== 'ALL') tags.push({ key: 'selectedRep', label: `المندوب: ${value.selectedRep}` });
-    if (value.selectedSector !== 'all' && canFilterSector) {
-      tags.push({
-        key: 'selectedSector',
-        label: `القطاع: ${value.selectedSector === 'home' ? 'منزلي' : value.selectedSector === 'electrical' ? 'كهرباء' : 'القطاعين'}`,
-      });
-    }
+    // القطاع دايمًا مختار (منزلي/كهرباء) — مش بنعرضه كتاج قابل للإزالة.
     if (value.selectedRegion !== 'ALL') tags.push({ key: 'selectedRegion', label: `المنطقة: ${value.selectedRegion}` });
     if (value.debtStatusFilter !== 'ALL') tags.push({ key: 'debtStatusFilter', label: `حالة السداد: ${value.debtStatusFilter}` });
     if (value.dealtFilter !== 'ALL') tags.push({ key: 'dealtFilter', label: DEALT_LABELS[value.dealtFilter] || value.dealtFilter });
@@ -274,24 +269,38 @@ export const CustomerFilterBar: React.FC<CustomerFilterBarProps> = ({
           </select>
         </label>
 
-        {/* 4. فلتر القطاع — للإدارة العليا فقط */}
+        {/* 4. فلتر القطاع — كرتين فقط: منزلي / كهرباء */}
         {canFilterSector && (
-        <label className="flex flex-col gap-1 min-w-0">
+        <div className="flex flex-col gap-1 min-w-0">
           <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 flex items-center gap-1.5 whitespace-nowrap">
             <Layers className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
             <span>القطاع</span>
           </span>
-          <select
-            value={value.selectedSector}
-            onChange={(event) => onChange({ selectedSector: event.target.value as any })}
-            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:border-amber-500 cursor-pointer shadow-2xs"
-          >
-            <option value="all">كافة القطاعات (الكل)</option>
-            <option value="home">القطاع المنزلي 🏠</option>
-            <option value="electrical">القطاع الكهربائي ⚡</option>
-            <option value="both">القطاعين معاً 🏢</option>
-          </select>
-        </label>
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={() => onChange({ selectedSector: 'home' })}
+              className={`px-2 py-2 rounded-xl border text-xs font-black transition ${
+                value.selectedSector === 'home'
+                  ? 'bg-blue-50 border-blue-300 text-blue-800 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-200 shadow-sm'
+                  : 'bg-white border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 hover:border-blue-200'
+              }`}
+            >
+              🏠 منزلي
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange({ selectedSector: 'electrical' })}
+              className={`px-2 py-2 rounded-xl border text-xs font-black transition ${
+                value.selectedSector === 'electrical'
+                  ? 'bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-900/20 dark:border-amber-700 dark:text-amber-200 shadow-sm'
+                  : 'bg-white border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 hover:border-amber-200'
+              }`}
+            >
+              ⚡ كهرباء
+            </button>
+          </div>
+        </div>
         )}
       </div>
 

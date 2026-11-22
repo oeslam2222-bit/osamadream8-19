@@ -137,6 +137,8 @@ export const ProductCard = React.memo((props: ProductCardProps) => {
   }
 
   const isOutOfStock = branchStock <= 0 && octoberStock <= 0;
+  // حالة الصنف بنفس منطق الكروت: متوفر في الفرع / محدود (في أكتوبر فقط) / نافد
+  const stockTone = isOutOfStock ? 'risk' : branchStock > 0 ? 'ok' : 'warn';
 
   const handleImageClick = useCallback(() => {
     const img = getProductImageUrl(p, cloudinaryConfig);
@@ -147,7 +149,8 @@ export const ProductCard = React.memo((props: ProductCardProps) => {
 
   return (
     <div
-      className={`cat-card group tg-card tg-card--hover flex flex-col justify-between gap-3 p-3.5 select-none ${
+      data-tone={stockTone}
+      className={`cat-card sc-card group tg-card tg-card--hover flex flex-col justify-between gap-3 p-3.5 select-none ${
         promoInfo.hasPromo ? 'ring-1 ring-amber-400/70' : ''
       }`}
     >
@@ -283,19 +286,27 @@ export const ProductCard = React.memo((props: ProductCardProps) => {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2 text-center">
-          <div className="tg-pill tg-pill--blue justify-center">
-            <Calendar className="h-3.5 w-3.5" />
-            <div className="text-right leading-tight">
-              <span className="tg-pill__label">مخزون أكتوبر</span>
-              <span className="tg-pill__value tg-num">{octoberStock}</span>
+        <div className="sc-rows sc-rows--2">
+          <div className={`sc-cell ${octoberStock > 0 ? 'sc-row--collect' : 'sc-row--clear'}`}>
+            <div className="sc-cell__label">
+              <span className={`sc-icon ${octoberStock > 0 ? 'sc-icon--collect' : 'sc-icon--clear'}`}>
+                <Calendar className="h-3.5 w-3.5" />
+              </span>
+              <span>مخزون أكتوبر</span>
+            </div>
+            <div className={`sc-cell__value ${octoberStock > 0 ? 'sc-cell__value--money' : 'sc-cell__value--muted'}`}>
+              {octoberStock}
             </div>
           </div>
-          <div className="tg-pill tg-pill--green justify-center">
-            <Store className="h-3.5 w-3.5" />
-            <div className="text-right leading-tight">
-              <span className="tg-pill__label">مخزون الفرع</span>
-              <span className="tg-pill__value tg-num">{branchStock}</span>
+          <div className={`sc-cell ${branchStock > 0 ? 'sc-row--collect' : 'sc-row--debt'}`}>
+            <div className="sc-cell__label">
+              <span className={`sc-icon ${branchStock > 0 ? 'sc-icon--collect' : 'sc-icon--debt'}`}>
+                <Store className="h-3.5 w-3.5" />
+              </span>
+              <span>مخزون الفرع</span>
+            </div>
+            <div className={`sc-cell__value ${branchStock > 0 ? 'sc-cell__value--money' : 'sc-cell__value--muted'}`}>
+              {branchStock}
             </div>
           </div>
         </div>
@@ -306,7 +317,7 @@ export const ProductCard = React.memo((props: ProductCardProps) => {
           <button
             type="button"
             onClick={() => onAddToCart(p)}
-            className="tg-btn tg-btn--blue min-h-[46px] flex-1 px-3 py-2.5 text-xs active:scale-[0.98]"
+            className="sc-btn sc-btn--primary min-h-[46px] flex-1 px-3 py-2.5 text-xs font-black active:scale-[0.98]"
           >
             <ShoppingCart className="h-4 w-4" />
             <span>إضافة للفاتورة</span>

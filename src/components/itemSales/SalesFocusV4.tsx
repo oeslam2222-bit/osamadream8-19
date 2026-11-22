@@ -4,6 +4,7 @@ import type { Customer, CustomerItemSaleRecord } from '../../types';
 import { formatCurrency } from '../../services/invoiceService';
 import { resolveItemGroup } from '../../services/itemSalesAnalytics';
 import { CardShell, ChartEmpty } from './ItemSalesPrimitives';
+import { MiniGauge, PerformanceGauge } from '../ui/PerformanceGauge';
 
 type Metric = 'value' | 'qty';
 
@@ -154,7 +155,7 @@ export const SalesFocusV4: React.FC<Props> = ({ records, baseRecords, customers 
 
   const A = useMemo(() => {
     const famMap = new Map<string, { name: string; sales: number; qty: number }>();
-    const itemMap = new Map<string, { code: string; unifiedCode: string; name: string; fam: string; sales: number; qty: number }>();
+    const itemMap = new Map<string, { code: string; unifiedCode: string; name: string; fam: string; sales: number; qty: number; custs: Set<string> }>();
     const repMap = new Map<string, { name: string; sales: number; qty: number; custs: Set<string>; fam: Map<string, number>; item: Map<string, number> }>();
     const custMap = new Map<string, { code: string; name: string; rep: string; branch: string; phone: string; sector: string; linked: boolean; sales: number; qty: number; item: Map<string, number> }>();
     const branchMap = new Map<string, { name: string; sales: number; qty: number; custs: Set<string> }>();
@@ -167,7 +168,7 @@ export const SalesFocusV4: React.FC<Props> = ({ records, baseRecords, customers 
     for (const r of filtered) {
       total += r.amount; totalQty += r.qty; moves++; custSet.add(r.custCode); itemSet.add(r.itemCode);
       const fm = famMap.get(r.fam) || { name: r.fam, sales: 0, qty: 0 }; fm.sales += r.amount; fm.qty += r.qty; famMap.set(r.fam, fm);
-      const im = itemMap.get(r.itemCode) || { code: r.itemCode, unifiedCode: r.unifiedCode, name: r.itemName, fam: r.fam, sales: 0, qty: 0 }; im.sales += r.amount; im.qty += r.qty; if (!im.name) im.name = r.itemName; if (!im.unifiedCode && r.unifiedCode) im.unifiedCode = r.unifiedCode; itemMap.set(r.itemCode, im);
+      const im = itemMap.get(r.itemCode) || { code: r.itemCode, unifiedCode: r.unifiedCode, name: r.itemName, fam: r.fam, sales: 0, qty: 0, custs: new Set<string>() }; im.sales += r.amount; im.qty += r.qty; im.custs.add(r.custCode); if (!im.name) im.name = r.itemName; if (!im.unifiedCode && r.unifiedCode) im.unifiedCode = r.unifiedCode; itemMap.set(r.itemCode, im);
       const rm = repMap.get(r.rep) || { name: r.rep, sales: 0, qty: 0, custs: new Set<string>(), fam: new Map<string, number>(), item: new Map<string, number>() };
       rm.sales += r.amount; rm.qty += r.qty; rm.custs.add(r.custCode); rm.fam.set(r.fam, (rm.fam.get(r.fam)||0)+r.amount); rm.item.set(r.itemCode, (rm.item.get(r.itemCode)||0)+r.amount); repMap.set(r.rep, rm);
       const cm = custMap.get(r.custCode) || { code: r.custCode, name: r.custName, rep: r.custRep, branch: r.custBranch, phone: r.custPhone, sector: r.custSector, linked: r.linked, sales: 0, qty: 0, item: new Map<string, number>() };
@@ -218,6 +219,51 @@ export const SalesFocusV4: React.FC<Props> = ({ records, baseRecords, customers 
   const topRep = A.reps[0];
   const topItem = A.items[0];
   const top3Conc = A.total ? (A.custsAll.slice(0,3).reduce((s,c)=>s+c.sales,0) / A.total) * 100 : 0;
+
+  /* مؤشر أداء الأصناف — محسوب من نفس السجلات المفلترة:
+     درجة الصنف = 55% قيمته مقارنة بالصنف الأول + 25% انتشاره بين العملاء + 20% كميته.
+     وصحة التشكيلة = اتساع الطلب (أصناف بيعت لـ 3 عملاء فأكثر) + عدم تركّز المبيعات في أعلى 20% من الأصناف. */
+  const itemScoreboard = useMemo(() => {
+    const list = A.items;
+    if (!list.length || !A.total) {
+      return { health: 0, breadthPct: 0, concentrationPct: 0, rows: [] as Array<{ code: string; name: string; fam: string; sales: number; qty: number; custs: number; share: number; score: number }> };
+    }
+    const topSales = list[0].sales || 1;
+    // حلقات بسيطة بدل Math.max(...list) — المصفوفة ممكن تكون آلاف الأصناف والـspread بيبطّأ/يفضّي الستاك
+    let topQty = 1;
+    let maxBreadth = 1;
+    let broadItems = 0;
+    for (let i = 0; i < list.length; i++) {
+      if (i < 40 && list[i].qty > topQty) topQty = list[i].qty;
+      if (list[i].custs.size > maxBreadth) maxBreadth = list[i].custs.size;
+      if (list[i].custs.size >= 3) broadItems++;
+    }
+    const topN = Math.max(1, Math.round(list.length * 0.2));
+    let topShareSales = 0;
+    for (let i = 0; i < topN; i++) topShareSales += list[i].sales;
+    const concentrationPct = (topShareSales / A.total) * 100;
+    const breadthPct = (broadItems / list.length) * 100;
+    const health = Math.round(0.5 * (100 - Math.min(100, concentrationPct)) + 0.5 * breadthPct);
+    const rows = list.slice(0, 8).map((it) => ({
+      code: it.code,
+      name: it.name,
+      fam: it.fam,
+      sales: it.sales,
+      qty: it.qty,
+      custs: it.custs.size,
+      share: (it.sales / A.total) * 100,
+      score: Math.max(
+        1,
+        Math.round(
+          100 *
+            (0.55 * (it.sales / topSales) +
+              0.25 * (it.custs.size / maxBreadth) +
+              0.2 * (it.qty / topQty)),
+        ),
+      ),
+    }));
+    return { health, breadthPct, concentrationPct, rows };
+  }, [A.items, A.total]);
   const selectedCust = f.customer !== 'all' ? A.custsAll.find(c => c.code === f.customer) : A.custsAll[0];
 
   const activeFilters = [f.branch!=='all', f.rep!=='all', f.family!=='all', f.customer!=='all', !!f.item.trim(), f.month!=='all'].filter(Boolean).length;
@@ -308,6 +354,94 @@ export const SalesFocusV4: React.FC<Props> = ({ records, baseRecords, customers 
         <div className="bg-white border border-slate-200 rounded-2xl p-3.5"><div className="text-[10px] font-bold text-slate-500 flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5 text-[#2e7d5b]" />أعلى مندوب تحقيقاً</div><div className="font-black text-slate-900 mt-1">{topRep?.name||'—'}</div><div className="text-[10px] text-slate-500 mt-1">{topRep?`حقق ${fmtCompact(topRep.sales)} (${A.total?((topRep.sales/A.total)*100).toFixed(1):0}% من المبيعات)`:'لا بيانات'}</div></div>
         <div className="bg-white border border-slate-200 rounded-2xl p-3.5"><div className="text-[10px] font-bold text-slate-500 flex items-center gap-1"><Users className="w-3.5 h-3.5 text-[#3f7fb5]" />تركّز العملاء</div><div className="font-black text-slate-900 mt-1">{top3Conc.toFixed(0)}%</div><div className="text-[10px] text-slate-500 mt-1">أعلى 3 عملاء يمثلون {top3Conc.toFixed(0)}% من المبيعات</div></div>
         <div className="bg-white border border-slate-200 rounded-2xl p-3.5"><div className="text-[10px] font-bold text-slate-500 flex items-center gap-1"><Package className="w-3.5 h-3.5 text-[#8a6fb0]" />الصنف المتصدر</div><div className="font-black text-slate-900 mt-1">{topItem?trunc(topItem.name,24):'—'}</div><div className="text-[10px] text-slate-500 mt-1">{topItem?`يمثل ${((topItem.sales/(A.total||1))*100).toFixed(1)}% — ${Math.round(topItem.qty).toLocaleString('en-US')} وحدة`:'لا بيانات'}</div></div>
+      </section>
+
+      {/* مؤشر أداء الأصناف */}
+      <section className="bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] p-4 sm:p-5 shadow-[0_2px_10px_rgba(15,43,56,0.04)]">
+        <header className="mb-3 flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-start gap-2.5">
+            <span className="w-8 h-8 rounded-xl bg-[var(--app-primary-tint)] text-[var(--app-primary-text)] flex items-center justify-center shrink-0">
+              <TrendingUp className="w-4 h-4" />
+            </span>
+            <div>
+              <h3 className="text-sm font-black text-[var(--app-text)] leading-tight">مؤشر أداء الأصناف</h3>
+              <p className="text-[10.5px] text-[var(--app-text-muted)] font-bold mt-0.5">
+                درجة كل صنف = القيمة + انتشاره بين العملاء + الكمية — ونفس الفلاتر المطبّقة على الصفحة
+              </p>
+            </div>
+          </div>
+          <span className="text-[10px] font-black px-2.5 py-1 rounded-lg border border-[var(--app-border)] bg-[var(--app-card-secondary)] text-[var(--app-text-muted)] tabular-nums">
+            {A.itemCount} صنف · {A.custCount} عميل
+          </span>
+        </header>
+
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,230px)_minmax(0,1fr)] gap-4">
+          <div className="flex min-w-0 flex-col items-center justify-center rounded-2xl border border-[var(--app-border)] bg-[var(--app-card-secondary)] p-4">
+            <PerformanceGauge
+              value={itemScoreboard.health}
+              label="صحة التشكيلة"
+              size={176}
+              caption="اتساع الطلب + عدم تركّز المبيعات في أصناف قليلة"
+            />
+            <div className="mt-3 grid w-full grid-cols-2 gap-2">
+              <div className="flex items-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-card)] p-2">
+                <MiniGauge value={itemScoreboard.concentrationPct} size={36} invert />
+                <div className="min-w-0">
+                  <div className="text-[9px] font-bold text-[var(--app-text-muted)] leading-tight">تركيز أعلى 20%</div>
+                  <div className="text-[11px] font-black text-[var(--app-text)] tabular-nums">
+                    {itemScoreboard.concentrationPct.toFixed(0)}%
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-card)] p-2">
+                <MiniGauge value={itemScoreboard.breadthPct} size={36} />
+                <div className="min-w-0">
+                  <div className="text-[9px] font-bold text-[var(--app-text-muted)] leading-tight">اتساع الطلب</div>
+                  <div className="text-[11px] font-black text-[var(--app-text)] tabular-nums">
+                    {itemScoreboard.breadthPct.toFixed(0)}%
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p className="mt-2 text-center text-[9px] font-bold leading-relaxed text-[var(--app-text-muted)]">
+              التركيز الأعلى = خطر · الاتساع الأعلى = تشكيلة أقوى
+            </p>
+          </div>
+
+          <div className="min-w-0 space-y-1.5">
+            {itemScoreboard.rows.length ? (
+              itemScoreboard.rows.map((it, idx) => (
+                <div
+                  key={it.code}
+                  className="flex flex-wrap items-center gap-2.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-card)] px-2.5 py-2 sm:flex-nowrap"
+                >
+                  <span className="w-5 h-5 rounded-md bg-[var(--app-card-secondary)] text-[var(--app-text-muted)] text-[10px] font-black inline-flex items-center justify-center shrink-0 tabular-nums">
+                    {idx + 1}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] font-black text-[var(--app-text)] truncate">{it.name}</div>
+                    <div className="text-[9px] font-bold text-[var(--app-text-muted)] truncate">
+                      {it.fam} · {it.custs} عميل · {Math.round(it.qty).toLocaleString('en-US')} وحدة
+                    </div>
+                    <div className="mt-1 h-1.5 rounded-full bg-[var(--app-card-secondary)] overflow-hidden">
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${Math.min(100, it.share * 3)}%`, background: it.score >= 70 ? '#059669' : it.score >= 40 ? '#d97706' : '#e11d48' }}
+                      />
+                    </div>
+                  </div>
+                  <div className="text-left shrink-0">
+                    <div className="text-[11px] font-black text-[var(--app-text)] font-mono tabular-nums">{fmtCompact(it.sales)}</div>
+                    <div className="text-[9px] font-bold text-[var(--app-text-muted)] tabular-nums">{it.share.toFixed(1)}%</div>
+                  </div>
+                  <MiniGauge value={it.score} size={36} />
+                </div>
+              ))
+            ) : (
+              <ChartEmpty height={220} />
+            )}
+          </div>
+        </div>
       </section>
 
       {/* Monthly chart + family bars */}
