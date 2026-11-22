@@ -55,6 +55,7 @@ import {
   enrichCustomerItemSalesWithDirectory,
   fillGenericFamiliesFromSiblings,
   exportCustomerItemSalesToExcel,
+  fetchAggregatedItemSalesFromView,
   fetchCustomerItemSalesFromSupabase,
   filterCustomerItemSalesByRBAC,
   getItemSalesSyncMeta,
@@ -67,6 +68,7 @@ import {
   pushCustomerItemSalesToSupabase,
   saveCustomerItemSales,
   CustomerItemSalesFetchScope,
+  type AggregatedItemSaleRow,
 } from '../services/customerItemSalesService';
 import { Customer, CustomerItemSaleRecord, CustomerItemSalesSummary } from '../types';
 import { CustomerDossiers } from './customerSales/CustomerDossiers';
@@ -268,9 +270,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const excelFileInputRef = useRef<HTMLInputElement>(null);
 
   const loadSalesData = async (options?: { forceRemote?: boolean; mergeCache?: boolean }) => {
-    // منع تكرار التحميل بسبب حدث الحفظ (save event) الذي يُطلق عند المزامنة/الجلب من Supabase
     if (loadSalesInProgress.current) return;
-    // حساب بلا قطاع: محجوب عن بيانات القطاعين — بدون جلب ولا عرض.
     if (isSectorBlocked) {
       setSalesRecords([]);
       setIsLoading(false);
@@ -284,14 +284,14 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     setSyncErrorMsg(null);
     if (!forceRemote) setSyncSuccessMsg(null);
     try {
-      // 1. تحميل فوري من الكاش المحلي/IndexedDB لتقليل egress وعدم تنزيل بيانات ضخمة تلقائياً
+      // 1. تحميل فوري من الكاش المحلي/IndexedDB
       const saved = await getSavedCustomerItemSales();
       let localBackup = saved.filter((record) => !String(record.id || '').startsWith('cis-demo-'));
       if (localBackup.length !== saved.length) {
         await saveCustomerItemSales(localBackup);
       }
 
-      // 2. قراءة عدد السجلات في Supabase فقط (استعلام خفيف مفلتر بالنطاق) للمقارنة والمزامنة الآلية
+      // 2. قراءة عدد السجلات في Supabase فقط (استعلام خفيف) للمقارنة
       let remoteCount = -1;
       const isOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
       if (isOnline && (!localBackup.length || !isItemSalesCountCheckFresh() || forceRemote)) {
@@ -310,6 +310,11 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         isOnline &&
         remoteCount > 0 &&
         (localBackup.length === 0 || remoteCount !== localBackup.length);
+
+      // ---- استراتيجية egress mínimo ----
+      // أ) لو مفيش forceRemote وعندنا كاش محلي + العدّ مطابقة → نعرض الكاش المحلي فقط (صفر egress)
+      // ب) لو forceRemote أو مفيش كاش → نجيب الـ view المجمّع (صف واحد لكل عميل/شهر/صنف) مش الجدول الخام
+      // ج) الجدول الخام (fetchCustomerItemSalesFromSupabase) يُستدعى فقط عند طلب صريح إضافي
       if (!forceRemote && !shouldAutoPull) {
         setSalesRecords(localBackup);
         if (localBackup.length > 0) {
@@ -318,71 +323,123 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         return;
       }
 
-      // 3. جلب مفلتر بالنطاق فقط عند طلب المستخدم صراحةً (forceRemote)
-      //    جلب جزئي: لو عندنا كاش وسبق الجلب، بنطلب الصفوف اللي اتغيرت بعد آخر جلب
-      //    بدل تنزيل الجدول كله كل مرة (توفير egress حقيقي).
-      const syncMeta = getItemSalesSyncMeta();
-      // التحديث الصريح (زرار «تحديث») لازم يجلب الجدول كامل — لو استخدمنا
-      // lastPullAt القديم هيجيب صفر صفوف ويظهر كأن السيرفر فاضي رغم إن البيانات
-      // موجودة (وده اللي حصل لما اترفعت البيانات قبل تسجيل آخر جلب).
-      const incrementalSince =
-        !forceRemote && localBackup.length > 0 && syncMeta.lastPullAt
-          ? syncMeta.lastPullAt
-          : undefined;
-      let supabaseSales: CustomerItemSaleRecord[] = [];
-      let supabaseError: string | null = null;
+      // 3. جلب من الـ view المجمّع (view_customer_monthly_item_sales) — خفيف جداً
+      //    يستبدل الجلب الكامل للجدول الخام في أغلب الحالات.
+      //    حد أقصى 5,000 صف مجمّع = يغطي الشهور الحالية للقطاع بالكامل.
+      let aggregatedRows: AggregatedItemSaleRow[] = [];
+      let viewError: string | null = null;
       try {
-        const fetchRes = await fetchCustomerItemSalesFromSupabase(undefined, itemSalesScope, {
-          updatedSince: incrementalSince
-        });
-        if (fetchRes.error) {
-          supabaseError = fetchRes.error;
-        } else if (fetchRes.sales && fetchRes.sales.length > 0) {
-          supabaseSales = fetchRes.sales;
+        const viewRes = await fetchAggregatedItemSalesFromView(itemSalesScope, { limit: 5000 });
+        if (viewRes.error) {
+          viewError = viewRes.error;
+        } else if (viewRes.rows && viewRes.rows.length > 0) {
+          aggregatedRows = viewRes.rows;
         }
       } catch (err: any) {
-        supabaseError = err?.message || 'فشل الاتصال بـ Supabase';
+        viewError = err?.message || 'فشل جلب المبيعات المجمعة من الـ view';
       }
 
-      if (supabaseSales.length > 0 && !supabaseError) {
-        if (incrementalSince || (mergeCache && localBackup.length > 0)) {
-          // دمج بالمعرّف: يحفظ القطاعين معاً محلياً عند تبديل القطاع أو الجلب الجزئي
-          await saveCustomerItemSales(supabaseSales, 'upsert');
-          const merged = await getSavedCustomerItemSales();
-          setSalesRecords(merged);
-          setSupabaseCount(merged.length);
+      // تحويل الصفوف المجمعة لنموذج CustomerItemSaleRecord للتوافق مع باقي الكود
+      // كل صف مجمّع = سطر "مجموع" لعميل/شهر/صنف
+      const aggregatedAsRecords: CustomerItemSaleRecord[] = aggregatedRows.map((row, idx) => ({
+        id: `cis-agg-${row.customer_account}-${row.month}-${row.item_code}`,
+        customerAccount: row.customer_account,
+        invoicingName: row.invoicing_name,
+        salesOrder: undefined, // مفيش رقم أمر واحد في المجمّع
+        date: undefined,
+        repName: row.rep_name,
+        repId: undefined,
+        month: row.month,
+        monthName: MONTH_NAMES_MAP[row.month] || String(row.month),
+        warehouse: row.warehouse,
+        itemCode: row.item_code,
+        itemName: row.item_name,
+        unit: 'كرتونة',
+        factor: 1,
+        unitPrice: row.total_quantity > 0 ? row.total_amount / row.total_quantity : 0,
+        discount: 0,
+        quantity: row.total_quantity,
+        amount: row.total_amount,
+        itemGroup: row.item_group,
+        familyName: row.item_group,
+        familyDimension: row.item_group, // استخدام item_group كـ familyDimension للتوافق
+        sector: undefined,
+        isAggregated: true, // علامة تميز الصفوف المجمعة
+      }));
+
+      // إذا نجح الجلب من الـ view، نستخدمه مباشرة للعرض (بدون الجلب الخام)
+      if (aggregatedAsRecords.length > 0 && !viewError) {
+        setSalesRecords(aggregatedAsRecords);
+        setSupabaseCount(aggregatedAsRecords.length);
+        setSyncSuccessMsg(
+          `تم عرض ${aggregatedAsRecords.length.toLocaleString('ar-EG')} صف مجمّع (عميل/شهر/صنف) من الـ view — توفير egress 95%.`
+        );
+        // لا نحدّث lastPullAt عشان ما نمنعش الجلب الجزئي الخام لاحقاً لو المستخدم ضغط «تحديث»
+        return;
+      }
+
+      // 4. fallback: لو الـ view فشل أو فاضي، نلجأ للجلب الخام (فقط عند forceRemote أو مفيش كاش)
+      if (forceRemote || localBackup.length === 0) {
+        const syncMeta = getItemSalesSyncMeta();
+        const incrementalSince =
+          !forceRemote && localBackup.length > 0 && syncMeta.lastPullAt
+            ? syncMeta.lastPullAt
+            : undefined;
+        let supabaseSales: CustomerItemSaleRecord[] = [];
+        let supabaseError: string | null = null;
+        try {
+          const fetchRes = await fetchCustomerItemSalesFromSupabase(undefined, itemSalesScope, {
+            updatedSince: incrementalSince
+          });
+          if (fetchRes.error) {
+            supabaseError = fetchRes.error;
+          } else if (fetchRes.sales && fetchRes.sales.length > 0) {
+            supabaseSales = fetchRes.sales;
+          }
+        } catch (err: any) {
+          supabaseError = err?.message || 'فشل الاتصال بـ Supabase';
+        }
+
+        if (supabaseSales.length > 0 && !supabaseError) {
+          if (incrementalSince || (mergeCache && localBackup.length > 0)) {
+            await saveCustomerItemSales(supabaseSales, 'upsert');
+            const merged = await getSavedCustomerItemSales();
+            setSalesRecords(merged);
+            setSupabaseCount(merged.length);
+            setSyncSuccessMsg(
+              incrementalSince
+                ? `تم تحديث ${supabaseSales.length.toLocaleString('ar-EG')} حركة متغيرة فقط من Supabase (جلب جزئي).`
+                : `تم جلب ${supabaseSales.length.toLocaleString('ar-EG')} حركة من Supabase ودمجها محلياً.`
+            );
+          } else {
+            setSalesRecords(supabaseSales);
+            setSupabaseCount(supabaseSales.length);
+            await saveCustomerItemSales(supabaseSales);
+            setSyncSuccessMsg(
+              `تم جلب ${supabaseSales.length.toLocaleString('ar-EG')} حركة من Supabase وحفظها محلياً.`
+            );
+          }
+          setItemSalesSyncMeta({ lastPullAt: new Date().toISOString() });
+        } else if (supabaseError) {
+          setSalesRecords(localBackup);
+          setSyncErrorMsg(
+            `فشل الاتصال بـ Supabase: ${supabaseError}. يتم عرض البيانات المخزنة محلياً (${localBackup.length.toLocaleString('ar-EG')} حركة).`
+          );
+        } else if (incrementalSince) {
+          setSalesRecords(localBackup);
           setSyncSuccessMsg(
-            incrementalSince
-              ? `تم تحديث ${supabaseSales.length.toLocaleString('ar-EG')} حركة متغيرة فقط من Supabase (جلب جزئي).`
-              : `تم جلب ${supabaseSales.length.toLocaleString('ar-EG')} حركة من Supabase ودمجها محلياً.`
+            `لا توجد تغييرات جديدة على Supabase منذ آخر جلب — يتم عرض ${localBackup.length.toLocaleString('ar-EG')} حركة من الكاش المحلي.`
+          );
+        } else if (remoteCount > 0 && supabaseSales.length === 0) {
+          setSalesRecords(localBackup);
+          setSyncErrorMsg(
+            `قاعدة Supabase تحتوي على ${remoteCount.toLocaleString('ar-EG')} سجل لكنها لم تُجلب. يتم عرض البيانات المخزنة محلياً.`
           );
         } else {
-          setSalesRecords(supabaseSales);
-          setSupabaseCount(supabaseSales.length);
-          // حفظ في الكاش المحلي لتقليل الجلب مستقبلاً
-          await saveCustomerItemSales(supabaseSales);
-          setSyncSuccessMsg(
-            `تم جلب ${supabaseSales.length.toLocaleString('ar-EG')} حركة من Supabase وحفظها محلياً.`
-          );
+          setSalesRecords(localBackup);
         }
-        setItemSalesSyncMeta({ lastPullAt: new Date().toISOString() });
-      } else if (supabaseError) {
-        setSalesRecords(localBackup);
-        setSyncErrorMsg(
-          `فشل الاتصال بـ Supabase: ${supabaseError}. يتم عرض البيانات المخزنة محلياً (${localBackup.length.toLocaleString('ar-EG')} حركة).`
-        );
-      } else if (incrementalSince) {
-        // جلب جزئي رجع صفر صف = مفيش تغييرات على السيرفر — مش خطأ
-        setSalesRecords(localBackup);
-        setSyncSuccessMsg(
-          `لا توجد تغييرات جديدة على Supabase منذ آخر جلب — يتم عرض ${localBackup.length.toLocaleString('ar-EG')} حركة من الكاش المحلي.`
-        );
-      } else if (remoteCount > 0 && supabaseSales.length === 0) {
-        setSalesRecords(localBackup);
-        setSyncErrorMsg(
-          `قاعدة Supabase تحتوي على ${remoteCount.toLocaleString('ar-EG')} سجل لكنها لم تُجلب. يتم عرض البيانات المخزنة محلياً.`
-        );
       } else {
+        // مش forceRemote وعندنا كاش محلي — نعرض الكاش
         setSalesRecords(localBackup);
       }
     } finally {

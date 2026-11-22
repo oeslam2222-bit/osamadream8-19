@@ -362,11 +362,11 @@ export const UnifiedReturnsView: React.FC = () => {
         if (!file.type.startsWith('image/')) continue;
         try {
           const compressed = await compressImageFile(file, 900, 900, 0.65);
-          const uploaded = await uploadImageToCloudinary(
-            compressed,
-            normalizeCloudinaryConfig(cloudinaryConfig),
-            'tantawy_returns'
-          );
+          const uploaded = await uploadImageToCloudinary(compressed, {
+            config: normalizeCloudinaryConfig(cloudinaryConfig),
+            folder: 'tantawy_returns',
+            maxSizeMB: 5,
+          });
           if (uploaded.url && !/^data:image\//i.test(uploaded.url)) {
             setAttachedPhotos((prev) => [...prev, uploaded.url]);
           } else {

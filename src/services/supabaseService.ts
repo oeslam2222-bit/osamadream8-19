@@ -484,11 +484,11 @@ function applyScopeToQuery(query: any, scope?: CustomerFetchScope | VisitFetchSc
   return clauses.length > 0 ? query.or(clauses.join(',')) : query;
 }
 
-/** أربعين ألف صف: حدّ أمان ضد جدول مش متوقع، مش رقم تشغيل. */
-const MAX_VISIT_PAGES = 40;
+/** حد أدنى جداً: 5,000 صف بس للعميل العادي — يقلل egress لـ 500 مستخدم */
+const MAX_VISIT_PAGES = 5;
 
-/** خمسين ألف عميل: حدّ أمان ضد استيراد عملاء ضخم يُبطئ تشغيل التطبيق. */
-const MAX_CUSTOMER_PAGES = 50;
+/** حد أدنى جداً: 5,000 عميل بس — يقلل egress لـ 500 مستخدم */
+const MAX_CUSTOMER_PAGES = 5;
 
 const isMissingColumnError = (err: any): boolean => {
   const code = String(err?.code || '');
@@ -1438,11 +1438,10 @@ export const PROMOTIONS_SYNC_STORE_ID = 'dream_promotions_store_v1';
 
 /**
  * أقصى عدد صفحات (1,000 صف كل صفحة) بنجيبه من جدول products.
- * حدّ حماية ضد حلقة لا نهائية بس — الكتالوج الحالي 5,444 صنف، فـ 60 صفحة
- * (60,000 صنف) أوسع من المحتاج بكتير. لو وصلنا هنا فالمشكلة في البيانات مش
- * في الكود، والـ console.warn بيقول ذلك بصراحة بدل ما نقصّ السعر في صمت.
+ * حدّ حماية ضد حلقة لا نهائية بس — الكتالوج الحالي ~5,500 صنف، فـ 10 صفحات
+ * (10,000 صنف) كافية جداً. لو وصلنا هنا فالمشكلة في البيانات مش في الكود.
  */
-const MAX_PRODUCT_PAGES = 60;
+const MAX_PRODUCT_PAGES = 10;
 export const USER_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000002';
 /**
  * صف صغير مخصوص لصور المستخدمين (خريطة: معرّف المستخدم → رابط الصورة).
@@ -1452,8 +1451,8 @@ export const USER_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000002';
  */
 export const USER_AVATARS_STORE_ID = '00000000-0000-0000-0000-000000000003';
 
-/** خمسين ألف صف تارجت ≈ 125 شهر لكل مندوب (10 سنين). */
-const MAX_TARGET_PAGES = 50;
+/** 5,000 صف تارجت كحد أقصى — يغطي آخر 12 شهر لمعظم الفرق. */
+const MAX_TARGET_PAGES = 5;
 
 const TARGETS_FETCH_COLUMNS = [
   'id', 'branch', 'rep_name', 'sales_target', 'sales_achieved', 'sales_percentage',
@@ -2912,10 +2911,12 @@ export async function saveInvoicesToSupabase(
  * بس بدل فواتير كل الفروع (اللي كانت 500 سطر × جدولين
  * في كل إقلاع). المندوب بيحمل فواتيره، المشرف فواتير
  * مناديبه، مدير الفرع فواتير فرعه، والإدارة الكل.
+ * فلترة القطاع: صارمة — لا دور يشوف قطاع تاني إلا بصلاحية صريحة.
  */
 export interface InvoiceFetchScope {
   repIds?: string[];
   limit?: number;
+  sector?: 'home' | 'electrical' | 'both' | 'all';
 }
 
 export function fetchInvoicesFromSupabase(
@@ -2961,6 +2962,17 @@ async function fetchInvoicesFromSupabaseImpl(
       'is_shortage_invoice', 'parent_invoice_id', 'parent_invoice_number', 'qr_payload',
     ].join(',');
 
+    // Fallback columns without the problematic one — never use '*' (drags items JSON + all columns)
+    const INVOICES_FALLBACK_COLUMNS = [
+      'id', 'invoice_number', 'customer_code', 'customer_name', 'customer_phone',
+      'customer_address', 'customer_tax_number', 'date', 'time', 'created_at',
+      'rep_id', 'rep_name', 'supervisor_name', 'branch_name',
+      'total_cartons', 'total_pieces', 'subtotal', 'discount_percentage',
+      'discount_amount', 'estimated_grand_total', 'payment_method', 'status', 'notes',
+      'synced_to_accounting', 'has_shortage_split', 'shortage_invoice_number',
+      'is_shortage_invoice', 'parent_invoice_id', 'parent_invoice_number', 'qr_payload',
+    ].join(',');
+
     const buildQuery = async (table: 'invoices' | 'orders') => {
       const makeQuery = (selectCols: string, filterCol: 'updated_at' | 'created_at' | null) => {
         let query = supabase
@@ -2974,6 +2986,14 @@ async function fetchInvoicesFromSupabaseImpl(
         if (repIds.length > 0) {
           query = query.in('rep_id', repIds);
         }
+        // فلترة القطاع صارمة — لا دور يشوف قطاع تاني
+        const sector = scope.sector;
+        if (sector === 'home' || sector === 'electrical') {
+          query = query.in('sector', [sector, 'both', 'all']);
+        } else if (sector === 'both') {
+          query = query.in('sector', ['both', 'all']);
+        }
+        // إذا مفيش sector محدد (admin/developer/technical_support) — مفيش فلترة قطاع
         if (updatedSince && filterCol) {
           query = query.gte(filterCol, updatedSince);
         }
@@ -2984,7 +3004,13 @@ async function fetchInvoicesFromSupabaseImpl(
         first = await makeQuery(INVOICES_SELECT_COLUMNS, 'created_at');
       }
       if (first?.error && isMissingColumnError(first.error)) {
-        return makeQuery('*', updatedSince ? 'created_at' : null);
+        // Never use '*': it pulls items JSON + all columns = massive egress
+        // Instead, retry with safe fallback list (excludes the missing column dynamically)
+        const missing = extractMissingColumn(first.error);
+        const safeCols = missing
+          ? INVOICES_FALLBACK_COLUMNS.split(',').filter((c) => c !== missing).join(',')
+          : INVOICES_FALLBACK_COLUMNS;
+        return makeQuery(safeCols, updatedSince ? 'created_at' : null);
       }
       return first;
     };
@@ -4318,6 +4344,8 @@ export interface ForecastFetchScope {
   branchNames?: string[];
   repIds?: string[];
   repNames?: string[];
+  /** قطاع المستخدم للفلترة من السيرفر قبل التحميل. */
+  sector?: 'home' | 'electrical' | 'both' | 'all';
 }
 
 export interface ContentStampMeta {
@@ -4392,6 +4420,12 @@ function applyForecastScope(query: any, scope?: ForecastFetchScope): any {
   (scope.repNames || []).map((name) => String(name).trim()).filter(Boolean).forEach((name) => {
     clauses.push(`rep_name.ilike.${quoteOrValue(`*${name}*`)}`);
   });
+  // فلترة القطاع من السيرفر قبل التحميل.
+  if (scope.sector === 'home' || scope.sector === 'electrical') {
+    clauses.push(`sector.in.(${scope.sector},both,all),sector.is.null`);
+  } else if (scope.sector === 'both') {
+    clauses.push(`sector.in.(both,all),sector.is.null`);
+  }
   return clauses.length > 0 ? query.or(clauses.join(',')) : query;
 }
 
@@ -4405,6 +4439,12 @@ function applyCommentsScope(query: any, scope?: ForecastFetchScope): any {
   (scope.repNames || []).map((name) => String(name).trim()).filter(Boolean).forEach((name) => {
     clauses.push(`rep_name.ilike.${quoteOrValue(`*${name}*`)}`);
   });
+  // فلترة القطاع من السيرفر قبل التحميل.
+  if (scope.sector === 'home' || scope.sector === 'electrical') {
+    clauses.push(`sector.in.(${scope.sector},both,all),sector.is.null`);
+  } else if (scope.sector === 'both') {
+    clauses.push(`sector.in.(both,all),sector.is.null`);
+  }
   return clauses.length > 0 ? query.or(clauses.join(',')) : query;
 }
 
@@ -4458,12 +4498,12 @@ async function fetchAllRowsPaged(
 }
 
 /**
- * 50 ألف سطر توقع ≈ 400 مندوب × 9 فترات × 14 شهر. أكبر من المحتاج.
+ * 5,000 سطر توقع كحد أقصى — يغطي الشهور الحالية فقط.
  */
-const MAX_FORECAST_PAGES = 50;
+const MAX_FORECAST_PAGES = 5;
 
-/** 20 ألف تعليق: تعليق لكل عميل بسعر فاضي. */
-const MAX_COMMENT_PAGES = 20;
+/** 5,000 تعليق كحد أقصى — يغطي التعليقات الحديثة فقط. */
+const MAX_COMMENT_PAGES = 5;
 
 export async function fetchForecastMonthStamp(
   monthKey: string,

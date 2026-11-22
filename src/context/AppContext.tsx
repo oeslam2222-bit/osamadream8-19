@@ -111,6 +111,20 @@ import {
   filterTargetsForUser,
   extractTargetSectorFromNotes,
 } from '../services/targetService';
+import {
+  addSmartNotification,
+  checkForDataUpdates,
+  getSmartNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  deleteNotification,
+  notifyInventoryUpdate,
+  notifyTargetsUpdate,
+  notifyCustomersUpdate,
+  notifyPromotionsUpdate,
+  notifyTaskAssigned,
+  SmartNotification,
+} from '../services/smartNotificationService';
 import { saveSingleSourceUrl, getPublishedDataSources, getSavedSourceUrl, isGoogleSheetsReadMode } from '../services/dataSourceService';
 import {
   clearLocalDataVersion,
@@ -492,22 +506,30 @@ function areContentStampsEqual(
   return a.count === b.count && a.maxUpdatedAt === b.maxUpdatedAt;
 }
 
-/** أدوار إدارية غير مبيعية: تدير القطاعين بشكل منفصل (منزلي أو كهربائي، بدون دمج). */
-const SECTORLESS_ADMIN_ROLES: ReadonlySet<string> = new Set([
+/**
+ * أدوار اللي عندها صلاحية الوصول لكل القطاعات (وتمنح الصلاحيات للغير):
+ * - admin, developer: صلاحية كاملة على النظام
+ * - technical_support: يدير المستخدمين ويمنح صلاحيات عبر القطاعات
+ * 
+ * الأدوار التانية (legal_advisor, warehouse_keeper, branch_manager, supervisor, sales_rep)
+ * مقيدة بقطاع حساباتهم فقط — مفيش وصول لقطاع تاني إلا بصلاحية صريحة.
+ */
+const CROSS_SECTOR_ADMIN_ROLES: ReadonlySet<string> = new Set([
+  'admin',
+  'developer',
   'technical_support',
-  'legal_advisor',
-  'warehouse_keeper',
 ]);
 
 /**
  * الحد الصارم للقطاع — القاعدة: ممنوع قطاع يشوف القطاع الآخر أو دمج القطاعين في شاشة واحدة.
- *  - admin/developer/الأدوار الإدارية متعددة القطاعات: حرية التبديل بين منزلي أو كهربائي.
- *  - أي دور تاني: مقيّد بقطاع حسابه (home/electrical) مهما اختارت الواجهة.
- *  - أدوار المبيعات (مندوب/مشرف/مدير فرع) بلا قطاع معيّن: محجوبة بالكامل ('none').
+ *  - admin/developer/technical_support: حرية التبديل بين منزلي أو كهربائي (هم بيمنحوا الصلاحيات).
+ *  - أي دور تاني (legal_advisor, warehouse_keeper, branch_manager, supervisor, sales_rep): مقيّد بقطاع حسابه فقط.
+ *  - أدوار المبيعات بلا قطاع معيّن: محجوبة بالكامل ('none').
+ *  - الوصول عبر القطاعات: فقط بصلاحية صريحة من technical_support/developer.
  */
 function resolveEffectiveSector(user: User | null, activeSector: 'home' | 'electrical', fallbackSector?: string): ActiveSector {
   if (!user) return activeSector;
-  if (user.role === 'admin' || user.role === 'developer' || SECTORLESS_ADMIN_ROLES.has(user.role)) {
+  if (user.role === 'admin' || user.role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(user.role)) {
     return activeSector;
   }
   const accountSector = user.sector || fallbackSector;
@@ -590,27 +612,31 @@ export const AppContext = createContext<AppContextType | undefined>(undefined);
  * فواتيره هو بس بدل فواتير كل الفروع — ده
  * أكبر بند في نقل البيانات (500 سطر × جدولين
  * في كل إقلاع على كل جهاز).
+ * حدود صارمة: المندوب 30، المشرف 50، مدير الفرع 60، الإدارة 100
  */
 function buildInvoiceFetchScope(currentUser: User | null, users: User[]): InvoiceFetchScope {
-  if (!currentUser) return { limit: 60 };
+  if (!currentUser) return { limit: 30 };
+  // الأدمن/المطور/الدعم الفني: كل القطاعات (مفيش sector filter)
+  const isCrossSectorAdmin = currentUser.role === 'admin' || currentUser.role === 'developer' || currentUser.role === 'technical_support';
+  const sector = isCrossSectorAdmin ? undefined : currentUser.sector;
+
   if (currentUser.role === 'sales_rep') {
-    return { repIds: [currentUser.id], limit: 60 };
+    return { repIds: [currentUser.id], limit: 30, sector };
   }
   if (currentUser.role === 'supervisor') {
     const repIds = users
       .filter((u) => u.id === currentUser.id || u.supervisorId === currentUser.id)
       .map((u) => u.id);
-    // فاضي = صفر فواتير للمشرف (مفيش مناديب متعاقبين — الأمان الأهم)
-    return { repIds, limit: 100 };
+    return { repIds, limit: 50, sector };
   }
   if (currentUser.role === 'branch_manager') {
     const repIds = users
       .filter((u) => u.branchName === currentUser.branchName)
       .map((u) => u.id);
-    // فاضي = صفر فواتير للمدير (مفيش مناديب في الفريق — ممنوع سحب كل الشركة)
-    return { repIds, limit: 120 };
+    return { repIds, limit: 60, sector };
   }
-  return { limit: 200 };
+  // إدارة/مطور: حد 100 فاتورة فقط (للمتابعة، مش للتحميل الكامل)
+  return { limit: 100, sector };
 }
 
 /**
@@ -643,6 +669,9 @@ function mapTargetRowToRecord(row: any): TargetRecord {
   };
 }
 
+
+// Module-level ref for currentUser (accessible from services)
+export const currentUserRef = { current: null as User | null };
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Auth and Session Notice
   const [authTerminationNotice, setAuthTerminationNotice] = useState<string | null>(null);
@@ -745,7 +774,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // restored below from a real Supabase Auth session + get_my_profile() RPC.
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-  const currentUserRef = useRef<User | null>(currentUser);
+  // Assign to module-level ref for external access
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
@@ -922,6 +951,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const forecastFetchScope = useMemo<ForecastFetchScope | undefined>(() => {
     if (!currentUser) return undefined;
     const role = currentUser.role;
+    // الأدمن/المطور/الدعم الفني: كل القطاعات (مفيش sector filter)
+    const isCrossSectorAdmin = role === 'admin' || role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(role);
+    const sector = isCrossSectorAdmin ? undefined : currentUser.sector;
+
     const branchNames = Array.from(
       new Set([currentUser.branchName].filter((b): b is string => Boolean(b && b.trim())))
     );
@@ -932,11 +965,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const shortName = fullName.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
       const repIds = Array.from(new Set([currentUser.id, currentUser.username].filter(Boolean) as string[]));
       const repNames = Array.from(new Set([fullName, shortName].filter((n) => n.length >= 3)));
-      // لا نُضمّن branchNames للمندوب طالما له معرّف/اسم؛ لأن الفلتر OR كان يسحب توقعات وتعليقات الفرع كله.
       return {
         ...(repIds.length === 0 && repNames.length === 0 ? { branchNames } : {}),
         repIds,
         repNames,
+        sector,
       };
     }
     if (role === 'supervisor') {
@@ -954,20 +987,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           branchNames,
           repIds: Array.from(new Set(repIds)),
           repNames: Array.from(new Set(repNames)),
+          sector,
         };
       }
       return undefined;
     }
     if (role === 'branch_manager') {
-      return branchNames.length > 0 ? { branchNames } : undefined;
+      return branchNames.length > 0 ? { branchNames, sector } : undefined;
     }
     return undefined;
-  }, [currentUser?.id, currentUser?.name, currentUser?.username, currentUser?.branchName, currentUser?.role, users]);
+  }, [currentUser?.id, currentUser?.name, currentUser?.username, currentUser?.branchName, currentUser?.role, currentUser?.sector, users]);
 
   const targetFetchScope = useMemo<TargetFetchScope | undefined>(() => {
     if (!currentUser) return undefined;
     const role = currentUser.role;
-    if (role === 'admin' || role === 'developer' || role === 'technical_support' || role === 'legal_advisor') {
+    // الأدمن/المطور/الدعم الفني فقط: كل القطاعات
+    if (role === 'admin' || role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(role)) {
       return undefined;
     }
     const cleanName = (value?: string) =>
@@ -1839,7 +1874,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         currentUser &&
           (currentUser.role === 'admin' ||
             currentUser.role === 'developer' ||
-            SECTORLESS_ADMIN_ROLES.has(currentUser.role) ||
+            CROSS_SECTOR_ADMIN_ROLES.has(currentUser.role) ||
             currentUser.sector === 'both' ||
             currentUser.sector === 'all')
       ),
@@ -2660,12 +2695,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const customerFetchScope = useMemo<CustomerFetchScope | undefined>(() => {
     if (!currentUser) return undefined;
     const role = currentUser.role;
-    if (role === 'admin' || role === 'developer' || SECTORLESS_ADMIN_ROLES.has(role)) {
-      // الإدارة العليا والأدوار متعددة القطاعات بتحمّل القطاعين في الذاكرة مرة واحدة
-      // (وبتقسمهم في الرئيسية لكرتين منفصلين، وفي باقي الصفحات بفلتر القطاع الواحد)
-      // عشان التبديل بين منزلي وكهربائي يبقى لحظي من غير إعادة تنزيل.
-      return undefined;
-    }
 
     const cleanName = (value?: string) =>
       (value || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
@@ -2680,6 +2709,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     );
     const branchNameContains = extractBranchStems(currentUser.branchName);
 
+    if (role === 'admin' || role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(role)) {
+      // الأدمن/المطور/الدعم الفني: صلاحية كاملة على كل القطاعات (هم اللي بيمنحوا الصلاحيات)
+      return {
+        sector: undefined, // لا قيد قطاع — كل القطاعات
+        slimFieldColumns: true,
+      };
+    }
+
     if (role === 'sales_rep') {
       return {
         branchNames,
@@ -2693,13 +2730,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
     }
 
-    // مدير الفرع والمشرف: نطاق الفرع، وبعده الفلترة الدقيقة في الواجهة.
-    // slimFieldColumns يقلل أعمدة/حقول ثقيلة لتخفيف الـ egress على 500 مستخدم.
+    // مدير الفرع والمشرف: نطاق الفرع + مناديبهم فقط، منع fallback للجدول كامل.
+    // slimFieldColumns يقلل أعمدة/حقول ثقيلة لتخفيف الـ egress.
+    // strictNoFullFallback: true = لو النطاق ما لقاش بيانات، نرجّع فاضي (ما نحمّلش كل الشركة).
     return {
       branchNames,
       branchNameContains,
       sector: currentUser?.sector,
-      includeUnassignedBranch: true,
+      includeUnassignedBranch: false, // لا عملاء من غير فرع
+      strictNoFullFallback: true, // ممنوع fallback للجدول كامل
       slimFieldColumns: true,
     };
   }, [
@@ -2720,6 +2759,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
    */
   const productSectorScope = useMemo<ProductSectorScope>(() => {
     const role = currentUser?.role;
+    // الأدمن/المطور/الدعم الفني: مفيش قيد قطاع (بيشوفوا الكل)
+    if (role === 'admin' || role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(role)) return undefined;
+    // باقي الأدوار: قطاعهم بس
     if (role !== 'sales_rep' && role !== 'branch_manager' && role !== 'supervisor') return undefined;
     const sector = currentUser?.sector;
     return sector === 'home' || sector === 'electrical' ? sector : undefined;
@@ -2735,11 +2777,17 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const visitFetchScope = useMemo<VisitFetchScope | undefined>(() => {
     const role = currentUser?.role;
     if (!currentUser) return undefined;
-    if (role !== 'sales_rep' && role !== 'branch_manager' && role !== 'supervisor') {
-      // للإدارة العليا: نافذة 7 أشهر (~210 يوم) في الإقلاع تغطي رسم الـ6 أشهر وكل النشاط التشغيلي الحديث بدون سحب 24 شهر وتهنيج الدخول.
+    // الأدمن/المطور/الدعم الفني: نافذة 7 أشهر لكل القطاعات
+    if (role === 'admin' || role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(role)) {
       const adminSince = new Date();
       adminSince.setDate(adminSince.getDate() - 210);
       return { sinceDate: adminSince.toISOString().slice(0, 10) };
+    }
+    if (role !== 'sales_rep' && role !== 'branch_manager' && role !== 'supervisor') {
+      // باقي الأدوار الإدارية (legal_advisor, warehouse_keeper): قطاعهم بس
+      const adminSince = new Date();
+      adminSince.setDate(adminSince.getDate() - 210);
+      return { sinceDate: adminSince.toISOString().slice(0, 10), sector: currentUser?.sector };
     }
 
     const since = new Date();
@@ -2786,6 +2834,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         repIds: Array.from(new Set(repIds)),
         sector: currentUser?.sector,
         includeUnassignedBranch: false,
+        strictNoFullFallback: true, // ممنوع fallback للجدول كامل
         sinceDate: since.toISOString().slice(0, 10),
       };
     }
@@ -2798,7 +2847,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       repNames: scope.repNames,
       repIds: scope.repIds,
       sector: scope.sector,
-      includeUnassignedBranch: scope.includeUnassignedBranch,
+      includeUnassignedBranch: false,
+      strictNoFullFallback: true, // ممنوع fallback للجدول كامل
       sinceDate: since.toISOString().slice(0, 10),
     };
   }, [currentUser?.id, currentUser?.name, currentUser?.username, currentUser?.branchName, currentUser?.role, currentUser?.sector, customerFetchScope, users]);
@@ -3742,40 +3792,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const isFreshLogin = justLoggedInRef.current;
     justLoggedInRef.current = false;
 
-    // Fetch cloud-synced Promotions & Announcements only when the 1-row stamp changed (0 egress if unchanged)
-    (async () => {
-      const PROMO_STAMP_KEY = 'dream_dist_promotions_stamp_v1';
-      const stamp = await fetchPromotionsStamp();
-      let storedStamp: { updatedAt: string | null; total: number | null } | null = null;
-      try {
-        const raw = localStorage.getItem(PROMO_STAMP_KEY);
-        if (raw) storedStamp = JSON.parse(raw);
-      } catch {}
-      const hasLocalPromoData = promotionsRef.current.length > 0 || announcementsRef.current.length > 0;
-      if (
-        stamp &&
-        storedStamp &&
-        stamp.updatedAt === storedStamp.updatedAt &&
-        stamp.total === storedStamp.total &&
-        (hasLocalPromoData || stamp.total === 0)
-      ) {
-        return;
-      }
-      const promoRes = await fetchPromotionsFromSupabase();
-      if (promoRes.success) {
-        if (stamp) {
-          try { localStorage.setItem(PROMO_STAMP_KEY, JSON.stringify(stamp)); } catch {}
-        }
-        if (promoRes.promotions.length > 0 || promotionsRef.current.length === 0) {
-          setPromotions(promoRes.promotions);
-          savePromotions(promoRes.promotions);
-        }
-        if (promoRes.announcements.length > 0 || announcementsRef.current.length === 0) {
-          setAnnouncements(promoRes.announcements);
-          safeLocalStorageSet(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(promoRes.announcements));
-        }
-      }
-    })().catch(() => {});
+    // Promotions/Announcements: مؤجل تماماً — لا نحمّلها عند الدخول أبداً (صفر egress)
+// هتتحمل لما المستخدم يفتح شاشة العروض أو بالإشارة من Realtime
 
     // 1) المستخدمون بيتغيروا نادرًا — 24 ساعة للمناديب و 12 ساعة لباقي الأدوار، ومن غير كلمات مرور للأجهزة غير الإدارية.
     const lastUsersSync = Number(localStorage.getItem(USERS_LAST_SYNC_KEY) || 0);
@@ -3982,13 +4000,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             }
           }
 
-          // تأخير بسيط (50ms) بعد تحديث الحالة الأساسية عشان الواجهة ترسم بسرعة،
+          // تأخير كبير (5 ثواني) بعد تحديث الحالة الأساسية عشان الواجهة ترسم بسرعة،
           // ثم فحص الفواتير والزيارات بالبصمة (لو متحدثتش بالفعل في checkAndSyncDataVersion).
+          // هذا يقلل الازدحام على الشبكة عند الدخول ويمنع تجميد الواجهة.
           secondaryBootTimer = window.setTimeout(() => {
             if (bootCancelled) return;
             loadInitialInvoices().catch(() => {});
             loadInitialVisits().catch(() => {});
-          }, 50);
+          }, 5000);
         });
         });
 
@@ -3996,8 +4015,24 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         const deletedInvoiceIds = getDeletedInvoiceIds();
         const loadInitialInvoices = async () => {
           const activeUser = currentUserRef.current || currentUser;
+          // للمندوب: لو في كاش محلي، نكتفي بالبصمة (1 row) ولا نحمل فواتير أبداً عند الدخول
+          const role = activeUser?.role;
+          const cachedInvoices = await idbGet<Invoice[]>(STORAGE_KEYS.INVOICES);
+          const hasLocalInvCache = invoicesRef.current.length > 0 || (cachedInvoices && cachedInvoices.length > 0);
+          if (role === 'sales_rep' && hasLocalInvCache && navigator.onLine !== false) {
+            // بصمة سريعة فقط — التحميل الكامل عند الطلب
+            const invScope = { ...buildInvoiceFetchScope(activeUser, usersRef.current.length > 0 ? usersRef.current : users), limit: 50 };
+            const stamp = await fetchInvoiceContentStamp(invScope);
+            if (stamp) {
+              const storedStamp = readInvoiceContentStamp(invoiceScopeKey(invScope));
+              if (storedStamp && stamp.count === storedStamp.count && stamp.maxCreatedAt === storedStamp.maxCreatedAt) {
+                return; // مفيش تغيير — نطلع من غير ما نحمل
+              }
+            }
+          }
+
           const activeUsers = usersRef.current.length > 0 ? usersRef.current : users;
-          const invScope = buildInvoiceFetchScope(activeUser, activeUsers);
+          const invScope = { ...buildInvoiceFetchScope(activeUser, activeUsers), limit: 50 };
           const invScopeKey = invoiceScopeKey(invScope);
           const stamp = await fetchInvoiceContentStamp(invScope);
           const storedStamp = readInvoiceContentStamp(invScopeKey);
@@ -4076,6 +4111,21 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         // 5. Fetch Visits from Supabase (narrowed by the role scope)
         const deletedVisitIds = getDeletedVisitIds();
         const loadInitialVisits = async () => {
+          const activeUser = currentUserRef.current || currentUser;
+          // للمندوب: لو في كاش محلي، نكتفي بالبصمة (1 row) ولا نحمل زيارات أبداً عند الدخول
+          const role = activeUser?.role;
+          const cachedVisits = await idbGet<CustomerVisit[]>(STORAGE_KEYS.VISITS);
+          const hasLocalVisitCache = visitsRef.current.length > 0 || (cachedVisits && cachedVisits.length > 0);
+          if (role === 'sales_rep' && hasLocalVisitCache && navigator.onLine !== false) {
+            // بصمة سريعة فقط — التحميل الكامل عند الطلب
+            const stamp = await fetchVisitContentStamp(visitFetchScope);
+            const comparable = stamp !== null && (stamp.count !== null || stamp.maxUpdatedAt !== null);
+            const stored = readVisitContentStamp();
+            if (comparable && stored && stamp.count === stored.count && stamp.maxUpdatedAt === stored.maxUpdatedAt) {
+              return; // مفيش تغيير — نطلع من غير ما نحمل
+            }
+          }
+
           // نفس فكرة بصمة العملاء: استعلام صف واحد الأول، ومفيش تنزيل
           // للجدول كله غير لو المحتوى اتغير فعلًا على السيرفر.
           const stamp = await fetchVisitContentStamp(visitFetchScope);
@@ -4465,7 +4515,39 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     };
   }, []);
 
-  // Supabase Egress Protection:
+// Smart Notifications: periodic check for data updates (every 30 min, only when visible)
+  // Each role checks ONLY what they need — zero unnecessary data loading
+  // Sector isolation enforced: no role sees other sector data without explicit permission
+  useEffect(() => {
+    let cancelled = false;
+    const CHECK_KEY = 'tantawy_smart_notif_check_v1';
+    const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 دقيقة
+
+    const runCheck = async () => {
+      if (cancelled || !isSupabaseConfigured || !currentUserRef.current) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+
+      try {
+        // الاستدعاء البسيط — الخدمة تحدد الفحوصات حسب الدور تلقائياً
+        await checkForDataUpdates(CHECK_KEY);
+      } catch {
+        // فشل صامت
+      }
+    };
+
+    // أول فحص بعد 10 ثواني من الدخول
+    const initialTimer = setTimeout(() => { if (!cancelled) runCheck(); }, 10000);
+    // ثم دوري كل 30 دقيقة
+    const interval = setInterval(() => { if (!cancelled) runCheck(); }, CHECK_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, [isSupabaseConfigured, currentUser?.id]);
+
+  // Supabase Egress Protection:  // Supabase Egress Protection:
   // Instead of polling 24/7 (which consumes gigabytes of egress bandwidth),
   // we rely on Supabase Realtime WebSockets for instant sub-second updates, and use an intelligent,
   // throttled fallback (only on tab focus with a 15-minute cooldown).

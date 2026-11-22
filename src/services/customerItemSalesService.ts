@@ -1820,6 +1820,77 @@ export async function fetchCustomerItemSalesFromSupabase(
 }
 
 /**
+ * Fetch AGGREGATED item sales from the view `view_customer_monthly_item_sales`.
+ * This is ~100x smaller than the raw table (one row per customer/month/item instead of per order).
+ * Used for the dashboard / overview — raw table fetch is only for drill-down details.
+ */
+export interface AggregatedItemSaleRow {
+  customer_account: string;
+  invoicing_name: string;
+  rep_name: string;
+  warehouse: string;
+  month: number;
+  item_code: string;
+  item_name: string;
+  item_group: string;
+  total_quantity: number;
+  total_amount: number;
+  total_orders: number;
+}
+
+export async function fetchAggregatedItemSalesFromView(
+  scope?: CustomerItemSalesFetchScope,
+  options?: { month?: number; limit?: number }
+): Promise<{ rows: AggregatedItemSaleRow[]; error?: string }> {
+  try {
+    const pageSize = 1000;
+    let from = 0;
+    let allData: AggregatedItemSaleRow[] = [];
+    let hasMore = true;
+    const limit = Math.min(5000, options?.limit ?? 5000); // cap at 5k rows max
+
+    while (hasMore && allData.length < limit) {
+      let query = supabase
+        .from('view_customer_monthly_item_sales')
+        .select('customer_account, invoicing_name, rep_name, warehouse, month, item_code, item_name, item_group, total_quantity, total_amount, total_orders')
+        .order('month', { ascending: false })
+        .order('total_amount', { ascending: false });
+
+      query = applyItemSalesScope(query, scope);
+
+      if (options?.month) {
+        query = query.eq('month', options.month);
+      }
+
+      const { data, error } = await query.range(from, Math.min(from + pageSize - 1, limit - 1));
+
+      if (error) {
+        console.warn('Error fetching from view_customer_monthly_item_sales:', error);
+        if (allData.length > 0) break;
+        return { rows: [], error: error.message };
+      }
+
+      if (!data || data.length === 0) {
+        hasMore = false;
+        break;
+      }
+
+      allData = allData.concat(data as AggregatedItemSaleRow[]);
+
+      if (data.length < pageSize || allData.length >= limit) {
+        hasMore = false;
+        break;
+      }
+      from += pageSize;
+    }
+
+    return { rows: allData };
+  } catch (err: any) {
+    return { rows: [], error: err?.message || 'فشل جلب المبيعات المجمعة من الـ view' };
+  }
+}
+
+/**
  * Export Customer Item Sales to Excel with Pivot & Breakdown Sheets
  */
 export function exportCustomerItemSalesToExcel(

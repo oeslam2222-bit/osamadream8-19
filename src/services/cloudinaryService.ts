@@ -300,17 +300,45 @@ export async function getCachedImagesStats(): Promise<{ count: number; estimated
 }
 
 /**
- * ترفع صورة إلى Cloudinary باستخدام الإعدادات الموجودة في النظام.
- * ترجع رابط الصورة المرفوع (secure_url) أو تُرمي خطأً إذا فشل الرفع.
- * تحتاج إلى أن يكون cloudinaryConfig مفعّلاً (cloudName و uploadPreset على الأقل).
+ * ترفع صورة إلى Cloudinary مع:
+ * - Validation (حجم، نوع ملف)
+ * - Retry تلقائي (3 محاولات مع exponential backoff)
+ * - Progress callback للشريط التحميل
+ * - تطبيع الإعدادات التلقائي
  */
+export interface UploadOptions {
+  config?: CloudinaryConfig;
+  folder?: string;
+  maxSizeMB?: number;           // الافتراضي 5 MB
+  allowedTypes?: string[];      // الافتراضي ['image/jpeg','image/png','image/webp']
+  maxRetries?: number;          // الافتراضي 3
+  onProgress?: (percent: number) => void;
+  onRetry?: (attempt: number, error: Error) => void;
+}
+
 export async function uploadImageToCloudinary(
   file: File,
-  config: CloudinaryConfig = DEFAULT_CLOUDINARY_CONFIG,
-  folder = 'tantawy_visits'
+  options: UploadOptions = {}
 ): Promise<{ url: string; publicId?: string }> {
-  // تطبيع الإعدادات: حتى لو المُتصل مرر كائن ناقص (مثل قيمة قديمة من localStorage)
-  // بنرجع للإعداد الافتراضي الصالح بدل ما نضرب خطأ "cloudName ناقص".
+  const {
+    config = DEFAULT_CLOUDINARY_CONFIG,
+    folder = 'tantawy_visits',
+    maxSizeMB = 5,
+    allowedTypes = ['image/jpeg', 'image/png', 'image/webp'],
+    maxRetries = 3,
+    onProgress,
+    onRetry,
+  } = options;
+
+  // ---------- Validation ----------
+  if (!allowedTypes.includes(file.type)) {
+    throw new Error(`نوع الملف غير مدعوم. المسموح: ${allowedTypes.join(', ')}`);
+  }
+  if (file.size > maxSizeMB * 1024 * 1024) {
+    throw new Error(`حجم الملف أكبر من ${maxSizeMB} MB. يرجى اختيار صورة أصغر.`);
+  }
+
+  // تطبيع الإعدادات
   const effectiveConfig = normalizeCloudinaryConfig(config);
   const uploadPreset = effectiveConfig.uploadPreset || 'unsigned_preset';
   const uploadUrl = `https://api.cloudinary.com/v1_1/${effectiveConfig.cloudName}/image/upload`;
@@ -319,35 +347,76 @@ export async function uploadImageToCloudinary(
   formData.append('file', file);
   formData.append('upload_preset', uploadPreset);
   formData.append('folder', folder);
-  // ممنوع إرسال transformation مع الرفع غير الموقّع (unsigned):
-  // Cloudinary بيرفضه بـ400 "Transformation parameter is not allowed when using unsigned upload".
-  // التحويل بيتم وقت العرض عبر optimizeCloudinaryUrl أو من إعدادات الـupload preset نفسه.
 
-  const res = await fetch(uploadUrl, {
-    method: 'POST',
-    body: formData,
-  });
+  // ---------- Retry loop مع Progress ----------
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      // XMLHttpRequest للـ progress (fetch ما يدعمش progress)
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', uploadUrl);
 
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`فشل رفع الصورة إلى Cloudinary: ${res.status} ${errText}`);
+        if (onProgress) {
+          xhr.upload.onprogress = (e) => {
+            if (e.lengthComputable) {
+              onProgress(Math.round((e.loaded / e.total) * 100));
+            }
+          };
+        }
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve();
+          } else {
+            reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('خطأ شبكة أثناء الرفع'));
+        xhr.ontimeout = () => reject(new Error('انتهت مهلة الرفع'));
+        xhr.timeout = 60_000; // 60 ثانية
+
+        xhr.send(formData);
+      });
+
+      // Parse response
+      const data = JSON.parse(
+        (await fetch(uploadUrl, { method: 'POST', body: formData })).text()
+      ) as {
+        secure_url?: string;
+        public_id?: string;
+        error?: { message?: string };
+      };
+
+      if (data.error) throw new Error(data.error.message || 'فشل رفع الصورة');
+      if (!data.secure_url) throw new Error('لم يتم إرجاع رابط الصورة');
+
+      return { url: data.secure_url, publicId: data.public_id };
+
+    } catch (err: any) {
+      lastError = err;
+      const isLastAttempt = attempt === maxRetries;
+
+      // Retryable errors فقط: network, timeout, 5xx
+      const retryable =
+        err.name === 'TypeError' || // network error
+        err.message.includes('خطأ شبكة') ||
+        err.message.includes('انتهت مهلة') ||
+        /HTTP 5\d\d/.test(err.message);
+
+      if (isLastAttempt || !retryable) {
+        throw new Error(`فشل رفع الصورة${attempt > 0 ? ` بعد ${attempt} محاولات` : ''}: ${err.message}`);
+      }
+
+      // إشعار إعادة المحاولة
+      if (onRetry) onRetry(attempt + 1, err);
+
+      // Exponential backoff: 500ms, 1000ms, 2000ms...
+      await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
+    }
   }
 
-  const data = (await res.json()) as {
-    secure_url?: string;
-    public_id?: string;
-    error?: { message?: string };
-  };
-
-  if (data.error) {
-    throw new Error(data.error.message || 'فشل رفع الصورة إلى Cloudinary.');
-  }
-
-  if (!data.secure_url) {
-    throw new Error('لم يتم إرجاع رابط الصورة من Cloudinary.');
-  }
-
-  return { url: data.secure_url, publicId: data.public_id };
+  throw lastError || new Error('فشل غير متوقع في رفع الصورة');
 }
 
 /**

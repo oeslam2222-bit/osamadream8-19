@@ -281,7 +281,7 @@ export const CustomerProfileDrawer: React.FC<CustomerProfileDrawerProps> = ({
         reason: 'توثيق واجهة المحل',
       });
       const cfg = normalizeCloudinaryConfig(cloudinaryConfig);
-      const uploaded = await uploadImageToCloudinary(stamped, cfg, 'tantawy_store_locations');
+      const uploaded = await uploadImageToCloudinary(stamped, { config: cfg, folder: 'tantawy_store_locations', maxSizeMB: 5 });
       setStoreFrontPhotoUrl(uploaded.url);
       if (customer.latitude && customer.longitude && (!isCustomerLocationLocked || canEditLocationLock)) {
         await updateCustomer({ ...customer, locationPhotoUrl: uploaded.url });

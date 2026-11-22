@@ -498,11 +498,11 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         distanceMeters: confirmGeoCheck?.distanceMeters,
         reason: 'إثبات تحصيل',
       });
-      const uploaded = await uploadImageToCloudinary(
-        stamped,
-        normalizeCloudinaryConfig(cloudinaryConfig),
-        'tantawy_collection_proofs'
-      );
+      const uploaded = await uploadImageToCloudinary(stamped, {
+        config: normalizeCloudinaryConfig(cloudinaryConfig),
+        folder: 'tantawy_collection_proofs',
+        maxSizeMB: 5,
+      });
       setConfirmProofPhoto(uploaded.url);
     } catch {
       setToast('تعذر رفع صورة الإثبات — تأكد من الاتصال بالإنترنت');
