@@ -1017,7 +1017,6 @@ export function sanitizeAndDeduplicateUsers(userList: User[]): UserDeduplication
         kept = {
           ...existing,
           ...u,
-          password: u.password || existing.password || '',
           supervisorId: u.supervisorId || existing.supervisorId,
           phone: u.phone || existing.phone,
           email: u.email || existing.email,
@@ -1029,7 +1028,6 @@ export function sanitizeAndDeduplicateUsers(userList: User[]): UserDeduplication
         kept = {
           ...u,
           ...existing,
-          password: existing.password || u.password || '',
           supervisorId: existing.supervisorId || u.supervisorId,
           phone: existing.phone || u.phone,
           email: existing.email || u.email,

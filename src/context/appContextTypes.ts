@@ -52,12 +52,12 @@ export interface AppContextType {
   flushPendingInvoices: () => Promise<{ success: boolean; syncedCount: number }>;
   selectedBranchFilter: string;
   setSelectedBranchFilter: (branch: string) => void;
-  activeSectorFilter: 'home' | 'electrical';
-  setActiveSectorFilter: (sector: 'home' | 'electrical') => void;
+  activeSectorFilter: 'home' | 'electrical' | 'all';
+  setActiveSectorFilter: (sector: 'home' | 'electrical' | 'all') => void;
   /** true بس للإدارة العليا (admin/developer) — للتحكم في واجهات تبديل القطاع. */
   canManageSectorGate: boolean;
   /** القطاع الفعلي بعد قواعد الأدوار — 'none' = محجوب عن القطاعين. */
-  effectiveSectorFilter: 'home' | 'electrical' | 'none';
+  effectiveSectorFilter: 'home' | 'electrical' | 'all' | 'none';
   refreshInvoicesNow: (force?: boolean) => Promise<{ success: boolean; count: number; message: string }>;
   
   // Supabase Sync
@@ -107,7 +107,6 @@ export interface AppContextType {
     name: string;
     username: string;
     email: string;
-    password?: string;
     phone: string;
     branchName: string;
     role: UserRole;

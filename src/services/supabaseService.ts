@@ -1,10 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { Branch, Customer, Invoice, Product, PromoAnnouncement, PromotionOffer, User, UserRole, CustomerVisit } from '../types';
-import { withHashedCredential } from './passwordService';
 import { pickUserColumns, sanitizeSupervisorId } from './userRowPayload';
 import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from './customerDues';
 import { normalizeArabicText } from './arabicMatchingService';
 import { classifyError, handleSupabaseError, withRetry, NetworkErrorType } from './networkErrorHandler';
+import { APP_VERSION, notifyOutdatedClient } from './clientVersion';
 import {
   encodeCustomerNotesWithGeo,
   extractCustomerGeoFromNotes,
@@ -53,6 +53,50 @@ export function clearSupabaseInFlightCache(): void {
   inFlightRequests.clear();
 }
 
+/**
+ * اعتراض مركزي لكل طلبات Supabase.
+ *
+ * ليه؟ بعد تفعيل RLS، النسخة القديمة (بدون جلسة) بتاخد 401/403 برسالة
+ * "permission denied for table" أو 42501. الكود القديم كان بيعتبر ده
+ * "مفيش بيانات" ويعرض شاشات فاضية — فشل صامت. هنا بنلتقط الحالة دي
+ * على مستوى الشبكة (قبل أي catch في المكونات) ونطلق حدث بوابة التحديث.
+ */
+const PERMISSION_HINT = /42501|permission denied|jwt expired|invalid jwt|no api key found/i;
+const AUTH_ENDPOINT = /\/auth\/v1\/(token|signup|recover|verify|otp)/i;
+
+const permissionGuardFetch: typeof fetch = async (input, init) => {
+  const response = await fetch(input, init);
+
+  if (response.status === 401 || response.status === 403 || response.status === 425) {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (!AUTH_ENDPOINT.test(url)) {
+      response
+        .clone()
+        .text()
+        .then(async (body) => {
+          if (!PERMISSION_HINT.test(body)) return;
+          // طلبات من غير جلسة (مثل شاشة الدخول): الرفض من anon متوقع بعد p0
+          // ومش معناه إن النسخة قديمة — منعرضش بوابة التحديث قبل الدخول أصلاً.
+          try {
+            const { data } = await supabase.auth.getSession();
+            if (!data?.session) return;
+          } catch {
+            return;
+          }
+          notifyOutdatedClient({
+            current: APP_VERSION,
+            required: '',
+            reason: 'permission',
+            message: body.slice(0, 200),
+          });
+        })
+        .catch(() => {});
+    }
+  }
+
+  return response;
+};
+
 const offlineSafeFetch: typeof fetch = async () =>
   new Response(
     JSON.stringify({ message: 'Supabase is not configured in this environment', code: 'OFFLINE_NO_CONFIG' }),
@@ -77,7 +121,7 @@ export const supabase = createClient(
   isSupabaseConfigured ? SUPABASE_URL : 'https://offline-local.supabase.co',
   isSupabaseConfigured ? SUPABASE_ANON_KEY : 'offline-local-anon-key',
   {
-    ...(isSupabaseConfigured ? {} : { global: { fetch: offlineSafeFetch } }),
+    global: { fetch: isSupabaseConfigured ? permissionGuardFetch : offlineSafeFetch },
     auth: {
       persistSession: isSupabaseConfigured,
       autoRefreshToken: isSupabaseConfigured,
@@ -353,6 +397,8 @@ export interface CustomerFetchScope {
   repNames?: string[];
   /** أكواد/معرّفات المندوبين في عمود rep_id. */
   repIds?: string[];
+  /** قطاع المستخدم (منزلي / كهربائي) — يُفلتر من السيرفر قبل التحميل لتقليل egress. */
+  sector?: 'home' | 'electrical' | 'both' | 'all';
   /** عملاء بدون فرع مسجّل — بيظهرون للمشرف/المدير بعد الاستنتاج من العنوان. */
   includeUnassignedBranch?: boolean;
   /** للمندوب: عدم السقوط لقراءة قاعدة الشركة كاملة إذا لم يطابق النطاق صفوفاً. */
@@ -369,6 +415,8 @@ export interface VisitFetchScope {
   branchNameContains?: string[];
   repNames?: string[];
   repIds?: string[];
+  /** قطاع المستخدم للفلترة من السيرفر قبل التحميل. */
+  sector?: 'home' | 'electrical' | 'both' | 'all';
   includeUnassignedBranch?: boolean;
   /** حد أدنى للتاريخ (YYYY-MM-DD): الزيارات الأقدم مش محمولة على الموبايل. */
   sinceDate?: string;
@@ -398,6 +446,7 @@ function buildScopeOrClauses(scope?: {
   branchNameContains?: string[];
   repNames?: string[];
   repIds?: string[];
+  sector?: 'home' | 'electrical' | 'both' | 'all';
   includeUnassignedBranch?: boolean;
 }): string[] {
   const clauses: string[] = [];
@@ -414,6 +463,12 @@ function buildScopeOrClauses(scope?: {
   (scope?.repNames || []).filter(Boolean).forEach((name) => {
     clauses.push(`rep_name.ilike.${quoteOrValue(`*${name}*`)}`);
   });
+  // فلترة القطاع من السيرفر — لا يُحمل عملاء قطاع آخر على الجهاز.
+  if (scope?.sector === 'home' || scope?.sector === 'electrical') {
+    clauses.push(`sector.in.(${scope.sector},both,all),sector.is.null`);
+  } else if (scope?.sector === 'both') {
+    clauses.push(`sector.in.(both,all),sector.is.null`);
+  }
   if (scope?.includeUnassignedBranch) clauses.push('branch_name.is.null');
   return clauses;
 }
@@ -431,6 +486,9 @@ function applyScopeToQuery(query: any, scope?: CustomerFetchScope | VisitFetchSc
 
 /** أربعين ألف صف: حدّ أمان ضد جدول مش متوقع، مش رقم تشغيل. */
 const MAX_VISIT_PAGES = 40;
+
+/** خمسين ألف عميل: حدّ أمان ضد استيراد عملاء ضخم يُبطئ تشغيل التطبيق. */
+const MAX_CUSTOMER_PAGES = 50;
 
 const isMissingColumnError = (err: any): boolean => {
   const code = String(err?.code || '');
@@ -554,7 +612,7 @@ async function fetchAllRows(
       : [];
   let selectCols = table === 'customers' ? buildSelectList('customers', columnList) : '*';
 
-  for (let from = 0; ; from += pageSize) {
+  for (let from = 0; from < MAX_CUSTOMER_PAGES * pageSize; from += pageSize) {
     let attempts = 0;
     let data: any[] | null = null;
     let error: any = null;
@@ -856,6 +914,8 @@ export interface VisitContentStamp {
 export interface TargetFetchScope {
   branchNames?: string[];
   repNames?: string[];
+  /** قطاع المستخدم للفلترة من السيرفر قبل التحميل. */
+  sector?: 'home' | 'electrical' | 'both' | 'all';
 }
 
 function applyTargetScope(query: any, scope?: TargetFetchScope): any {
@@ -874,6 +934,12 @@ function applyTargetScope(query: any, scope?: TargetFetchScope): any {
   (scope.repNames || []).map((n) => String(n).trim()).filter(Boolean).forEach((name) => {
     clauses.push(`rep_name.ilike.${quoteOrValue(`*${name}*`)}`);
   });
+  // فلترة القطاع من السيرفر قبل التحميل.
+  if (scope.sector === 'home' || scope.sector === 'electrical') {
+    clauses.push(`sector.in.(${scope.sector},both,all),sector.is.null`);
+  } else if (scope.sector === 'both') {
+    clauses.push(`sector.in.(both,all),sector.is.null`);
+  }
   return clauses.length > 0 ? query.or(clauses.join(',')) : query;
 }
 
@@ -1599,9 +1665,10 @@ let activeUsersFetchPromise: Promise<{ success: boolean; users?: User[]; error?:
 const USER_PAGE_SIZE = 1000;
 const MAX_USER_PAGES = 5;
 
+// لا يوجد عمود password في أي استعلام — بيانات الاعتماد في Supabase Auth فقط.
 const USER_SELECT_BY_TABLE: Record<'users' | 'app_users' | 'profiles', string> = {
-  users: 'id,name,username,email,password,role,branch_name,sector,supervisor_id,phone,commission_rate,is_active,approval_status',
-  app_users: 'id,name,username,email,password,role,branch_name,phone,is_active,approval_status',
+  users: 'id,name,username,email,role,branch_name,sector,supervisor_id,phone,commission_rate,is_active,approval_status',
+  app_users: 'id,name,username,email,role,branch_name,phone,is_active,approval_status',
   profiles: 'id,full_name,username,email,role,branch_name,phone,is_active,approval_status',
 };
 
@@ -1645,7 +1712,6 @@ export async function fetchUsersFromSupabase(
           name: u.name || u.full_name || u.display_name || emailPrefix || 'مستخدم',
           username: String(u.username || u.user_name || emailPrefix || `user_${idx + 1}`).trim().toLowerCase(),
           email: rawEmail,
-          password: String(u.password || u.pass || '').trim(),
           role: normalizeUserRole(u.role, u.is_admin),
           branchName: u.branch_name || u.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
           sector: ['home', 'electrical', 'both', 'all'].includes(u.sector) ? u.sector : undefined,
@@ -1720,16 +1786,12 @@ export async function fetchUsersFromSupabase(
             data.forEach((row: any, idx: number) => {
               const user = mapUser(row, tbl, idx);
               const existing = byId.get(user.id) || (user.email && byEmail.get(user.email.toLowerCase()));
-              const mergedPassword = (user.password && user.password.trim().length > 0)
-                ? user.password.trim()
-                : (existing?.password || '');
               const mergedPhone = (user.phone && user.phone.trim().length > 0)
                 ? user.phone.trim()
                 : (existing?.phone || '');
               const mergedUser: User = {
                 ...existing,
                 ...user,
-                password: mergedPassword,
                 phone: mergedPhone,
                 branchName: (user.branchName && user.branchName.trim().length > 0)
                   ? user.branchName
@@ -1867,7 +1929,8 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
 
     for (const tbl of targetTables) {
       try {
-        let selectCols = USER_SELECT_BY_TABLE[tbl] || '*';
+        // findUserInSupabase بس بيتحقق وجود المستخدم — مش محتاج عمود password (كلمة السر في Supabase Auth مو في الجدول)
+        let selectCols = USER_PUBLIC_SELECT_BY_TABLE[tbl] || '*';
         const orClauses = buildOrClauses(tbl === 'profiles');
         if (orClauses.length === 0) continue;
 
@@ -1906,21 +1969,12 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
           const rawRow = matchedRow as any;
           const rawEmail = String(rawRow.email || '').trim();
           const emailPrefix = rawEmail ? rawEmail.split('@')[0] : '';
-          let password = String(rawRow.password || rawRow.pass || '').trim();
-
-          if (!password && tbl === 'profiles' && rawRow.id) {
-            try {
-              const { data: uRows } = await supabase.from('users').select('password').eq('id', rawRow.id).limit(1);
-              if (uRows?.[0]?.password) password = String(uRows[0].password).trim();
-            } catch {}
-          }
 
           const user: User = {
             id: String(rawRow.id || `sup-${tbl}-1`),
             name: rawRow.name || rawRow.full_name || rawRow.display_name || emailPrefix || 'مستخدم',
             username: String(rawRow.username || rawRow.user_name || emailPrefix || 'user').trim().toLowerCase(),
             email: rawEmail,
-            password,
             role: normalizeUserRole(rawRow.role, rawRow.is_admin),
             branchName: rawRow.branch_name || rawRow.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
             supervisorId: rawRow.supervisor_id || rawRow.supervisorId,
@@ -1937,10 +1991,7 @@ export async function findUserInSupabase(identifier: string): Promise<{ success:
     }
 
     // 2. Fallback to cached/directory match ONLY if targeted lookup missed
-    let remoteRes = await fetchUsersFromSupabase(false, { includeCredentials: true });
-    if (!remoteRes.success) {
-      remoteRes = await fetchUsersFromSupabase(false, { includeCredentials: false });
-    }
+    const remoteRes = await fetchUsersFromSupabase(false);
     if (remoteRes.success && remoteRes.users && remoteRes.users.length > 0) {
       const found = remoteRes.users.find((u) => {
         const uEmail = sanitizeEmail(u.email || '');
@@ -1982,7 +2033,7 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
     if (users.length === 0) return { success: true };
 
     let firstError = '';
-    const securedUsers = await Promise.all(users.map((u) => withHashedCredential(u)));
+    const securedUsers = users;
     const knownIds = new Set(securedUsers.map((u) => u.id));
 
     const usersPayload = securedUsers.map((u) =>
@@ -1992,7 +2043,6 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
           name: u.name,
           username: u.username,
           email: u.email,
-          password: u.password || '',
           role: u.role,
           branch_name: u.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
           supervisor_id: u.supervisorId || null,
@@ -2076,12 +2126,6 @@ export async function saveUsersToSupabase(users: User[]): Promise<{ success: boo
       const results = await Promise.allSettled(
         batch.map(async ({ targetId, payload }) => {
           const { id: _ignoredId, ...changes } = pickUserColumns('users', payload);
-          // لا نكتب باسورد فاضي فوق باسورد موجود على السيرفر: أي مزامنة من
-          // جلسة/جهاز من غير صلاحية قراءة الباسورد كانت بتمسح كلمة سر الحساب
-          // نهائيًا، وبعدها الرسالة تصبح "لا توجد كلمة مرور معينة له".
-          if (!String((changes as any).password || '').trim()) {
-            delete (changes as any).password;
-          }
           if (!targetId || Object.keys(changes).length === 0) return null;
           // .select('id') مقصود: تحديث مقفول بسياسة RLS بيرجع 204 من غير أي error،
           // فبنشوف الصفوف الراجعة عشان نعرف إن الكتابة عدّت فعلاً.
@@ -2408,14 +2452,13 @@ export async function saveUserAvatarToSupabase(userId: string, avatarUrl: string
 export async function saveUserToSupabase(user: User, currentUsersList?: User[]): Promise<{ success: boolean; error?: string }> {
   try {
     invalidateUsersCache();
-    const securedUser = await withHashedCredential(user);
+    const securedUser = user;
     const knownIds = collectKnownUserIds(currentUsersList);
     const basePayload = {
       id: securedUser.id,
       name: securedUser.name,
       username: securedUser.username,
       email: securedUser.email,
-      password: securedUser.password || '',
       role: securedUser.role,
       branch_name: securedUser.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
       phone: user.phone || '',

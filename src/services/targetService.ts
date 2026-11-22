@@ -703,146 +703,15 @@ export function generateSampleTargets(): TargetRecord[] {
 }
 
 /**
- * Export targets to Excel with Tantawy Group branding & professional styling
+ * Export targets to Excel — معطل (متاح للفواتير فقط)
  */
 export async function exportTargetsToExcel(records: TargetRecord[], filename = 'تارجت_المبيعات_والتحصيل_الطنطاوي.xlsx') {
-  const XLSX = await import('xlsx-js-style');
-  const wb = XLSX.utils.book_new();
-
-  const headers = [
-    'الفرع',
-    'المندوب',
-    'هدف البيع (ج.م)',
-    'المحقق بيع (ج.م)',
-    'نسبة البيع (%)',
-    'المتبقي بيع (ج.م)',
-    'هدف التحصيل (ج.م)',
-    'المحقق تحصيل (ج.م)',
-    'نسبة التحصيل (%)',
-    'المتبقي تحصيل (ج.م)',
-    'الكوارتر',
-    'الشهر',
-    'السنة',
-    'التاريخ',
-  ];
-
-  const rows = records.map((r) => [
-    r.branch,
-    r.repName,
-    r.salesTarget,
-    r.salesAchieved,
-    `${r.salesPercentage}%`,
-    r.remainingSales,
-    r.collectionTarget,
-    r.collectionAchieved,
-    `${r.collectionPercentage}%`,
-    r.remainingCollection,
-    r.quarter,
-    ARABIC_MONTHS[r.month - 1] || r.month,
-    r.year,
-    r.date,
-  ]);
-
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-
-  // Set RTL direction
-  ws['!views'] = [{ rightToLeft: true }];
-
-  // Column widths
-  ws['!cols'] = [
-    { wch: 22 }, // الفرع
-    { wch: 24 }, // المندوب
-    { wch: 16 }, // هدف البيع
-    { wch: 16 }, // المحقق بيع
-    { wch: 14 }, // نسبة البيع
-    { wch: 16 }, // المتبقي بيع
-    { wch: 16 }, // هدف التحصيل
-    { wch: 16 }, // المحقق تحصيل
-    { wch: 14 }, // نسبة التحصيل
-    { wch: 16 }, // المتبقي تحصيل
-    { wch: 12 }, // الكوارتر
-    { wch: 14 }, // الشهر
-    { wch: 10 }, // السنة
-    { wch: 14 }, // التاريخ
-  ];
-
-  // Header styling
-  const headerStyle = {
-    font: { name: 'Cairo', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
-    fill: { fgColor: { rgb: '0F172A' } }, // Dark Slate/Navy
-    alignment: { horizontal: 'center', vertical: 'center' },
-    border: {
-      top: { style: 'thin', color: { rgb: '334155' } },
-      bottom: { style: 'medium', color: { rgb: 'F59E0B' } },
-    },
-  };
-
-  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:N1');
-  for (let c = range.s.c; c <= range.e.c; c++) {
-    const cellAddr = XLSX.utils.encode_cell({ r: 0, c });
-    if (ws[cellAddr]) ws[cellAddr].s = headerStyle;
-  }
-
-  XLSX.utils.book_append_sheet(wb, ws, 'أهداف المبيعات والتحصيل');
-  XLSX.writeFile(wb, filename);
+  alert('تصدير Excel معطل — متاح للفواتير فقط');
 }
 
 /**
- * Download standard empty / sample Excel template for upload
+ * Download standard empty / sample Excel template for upload — معطل (متاح للفواتير فقط)
  */
 export async function downloadTargetTemplateExcel() {
-  const XLSX = await import('xlsx-js-style');
-  const wb = XLSX.utils.book_new();
-
-  const headers = [
-    'الفرع',
-    'المندوب',
-    'هدف البيع',
-    'المحقق بيع',
-    'نسبه البيع',
-    'هدف التحصيل',
-    'المحقق تحصيل',
-    'نسبه تحصيل',
-    'تاريخ',
-  ];
-
-  const sampleRows = [
-    ['فرع منوف', 'أحمد السيد بدير', 250000, 220000, '88.0%', 200000, 185000, '92.5%', '2026-09-01'],
-    ['فرع منوف', 'محمود علي عبد العزيز', 200000, 210000, '105.0%', 170000, 175000, '102.9%', '2026-09-01'],
-    ['فرع البحيرة', 'محمد فوزي النجار', 280000, 255000, '91.1%', 240000, 210000, '87.5%', '2026-09-01'],
-    ['فرع الفيوم', 'ياسر عبد الرحمن عمر', 220000, 190000, '86.4%', 190000, 160000, '84.2%', '2026-09-01'],
-    ['فرع القاهرة', 'كريم عادل الشافعي', 300000, 315000, '105.0%', 260000, 250000, '96.2%', '2026-09-01'],
-    ['فرع المنيا', 'مينا رفعت توفيق', 210000, 175000, '83.3%', 180000, 155000, '86.1%', '2026-09-01'],
-    ['فرع ديمشلت', 'وليد سامي المغازي', 240000, 230000, '95.8%', 210000, 195000, '92.9%', '2026-09-01'],
-    ['فرع منيا القمح', 'إسلام ربيع الفقي', 260000, 240000, '92.3%', 220000, 205000, '93.2%', '2026-09-01'],
-  ];
-
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
-  ws['!views'] = [{ rightToLeft: true }];
-  ws['!cols'] = [
-    { wch: 18 },
-    { wch: 22 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 14 },
-    { wch: 16 },
-    { wch: 16 },
-    { wch: 14 },
-    { wch: 14 },
-  ];
-
-  const headerStyle = {
-    font: { name: 'Cairo', sz: 11, bold: true, color: { rgb: 'FFFFFF' } },
-    fill: { fgColor: { rgb: '0F172A' } },
-    alignment: { horizontal: 'center', vertical: 'center' },
-  };
-
-  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:I1');
-  for (let c = range.s.c; c <= range.e.c; c++) {
-    const cellAddr = XLSX.utils.encode_cell({ r: 0, c });
-    if (ws[cellAddr]) ws[cellAddr].s = headerStyle;
-  }
-
-  XLSX.utils.book_append_sheet(wb, ws, 'قالب أهداف المبيعات');
-  XLSX.writeFile(wb, 'قالب_شيت_تارجت_المبيعات_والتحصيل.xlsx');
+  alert('تحميل قالب Excel معطل — متاح للفواتير فقط');
 }

@@ -1,0 +1,412 @@
+/* ==========================================================================
+   نظام الكروت الدلالي — كارت العميل / المندوب / الزيارة / الفاتورة / المرتجع
+   الفكرة: اللون يوصّل الحالة بسرعة من غير ما يزعج القراءة —
+   - غسيل خفيف أعلى الكارت + شريط رفيع بلون الحالة (متعثر/متأخر/منتظم)
+   - كل بند جوّه الكارت بلون دلالي هادئ (أحمر مديونية، أخضر تحصيل، عنبري مرتجعات، أزرق مبيعات)
+   - البند اللي قيمته صفر بيرجع لحياد (رمادي) بدل ما ياخد لون إنذار مش حقيقي
+   - ثلاث درجات أزرار واضحة: أساسي كحلي، عنبري (إجراء ثانوي/مراجعة)، محايد
+   أسماء الكلاسات: .sc-* هي النظام العام، و.cust-*/.rep-* أسماء قديمة بتشتغل بنفس القواعد.
+   ========================================================================== */
+
+:is(.cust-card, .rep-card, .sc-card[data-tone]) {
+  --cust-accent: #0f2b38;
+  --cust-wash: rgba(15, 43, 56, 0.07);
+  position: relative;
+  background-color: var(--app-card);
+  background-image: linear-gradient(180deg, var(--cust-wash), transparent 46%);
+  border-color: var(--app-border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 10px 22px -14px rgba(15, 23, 42, 0.28);
+}
+
+/* نصف قطر وإطار افتراضي لباقي الشاشات — :where عشان أي كلاس radius صريح (زي rounded-2xl
+   أو tg-card أو rounded-[22px]) يفضل هو اللي يكسب، وكمان كروت شاشة الإعدادات
+   اللي بتستخدم اسم .sc-card مشترك مابتتأثرش. */
+:where(.sc-card) {
+  border-radius: 16px;
+  border: 1px solid var(--app-border);
+}
+
+/* شريط الحالة الرفيع أعلى الكارت */
+:is(.cust-card, .rep-card, .sc-card[data-tone])::after {
+  content: '';
+  position: absolute;
+  inset-inline: 14%;
+  top: 0;
+  height: 3px;
+  border-radius: 0 0 999px 999px;
+  background-color: var(--cust-accent);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+:is(.cust-card, .rep-card, .sc-card[data-tone]):hover {
+  border-color: var(--cust-accent);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06), 0 18px 34px -18px rgba(15, 23, 42, 0.34);
+}
+
+/* --- حالات الكارت: متعثر / متأخر / منتظم --- */
+:is(.cust-card, .rep-card, .sc-card)[data-tone='risk'] {
+  --cust-accent: #e11d48;
+  --cust-wash: rgba(225, 29, 72, 0.11);
+}
+:is(.cust-card, .rep-card, .sc-card)[data-tone='warn'] {
+  --cust-accent: #d97706;
+  --cust-wash: rgba(217, 119, 6, 0.1);
+}
+:is(.cust-card, .rep-card, .sc-card)[data-tone='ok'] {
+  --cust-accent: #059669;
+  --cust-wash: rgba(5, 150, 105, 0.09);
+}
+
+html.dark :is(.cust-card, .rep-card, .sc-card[data-tone]) {
+  --cust-wash: rgba(255, 255, 255, 0.05);
+  border-color: var(--app-border);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 26px -16px rgba(0, 0, 0, 0.55);
+}
+html.dark :is(.cust-card, .rep-card, .sc-card)[data-tone='risk'] {
+  --cust-accent: #fb7185;
+  --cust-wash: rgba(244, 63, 94, 0.16);
+}
+html.dark :is(.cust-card, .rep-card, .sc-card)[data-tone='warn'] {
+  --cust-accent: #fbbf24;
+  --cust-wash: rgba(251, 191, 36, 0.13);
+}
+html.dark :is(.cust-card, .rep-card, .sc-card)[data-tone='ok'] {
+  --cust-accent: #34d399;
+  --cust-wash: rgba(16, 185, 129, 0.13);
+}
+
+/* --- صفوف البيانات (جدول بنود صغير داخل الكارت) --- */
+.cust-rows,
+.sc-rows {
+  border: 1px solid var(--app-border);
+  background-color: var(--app-card-secondary);
+  overflow: hidden;
+}
+.sc-rows {
+  display: grid;
+  border-radius: 12px;
+}
+.sc-rows--2 {
+  grid-template-columns: 1fr 1fr;
+}
+.cust-row + .cust-row {
+  border-top: 1px solid var(--app-border);
+}
+.sc-cell {
+  min-width: 0;
+  padding: 9px 12px;
+}
+.sc-cell:nth-child(2) {
+  border-inline-start: 1px solid var(--app-border);
+}
+.sc-cell:nth-child(n + 3) {
+  border-top: 1px solid var(--app-border);
+}
+.sc-cell__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #334155;
+}
+html.dark .sc-cell__label {
+  color: #cbd5e1;
+}
+.sc-cell__value {
+  font-size: 14.5px;
+  font-weight: 900;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+  color: var(--app-text);
+}
+.sc-cell__value--money {
+  color: #047857;
+  white-space: nowrap;
+}
+.sc-cell__value--sales {
+  color: #1d4ed8;
+  white-space: nowrap;
+}
+.sc-cell__value--muted {
+  color: var(--app-text-muted);
+  font-weight: 800;
+}
+html.dark .sc-cell__value--sales {
+  color: #bfdbfe;
+}
+html.dark .sc-cell__value--money {
+  color: #a7f3d0;
+}
+
+.cust-row--debt,
+.sc-row--debt {
+  background-color: rgba(225, 29, 72, 0.045);
+}
+.cust-row--collect,
+.sc-row--collect {
+  background-color: rgba(5, 150, 105, 0.05);
+}
+.cust-row--returns,
+.sc-row--returns {
+  background-color: rgba(217, 119, 6, 0.05);
+}
+.cust-row--sales,
+.sc-row--sales {
+  background-color: rgba(37, 99, 235, 0.045);
+}
+/* بند قيمته صفر: حياد بدل لون إنذار وهمي */
+.cust-row--clear,
+.sc-row--clear {
+  background-color: transparent;
+}
+html.dark .cust-row--debt,
+html.dark .sc-row--debt {
+  background-color: rgba(244, 63, 94, 0.1);
+}
+html.dark .cust-row--collect,
+html.dark .sc-row--collect {
+  background-color: rgba(16, 185, 129, 0.1);
+}
+html.dark .cust-row--returns,
+html.dark .sc-row--returns {
+  background-color: rgba(251, 191, 36, 0.09);
+}
+html.dark .cust-row--sales,
+html.dark .sc-row--sales {
+  background-color: rgba(59, 130, 246, 0.09);
+}
+
+/* أيقونة البند داخل مربّع ملوّن صغير */
+.cust-row__icon,
+.sc-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+.cust-row__icon--debt,
+.sc-icon--debt {
+  color: #be123c;
+  background-color: rgba(225, 29, 72, 0.12);
+  border-color: rgba(225, 29, 72, 0.22);
+}
+.cust-row__icon--collect,
+.sc-icon--collect {
+  color: #047857;
+  background-color: rgba(5, 150, 105, 0.12);
+  border-color: rgba(5, 150, 105, 0.22);
+}
+.cust-row__icon--returns,
+.sc-icon--returns {
+  color: #b45309;
+  background-color: rgba(217, 119, 6, 0.13);
+  border-color: rgba(217, 119, 6, 0.24);
+}
+.cust-row__icon--sales,
+.sc-icon--sales {
+  color: #1d4ed8;
+  background-color: rgba(37, 99, 235, 0.12);
+  border-color: rgba(37, 99, 235, 0.22);
+}
+.cust-row__icon--clear,
+.sc-icon--clear {
+  color: #64748b;
+  background-color: rgba(100, 116, 139, 0.1);
+  border-color: rgba(100, 116, 139, 0.2);
+}
+html.dark .cust-row__icon--debt,
+html.dark .sc-icon--debt {
+  color: #fda4af;
+  background-color: rgba(244, 63, 94, 0.2);
+  border-color: rgba(248, 113, 113, 0.34);
+}
+html.dark .cust-row__icon--collect,
+html.dark .sc-icon--collect {
+  color: #6ee7b7;
+  background-color: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.34);
+}
+html.dark .cust-row__icon--returns,
+html.dark .sc-icon--returns {
+  color: #fcd34d;
+  background-color: rgba(251, 191, 36, 0.2);
+  border-color: rgba(251, 191, 36, 0.32);
+}
+html.dark .cust-row__icon--sales,
+html.dark .sc-icon--sales {
+  color: #bfdbfe;
+  background-color: rgba(59, 130, 246, 0.2);
+  border-color: rgba(96, 165, 250, 0.34);
+}
+html.dark .cust-row__icon--clear,
+html.dark .sc-icon--clear {
+  color: #cbd5e1;
+  background-color: rgba(148, 163, 184, 0.16);
+  border-color: rgba(148, 163, 184, 0.26);
+}
+
+/* --- أزرار الكارت --- */
+.cust-btn,
+.sc-btn {
+  border: 1px solid transparent;
+  transition: background-color 0.16s ease, background-image 0.16s ease, border-color 0.16s ease,
+    box-shadow 0.16s ease, color 0.16s ease;
+}
+.cust-btn--primary,
+.sc-btn--primary {
+  background-image: linear-gradient(180deg, #17475d, #0f2b38);
+  border-color: #0b2337;
+  color: #ffffff;
+  box-shadow: 0 6px 14px -9px rgba(15, 43, 56, 0.9);
+}
+:is(.cust-card, .rep-card, .sc-card[data-tone]):hover :is(.cust-btn--primary, .sc-btn--primary) {
+  background-image: linear-gradient(180deg, #1b5670, #123c4f);
+}
+.cust-btn--legal,
+.sc-btn--legal {
+  background-color: var(--app-warning-tint);
+  border-color: var(--app-warning-border);
+  color: var(--app-warning-text);
+}
+.cust-btn--legal:hover,
+.sc-btn--legal:hover {
+  background-color: var(--app-warning-border);
+}
+.cust-btn--ghost,
+.sc-btn--ghost {
+  background-color: var(--app-card);
+  border-color: var(--app-border);
+  color: var(--app-text);
+}
+.cust-btn--ghost:hover,
+.sc-btn--ghost:hover {
+  background-color: var(--app-card-hover);
+}
+html.dark .cust-btn--ghost,
+html.dark .sc-btn--ghost {
+  background-color: var(--app-card-secondary);
+}
+html.dark .cust-btn--ghost:hover,
+html.dark .sc-btn--ghost:hover {
+  background-color: var(--app-card-hover);
+  color: var(--app-text);
+}
+/* اعتماد/إتمام — أخضر دلالي فوق نفس درجات الأزرار */
+.sc-btn--success {
+  background-color: #047857;
+  border-color: #065f46;
+  color: #ffffff;
+  box-shadow: 0 6px 14px -9px rgba(4, 120, 87, 0.9);
+}
+.sc-btn--success:hover {
+  background-color: #065f46;
+}
+
+/* ==========================================================================
+   كارت المندوب: نفس البنود الأربعة (مديونية/متأخرات/مبيعات/تحصيل) في شبكة واحدة
+   ========================================================================== */
+.rep-card .rep-rows {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin: 0 0 10px;
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  background-color: var(--app-card-secondary);
+  overflow: hidden;
+}
+.rep-cell {
+  min-width: 0;
+  padding: 9px 12px;
+}
+.rep-cell:nth-child(2) {
+  border-inline-start: 1px solid var(--app-border);
+}
+.rep-cell:nth-child(n + 3) {
+  border-top: 1px solid var(--app-border);
+}
+.rep-cell__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #334155;
+}
+html.dark .rep-cell__label {
+  color: #cbd5e1;
+}
+.rep-cell__value {
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--app-text);
+}
+.rep-cell__value--debt {
+  color: #be123c;
+}
+.rep-cell__value--overdue {
+  color: #be123c;
+}
+.rep-cell__value--overdue-zero {
+  color: #047857;
+}
+.rep-cell__value--sales {
+  color: #1d4ed8;
+}
+.rep-cell__value--collect {
+  color: #047857;
+}
+html.dark .rep-cell__value--debt,
+html.dark .rep-cell__value--overdue {
+  color: #fecdd3;
+}
+html.dark .rep-cell__value--overdue-zero {
+  color: #a7f3d0;
+}
+html.dark .rep-cell__value--sales {
+  color: #bfdbfe;
+}
+html.dark .rep-cell__value--collect {
+  color: #a7f3d0;
+}
+
+/* فوتر الكارت: العدد + زر رئيسي بنفس درجة أزرار العميل */
+.rep-card .rep-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--app-border);
+}
+
+/* ==========================================================================
+   موبايل: نفس تكثيف كروت العميل/المندوب على باقي الشاشات
+   ========================================================================== */
+@media (max-width: 767px) {
+  .sc-card {
+    padding: 12px 14px 11px !important;
+    border-radius: 16px !important;
+  }
+  .sc-cell {
+    padding: 8px 10px !important;
+  }
+  .sc-cell__label {
+    font-size: 10.5px !important;
+  }
+  .sc-cell__value {
+    font-size: 13.5px !important;
+  }
+}

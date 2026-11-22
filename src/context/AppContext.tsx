@@ -174,8 +174,8 @@ import {
 } from './appContextHelpers';
 import { useUiPreferences } from './useUiPreferences';
 import { resolveCustomerDuesValue } from '../services/customerDues';
-import { hashPassword, verifyPassword, withHashedCredential } from '../services/passwordService';
 import {
+  fetchMyProfile,
   getAuthMode,
   getServerSessionAsync,
   isServerAuthEnabled,
@@ -578,7 +578,7 @@ const EXECUTED_INVOICE_STATUSES: OrderStatus[] = [
   'إغلاق الطلبية',
 ];
 
-const AppContext = createContext<AppContextType | undefined>(undefined);
+export const AppContext = createContext<AppContextType | undefined>(undefined);
 
 /**
  * نطاق جلب الفواتير حسب الدور. كل جهاز بيحمل
@@ -735,11 +735,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
-  // NOTE (server-auth migration): currentUser is no longer restored from a full
-  // localStorage user object (which previously included the password hash).
-  // Session restoration is now handled by Supabase Auth via the dedicated
-  // AuthProvider (authContext.tsx). This keeps the initial state empty until
-  // a server-verified session is established.
+  // NOTE (server-auth migration): currentUser is never restored from
+  // localStorage (which previously included the password hash). The session is
+  // restored below from a real Supabase Auth session + get_my_profile() RPC.
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   const currentUserRef = useRef<User | null>(currentUser);
@@ -980,6 +978,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         ...(repNames.length === 0 ? { branchNames } : {}),
         repNames,
+        sector: currentUser?.sector,
       };
     }
     if (role === 'supervisor') {
@@ -993,14 +992,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         branchNames,
         repNames: expandRepNameVariants(repNames),
+        sector: currentUser?.sector,
       };
     }
-    return branchNames.length > 0 ? { branchNames } : undefined;
-  }, [currentUser?.id, currentUser?.name, currentUser?.branchName, currentUser?.role, users]);
+    return branchNames.length > 0 ? { branchNames, sector: currentUser?.sector } : undefined;
+  }, [currentUser?.id, currentUser?.name, currentUser?.branchName, currentUser?.role, currentUser?.sector, users]);
 
   // Load the shared copy so every device and every role sees the same numbers.
   // التوقعات: الشهر الحالي بس من السيرفر مع بصمة محتوى من صف واحد لتفادي إعادة التنزيل عند عدم التغيير.
   useEffect(() => {
+    // بعد p0: جداول التوقعات مسحوبة من anon — أي طلب قبل تسجيل الدخول
+    // بيرجع 401 "permission denied" (وكان ممكن يفعّل بوابة التحديث بالغلط).
+    // نشغّل الفحص فقط بعد اكتمال جلسة المستخدم؛ والتأثير بيعيد التشغيل
+    // تلقائياً بعد الدخول لأن currentUser?.id جزء من الاعتماديات.
+    if (!currentUser?.id) return;
     let cancelled = false;
     const bootMonth = currentMonthKey();
     loadedForecastMonthsRef.current?.add(bootMonth);
@@ -1058,7 +1063,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       cancelled = true;
     };
-  }, [forecastFetchScope]);
+  }, [forecastFetchScope, currentUser?.id]);
 
   /**
    * تحميل توقعات شهر من السيرفر ودمجها في الحالة.
@@ -1474,6 +1479,47 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.history.replaceState({}, document.title, window.location.pathname);
     }
     supabase.auth.getSession().catch(() => null);
+  }, []);
+
+  // استعادة الجلسة بعد إعادة التحميل: قبل كده المستخدم كان لازم يسجّل دخول
+  // كل مرة يفتح التطبيق، لأن currentUser كان بيبدأ null والـisAuthenticated
+  // كانت جاية من localStorage بس. هنا بنتحقق من جلسة Supabase Auth الحقيقية
+  // وبنقرأ الملف عبر RPC آمن — وإلا بنصفّر الحالة بدل جلسة وهمية.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const session = await getServerSessionAsync();
+        if (!session?.user) {
+          if (!cancelled) setIsAuthenticated(false);
+          return;
+        }
+        const profile = await fetchMyProfile();
+        if (cancelled) return;
+        if (!profile) {
+          await signOutServer().catch(() => {});
+          setIsAuthenticated(false);
+          return;
+        }
+        if (
+          !profile.isActive ||
+          profile.approvalStatus === 'pending_approval' ||
+          profile.approvalStatus === 'rejected'
+        ) {
+          await signOutServer().catch(() => {});
+          setIsAuthenticated(false);
+          return;
+        }
+        currentUserRef.current = profile;
+        setCurrentUser(profile);
+        setIsAuthenticated(true);
+      } catch {
+        if (!cancelled) setIsAuthenticated(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
 
@@ -2443,8 +2489,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const customerFetchScope = useMemo<CustomerFetchScope | undefined>(() => {
     if (!currentUser) return undefined;
     const role = currentUser.role;
-    if (role === 'admin' || role === 'developer' || role === 'technical_support' || role === 'legal_advisor' || role === 'warehouse_keeper') {
+    const selectedSector = activeSectorFilter === 'home' || activeSectorFilter === 'electrical' ? activeSectorFilter : undefined;
+    if (role === 'admin' || role === 'developer') {
+      // الإدارة العليا لازم تحمّل القطاعين مع بعض — الداشبورد بيعرض كرتين
+      // (منزلي/كهرباء) جنب بعض، ولو حمّلنا قطاع واحد بس الكرت التاني يطلع 0.
+      // الفلترة النهائية بتحصل في الواجهة عبر activeSectorFilter.
       return undefined;
+    }
+    if (role === 'technical_support' || role === 'legal_advisor' || role === 'warehouse_keeper') {
+      return selectedSector ? { sector: selectedSector } : undefined;
     }
 
     const cleanName = (value?: string) =>
@@ -2466,6 +2519,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         branchNameContains,
         repNames: expandRepNameVariants([fullName, shortName]),
         repIds: Array.from(new Set([currentUser.id, currentUser.username].filter(Boolean) as string[])),
+        sector: currentUser?.sector,
         includeUnassignedBranch: false,
         strictNoFullFallback: true,
         slimFieldColumns: true,
@@ -2477,6 +2531,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     return {
       branchNames,
       branchNameContains,
+      sector: currentUser?.sector,
       includeUnassignedBranch: true,
       slimFieldColumns: true,
     };
@@ -2486,6 +2541,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     currentUser?.username,
     currentUser?.branchName,
     currentUser?.role,
+    currentUser?.sector,
+    activeSectorFilter,
   ]);
 
   /**
@@ -2524,6 +2581,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         branchNameContains: customerFetchScope.branchNameContains,
         repNames: customerFetchScope.repNames,
         repIds: customerFetchScope.repIds,
+        sector: customerFetchScope.sector,
         includeUnassignedBranch: false,
         strictNoFullFallback: true,
         sinceDate: since.toISOString().slice(0, 10),
@@ -2556,6 +2614,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         branchNames,
         repNames: Array.from(new Set(repNames)),
         repIds: Array.from(new Set(repIds)),
+        sector: currentUser?.sector,
         includeUnassignedBranch: false,
         sinceDate: since.toISOString().slice(0, 10),
       };
@@ -2568,10 +2627,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       branchNames: scope.branchNames,
       repNames: scope.repNames,
       repIds: scope.repIds,
+      sector: scope.sector,
       includeUnassignedBranch: scope.includeUnassignedBranch,
       sinceDate: since.toISOString().slice(0, 10),
     };
-  }, [currentUser?.id, currentUser?.name, currentUser?.username, currentUser?.branchName, currentUser?.role, customerFetchScope, users]);
+  }, [currentUser?.id, currentUser?.name, currentUser?.username, currentUser?.branchName, currentUser?.role, currentUser?.sector, customerFetchScope, users]);
 
   const checkDatabaseConnection = useCallback(async (): Promise<SupabaseSyncStatus> => {
     const conn = await testSupabaseConnection();
@@ -3544,15 +3604,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           }
           if (res.success && res.users && res.users.length > 0) {
             setUsers((prev) => {
-              const cachedHashes = new Map<string, string>();
-              prev.forEach((u) => {
-                if (u.id && u.password) cachedHashes.set(u.id, u.password);
-              });
-              const dedup = sanitizeAndDeduplicateUsers(
-                res.users!.map((u) =>
-                  !u.password && cachedHashes.has(u.id) ? { ...u, password: cachedHashes.get(u.id) } : u
-                )
-              );
+              // لا تُحفظ أو تُدمج أي بيانات اعتماد على الجهاز — Supabase Auth فقط.
+              const dedup = sanitizeAndDeduplicateUsers(res.users!);
               if (dedup.removedUserIds.length > 0) {
                 dedup.removedUserIds.forEach((remId) => {
                   deleteUserFromSupabase(remId).catch(() => {});
@@ -4995,12 +5048,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     errorType?: 'connection' | 'user_not_found' | 'wrong_password' | 'inactive' | 'no_password' | 'general';
   }> => {
     const cleanId = sanitizeIdentifier(identifier).toLowerCase();
-    const cleanEmail = sanitizeEmail(identifier);
     const rawTrim = sanitizeIdentifier(identifier);
     const asciiDigits = identifier.replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()).trim();
     const cleanPass = (password || '').replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString()).trim();
-    const normInput = normalizeArabicText(identifier).replace(/\s+/g, '');
-    const authMode = getAuthMode();
 
     // بيئة من غير مفاتيح Supabase (زي المعاينة السحابية): إرجاع سبب واضح بدلاً من إظهار خطأ كلمة المرور
     if (!isSupabaseConfigured || !SUPABASE_URL) {
@@ -5012,51 +5062,38 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
     }
 
-    let serverAuthUserId: string | null = null;
-    if (authMode === 'server' && isServerAuthEnabled()) {
-      const outcome = await tryServerSignIn(identifier, cleanPass);
-      if (outcome.kind === 'success') {
-        serverAuthUserId = outcome.authUserId;
-        if (outcome.email) {
-          linkAuthUserToProfile(outcome.authUserId, outcome.email).catch(() => {});
-        }
-      }
-      // Server mode only: if Supabase Auth did not confirm the credentials,
-      // reject immediately. No client-side password fallback is allowed.
-      if (!serverAuthUserId) {
-        return {
-          success: false,
-          errorType: 'wrong_password',
-          message: 'اسم المستخدم أو كلمة المرور غير صحيحة.',
-        };
-      }
+    // ===== 1) التحقق المركزي (Supabase Auth) — قبل أي استعلام عن المستخدم =====
+    // التحقق أولًا يمنع معرفة "هل اسم المستخدم موجود؟" بدون كلمة مرور صحيحة.
+    const serverOutcome = await tryServerSignIn(identifier, cleanPass);
+    if (serverOutcome.kind !== 'success') {
+      const message =
+        serverOutcome.kind === 'unavailable'
+          ? serverOutcome.reason === 'lookup-rpc-missing'
+            ? 'خدمة المصادقة المركزية غير مكتملة الإعداد على قاعدة البيانات. راجع إدارة النظام (ملف p0_auth_lockdown.sql).'
+            : 'تعذر الاتصال بخدمة المصادقة المركزية. تحقق من اتصال الإنترنت ثم حاول مرة أخرى.'
+          : serverOutcome.kind === 'no-server-account'
+            ? 'هذا الحساب غير مُفعّل على المصادقة المركزية بعد. يرجى التواصل مع الإدارة لتفعيل الحساب.'
+            : 'اسم المستخدم أو كلمة المرور غير صحيحة.';
+      return {
+        success: false,
+        errorType: serverOutcome.kind === 'unavailable' ? 'connection' : 'wrong_password',
+        message,
+      };
+    }
+    const serverAuthUserId: string = serverOutcome.authUserId;
+    if (serverOutcome.email) {
+      linkAuthUserToProfile(serverOutcome.authUserId, serverOutcome.email).catch(() => {});
     }
 
-    // 1. Search in local memory first with rich identifier matching
-    let found = users.find(
-      (u) =>
-        (u.email && sanitizeEmail(u.email) === cleanEmail) ||
-        (u.username && sanitizeIdentifier(u.username).toLowerCase() === cleanId) ||
-        (u.username && normalizeArabicText(u.username).replace(/\s+/g, '') === normInput) ||
-        (u.name && sanitizeIdentifier(u.name).toLowerCase() === cleanId) ||
-        (u.name && normalizeArabicText(u.name).replace(/\s+/g, '') === normInput) ||
-        (u.phone && (sanitizeIdentifier(u.phone) === rawTrim || sanitizeIdentifier(u.phone) === asciiDigits)) ||
-        (u.id && String(u.id).toLowerCase() === cleanId)
-    );
-    // احتياط: مطابقة بالبادئة لكن فقط لو نتيجتها **وحيدة** — عشان ما نختارش حساب
-    // تاني بيبدأ بنفس الحروف وندي "كلمة المرور غير صحيحة" على الحساب الصح.
+    // ===== 2) ملف الموظف الرسمي =====
+    // get_my_profile() دالة security definer ترجع صف صاحب الجلسة فقط.
+    // مش بنقرأ الصف مباشرة: أول دخول (قبل ربط auth_user_id) كان بياخد
+    // صفر صفوف بسبب RLS، فيبدو الحساب غير موجود رغم نجاح المصادقة.
+    let found = await fetchMyProfile();
+
+    // توافق مؤقت مع قاعدة لم تُنفَّذ عليها هجرة المصادقة بعد: بحث واحد
+    // بالمعرّف (بدون أي عمود حساس) قبل إعلان إن الملف غير مرتبط.
     if (!found) {
-      const partial = users.filter(
-        (u) =>
-          (u.email && u.email.toLowerCase().startsWith(cleanId)) ||
-          (u.username && sanitizeIdentifier(u.username).toLowerCase().startsWith(cleanId)) ||
-          (u.name && normalizeArabicText(u.name).replace(/\s+/g, '').startsWith(normInput))
-      );
-      if (partial.length === 1) found = partial[0];
-    }
-
-    // 2. Single-roundtrip Supabase lookup when not cached locally OR cached entry has no credential (e.g. INITIAL_USERS)
-    if (!found || !(found.password || '').trim()) {
       try {
         const supRes = await findUserInSupabase(rawTrim || cleanId || asciiDigits);
         if (supRes.success && supRes.user) {
@@ -5076,17 +5113,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
 
     if (!found) {
-      if (isOffline || supabaseStatus.connected === false) {
-        return {
-          success: false,
-          errorType: 'connection',
-          message: 'تعذر الاتصال بقاعدة البيانات السحابية (Supabase). يرجى التأكد من اتصال الإنترنت أو التحقق من سيرفر قاعدة البيانات.'
-        };
-      }
+      await signOutServer().catch(() => {});
       return {
         success: false,
         errorType: 'user_not_found',
-        message: `اسم المستخدم أو البريد الإلكتروني (${rawTrim}) غير مسجل في قاعدة البيانات. يرجى التأكد من كتابة الاسم أو الإيميل بدقة أو مراجعة إدارة شركة دريم.`
+        message:
+          'تم التحقق من هويتك، لكن لا يوجد ملف موظف مرتبط بهذا الحساب. راجع إدارة النظام لربط الحساب (users.auth_user_id / auth_email).',
       };
     }
 
@@ -5106,135 +5138,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
     }
 
-    // Verify the credential via server RPC first (when deployed), then local hash, then Supabase Auth fallback
-    let storedCredential = (found.password || '').trim();
-    const hasLinkedAuthUser = Boolean((found as any).authUserId || (found as any).auth_user_id);
-    const serverAuthIdentifier = identifier.includes('@')
-      ? identifier
-      : ((found as any).authEmail || (found as any).auth_email || found.email || identifier);
-
-    let serverVerified = false;
-    let serverRpcExplicitReject = false;
-    if (!serverAuthUserId && !isServerVerifyKnownMissing()) {
-      try {
-        const { data: rpcData, error: rpcErr } = await supabase.rpc('verify_user_credentials', {
-          p_username: rawTrim || found.username || found.email || cleanId || asciiDigits,
-          p_password: cleanPass,
-        });
-        if (rpcErr) {
-          const code = String((rpcErr as any)?.code || '');
-          const status = Number((rpcErr as any)?.status || 0);
-          const msg = String((rpcErr as any)?.message || '').toLowerCase();
-          if (status === 404 || code === 'PGRST202' || msg.includes('could not find the function')) {
-            markServerVerifyMissing();
-          }
-        } else if (Array.isArray(rpcData) && rpcData.length > 0) {
-          clearServerVerifyMissing();
-          serverVerified = Boolean((rpcData[0] as any)?.matched);
-          if (!serverVerified) {
-            serverRpcExplicitReject = true;
-          }
-        }
-      } catch {
-        markServerVerifyMissing();
-      }
-    }
-
-    if (!serverAuthUserId && !serverVerified && !storedCredential && found.id) {
-      try {
-        const { data: uData } = await supabase.from('users').select('password').eq('id', found.id).limit(1);
-        if (uData?.[0]?.password && String(uData[0].password).trim().length > 0) {
-          storedCredential = String(uData[0].password).trim();
-          found.password = storedCredential;
-        } else {
-          const { data: appData } = await supabase.from('app_users').select('password').eq('id', found.id).limit(1);
-          if (appData?.[0]?.password && String(appData[0].password).trim().length > 0) {
-            storedCredential = String(appData[0].password).trim();
-            found.password = storedCredential;
-          }
-        }
-      } catch (pwErr) {
-        console.warn('Direct password recovery notice:', pwErr);
-      }
-    }
-
-    if (serverAuthUserId || serverVerified) {
-      // Authenticated via Supabase Auth or verify_user_credentials RPC
-    } else if (storedCredential.length > 0) {
-      let check = await verifyPassword(cleanPass, storedCredential);
-      // الكاش المحلي ممكن يكون فيه بصمة قديمة (كلمة السر اتغيرت من جهاز تاني).
-      // قبل ما نقول "كلمة المرور غير صحيحة" بنجيب البصمة الحالية من السيرفر
-      // ونعيد المقارنة مرة واحدة.
-      if (!check.valid && found.id) {
-        try {
-          const { data: freshRows } = await supabase
-            .from('users')
-            .select('password')
-            .eq('id', found.id)
-            .limit(1);
-          const fresh = String(freshRows?.[0]?.password || '').trim();
-          if (fresh && fresh !== storedCredential) {
-            const recheck = await verifyPassword(cleanPass, fresh);
-            if (recheck.valid) {
-              found = { ...found, password: fresh };
-              storedCredential = fresh;
-              check = recheck;
-            }
-          }
-        } catch (refreshErr) {
-          console.warn('Credential refresh notice:', refreshErr);
-        }
-      }
-      if (!check.valid) {
-        // Fallback to Supabase Auth only if server mode is active OR this account is explicitly linked to Supabase Auth
-        let serverFallbackOk = false;
-        if (isServerAuthEnabled() && (authMode === 'server' || hasLinkedAuthUser)) {
-          const outcome = await tryServerSignIn(serverAuthIdentifier, cleanPass);
-          if (outcome.kind === 'success') {
-            serverFallbackOk = true;
-            if (outcome.email) {
-              linkAuthUserToProfile(outcome.authUserId, outcome.email).catch(() => {});
-            }
-          }
-        }
-        if (!serverFallbackOk) {
-          return {
-            success: false,
-            errorType: 'wrong_password',
-            message: 'اسم المستخدم أو كلمة المرور غير صحيحة.'
-          };
-        }
-      } else if (check.legacy) {
-        const upgraded = await withHashedCredential(found);
-        found = { ...found, password: upgraded.password };
-        setUsers((prev) => prev.map((u) => (u.id === found!.id ? { ...u, password: upgraded.password } : u)));
-        if (users.find((u) => u.id === found!.id)) {
-          safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(
-            users.map((u) => (u.id === found!.id ? { ...u, password: upgraded.password } : u))
-          ));
-        }
-        saveUserToSupabase(found).catch((e) => console.warn('Password upgrade sync notice:', e));
-      }
-    } else if (isServerAuthEnabled()) {
-      const outcome = await tryServerSignIn(serverAuthIdentifier, cleanPass);
-      if (outcome.kind === 'success') {
-        if (outcome.email) {
-          linkAuthUserToProfile(outcome.authUserId, outcome.email).catch(() => {});
-        }
-      } else {
-        return {
-          success: false,
-          errorType: serverRpcExplicitReject ? 'wrong_password' : 'no_password',
-          message: 'اسم المستخدم أو كلمة المرور غير صحيحة.'
-        };
-      }
-    } else {
-      return {
-        success: false,
-        errorType: serverRpcExplicitReject ? 'wrong_password' : 'no_password',
-        message: 'اسم المستخدم أو كلمة المرور غير صحيحة.'
-      };
-    }
+    // الدور والفرع والاعتماد اتقرأوا من القاعدة أعلاه، والفحوصات تمت قبل كده.
 
     justLoggedInRef.current = true;
     clearScopedContentStamps();
@@ -5255,7 +5159,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     name: string;
     username: string;
     email: string;
-    password?: string;
     phone: string;
     branchName: string;
     role: UserRole;
@@ -5277,7 +5180,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       name: userData.name.trim(),
       username: userData.username.trim().toLowerCase(),
       email: userData.email.trim().toLowerCase(),
-      password: await hashPassword(userData.password || ''),
       phone: userData.phone.trim(),
       branchName: userData.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)',
       role: userData.role || 'sales_rep',
@@ -7539,8 +7441,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const addUser = async (user: User) => {
   if (currentUser?.role !== 'admin' && currentUser?.role !== 'developer') return;
   if (hasDuplicateUserIdentity(user, users, user.id)) return;
-    // Never let a readable password reach local storage or Supabase.
-    const secured = await withHashedCredential(user);
+    // كلمات المرور لا تُدار من العميل: تُنشأ وتُغيَّر في Supabase Auth فقط.
+    const secured = user;
     const nextUsers = [...users.filter((u) => u.id !== secured.id), secured];
     setUsers(nextUsers);
     safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));
@@ -7556,13 +7458,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const updateUser = async (updatedUser: User) => {
   if (currentUser?.role !== 'admin' && currentUser?.role !== 'developer') return;
   if (hasDuplicateUserIdentity(updatedUser, users, updatedUser.id)) return;
-    // An empty password field in the admin form means "leave the credential
-    // alone", never "clear it" - otherwise editing a role would lock the user out.
-    const existingCredential = users.find((u) => u.id === updatedUser.id)?.password || '';
-    const submitted = updatedUser.password || '';
-    const secured = submitted.trim()
-      ? await withHashedCredential(updatedUser)
-      : { ...updatedUser, password: existingCredential };
+    // لا تمرير ولا تخزين لأي كلمة مرور هنا — الحساب وكلمة مروره في Supabase Auth.
+    const secured: User = { ...updatedUser, password: undefined };
     const nextUsers = users.map((u) => (u.id === secured.id ? secured : u));
     setUsers(nextUsers);
     safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(nextUsers));

@@ -1123,9 +1123,15 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
   box-shadow: 0 6px 16px rgba(37, 99, 235, 0.28);
 }
 
+.tg-cp__tabstrip { scrollbar-width: none; -ms-overflow-style: none; }
+.tg-cp__tabstrip::-webkit-scrollbar { display: none; }
+
 .tg-cp__body {
   flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   background: #f7fafd;
   padding: 16px;
 }
@@ -1377,7 +1383,7 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 16px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
   background: #fff;
   border-top: 1px solid var(--tg-line);
 }
@@ -1424,10 +1430,27 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
   .tg-cp__avatar { width: 48px; height: 48px; border-radius: 15px; font-size: 19px; }
   .tg-cp__name { font-size: 15px; }
   .tg-cp__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tg-cp__body { padding: 13px; }
+  .tg-cp__body { padding: 13px 13px calc(18px + env(safe-area-inset-bottom, 0px)); }
   .tg-cp__months { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .tg-cp__gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tg-cp__action { font-size: 11px; height: 42px; }
+}
+
+/* ==========================================================================
+   كروت مؤشرات قاعدة العملاء (ckpi) — نسخة مضغوطة للموبايل عشان الكلام
+   ما يدخلش في بعضه وتظهر مساحة أكتر لجدول العملاء.
+   ========================================================================== */
+@media (max-width: 639px) {
+  .ckpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+  .ckpi { padding: .6rem .65rem; gap: .45rem; border-radius: 14px; }
+  .ckpi-icon { width: 28px; height: 28px; min-width: 28px; border-radius: 9px; }
+  .ckpi-icon svg { width: 14px; height: 14px; }
+  .ckpi-label { font-size: .62rem; line-height: 1.25; }
+  .ckpi-value { font-size: .85rem; line-height: 1.25; }
+  .ckpi-hint { font-size: .55rem; line-height: 1.25; }
+}
+@media (min-width: 640px) and (max-width: 1023px) {
+  .ckpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* ==========================================================================

@@ -1,5 +1,22 @@
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas-pro';
+import type jsPDFType from 'jspdf';
+
+/**
+ * jsPDF + html2canvas بيتحمّلوا عند الطلب فقط (ديناميكيًا).
+ * الاستيراد الثابت كان بيدفع ~680KB لمستخدم مش هيفتح فاتورة أصلًا.
+ */
+type PdfDeps = {
+  JsPDF: typeof import('jspdf').default;
+  html2canvas: typeof import('html2canvas-pro').default;
+};
+let pdfDepsPromise: Promise<PdfDeps> | null = null;
+function loadPdfDeps(): Promise<PdfDeps> {
+  if (!pdfDepsPromise) {
+    pdfDepsPromise = Promise.all([import('jspdf'), import('html2canvas-pro')]).then(
+      ([pdfModule, canvasModule]) => ({ JsPDF: pdfModule.default, html2canvas: canvasModule.default })
+    );
+  }
+  return pdfDepsPromise;
+}
 import { Invoice } from '../types';
 import { COMPANY_INFO } from '../data/mockData';
 import { resolveCustomerFinancials } from './arabicMatchingService';
@@ -9,7 +26,12 @@ import { optimizeImageUrl } from './cloudinaryService';
 /**
  * Render and construct pixel-perfect jsPDF Document for Dream Distribution
  */
-export async function createInvoicePDFDocument(invoice: Invoice, customCompanyInfo?: Record<string, any>): Promise<jsPDF> {
+export async function createInvoicePDFDocument(
+  invoice: Invoice,
+  customCompanyInfo?: Record<string, any>,
+  quality = 0.96,
+): Promise<jsPDFType> {
+  const { JsPDF, html2canvas } = await loadPdfDeps();
   const comp = {
     nameArabic: customCompanyInfo?.nameArabic || COMPANY_INFO.nameArabic,
     nameEnglish: customCompanyInfo?.nameEnglish || COMPANY_INFO.nameEnglish,
@@ -279,8 +301,8 @@ export async function createInvoicePDFDocument(invoice: Invoice, customCompanyIn
       windowHeight: totalHeight + 50,
     });
 
-    const imgData = canvas.toDataURL('image/jpeg', 0.96);
-    const pdf = new jsPDF({
+    const imgData = canvas.toDataURL('image/jpeg', quality);
+    const pdf = new JsPDF({
       orientation: 'portrait',
       unit: 'mm',
       format: 'a4',
@@ -315,7 +337,7 @@ export async function createInvoicePDFDocument(invoice: Invoice, customCompanyIn
   } catch (err) {
     console.error('Failed to generate high-res canvas PDF, falling back to direct PDF file generation:', err);
     try {
-      const fallbackPdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const fallbackPdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
       fallbackPdf.setFontSize(16);
       fallbackPdf.text(`DREAM TRADING - INVOICE ${invoice.invoiceNumber}`, 14, 20);
       fallbackPdf.setFontSize(11);
@@ -381,8 +403,11 @@ export async function downloadInvoicePDF(invoice: Invoice, customCompanyInfo?: R
 /**
  * Generate Base64 string of the PDF invoice for Microsoft Power Automate / Webhook sync
  */
-export async function generateInvoicePDFBase64(invoice: Invoice, customCompanyInfo?: Record<string, any>): Promise<string> {
-  const pdf = await createInvoicePDFDocument(invoice, customCompanyInfo);
+export async function generateInvoicePDFBase64(
+  invoice: Invoice,
+  customCompanyInfo?: Record<string, any>,
+): Promise<string> {
+  const pdf = await createInvoicePDFDocument(invoice, customCompanyInfo, 0.85);
   const dataUri = pdf.output('datauristring');
   return dataUri.includes(',') ? dataUri.split(',')[1] : dataUri;
 }
@@ -400,7 +425,7 @@ export interface ClientCatalogProduct {
 }
 
 export interface ClientCatalogExportResult {
-  pdf: jsPDF;
+  pdf: jsPDFType;
   exportedCount: number;
   failedImageCount: number;
   filename: string;
@@ -528,6 +553,7 @@ export async function buildClientCatalogPDF(
   products: ClientCatalogProduct[],
   options?: { categoryName?: string; onProgress?: (progress: CatalogExportProgress) => void }
 ): Promise<ClientCatalogExportResult> {
+  const { JsPDF, html2canvas } = await loadPdfDeps();
   const reportProgress = (
     phase: 'images' | 'pages',
     current: number,
@@ -599,7 +625,7 @@ export async function buildClientCatalogPDF(
     .replace(/>/g, '&gt;');
   const filename = `كتالوج_الطنطاوي_${new Date().toISOString().slice(0, 10)}.pdf`;
 
-  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+  const pdf = new JsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
 
   for (let page = 0; page < totalPages; page++) {
     const pageItems = ready.slice(page * PER_PAGE, (page + 1) * PER_PAGE);

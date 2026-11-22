@@ -205,7 +205,7 @@
 html {
   background-color: var(--app-bg);
   color: var(--app-text);
-  font-family: 'Cairo', Tajawal, system-ui, -apple-system, sans-serif;
+  font-family: var(--app-font);
   transition: background-color 0.2s ease, color 0.2s ease;
   overflow-x: hidden; /* منع أي انزياح أفقي — جداول بتسكرول داخل كروتها */
   -webkit-text-size-adjust: 100%;
