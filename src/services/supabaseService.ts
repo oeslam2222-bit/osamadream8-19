@@ -484,11 +484,11 @@ function applyScopeToQuery(query: any, scope?: CustomerFetchScope | VisitFetchSc
   return clauses.length > 0 ? query.or(clauses.join(',')) : query;
 }
 
-/** أربعين ألف صف: حدّ أمان ضد جدول مش متوقع، مش رقم تشغيل. */
-const MAX_VISIT_PAGES = 15;
+/** حد أدنى جداً: 5,000 صف بس للعميل العادي — يقلل egress لـ 500 مستخدم */
+const MAX_VISIT_PAGES = 5;
 
-/** خمسين ألف عميل: حدّ أمان ضد استيراد عملاء ضخم يُبطئ تشغيل التطبيق. */
-const MAX_CUSTOMER_PAGES = 15;
+/** حد أدنى جداً: 5,000 عميل بس — يقلل egress لـ 500 مستخدم */
+const MAX_CUSTOMER_PAGES = 5;
 
 const isMissingColumnError = (err: any): boolean => {
   const code = String(err?.code || '');
@@ -1438,11 +1438,10 @@ export const PROMOTIONS_SYNC_STORE_ID = 'dream_promotions_store_v1';
 
 /**
  * أقصى عدد صفحات (1,000 صف كل صفحة) بنجيبه من جدول products.
- * حدّ حماية ضد حلقة لا نهائية بس — الكتالوج الحالي 5,444 صنف، فـ 60 صفحة
- * (60,000 صنف) أوسع من المحتاج بكتير. لو وصلنا هنا فالمشكلة في البيانات مش
- * في الكود، والـ console.warn بيقول ذلك بصراحة بدل ما نقصّ السعر في صمت.
+ * حدّ حماية ضد حلقة لا نهائية بس — الكتالوج الحالي ~5,500 صنف، فـ 10 صفحات
+ * (10,000 صنف) كافية جداً. لو وصلنا هنا فالمشكلة في البيانات مش في الكود.
  */
-const MAX_PRODUCT_PAGES = 20;
+const MAX_PRODUCT_PAGES = 10;
 export const USER_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000002';
 /**
  * صف صغير مخصوص لصور المستخدمين (خريطة: معرّف المستخدم → رابط الصورة).
@@ -1452,8 +1451,8 @@ export const USER_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000002';
  */
 export const USER_AVATARS_STORE_ID = '00000000-0000-0000-0000-000000000003';
 
-/** خمسين ألف صف تارجت ≈ 125 شهر لكل مندوب (10 سنين). */
-const MAX_TARGET_PAGES = 15;
+/** 5,000 صف تارجت كحد أقصى — يغطي آخر 12 شهر لمعظم الفرق. */
+const MAX_TARGET_PAGES = 5;
 
 const TARGETS_FETCH_COLUMNS = [
   'id', 'branch', 'rep_name', 'sales_target', 'sales_achieved', 'sales_percentage',
@@ -4458,12 +4457,12 @@ async function fetchAllRowsPaged(
 }
 
 /**
- * 15 ألف سطر توقع ≈ 400 مندوب × 9 فترات × 14 شهر. أكبر من المحتاج.
+ * 5,000 سطر توقع كحد أقصى — يغطي الشهور الحالية فقط.
  */
-const MAX_FORECAST_PAGES = 15;
+const MAX_FORECAST_PAGES = 5;
 
-/** 20 ألف تعليق: تعليق لكل عميل بسعر فاضي. */
-const MAX_COMMENT_PAGES = 20;
+/** 5,000 تعليق كحد أقصى — يغطي التعليقات الحديثة فقط. */
+const MAX_COMMENT_PAGES = 5;
 
 export async function fetchForecastMonthStamp(
   monthKey: string,

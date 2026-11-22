@@ -3745,40 +3745,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const isFreshLogin = justLoggedInRef.current;
     justLoggedInRef.current = false;
 
-    // Fetch cloud-synced Promotions & Announcements only when the 1-row stamp changed (0 egress if unchanged)
-    (async () => {
-      const PROMO_STAMP_KEY = 'dream_dist_promotions_stamp_v1';
-      const stamp = await fetchPromotionsStamp();
-      let storedStamp: { updatedAt: string | null; total: number | null } | null = null;
-      try {
-        const raw = localStorage.getItem(PROMO_STAMP_KEY);
-        if (raw) storedStamp = JSON.parse(raw);
-      } catch {}
-      const hasLocalPromoData = promotionsRef.current.length > 0 || announcementsRef.current.length > 0;
-      if (
-        stamp &&
-        storedStamp &&
-        stamp.updatedAt === storedStamp.updatedAt &&
-        stamp.total === storedStamp.total &&
-        (hasLocalPromoData || stamp.total === 0)
-      ) {
-        return;
-      }
-      const promoRes = await fetchPromotionsFromSupabase();
-      if (promoRes.success) {
-        if (stamp) {
-          try { localStorage.setItem(PROMO_STAMP_KEY, JSON.stringify(stamp)); } catch {}
-        }
-        if (promoRes.promotions.length > 0 || promotionsRef.current.length === 0) {
-          setPromotions(promoRes.promotions);
-          savePromotions(promoRes.promotions);
-        }
-        if (promoRes.announcements.length > 0 || announcementsRef.current.length === 0) {
-          setAnnouncements(promoRes.announcements);
-          safeLocalStorageSet(ANNOUNCEMENTS_STORAGE_KEY, JSON.stringify(promoRes.announcements));
-        }
-      }
-    })().catch(() => {});
+    // Promotions/Announcements: مؤجل تماماً — لا نحمّلها عند الدخول أبداً (صفر egress)
+// هتتحمل لما المستخدم يفتح شاشة العروض أو بالإشارة من Realtime
 
     // 1) المستخدمون بيتغيروا نادرًا — 24 ساعة للمناديب و 12 ساعة لباقي الأدوار، ومن غير كلمات مرور للأجهزة غير الإدارية.
     const lastUsersSync = Number(localStorage.getItem(USERS_LAST_SYNC_KEY) || 0);
@@ -3985,14 +3953,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             }
           }
 
-          // تأخير كبير (3 ثواني) بعد تحديث الحالة الأساسية عشان الواجهة ترسم بسرعة،
+          // تأخير كبير (5 ثواني) بعد تحديث الحالة الأساسية عشان الواجهة ترسم بسرعة،
           // ثم فحص الفواتير والزيارات بالبصمة (لو متحدثتش بالفعل في checkAndSyncDataVersion).
           // هذا يقلل الازدحام على الشبكة عند الدخول ويمنع تجميد الواجهة.
           secondaryBootTimer = window.setTimeout(() => {
             if (bootCancelled) return;
             loadInitialInvoices().catch(() => {});
             loadInitialVisits().catch(() => {});
-          }, 3000);
+          }, 5000);
         });
         });
 
@@ -4000,8 +3968,23 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         const deletedInvoiceIds = getDeletedInvoiceIds();
         const loadInitialInvoices = async () => {
           const activeUser = currentUserRef.current || currentUser;
+          // للمندوب: لو في كاش محلي، نكتفي بالبصمة (1 row) ولا نحمل فواتير أبداً عند الدخول
+          const role = activeUser?.role;
+          const hasLocalInvCache = invoicesRef.current.length > 0 || (await idbGet<Invoice[]>(STORAGE_KEYS.INVOICES)).then((d) => d && d.length > 0);
+          if (role === 'sales_rep' && hasLocalInvCache && navigator.onLine !== false) {
+            // بصمة سريعة فقط — التحميل الكامل عند الطلب
+            const invScope = { ...buildInvoiceFetchScope(activeUser, usersRef.current.length > 0 ? usersRef.current : users), limit: 50 };
+            const stamp = await fetchInvoiceContentStamp(invScope);
+            if (stamp) {
+              const storedStamp = readInvoiceContentStamp(invoiceScopeKey(invScope));
+              if (storedStamp && stamp.count === storedStamp.count && stamp.maxCreatedAt === storedStamp.maxCreatedAt) {
+                return; // مفيش تغيير — نطلع من غير ما نحمل
+              }
+            }
+          }
+
           const activeUsers = usersRef.current.length > 0 ? usersRef.current : users;
-          const invScope = { ...buildInvoiceFetchScope(activeUser, activeUsers), limit: 100 };
+          const invScope = { ...buildInvoiceFetchScope(activeUser, activeUsers), limit: 50 };
           const invScopeKey = invoiceScopeKey(invScope);
           const stamp = await fetchInvoiceContentStamp(invScope);
           const storedStamp = readInvoiceContentStamp(invScopeKey);
@@ -4080,6 +4063,20 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         // 5. Fetch Visits from Supabase (narrowed by the role scope)
         const deletedVisitIds = getDeletedVisitIds();
         const loadInitialVisits = async () => {
+          const activeUser = currentUserRef.current || currentUser;
+          // للمندوب: لو في كاش محلي، نكتفي بالبصمة (1 row) ولا نحمل زيارات أبداً عند الدخول
+          const role = activeUser?.role;
+          const hasLocalVisitCache = visitsRef.current.length > 0 || (await idbGet<CustomerVisit[]>(STORAGE_KEYS.VISITS)).then((d) => d && d.length > 0);
+          if (role === 'sales_rep' && hasLocalVisitCache && navigator.onLine !== false) {
+            // بصمة سريعة فقط — التحميل الكامل عند الطلب
+            const stamp = await fetchVisitContentStamp(visitFetchScope);
+            const comparable = stamp !== null && (stamp.count !== null || stamp.maxUpdatedAt !== null);
+            const stored = readVisitContentStamp();
+            if (comparable && stored && stamp.count === stored.count && stamp.maxUpdatedAt === stored.maxUpdatedAt) {
+              return; // مفيش تغيير — نطلع من غير ما نحمل
+            }
+          }
+
           // نفس فكرة بصمة العملاء: استعلام صف واحد الأول، ومفيش تنزيل
           // للجدول كله غير لو المحتوى اتغير فعلًا على السيرفر.
           const stamp = await fetchVisitContentStamp(visitFetchScope);
