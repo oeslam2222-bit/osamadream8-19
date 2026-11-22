@@ -5391,6 +5391,31 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
     }
 
+    // ===== Fast Path: cached offline profile for instant login =====
+    // إذا كان في بروفايل محفوظ محلياً لنفس المستخدم، ندخل فوراً ونحدث في الباكجروند
+    const cachedProfile = getOfflineSafeProfile();
+    const cachedUserId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
+    const isSameUser = cachedProfile && cachedUserId && (
+      cachedProfile.id === cachedUserId ||
+      cachedProfile.username?.toLowerCase() === cleanId ||
+      cachedProfile.email?.toLowerCase() === cleanId
+    );
+    if (isSameUser && cachedProfile.approvalStatus === 'active' && cachedProfile.isActive !== false) {
+      // دخول فوري بالبيانات المخزنة
+      justLoggedInRef.current = true;
+      clearScopedContentStamps();
+      currentUserRef.current = cachedProfile;
+      setCurrentUser(cachedProfile);
+      setIsAuthenticated(true);
+      localStorage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
+      setDataEpoch((n) => n + 1);
+
+      // تحديث البروفايل في الباكجروند (non-blocking)
+      refreshProfileAfterLogin(identifier, cleanPass, cachedProfile).catch(() => {});
+
+      return { success: true, message: `مرحباً بك ${cachedProfile.name}`, user: cachedProfile };
+    }
+
     // ===== 1) التحقق المركزي (Supabase Auth) — قبل أي استعلام عن المستخدم =====
     // التحقق أولًا يمنع معرفة "هل اسم المستخدم موجود؟" بدون كلمة مرور صحيحة.
     const serverOutcome = await tryServerSignIn(identifier, cleanPass);
@@ -5414,31 +5439,26 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       linkAuthUserToProfile(serverOutcome.authUserId, serverOutcome.email).catch(() => {});
     }
 
-    // ===== 2) ملف الموظف الرسمي =====
-    // get_my_profile() دالة security definer ترجع صف صاحب الجلسة فقط.
-    // مش بنقرأ الصف مباشرة: أول دخول (قبل ربط auth_user_id) كان بياخد
-    // صفر صفوف بسبب RLS، فيبدو الحساب غير موجود رغم نجاح المصادقة.
-    let found = await fetchMyProfile();
+    // ===== 2) ملف الموظف الرسمي — بالتوازي (fetchMyProfile + findUserInSupabase) =====
+    const [profileRes, supabaseRes] = await Promise.allSettled([
+      fetchMyProfile(),
+      findUserInSupabase(rawTrim || cleanId || asciiDigits),
+    ]);
 
-    // توافق مؤقت مع قاعدة لم تُنفَّذ عليها هجرة المصادقة بعد: بحث واحد
-    // بالمعرّف (بدون أي عمود حساس) قبل إعلان إن الملف غير مرتبط.
-    if (!found) {
-      try {
-        const supRes = await findUserInSupabase(rawTrim || cleanId || asciiDigits);
-        if (supRes.success && supRes.user) {
-          found = supRes.user;
-          setUsers((prev) => {
-            const map = new Map<string, User>();
-            prev.forEach((u) => map.set(u.id, u));
-            map.set(found!.id, found!);
-            const updated = Array.from(map.values());
-            safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(updated));
-            return updated;
-          });
-        }
-      } catch (e) {
-        console.warn('Direct Supabase login lookup failed:', e);
-      }
+    let found: User | null = null;
+    if (profileRes.status === 'fulfilled' && profileRes.value) {
+      found = profileRes.value;
+    } else if (supabaseRes.status === 'fulfilled' && supabaseRes.value?.success && supabaseRes.value.user) {
+      found = supabaseRes.value.user;
+      // دمج المستخدم في القائمة المحلية
+      setUsers((prev) => {
+        const map = new Map<string, User>();
+        prev.forEach((u) => map.set(u.id, u));
+        map.set(found!.id, found!);
+        const updated = Array.from(map.values());
+        safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(updated));
+        return updated;
+      });
     }
 
     if (!found) {
@@ -5477,12 +5497,46 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     setIsAuthenticated(true);
     localStorage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, found.id);
-    // Server-auth migration: do not persist full user object (may include
-    // password hash) in localStorage. Keep only the user id and sanitized offline profile;
-    // full profile is re-verified with Supabase whenever online.
     setDataEpoch((n) => n + 1);
 
     return { success: true, message: `مرحباً بك ${found.name}`, user: found };
+  };
+
+  // تحديث البروفايل بعد الدخول السريع (باكجروند)
+  const refreshProfileAfterLogin = async (
+    identifier: string,
+    cleanPass: string,
+    currentCached: User
+  ): Promise<void> => {
+    try {
+      const serverOutcome = await tryServerSignIn(identifier, cleanPass);
+      if (serverOutcome.kind !== 'success') return;
+
+      if (serverOutcome.email) {
+        await linkAuthUserToProfile(serverOutcome.authUserId, serverOutcome.email);
+      }
+
+      const [profileRes, supabaseRes] = await Promise.allSettled([
+        fetchMyProfile(),
+        findUserInSupabase(identifier),
+      ]);
+
+      let freshProfile: User | null = null;
+      if (profileRes.status === 'fulfilled' && profileRes.value) {
+        freshProfile = profileRes.value;
+      } else if (supabaseRes.status === 'fulfilled' && supabaseRes.value?.success && supabaseRes.value.user) {
+        freshProfile = supabaseRes.value.user;
+      }
+
+      if (freshProfile && freshProfile.approvalStatus === 'active' && freshProfile.isActive !== false) {
+        saveOfflineSafeProfile(freshProfile);
+        currentUserRef.current = freshProfile;
+        setCurrentUser(freshProfile);
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, freshProfile.id);
+      }
+    } catch {
+      // فشل صامت — البروفايل المخزن محلياً يظل صالحاً
+    }
   };
 
   const register = async (userData: {
