@@ -2660,12 +2660,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const customerFetchScope = useMemo<CustomerFetchScope | undefined>(() => {
     if (!currentUser) return undefined;
     const role = currentUser.role;
-    if (role === 'admin' || role === 'developer' || SECTORLESS_ADMIN_ROLES.has(role)) {
-      // الإدارة العليا والأدوار متعددة القطاعات بتحمّل القطاعين في الذاكرة مرة واحدة
-      // (وبتقسمهم في الرئيسية لكرتين منفصلين، وفي باقي الصفحات بفلتر القطاع الواحد)
-      // عشان التبديل بين منزلي وكهربائي يبقى لحظي من غير إعادة تنزيل.
-      return undefined;
-    }
 
     const cleanName = (value?: string) =>
       (value || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
@@ -2679,6 +2673,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       new Set([currentUser.branchName, resolvedBranch].filter((branch): branch is string => Boolean(branch && branch.trim())))
     );
     const branchNameContains = extractBranchStems(currentUser.branchName);
+
+    if (role === 'admin' || role === 'developer' || SECTORLESS_ADMIN_ROLES.has(role)) {
+      // الإدارة العليا والأدوار متعددة القطاعات: استخدم الأعمدة المخففة افتراضياً
+      // الأعمدة الكاملة (visit_history, guarantee_docs, إلخ) بتتحمل عند الطلب فقط
+      return {
+        sector: undefined, // لا قيد قطاع — كل القطاعات
+        slimFieldColumns: true, // افتراضياً مخفف لتقليل egress
+      };
+    }
 
     if (role === 'sales_rep') {
       return {
@@ -2694,7 +2697,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
 
     // مدير الفرع والمشرف: نطاق الفرع، وبعده الفلترة الدقيقة في الواجهة.
-    // slimFieldColumns يقلل أعمدة/حقول ثقيلة لتخفيف الـ egress على 500 مستخدم.
+    // slimFieldColumns يقلل أعمدة/حقول ثقيلة لتخفيف الـ egress.
     return {
       branchNames,
       branchNameContains,
@@ -3982,13 +3985,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             }
           }
 
-          // تأخير بسيط (50ms) بعد تحديث الحالة الأساسية عشان الواجهة ترسم بسرعة،
+          // تأخير كبير (3 ثواني) بعد تحديث الحالة الأساسية عشان الواجهة ترسم بسرعة،
           // ثم فحص الفواتير والزيارات بالبصمة (لو متحدثتش بالفعل في checkAndSyncDataVersion).
+          // هذا يقلل الازدحام على الشبكة عند الدخول ويمنع تجميد الواجهة.
           secondaryBootTimer = window.setTimeout(() => {
             if (bootCancelled) return;
             loadInitialInvoices().catch(() => {});
             loadInitialVisits().catch(() => {});
-          }, 50);
+          }, 3000);
         });
         });
 
@@ -3997,7 +4001,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         const loadInitialInvoices = async () => {
           const activeUser = currentUserRef.current || currentUser;
           const activeUsers = usersRef.current.length > 0 ? usersRef.current : users;
-          const invScope = buildInvoiceFetchScope(activeUser, activeUsers);
+          const invScope = { ...buildInvoiceFetchScope(activeUser, activeUsers), limit: 100 };
           const invScopeKey = invoiceScopeKey(invScope);
           const stamp = await fetchInvoiceContentStamp(invScope);
           const storedStamp = readInvoiceContentStamp(invScopeKey);

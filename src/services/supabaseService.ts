@@ -485,10 +485,10 @@ function applyScopeToQuery(query: any, scope?: CustomerFetchScope | VisitFetchSc
 }
 
 /** أربعين ألف صف: حدّ أمان ضد جدول مش متوقع، مش رقم تشغيل. */
-const MAX_VISIT_PAGES = 40;
+const MAX_VISIT_PAGES = 15;
 
 /** خمسين ألف عميل: حدّ أمان ضد استيراد عملاء ضخم يُبطئ تشغيل التطبيق. */
-const MAX_CUSTOMER_PAGES = 50;
+const MAX_CUSTOMER_PAGES = 15;
 
 const isMissingColumnError = (err: any): boolean => {
   const code = String(err?.code || '');
@@ -1442,7 +1442,7 @@ export const PROMOTIONS_SYNC_STORE_ID = 'dream_promotions_store_v1';
  * (60,000 صنف) أوسع من المحتاج بكتير. لو وصلنا هنا فالمشكلة في البيانات مش
  * في الكود، والـ console.warn بيقول ذلك بصراحة بدل ما نقصّ السعر في صمت.
  */
-const MAX_PRODUCT_PAGES = 60;
+const MAX_PRODUCT_PAGES = 20;
 export const USER_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000002';
 /**
  * صف صغير مخصوص لصور المستخدمين (خريطة: معرّف المستخدم → رابط الصورة).
@@ -1453,7 +1453,7 @@ export const USER_SYNC_STORE_ID = '00000000-0000-0000-0000-000000000002';
 export const USER_AVATARS_STORE_ID = '00000000-0000-0000-0000-000000000003';
 
 /** خمسين ألف صف تارجت ≈ 125 شهر لكل مندوب (10 سنين). */
-const MAX_TARGET_PAGES = 50;
+const MAX_TARGET_PAGES = 15;
 
 const TARGETS_FETCH_COLUMNS = [
   'id', 'branch', 'rep_name', 'sales_target', 'sales_achieved', 'sales_percentage',
@@ -4458,9 +4458,9 @@ async function fetchAllRowsPaged(
 }
 
 /**
- * 50 ألف سطر توقع ≈ 400 مندوب × 9 فترات × 14 شهر. أكبر من المحتاج.
+ * 15 ألف سطر توقع ≈ 400 مندوب × 9 فترات × 14 شهر. أكبر من المحتاج.
  */
-const MAX_FORECAST_PAGES = 50;
+const MAX_FORECAST_PAGES = 15;
 
 /** 20 ألف تعليق: تعليق لكل عميل بسعر فاضي. */
 const MAX_COMMENT_PAGES = 20;
