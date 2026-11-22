@@ -111,6 +111,20 @@ import {
   filterTargetsForUser,
   extractTargetSectorFromNotes,
 } from '../services/targetService';
+import {
+  addSmartNotification,
+  checkForDataUpdates,
+  getSmartNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  deleteNotification,
+  notifyInventoryUpdate,
+  notifyTargetsUpdate,
+  notifyCustomersUpdate,
+  notifyPromotionsUpdate,
+  notifyTaskAssigned,
+  SmartNotification,
+} from '../services/smartNotificationService';
 import { saveSingleSourceUrl, getPublishedDataSources, getSavedSourceUrl, isGoogleSheetsReadMode } from '../services/dataSourceService';
 import {
   clearLocalDataVersion,
@@ -645,6 +659,9 @@ function mapTargetRowToRecord(row: any): TargetRecord {
   };
 }
 
+
+// Module-level ref for currentUser (accessible from services)
+export const currentUserRef = { current: null as User | null };
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Auth and Session Notice
   const [authTerminationNotice, setAuthTerminationNotice] = useState<string | null>(null);
@@ -747,7 +764,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // restored below from a real Supabase Auth session + get_my_profile() RPC.
   const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-  const currentUserRef = useRef<User | null>(currentUser);
+  // Assign to module-level ref for external access
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
@@ -4474,7 +4491,123 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     };
   }, []);
 
-  // Supabase Egress Protection:
+// Smart Notifications: periodic check for data updates (every 30 min, only when visible)
+  useEffect(() => {
+    let cancelled = false;
+    const CHECK_KEY = 'tantawy_smart_notif_check_v1';
+    const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 دقيقة
+
+    const runCheck = async () => {
+      if (cancelled || !isSupabaseConfigured || !currentUserRef.current) return;
+      if (typeof document !== 'undefined' && document.hidden) return;
+
+      try {
+        // نجلب التغييرات من السيرفر (خفيفة - count/based checks فقط)
+        await checkForDataUpdates(CHECK_KEY, async () => {
+          const user = currentUserRef.current;
+          if (!user) return {};
+
+          // للمسؤولين: نعمل فحص شامل، للمندوبين: نطاقهم فقط
+          const isAdmin = user.role === 'admin' || user.role === 'developer';
+          const scope = isAdmin ? {} : { branch: user.branchName, sector: user.sector };
+
+          const results: any = {};
+
+          // 1) Inventory: فحص سريع للـ count و low stock
+          try {
+            const { data: invData } = await supabase
+              .from('products')
+              .select('id, branch_name, sector, stock, branch_stock_actual')
+              .eq('branch_name', scope.branch || '')
+              .lt('branch_stock_actual', 10); // low stock threshold
+            if (invData && invData.length > 0) {
+              results.inventory = [{
+                branch: scope.branch || 'غير معروف',
+                sector: scope.sector || 'home',
+                productCount: invData.length,
+                changedProducts: invData.map((p: any) => p.id),
+                isLowStock: true,
+              }];
+            }
+          } catch {}
+
+          // 2) Targets: فحص لو فيه تارجت جديد للشهر الحالي
+          try {
+            const monthKey = new Date().toISOString().slice(0, 7);
+            const { data: tgtData } = await supabase
+              .from('targets')
+              .select('id, branch, rep_name, month_key')
+              .eq('month_key', monthKey)
+              .eq('branch', scope.branch || '');
+            if (tgtData && tgtData.length > 0) {
+              results.targets = [{
+                branch: scope.branch || 'غير معروف',
+                sector: scope.sector || 'home',
+                month: parseInt(monthKey.split('-')[1], 10),
+                repNames: [...new Set(tgtData.map((t: any) => t.rep_name).filter(Boolean))],
+              }];
+            }
+          } catch {}
+
+          // 3) Customers: فحص عدد العملاء الجدد (باستخدام updated_at)
+          try {
+            const since = new Date(Date.now() - 30 * 60 * 1000).toISOString(); // آخر 30 دقيقة
+            const { data: custData, count } = await supabase
+              .from('customers')
+              .select('id, branch_name, sector', { count: 'exact', head: true })
+              .eq('branch_name', scope.branch || '')
+              .gte('updated_at', since);
+            if (count && count > 0) {
+              results.customers = [{
+                branch: scope.branch || 'غير معروف',
+                sector: scope.sector || 'home',
+                count,
+                action: 'updated' as const,
+              }];
+            }
+          } catch {}
+
+          // 4) Promotions: فحص الـ stamp
+          try {
+            const { data: promoData } = await supabase
+              .from('orders')
+              .select('items, updated_at')
+              .eq('id', 'dream_dist_promotions_manifest')
+              .limit(1);
+            if (promoData && promoData[0]?.items) {
+              const stamp = promoData[0].items as any;
+              const lastSeen = localStorage.getItem('dream_dist_promotions_stamp_v1');
+              if (!lastSeen || lastSeen !== JSON.stringify({ updatedAt: stamp.updatedAt, total: stamp.total })) {
+                results.promotions = [{
+                  title: 'عروض جديدة',
+                  description: 'تم تحديث العروض والإعلانات من الإدارة.',
+                  sector: scope.sector,
+                  branch: scope.branch,
+                }];
+              }
+            }
+          } catch {}
+
+          return results;
+        });
+      } catch {
+        // فشل صامت
+      }
+    };
+
+    // أول فحص بعد 10 ثواني من الدخول
+    const initialTimer = setTimeout(() => { if (!cancelled) runCheck(); }, 10000);
+    // ثم دوري كل 30 دقيقة
+    const interval = setInterval(() => { if (!cancelled) runCheck(); }, CHECK_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, [isSupabaseConfigured, currentUser?.id]);
+
+  // Supabase Egress Protection:  // Supabase Egress Protection:
   // Instead of polling 24/7 (which consumes gigabytes of egress bandwidth),
   // we rely on Supabase Realtime WebSockets for instant sub-second updates, and use an intelligent,
   // throttled fallback (only on tab focus with a 15-minute cooldown).

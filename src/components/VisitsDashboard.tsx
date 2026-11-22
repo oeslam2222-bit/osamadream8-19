@@ -314,7 +314,7 @@ export const VisitsDashboard: React.FC = () => {
         reason: liveGeoCheck.status === 'outside_range' ? 'خارج النطاق' : 'إثبات ميداني',
       });
       const cfg = normalizeCloudinaryConfig(cloudinaryConfig);
-      const uploaded = await uploadImageToCloudinary(stamped, cfg, 'tantawy_visit_proofs');
+      const uploaded = await uploadImageToCloudinary(stamped, { config: cfg, folder: 'tantawy_visit_proofs', maxSizeMB: 5 });
       setProofPhotoUrl(uploaded.url);
     } catch (err: any) {
       setGpsNotice(err?.message || 'تعذر رفع صورة الإثبات الميداني');
@@ -333,7 +333,7 @@ export const VisitsDashboard: React.FC = () => {
       const cfg = normalizeCloudinaryConfig(cloudinaryConfig);
       const urls: string[] = [];
       for (const file of files.slice(0, 6)) {
-        const uploaded = await uploadImageToCloudinary(file, cfg, 'tantawy_visit_products');
+        const uploaded = await uploadImageToCloudinary(file, { config: cfg, folder: 'tantawy_visit_products', maxSizeMB: 5 });
         urls.push(uploaded.url);
       }
       setProductPhotos((prev) => [...prev, ...urls].slice(0, 10));
