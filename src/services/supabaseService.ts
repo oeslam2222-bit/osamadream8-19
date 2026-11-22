@@ -24,6 +24,22 @@ export const isSupabaseConfigured = Boolean(
 );
 
 /**
+ * لا تُجرى أي عملية قراءة على جداول Supabase قبل تسجيل دخول المستخدم.
+ * بعد تفعيل RLS (الحملة p0) الجداول مقفلة على دور `anon`، وأي استعلام
+ * بدون جلسة مستخدم يُعيد HTTP 401 بجسم
+ * {"code":"42501","message":"permission denied for table ..."}.
+ * هذه الدالة تمنع إرسال الطلبات أصلاً بدلاً من الاعتماد على معالجة الخطأ لاحقًا.
+ */
+export async function hasAuthSession(): Promise<boolean> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    return Boolean(data?.session);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * منع تكرار نفس الطلب في نفس اللحظة (In-flight dedupe)
  * ------------------------------------------------------------------
  * المشكلة: عند تحميل التطبيق أو أول مزامنة، عدة مكونات تنادي نفس
@@ -702,6 +718,10 @@ async function fetchCustomersFromSupabaseImpl(
   options?: { updatedSince?: string }
 ): Promise<{ success: boolean; customers?: Customer[]; error?: string; scoped?: boolean; emptyDueToThrottle?: boolean }> {
   try {
+    if (!(await hasAuthSession())) {
+      // الجداول مقفلة بـ RLS على المستخدم المسجل دخولاً؛ قبل الجلسة لا نُرسل أي طلب
+      return { success: true, customers: [], scoped: false };
+    }
     const updatedSince = options?.updatedSince?.trim() || undefined;
     let rawCustomers: any[] | null = null;
     let scopedUsed = hasScopeFilters(scope);
@@ -880,6 +900,7 @@ export async function fetchCustomerContentStamp(
   scope?: CustomerFetchScope
 ): Promise<CustomerContentStamp | null> {
   try {
+    if (!(await hasAuthSession())) return null;
     let query = supabase
       .from('customers')
       .select('updated_at', { count: 'exact' })

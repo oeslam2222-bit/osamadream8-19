@@ -1,4 +1,9 @@
-import { supabase, isSupabaseConfigured, GLOBAL_SYNC_VERSION_RECORD_ID } from './supabaseService';
+import {
+  supabase,
+  isSupabaseConfigured,
+  GLOBAL_SYNC_VERSION_RECORD_ID,
+  hasAuthSession,
+} from './supabaseService';
 import { idbDelete, idbClear } from './storageService';
 
 /**
@@ -69,6 +74,8 @@ export function clearLocalDataVersion(): void {
  */
 export async function fetchRemoteDataVersion(): Promise<GlobalDataVersionMeta | null> {
   if (!isSupabaseConfigured) return null;
+  // لا يُقرأ دليل الإصدار العام كدور anon: بعد تفعيل RLS جدول orders مقفل على auth.uid()
+  if (!(await hasAuthSession())) return null;
   try {
     const { data, error } = await supabase
       .from('orders')
