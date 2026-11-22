@@ -1913,10 +1913,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   } = useUiPreferences();
 
   // Hydrate high-capacity collections from IndexedDB seamlessly on startup
+  // Non-blocking: essential data first, heavy visit merging deferred to idle callback
   useEffect(() => {
     let isMounted = true;
     async function hydrateFromIndexedDB() {
       try {
+        // 1) Essential data first — parallel, fast
         const [savedProducts, savedCustomers, savedInvoices, savedCart, savedVisits] = await Promise.all([
           idbGet<Product[]>(STORAGE_KEYS.PRODUCTS),
           idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS),
@@ -1926,16 +1928,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ]);
 
         if (!isMounted) return;
+
+        // Set essential data immediately (non-blocking state updates)
         if (Array.isArray(savedProducts)) setProducts(sanitizeProducts(savedProducts));
-        if (Array.isArray(savedCustomers)) {
-          const sanitized = sanitizeCustomers(savedCustomers);
-          const deduped = deduplicateCustomersArray(sanitized);
-          setCustomers(deduped);
-          saveLocalCustomersFingerprint(deduped);
-          if (deduped.length !== savedCustomers.length) {
-            idbSet(STORAGE_KEYS.CUSTOMERS, deduped).catch(() => {});
-          }
-        }
         if (Array.isArray(savedInvoices)) {
           const deletedSet = getDeletedInvoiceIds();
           const filtered = savedInvoices.filter(
@@ -1945,81 +1940,126 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         if (Array.isArray(savedCart)) setCart(savedCart);
 
-        // Hydrate & merge visits from IndexedDB, the legacy localStorage mirror (read once,
-        // see migrateLegacyVisitsMirror), and customer visit histories
-        const allVisitsMap = new Map<string, CustomerVisit>();
-        const deletedVisitIds = getDeletedVisitIds();
-        if (Array.isArray(savedVisits)) {
-          savedVisits.forEach((v) => {
-            if (v && v.id && !deletedVisitIds.has(v.id) && !deletedVisitIds.has(v.date)) {
-              allVisitsMap.set(v.id, v);
-            }
-          });
-        }
-        // الزيارات اللي كانت متخزّنة في مرآة localStorage القديمة.
-        // الأجهزة اللي كانت شغالة قبل الإصدار ده ممكن يكون عندها زيارات في
-        // localStorage بس، فبنقراها مرة واحدة هنا وبندمجها قبل ما المفتاح
-        // يتمسح (التنضيف بيحصل في آخر hydrateFromIndexedDB تحت).
-        const legacyVisits = readLegacyVisitsMirror();
-        if (legacyVisits.length > 0) {
-          legacyVisits.forEach((v) => {
-            if (v && v.id && !deletedVisitIds.has(v.id) && !deletedVisitIds.has(v.date)) {
-              if (!allVisitsMap.has(v.id)) allVisitsMap.set(v.id, v);
-            }
-          });
-        }
+        // Customers: sanitize + dedupe (can be large, but single pass)
+        let dedupedCustomers: Customer[] = [];
         if (Array.isArray(savedCustomers)) {
-          savedCustomers.forEach((c) => {
-            if (Array.isArray(c.visitHistory)) {
-              c.visitHistory.forEach((v) => {
-                if (v) {
-                  const vid = v.id || `visit-${c.id}-${v.date}`;
-                  if (!allVisitsMap.has(vid)) {
-                    allVisitsMap.set(vid, {
-                      ...v,
-                      id: vid,
-                      customerId: v.customerId || c.id,
-                      customerName: v.customerName || c.name,
-                      customerCode: v.customerCode || c.code,
-                      branchName: v.branchName || c.branchName,
-                      repName: v.repName || c.salesRepName || c.repName || 'المندوب',
-                      repId: v.repId || c.repId,
-                      status: v.status || 'منفذة',
-                    });
-                  }
-                }
-              });
-            }
-          });
-        }
-        setVisits((currentVisits) => {
-          (currentVisits || []).forEach((v) => {
-            if (v && v.id && !allVisitsMap.has(v.id)) allVisitsMap.set(v.id, v);
-          });
-          const merged = Array.from(allVisitsMap.values()).map((v) => ({
-            ...v,
-            status: v.status || 'منفذة',
-            reviewStatus: 'approved' as const,
-            reviewedByName: v.reviewedByName || 'معتمدة مباشرة',
-            reviewNote: v.reviewNote || 'زيارة مباشرة معتمدة تلقائياً',
-          }));
-          // دلوقتي المرآة القديمة اتدمجت في IndexedDB — امسحها عشان ما تفضل
-          // متخزّنة. المسح بعد الدمج مش قبله، عشان ما نضيّعش زيارات قديمة.
-          if (merged.length > 0) {
-            idbSet(STORAGE_KEYS.VISITS, merged).catch(() => {});
-            clearLegacyVisitsMirror();
+          const sanitized = sanitizeCustomers(savedCustomers);
+          dedupedCustomers = deduplicateCustomersArray(sanitized);
+          setCustomers(dedupedCustomers);
+          saveLocalCustomersFingerprint(dedupedCustomers);
+          if (dedupedCustomers.length !== savedCustomers.length) {
+            idbSet(STORAGE_KEYS.CUSTOMERS, dedupedCustomers).catch(() => {});
           }
-          return merged;
-        });
+        }
+
+        // 2) Mark hydration done for essential data — UI can proceed
         setIsLocalDataHydrated(true);
         refreshPendingInvoicesCount();
-        // حتى لو الدمج مالوش نتيجة (لا IDB ولا مرآة قديمة)، المفتاح القديم
-        // لازم يتمسح — تاني مرة هنا مش harmful، والنسخة لو ماقرأتهاش أصلاً.
-        clearLegacyVisitsMirror();
-        // Clean up legacy oversized localStorage mirrors so quota & main-thread stay free.
+
+        // Clean up legacy localStorage mirrors (non-blocking)
         [STORAGE_KEYS.CUSTOMERS, STORAGE_KEYS.INVOICES, STORAGE_KEYS.PRODUCTS].forEach((k) => {
           try { localStorage.removeItem(k); } catch {}
         });
+
+        // 3) Heavy visit merging: defer to idle callback (non-blocking)
+        // This processes thousands of visitHistory records without freezing UI
+        const mergeVisitsInBackground = () => {
+          const allVisitsMap = new Map<string, CustomerVisit>();
+          const deletedVisitIds = getDeletedVisitIds();
+
+          // Helper to add visit if valid
+          const addVisit = (v: any, fallbackCustomerId?: string, fallbackCustomerName?: string, fallbackCustomerCode?: string, fallbackBranchName?: string, fallbackRepName?: string, fallbackRepId?: string) => {
+            if (!v || !v.id) return;
+            const vid = v.id || `visit-${fallbackCustomerId}-${v.date}`;
+            if (deletedVisitIds.has(v.id) || deletedVisitIds.has(v.date) || allVisitsMap.has(vid)) return;
+            allVisitsMap.set(vid, {
+              ...v,
+              id: vid,
+              customerId: v.customerId || fallbackCustomerId,
+              customerName: v.customerName || fallbackCustomerName,
+              customerCode: v.customerCode || fallbackCustomerCode,
+              branchName: v.branchName || fallbackBranchName,
+              repName: v.repName || fallbackRepName || 'المندوب',
+              repId: v.repId || fallbackRepId,
+              status: v.status || 'منفذة',
+            });
+          };
+
+          // Add from savedVisits
+          if (Array.isArray(savedVisits)) {
+            savedVisits.forEach((v) => addVisit(v));
+          }
+
+          // Add from legacy mirror
+          const legacyVisits = readLegacyVisitsMirror();
+          if (legacyVisits.length > 0) {
+            legacyVisits.forEach((v) => addVisit(v));
+          }
+
+          // Add from customer visitHistory (the heavy part) — chunked with yield
+          if (Array.isArray(savedCustomers)) {
+            let customerIndex = 0;
+            const processCustomerChunk = () => {
+              const chunkSize = 50; // process 50 customers per idle callback
+              const endIndex = Math.min(customerIndex + chunkSize, savedCustomers.length);
+              
+              for (let i = customerIndex; i < endIndex; i++) {
+                const c = savedCustomers[i];
+                if (Array.isArray(c.visitHistory)) {
+                  c.visitHistory.forEach((v) => addVisit(v, c.id, c.name, c.code, c.branchName, c.salesRepName, c.repId));
+                }
+              }
+              
+              customerIndex = endIndex;
+              
+              if (customerIndex < savedCustomers.length) {
+                // Schedule next chunk
+                if (typeof requestIdleCallback !== 'undefined') {
+                  requestIdleCallback(processCustomerChunk, { timeout: 2000 });
+                } else {
+                  setTimeout(processCustomerChunk, 0);
+                }
+              } else {
+                // All done — finalize visits
+                finalizeVisits(allVisitsMap);
+              }
+            };
+            
+            // Start first chunk
+            if (typeof requestIdleCallback !== 'undefined') {
+              requestIdleCallback(processCustomerChunk, { timeout: 2000 });
+            } else {
+              setTimeout(processCustomerChunk, 0);
+            }
+          } else {
+            finalizeVisits(allVisitsMap);
+          }
+        };
+
+        const finalizeVisits = (allVisitsMap: Map<string, CustomerVisit>) => {
+          if (!isMounted) return;
+          setVisits((currentVisits) => {
+            (currentVisits || []).forEach((v) => {
+              if (v && v.id && !allVisitsMap.has(v.id)) allVisitsMap.set(v.id, v);
+            });
+            const merged = Array.from(allVisitsMap.values()).map((v) => ({
+              ...v,
+              status: v.status || 'منفذة',
+              reviewStatus: 'approved' as const,
+              reviewedByName: v.reviewedByName || 'معتمدة مباشرة',
+              reviewNote: v.reviewNote || 'زيارة مباشرة معتمدة تلقائياً',
+            }));
+            if (merged.length > 0) {
+              idbSet(STORAGE_KEYS.VISITS, merged).catch(() => {});
+              clearLegacyVisitsMirror();
+            }
+            return merged;
+          });
+        };
+
+        // Kick off background visit merging
+        mergeVisitsInBackground();
+
       } catch (err) {
         console.warn('IndexedDB initial hydration notice:', err);
         clearLegacyVisitsMirror();
@@ -5393,7 +5433,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     // ===== Fast Path: cached offline profile for instant login =====
     // إذا كان في بروفايل محفوظ محلياً لنفس المستخدم، ندخل فوراً ونحدث في الباكجروند
-    const cachedProfile = getOfflineSafeProfile();
+    const cachedProfile = readOfflineSafeProfile(cachedUserId);
     const cachedUserId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
     const isSameUser = cachedProfile && cachedUserId && (
       cachedProfile.id === cachedUserId ||

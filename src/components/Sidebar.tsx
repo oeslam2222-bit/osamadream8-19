@@ -108,6 +108,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
+          {/* زر خروج دائم الظهور — أيقونة فقط عند الطي، نص+أيقونة عند التوسع */}
+          {currentUser && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className={`mx-2 my-2 px-3 py-2 rounded-xl text-left transition-colors border border-[#DC2626]/20 dark:border-[#DC2626]/30 bg-[#FEF2F2] dark:bg-[#17243A]/50 text-[#DC2626] dark:text-[#F87171] font-bold text-sm hover:bg-[#FECACA] dark:hover:bg-[#DC2626]/20 flex items-center gap-2 ${isCollapsed ? 'justify-center' : 'justify-start'}`}
+              aria-label="تسجيل الخروج"
+              title="تسجيل الخروج"
+            >
+              <LogOut className="w-4 h-4 shrink-0" aria-hidden="true" />
+              {!isCollapsed && <span>تسجيل الخروج</span>}
+            </button>
+          )}
+
           <nav className={`flex-1 overflow-y-auto ${isCollapsed ? 'px-2' : 'px-4'} py-3 space-y-0.5`}>
             <div className="px-2 text-[10px] font-black text-slate-400 dark:text-[#64748B] mb-3 uppercase tracking-wider">{isCollapsed ? 'الأقسام' : 'أقسام النظام'}</div>
             {navItems.map((item) => {
@@ -126,9 +140,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div className={`border-t border-slate-200 dark:border-[#26364D] px-3 py-3 space-y-2`}>
             <button type="button" onClick={onOpenCart} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left bg-[#F59E0B] text-white font-bold text-sm shadow-md hover:bg-[#D97706] transition-colors"><ShoppingCart className="w-4 h-4" />{!isCollapsed && <span>الطلبية ({cartSummary.itemCount})</span>}</button>
             <button type="button" onClick={onOpenNotificationCenter} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 dark:hover:bg-[#17243A] transition-colors relative"><Bell className="w-4 h-4" /><span className="font-bold text-sm">{notificationCount > 0 ? `إشعارات (${notificationCount})` : 'الإشعارات'}</span>{notificationCount > 0 && <span className="absolute top-1 left-1 w-2.5 h-2.5 bg-[#DC2626] rounded-full text-[10px] flex items-center justify-center text-white font-black">{notificationCount > 9 ? '9+' : notificationCount}</span>}</button>
-            {!isCollapsed && (
-              <button type="button" onClick={handleLogout} className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-[#DC2626] dark:text-[#F87171] font-bold text-sm hover:bg-[#FEF2F2] dark:hover:bg-[#17243A]/50 transition-colors border border-[#DC2626]/20 dark:border-[#DC2626]/30"><LogOut className="w-4 h-4" /><span>تسجيل الخروج</span></button>
-            )}
           </div>
         </aside>
       )}

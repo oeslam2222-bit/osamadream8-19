@@ -32,9 +32,9 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
       i++;
       if (i >= SPLASH_ITEMS.length) {
         clearInterval(interval);
-        setTimeout(() => onComplete(), 400);
+        setTimeout(() => onComplete(), 150);
       }
-    }, 350);
+    }, 100); // أسرع: 100ms بدل 350ms = ~600ms إجمالاً
     return () => clearInterval(interval);
   }, [onComplete]);
 
