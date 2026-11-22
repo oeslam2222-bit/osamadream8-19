@@ -5433,7 +5433,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     // ===== Fast Path: cached offline profile for instant login =====
     // إذا كان في بروفايل محفوظ محلياً لنفس المستخدم، ندخل فوراً ونحدث في الباكجروند
-    const cachedProfile = getOfflineSafeProfile();
+    const cachedProfile = readOfflineSafeProfile(cachedUserId);
     const cachedUserId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
     const isSameUser = cachedProfile && cachedUserId && (
       cachedProfile.id === cachedUserId ||
