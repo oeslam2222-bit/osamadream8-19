@@ -682,10 +682,14 @@ async function checkReturns(branch: string, sector: string): Promise<void> {
   try {
     const sb = await getSupabase();
     const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    // المرتجعات مش جدول مستقل — بتتخزن كأعمدة على جدول الزيارات
+    // (is_return / return_status / return_handled_at). الاستعلام القديم كان
+    // بيسأل عن جدول `returns` غير موجود → 404.
     const { count } = await sb
-      .from('returns')
+      .from('visits')
       .select('id', { count: 'exact', head: true })
       .eq('branch_name', branch)
+      .eq('is_return', true)
       .gte('updated_at', since);
     if (count && count > 0) {
       notifyReturnsUpdate({
