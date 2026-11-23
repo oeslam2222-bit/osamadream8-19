@@ -12,6 +12,7 @@ import {
   extractVisitGeoFromNotes,
 } from './geoVerificationService';
 import { encodeTargetNotesWithSector, inferTargetSector } from './targetService';
+import { makeProductCodesUnique } from './productIdentity';
 
 export const SUPABASE_URL = (import.meta.env.VITE_SUPABASE_URL || '').trim();
 export const SUPABASE_ANON_KEY = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
@@ -3622,18 +3623,40 @@ export async function saveProductsToSupabase(
       (await saveChunks(richWithoutCode, 'id')) &&
       !saveError;
 
-    // إذا كان نفس الكود مكررًا بسبب مقاس/لون مختلف، فلا يجوز دمج المتغيرات.
-    // في حال وجود قيد تفرد على code في قاعدة البيانات سيظهر تعارض (23505) ويجب
-    // تعديل القيد إلى مركب (مثلاً code + size/color) أو جعل الكود فريدًا لكل متغير.
+    // لو نفس الكود مكرر لمتغيرات (مقاس/لون) والـ DB لسه عليه UNIQUE(code):
+    // نحاول نحفظ一遍 عادي؛ لو رفض (23505) نعيد الحفظ بأكواد فريدة لكل متغير
+    // (#2، #3...) بدل ما نضيع الـ 6000 صنف. لو القيد اتشال (SQL migration)
+    // الحفظ الأول بينجح والأكواد بتفضل زي الشيت.
     if (!richOk && saveError && /duplicate key|unique constraint|23505/i.test(saveError)) {
       const errMsg = String(saveError || '');
-      const isCodeUniqueConflict = /products?_code_key|_code_key|duplicate key value violates unique constraint/i.test(errMsg) || hasDuplicateCodes;
+      const isCodeUniqueConflict =
+        /products?_code_key|_code_key|duplicate key value violates unique constraint/i.test(errMsg) ||
+        hasDuplicateCodes;
       if (isCodeUniqueConflict) {
-        return {
-          success: false,
-          error:
-            'تعارض في حفظ المنتجات: يوجد نفس كود الصنف لأكثر من متغير (مقاس/لون) بينما قاعدة البيانات تفرض تفرد الكود (products_code_key). لم يتم دمج المتغيرات. الحل: شغّل الملف supabase/fix_products_variant_unique.sql مرة واحدة في Supabase → SQL Editor ثم أعد الاستيراد.'
-        };
+        saveError = undefined;
+        productsToWrite = makeProductCodesUnique(productsToWrite);
+        const retryRows = dedupePayload(buildPayload(true));
+        const retryWithCode = retryRows.filter((product) => product.code);
+        const retryWithoutCode = retryRows.filter((product) => !product.code);
+        const retryOk =
+          (await saveChunks(retryWithCode, 'id')) &&
+          (await saveChunks(retryWithoutCode, 'id')) &&
+          !saveError;
+        if (retryOk) {
+          usedRichPayload = true;
+          console.info(
+            `Supabase products save: ${retryRows.length} rows saved with unique variant codes (UNIQUE(code) fallback).`
+          );
+          return { success: true, changedCount: retryRows.length };
+        }
+        if (!saveError || !isMissingColumn(saveError)) {
+          return {
+            success: false,
+            error:
+              'تعذر حفظ المنتجات على قاعدة البيانات. لو الشيت فيه أكثر من متغير بنفس الكود (مقاس/لون)، شغّل الملف supabase/fix_products_variant_unique.sql مرة واحدة في Supabase → SQL Editor ثم أعد الاستيراد.'
+          };
+        }
+        // لو الخطأ المتبقي عمود ناقص، نكمل للـ minimal retry بالأسفل.
       }
     }
 

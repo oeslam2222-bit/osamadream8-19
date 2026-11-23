@@ -186,3 +186,55 @@ export const deduplicateProductsByUnifiedCode = (list: Product[]): Product[] => 
 
   return result;
 };
+
+/**
+ * يضمن إن كل صنف له `code` فريد.
+ *
+ * قاعدة البيانات عليها `UNIQUE(code)` (products_code_key)، لكن الشيت ممكن
+ * يجيب نفس الكود الأساسي لأكثر من متغير (مقاس/لون). من غير ده الحفظ بيفشل
+ * بـ 23505 ويرجع الكتالوج كله.
+ *
+ * الحل: المتغيرات المكررة بتاخد لاحقة `#2`، `#3`... والـ `#` متوافق مع
+ * `normalizeVariantCodeKey` اللي بيعتبر `1000#` متغير تابع لـ `1000`،
+ * فالأصناف كلها بتتحفظ مستقلة من غير فقد أي متغير.
+ */
+export function makeProductCodesUnique<T extends { code?: string | null }>(list: T[]): T[] {
+  // أولًا نحجز كل الأكواد الأصلية (الفريدة) عشان المتغير المولّد ما يسرقش
+  // كود موجود Actually زي `1000#2`.
+  const originalCodes = new Set<string>();
+  for (const p of list) {
+    if (!p) continue;
+    const base = String(p.code ?? '').trim();
+    if (base) originalCodes.add(normalizeVariantCodeKey(base));
+  }
+
+  const used = new Set<string>();
+  const result: T[] = [];
+  for (const p of list) {
+    if (!p) continue;
+    const base = String(p.code ?? '').trim();
+    if (!base) {
+      result.push(p);
+      continue;
+    }
+    const baseKey = normalizeVariantCodeKey(base);
+    if (!used.has(baseKey)) {
+      used.add(baseKey);
+      result.push(p);
+      continue;
+    }
+    // كود متكرر → دوّر على لاحقة #2، #3... مش مستخدمة ولا كود أصلي.
+    let n = 2;
+    let candidate = `${base}#${n}`;
+    while (
+      used.has(normalizeVariantCodeKey(candidate)) ||
+      originalCodes.has(normalizeVariantCodeKey(candidate))
+    ) {
+      n += 1;
+      candidate = `${base}#${n}`;
+    }
+    used.add(normalizeVariantCodeKey(candidate));
+    result.push({ ...p, code: candidate });
+  }
+  return result;
+}

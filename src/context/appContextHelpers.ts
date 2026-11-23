@@ -306,7 +306,7 @@ export const deduplicateTargetRecords = (records: TargetRecord[]): TargetRecord[
  * التعريف: الصنف = الكود. راجع الملف ده للسبب (قاعدة البيانات عليها
  * `UNIQUE(lower(trim(code)))` على جدول products، فالكود هو الهوية).
  */
-export { productIdentityKey, normalizeProductCodeKey, normalizeVariantCodeKey, deduplicateProductArray } from '../services/productIdentity';
+export { productIdentityKey, normalizeProductCodeKey, normalizeVariantCodeKey, deduplicateProductArray, makeProductCodesUnique } from '../services/productIdentity';
 
 export const sanitizeCustomers = (list: Customer[]): Customer[] => {
   if (!Array.isArray(list)) return [];
