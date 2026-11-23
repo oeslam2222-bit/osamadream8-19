@@ -127,6 +127,15 @@ export async function resolveLoginEmail(
  * تسجيل الدخول عبر Supabase Auth. لا يوجد أي fallback محلي:
  * لو السيرفر مش متاح، الدخول بيتوقف بدل ما يتحول لتحقق قابل للتجاوز.
  */
+let profileInFlight: Promise<User | null> | null = null;
+let profileCache: { user: User | null; at: number } | null = null;
+const PROFILE_TTL_MS = 5000;
+
+export function clearProfileCache() {
+  profileInFlight = null;
+  profileCache = null;
+}
+
 export async function tryServerSignIn(
   identifier: string,
   password: string
@@ -173,6 +182,7 @@ export async function tryServerSignIn(
     const authUser = data?.user || null;
     if (!authUser) return { kind: 'unavailable', reason: 'no-user-in-response' };
 
+    clearProfileCache();
     return { kind: 'success', authUserId: authUser.id, email: authUser.email || email };
   } catch (e) {
     return { kind: 'unavailable', reason: e instanceof Error ? e.message : String(e) };
@@ -187,30 +197,52 @@ export async function tryServerSignIn(
  * (وده كان هيكسر الدخول لحظة تفعيل RLS). الدالة بترجع صف صاحب الجلسة فقط
  * بأعمدة غير حساسة، من غير أي اعتماد على سياسات الصفوف.
  */
-export async function fetchMyProfile(): Promise<User | null> {
-  try {
-    const { data, error } = await supabase.rpc('get_my_profile');
-    if (error) return null;
-    const row: any = Array.isArray(data) ? data[0] : data;
-    if (!row) return null;
-    return {
-      id: row.id,
-      name: row.name,
-      username: row.username,
-      email: row.email,
-      role: row.role,
-      branchName: row.branch_name,
-      sector: row.sector,
-      supervisorId: row.supervisor_id,
-      phone: row.phone,
-      commissionRate: row.commission_rate,
-      isActive: row.is_active,
-      approvalStatus: row.approval_status,
-      auth_user_id: row.auth_user_id,
-    } as User;
-  } catch {
-    return null;
+export async function fetchMyProfile(options?: { force?: boolean }): Promise<User | null> {
+  const now = Date.now();
+  if (!options?.force && profileCache && now - profileCache.at < PROFILE_TTL_MS) {
+    return profileCache.user;
   }
+  if (!options?.force && profileInFlight) return profileInFlight;
+
+  const run = (async (): Promise<User | null> => {
+    try {
+      const { data, error } = await supabase.rpc('get_my_profile');
+      if (error) {
+        profileCache = { user: null, at: Date.now() };
+        return null;
+      }
+      const row: any = Array.isArray(data) ? data[0] : data;
+      if (!row) {
+        profileCache = { user: null, at: Date.now() };
+        return null;
+      }
+      const user = {
+        id: row.id,
+        name: row.name,
+        username: row.username,
+        email: row.email,
+        role: row.role,
+        branchName: row.branch_name,
+        sector: row.sector,
+        supervisorId: row.supervisor_id,
+        phone: row.phone,
+        commissionRate: row.commission_rate,
+        isActive: row.is_active,
+        approvalStatus: row.approval_status,
+        auth_user_id: row.auth_user_id,
+      } as User;
+      profileCache = { user, at: Date.now() };
+      return user;
+    } catch {
+      profileCache = { user: null, at: Date.now() };
+      return null;
+    }
+  })();
+
+  profileInFlight = run.finally(() => {
+    if (profileInFlight === run) profileInFlight = null;
+  });
+  return profileInFlight;
 }
 
 export async function getServerSessionAsync(): Promise<Session | null> {
@@ -224,6 +256,7 @@ export async function getServerSessionAsync(): Promise<Session | null> {
 }
 
 export async function signOutServer(): Promise<void> {
+  clearProfileCache();
   try {
     if (!isConfigured()) return;
     await supabase.auth.signOut();
