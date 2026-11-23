@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Branch, Customer, Invoice, Product, PromoAnnouncement, PromotionOffer, User, UserRole, CustomerVisit } from '../types';
 import { pickUserColumns, sanitizeSupervisorId } from './userRowPayload';
 import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from './customerDues';
+import { idbGet, idbSet } from './storageService';
 import { normalizeArabicText } from './arabicMatchingService';
 import { classifyError, handleSupabaseError, withRetry, isOfflineNow, isSlowConnection, NetworkErrorType } from './networkErrorHandler';
 import { APP_VERSION, notifyOutdatedClient } from './clientVersion';
@@ -1300,12 +1301,74 @@ function buildCustomerComparableSig(c: Customer): string {
   ]);
 }
 
+// ---------------------------------------------------------------------------
+// بصمة آخر نسخة اتبعتت فعلاً من كل صف عملاء (id → hash محتوى الـpayload)
+// ---------------------------------------------------------------------------
+// التطبيقات كانت بتعمل upsert لكل قائمة العملاء مع كل مزامنة/إقلاع → 12 طلب
+// ورا بعض كل مرة حتى لو مفيش صف واحد اتغيّر، وكل upsert كان بيحرّك updated_at
+// (قبل إصلاح الـtrigger) → باقي الأجهزة تنزّل الجدول كله وترجع ترفعه → حلقة.
+//
+// البصمة دي بتسجّل محتوى كل صف **بعد نجاح إرساله** للسيرفر فقط. أي نداء حفظ
+// بعدها يقارن محتوى كل صف بالبصمة المرساة ويُسقط المطابق — فلو القائمة نفسها
+// (إقلاع / sync / رد على حدث Realtime) النتيجة = صفر صفوف وصفر طلبات.
+// ملاحظة: مش بنقارن بالنسخة المحلية القديمة بس — بنقارن باللي اتأكدنا إنه وصل،
+// والأمان هنا: إرسال صف مطابق للسيرفر تغيير فارغ، وإسقاطه صح 100%.
+// ---------------------------------------------------------------------------
+const CUSTOMER_PUSHED_HASHES_KEY = 'customers:lastPushedHashes';
+let customerPushedHashesCache: Map<string, string> | null = null;
+let customerPushedHashesLoad: Promise<Map<string, string>> | null = null;
+
+/** FNV-1a 32-bit — أسرع من JSON طويل ويكفي لأن المقارنة per-id (مش بين صفوف). */
+function fnv1a32(str: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
+}
+
+/** hash لمحتوى صف الـpayload نفسه — من غير updated_at اللي بيتحدّث في كل نداء. */
+function customerRowContentHash(row: Record<string, any>): string {
+  const { updated_at: _updated_at, ...content } = row;
+  return fnv1a32(JSON.stringify(content));
+}
+
+async function loadCustomerPushedHashes(): Promise<Map<string, string>> {
+  if (customerPushedHashesCache) return customerPushedHashesCache;
+  if (!customerPushedHashesLoad) {
+    customerPushedHashesLoad = idbGet<Record<string, string>>(CUSTOMER_PUSHED_HASHES_KEY)
+      .then((stored) => {
+        const valid =
+          stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {};
+        customerPushedHashesCache = new Map(Object.entries(valid));
+        return customerPushedHashesCache;
+      })
+      .catch(() => {
+        // IndexedDB غير متاح → بصمة فاضية = السلوك القديم (حفظ كامل) بدل ضياع بيانات.
+        customerPushedHashesCache = new Map<string, string>();
+        return customerPushedHashesCache;
+      });
+  }
+  return customerPushedHashesLoad;
+}
+
+async function persistCustomerPushedHashes(): Promise<void> {
+  if (!customerPushedHashesCache) return;
+  await idbSet(CUSTOMER_PUSHED_HASHES_KEY, Object.fromEntries(customerPushedHashesCache));
+}
+
 /**
  * Save / Upsert Customers into Supabase (supports delta-only upserts so unchanged rows keep their updated_at)
+ *
+ * طبقات الفلترة (الأولى تُسقط، والنتيجة الفارغة = صفر طلبات):
+ *   1. `previousCustomers` — فلتر القائمة السابقة لو المندوح مررها.
+ *   2. بصمة آخر محتوى اتبعت بنجاح لكل صف (IndexedDB) — الافتراضي للكل.
+ *   3. `remoteIdSet` — أي صف مش موجود على السيرفر يتكتب دايمًا (INSERT).
  */
 export async function saveCustomersToSupabase(
   customers: Customer[],
-  options?: { previousCustomers?: Customer[]; forceFull?: boolean }
+  options?: { previousCustomers?: Customer[]; forceFull?: boolean; remoteIdSet?: Set<string> }
 ): Promise<{ success: boolean; changedCount?: number; changedIds?: string[]; error?: string }> {
   try {
     if (!isSupabaseConfigured) {
@@ -1393,8 +1456,33 @@ export async function saveCustomersToSupabase(
       };
     });
 
-    const dedupedPayload = Array.from(new Map(payload.map((r) => [r.id, r])).values());
+    let dedupedPayload = Array.from(new Map(payload.map((r) => [r.id, r])).values());
     const failures: string[] = [];
+
+    // -------------------------------------------------------------------------
+    // Delta filter: ما يتبعتش إلا الصفوف اللي محتواها اتغيّر فعلاً.
+    // البصمة = آخر محتوى كل صف اتبعت بنجاح للسيرفر (IndexedDB)، فلو القائمة
+    // نفسها اترفعت من غير تغيير (إقلاع / sync / قبل أي حدث Realtime) النتيجة
+    // = صفر صفوف وصفر طلبات — مش 12 طلب upsert ورا بعض زي ما كان بيحصل.
+    // -------------------------------------------------------------------------
+    const pushedHashes = await loadCustomerPushedHashes();
+    const rowHashes = new Map<string, string>();
+    dedupedPayload.forEach((r) => rowHashes.set(r.id, customerRowContentHash(r)));
+    let wroteAny = false;
+
+    if (!options?.forceFull) {
+      const remoteIds = options?.remoteIdSet;
+      dedupedPayload = dedupedPayload.filter((row) => {
+        // صف موجود محليًا ومش موجود على السيرفر لازم يتكتب (INSERT) مهما كانت البصمة —
+        // بيحمي من ضياع البيانات لو الجدول اتمسح أو صف اتحذف على السيرفر بالخطأ.
+        if (remoteIds && !remoteIds.has(row.id)) return true;
+        return pushedHashes.get(row.id) !== rowHashes.get(row.id);
+      });
+      if (dedupedPayload.length === 0) {
+        // الحارس: مفيش أي تغيير → ما يتبعتش أي طلب أصلاً.
+        return { success: true, changedCount: 0, changedIds: [] };
+      }
+    }
 
     for (let i = 0; i < dedupedPayload.length; i += 100) {
       const chunk = dedupedPayload.slice(i, i + 100);
@@ -1425,7 +1513,19 @@ export async function saveCustomersToSupabase(
 
       if (chunkError) {
         failures.push(chunkError.message);
+      } else {
+        // تُسجَّل المجموعات الناجحة فقط في البصمة؛ المجموعات الفاشلة تُعاد في
+        // النداء الجاي لأن محتواها فعلاً اتغير ولم يصل للسيرفر.
+        chunk.forEach((row) => {
+          const rowHash = rowHashes.get(row.id);
+          if (rowHash) pushedHashes.set(row.id, rowHash);
+        });
+        wroteAny = true;
       }
+    }
+
+    if (wroteAny) {
+      await persistCustomerPushedHashes();
     }
 
     // Report the truth. Returning success here while every chunk failed made the
@@ -1493,29 +1593,46 @@ export async function deleteCustomerFromSupabase(
  */
 export async function replaceCustomersInSupabase(
   customers: Customer[],
-  options?: { previousCustomers?: Customer[] }
+  options?: {
+    previousCustomers?: Customer[];
+    /** يقيّد قراءة الـIDs اليتيمة والحذف بنفس نطاق الجلسة (قطاع/فرع/مندوب). */
+    scope?: CustomerFetchScope;
+    /**
+     * حذف الصفوف اليتيمة (موجودة على السيرفر ومش في القائمة المحلية).
+     * افتراضيًا false — ممنوع إلا لعمليات إدارية/استيراد صريحة بنطاق معلوم.
+     * ممنوع تلقائيًا لو النطاق مقيّد بمندوبين (repNames/repIds) عشان ما نمسحش عملاء برّه النطاق.
+     */
+    allowOrphanDelete?: boolean;
+  }
 ): Promise<{ success: boolean; removed: number; changedCount?: number; error?: string; verified?: boolean }> {
   try {
     if (!customers || customers.length === 0) {
       return { success: false, removed: 0, error: 'قائمة العملاء فارغة - تم إيقاف المزامنة لمنع حذف البيانات' };
     }
 
-    const saveRes = await saveCustomersToSupabase(customers, options);
-    if (!saveRes.success) {
-      return { success: false, removed: 0, error: saveRes.error };
-    }
-
     const keepIds = new Set(customers.map((c) => resolveSafeCustomerId(c)));
+    const scope = options?.scope;
+    const repRestricted = Boolean(scope?.repNames?.length || scope?.repIds?.length);
+    const allowOrphanDelete = options?.allowOrphanDelete === true && !repRestricted;
 
-    // Fetch ONLY 'id' column (instead of all 60 columns) to detect orphan rows with minimal egress
+    // Fetch ONLY 'id' column to detect orphan rows with minimal egress.
+    // نفس القراءة الخفيفة اللي كانت بتحصل بعد الحفظ، بس دلوقتي **قبل** الحفظ:
+    // الـdelta filter بيعرف بيها إيه اللي موجود فعلاً على السيرفر — الصفوف
+    // الغائبة بتتبعت (INSERT) مهما كانت البصمة، والموجود يتساب لو محتواه ما
+    // اتغيرش → مفيش upsert كامل لكل العملاء في كل sync.
+    // مهم: لو هنحذف يتيم، القراءة لازم تكون بنفس الـscope عشان ما نمسحش صفوف برّه نطاق الجهاز.
     const remoteIdRows: string[] = [];
     let idReadErr: any = null;
     for (let from = 0; ; from += 1000) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('customers')
         .select('id')
         .order('id', { ascending: true })
         .range(from, from + 999);
+      if (allowOrphanDelete && scope) {
+        query = applyScopeToQuery(query, scope, 'customers');
+      }
+      const { data, error } = await query;
       if (error) {
         idReadErr = error;
         break;
@@ -1525,6 +1642,23 @@ export async function replaceCustomersInSupabase(
         if (r?.id) remoteIdRows.push(String(r.id));
       });
       if (data.length < 1000) break;
+    }
+
+    const saveRes = await saveCustomersToSupabase(customers, {
+      previousCustomers: options?.previousCustomers,
+      ...(idReadErr ? {} : { remoteIdSet: new Set(remoteIdRows) }),
+    });
+    if (!saveRes.success) {
+      return { success: false, removed: 0, error: saveRes.error };
+    }
+
+    if (!allowOrphanDelete) {
+      return {
+        success: true,
+        removed: 0,
+        changedCount: saveRes.changedCount ?? customers.length,
+        verified: true,
+      };
     }
 
     if (idReadErr) {

@@ -992,6 +992,11 @@ export function sanitizeAndDeduplicateUsers(userList: User[]): UserDeduplication
       const roleMatch = ex.role === u.role;
       if (!roleMatch) return false;
 
+      // Never merge across sectors: electrical and home reps can share names/branches.
+      const sectorA = ex.sector === 'electrical' ? 'electrical' : ex.sector === 'home' ? 'home' : undefined;
+      const sectorB = u.sector === 'electrical' ? 'electrical' : u.sector === 'home' ? 'home' : undefined;
+      if (sectorA && sectorB && sectorA !== sectorB) return false;
+
       // Check branch compatibility:
       if (ex.branchName && u.branchName && !isBranchMatch(ex.branchName, u.branchName, { allowUnassigned: false })) {
         return false;

@@ -15,7 +15,7 @@ export const USER_TABLE_COLUMNS: Record<
 > = {
   users: [
     'id', 'name', 'username', 'email', 'password', 'role', 'branch_name',
-    'supervisor_id', 'phone', 'commission_rate', 'is_active', 'approval_status', 'created_at'
+    'supervisor_id', 'phone', 'commission_rate', 'is_active', 'approval_status', 'created_at', 'sector'
   ],
   app_users: [
     'id', 'name', 'username', 'email', 'password', 'role', 'branch_name',

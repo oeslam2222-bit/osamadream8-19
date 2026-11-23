@@ -3259,13 +3259,24 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         if (visits.length > 0) {
           await saveVisitsToSupabase(visits);
         }
-        // Push customers as an authoritative replacement so every role reads
-        // the same numbers and no duplicate rows accumulate on the server
+        // Push customers. حذف اليتامى مسموح فقط للنطاقات الإدارية الكاملة (قطاع/فرع)
+        // وغير مسموح لنطاق المندوب/المشرف المقيد بأسماء — عشان ما نمسحش عملاء برّه النطاق.
         if (customers.length > 0) {
           const cleanCustomers = deduplicateCustomersArray(customers);
-          const custPushRes = await replaceCustomersInSupabase(cleanCustomers);
+          const repRestrictedScope = Boolean(customerFetchScope?.repNames?.length || customerFetchScope?.repIds?.length);
+          const canAuthoritativeDelete =
+            !repRestrictedScope &&
+            (currentUser?.role === 'admin' ||
+              currentUser?.role === 'developer' ||
+              currentUser?.role === 'branch_manager' ||
+              CROSS_SECTOR_ADMIN_ROLES.has(currentUser?.role as any));
+          const custPushRes = await replaceCustomersInSupabase(cleanCustomers, {
+            scope: customerFetchScope,
+            allowOrphanDelete: canAuthoritativeDelete,
+          });
           if (custPushRes.success) {
-            pushedCustomersCount = cleanCustomers.length;
+            // الحقيقة فقط: عدد الصفوف اللي اتغيرت فعلاً (الـdelta)، مش القائمة كاملة.
+            pushedCustomersCount = custPushRes.changedCount ?? cleanCustomers.length;
             removedCustomersCount = custPushRes.removed;
           }
         }
@@ -5231,7 +5242,25 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     saveLocalCustomersFingerprint(finalCustomers, activeStorageCtxRef.current.userId, activeStorageCtxRef.current.sector);
 
     try {
-      const res = await replaceCustomersInSupabase(finalCustomers);
+      const repRestrictedScope = Boolean(customerFetchScope?.repNames?.length || customerFetchScope?.repIds?.length);
+      const canAuthoritativeDelete =
+        mode === 'replace' &&
+        !repRestrictedScope &&
+        (currentUser?.role === 'admin' ||
+          currentUser?.role === 'developer' ||
+          currentUser?.role === 'branch_manager' ||
+          CROSS_SECTOR_ADMIN_ROLES.has(currentUser?.role as any));
+      let deleteScope: CustomerFetchScope | undefined = customerFetchScope;
+      if (mode === 'replace' && incomingSectors.size === 1) {
+        const targetSector = Array.from(incomingSectors)[0];
+        if (targetSector === 'home' || targetSector === 'electrical') {
+          deleteScope = { sector: targetSector };
+        }
+      }
+      const res = await replaceCustomersInSupabase(finalCustomers, {
+        scope: deleteScope,
+        allowOrphanDelete: canAuthoritativeDelete,
+      });
       if (!res.success) {
         // Do NOT publish a version stamp on a failed write. Doing so made the
         // next heartbeat pull the previous server copy, which looked like the
