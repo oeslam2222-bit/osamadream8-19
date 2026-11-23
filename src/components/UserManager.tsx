@@ -90,6 +90,7 @@ export const UserManager: React.FC = () => {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('الكل');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('الكل');
+  const [selectedSectorFilter, setSelectedSectorFilter] = useState<'all' | 'home' | 'electrical'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [userFormError, setUserFormError] = useState<string | null>(null);
   const [syncToast, setSyncToast] = useState<string | null>(null);
@@ -365,6 +366,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
     }
 
     if (selectedRoleFilter !== 'الكل' && u.role !== selectedRoleFilter) return false;
+    if (selectedSectorFilter !== 'all') {
+      const uSec = u.sector === 'electrical' ? 'electrical' : 'home';
+      if (uSec !== selectedSectorFilter) return false;
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.trim().toLowerCase();
       const matchName = u.name.toLowerCase().includes(q);
@@ -374,11 +379,11 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
       if (!matchName && !matchUser && !matchPhone && !matchEmail) return false;
     }
     return true;
-  }), [users, isSuperAdminOrDev, currentUser?.branchName, currentUser?.role, selectedBranchFilter, selectedRoleFilter, searchQuery]);
+  }), [users, isSuperAdminOrDev, currentUser?.branchName, currentUser?.role, selectedBranchFilter, selectedRoleFilter, selectedSectorFilter, searchQuery]);
 
   useEffect(() => {
     setVisibleUsersCount(USERS_PER_PAGE);
-  }, [selectedBranchFilter, selectedRoleFilter, searchQuery, users.length]);
+  }, [selectedBranchFilter, selectedRoleFilter, selectedSectorFilter, searchQuery, users.length]);
 
   const visibleUsers = useMemo(() => {
     return activeUsers.slice(0, visibleUsersCount);
@@ -973,6 +978,28 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
                   <option value="sales_rep">المندوب</option>
                   <option value="legal_advisor">المستشار القانوني</option>
                 </select>
+              </div>
+
+              {/* Sector Filter */}
+              <div className="flex items-center gap-1 bg-white border border-[var(--app-line)] rounded-xl p-1 text-xs">
+                {([
+                  { id: 'all', label: 'الكل' },
+                  { id: 'home', label: 'منزلي' },
+                  { id: 'electrical', label: 'كهربا' },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setSelectedSectorFilter(opt.id)}
+                    className={`px-2.5 py-1 rounded-lg font-black transition ${
+                      selectedSectorFilter === opt.id
+                        ? 'bg-[var(--app-navy)] text-white'
+                        : 'text-slate-500 hover:bg-slate-50'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
