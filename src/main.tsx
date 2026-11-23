@@ -1,7 +1,10 @@
-import {StrictMode} from 'react';
+import {StrictMode, Suspense, lazy} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
-import TemplateApp from './templates/TemplateApp';
+
+// معاينة القوالب (?template) وضع نادر الاستخدام — بنحمّله كسولاً (lazy) عشان
+// شجرة القوالب كاملة (اللي بتجرّ recharts ورسومات كتير) ما تدخلش حزمة البداية.
+const TemplateApp = lazy(() => import('./templates/TemplateApp'));
 // الخطوط مضمّنة محليًا (self-hosted) — مفيش طلبات لـ Google Fonts وقت التشغيل.
 import '@fontsource/cairo/arabic-400.css';
 import '@fontsource/cairo/latin-400.css';
@@ -211,7 +214,9 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {TEMPLATE_PREVIEW ? (
-      <TemplateApp />
+      <Suspense fallback={null}>
+        <TemplateApp />
+      </Suspense>
     ) : (
       <App />
     )}
