@@ -769,6 +769,12 @@ html:not(.dark) .cf-field select {
   border: 1px solid #CBD5E1 !important;
 }
 
+html:not(.dark) select option,
+html:not(.dark) select optgroup {
+  background-color: #FFFFFF;
+  color: #0F172A;
+}
+
 html:not(.dark) .cf-advanced {
   background: #F8FAFC !important;
   border: 1px dashed #CBD5E1 !important;
