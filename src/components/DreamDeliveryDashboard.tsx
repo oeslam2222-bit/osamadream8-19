@@ -541,7 +541,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
 
           <div className="tg-hero__stats">
             {visibleSectorCards.map((sec) => (
-              <div key={`hero-${sec.sector}`} className="tg-mini">
+              <div key={`hero-${sec.sector}`} className="tg-mini min-w-0 overflow-hidden">
                 <div className="tg-mini__label flex items-center gap-1.5">
                   {sec.sector === 'home' ? (
                     <Home size={13} className="text-sky-300 shrink-0" />
@@ -560,12 +560,13 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                     style={{ width: `${Math.min(100, Math.max(0, sec.salesPercent))}%` }}
                   />
                 </div>
-                <div className="tg-mini__meta">
-                  <span className="whitespace-nowrap">
+                <div className="tg-mini__meta flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap">
                     تحصيل: <strong className="tg-num font-black text-white">{sec.collectionPercent}%</strong>
                   </span>
-                  <span className="whitespace-nowrap">
-                    متبقي: <strong className="tg-num font-black text-white">{fmt(sec.salesRemaining)}</strong>
+                  <span className="inline-flex items-center gap-1 min-w-0 max-w-full">
+                    <span className="shrink-0">متبقي:</span>
+                    <strong className="tg-num font-black text-white tabular-nums break-words [overflow-wrap:anywhere]">{fmt(sec.salesRemaining)}</strong>
                   </span>
                 </div>
               </div>
