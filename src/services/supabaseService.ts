@@ -3632,7 +3632,7 @@ export async function saveProductsToSupabase(
         return {
           success: false,
           error:
-            'تعارض في حفظ المنتجات: يوجد نفس كود الصنف لأكثر من متغير (مقاس/لون) بينما قاعدة البيانات تفرض تفرد الكود (products_code_key). لم يتم دمج المتغيرات. يلزم تعديل قيد التفرد في Supabase ليكون مركبًا (مثل code + size/color أو code + variant) أو جعل الكود فريدًا لكل متغير.'
+            'تعارض في حفظ المنتجات: يوجد نفس كود الصنف لأكثر من متغير (مقاس/لون) بينما قاعدة البيانات تفرض تفرد الكود (products_code_key). لم يتم دمج المتغيرات. الحل: شغّل الملف supabase/fix_products_variant_unique.sql مرة واحدة في Supabase → SQL Editor ثم أعد الاستيراد.'
         };
       }
     }
