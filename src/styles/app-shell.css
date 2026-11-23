@@ -921,8 +921,8 @@ html.dark .cf-switch-text small {
 .tg-dash {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px 12px 24px;
+  gap: 12px;
+  padding: 12px 10px 20px;
   background: #F8FAFC;
   min-height: 100dvh;
 }
@@ -930,8 +930,8 @@ html.dark .cf-switch-text small {
 /* ---------- Hero ---------- */
 .tg-hero {
   position: relative;
-  border-radius: 28px;
-  padding: 24px;
+  border-radius: 22px;
+  padding: 18px;
   background: linear-gradient(135deg, #FFFFFF 0%, #F1F5F9 100%);
   border: 1px solid #E2E8F0;
   box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06), 0 8px 32px rgba(37, 99, 235, 0.08);
@@ -968,7 +968,7 @@ html.dark .tg-hero {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 @media (min-width: 768px) {
   .tg-hero__inner { flex-direction: row; align-items: center; justify-content: space-between; }
@@ -1079,13 +1079,13 @@ html.dark .tg-btn--ghost:hover { background: #1E293B; color: #F8FAFC; }
 .tg-mini {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
-  border-radius: 16px;
+  gap: 5px;
+  padding: 9px 11px;
+  border-radius: 13px;
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
-  min-width: 150px;
+  min-width: 128px;
 }
 html.dark .tg-mini {
   background: #0A1E27;
@@ -1338,9 +1338,9 @@ html.dark .tg-q__sub { color: #64748B !important; }
 .tg-card {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 18px;
-  border-radius: 24px;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 18px;
   border: 1px solid #E2E8F0;
   background: #FFFFFF;
   box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
@@ -1587,11 +1587,11 @@ html.dark .tg-stat__sub { color: #64748B !important; }
 .tg-dash-bottom {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
-  margin-top: 8px;
+  gap: 12px;
+  margin-top: 6px;
 }
 @media (min-width: 768px) {
-  .tg-dash-bottom { grid-template-columns: 1fr 300px; }
+  .tg-dash-bottom { grid-template-columns: 1fr 280px; }
 }
 .tg-linkbtn {
   background: none;
@@ -1614,9 +1614,9 @@ html.dark .tg-linkbtn:hover { background: rgba(96, 165, 250, 0.15); color: #93C5
 }
 .tg-act {
   display: flex;
-  gap: 12px;
-  padding: 12px;
-  border-radius: 16px;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 13px;
   border: 1px solid #E2E8F0;
   background: #FFFFFF;
   align-items: flex-start;
@@ -1688,9 +1688,9 @@ html.dark .tg-empty {
 .tg-quick__btn {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-radius: 16px;
+  gap: 9px;
+  padding: 10px 13px;
+  border-radius: 13px;
   border: 1px solid #E2E8F0;
   background: #FFFFFF;
   color: #0F2B38;

@@ -1073,8 +1073,8 @@ html:not(.dark) .app-main .text-slate-300:not(.ds-pagehead *):not(.tg-hero *):no
 .tg-daycard {
   position: relative;
   overflow: hidden;
-  border-radius: 20px;
-  padding: 18px 18px 13px;
+  border-radius: 17px;
+  padding: 14px 14px 11px;
   background: linear-gradient(135deg, #3b82f6 0%, #2563eb 55%, #1e3a8a 100%);
   color: #ffffff;
   box-shadow: 0 14px 30px rgba(30, 58, 138, 0.32);
@@ -1104,7 +1104,7 @@ html:not(.dark) .app-main .text-slate-300:not(.ds-pagehead *):not(.tg-hero *):no
 }
 .tg-daycard__value {
   display: block;
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 900;
   line-height: 1.15;
   letter-spacing: -0.5px;

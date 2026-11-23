@@ -575,7 +575,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
       </section>
 
       {/* ---------- بطاقات القطاعات المنفصلة (منزلي ≠ كهرباء) ---------- */}
-      <section className={`grid gap-4 ${visibleSectorCards.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
+      <section className={`grid gap-3 ${visibleSectorCards.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
         {visibleSectorCards.map((sec) => {
           const isHome = sec.sector === 'home';
           const accentBorder = isHome
@@ -587,7 +587,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
           return (
             <div
               key={`panel-${sec.sector}`}
-              className={`rounded-2xl border ${accentBorder} bg-white dark:bg-[#0F1E36] p-4 shadow-xs flex flex-col gap-3.5`}
+              className={`rounded-2xl border ${accentBorder} bg-white dark:bg-[#0F1E36] p-3 shadow-xs flex flex-col gap-2.5`}
             >
               {/* Header */}
               <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-[#1E314E]">
@@ -616,9 +616,9 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
               </div>
 
               {/* 4 KPI cards per sector */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {/* Sales */}
-                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
+                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-2.5">
                   <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
                     <span>مبيعات {MONTHS_AR[latestPeriod.month - 1]} — المحقق</span>
                     <ShoppingCart size={15} className="text-blue-500" />
@@ -643,7 +643,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                 </div>
 
                 {/* Collection */}
-                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
+                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-2.5">
                   <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
                     <span>تحصيل {MONTHS_AR[latestPeriod.month - 1]} — المحقق</span>
                     <Wallet size={15} className="text-purple-500" />
@@ -668,7 +668,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                 </div>
 
                 {/* Debts */}
-                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
+                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-2.5">
                   <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
                     <span>مديونيات العملاء ({sec.title})</span>
                     <CreditCard size={15} className="text-red-500" />
@@ -682,7 +682,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                 </div>
 
                 {/* Dues */}
-                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
+                <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-2.5">
                   <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
                     <span>مستحقات العملاء ({sec.title})</span>
                     <Coins size={15} className="text-emerald-500" />
@@ -775,7 +775,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
 
       {/* ---------- ملخص اليوم لكل قطاع بشكل مستقل ---------- */}
       {activeSection === 'today' && (
-        <section className={`grid gap-4 ${visibleSectorCards.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
+        <section className={`grid gap-3 ${visibleSectorCards.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
           {visibleSectorCards.map((sec) => (
             <div key={`today-${sec.sector}`} className="tg-card">
               <div className="tg-card__head">
@@ -789,22 +789,22 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                 حركة اليوم ضمن شهر {MONTHS_AR[latestPeriod.month - 1]} {latestPeriod.year}
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2.5 border border-slate-200/70 dark:border-[#243756]">
+                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2 border border-slate-200/70 dark:border-[#243756]">
                   <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">مبيعات اليوم</div>
                   <div className="mt-1 text-sm font-black text-blue-600 dark:text-blue-400 tg-num">{fmt(sec.totalSalesToday)} ج.م</div>
                   <div className="text-[10px] text-slate-400 tg-num">{fmt(sec.ordersTodayCount)} طلبية</div>
                 </div>
-                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2.5 border border-slate-200/70 dark:border-[#243756]">
+                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2 border border-slate-200/70 dark:border-[#243756]">
                   <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">تحصيل اليوم</div>
                   <div className="mt-1 text-sm font-black text-emerald-600 dark:text-emerald-400 tg-num">{fmt(sec.totalCollectedToday)} ج.م</div>
                   <div className="text-[10px] text-slate-400">تحصيل ميداني</div>
                 </div>
-                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2.5 border border-slate-200/70 dark:border-[#243756]">
+                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2 border border-slate-200/70 dark:border-[#243756]">
                   <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">زيارات اليوم</div>
                   <div className="mt-1 text-sm font-black text-violet-600 dark:text-violet-400 tg-num">{fmt(sec.visitsTodayCount)}</div>
                   <div className="text-[10px] text-slate-400">زيارات مسجلة</div>
                 </div>
-                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2.5 border border-slate-200/70 dark:border-[#243756]">
+                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2 border border-slate-200/70 dark:border-[#243756]">
                   <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">المرتجعات</div>
                   <div className="mt-1 text-sm font-black text-amber-600 dark:text-amber-400 tg-num">{fmt(sec.returnsCount)}</div>
                   <div className="text-[10px] text-slate-400">أمر بيع عليه مرتجع</div>
@@ -817,7 +817,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
 
       {/* ---------- رسومات الأداء آخر 6 شهور — منفصلة لكل قطاع ---------- */}
       {activeSection === 'performance' && (
-        <section className={`grid gap-4 ${visibleSectorCards.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
+        <section className={`grid gap-3 ${visibleSectorCards.length > 1 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'}`}>
           {visibleSectorCards.map((sec) => (
             <div key={`perf-${sec.sector}`} className="tg-card">
               <div className="tg-card__head">
@@ -855,7 +855,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                   })}
                 </div>
               </div>
-              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-[#1E314E] grid grid-cols-2 gap-2 text-[11px] font-bold tg-num">
+              <div className="mt-2.5 pt-2.5 border-t border-slate-100 dark:border-[#1E314E] grid grid-cols-2 gap-2 text-[11px] font-bold tg-num">
                 <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
                   <span>متبقي مبيعات {MONTHS_AR[latestPeriod.month - 1]}:</span>
                   <span className="text-blue-600 dark:text-blue-400">{fmt(sec.salesRemaining)} ج.م</span>
