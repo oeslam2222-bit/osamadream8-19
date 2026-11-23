@@ -23,7 +23,6 @@ import { SyncStatusCenter } from './components/SyncStatusCenter';
 import { SplashScreen } from "./components/SplashScreen";
 import { ToastProvider } from "./components/ui/Toast";
 import React, { Component, ErrorInfo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { DreamDeliveryDashboard } from './components/DreamDeliveryDashboard';
 import { LoginPage } from './components/LoginPage';
 import { UpdateRequiredGate } from './components/UpdateRequiredGate';
 import { Navbar } from './components/Navbar';
@@ -127,6 +126,7 @@ const OrderBuilderModal = lazyNamed(() => import('./components/OrderBuilderModal
 const PromotionsOffersView = lazyNamed(() => import('./components/PromotionsOffersView'), 'PromotionsOffersView');
 const ElectronicInvoiceModal = lazyNamed(() => import('./components/ElectronicInvoiceModal'), 'ElectronicInvoiceModal');
 const PendingSyncView = lazyNamed(() => import('./components/PendingSyncView'), 'PendingSyncView');
+const DreamDeliveryDashboard = lazyNamed(() => import('./components/DreamDeliveryDashboard'), 'DreamDeliveryDashboard');
 
 /**
  * التبويبات الزائرة بتفضل في DOM مخفية بـ display:none بدل ما تتفكّك مع كل
