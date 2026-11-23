@@ -594,15 +594,21 @@ async function getSupabase() {
 async function checkInventory(branch: string, sector: string): Promise<void> {
   try {
     const sb = await getSupabase();
-    let q = sb
-      .from('products')
-      .select('id, branch_name, sector, branch_stock_actual')
-      .eq('branch_name', branch)
-      .lt('branch_stock_actual', 10);
-    if (sector === 'home' || sector === 'electrical') {
-      q = q.or(`sector.in.(${sector},both,all),sector.is.null`);
+    const run = (withSector: boolean) => {
+      let q = sb
+        .from('products')
+        .select(withSector ? 'id, branch_name, sector, branch_stock_actual' : 'id, branch_name, branch_stock_actual')
+        .eq('branch_name', branch)
+        .lt('branch_stock_actual', 10);
+      if (withSector && (sector === 'home' || sector === 'electrical')) {
+        q = q.or(`sector.in.(${sector},both,all),sector.is.null`);
+      }
+      return q.limit(100);
+    };
+    let { data, error } = await run(true);
+    if (error && (sector === 'home' || sector === 'electrical')) {
+      ({ data } = await run(false));
     }
-    const { data } = await q.limit(100);
     if (data && data.length > 0) {
       notifyInventoryUpdate({
         branch,
@@ -618,16 +624,25 @@ async function checkInventory(branch: string, sector: string): Promise<void> {
 async function checkTargets(branch: string, sector: string): Promise<void> {
   try {
     const sb = await getSupabase();
-    const monthKey = new Date().toISOString().slice(0, 7);
-    let q = sb
-      .from('targets')
-      .select('id, branch, rep_name, month_key, sector')
-      .eq('month_key', monthKey)
-      .eq('branch', branch);
-    if (sector === 'home' || sector === 'electrical') {
-      q = q.or(`sector.in.(${sector},both,all),sector.is.null`);
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const run = (withSector: boolean) => {
+      let q = sb
+        .from('targets')
+        .select('id, branch, rep_name, month, year')
+        .eq('year', currentYear)
+        .eq('month', currentMonth)
+        .eq('branch', branch);
+      if (withSector && (sector === 'home' || sector === 'electrical')) {
+        q = q.or(`sector.in.(${sector},both,all),sector.is.null`);
+      }
+      return q.limit(200);
+    };
+    let { data, error } = await run(true);
+    if (error && (sector === 'home' || sector === 'electrical')) {
+      ({ data } = await run(false));
     }
-    const { data } = await q.limit(200);
     if (data && data.length > 0) {
       const repNames: string[] = Array.from(
         new Set<string>(
@@ -639,7 +654,7 @@ async function checkTargets(branch: string, sector: string): Promise<void> {
       notifyTargetsUpdate({
         branch,
         sector: sector as any,
-        month: parseInt(monthKey.split('-')[1], 10),
+        month: currentMonth,
         repNames,
       });
     }
@@ -650,15 +665,21 @@ async function checkCustomers(branch: string, sector: string): Promise<void> {
   try {
     const sb = await getSupabase();
     const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-    let q = sb
-      .from('customers')
-      .select('id', { count: 'exact', head: true })
-      .eq('branch_name', branch)
-      .gte('updated_at', since);
-    if (sector === 'home' || sector === 'electrical') {
-      q = q.or(`sector.in.(${sector},both,all),sector.is.null`);
+    const run = (withSector: boolean) => {
+      let q = sb
+        .from('customers')
+        .select('id', { count: 'exact', head: true })
+        .eq('branch_name', branch)
+        .gte('updated_at', since);
+      if (withSector && (sector === 'home' || sector === 'electrical')) {
+        q = q.or(`sector.in.(${sector},both,all),sector.is.null`);
+      }
+      return q;
+    };
+    let { count, error } = await run(true);
+    if (error && (sector === 'home' || sector === 'electrical')) {
+      ({ count } = await run(false));
     }
-    const { count } = await q;
     if (count && count > 0) {
       notifyCustomersUpdate({
         branch,

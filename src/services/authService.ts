@@ -51,7 +51,7 @@ const LOGIN_EMAIL_CACHE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 أيام
 
 export async function resolveLoginEmail(
   identifier: string
-): Promise<{ email: string | null; rpcMissing: boolean }> {
+): Promise<{ email: string | null; rpcMissing: boolean; unavailable?: boolean; reason?: string }> {
   const raw = (identifier || '').trim();
   if (!raw) return { email: null, rpcMissing: false };
   if (raw.includes('@')) return { email: raw.toLowerCase(), rpcMissing: false };
@@ -67,17 +67,35 @@ export async function resolveLoginEmail(
     }
   } catch {}
 
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return { email: null, rpcMissing: false, unavailable: true, reason: 'offline' };
+  }
+
   try {
     const { data, error } = await supabase.rpc('lookup_login_email', { p_identifier: raw });
     if (error) {
       const status = Number((error as any)?.status || 0);
       const code = String((error as any)?.code || '');
+      const msg = String(error.message || '').toLowerCase();
       const rpcMissing =
         status === 404 || code === 'PGRST202' || /could not find the function/i.test(error.message || '');
       if (rpcMissing) {
         console.warn('[auth] lookup_login_email is missing — run supabase/p0_auth_lockdown.sql');
+        return { email: null, rpcMissing: true };
       }
-      return { email: null, rpcMissing };
+      const isNetworkOrTimeout =
+        status === 0 ||
+        status === 408 ||
+        status === 429 ||
+        status >= 500 ||
+        code === 'NETWORK_TIMEOUT' ||
+        code === 'NETWORK_ERROR' ||
+        code === 'OFFLINE' ||
+        /timeout|network|failed to fetch|مهلة|انقطع|ضعيف/i.test(msg);
+      if (isNetworkOrTimeout) {
+        return { email: null, rpcMissing: false, unavailable: true, reason: error.message || 'network' };
+      }
+      return { email: null, rpcMissing: false };
     }
 
     const first = Array.isArray(data) ? data[0] : data;
@@ -95,8 +113,13 @@ export async function resolveLoginEmail(
     }
 
     return { email: email || null, rpcMissing: false };
-  } catch {
-    return { email: null, rpcMissing: false };
+  } catch (e: any) {
+    return {
+      email: null,
+      rpcMissing: false,
+      unavailable: true,
+      reason: e instanceof Error ? e.message : String(e),
+    };
   }
 }
 
@@ -110,9 +133,13 @@ export async function tryServerSignIn(
 ): Promise<ServerAuthOutcome> {
   if (!isConfigured()) return { kind: 'unavailable', reason: 'client-not-configured' };
   if (!identifier.trim() || !password) return { kind: 'wrong-credentials' };
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return { kind: 'unavailable', reason: 'offline' };
+  }
 
-  const { email, rpcMissing } = await resolveLoginEmail(identifier);
+  const { email, rpcMissing, unavailable, reason } = await resolveLoginEmail(identifier);
   if (rpcMissing) return { kind: 'unavailable', reason: 'lookup-rpc-missing' };
+  if (unavailable) return { kind: 'unavailable', reason: reason || 'network' };
   if (!email) return { kind: 'no-server-account' };
 
   try {
@@ -121,12 +148,24 @@ export async function tryServerSignIn(
     if (error) {
       const msg = (error.message || '').toLowerCase();
       const status = Number((error as any)?.status || 0);
+      const code = String((error as any)?.code || '');
       // Supabase لا يقول صراحةً إن الحساب غير موجود (منع تعداد الحسابات):
       // invalid login credentials قد تعني حساب Auth غير منشأ أو كلمة مرور خاطئة.
       if (msg.includes('email not confirmed') || msg.includes('not confirmed')) {
         return { kind: 'no-server-account' };
       }
-      if (status === 0 || status >= 500) return { kind: 'unavailable', reason: error.message };
+      if (
+        status === 0 ||
+        status === 408 ||
+        status === 429 ||
+        status >= 500 ||
+        code === 'NETWORK_TIMEOUT' ||
+        code === 'NETWORK_ERROR' ||
+        code === 'OFFLINE' ||
+        /timeout|failed to fetch|network|مهلة|انقطع|ضعيف/i.test(msg)
+      ) {
+        return { kind: 'unavailable', reason: error.message };
+      }
       if (msg.includes('invalid login credentials')) return { kind: 'wrong-credentials' };
       return { kind: 'unavailable', reason: error.message };
     }

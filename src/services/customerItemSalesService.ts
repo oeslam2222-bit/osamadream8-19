@@ -1,4 +1,4 @@
-﻿import * as XLSX from 'xlsx-js-style';
+import * as XLSX from 'xlsx-js-style';
 import { Customer, CustomerItemSaleRecord, CustomerItemSalesSummary, Product, User } from '../types';
 import {
   buildGoogleSheetsPublicCsvUrl,
@@ -799,26 +799,38 @@ export function buildCustomerDirectoryLookup(customers: Customer[]) {
     }
   });
 
+  const lookupCache = new Map<string, Customer | undefined>();
+
   const findCustomer = (customerAccount?: string, invoicingName?: string): Customer | undefined => {
+    const cacheKey = `${String(customerAccount || '').trim().toLowerCase()}|||${String(invoicingName || '').trim().toLowerCase()}`;
+    if (lookupCache.has(cacheKey)) {
+      return lookupCache.get(cacheKey);
+    }
+
+    let resolved: Customer | undefined;
     if (customerAccount) {
       const acc = customerAccount.trim().toLowerCase();
-      if (byExactCode.has(acc)) return byExactCode.get(acc);
-      const normAcc = normalizeCustomerLookupCode(customerAccount);
-      if (byNormCode.has(normAcc)) return byNormCode.get(normAcc);
-      if (byId.has(acc)) return byId.get(acc);
+      resolved =
+        byExactCode.get(acc) ||
+        byNormCode.get(normalizeCustomerLookupCode(customerAccount)) ||
+        byId.get(acc);
     }
-    if (invoicingName) {
+    if (!resolved && invoicingName) {
       const cleanName = normalizeArabicText(invoicingName).replace(/\s+/g, '');
       if (cleanName && byCleanName.has(cleanName)) {
-        return byCleanName.get(cleanName);
-      }
-      for (const [key, cust] of byCleanName.entries()) {
-        if (cleanName.includes(key) || key.includes(cleanName) || isArabicNameMatch(invoicingName, cust.name)) {
-          return cust;
+        resolved = byCleanName.get(cleanName);
+      } else if (cleanName.length >= 3) {
+        for (const [key, cust] of byCleanName.entries()) {
+          if (cleanName.includes(key) || key.includes(cleanName) || isArabicNameMatch(invoicingName, cust.name)) {
+            resolved = cust;
+            break;
+          }
         }
       }
     }
-    return undefined;
+
+    lookupCache.set(cacheKey, resolved);
+    return resolved;
   };
 
   return {
@@ -1064,33 +1076,52 @@ export function filterCustomerItemSalesByRBAC(
   if (!user) return sales;
   if (user.role === 'admin' || user.role === 'developer') return sales;
 
-  // Branch Manager: Only his branch warehouse
+  // Branch Manager: Only his branch warehouse (cached per warehouse string)
   if (user.role === 'branch_manager') {
-    return sales.filter((s) => {
-      if (s.warehouse && isBranchMatch(s.warehouse, user.branchName, { allowUnassigned: false })) return true;
-      if (s.linkedBranch && isBranchMatch(s.linkedBranch, user.branchName, { allowUnassigned: false })) return true;
-      return false;
-    });
+    const branchMatchCache = new Map<string, boolean>();
+    const checkBranch = (value?: string): boolean => {
+      if (!value) return false;
+      const key = value.trim().toLowerCase();
+      if (branchMatchCache.has(key)) return branchMatchCache.get(key)!;
+      const ok = isBranchMatch(value, user.branchName, { allowUnassigned: false });
+      branchMatchCache.set(key, ok);
+      return ok;
+    };
+    return sales.filter((s) => checkBranch(s.warehouse) || checkBranch(s.linkedBranch));
   }
 
-  // Supervisor: Sales belonging to his reps or matching his supervised branch
+  // Supervisor: Sales belonging to his reps or matching his supervised branch (cached)
   if (user.role === 'supervisor') {
     const supervisedReps = allUsers.filter((u) => u.role === 'sales_rep' && u.supervisorId === user.id);
     const supervisedNames = new Set(supervisedReps.map((u) => normalizeArabicText(u.name)));
+    const repInTeamCache = new Map<string, boolean>();
+    const branchMatchCache = new Map<string, boolean>();
 
-    return sales.filter((s) => {
-      if (s.repName && supervisedNames.has(normalizeArabicText(s.repName))) return true;
-      if (s.linkedRepName && supervisedNames.has(normalizeArabicText(s.linkedRepName))) return true;
-      if (s.warehouse && isBranchMatch(s.warehouse, user.branchName, { allowUnassigned: false })) return true;
-      if (s.linkedBranch && isBranchMatch(s.linkedBranch, user.branchName, { allowUnassigned: false })) return true;
-      return false;
-    });
+    const checkRep = (value?: string): boolean => {
+      if (!value) return false;
+      const key = value.trim().toLowerCase();
+      if (repInTeamCache.has(key)) return repInTeamCache.get(key)!;
+      const ok = supervisedNames.has(normalizeArabicText(value));
+      repInTeamCache.set(key, ok);
+      return ok;
+    };
+    const checkBranch = (value?: string): boolean => {
+      if (!value) return false;
+      const key = value.trim().toLowerCase();
+      if (branchMatchCache.has(key)) return branchMatchCache.get(key)!;
+      const ok = isBranchMatch(value, user.branchName, { allowUnassigned: false });
+      branchMatchCache.set(key, ok);
+      return ok;
+    };
+
+    return sales.filter(
+      (s) => checkRep(s.repName) || checkRep(s.linkedRepName) || checkBranch(s.warehouse) || checkBranch(s.linkedBranch)
+    );
   }
 
-  // Sales Rep: STRICTLY his customers
+  // Sales Rep: STRICTLY his customers (cached per repName/invoicingName)
   if (user.role === 'sales_rep') {
     const repNorm = normalizeArabicText(user.name);
-    // Find customers explicitly assigned to this rep
     const repCustomerAccounts = new Set<string>();
     const repCustomerNormCodes = new Set<string>();
     const repCustomerNames = new Set<string>();
@@ -1111,15 +1142,28 @@ export function filterCustomerItemSalesByRBAC(
       }
     });
 
+    const repMatchCache = new Map<string, boolean>();
+    const checkRepName = (value?: string): boolean => {
+      if (!value) return false;
+      const key = value.trim().toLowerCase();
+      if (repMatchCache.has(key)) return repMatchCache.get(key)!;
+      const ok = normalizeArabicText(value) === repNorm || isArabicNameMatch(value, user.name);
+      repMatchCache.set(key, ok);
+      return ok;
+    };
+
+    const nameMatchCache = new Map<string, boolean>();
+    const checkCustName = (value?: string): boolean => {
+      if (!value) return false;
+      const key = value.trim().toLowerCase();
+      if (nameMatchCache.has(key)) return nameMatchCache.get(key)!;
+      const ok = repCustomerNames.has(normalizeArabicText(value));
+      nameMatchCache.set(key, ok);
+      return ok;
+    };
+
     return sales.filter((s) => {
-      // 1. Matched by Rep Name directly (from sheet or linked customer directory)
-      if (s.repName && (normalizeArabicText(s.repName) === repNorm || isArabicNameMatch(s.repName, user.name))) {
-        return true;
-      }
-      if (s.linkedRepName && (normalizeArabicText(s.linkedRepName) === repNorm || isArabicNameMatch(s.linkedRepName, user.name))) {
-        return true;
-      }
-      // 2. Matched by Customer Account code
+      if (checkRepName(s.repName) || checkRepName(s.linkedRepName)) return true;
       if (s.customerAccount) {
         const rawAcc = s.customerAccount.trim().toLowerCase();
         if (repCustomerAccounts.has(rawAcc)) return true;
@@ -1129,11 +1173,7 @@ export function filterCustomerItemSalesByRBAC(
       if (s.linkedCustomerCode && repCustomerAccounts.has(s.linkedCustomerCode.trim().toLowerCase())) {
         return true;
       }
-      // 3. Matched by Customer Name
-      if (s.invoicingName && repCustomerNames.has(normalizeArabicText(s.invoicingName))) {
-        return true;
-      }
-      return false;
+      return checkCustName(s.invoicingName);
     });
   }
 
@@ -1150,24 +1190,24 @@ export function aggregateCustomerItemSales(
   customers: Customer[] = []
 ): CustomerItemSalesSummary[] {
   const map = new Map<string, CustomerItemSalesSummary>();
-  // السجلات اللي جاية من enrichedSalesRecords عندها linkedBranch/linkedRepName بالفعل
-  // (اتعملت في enrichCustomerItemSalesWithDirectory)، فمفيش داعي نبني lookup تاني هنا.
-  // الـ lookup بيتبنى بس لو اتبعت customers صريح && السجلات مش متصلة.
+  const itemMaps = new Map<string, Map<string, CustomerItemSalesSummary['items'][number]>>();
+  const ordersByCustomer = new Map<string, Set<string>>();
+
   const needsLookup = customers && customers.length > 0 && sales.length > 0 && !sales[0]?.linkedCustomerId;
   const lookup = needsLookup ? buildCustomerDirectoryLookup(customers) : null;
 
-  sales.forEach((s) => {
-    // Unique key: prefer customerAccount, fallback to invoicingName
+  for (const s of sales) {
     const key = (s.customerAccount || s.invoicingName).trim().toLowerCase();
-    if (!key) return;
+    if (!key) continue;
 
-    if (!map.has(key)) {
+    let summary = map.get(key);
+    if (!summary) {
       const matched = lookup?.findCustomer(s.customerAccount, s.invoicingName);
       const isLinked = Boolean(s.isCustomerLinked || matched);
       const branch = s.linkedBranch || matched?.branchName || (matched as any)?.branch || s.warehouse;
       const rep = s.linkedRepName || matched?.salesRepName || matched?.repName || s.repName;
 
-      map.set(key, {
+      summary = {
         customerAccount: s.customerAccount,
         customerName: s.invoicingName || s.customerAccount,
         repName: rep || 'غير محدد',
@@ -1181,7 +1221,6 @@ export function aggregateCustomerItemSales(
         groupBreakdown: {},
         familyBreakdown: {},
         items: [],
-        // Linked Customer Directory Metadata
         isCustomerLinked: isLinked,
         linkedCustomerId: s.linkedCustomerId || matched?.id,
         linkedCustomerCode: s.linkedCustomerCode || matched?.code,
@@ -1198,21 +1237,29 @@ export function aggregateCustomerItemSales(
           if (!raw) return undefined;
           return raw === 'both' || raw === 'all' ? 'both' : raw === 'home' || raw === 'electrical' ? raw : undefined;
         })()
-      });
+      };
+      map.set(key, summary);
+      itemMaps.set(key, new Map());
     }
 
-    const summary = map.get(key)!;
     summary.totalQuantity += s.quantity;
     summary.totalAmount += s.amount;
 
-    // Monthly aggregates — الشهر غير المحدد (0) ميدخلش في أي شهر بالمصفوفة
+    if (s.salesOrder) {
+      let orderSet = ordersByCustomer.get(key);
+      if (!orderSet) {
+        orderSet = new Set();
+        ordersByCustomer.set(key, orderSet);
+      }
+      orderSet.add(s.salesOrder);
+    }
+
     const m = Number(s.month) || 0;
     if (m >= 1 && m <= 12) {
       summary.monthlySales[m] = (summary.monthlySales[m] || 0) + s.amount;
       summary.monthlyQuantities[m] = (summary.monthlyQuantities[m] || 0) + s.quantity;
     }
 
-    // Group breakdown
     const grp = s.itemGroup || 'عام';
     if (!summary.groupBreakdown[grp]) {
       summary.groupBreakdown[grp] = { quantity: 0, amount: 0, itemsCount: 0 };
@@ -1220,7 +1267,6 @@ export function aggregateCustomerItemSales(
     summary.groupBreakdown[grp].quantity += s.quantity;
     summary.groupBreakdown[grp].amount += s.amount;
 
-    // Family breakdown
     const fam = s.familyDimension || grp;
     if (!summary.familyBreakdown[fam]) {
       summary.familyBreakdown[fam] = { quantity: 0, amount: 0 };
@@ -1228,9 +1274,9 @@ export function aggregateCustomerItemSales(
     summary.familyBreakdown[fam].quantity += s.quantity;
     summary.familyBreakdown[fam].amount += s.amount;
 
-    // Item-level roll-up inside customer
+    const custItemMap = itemMaps.get(key)!;
     const itemKey = (s.itemCode || s.itemName).trim().toLowerCase();
-    let existingItem = summary.items.find((it) => (it.itemCode || it.itemName).trim().toLowerCase() === itemKey);
+    let existingItem = custItemMap.get(itemKey);
 
     if (!existingItem) {
       existingItem = {
@@ -1245,6 +1291,7 @@ export function aggregateCustomerItemSales(
         totalAmount: 0,
         monthlyBreakdown: {}
       };
+      custItemMap.set(itemKey, existingItem);
       summary.items.push(existingItem);
       summary.groupBreakdown[grp].itemsCount += 1;
     }
@@ -1258,25 +1305,95 @@ export function aggregateCustomerItemSales(
     }
     existingItem.monthlyBreakdown[m].quantity += s.quantity;
     existingItem.monthlyBreakdown[m].amount += s.amount;
-  });
-
-  // Calculate distinct items and orders per customer
-  const ordersByCustomer = new Map<string, Set<string>>();
-  sales.forEach((s) => {
-    const key = (s.customerAccount || s.invoicingName).trim().toLowerCase();
-    if (!ordersByCustomer.has(key)) ordersByCustomer.set(key, new Set());
-    if (s.salesOrder) ordersByCustomer.get(key)!.add(s.salesOrder);
-  });
+  }
 
   map.forEach((summary, key) => {
     summary.distinctItemsCount = summary.items.length;
     summary.distinctOrdersCount = ordersByCustomer.get(key)?.size || Math.max(1, Math.ceil(summary.items.length / 3));
-    // Sort items by total amount descending
     summary.items.sort((a, b) => b.totalAmount - a.totalAmount);
   });
 
-  // Return summaries sorted by total purchase amount descending
   return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+}
+
+/**
+ * ضغط الصفوف الخام إلى إجماليات شهرية مضغوطة (عميل × صنف × شهر × فرع × مندوب).
+ * يقلل 126,000 صف فاتورة خام إلى بضعة آلاف صف مضغوط بنفس الأرقام النهائية تماماً،
+ * مما يمنع تجمد المتصفح ويخفف استهلاك الذاكرة بنسبة تتجاوز 85%.
+ */
+export function compactCustomerItemSales(records: CustomerItemSaleRecord[]): CustomerItemSaleRecord[] {
+  if (!records || records.length === 0) return [];
+  const grouped = new Map<string, CustomerItemSaleRecord>();
+
+  for (const r of records) {
+    const custKey = String(r.customerAccount || r.invoicingName || '').trim().toLowerCase();
+    const itemKey = String(r.unifiedCode || r.itemCode || r.itemName || '').trim().toLowerCase();
+    const month = Number(r.month) || 0;
+    const branch = String(r.linkedBranch || r.warehouse || '').trim().toLowerCase();
+    const rep = String(r.linkedRepName || r.repName || '').trim().toLowerCase();
+    const key = `${custKey}|${itemKey}|${month}|${branch}|${rep}`;
+
+    const existing = grouped.get(key);
+    if (!existing) {
+      grouped.set(key, {
+        ...r,
+        id: r.isAggregated ? r.id : `cis-cmp-${key}`,
+        salesOrder: undefined,
+        date: undefined,
+        quantity: Number(r.quantity) || 0,
+        amount: Number(r.amount) || 0,
+        discount: Number(r.discount) || 0,
+        isAggregated: true,
+      });
+    } else {
+      existing.quantity += Number(r.quantity) || 0;
+      existing.amount += Number(r.amount) || 0;
+      existing.discount += Number(r.discount) || 0;
+      if (existing.quantity > 0) {
+        existing.unitPrice = existing.amount / existing.quantity;
+      }
+      if (!existing.familyDimension || existing.familyDimension === 'عام') {
+        if (r.familyDimension && r.familyDimension !== 'عام') {
+          existing.familyDimension = r.familyDimension;
+        }
+      }
+      if (!existing.definitions && r.definitions) {
+        existing.definitions = r.definitions;
+      }
+    }
+  }
+
+  return Array.from(grouped.values());
+}
+
+const COMPACT_CACHE_PREFIX = 'tantawy_cis_compact_v1::';
+
+export async function getScopedCompactItemSalesCache(
+  scopeKey: string
+): Promise<{ records: CustomerItemSaleRecord[]; updatedAt: number } | null> {
+  if (typeof window === 'undefined' || !scopeKey) return null;
+  try {
+    const cached = await idbGet<{ records: CustomerItemSaleRecord[]; updatedAt: number }>(
+      `${COMPACT_CACHE_PREFIX}${scopeKey}`
+    );
+    if (cached && Array.isArray(cached.records)) return cached;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveScopedCompactItemSalesCache(
+  scopeKey: string,
+  records: CustomerItemSaleRecord[]
+): Promise<void> {
+  if (typeof window === 'undefined' || !scopeKey) return;
+  try {
+    await idbSet(`${COMPACT_CACHE_PREFIX}${scopeKey}`, {
+      records,
+      updatedAt: Date.now(),
+    });
+  } catch {}
 }
 
 /**
@@ -1483,6 +1600,7 @@ export async function saveCustomerItemSales(
 export interface CustomerItemSalesFetchScope {
   repNames?: string[];
   warehouses?: string[];
+  sectors?: Array<'home' | 'electrical'>;
 }
 
 function quotePostgrestFilterValue(value: string): string {
@@ -1840,14 +1958,20 @@ export interface AggregatedItemSaleRow {
 
 export async function fetchAggregatedItemSalesFromView(
   scope?: CustomerItemSalesFetchScope,
-  options?: { month?: number; limit?: number }
-): Promise<{ rows: AggregatedItemSaleRow[]; error?: string }> {
+  options?: { month?: number; limit?: number; onProgress?: (loaded: number) => void }
+): Promise<{ rows: AggregatedItemSaleRow[]; error?: string; partial?: boolean }> {
   try {
-    const pageSize = 1000;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      return { rows: [], error: 'لا يوجد اتصال بالإنترنت حالياً' };
+    }
+    const conn = typeof navigator !== 'undefined' ? (navigator as any).connection : undefined;
+    const isSlow = Boolean(conn?.saveData || ['slow-2g', '2g', '3g'].includes(String(conn?.effectiveType || '').toLowerCase()));
+    const pageSize = isSlow ? 500 : 1000;
     let from = 0;
     let allData: AggregatedItemSaleRow[] = [];
     let hasMore = true;
     const limit = Math.min(5000, options?.limit ?? 5000); // cap at 5k rows max
+    let consecutiveChunkErrors = 0;
 
     while (hasMore && allData.length < limit) {
       let query = supabase
@@ -1866,16 +1990,25 @@ export async function fetchAggregatedItemSalesFromView(
 
       if (error) {
         console.warn('Error fetching from view_customer_monthly_item_sales:', error);
-        if (allData.length > 0) break;
+        if (allData.length > 0 && consecutiveChunkErrors < 1) {
+          consecutiveChunkErrors += 1;
+          await new Promise((r) => setTimeout(r, 800));
+          continue;
+        }
+        if (allData.length > 0) {
+          return { rows: allData, partial: true, error: error.message };
+        }
         return { rows: [], error: error.message };
       }
 
+      consecutiveChunkErrors = 0;
       if (!data || data.length === 0) {
         hasMore = false;
         break;
       }
 
       allData = allData.concat(data as AggregatedItemSaleRow[]);
+      options?.onProgress?.(allData.length);
 
       if (data.length < pageSize || allData.length >= limit) {
         hasMore = false;

@@ -3,7 +3,7 @@ import { Branch, Customer, Invoice, Product, PromoAnnouncement, PromotionOffer, 
 import { pickUserColumns, sanitizeSupervisorId } from './userRowPayload';
 import { resolveCustomerBalanceValue, resolveCustomerDuesValue } from './customerDues';
 import { normalizeArabicText } from './arabicMatchingService';
-import { classifyError, handleSupabaseError, withRetry, NetworkErrorType } from './networkErrorHandler';
+import { classifyError, handleSupabaseError, withRetry, isOfflineNow, isSlowConnection, NetworkErrorType } from './networkErrorHandler';
 import { APP_VERSION, notifyOutdatedClient } from './clientVersion';
 import {
   encodeCustomerNotesWithGeo,
@@ -79,12 +79,103 @@ export function clearSupabaseInFlightCache(): void {
  */
 const PERMISSION_HINT = /42501|permission denied|jwt expired|invalid jwt|no api key found/i;
 const AUTH_ENDPOINT = /\/auth\/v1\/(token|signup|recover|verify|otp)/i;
+const SAFE_RETRY_RPC = /\/rest\/v1\/rpc\/(lookup_login_email|get_my_profile|fetch_my_profile)/i;
+const RETRYABLE_HTTP_STATUS = new Set([408, 429, 502, 503, 504]);
+
+function resolveRequestMethod(input: RequestInfo | URL, init?: RequestInit): string {
+  if (init?.method) return init.method.toUpperCase();
+  if (typeof Request !== 'undefined' && input instanceof Request && input.method) {
+    return input.method.toUpperCase();
+  }
+  return 'GET';
+}
+
+function buildResilientErrorResponse(message: string, code: string, status = 503): Response {
+  return new Response(JSON.stringify({ message, code }), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
 
 const permissionGuardFetch: typeof fetch = async (input, init) => {
-  const response = await fetch(input, init);
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  const method = resolveRequestMethod(input, init);
+  const callerSignal = init?.signal;
+
+  if (callerSignal?.aborted) {
+    throw callerSignal.reason ?? new DOMException('Aborted', 'AbortError');
+  }
+
+  if (isOfflineNow()) {
+    return buildResilientErrorResponse('لا يوجد اتصال بالإنترنت حالياً — يتم استخدام الكاش المحلي', 'OFFLINE', 503);
+  }
+
+  const slow = isSlowConnection();
+  const isMutation = method !== 'GET' && method !== 'HEAD';
+  const isSafeRpc = SAFE_RETRY_RPC.test(url);
+  const canRetry = !isMutation || isSafeRpc;
+  const maxAttempts = canRetry ? 3 : 1;
+  const timeoutMs = slow ? (isMutation ? 36000 : 28000) : isMutation ? 28000 : 18000;
+
+  let response: Response | null = null;
+  let lastTimedOut = false;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (callerSignal?.aborted) {
+      throw callerSignal.reason ?? new DOMException('Aborted', 'AbortError');
+    }
+    if (isOfflineNow()) {
+      return buildResilientErrorResponse('انقطع الاتصال بالإنترنت أثناء الطلب', 'OFFLINE', 503);
+    }
+
+    const controller = new AbortController();
+    let timedOut = false;
+    const onCallerAbort = () => controller.abort();
+    callerSignal?.addEventListener('abort', onCallerAbort, { once: true });
+    const timer = globalThis.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+
+    try {
+      const nextInit: RequestInit = { ...init, signal: controller.signal };
+      response = await fetch(input, nextInit);
+
+      if (RETRYABLE_HTTP_STATUS.has(response.status) && attempt < maxAttempts) {
+        const waitMs = 650 * attempt + Math.floor(Math.random() * 250);
+        await new Promise((resolve) => globalThis.setTimeout(resolve, waitMs));
+        continue;
+      }
+      break;
+    } catch (err: any) {
+      lastTimedOut = timedOut;
+      if (callerSignal?.aborted) {
+        throw err;
+      }
+      if (attempt < maxAttempts && !isOfflineNow()) {
+        const waitMs = 650 * attempt + Math.floor(Math.random() * 250);
+        await new Promise((resolve) => globalThis.setTimeout(resolve, waitMs));
+        continue;
+      }
+      const message = timedOut
+        ? 'انتهت مهلة الاتصال بالخادم — الشبكة ضعيفة'
+        : 'تعذر الوصول للخادم بسبب ضعف الشبكة أو انقطاعها';
+      return buildResilientErrorResponse(message, timedOut ? 'NETWORK_TIMEOUT' : 'NETWORK_ERROR', 503);
+    } finally {
+      globalThis.clearTimeout(timer);
+      callerSignal?.removeEventListener('abort', onCallerAbort);
+    }
+  }
+
+  if (!response) {
+    return buildResilientErrorResponse(
+      lastTimedOut ? 'انتهت مهلة الاتصال بالخادم' : 'تعذر الاتصال بالشبكة',
+      lastTimedOut ? 'NETWORK_TIMEOUT' : 'NETWORK_ERROR',
+      503
+    );
+  }
 
   if (response.status === 401 || response.status === 403 || response.status === 425) {
-    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     if (!AUTH_ENDPOINT.test(url)) {
       response
         .clone()
@@ -527,7 +618,7 @@ const MAX_CUSTOMER_PAGES = 5;
 
 const isMissingColumnError = (err: any): boolean => {
   const code = String(err?.code || '');
-  const msg = String(err?.message || '').toLowerCase();
+  const msg = `${err?.message || ''} ${err?.details || ''} ${err?.hint || ''}`.toLowerCase();
   return code === '42703' || code === 'PGRST204' || (msg.includes('column') && msg.includes('does not exist')) || msg.includes('could not find');
 };
 
@@ -549,12 +640,12 @@ const isPermissionDeniedError = (err: any): boolean => {
  * والكود القديم كان بيرجع لـ'*' فيفقد كل الأعمدة المطلوبة مرة واحدة.
  *
  * هنا بنقرأ اسم العمود الناقص من رسالة الخطأ، نشيله، ونعيد المحاولة — فباقي
- * الأعمدة تفضل موجودة. وبنسجّل العمود على الجهاز (لمدة 7 أيام) عشان الطلبات
+ * الأعمدة تفضل موجودة. وبنسجّل العمود على الجهاز (لمدة 24 ساعة) عشان الطلبات
  * الجاية تبدأ بالقائمة الصح من غير 400 ولا رحلة إضافية. المدة محدودة عشان
  * لو العمود اتنشر بعدين ما يفضلش مستثنى للأبد.
  */
 const MISSING_COLUMN_CACHE_KEY = 'tantawy:missing_columns_v1';
-const MISSING_COLUMN_TTL_MS = 10 * 60 * 1000;
+const MISSING_COLUMN_TTL_MS = 24 * 60 * 60 * 1000;
 
 type MissingColumnEntry = { columns: string[]; savedAt: number };
 
@@ -588,11 +679,18 @@ function rememberMissingColumn(table: string, column: string): void {
 }
 
 function extractMissingColumn(err: any): string | null {
-  const msg = String(err?.message || '');
+  const text = `${err?.message || ''} ${err?.details || ''} ${err?.hint || ''}`;
   const match =
-    msg.match(/column\s+(?:"?[A-Za-z_][A-Za-z0-9_]*"?\.)?"?([A-Za-z0-9_]+)"?\s+does not exist/i) ||
-    msg.match(/could not find the '([A-Za-z0-9_]+)' column/i);
+    text.match(/column\s+(?:"?[A-Za-z_][A-Za-z0-9_]*"?\.)?"?([A-Za-z0-9_]+)"?\s+does not exist/i) ||
+    text.match(/could not find the '([A-Za-z0-9_]+)' column/i);
   return match ? match[1] : null;
+}
+
+function isMissingSectorError(err: any): boolean {
+  if (!err) return false;
+  if (extractMissingColumn(err) === 'sector') return true;
+  const text = `${err?.message || ''} ${err?.details || ''} ${err?.hint || ''}`.toLowerCase();
+  return isMissingColumnError(err) && text.includes('sector');
 }
 
 function buildSelectList(table: string, columns: string[]): string {
@@ -663,7 +761,7 @@ async function fetchAllRows(
 
       if (error && isMissingColumnError(error)) {
         const missingCol = extractMissingColumn(error);
-        if (missingCol === 'sector') {
+        if (missingCol === 'sector' || isMissingSectorError(error)) {
           rememberMissingColumn(table, 'sector');
           attempts += 1;
           continue;
@@ -927,14 +1025,20 @@ export async function fetchCustomerContentStamp(
 ): Promise<CustomerContentStamp | null> {
   try {
     if (!(await hasAuthSession())) return null;
-    let query = supabase
-      .from('customers')
-      .select('updated_at', { count: 'exact' })
-      .order('updated_at', { ascending: false, nullsFirst: false })
-      .limit(1);
-    query = applyScopeToQuery(query, scope);
+    const runStamp = () => {
+      let query = supabase
+        .from('customers')
+        .select('updated_at', { count: 'exact' })
+        .order('updated_at', { ascending: false, nullsFirst: false })
+        .limit(1);
+      return applyScopeToQuery(query, scope, 'customers');
+    };
 
-    const { data, error, count } = await query;
+    let { data, error, count } = await runStamp();
+    if (error && isMissingSectorError(error)) {
+      rememberMissingColumn('customers', 'sector');
+      ({ data, error, count } = await runStamp());
+    }
     if (error) return null;
 
     const maxUpdatedAt = data && data.length > 0 ? data[0]?.updated_at ?? null : null;
@@ -992,32 +1096,34 @@ export interface TargetContentStamp {
   maxUpdatedAt: string | null;
 }
 
-export async function fetchTargetContentStamp(
+export function fetchTargetContentStamp(
   scope?: TargetFetchScope
 ): Promise<TargetContentStamp | null> {
-  try {
-    const runQuery = () => {
-      let query = supabase
-        .from('targets')
-        .select('updated_at', { count: 'exact' })
-        .order('updated_at', { ascending: false, nullsFirst: false })
-        .limit(1);
-      return applyTargetScope(query, scope);
-    };
-    let { data, error, count } = await runQuery();
-    if (error && isMissingColumnError(error) && extractMissingColumn(error) === 'sector') {
-      rememberMissingColumn('targets', 'sector');
-      ({ data, error, count } = await runQuery());
+  return dedupeInFlightRequest(`target-stamp:${JSON.stringify(scope ?? null)}`, async () => {
+    try {
+      const runQuery = () => {
+        let query = supabase
+          .from('targets')
+          .select('updated_at', { count: 'exact' })
+          .order('updated_at', { ascending: false, nullsFirst: false })
+          .limit(1);
+        return applyTargetScope(query, scope);
+      };
+      let { data, error, count } = await runQuery();
+      if (error && isMissingSectorError(error)) {
+        rememberMissingColumn('targets', 'sector');
+        ({ data, error, count } = await runQuery());
+      }
+      if (error) return null;
+      const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
+      return {
+        count: typeof count === 'number' ? count : null,
+        maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
+      };
+    } catch {
+      return null;
     }
-    if (error) return null;
-    const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
-    return {
-      count: typeof count === 'number' ? count : null,
-      maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
-    };
-  } catch {
-    return null;
-  }
+  });
 }
 
 export interface ProductContentStamp {
@@ -1025,28 +1131,34 @@ export interface ProductContentStamp {
   maxUpdatedAt: string | null;
 }
 
-export async function fetchProductContentStamp(
+export function fetchProductContentStamp(
   sector?: 'home' | 'electrical'
 ): Promise<ProductContentStamp | null> {
-  try {
-    let query = supabase
-      .from('products')
-      .select('updated_at', { count: 'exact' })
-      .order('updated_at', { ascending: false, nullsFirst: false })
-      .limit(1);
-    if (sector === 'home' || sector === 'electrical') {
-      query = query.or(`sector.in.(${sector},both,all),sector.is.null`);
+  return dedupeInFlightRequest(`product-stamp:${sector ?? 'all'}`, async () => {
+    try {
+      const runQuery = () => {
+        let query = supabase
+          .from('products')
+          .select('updated_at', { count: 'exact' })
+          .order('updated_at', { ascending: false, nullsFirst: false })
+          .limit(1);
+        return applyProductSectorScope(query, sector);
+      };
+      let { data, error, count } = await runQuery();
+      if (error && isMissingSectorError(error)) {
+        rememberMissingColumn('products', 'sector');
+        ({ data, error, count } = await runQuery());
+      }
+      if (error) return null;
+      const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
+      return {
+        count: typeof count === 'number' ? count : null,
+        maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
+      };
+    } catch {
+      return null;
     }
-    const { data, error, count } = await query;
-    if (error) return null;
-    const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
-    return {
-      count: typeof count === 'number' ? count : null,
-      maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
-    };
-  } catch {
-    return null;
-  }
+  });
 }
 
 /**
@@ -1085,7 +1197,7 @@ export async function fetchVisitContentStamp(
     let column: 'updated_at' | 'created_at' =
       cachedVisitsSupportsUpdatedAt === false ? 'created_at' : 'updated_at';
     let result = await buildQuery(column);
-    if (result.error && isMissingColumnError(result.error) && extractMissingColumn(result.error) === 'sector') {
+    if (result.error && isMissingSectorError(result.error)) {
       rememberMissingColumn('visits', 'sector');
       result = await buildQuery(column);
     }
@@ -1552,7 +1664,7 @@ export async function fetchTargetsRecentMonths(
         from + pageSize - 1
       );
       if (error && isMissingColumnError(error)) {
-        if (extractMissingColumn(error) === 'sector') {
+        if (isMissingSectorError(error)) {
           rememberMissingColumn('targets', 'sector');
           ({ data, error } = await makeTargetQuery(selectCols).range(from, from + pageSize - 1));
         }
@@ -1613,7 +1725,7 @@ async function fetchTargetsFromSupabaseImpl(
       };
       let { data, error } = await buildQuery(selectCols).range(from, from + pageSize - 1);
       if (error && isMissingColumnError(error)) {
-        if (extractMissingColumn(error) === 'sector') {
+        if (isMissingSectorError(error)) {
           rememberMissingColumn('targets', 'sector');
           ({ data, error } = await buildQuery(selectCols).range(from, from + pageSize - 1));
         }
@@ -3067,7 +3179,7 @@ async function fetchInvoicesFromSupabaseImpl(
         return query;
       };
       let first = await makeQuery(INVOICES_SELECT_COLUMNS, updatedSince ? sinceCol : null);
-      if (first?.error && isMissingColumnError(first.error) && extractMissingColumn(first.error) === 'sector') {
+      if (first?.error && isMissingSectorError(first.error)) {
         rememberMissingColumn(table, 'sector');
         first = await makeQuery(INVOICES_SELECT_COLUMNS, updatedSince ? sinceCol : null);
       }
@@ -3078,7 +3190,7 @@ async function fetchInvoicesFromSupabaseImpl(
         // Never use '*': it pulls items JSON + all columns = massive egress
         // Instead, retry with safe fallback list (excludes the missing column dynamically)
         const missing = extractMissingColumn(first.error);
-        if (missing === 'sector') rememberMissingColumn(table, 'sector');
+        if (missing === 'sector' || isMissingSectorError(first.error)) rememberMissingColumn(table, 'sector');
         const safeCols = missing
           ? INVOICES_FALLBACK_COLUMNS.split(',').filter((c) => c !== missing).join(',')
           : INVOICES_FALLBACK_COLUMNS;
@@ -3284,7 +3396,7 @@ export async function fetchInvoiceContentStamp(
     let stampColumn: 'updated_at' | 'created_at' =
       cachedOrdersSupportsUpdatedAt === false ? 'created_at' : 'updated_at';
     let res = await probe('orders', stampColumn);
-    if (res.error && isMissingColumnError(res.error) && extractMissingColumn(res.error) === 'sector') {
+    if (res.error && isMissingSectorError(res.error)) {
       rememberMissingColumn('orders', 'sector');
       res = await probe('orders', stampColumn);
     }
@@ -3784,6 +3896,7 @@ export type ProductSectorScope = 'home' | 'electrical' | undefined;
  */
 export function applyProductSectorScope(query: any, sector: ProductSectorScope): any {
   if (!sector) return query;
+  if (activeMissingColumns('products').has('sector')) return query;
   // القيم المسموحة: قطاع الجهاز + «both» (القطاعين) + «all» + الفاضي (مجهول).
   return query.or(`sector.in.(${sector},both,all),sector.is.null`);
 }
@@ -4004,22 +4117,22 @@ async function readRichProductsTable(sector?: ProductSectorScope): Promise<{ ok:
   const rows: any[] = [];
   let selectCols = PRODUCTS_SELECT_COLUMNS;
   for (let page = 0; page < MAX_PRODUCT_PAGES; page++) {
-    let query = supabase
-      .from('products')
-      .select(selectCols)
-      .order('id', { ascending: true })
-      .range(page * pageSize, page * pageSize + pageSize - 1);
-    query = applyProductSectorScope(query, sector);
-    let { data, error } = await query;
-    if (error && selectCols !== '*' && isMissingColumnError(error)) {
-      selectCols = '*';
-      let fbQuery = supabase
+    const runPage = (cols: string) => {
+      let q = supabase
         .from('products')
-        .select('*')
+        .select(cols)
         .order('id', { ascending: true })
         .range(page * pageSize, page * pageSize + pageSize - 1);
-      fbQuery = applyProductSectorScope(fbQuery, sector);
-      ({ data, error } = await fbQuery);
+      return applyProductSectorScope(q, sector);
+    };
+    let { data, error } = await runPage(selectCols);
+    if (error && isMissingSectorError(error)) {
+      rememberMissingColumn('products', 'sector');
+      ({ data, error } = await runPage(selectCols));
+    }
+    if (error && selectCols !== '*' && isMissingColumnError(error)) {
+      selectCols = '*';
+      ({ data, error } = await runPage('*'));
     }
     if (error) return { ok: false, products: [] };
     if (!data || data.length === 0) break;
@@ -4113,13 +4226,14 @@ async function fetchVisitsFromSupabaseImpl(
         // عمود ناقص؟ نشيله ونعيد المحاولة بباقي الأعمدة (بدل الرجوع لـ'*').
         for (let attempt = 0; error && isMissingColumnError(error) && attempt < 8; attempt++) {
           const missing = extractMissingColumn(error);
+          if (missing === 'sector' || isMissingSectorError(error)) {
+            rememberMissingColumn('visits', 'sector');
+            ({ data, error } = await makeQuery(selectCols).range(from, from + pageSize - 1));
+            continue;
+          }
           if (missing) {
             rememberMissingColumn('visits', missing);
             console.warn(`visits: العمود "${missing}" غير موجود — تم استثناؤه من القراءة.`);
-          }
-          if (missing === 'sector') {
-            ({ data, error } = await makeQuery(selectCols).range(from, from + pageSize - 1));
-            continue;
           }
           if (selectCols === '*') break;
           const nextSelect = missing ? buildSelectList('visits', VISITS_SELECT_COLUMNS) : '*';
@@ -4549,7 +4663,7 @@ async function fetchAllRowsPaged(
 
     let { data, error } = await buildQuery(selectCols, updatedSince).range(from, from + pageSize - 1);
 
-    if (error && isMissingColumnError(error) && extractMissingColumn(error) === 'sector') {
+    if (error && isMissingSectorError(error)) {
       rememberMissingColumn(table, 'sector');
       ({ data, error } = await buildQuery(selectCols, updatedSince).range(from, from + pageSize - 1));
     }
@@ -4585,34 +4699,36 @@ const MAX_FORECAST_PAGES = 5;
 /** 5,000 تعليق كحد أقصى — يغطي التعليقات الحديثة فقط. */
 const MAX_COMMENT_PAGES = 5;
 
-export async function fetchForecastMonthStamp(
+export function fetchForecastMonthStamp(
   monthKey: string,
   scope?: ForecastFetchScope
 ): Promise<ContentStampMeta | null> {
-  try {
-    const runForecastStamp = () => {
-      let query = supabase
-        .from('collection_forecasts')
-        .select('updated_at', { count: 'exact' })
-        .eq('month_key', monthKey)
-        .order('updated_at', { ascending: false, nullsFirst: false })
-        .limit(1);
-      return applyForecastScope(query, scope);
-    };
-    let { data, error, count } = await runForecastStamp();
-    if (error && isMissingColumnError(error) && extractMissingColumn(error) === 'sector') {
-      rememberMissingColumn('collection_forecasts', 'sector');
-      ({ data, error, count } = await runForecastStamp());
+  return dedupeInFlightRequest(`forecast-stamp:${monthKey}:${JSON.stringify(scope ?? null)}`, async () => {
+    try {
+      const runForecastStamp = () => {
+        let query = supabase
+          .from('collection_forecasts')
+          .select('updated_at', { count: 'exact' })
+          .eq('month_key', monthKey)
+          .order('updated_at', { ascending: false, nullsFirst: false })
+          .limit(1);
+        return applyForecastScope(query, scope);
+      };
+      let { data, error, count } = await runForecastStamp();
+      if (error && isMissingSectorError(error)) {
+        rememberMissingColumn('collection_forecasts', 'sector');
+        ({ data, error, count } = await runForecastStamp());
+      }
+      if (error) return null;
+      const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
+      return {
+        count: typeof count === 'number' ? count : null,
+        maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
+      };
+    } catch {
+      return null;
     }
-    if (error) return null;
-    const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
-    return {
-      count: typeof count === 'number' ? count : null,
-      maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
-    };
-  } catch {
-    return null;
-  }
+  });
 }
 
 export async function fetchForecastPlansStamp(): Promise<ContentStampMeta | null> {
@@ -4648,14 +4764,14 @@ export async function fetchCustomerCommentsStamp(
 
     let res = await buildStampQuery('updated_at');
     let usedCol: 'updated_at' | 'created_at' = 'updated_at';
-    if (res.error && isMissingColumnError(res.error) && extractMissingColumn(res.error) === 'sector') {
+    if (res.error && isMissingSectorError(res.error)) {
       rememberMissingColumn('customer_comments', 'sector');
       res = await buildStampQuery('updated_at');
     }
     if (res.error) {
       res = await buildStampQuery('created_at');
       usedCol = 'created_at';
-      if (res.error && isMissingColumnError(res.error) && extractMissingColumn(res.error) === 'sector') {
+      if (res.error && isMissingSectorError(res.error)) {
         rememberMissingColumn('customer_comments', 'sector');
         res = await buildStampQuery('created_at');
       }
@@ -4698,53 +4814,58 @@ async function fetchForecastsFromSupabaseImpl(
  */
 const MAX_MONTH_FORECAST_PAGES = 10;
 
-export async function fetchForecastsByMonthFromSupabase(
+export function fetchForecastsByMonthFromSupabase(
   monthKey: string,
   scope?: ForecastFetchScope,
   options?: { updatedSince?: string }
 ): Promise<{ success: boolean; forecasts?: any[]; error?: string }> {
-  try {
-    const pageSize = 1000;
-    const rows: any[] = [];
-    let selectCols = FORECAST_SELECT_COLUMNS;
-    let updatedSince = options?.updatedSince?.trim() || '';
+  return dedupeInFlightRequest(
+    `forecasts-month:${monthKey}:${JSON.stringify(scope ?? null)}:${options?.updatedSince ?? ''}`,
+    async () => {
+      try {
+        const pageSize = 1000;
+        const rows: any[] = [];
+        let selectCols = FORECAST_SELECT_COLUMNS;
+        let updatedSince = options?.updatedSince?.trim() || '';
 
-    for (let page = 0; page < MAX_MONTH_FORECAST_PAGES; page++) {
-      const from = page * pageSize;
-      const buildQuery = (cols: string, since: string) => {
-        let query = supabase
-          .from('collection_forecasts')
-          .select(cols)
-          .eq('month_key', monthKey);
-        query = applyForecastScope(query, scope);
-        if (since) query = query.gte('updated_at', since);
-        return query;
-      };
-      let { data, error } = await buildQuery(selectCols, updatedSince).range(from, from + pageSize - 1);
+        for (let page = 0; page < MAX_MONTH_FORECAST_PAGES; page++) {
+          const from = page * pageSize;
+          const buildQuery = (cols: string, since: string) => {
+            let query = supabase
+              .from('collection_forecasts')
+              .select(cols)
+              .eq('month_key', monthKey);
+            query = applyForecastScope(query, scope);
+            if (since) query = query.gte('updated_at', since);
+            return query;
+          };
+          let { data, error } = await buildQuery(selectCols, updatedSince).range(from, from + pageSize - 1);
 
-      if (error && isMissingColumnError(error) && extractMissingColumn(error) === 'sector') {
-        rememberMissingColumn('collection_forecasts', 'sector');
-        ({ data, error } = await buildQuery(selectCols, updatedSince).range(from, from + pageSize - 1));
+          if (error && isMissingSectorError(error)) {
+            rememberMissingColumn('collection_forecasts', 'sector');
+            ({ data, error } = await buildQuery(selectCols, updatedSince).range(from, from + pageSize - 1));
+          }
+
+          if (error && updatedSince && isMissingColumnError(error)) {
+            updatedSince = '';
+            ({ data, error } = await buildQuery(selectCols, '').range(from, from + pageSize - 1));
+          }
+
+          if (error && selectCols !== '*' && isMissingColumnError(error)) {
+            selectCols = '*';
+            ({ data, error } = await buildQuery('*', updatedSince).range(from, from + pageSize - 1));
+          }
+
+          if (error) return { success: false, error: error.message };
+          rows.push(...(data || []));
+          if (!data || data.length < pageSize) break;
+        }
+        return { success: true, forecasts: rows };
+      } catch (error: any) {
+        return { success: false, error: error?.message || 'فشل تحميل توقعات الشهر' };
       }
-
-      if (error && updatedSince && isMissingColumnError(error)) {
-        updatedSince = '';
-        ({ data, error } = await buildQuery(selectCols, '').range(from, from + pageSize - 1));
-      }
-
-      if (error && selectCols !== '*' && isMissingColumnError(error)) {
-        selectCols = '*';
-        ({ data, error } = await buildQuery('*', updatedSince).range(from, from + pageSize - 1));
-      }
-
-      if (error) return { success: false, error: error.message };
-      rows.push(...(data || []));
-      if (!data || data.length < pageSize) break;
     }
-    return { success: true, forecasts: rows };
-  } catch (error: any) {
-    return { success: false, error: error?.message || 'فشل تحميل توقعات الشهر' };
-  }
+  );
 }
 
 /**
@@ -4771,7 +4892,7 @@ export async function fetchForecastsByYearFromSupabase(
       };
       let { data, error } = await buildYearQuery(selectCols).range(from, from + pageSize - 1);
 
-      if (error && isMissingColumnError(error) && extractMissingColumn(error) === 'sector') {
+      if (error && isMissingSectorError(error)) {
         rememberMissingColumn('collection_forecasts', 'sector');
         ({ data, error } = await buildYearQuery(selectCols).range(from, from + pageSize - 1));
       }
@@ -5027,6 +5148,11 @@ export async function fetchCustomersIncremental(
     let read = await readRowsPaged('customers', selectCols, cursor?.ts, scopeDecorator);
 
     for (let attempt = 0; read.error && isMissingColumnError(read.error) && attempt < 10; attempt++) {
+      if (isMissingSectorError(read.error)) {
+        rememberMissingColumn('customers', 'sector');
+        read = await readRowsPaged('customers', selectCols, cursor?.ts, scopeDecorator);
+        continue;
+      }
       const missingCol = extractMissingColumn(read.error);
       if (missingCol && selectCols !== '*') {
         rememberMissingColumn('customers', missingCol);
@@ -5344,9 +5470,22 @@ export async function fetchTargetsIncremental(
       : 'targets';
     const cursor = getSyncCursor(scopeKey);
     const isFullFetch = !cursor;
-    const read = await readRowsPaged('targets', TARGETS_SELECT_COLUMNS, cursor?.ts, (q) =>
+    let selectCols = buildSelectList('targets', TARGETS_SELECT_COLUMNS.split(','));
+    let read = await readRowsPaged('targets', selectCols, cursor?.ts, (q) =>
       applyTargetScope(q, scope)
     );
+    if (read.error && isMissingSectorError(read.error)) {
+      rememberMissingColumn('targets', 'sector');
+      read = await readRowsPaged('targets', selectCols, cursor?.ts, (q) =>
+        applyTargetScope(q, scope)
+      );
+    }
+    if (read.error && selectCols !== '*' && isMissingColumnError(read.error)) {
+      selectCols = '*';
+      read = await readRowsPaged('targets', '*', cursor?.ts, (q) =>
+        applyTargetScope(q, scope)
+      );
+    }
     if (read.error) {
       return { success: false, error: read.error.message, entity: 'targets', count: 0, isFullFetch, maxUpdatedAt: cursor?.ts ?? null };
     }
@@ -5406,28 +5545,42 @@ export async function fetchProductsIncremental(
     const scopeKey = sector ? `products::${sector}` : 'products';
     const cursor = getSyncCursor(scopeKey) || (sector ? getSyncCursor('products') : null);
     const isFullFetch = !cursor;
-    const read = await readRowsPaged('products', PRODUCTS_SELECT_COLUMNS, cursor?.ts, (q) =>
+    const prodColList = PRODUCTS_SELECT_COLUMNS.split(',');
+    let prodSelect = buildSelectList('products', prodColList);
+    let read = await readRowsPaged('products', prodSelect, cursor?.ts, (q) =>
       applyProductSectorScope(q, sector)
     );
+    if (read.error && isMissingSectorError(read.error)) {
+      rememberMissingColumn('products', 'sector');
+      prodSelect = buildSelectList('products', prodColList);
+      read = await readRowsPaged('products', prodSelect, cursor?.ts, (q) =>
+        applyProductSectorScope(q, sector)
+      );
+    }
     if (read.error) {
       if (String(read.error.message || '').includes('updated_at')) {
         const all: any[] = [];
-        let fallbackCols = PRODUCTS_SELECT_COLUMNS.replace(',updated_at', '');
+        let fallbackCols = buildSelectList(
+          'products',
+          prodColList.filter((c) => c !== 'updated_at')
+        );
         for (let page = 0; page < INCREMENTAL_MAX_PAGES; page++) {
           const from = page * INCREMENTAL_PAGE_SIZE;
-          let baseQuery = supabase
-            .from('products')
-            .select(fallbackCols)
-            .order('id', { ascending: true });
-          baseQuery = applyProductSectorScope(baseQuery, sector);
-          let { data, error: allErr } = await baseQuery.range(from, from + INCREMENTAL_PAGE_SIZE - 1);
-          if (allErr && fallbackCols !== '*' && isMissingColumnError(allErr)) {
-            let fbQuery = supabase
+          const runFallback = (cols: string) => {
+            let q = supabase
               .from('products')
-              .select('*')
+              .select(cols)
               .order('id', { ascending: true });
-            fbQuery = applyProductSectorScope(fbQuery, sector);
-            ({ data, error: allErr } = await fbQuery.range(from, from + INCREMENTAL_PAGE_SIZE - 1));
+            return applyProductSectorScope(q, sector);
+          };
+          let { data, error: allErr } = await runFallback(fallbackCols).range(from, from + INCREMENTAL_PAGE_SIZE - 1);
+          if (allErr && isMissingSectorError(allErr)) {
+            rememberMissingColumn('products', 'sector');
+            ({ data, error: allErr } = await runFallback(fallbackCols).range(from, from + INCREMENTAL_PAGE_SIZE - 1));
+          }
+          if (allErr && fallbackCols !== '*' && isMissingColumnError(allErr)) {
+            fallbackCols = '*';
+            ({ data, error: allErr } = await runFallback('*').range(from, from + INCREMENTAL_PAGE_SIZE - 1));
           }
           if (allErr) {
             if (all.length === 0) {

@@ -1,7 +1,7 @@
 {
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/((?!assets/|sw\\.js|workbox-.*|registerSW\\.js|manifest\\.webmanifest|manifest\\.json|favicon\\.png|icon.*|pwa-.*|apple-touch-icon\\.png|tantawy-brand-logo\\.svg).*)",
       "destination": "/index.html"
     }
   ],
@@ -26,6 +26,24 @@
     },
     {
       "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/workbox-(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/manifest.webmanifest",
       "headers": [
         {
           "key": "Cache-Control",

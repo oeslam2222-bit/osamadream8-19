@@ -40,7 +40,7 @@ import {
   buildGroupInsights,
   buildIdleItems,
   IdleItemsResult,
-  buildItemRanking,
+  buildItemRankingsBundle,
   buildMonthlyCustomerAnalysis,
   buildMonthlyPerformance,
   buildPeriodTotals,
@@ -51,17 +51,16 @@ import {
 import {
   aggregateCustomerItemSales,
   clearCustomerItemSales,
+  compactCustomerItemSales,
   enrichCustomerItemSalesWithCatalog,
   enrichCustomerItemSalesWithDirectory,
   fillGenericFamiliesFromSiblings,
-  exportCustomerItemSalesToExcel,
   fetchAggregatedItemSalesFromView,
   fetchCustomerItemSalesFromSupabase,
   filterCustomerItemSalesByRBAC,
-  getItemSalesSyncMeta,
   getSavedCustomerItemSales,
-  getSupabaseCustomerItemSalesCount,
-  isItemSalesCountCheckFresh,
+  getScopedCompactItemSalesCache,
+  saveScopedCompactItemSalesCache,
   setItemSalesSyncMeta,
   MONTH_NAMES_MAP,
   parseExcelCustomerItemSales,
@@ -83,14 +82,18 @@ import { MonthlyPerformanceCard } from './itemSales/MonthlyPerformanceCard';
 import { RepPerformanceCard } from './itemSales/RepPerformanceCard';
 import { SlowMoversCard } from './itemSales/SlowMoversCard';
 import { MonthlyAggregateCard } from './itemSales/MonthlyAggregateCard';
-import { aggregateItemSalesRows, downloadItemSalesRowsCsv } from './itemSales/ItemSalesRowsTable';
 import { ItemSalesExecutiveCards } from './itemSales/ItemSalesExecutiveCards';
+import { ItemSalesFinalSummaryDashboard } from './itemSales/ItemSalesFinalSummaryDashboard';
 import { CANONICAL_BRANCHES, normalizeBranchName, UNKNOWN_BRANCH } from '../services/branchDirectory';
 import TotalsAnalysisView from './itemSales/TotalsAnalysisView';
 import { createItemSalesSectorResolver } from '../services/sectorResolver';
 import { DebouncedSearchInput } from './DebouncedSearchInput';
 import {
   buildItemSalesAggregates,
+  fetchItemSalesAggregates,
+  fetchItemSalesForRep,
+  getCachedItemSalesAggregates,
+  ItemSalesAggDoc,
   ItemSalesSector,
   saveItemSalesAggregates,
 } from '../services/itemSalesAggregateService';
@@ -221,11 +224,16 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   }, [currentUser, users, isAdminOrDev, itemSalesSector, isSectorBlocked]);
 
   const [salesRecords, setSalesRecords] = useState<CustomerItemSaleRecord[]>([]);
+  const [aggDocs, setAggDocs] = useState<ItemSalesAggDoc[]>([]);
+  const [aggFromCache, setAggFromCache] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isBackgroundSyncing, setIsBackgroundSyncing] = useState(false);
   const [supabaseCount, setSupabaseCount] = useState<number | null>(null);
   const [lastSyncAt] = useState<string | null>(null);
   const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
   const [syncErrorMsg, setSyncErrorMsg] = useState<string | null>(null);
+  const [summaryOnlyMode, setSummaryOnlyMode] = useState<boolean>(true);
+  const [showDetailedPivots, setShowDetailedPivots] = useState<boolean>(false);
 
   const [showAllSalesOverride, setShowAllSalesOverride] = useState(false);
   const [isSupabasePushing, setIsSupabasePushing] = useState(false);
@@ -269,194 +277,205 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const loadSalesInProgress = useRef(false);
   const excelFileInputRef = useRef<HTMLInputElement>(null);
 
-  const loadSalesData = async (options?: { forceRemote?: boolean; mergeCache?: boolean }) => {
+  const compactCacheKey = `${currentUser?.id || 'anon'}::${currentUser?.role || 'guest'}::${itemSalesSector}`;
+  const isSummaryRole =
+    isAdminOrDev || currentUser?.role === 'technical_support';
+
+  const loadSalesData = async (options?: {
+    forceRemote?: boolean;
+    mergeCache?: boolean;
+    includeCustomerSummary?: boolean;
+  }) => {
     if (loadSalesInProgress.current) return;
     if (isSectorBlocked) {
       setSalesRecords([]);
+      setAggDocs([]);
       setIsLoading(false);
       return;
     }
     loadSalesInProgress.current = true;
 
     const forceRemote = options?.forceRemote === true;
-    const mergeCache = options?.mergeCache === true;
-    setIsLoading(true);
+    const includeCustomerSummary = options?.includeCustomerSummary === true;
+    const COMPACT_TTL_MS = 6 * 60 * 60 * 1000;
+
     setSyncErrorMsg(null);
     if (!forceRemote) setSyncSuccessMsg(null);
+
+    let hasRenderedLocal = false;
+
     try {
-      // 1. تحميل فوري من الكاش المحلي/IndexedDB
-      const saved = await getSavedCustomerItemSales();
-      let localBackup = saved.filter((record) => !String(record.id || '').startsWith('cis-demo-'));
-      if (localBackup.length !== saved.length) {
-        await saveCustomerItemSales(localBackup);
+      // 1. تحميل فوري من الكاش المحلي (IndexedDB) بدون أي انتظار للشبكة
+      const [compactCached, savedFull, cachedAgg] = await Promise.all([
+        getScopedCompactItemSalesCache(compactCacheKey),
+        getSavedCustomerItemSales(),
+        isSummaryRole && itemSalesSector !== 'none'
+          ? getCachedItemSalesAggregates({ sector: itemSalesSector })
+          : Promise.resolve([]),
+      ]);
+
+      const localBackupRaw = savedFull.filter(
+        (record) => !String(record.id || '').startsWith('cis-demo-')
+      );
+      if (localBackupRaw.length !== savedFull.length) {
+        void saveCustomerItemSales(localBackupRaw);
       }
 
-      // 2. قراءة عدد السجلات في Supabase فقط (استعلام خفيف) للمقارنة
-      let remoteCount = -1;
-      const isOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
-      if (isOnline && (!localBackup.length || !isItemSalesCountCheckFresh() || forceRemote)) {
-        try {
-          remoteCount = await getSupabaseCustomerItemSalesCount(itemSalesScope);
-          if (remoteCount >= 0) {
-            setSupabaseCount(remoteCount);
-            setItemSalesSyncMeta({ lastCountCheckAt: new Date().toISOString() });
-          }
-        } catch {
-          remoteCount = -1;
-        }
+      // ضغط تلقائي لأي مخزون خام ضخم في وضع الأرقام النهائية لمنع تهنيج الموبايل/المتصفح
+      const localBackup =
+        summaryOnlyMode && localBackupRaw.length > 6000
+          ? compactCustomerItemSales(localBackupRaw)
+          : localBackupRaw;
+
+      if (cachedAgg.length > 0) {
+        setAggDocs(cachedAgg);
+        setAggFromCache(true);
+        hasRenderedLocal = true;
       }
 
-      const shouldAutoPull =
-        isOnline &&
-        remoteCount > 0 &&
-        (localBackup.length === 0 || remoteCount !== localBackup.length);
-
-      // ---- استراتيجية egress mínimo ----
-      // أ) لو مفيش forceRemote وعندنا كاش محلي + العدّ مطابقة → نعرض الكاش المحلي فقط (صفر egress)
-      // ب) لو forceRemote أو مفيش كاش → نجيب الـ view المجمّع (صف واحد لكل عميل/شهر/صنف) مش الجدول الخام
-      // ج) الجدول الخام (fetchCustomerItemSalesFromSupabase) يُستدعى فقط عند طلب صريح إضافي
-      if (!forceRemote && !shouldAutoPull) {
+      if (compactCached && compactCached.records.length > 0) {
+        setSalesRecords(compactCached.records);
+        hasRenderedLocal = true;
+      } else if (localBackup.length > 0) {
         setSalesRecords(localBackup);
-        if (localBackup.length > 0) {
-          setSyncSuccessMsg(`تم عرض ${localBackup.length.toLocaleString('ar-EG')} حركة محدّثة.`);
+        hasRenderedLocal = true;
+      }
+
+      // فك شاشة التحميل فور توفر أي كاش محلي (Stale-While-Revalidate)
+      if (hasRenderedLocal) {
+        setIsLoading(false);
+      }
+
+      const isOnline = typeof navigator === 'undefined' || navigator.onLine !== false;
+      if (!isOnline) {
+        if (hasRenderedLocal) {
+          setSyncSuccessMsg('أنت غير متصل بالإنترنت — يتم عرض الأرقام النهائية من الذاكرة المحلية.');
         }
         return;
       }
 
-      // 3. جلب من الـ view المجمّع (view_customer_monthly_item_sales) — خفيف جداً
-      //    يستبدل الجلب الكامل للجدول الخام في أغلب الحالات.
-      //    حد أقصى 5,000 صف مجمّع = يغطي الشهور الحالية للقطاع بالكامل.
-      let aggregatedRows: AggregatedItemSaleRow[] = [];
-      let viewError: string | null = null;
-      try {
-        const viewRes = await fetchAggregatedItemSalesFromView(itemSalesScope, { limit: 5000 });
-        if (viewRes.error) {
-          viewError = viewRes.error;
-        } else if (viewRes.rows && viewRes.rows.length > 0) {
-          aggregatedRows = viewRes.rows;
-        }
-      } catch (err: any) {
-        viewError = err?.message || 'فشل جلب المبيعات المجمعة من الـ view';
+      const compactCacheFresh =
+        Boolean(compactCached && compactCached.records.length > 0) &&
+        Date.now() - (compactCached?.updatedAt || 0) < COMPACT_TTL_MS;
+
+      const shouldFetchRemote =
+        forceRemote ||
+        includeCustomerSummary ||
+        (!hasRenderedLocal) ||
+        (!compactCacheFresh && !localBackup.length && !(cachedAgg.length > 0));
+
+      if (!shouldFetchRemote) {
+        return;
       }
 
-      // تحويل الصفوف المجمعة لنموذج CustomerItemSaleRecord للتوافق مع باقي الكود
-      // كل صف مجمّع = سطر "مجموع" لعميل/شهر/صنف
-      const aggregatedAsRecords: CustomerItemSaleRecord[] = aggregatedRows.map((row, idx) => ({
-        id: `cis-agg-${row.customer_account}-${row.month}-${row.item_code}`,
-        customerAccount: row.customer_account,
-        invoicingName: row.invoicing_name,
-        salesOrder: undefined, // مفيش رقم أمر واحد في المجمّع
-        date: undefined,
-        repName: row.rep_name,
-        repId: undefined,
-        month: row.month,
-        monthName: MONTH_NAMES_MAP[row.month] || String(row.month),
-        warehouse: row.warehouse,
-        itemCode: row.item_code,
-        itemName: row.item_name,
-        unit: 'كرتونة',
-        factor: 1,
-        unitPrice: row.total_quantity > 0 ? row.total_amount / row.total_quantity : 0,
-        discount: 0,
-        quantity: row.total_quantity,
-        amount: row.total_amount,
-        itemGroup: row.item_group,
-        familyName: row.item_group,
-        familyDimension: row.item_group, // استخدام item_group كـ familyDimension للتوافق
-        sector: undefined,
-        isAggregated: true, // علامة تميز الصفوف المجمعة
-      }));
+      if (hasRenderedLocal) {
+        setIsBackgroundSyncing(true);
+      }
 
-      // إذا نجح الجلب من الـ view، نستخدمه مباشرة للعرض (بدون الجلب الخام)
-      if (aggregatedAsRecords.length > 0 && !viewError) {
+      // 2. مسار الإدارة والمطور والدعم الفني: جلب ملخص الأرقام النهائية الخفيف فقط (20-80KB)
+      //    بدلاً من تنزيل 100 ألف+ صف خام!
+      if (isSummaryRole && !includeCustomerSummary && localBackup.length === 0) {
+        const targetSector: ItemSalesSector =
+          itemSalesSector === 'electrical' ? 'electrical' : 'home';
+        const aggRes = await fetchItemSalesAggregates({ sector: targetSector });
+        if (aggRes.docs.length > 0) {
+          setAggDocs(aggRes.docs);
+          setAggFromCache(Boolean(aggRes.fromCache));
+          const totalRowsAgg = aggRes.docs.reduce((sum, d) => sum + (d.rows || 0), 0);
+          setSupabaseCount(totalRowsAgg);
+          setSyncSuccessMsg(
+            aggRes.fromCache
+              ? 'الشبكة ضعيفة — تم عرض الأرقام النهائية من الكاش المحلي دون انتظار.'
+              : `تم تحميل الأرقام النهائية المجمّعة (${totalRowsAgg.toLocaleString('ar-EG')} حركة مجمّعة في ملخص خفيف).`
+          );
+          if (!compactCached?.records.length) {
+            return;
+          }
+        }
+      }
+
+      // 3. جلب من الـ View المجمّع (صف لكل عميل/شهر/صنف بنطاق المستخدم فقط — بدون جدول خام)
+      const viewLimit = currentUser?.role === 'sales_rep' ? 2500 : 5000;
+      const viewRes = await fetchAggregatedItemSalesFromView(itemSalesScope, { limit: viewLimit });
+
+      if (viewRes.rows && viewRes.rows.length > 0) {
+        const aggregatedAsRecords: CustomerItemSaleRecord[] = viewRes.rows.map((row) => ({
+          id: `cis-agg-${row.customer_account}-${row.month}-${row.item_code}-${row.warehouse || ''}`,
+          customerAccount: row.customer_account,
+          invoicingName: row.invoicing_name,
+          salesOrder: undefined,
+          date: undefined,
+          repName: row.rep_name,
+          repId: undefined,
+          month: row.month,
+          monthName: MONTH_NAMES_MAP[row.month] || String(row.month),
+          warehouse: row.warehouse,
+          itemCode: row.item_code,
+          itemName: row.item_name,
+          unit: 'كرتونة',
+          factor: 1,
+          unitPrice: row.total_quantity > 0 ? row.total_amount / row.total_quantity : 0,
+          discount: 0,
+          quantity: row.total_quantity,
+          amount: row.total_amount,
+          itemGroup: row.item_group,
+          familyName: row.item_group,
+          familyDimension: row.item_group,
+          sector: undefined,
+          isAggregated: true,
+        }));
+
         setSalesRecords(aggregatedAsRecords);
         setSupabaseCount(aggregatedAsRecords.length);
+        void saveScopedCompactItemSalesCache(compactCacheKey, aggregatedAsRecords);
+        setItemSalesSyncMeta({ lastCountCheckAt: new Date().toISOString() });
         setSyncSuccessMsg(
-          `تم عرض ${aggregatedAsRecords.length.toLocaleString('ar-EG')} صف مجمّع (عميل/شهر/صنف) من الـ view — توفير egress 95%.`
+          viewRes.partial
+            ? `الشبكة ضعيفة — تم جلب ${aggregatedAsRecords.length.toLocaleString('ar-EG')} صف مجمّع جزئياً وحفظها محلياً.`
+            : `تم عرض ${aggregatedAsRecords.length.toLocaleString('ar-EG')} صف مجمّع (الأرقام النهائية بنطاق صلاحياتك).`
         );
-        // لا نحدّث lastPullAt عشان ما نمنعش الجلب الجزئي الخام لاحقاً لو المستخدم ضغط «تحديث»
         return;
       }
 
-      // 4. fallback: لو الـ view فشل أو فاضي، نلجأ للجلب الخام (فقط عند forceRemote أو مفيش كاش)
-      if (forceRemote || localBackup.length === 0) {
-        const syncMeta = getItemSalesSyncMeta();
-        const incrementalSince =
-          !forceRemote && localBackup.length > 0 && syncMeta.lastPullAt
-            ? syncMeta.lastPullAt
-            : undefined;
-        let supabaseSales: CustomerItemSaleRecord[] = [];
-        let supabaseError: string | null = null;
-        try {
-          const fetchRes = await fetchCustomerItemSalesFromSupabase(undefined, itemSalesScope, {
-            updatedSince: incrementalSince
-          });
-          if (fetchRes.error) {
-            supabaseError = fetchRes.error;
-          } else if (fetchRes.sales && fetchRes.sales.length > 0) {
-            supabaseSales = fetchRes.sales;
-          }
-        } catch (err: any) {
-          supabaseError = err?.message || 'فشل الاتصال بـ Supabase';
-        }
-
-        if (supabaseSales.length > 0 && !supabaseError) {
-          if (incrementalSince || (mergeCache && localBackup.length > 0)) {
-            await saveCustomerItemSales(supabaseSales, 'upsert');
-            const merged = await getSavedCustomerItemSales();
-            setSalesRecords(merged);
-            setSupabaseCount(merged.length);
-            setSyncSuccessMsg(
-              incrementalSince
-                ? `تم تحديث ${supabaseSales.length.toLocaleString('ar-EG')} حركة متغيرة فقط من Supabase (جلب جزئي).`
-                : `تم جلب ${supabaseSales.length.toLocaleString('ar-EG')} حركة من Supabase ودمجها محلياً.`
-            );
-          } else {
-            setSalesRecords(supabaseSales);
-            setSupabaseCount(supabaseSales.length);
-            await saveCustomerItemSales(supabaseSales);
-            setSyncSuccessMsg(
-              `تم جلب ${supabaseSales.length.toLocaleString('ar-EG')} حركة من Supabase وحفظها محلياً.`
-            );
-          }
-          setItemSalesSyncMeta({ lastPullAt: new Date().toISOString() });
-        } else if (supabaseError) {
-          setSalesRecords(localBackup);
-          setSyncErrorMsg(
-            `فشل الاتصال بـ Supabase: ${supabaseError}. يتم عرض البيانات المخزنة محلياً (${localBackup.length.toLocaleString('ar-EG')} حركة).`
-          );
-        } else if (incrementalSince) {
-          setSalesRecords(localBackup);
+      // 4. لمندوب المبيعات فقط إذا كان الـ View غير متاح: جلب مبيعات المندوب المحدودة (حد أقصى 1500)
+      if (currentUser?.role === 'sales_rep' && currentUser.name) {
+        const repRes = await fetchItemSalesForRep(currentUser.name, { limit: 1500 });
+        if (repRes.success && repRes.rows.length > 0) {
+          const compacted = compactCustomerItemSales(repRes.rows);
+          setSalesRecords(compacted);
+          setSupabaseCount(compacted.length);
+          void saveScopedCompactItemSalesCache(compactCacheKey, compacted);
           setSyncSuccessMsg(
-            `لا توجد تغييرات جديدة على Supabase منذ آخر جلب — يتم عرض ${localBackup.length.toLocaleString('ar-EG')} حركة من الكاش المحلي.`
+            `تم تحميل وتجميع ${compacted.length.toLocaleString('ar-EG')} صف خاص بك.`
           );
-        } else if (remoteCount > 0 && supabaseSales.length === 0) {
-          setSalesRecords(localBackup);
-          setSyncErrorMsg(
-            `قاعدة Supabase تحتوي على ${remoteCount.toLocaleString('ar-EG')} سجل لكنها لم تُجلب. يتم عرض البيانات المخزنة محلياً.`
-          );
-        } else {
-          setSalesRecords(localBackup);
+          return;
         }
-      } else {
-        // مش forceRemote وعندنا كاش محلي — نعرض الكاش
-        setSalesRecords(localBackup);
+      }
+
+      // 5. لا يوجد سحب تلقائي للجدول الخام (100k+) عند فتح الصفحة لحماية الجهاز والإنترنت
+      if (!hasRenderedLocal && viewRes.error) {
+        setSyncErrorMsg(
+          `الشبكة ضعيفة أو تعذر الاتصال بالسحابة: ${viewRes.error}. اضغط «تحديث» عند تحسن الاتصال.`
+        );
+      } else if (hasRenderedLocal && viewRes.error) {
+        setSyncSuccessMsg('الشبكة ضعيفة — يتم عرض الأرقام النهائية المحفوظة محلياً.');
       }
     } finally {
       setIsLoading(false);
+      setIsBackgroundSyncing(false);
       loadSalesInProgress.current = false;
     }
   };
 
   useEffect(() => {
-    loadSalesData();
+    void loadSalesData();
 
-    // Auto-refresh when an Excel file is uploaded from the Excel tab or background
     const handleUpdate = () => {
-      loadSalesData();
+      void loadSalesData();
     };
     window.addEventListener('tantawy-customer-item-sales-updated', handleUpdate);
     return () => window.removeEventListener('tantawy-customer-item-sales-updated', handleUpdate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const lastLoadedSectorRef = useRef(itemSalesSector);
@@ -465,13 +484,12 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     lastLoadedSectorRef.current = itemSalesSector;
     if (itemSalesSector === 'none') {
       setSalesRecords([]);
+      setAggDocs([]);
       return;
     }
-    const hasSectorRows = salesRecords.some((r) => sectorResolver.matches(r, itemSalesSector));
-    if (!hasSectorRows) {
-      void loadSalesData({ forceRemote: true, mergeCache: true });
-    }
-  }, [itemSalesSector, salesRecords, sectorResolver]);
+    void loadSalesData({ forceRemote: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemSalesSector]);
 
   const handlePushToSupabase = async () => {
     if (salesRecords.length === 0) {
@@ -529,7 +547,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
   const executeClearSales = async () => {
     await clearCustomerItemSales();
+    await saveScopedCompactItemSalesCache(compactCacheKey, []);
     setSalesRecords([]);
+    setAggDocs([]);
     setShowClearConfirm(false);
     setSyncSuccessMsg('تم مسح وتصفير كافة سجلات مبيعات الأصناف بنجاح.');
     setSyncErrorMsg(null);
@@ -638,14 +658,20 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     return authorizedSales.filter((record) => sectorResolver.matches(record, effectiveSector));
   }, [enrichedSalesRecords, currentUser, users, customers, showAllSalesOverride, itemSalesSector, sectorResolver, isSectorBlocked]);
 
-  /** الفروع الثابتة اللي الإدارة بتشتغل عليها (+ «غير محدد» لو الحركة بلا فرع). */
-  const resolveItemSaleBranch = React.useCallback(
-    (record: CustomerItemSaleRecord): string =>
+  const branchMemoRef = useRef<Map<string, string>>(new Map());
+  /** الفروع الثابتة اللي الإدارة بتشتغل عليها (+ «غير محدد» لو الحركة بلا فرع) مع كاش فوري. */
+  const resolveItemSaleBranch = React.useCallback((record: CustomerItemSaleRecord): string => {
+    const k = `${record.linkedBranch || ''}|${record.warehouse || ''}`;
+    const hit = branchMemoRef.current.get(k);
+    if (hit !== undefined) return hit;
+    const resolved =
       normalizeBranchName(record.linkedBranch) ||
       normalizeBranchName(record.warehouse) ||
-      UNKNOWN_BRANCH,
-    []
-  );
+      UNKNOWN_BRANCH;
+    if (branchMemoRef.current.size > 4000) branchMemoRef.current.clear();
+    branchMemoRef.current.set(k, resolved);
+    return resolved;
+  }, []);
 
   /** كل الفلاتر ما عدا الشهر — أساس حساب المقارنة الشهرية. */
   const baseSales = useMemo(() => {
@@ -912,25 +938,19 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
   const groupMix = useMemo(() => buildGroupInsights(filteredSales), [filteredSales]);
 
-  const topItemsByValue = useMemo(
-    () => buildItemRanking(filteredSales, previousMonthSales, { metric: 'amount', limit: 10 }),
-    [filteredSales, previousMonthSales]
-  );
-
-  const topItemsByQuantity = useMemo(
-    () => buildItemRanking(filteredSales, previousMonthSales, { metric: 'quantity', limit: 10 }),
-    [filteredSales, previousMonthSales]
-  );
-
-  const slowMovers = useMemo(
+  const itemRankingsBundle = useMemo(
     () =>
-      buildItemRanking(filteredSales, previousMonthSales, {
-        metric: 'amount',
-        limit: 6,
-        order: 'asc'
+      buildItemRankingsBundle(filteredSales, previousMonthSales, {
+        topAmountLimit: 10,
+        topQtyLimit: 10,
+        slowLimit: 6,
       }),
     [filteredSales, previousMonthSales]
   );
+
+  const topItemsByValue = itemRankingsBundle.topByAmount;
+  const topItemsByQuantity = itemRankingsBundle.topByQuantity;
+  const slowMovers = itemRankingsBundle.slowMovers;
 
   const monthlyPerformance = useMemo(() => buildMonthlyPerformance(baseSales, 6), [baseSales]);
 
@@ -943,94 +963,80 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
   const monthlyCustomerRows = useMemo(() => buildMonthlyCustomerAnalysis(baseSales), [baseSales]);
 
-  /** الشهور الموجودة في نطاق الفلاتر الحالي (لجداول التحليل بالشهور). */
-  const analysisMonths = useMemo(() => {
-    const set = new Set<number>();
-    (filteredSales || []).forEach((r) => {
-      const m = Number(r.month) || 0;
-      if (m >= 1 && m <= 12) set.add(m);
-    });
-    return Array.from(set).sort((a, b) => a - b);
-  }, [filteredSales]);
+  /**
+   * الجداول الشهرية التفصيلية الـ4 في لفة واحدة فقط، ولا تُحسب إطلاقاً في وضع
+   * «الأرقام النهائية فقط» أو خارج تبويب لوحة المبيعات — تمنع التهنيج نهائياً.
+   */
+  const monthlyPivots = useMemo(() => {
+    if (activeView !== 'overview' || summaryOnlyMode || !showDetailedPivots) {
+      return {
+        months: [] as number[],
+        items: [] as Array<{ key: string; name: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>,
+        families: [] as Array<{ family: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>,
+        branchItems: [] as Array<{ branch: string; itemKey: string; itemName: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>,
+        branchFamilies: [] as Array<{ branch: string; family: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>,
+      };
+    }
 
-  /** الصنف (البرند/اسم الصنف) بالشهور — صف لكل صنف وأعمدة بالشهور + الإجمالي. */
-  const itemSalesByMonthPivot = useMemo(() => {
-    const map = new Map<string, { key: string; name: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>();
-    (filteredSales || []).forEach((r) => {
+    const monthSet = new Set<number>();
+    const itemMap = new Map<string, { key: string; name: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>();
+    const famMap = new Map<string, { family: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>();
+    const branchItemMap = new Map<string, { branch: string; itemKey: string; itemName: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>();
+    const branchFamMap = new Map<string, { branch: string; family: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>();
+
+    for (const r of filteredSales || []) {
       const month = Number(r.month) || 0;
-      if (month < 1 || month > 12) return;
-      const key = String(r.unifiedCode || r.itemCode || r.itemName || '').trim() || `item-${r.id || ''}`;
-      const name = String(r.itemName || r.definitions || r.itemCode || 'صنف غير محدد').trim();
-      const cur = map.get(key) || { key, name, months: {}, totalQty: 0, totalAmount: 0 };
+      if (month < 1 || month > 12) continue;
+      monthSet.add(month);
+
       const qty = Number(r.quantity) || 0;
       const amt = Number(r.amount) || 0;
-      const m = cur.months[month] || { quantity: 0, amount: 0 };
-      m.quantity += qty; m.amount += amt;
-      cur.months[month] = m;
-      cur.totalQty += qty; cur.totalAmount += amt;
-      if (!cur.name && name) cur.name = name;
-      map.set(key, cur);
-    });
-    return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [filteredSales]);
-
-  /** الصنف بالعائلة بالشهور — صف لكل (عائلة) وأعمدة بالشهور + الإجمالي. */
-  const familySalesByMonthPivot = useMemo(() => {
-    const map = new Map<string, { family: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>();
-    (filteredSales || []).forEach((r) => {
-      const month = Number(r.month) || 0;
-      if (month < 1 || month > 12) return;
-      const family = String(resolveItemGroup(r) || r.familyDimension || r.itemGroup || '').trim() || 'عام';
-      const cur = map.get(family) || { family, months: {}, totalQty: 0, totalAmount: 0 };
-      const qty = Number(r.quantity) || 0;
-      const amt = Number(r.amount) || 0;
-      const m = cur.months[month] || { quantity: 0, amount: 0 };
-      m.quantity += qty; m.amount += amt;
-      cur.months[month] = m;
-      cur.totalQty += qty; cur.totalAmount += amt;
-      map.set(family, cur);
-    });
-    return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [filteredSales]);
-
-  /** مبيعات الفروع بالصنف بالشهور. */
-  const branchItemSalesByMonth = useMemo(() => {
-    const map = new Map<string, { branch: string; itemKey: string; itemName: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>();
-    (filteredSales || []).forEach((r) => {
-      const month = Number(r.month) || 0;
-      if (month < 1 || month > 12) return;
-      const branch = resolveItemSaleBranch(r);
       const itemKey = String(r.unifiedCode || r.itemCode || r.itemName || '').trim() || `item-${r.id || ''}`;
       const itemName = String(r.itemName || r.definitions || r.itemCode || 'صنف غير محدد').trim();
-      const key = `${branch}||${itemKey}`;
-      const cur = map.get(key) || { branch, itemKey, itemName, months: {}, totalQty: 0, totalAmount: 0 };
-      const qty = Number(r.quantity) || 0; const amt = Number(r.amount) || 0;
-      const m = cur.months[month] || { quantity: 0, amount: 0 };
-      m.quantity += qty; m.amount += amt;
-      cur.months[month] = m; cur.totalQty += qty; cur.totalAmount += amt;
-      map.set(key, cur);
-    });
-    return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [filteredSales, resolveItemSaleBranch]);
-
-  /** مبيعات الفروع بالعائلة بالشهور. */
-  const branchFamilySalesByMonth = useMemo(() => {
-    const map = new Map<string, { branch: string; family: string; months: Record<number, { quantity: number; amount: number }>; totalQty: number; totalAmount: number }>();
-    (filteredSales || []).forEach((r) => {
-      const month = Number(r.month) || 0;
-      if (month < 1 || month > 12) return;
-      const branch = resolveItemSaleBranch(r);
       const family = String(resolveItemGroup(r) || r.familyDimension || r.itemGroup || '').trim() || 'عام';
-      const key = `${branch}||${family}`;
-      const cur = map.get(key) || { branch, family, months: {}, totalQty: 0, totalAmount: 0 };
-      const qty = Number(r.quantity) || 0; const amt = Number(r.amount) || 0;
-      const m = cur.months[month] || { quantity: 0, amount: 0 };
-      m.quantity += qty; m.amount += amt;
-      cur.months[month] = m; cur.totalQty += qty; cur.totalAmount += amt;
-      map.set(key, cur);
-    });
-    return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
-  }, [filteredSales, resolveItemSaleBranch]);
+      const branch = resolveItemSaleBranch(r);
+
+      const iCur = itemMap.get(itemKey) || { key: itemKey, name: itemName, months: {}, totalQty: 0, totalAmount: 0 };
+      const im = iCur.months[month] || { quantity: 0, amount: 0 };
+      im.quantity += qty; im.amount += amt; iCur.months[month] = im;
+      iCur.totalQty += qty; iCur.totalAmount += amt;
+      itemMap.set(itemKey, iCur);
+
+      const fCur = famMap.get(family) || { family, months: {}, totalQty: 0, totalAmount: 0 };
+      const fm = fCur.months[month] || { quantity: 0, amount: 0 };
+      fm.quantity += qty; fm.amount += amt; fCur.months[month] = fm;
+      fCur.totalQty += qty; fCur.totalAmount += amt;
+      famMap.set(family, fCur);
+
+      const biKey = `${branch}||${itemKey}`;
+      const biCur = branchItemMap.get(biKey) || { branch, itemKey, itemName, months: {}, totalQty: 0, totalAmount: 0 };
+      const bim = biCur.months[month] || { quantity: 0, amount: 0 };
+      bim.quantity += qty; bim.amount += amt; biCur.months[month] = bim;
+      biCur.totalQty += qty; biCur.totalAmount += amt;
+      branchItemMap.set(biKey, biCur);
+
+      const bfKey = `${branch}||${family}`;
+      const bfCur = branchFamMap.get(bfKey) || { branch, family, months: {}, totalQty: 0, totalAmount: 0 };
+      const bfm = bfCur.months[month] || { quantity: 0, amount: 0 };
+      bfm.quantity += qty; bfm.amount += amt; bfCur.months[month] = bfm;
+      bfCur.totalQty += qty; bfCur.totalAmount += amt;
+      branchFamMap.set(bfKey, bfCur);
+    }
+
+    return {
+      months: Array.from(monthSet).sort((a, b) => a - b),
+      items: Array.from(itemMap.values()).sort((a, b) => b.totalAmount - a.totalAmount),
+      families: Array.from(famMap.values()).sort((a, b) => b.totalAmount - a.totalAmount),
+      branchItems: Array.from(branchItemMap.values()).sort((a, b) => b.totalAmount - a.totalAmount),
+      branchFamilies: Array.from(branchFamMap.values()).sort((a, b) => b.totalAmount - a.totalAmount),
+    };
+  }, [activeView, summaryOnlyMode, showDetailedPivots, filteredSales, resolveItemSaleBranch]);
+
+  const analysisMonths = monthlyPivots.months;
+  const itemSalesByMonthPivot = monthlyPivots.items;
+  const familySalesByMonthPivot = monthlyPivots.families;
+  const branchItemSalesByMonth = monthlyPivots.branchItems;
+  const branchFamilySalesByMonth = monthlyPivots.branchFamilies;
 
   /** مبيعات الأصناف بالشهور وبالعائلة للمندوب المختار — تظهر داخل بروفايل المندوب. */
   const selectedRepBreakdown = useMemo(() => {
@@ -1126,15 +1132,19 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       .sort((a, b) => b.amount - a.amount);
   }, [customerSummaries, filteredSales, baseSales, growthMonth, comparison.currentAmount]);
 
-  /** توزيع كل عميل على شهور السنة كاملة — مستقل عن فلتر الشهر عشان الشبكة تفضل قابلة للتنقل. */
+  /** توزيع كل عميل على شهور السنة كاملة — يُحسب فقط عند فتح تبويب تفاصيل العملاء لتخفيف التهنيج. */
   const yearlySummaries = useMemo(() => {
+    if (activeView !== 'customers') return new Map<string, CustomerItemSalesSummary>();
     const grouped = aggregateCustomerItemSales(baseSales);
     return new Map(
       grouped.map((summary) => [summary.customerAccount || summary.customerName, summary])
     );
-  }, [baseSales]);
+  }, [activeView, baseSales]);
 
-  const alerts = useMemo(() => buildFollowUpAlerts(customerInsights), [customerInsights]);
+  const alerts = useMemo(
+    () => (activeView === 'customers' ? buildFollowUpAlerts(customerInsights) : []),
+    [activeView, customerInsights]
+  );
 
   const selectedCustomer = useMemo(
     () =>
@@ -1198,7 +1208,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
   // التصدير معطل — متاح للفواتير فقط
   const handleExportExcel = () => {
-    alert('تصدير Excel معطل — متاح للفواتير فقط');
+    setSyncErrorMsg('تصدير Excel معطل هنا — متاح لشاشة الفواتير فقط.');
   };
 
   const handleStartOrderForCustomer = (account: string, itemCode?: string) => {
@@ -1285,14 +1295,33 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             <button
               type="button"
               onClick={() => loadSalesData({ forceRemote: true })}
-              title="تحديث البيانات وجلب السجل من قاعدة البيانات"
+              title="تحديث الأرقام النهائية من السحابة"
               className="inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] transition cursor-pointer"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-              <span>تحديث</span>
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoading || isBackgroundSyncing ? 'animate-spin' : ''}`} />
+              <span>{isBackgroundSyncing ? 'جاري التحديث...' : 'تحديث'}</span>
             </button>
 
             {salesRecords.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !summaryOnlyMode;
+                  setSummaryOnlyMode(next);
+                  setShowDetailedPivots(!next);
+                }}
+                className={`inline-flex items-center gap-1.5 h-9 px-3 rounded-xl border font-bold text-[11px] transition cursor-pointer ${
+                  summaryOnlyMode
+                    ? 'border-emerald-300/60 bg-emerald-500/20 text-white'
+                    : 'border-white/20 bg-white/10 hover:bg-white/20 text-white'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{summaryOnlyMode ? 'وضع الأرقام النهائية ✓' : 'الأرقام النهائية فقط'}</span>
+              </button>
+            )}
+
+            {(salesRecords.length > 0 || isAdminOrDev) && (
               <button
                 type="button"
                 onClick={() => setToolsOpen((v) => !v)}
@@ -1307,9 +1336,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
           </div>
         </div>
 
-        {toolsOpen && salesRecords.length > 0 && (
-          <div className="mt-2 flex flex-col sm:flex-row sm:w-fit gap-1.5 rounded-xl border border-white/15 bg-white/5 p-1.5">
-            {customers.length > 0 && (
+        {toolsOpen && (
+          <div className="mt-2 flex flex-col sm:flex-row sm:w-fit flex-wrap gap-1.5 rounded-xl border border-white/15 bg-white/5 p-1.5">
+            {customers.length > 0 && salesRecords.length > 0 && (
               <button
                 type="button"
                 onClick={() => { setToolsOpen(false); void handleEnrichAndPersistSales(); }}
@@ -1318,6 +1347,18 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               >
                 <Link2 className="w-3.5 h-3.5" />
                 ربط الفروع والمناديب
+              </button>
+            )}
+            {isAdminOrDev && (
+              <button
+                type="button"
+                onClick={() => { setToolsOpen(false); void handleFetchFromSupabase(); }}
+                disabled={isSupabaseFetching}
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-lg border border-white/15 bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] transition cursor-pointer disabled:opacity-50"
+                title="سحب جدول الحركات الخام بالكامل (للإدارة فقط عند الحاجة)"
+              >
+                <CloudDownload className="w-3.5 h-3.5" />
+                {isSupabaseFetching ? 'جاري السحب...' : 'جلب الحركات الخام (اختياري)'}
               </button>
             )}
             <button
@@ -1548,7 +1589,17 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         </div>
       )}
 
-      {salesRecords.length === 0 ? (
+      {salesRecords.length === 0 && aggDocs.length > 0 ? (
+        <ItemSalesFinalSummaryDashboard
+          docs={aggDocs}
+          sector={itemSalesSector === 'electrical' ? 'electrical' : 'home'}
+          canSwitchSector={canManageSectorGate}
+          onSelectSector={(s) => setActiveSectorFilter(s)}
+          onLoadCustomerSummary={() => void loadSalesData({ forceRemote: true, includeCustomerSummary: true })}
+          isFetchingDetailed={isLoading || isBackgroundSyncing}
+          fromCache={aggFromCache}
+        />
+      ) : salesRecords.length === 0 ? (
         <section className="bg-white rounded-3xl border border-slate-200 p-8 sm:p-12 text-center shadow-xs">
           <div className="w-16 h-16 rounded-3xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] mx-auto flex items-center justify-center mb-4 shadow-xs">
             <BarChart3 className="w-8 h-8" />
@@ -2142,11 +2193,11 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
                       return (
                         <div
                           key={month}
-                          className="text-center p-1.5 rounded-lg border text-[9px] font-bold transition ${
+                          className={`text-center p-1.5 rounded-lg border text-[9px] font-bold transition ${
                             hasSales
                               ? 'bg-[var(--app-warn-tint)] border-[var(--app-warn-line)] text-[var(--app-warn-text)]'
                               : 'bg-slate-100/50 border-transparent text-slate-400'
-                          }"
+                          }`}
                         >
                           <div className="text-[8px] uppercase tracking-wider mb-0.5">
                             {MONTH_NAMES_MAP[month]}
@@ -2252,7 +2303,30 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
             </div>
           </div>
 
-          {/* تحليل الصنف والعائلة بالشهور + مبيعات الفروع */}
+          {/* تحليل الصنف والعائلة بالشهور + مبيعات الفروع — مقفول افتراضياً في وضع الأرقام النهائية لمنع التهنيج */}
+          {summaryOnlyMode || !showDetailedPivots ? (
+            <section className="bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xs sm:text-sm font-black text-[var(--app-text)]">
+                  الجداول الشهرية التفصيلية مخفية لسرعة الأداء
+                </h3>
+                <p className="text-[11px] font-bold text-[var(--app-text-muted)] mt-0.5">
+                  معروض حالياً الأرقام النهائية والكروت الأساسية فقط عشان الصفحة تفتح بسرعة وماتهنجش الجهاز.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSummaryOnlyMode(false);
+                  setShowDetailedPivots(true);
+                }}
+                className="inline-flex items-center justify-center gap-1.5 h-9 px-4 rounded-xl bg-[#102b4e] hover:bg-[#0b1f39] text-white text-[11px] font-black transition cursor-pointer shrink-0"
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                إظهار الجداول التفصيلية بالشهور
+              </button>
+            </section>
+          ) : (
           <div className="grid grid-cols-1 gap-4">
             <section className="bg-[var(--app-card)] rounded-2xl border border-[var(--app-border)] p-4 sm:p-5 shadow-sm">
               <div className="flex items-center justify-between gap-2 mb-3">
@@ -2470,6 +2544,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               )}
             </section>
           </div>
+          )}
 
           <MonthlyCustomerAnalysisTable rows={monthlyCustomerRows} />
         </>

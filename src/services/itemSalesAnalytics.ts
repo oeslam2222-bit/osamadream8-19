@@ -367,6 +367,74 @@ export function buildItemRanking(
   return filtered.slice(0, limit);
 }
 
+/**
+ * يحسب قوائم أعلى الأصناف بالقيمة والكمية والأصناف الأقل حركة في لفة واحدة فقط
+ * بدلاً من بناء خريطة الأصناف 3 مرات متكررة (6 لفات على 100 ألف صف → لفتين فقط).
+ */
+export function buildItemRankingsBundle(
+  records: CustomerItemSaleRecord[],
+  previousRecords: CustomerItemSaleRecord[] = [],
+  limits: { topAmountLimit?: number; topQtyLimit?: number; slowLimit?: number } = {}
+): {
+  topByAmount: ItemRankingRow[];
+  topByQuantity: ItemRankingRow[];
+  slowMovers: ItemRankingRow[];
+} {
+  const { topAmountLimit = 10, topQtyLimit = 10, slowLimit = 6 } = limits;
+  const current = accumulateItems(records);
+  const previous = accumulateItems(previousRecords);
+
+  let totalAmount = 0;
+  let totalQuantity = 0;
+  current.forEach((entry) => {
+    totalAmount += entry.amount;
+    totalQuantity += entry.quantity;
+  });
+
+  const amountRows: ItemRankingRow[] = [];
+  const qtyRows: ItemRankingRow[] = [];
+
+  current.forEach((entry, key) => {
+    const prevEntry = previous.get(key);
+    const base = {
+      itemCode: entry.itemCode,
+      itemName: entry.itemName,
+      itemGroup: entry.itemGroup,
+      unit: entry.unit,
+      amount: entry.amount,
+      quantity: entry.quantity,
+      customersCount: entry.customers.size,
+      lastMonth: entry.lastMonth,
+      lastMonthLabel: entry.lastMonth ? MONTH_LABELS[entry.lastMonth] : '—',
+    };
+
+    if (entry.amount > 0) {
+      amountRows.push({
+        ...base,
+        sharePct: totalAmount > 0 ? (entry.amount / totalAmount) * 100 : 0,
+        growthPct: growthPct(entry.amount, prevEntry ? prevEntry.amount : 0),
+      });
+    }
+    if (entry.quantity > 0) {
+      qtyRows.push({
+        ...base,
+        sharePct: totalQuantity > 0 ? (entry.quantity / totalQuantity) * 100 : 0,
+        growthPct: growthPct(entry.quantity, prevEntry ? prevEntry.quantity : 0),
+      });
+    }
+  });
+
+  const byAmountDesc = [...amountRows].sort((a, b) => b.amount - a.amount);
+  const slowAsc = [...amountRows].sort((a, b) => a.amount - b.amount);
+  const byQtyDesc = [...qtyRows].sort((a, b) => b.quantity - a.quantity);
+
+  return {
+    topByAmount: byAmountDesc.slice(0, topAmountLimit),
+    topByQuantity: byQtyDesc.slice(0, topQtyLimit),
+    slowMovers: slowAsc.slice(0, slowLimit),
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /* 3) الأداء الشهري (آخر 6 أشهر)                                      */
 /* ------------------------------------------------------------------ */

@@ -149,7 +149,7 @@ window.addEventListener('vite:preloadError', (event) => {
 window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason as { message?: unknown } | undefined;
   const message = typeof reason?.message === 'string' ? reason.message : '';
-  if (!/Failed to fetch dynamically imported module|MIME type|Importing a module script failed/i.test(message)) {
+  if (!/Failed to fetch dynamically imported module|error loading dynamically imported module|Unable to preload CSS|Loading chunk|ChunkLoadError|MIME type|Importing a module script failed/i.test(message)) {
     return;
   }
   if (!recoverFromStaleBuild()) return;

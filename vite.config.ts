@@ -21,7 +21,13 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
+        injectRegister: false,
         workbox: {
+          cleanupOutdatedCaches: true,
+          skipWaiting: true,
+          clientsClaim: true,
+          navigateFallback: '/index.html',
+          navigateFallbackDenylist: [/^\/assets\//, /^\/api\//, /\/[^/?]+\.[^/]+$/],
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
           // صور aistudio القديمة (16MB+) مش مستخدمة في التطبيق، وكانت بتتحمّل
           // كلها في الخلفية أول ما الـservice worker يتثبّت وبتزاحم باقي الملفات
@@ -63,6 +69,7 @@ export default defineConfig(() => {
               options: {
                 cacheName: 'app-assets-runtime',
                 expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
+                cacheableResponse: { statuses: [200] },
               },
             },
             {

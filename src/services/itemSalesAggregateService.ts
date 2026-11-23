@@ -1,4 +1,5 @@
 import { CustomerItemSaleRecord } from '../types';
+import { idbGet, idbSet } from './storageService';
 import { supabase } from './supabaseService';
 
 /**
@@ -253,14 +254,66 @@ export async function saveItemSalesAggregates(docs: ItemSalesAggDoc[]): Promise<
   }
 }
 
-/** يقرأ ملخصات الشهور المطلوبة فقط (صف أو اتنين لكل شهر/قطاع). */
+const AGG_CACHE_KEY_PREFIX = 'tantawy_item_sales_agg_docs_v1::';
+
+interface CachedAggEnvelope {
+  updatedAt: number;
+  docs: ItemSalesAggDoc[];
+}
+
+export async function getCachedItemSalesAggregates(options?: {
+  month?: number;
+  sector?: ItemSalesSector;
+}): Promise<ItemSalesAggDoc[]> {
+  if (typeof window === 'undefined') return [];
+  const sectors: ItemSalesSector[] = options?.sector ? [options.sector] : ['home', 'electrical'];
+  const all: ItemSalesAggDoc[] = [];
+  for (const sec of sectors) {
+    try {
+      const env = await idbGet<CachedAggEnvelope>(`${AGG_CACHE_KEY_PREFIX}${sec}`);
+      if (env && Array.isArray(env.docs)) {
+        all.push(...env.docs);
+      }
+    } catch {}
+  }
+  return all
+    .filter((doc) => (options?.month ? doc.month === options.month : true))
+    .filter((doc) => (options?.sector ? doc.sector === options.sector : true))
+    .sort((left, right) => left.month - right.month || left.sector.localeCompare(right.sector));
+}
+
+export async function saveCachedItemSalesAggregates(
+  docs: ItemSalesAggDoc[],
+  sectorScope?: ItemSalesSector
+): Promise<void> {
+  if (typeof window === 'undefined') return;
+  const sectors: ItemSalesSector[] = sectorScope ? [sectorScope] : ['home', 'electrical'];
+  for (const sec of sectors) {
+    const sectorDocs = docs.filter((d) => d.sector === sec);
+    if (sectorDocs.length > 0 || sectorScope === sec) {
+      try {
+        await idbSet<CachedAggEnvelope>(`${AGG_CACHE_KEY_PREFIX}${sec}`, {
+          updatedAt: Date.now(),
+          docs: sectorDocs,
+        });
+      } catch {}
+    }
+  }
+}
+
+/** يقرأ ملخصات الشهور المطلوبة فقط (صف أو اتنين لكل شهر/قطاع) مع كاش محلي للشبكات الضعيفة. */
 export async function fetchItemSalesAggregates(options?: {
   month?: number;
   sector?: ItemSalesSector;
-}): Promise<{ success: boolean; docs: ItemSalesAggDoc[]; error?: string }> {
+}): Promise<{ success: boolean; docs: ItemSalesAggDoc[]; fromCache?: boolean; error?: string }> {
   try {
     const month = options?.month;
     const sector = options?.sector;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      const cached = await getCachedItemSalesAggregates(options);
+      return { success: cached.length > 0, docs: cached, fromCache: true };
+    }
+
     const idPrefix =
       month && sector
         ? itemSalesAggregateId(month, sector)
@@ -278,8 +331,13 @@ export async function fetchItemSalesAggregates(options?: {
 
     const { data, error } = await query;
     if (error) {
-      // الجدول ممكن يكون أنضف بـlike مختلف على بعض الإعدادات — نرجع فاضي بدل ما نكسر الصفحة.
-      return { success: false, docs: [], error: error.message };
+      const cached = await getCachedItemSalesAggregates(options);
+      return {
+        success: cached.length > 0,
+        docs: cached,
+        fromCache: cached.length > 0,
+        error: error.message,
+      };
     }
 
     const docs: ItemSalesAggDoc[] = [];
@@ -299,9 +357,19 @@ export async function fetchItemSalesAggregates(options?: {
       .filter((doc) => (sector ? doc.sector === sector : true))
       .sort((left, right) => left.month - right.month);
 
+    if (!month && filtered.length > 0) {
+      void saveCachedItemSalesAggregates(filtered, sector);
+    }
+
     return { success: true, docs: filtered };
   } catch (err: any) {
-    return { success: false, docs: [], error: err?.message || 'فشل قراءة ملخصات مبيعات الأصناف' };
+    const cached = await getCachedItemSalesAggregates(options);
+    return {
+      success: cached.length > 0,
+      docs: cached,
+      fromCache: cached.length > 0,
+      error: err?.message || 'فشل قراءة ملخصات مبيعات الأصناف',
+    };
   }
 }
 

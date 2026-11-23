@@ -1138,6 +1138,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return branchNames.length > 0 ? { branchNames, sector } : (sector ? { sector } : undefined);
   }, [currentUser?.id, currentUser?.name, currentUser?.branchName, currentUser?.role, currentUser?.sector, activeApiSector, effectiveSectorFilter, users]);
 
+  const lastForecastBootSigRef = useRef<string>('');
+
   // Load the shared copy so every device and every role sees the same numbers.
   // التوقعات: الشهر الحالي بس من السيرفر مع بصمة محتوى من صف واحد لتفادي إعادة التنزيل عند عدم التغيير.
   useEffect(() => {
@@ -1145,9 +1147,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // بيرجع 401 "permission denied" (وكان ممكن يفعّل بوابة التحديث بالغلط).
     // نشغّل الفحص فقط بعد اكتمال جلسة المستخدم؛ والتأثير بيعيد التشغيل
     // تلقائياً بعد الدخول لأن currentUser?.id جزء من الاعتماديات.
-    if (!currentUser?.id) return;
-    let cancelled = false;
+    if (!currentUser?.id) {
+      lastForecastBootSigRef.current = '';
+      return;
+    }
     const bootMonth = currentMonthKey();
+    const bootSig = `${currentUser.id}::${bootMonth}::${JSON.stringify(forecastFetchScope ?? null)}`;
+    if (lastForecastBootSigRef.current === bootSig) return;
+    lastForecastBootSigRef.current = bootSig;
+
+    let cancelled = false;
+    let completed = false;
     loadedForecastMonthsRef.current?.add(bootMonth);
     const fStampKey = `${FORECAST_MONTH_STAMP_PREFIX}${forecastScopeKey(bootMonth, forecastFetchScope)}`;
 
@@ -1199,9 +1209,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }));
         setForecastPlans(mappedPlans);
       }
+      completed = true;
     })();
     return () => {
       cancelled = true;
+      if (!completed && lastForecastBootSigRef.current === bootSig) {
+        lastForecastBootSigRef.current = '';
+      }
     };
   }, [forecastFetchScope, currentUser?.id]);
 
@@ -4727,7 +4741,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     } catch (e) {
       console.warn('Realtime channel error:', e);
     }
-  }, [isLocalDataHydrated, dataEpoch, currentUser?.id, currentUser?.role, currentUser?.branchName]);
+  }, [isLocalDataHydrated, currentUser?.id, currentUser?.role, currentUser?.branchName]);
 
   useEffect(() => {
     let lastCheckedAt = 0;
@@ -5685,13 +5699,22 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const serverOutcome = await tryServerSignIn(identifier, cleanPass);
     if (serverOutcome.kind !== 'success') {
       const isOfflineNow = typeof navigator !== 'undefined' && navigator.onLine === false;
+      const reasonText =
+        serverOutcome.kind === 'unavailable' ? String(serverOutcome.reason || '').toLowerCase() : '';
+      const isTimeoutOrWeak =
+        reasonText.includes('timeout') ||
+        reasonText.includes('مهلة') ||
+        reasonText.includes('شبكة') ||
+        reasonText.includes('network');
       const message =
         serverOutcome.kind === 'unavailable'
           ? serverOutcome.reason === 'lookup-rpc-missing'
             ? 'خدمة المصادقة المركزية غير مكتملة الإعداد على قاعدة البيانات. راجع إدارة النظام (ملف p0_auth_lockdown.sql).'
             : isOfflineNow
               ? 'لا يوجد اتصال بالإنترنت حالياً. يرجى الاتصال بالشبكة للتحقق من كلمة المرور وتسجيل الدخول.'
-              : 'تعذر الاتصال بخدمة المصادقة المركزية. تحقق من اتصال الإنترنت ثم حاول مرة أخرى.'
+              : isTimeoutOrWeak
+                ? 'الشبكة ضعيفة أو انتهت مهلة الاتصال بخدمة المصادقة. انتظر لحظة وحاول مرة أخرى.'
+                : 'تعذر الاتصال بخدمة المصادقة المركزية. تحقق من اتصال الإنترنت ثم حاول مرة أخرى.'
           : serverOutcome.kind === 'no-server-account'
             ? 'هذا الحساب غير مُفعّل على المصادقة المركزية بعد. يرجى التواصل مع الإدارة لتفعيل الحساب.'
             : 'اسم المستخدم أو كلمة المرور غير صحيحة.';

@@ -1019,6 +1019,7 @@ export interface CustomerItemSaleRecord {
   linkedSupervisorName?: string;// المشرف المعتمد
   linkedPhone?: string;         // هاتف العميل
   linkedSector?: 'home' | 'electrical' | 'both'; // القطاع من قاعدة العملاء (مربوط بكود العميل)
+  isAggregated?: boolean;       // سجل مجمّع شهرياً (الأرقام النهائية فقط لتخفيف الذاكرة والشبكة)
 }
 
 /** تجميع وتحليل مبيعات العميل الواحد بالصنف والمجموعات والشهور */
