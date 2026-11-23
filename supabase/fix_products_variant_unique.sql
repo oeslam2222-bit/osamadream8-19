@@ -24,9 +24,10 @@
 
 BEGIN;
 
--- 1) شيل القيدين المعروفين (التلقائي + بتاع production-hardening)
+-- 1) شيل القيود المعروفة (التلقائي + production-hardening + unified_code)
 ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_code_key;
 ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_code_unique;
+ALTER TABLE public.products DROP CONSTRAINT IF EXISTS products_unified_code_unique;
 
 -- 2) شيل الفهارس الفريدة المعروفة على code
 DROP INDEX IF EXISTS public.products_code_unique_idx;
@@ -41,10 +42,11 @@ BEGIN
     FROM pg_constraint
     WHERE conrelid = 'public.products'::regclass
       AND contype = 'u'
-      AND pg_get_constraintdef(oid) ILIKE 'unique (code)'
+      AND (pg_get_constraintdef(oid) ILIKE 'unique (code)'
+           OR pg_get_constraintdef(oid) ILIKE 'unique (unified_code)')
   LOOP
     EXECUTE format('ALTER TABLE public.products DROP CONSTRAINT IF EXISTS %I', r.conname);
-    RAISE NOTICE 'Dropped unique constraint % on products(code)', r.conname;
+    RAISE NOTICE 'Dropped unique constraint % on products', r.conname;
   END LOOP;
 
   FOR r IN

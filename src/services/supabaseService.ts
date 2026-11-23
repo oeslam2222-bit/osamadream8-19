@@ -3650,10 +3650,11 @@ export async function saveProductsToSupabase(
           return { success: true, changedCount: retryRows.length };
         }
         if (!saveError || !isMissingColumn(saveError)) {
+          const constraintName = errMsg.match(/violates unique constraint "([^"]+)"/i)?.[1] || '';
           return {
             success: false,
             error:
-              'تعذر حفظ المنتجات على قاعدة البيانات. لو الشيت فيه أكثر من متغير بنفس الكود (مقاس/لون)، شغّل الملف supabase/fix_products_variant_unique.sql مرة واحدة في Supabase → SQL Editor ثم أعد الاستيراد.'
+              `تعذر حفظ المنتجات على قاعدة البيانات${constraintName ? ` (تعارض على القيد: ${constraintName})` : ''}. لو الشيت فيه أكثر من متغير بنفس الكود/الكود الموحد (مقاس/لون)، شغّل الملف supabase/fix_products_variant_unique.sql مرة واحدة في Supabase → SQL Editor ثم أعد الاستيراد.`
           };
         }
         // لو الخطأ المتبقي عمود ناقص، نكمل للـ minimal retry بالأسفل.
