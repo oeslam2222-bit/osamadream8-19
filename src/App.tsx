@@ -228,8 +228,9 @@ const MainLayout: React.FC = () => {
   const [customPermissionOverrides, setCustomPermissionOverrides] = useState<UserPermissionOverride[]>([]);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
-  // Load custom permission overrides (admin-customized per user)
+  // Load custom permission overrides (admin-customized per user) once authenticated
   useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) return;
     let active = true;
     getCustomPermissions().then((overrides) => {
       if (active) setCustomPermissionOverrides(overrides);
@@ -237,7 +238,7 @@ const MainLayout: React.FC = () => {
       if (active) setPermissionsLoaded(true);
     });
     return () => { active = false; };
-  }, []);
+  }, [isAuthenticated, currentUser?.id]);
 
   const allowedTabs = useMemo(() => {
     if (!currentUser) return ['home'];

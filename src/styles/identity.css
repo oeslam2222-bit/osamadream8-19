@@ -1566,8 +1566,7 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
 .tg-login__blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.55;
+  opacity: 0.65;
 }
 
 .tg-login__blob--1 {
@@ -1616,8 +1615,7 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] {
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.09);
   box-shadow: 0 40px 90px rgba(0, 0, 0, 0.45);
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(6px);
+  background: rgba(15, 23, 42, 0.72);
 }
 
 /* اللوحة اليسرى — العلامة */

@@ -30,6 +30,17 @@ export const STORAGE_KEYS = {
   PRIVACY_MODE: 'dream_privacy_mode_v1',
 };
 
+export const getSectorProductsKey = (sector: 'home' | 'electrical' | 'none'): string =>
+  sector === 'electrical'
+    ? `${STORAGE_KEYS.PRODUCTS}::electrical`
+    : `${STORAGE_KEYS.PRODUCTS}::home`;
+
+export const getUserSectorStorageKey = (
+  baseKey: string,
+  userId?: string | null,
+  sector?: 'home' | 'electrical' | 'none'
+): string => `${baseKey}::${userId || 'anon'}::${sector === 'electrical' ? 'electrical' : 'home'}`;
+
 export const getDeletedInvoiceIds = (): Set<string> => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.DELETED_INVOICE_IDS);
@@ -141,15 +152,33 @@ export const buildCustomersFingerprint = (list: Customer[]): string => {
   return `${list.length}:${Math.round(debt)}:${Math.round(dues)}:${Math.round(sales26)}:${Math.round(coll26)}:${Math.round(credit)}:${Math.round(overdue)}:${metaHash}`;
 };
 
-export const saveLocalCustomersFingerprint = (list: Customer[]) => {
+export const getUserSectorCustomerFingerprintKey = (
+  userId?: string | null,
+  sector?: 'home' | 'electrical' | 'none'
+): string =>
+  userId || sector
+    ? `${CUSTOMERS_FINGERPRINT_KEY}::${userId || 'anon'}::${sector === 'electrical' ? 'electrical' : 'home'}`
+    : CUSTOMERS_FINGERPRINT_KEY;
+
+export const saveLocalCustomersFingerprint = (
+  list: Customer[],
+  userId?: string | null,
+  sector?: 'home' | 'electrical' | 'none'
+) => {
   try {
-    window.localStorage.setItem(CUSTOMERS_FINGERPRINT_KEY, buildCustomersFingerprint(list));
+    window.localStorage.setItem(
+      getUserSectorCustomerFingerprintKey(userId, sector),
+      buildCustomersFingerprint(list)
+    );
   } catch {}
 };
 
-export const getLocalCustomersFingerprint = (): string => {
+export const getLocalCustomersFingerprint = (
+  userId?: string | null,
+  sector?: 'home' | 'electrical' | 'none'
+): string => {
   try {
-    return window.localStorage.getItem(CUSTOMERS_FINGERPRINT_KEY) || '';
+    return window.localStorage.getItem(getUserSectorCustomerFingerprintKey(userId, sector)) || '';
   } catch {
     return '';
   }

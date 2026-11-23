@@ -457,12 +457,11 @@ function quoteOrValue(value: string): string {
  * والعميل متسجل باسمه في فرع تاني كان هيختفي. التعبير الواحد ده بيضمن إن
  * أي عميل بيخص المندوب (بالفرع أو بالاسم أو بالكود) بيتنزّل.
  */
-function buildScopeOrClauses(scope?: {
+function buildIdentityOrClauses(scope?: {
   branchNames?: string[];
   branchNameContains?: string[];
   repNames?: string[];
   repIds?: string[];
-  sector?: 'home' | 'electrical' | 'both' | 'all';
   includeUnassignedBranch?: boolean;
 }): string[] {
   const clauses: string[] = [];
@@ -479,25 +478,45 @@ function buildScopeOrClauses(scope?: {
   (scope?.repNames || []).filter(Boolean).forEach((name) => {
     clauses.push(`rep_name.ilike.${quoteOrValue(`*${name}*`)}`);
   });
-  // فلترة القطاع من السيرفر — لا يُحمل عملاء قطاع آخر على الجهاز.
-  if (scope?.sector === 'home' || scope?.sector === 'electrical') {
-    clauses.push(`sector.in.(${scope.sector},both,all),sector.is.null`);
-  } else if (scope?.sector === 'both') {
-    clauses.push(`sector.in.(both,all),sector.is.null`);
-  }
   if (scope?.includeUnassignedBranch) clauses.push('branch_name.is.null');
   return clauses;
 }
 
-/** هل فيه أي فلتر فعلي؟ (تستخدمه مسارات القراءة عشان تعرف تعمل fallback ولا لأ) */
-function hasScopeFilters(scope?: CustomerFetchScope | VisitFetchScope): boolean {
-  return buildScopeOrClauses(scope).length > 0;
+/**
+ * يطبّق فلتر القطاع كشرط AND منفصل تماماً عن شروط الفرع والمندوب.
+ * مهم: وضعه داخل نفس تعبير or= كان بيكسر العزل ويجلب كل عملاء الشركة في القطاع!
+ */
+function applySectorToQuery(
+  table: string,
+  query: any,
+  sector?: 'home' | 'electrical' | 'both' | 'all'
+): any {
+  if (!sector || sector === 'all') return query;
+  if (activeMissingColumns(table).has('sector')) return query;
+  if (sector === 'home' || sector === 'electrical') {
+    return query.or(`sector.in.(${sector},both,all),sector.is.null`);
+  }
+  if (sector === 'both') {
+    return query.or('sector.in.(both,all),sector.is.null');
+  }
+  return query;
 }
 
-/** يطبّق نطاق القراءة على أي query من Supabase. */
-function applyScopeToQuery(query: any, scope?: CustomerFetchScope | VisitFetchScope): any {
-  const clauses = buildScopeOrClauses(scope);
-  return clauses.length > 0 ? query.or(clauses.join(',')) : query;
+/** هل فيه أي فلتر فعلي؟ (تستخدمه مسارات القراءة عشان تعرف تعمل fallback ولا لأ) */
+function hasScopeFilters(scope?: CustomerFetchScope | VisitFetchScope): boolean {
+  return buildIdentityOrClauses(scope).length > 0 || Boolean(scope?.sector && scope.sector !== 'all');
+}
+
+/** يطبّق نطاق القراءة على أي query من Supabase: (فرع/مندوب) AND (قطاع). */
+function applyScopeToQuery(
+  query: any,
+  scope?: CustomerFetchScope | VisitFetchScope,
+  table: string = 'customers'
+): any {
+  const clauses = buildIdentityOrClauses(scope);
+  let next = clauses.length > 0 ? query.or(clauses.join(',')) : query;
+  next = applySectorToQuery(table, next, scope?.sector);
+  return next;
 }
 
 /** حد أدنى جداً: 5,000 صف بس للعميل العادي — يقلل egress لـ 500 مستخدم */
@@ -635,24 +654,31 @@ async function fetchAllRows(
 
     while (attempts < 10) {
       let query = supabase.from(table).select(selectCols);
-      query = applyScopeToQuery(query, scope);
+      query = applyScopeToQuery(query, scope, table);
       query = query.order('id', { ascending: true });
       if (updatedSince) {
         query = query.gte('updated_at', updatedSince);
       }
       ({ data, error } = await query.range(from, from + pageSize - 1));
 
-      if (error && selectCols !== '*' && isMissingColumnError(error)) {
+      if (error && isMissingColumnError(error)) {
         const missingCol = extractMissingColumn(error);
-        if (missingCol && columnList.length > 0) {
-          rememberMissingColumn('customers', missingCol);
-          selectCols = buildSelectList('customers', columnList);
+        if (missingCol === 'sector') {
+          rememberMissingColumn(table, 'sector');
           attempts += 1;
           continue;
         }
-        selectCols = '*';
-        attempts += 1;
-        continue;
+        if (selectCols !== '*') {
+          if (missingCol && columnList.length > 0) {
+            rememberMissingColumn(table, missingCol);
+            selectCols = buildSelectList(table, columnList);
+            attempts += 1;
+            continue;
+          }
+          selectCols = '*';
+          attempts += 1;
+          continue;
+        }
       }
       break;
     }
@@ -955,13 +981,10 @@ function applyTargetScope(query: any, scope?: TargetFetchScope): any {
   (scope.repNames || []).map((n) => String(n).trim()).filter(Boolean).forEach((name) => {
     clauses.push(`rep_name.ilike.${quoteOrValue(`*${name}*`)}`);
   });
-  // فلترة القطاع من السيرفر قبل التحميل.
-  if (scope.sector === 'home' || scope.sector === 'electrical') {
-    clauses.push(`sector.in.(${scope.sector},both,all),sector.is.null`);
-  } else if (scope.sector === 'both') {
-    clauses.push(`sector.in.(both,all),sector.is.null`);
-  }
-  return clauses.length > 0 ? query.or(clauses.join(',')) : query;
+  let next = clauses.length > 0 ? query.or(clauses.join(',')) : query;
+  // فلترة القطاع كشرط AND منفصل — لمنع تحميل قطاع آخر.
+  next = applySectorToQuery('targets', next, scope.sector);
+  return next;
 }
 
 export interface TargetContentStamp {
@@ -973,13 +996,19 @@ export async function fetchTargetContentStamp(
   scope?: TargetFetchScope
 ): Promise<TargetContentStamp | null> {
   try {
-    let query = supabase
-      .from('targets')
-      .select('updated_at', { count: 'exact' })
-      .order('updated_at', { ascending: false, nullsFirst: false })
-      .limit(1);
-    query = applyTargetScope(query, scope);
-    const { data, error, count } = await query;
+    const runQuery = () => {
+      let query = supabase
+        .from('targets')
+        .select('updated_at', { count: 'exact' })
+        .order('updated_at', { ascending: false, nullsFirst: false })
+        .limit(1);
+      return applyTargetScope(query, scope);
+    };
+    let { data, error, count } = await runQuery();
+    if (error && isMissingColumnError(error) && extractMissingColumn(error) === 'sector') {
+      rememberMissingColumn('targets', 'sector');
+      ({ data, error, count } = await runQuery());
+    }
     if (error) return null;
     const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
     return {
@@ -1046,7 +1075,7 @@ export async function fetchVisitContentStamp(
         .select(column, { count: 'exact' })
         .order(column, { ascending: false, nullsFirst: false })
         .limit(1);
-      query = applyScopeToQuery(query, scope);
+      query = applyScopeToQuery(query, scope, 'visits');
       if (scope?.sinceDate?.trim()) {
         query = query.gte('date', scope.sinceDate.trim());
       }
@@ -1056,6 +1085,10 @@ export async function fetchVisitContentStamp(
     let column: 'updated_at' | 'created_at' =
       cachedVisitsSupportsUpdatedAt === false ? 'created_at' : 'updated_at';
     let result = await buildQuery(column);
+    if (result.error && isMissingColumnError(result.error) && extractMissingColumn(result.error) === 'sector') {
+      rememberMissingColumn('visits', 'sector');
+      result = await buildQuery(column);
+    }
     if (result.error && column === 'updated_at') {
       cachedVisitsSupportsUpdatedAt = false;
       try { localStorage.setItem('tantawy_visits_has_updated_at', 'false'); } catch {}
@@ -1518,9 +1551,15 @@ export async function fetchTargetsRecentMonths(
         from,
         from + pageSize - 1
       );
-      if (error && selectCols !== '*' && isMissingColumnError(error)) {
-        selectCols = '*';
-        ({ data, error } = await makeTargetQuery('*').range(from, from + pageSize - 1));
+      if (error && isMissingColumnError(error)) {
+        if (extractMissingColumn(error) === 'sector') {
+          rememberMissingColumn('targets', 'sector');
+          ({ data, error } = await makeTargetQuery(selectCols).range(from, from + pageSize - 1));
+        }
+        if (error && selectCols !== '*' && isMissingColumnError(error)) {
+          selectCols = '*';
+          ({ data, error } = await makeTargetQuery('*').range(from, from + pageSize - 1));
+        }
       }
       if (error) return { success: false, error: error.message };
       const list = (data || []).filter((r: any) => {
@@ -1573,9 +1612,15 @@ async function fetchTargetsFromSupabaseImpl(
         return applyTargetScope(q, scope);
       };
       let { data, error } = await buildQuery(selectCols).range(from, from + pageSize - 1);
-      if (error && selectCols !== '*' && isMissingColumnError(error)) {
-        selectCols = '*';
-        ({ data, error } = await buildQuery('*').range(from, from + pageSize - 1));
+      if (error && isMissingColumnError(error)) {
+        if (extractMissingColumn(error) === 'sector') {
+          rememberMissingColumn('targets', 'sector');
+          ({ data, error } = await buildQuery(selectCols).range(from, from + pageSize - 1));
+        }
+        if (error && selectCols !== '*' && isMissingColumnError(error)) {
+          selectCols = '*';
+          ({ data, error } = await buildQuery('*').range(from, from + pageSize - 1));
+        }
       }
       if (error) return { success: false, error: error.message };
       rows.push(...(data || []));
@@ -3007,20 +3052,25 @@ async function fetchInvoicesFromSupabaseImpl(
         if (repIds.length > 0) {
           query = query.in('rep_id', repIds);
         }
-        // فلترة القطاع صارمة — لا دور يشوف قطاع تاني
+        // فلترة القطاع صارمة عندما يتوفر العمود على الجدول
         const sector = scope.sector;
-        if (sector === 'home' || sector === 'electrical') {
-          query = query.in('sector', [sector, 'both', 'all']);
-        } else if (sector === 'both') {
-          query = query.in('sector', ['both', 'all']);
+        if (sector && !activeMissingColumns(table).has('sector')) {
+          if (sector === 'home' || sector === 'electrical') {
+            query = query.or(`sector.in.(${sector},both,all),sector.is.null`);
+          } else if (sector === 'both') {
+            query = query.or('sector.in.(both,all),sector.is.null');
+          }
         }
-        // إذا مفيش sector محدد (admin/developer/technical_support) — مفيش فلترة قطاع
         if (updatedSince && filterCol) {
           query = query.gte(filterCol, updatedSince);
         }
         return query;
       };
       let first = await makeQuery(INVOICES_SELECT_COLUMNS, updatedSince ? sinceCol : null);
+      if (first?.error && isMissingColumnError(first.error) && extractMissingColumn(first.error) === 'sector') {
+        rememberMissingColumn(table, 'sector');
+        first = await makeQuery(INVOICES_SELECT_COLUMNS, updatedSince ? sinceCol : null);
+      }
       if (first?.error && updatedSince && sinceCol === 'updated_at' && isMissingColumnError(first.error)) {
         first = await makeQuery(INVOICES_SELECT_COLUMNS, 'created_at');
       }
@@ -3028,6 +3078,7 @@ async function fetchInvoicesFromSupabaseImpl(
         // Never use '*': it pulls items JSON + all columns = massive egress
         // Instead, retry with safe fallback list (excludes the missing column dynamically)
         const missing = extractMissingColumn(first.error);
+        if (missing === 'sector') rememberMissingColumn(table, 'sector');
         const safeCols = missing
           ? INVOICES_FALLBACK_COLUMNS.split(',').filter((c) => c !== missing).join(',')
           : INVOICES_FALLBACK_COLUMNS;
@@ -3224,6 +3275,7 @@ export async function fetchInvoiceContentStamp(
     query = query.neq('id', USER_SYNC_STORE_ID);
     query = query.not('status', 'ilike', 'catalog_sync%');
     if (repIds.length > 0) query = query.in('rep_id', repIds);
+    query = applySectorToQuery(table, query, scope?.sector);
     return query;
   };
 
@@ -3232,6 +3284,10 @@ export async function fetchInvoiceContentStamp(
     let stampColumn: 'updated_at' | 'created_at' =
       cachedOrdersSupportsUpdatedAt === false ? 'created_at' : 'updated_at';
     let res = await probe('orders', stampColumn);
+    if (res.error && isMissingColumnError(res.error) && extractMissingColumn(res.error) === 'sector') {
+      rememberMissingColumn('orders', 'sector');
+      res = await probe('orders', stampColumn);
+    }
     if (res.error && stampColumn === 'updated_at') {
       cachedOrdersSupportsUpdatedAt = false;
       try { localStorage.setItem('tantawy_orders_has_updated_at', 'false'); } catch {}
@@ -3788,7 +3844,10 @@ async function fetchProductsFromSupabaseImpl(
         if (prevChunkFp === chunkFp) {
           try {
             const { idbGet } = await import('./storageService');
-            const cached = await idbGet<Product[]>('dream_dist_products_v9');
+            const sectorKey = sector ? `dream_dist_products_v9::${sector}` : null;
+            const cached =
+              (sectorKey ? await idbGet<Product[]>(sectorKey) : null) ||
+              (await idbGet<Product[]>('dream_dist_products_v9'));
             if (cached && cached.length > 0) {
               return { success: true, products: filterProductsBySectorClient(cached, sector) };
             }
@@ -4038,7 +4097,7 @@ async function fetchVisitsFromSupabaseImpl(
             .order('created_at', { ascending: false })
             .order('id', { ascending: true });
           if (useScope) {
-            query = applyScopeToQuery(query, scope);
+            query = applyScopeToQuery(query, scope, 'visits');
           }
           if (useScope && sinceDate) {
             query = query.gte('date', sinceDate);
@@ -4052,12 +4111,17 @@ async function fetchVisitsFromSupabaseImpl(
         let { data, error } = await makeQuery(selectCols).range(from, from + pageSize - 1);
 
         // عمود ناقص؟ نشيله ونعيد المحاولة بباقي الأعمدة (بدل الرجوع لـ'*').
-        for (let attempt = 0; error && selectCols !== '*' && isMissingColumnError(error) && attempt < 8; attempt++) {
+        for (let attempt = 0; error && isMissingColumnError(error) && attempt < 8; attempt++) {
           const missing = extractMissingColumn(error);
           if (missing) {
             rememberMissingColumn('visits', missing);
             console.warn(`visits: العمود "${missing}" غير موجود — تم استثناؤه من القراءة.`);
           }
+          if (missing === 'sector') {
+            ({ data, error } = await makeQuery(selectCols).range(from, from + pageSize - 1));
+            continue;
+          }
+          if (selectCols === '*') break;
           const nextSelect = missing ? buildSelectList('visits', VISITS_SELECT_COLUMNS) : '*';
           if (nextSelect === selectCols) {
             selectCols = '*';
@@ -4441,13 +4505,8 @@ function applyForecastScope(query: any, scope?: ForecastFetchScope): any {
   (scope.repNames || []).map((name) => String(name).trim()).filter(Boolean).forEach((name) => {
     clauses.push(`rep_name.ilike.${quoteOrValue(`*${name}*`)}`);
   });
-  // فلترة القطاع من السيرفر قبل التحميل.
-  if (scope.sector === 'home' || scope.sector === 'electrical') {
-    clauses.push(`sector.in.(${scope.sector},both,all),sector.is.null`);
-  } else if (scope.sector === 'both') {
-    clauses.push(`sector.in.(both,all),sector.is.null`);
-  }
-  return clauses.length > 0 ? query.or(clauses.join(',')) : query;
+  let next = clauses.length > 0 ? query.or(clauses.join(',')) : query;
+  return applySectorToQuery('collection_forecasts', next, scope.sector);
 }
 
 function applyCommentsScope(query: any, scope?: ForecastFetchScope): any {
@@ -4460,13 +4519,8 @@ function applyCommentsScope(query: any, scope?: ForecastFetchScope): any {
   (scope.repNames || []).map((name) => String(name).trim()).filter(Boolean).forEach((name) => {
     clauses.push(`rep_name.ilike.${quoteOrValue(`*${name}*`)}`);
   });
-  // فلترة القطاع من السيرفر قبل التحميل.
-  if (scope.sector === 'home' || scope.sector === 'electrical') {
-    clauses.push(`sector.in.(${scope.sector},both,all),sector.is.null`);
-  } else if (scope.sector === 'both') {
-    clauses.push(`sector.in.(both,all),sector.is.null`);
-  }
-  return clauses.length > 0 ? query.or(clauses.join(',')) : query;
+  let next = clauses.length > 0 ? query.or(clauses.join(',')) : query;
+  return applySectorToQuery('customer_comments', next, scope.sector);
 }
 
 /**
@@ -4494,6 +4548,11 @@ async function fetchAllRowsPaged(
     };
 
     let { data, error } = await buildQuery(selectCols, updatedSince).range(from, from + pageSize - 1);
+
+    if (error && isMissingColumnError(error) && extractMissingColumn(error) === 'sector') {
+      rememberMissingColumn(table, 'sector');
+      ({ data, error } = await buildQuery(selectCols, updatedSince).range(from, from + pageSize - 1));
+    }
 
     if (error && updatedSince && isMissingColumnError(error)) {
       updatedSince = '';
@@ -4531,14 +4590,20 @@ export async function fetchForecastMonthStamp(
   scope?: ForecastFetchScope
 ): Promise<ContentStampMeta | null> {
   try {
-    let query = supabase
-      .from('collection_forecasts')
-      .select('updated_at', { count: 'exact' })
-      .eq('month_key', monthKey)
-      .order('updated_at', { ascending: false, nullsFirst: false })
-      .limit(1);
-    query = applyForecastScope(query, scope);
-    const { data, error, count } = await query;
+    const runForecastStamp = () => {
+      let query = supabase
+        .from('collection_forecasts')
+        .select('updated_at', { count: 'exact' })
+        .eq('month_key', monthKey)
+        .order('updated_at', { ascending: false, nullsFirst: false })
+        .limit(1);
+      return applyForecastScope(query, scope);
+    };
+    let { data, error, count } = await runForecastStamp();
+    if (error && isMissingColumnError(error) && extractMissingColumn(error) === 'sector') {
+      rememberMissingColumn('collection_forecasts', 'sector');
+      ({ data, error, count } = await runForecastStamp());
+    }
     if (error) return null;
     const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
     return {
@@ -4583,9 +4648,17 @@ export async function fetchCustomerCommentsStamp(
 
     let res = await buildStampQuery('updated_at');
     let usedCol: 'updated_at' | 'created_at' = 'updated_at';
+    if (res.error && isMissingColumnError(res.error) && extractMissingColumn(res.error) === 'sector') {
+      rememberMissingColumn('customer_comments', 'sector');
+      res = await buildStampQuery('updated_at');
+    }
     if (res.error) {
       res = await buildStampQuery('created_at');
       usedCol = 'created_at';
+      if (res.error && isMissingColumnError(res.error) && extractMissingColumn(res.error) === 'sector') {
+        rememberMissingColumn('customer_comments', 'sector');
+        res = await buildStampQuery('created_at');
+      }
     }
     if (res.error) return null;
     const row = res.data && res.data.length > 0 ? (res.data[0] as any) : null;
@@ -4649,6 +4722,11 @@ export async function fetchForecastsByMonthFromSupabase(
       };
       let { data, error } = await buildQuery(selectCols, updatedSince).range(from, from + pageSize - 1);
 
+      if (error && isMissingColumnError(error) && extractMissingColumn(error) === 'sector') {
+        rememberMissingColumn('collection_forecasts', 'sector');
+        ({ data, error } = await buildQuery(selectCols, updatedSince).range(from, from + pageSize - 1));
+      }
+
       if (error && updatedSince && isMissingColumnError(error)) {
         updatedSince = '';
         ({ data, error } = await buildQuery(selectCols, '').range(from, from + pageSize - 1));
@@ -4683,23 +4761,24 @@ export async function fetchForecastsByYearFromSupabase(
 
     for (let page = 0; page < MAX_FORECAST_PAGES; page++) {
       const from = page * pageSize;
-      let query = supabase
-        .from('collection_forecasts')
-        .select(selectCols)
-        .gte('month_key', `${year}-01`)
-        .lt('month_key', `${year + 1}-01`);
-      query = applyForecastScope(query, scope);
-      let { data, error } = await query.range(from, from + pageSize - 1);
+      const buildYearQuery = (cols: string) => {
+        let query = supabase
+          .from('collection_forecasts')
+          .select(cols)
+          .gte('month_key', `${year}-01`)
+          .lt('month_key', `${year + 1}-01`);
+        return applyForecastScope(query, scope);
+      };
+      let { data, error } = await buildYearQuery(selectCols).range(from, from + pageSize - 1);
+
+      if (error && isMissingColumnError(error) && extractMissingColumn(error) === 'sector') {
+        rememberMissingColumn('collection_forecasts', 'sector');
+        ({ data, error } = await buildYearQuery(selectCols).range(from, from + pageSize - 1));
+      }
 
       if (error && selectCols !== '*' && isMissingColumnError(error)) {
         selectCols = '*';
-        let fbQuery = supabase
-          .from('collection_forecasts')
-          .select('*')
-          .gte('month_key', `${year}-01`)
-          .lt('month_key', `${year + 1}-01`);
-        fbQuery = applyForecastScope(fbQuery, scope);
-        ({ data, error } = await fbQuery.range(from, from + pageSize - 1));
+        ({ data, error } = await buildYearQuery('*').range(from, from + pageSize - 1));
       }
 
       if (error) return { success: false, error: error.message };

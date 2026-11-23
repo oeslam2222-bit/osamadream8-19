@@ -1,4 +1,4 @@
-import { currentUserRef } from '../context/AppContext';
+import { currentUserRef } from './currentUserRef';
 import type { UserRole, SectorType } from '../types';
 
 /**
@@ -97,7 +97,7 @@ function simpleHash(str: string): string {
  * يولد groupKey حسب النوع والسياق
  */
 function buildGroupKey(type: NotificationType, scope?: { branch?: string; sector?: string; repId?: string }): string {
-  const parts = [type];
+  const parts: string[] = [type];
   if (scope?.branch) parts.push(`branch:${scope.branch}`);
   if (scope?.sector) parts.push(`sector:${scope.sector}`);
   if (scope?.repId) parts.push(`rep:${scope.repId}`);
@@ -594,17 +594,21 @@ async function getSupabase() {
 async function checkInventory(branch: string, sector: string): Promise<void> {
   try {
     const sb = await getSupabase();
-    const { data } = await sb
+    let q = sb
       .from('products')
       .select('id, branch_name, sector, branch_stock_actual')
       .eq('branch_name', branch)
       .lt('branch_stock_actual', 10);
+    if (sector === 'home' || sector === 'electrical') {
+      q = q.or(`sector.in.(${sector},both,all),sector.is.null`);
+    }
+    const { data } = await q.limit(100);
     if (data && data.length > 0) {
       notifyInventoryUpdate({
         branch,
         sector: sector as any,
         productCount: data.length,
-        changedProducts: data.map((p) => p.id),
+        changedProducts: data.map((p: any) => String(p.id)),
         isLowStock: true,
       });
     }
@@ -615,17 +619,28 @@ async function checkTargets(branch: string, sector: string): Promise<void> {
   try {
     const sb = await getSupabase();
     const monthKey = new Date().toISOString().slice(0, 7);
-    const { data } = await sb
+    let q = sb
       .from('targets')
-      .select('id, branch, rep_name, month_key')
+      .select('id, branch, rep_name, month_key, sector')
       .eq('month_key', monthKey)
       .eq('branch', branch);
+    if (sector === 'home' || sector === 'electrical') {
+      q = q.or(`sector.in.(${sector},both,all),sector.is.null`);
+    }
+    const { data } = await q.limit(200);
     if (data && data.length > 0) {
+      const repNames: string[] = Array.from(
+        new Set<string>(
+          data
+            .map((t: any) => t.rep_name)
+            .filter((name: unknown): name is string => typeof name === 'string' && name.trim().length > 0)
+        )
+      );
       notifyTargetsUpdate({
         branch,
         sector: sector as any,
         month: parseInt(monthKey.split('-')[1], 10),
-        repNames: [...new Set(data.map((t) => t.rep_name).filter(Boolean))],
+        repNames,
       });
     }
   } catch {}
@@ -635,11 +650,15 @@ async function checkCustomers(branch: string, sector: string): Promise<void> {
   try {
     const sb = await getSupabase();
     const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-    const { count } = await sb
+    let q = sb
       .from('customers')
       .select('id', { count: 'exact', head: true })
       .eq('branch_name', branch)
       .gte('updated_at', since);
+    if (sector === 'home' || sector === 'electrical') {
+      q = q.or(`sector.in.(${sector},both,all),sector.is.null`);
+    }
+    const { count } = await q;
     if (count && count > 0) {
       notifyCustomersUpdate({
         branch,

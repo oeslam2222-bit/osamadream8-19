@@ -110,9 +110,8 @@ export const OrdersPipelineView: React.FC<{
     products,
     activeSectorFilter,
     setActiveSectorFilter,
+    canManageSectorGate,
   } = useApp() as any;
-
-  const canManageSectorGate = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   const [search, setSearch] = useState('');
   const [activeStage, setActiveStage] = useState<StageKey | 'all'>('all');

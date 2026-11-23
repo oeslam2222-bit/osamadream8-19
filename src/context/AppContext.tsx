@@ -167,6 +167,8 @@ import {
 import { AppContextType } from './appContextTypes';
 import {
   STORAGE_KEYS,
+  getSectorProductsKey,
+  getUserSectorStorageKey,
   getDeletedInvoiceIds,
   markInvoiceAsDeletedInStorage,
   getDeletedVisitIds,
@@ -210,6 +212,7 @@ import {
   resetQueuedMutationAttempts,
   clearQueuedMutations,
 } from '../services/offlineQueueService';
+import { currentUserRef } from '../services/currentUserRef';
 
 /**
  * القطاع الفعّال للمستخدم. `'none'` = حساب مبيعات بلا قطاع معيّن → محجوب عن
@@ -256,10 +259,20 @@ function clearServerVerifyMissing(): void {
  * في استهلاك الـ egress على الخطة المجانية.
  */
 const CUSTOMER_CONTENT_STAMP_KEY = 'tantawy_customer_content_stamp_v1';
+const LAST_CACHED_USER_KEY = 'tantawy_last_cached_user_id_v1';
 
-function readCustomerContentStamp(): { count: number | null; maxUpdatedAt: string | null } | null {
+function resolveScopedSuffix(userId?: string | null, sector?: ActiveSector): string {
+  const sec = sector === 'electrical' ? 'electrical' : 'home';
+  return `${userId || 'anon'}::${sec}`;
+}
+
+function readCustomerContentStamp(
+  userId?: string | null,
+  sector?: ActiveSector
+): { count: number | null; maxUpdatedAt: string | null } | null {
   try {
-    const raw = localStorage.getItem(CUSTOMER_CONTENT_STAMP_KEY);
+    const key = `${CUSTOMER_CONTENT_STAMP_KEY}::${resolveScopedSuffix(userId, sector)}`;
+    const raw = localStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed && (parsed.count !== undefined || parsed.maxUpdatedAt !== undefined)) {
@@ -272,17 +285,23 @@ function readCustomerContentStamp(): { count: number | null; maxUpdatedAt: strin
   return null;
 }
 
-function saveCustomerContentStamp(stamp: { count: number | null; maxUpdatedAt: string | null }): void {
+function saveCustomerContentStamp(
+  stamp: { count: number | null; maxUpdatedAt: string | null },
+  userId?: string | null,
+  sector?: ActiveSector
+): void {
   try {
-    safeLocalStorageSet(CUSTOMER_CONTENT_STAMP_KEY, JSON.stringify(stamp));
+    const key = `${CUSTOMER_CONTENT_STAMP_KEY}::${resolveScopedSuffix(userId, sector)}`;
+    safeLocalStorageSet(key, JSON.stringify(stamp));
   } catch {}
 }
 
 const PRODUCT_CONTENT_STAMP_KEY = 'tantawy_product_content_stamp_v1';
 
-function readProductContentStamp(): { count: number | null; maxUpdatedAt: string | null } | null {
+function readProductContentStamp(sector?: ActiveSector): { count: number | null; maxUpdatedAt: string | null } | null {
   try {
-    const raw = localStorage.getItem(PRODUCT_CONTENT_STAMP_KEY);
+    const sec = sector === 'electrical' ? 'electrical' : 'home';
+    const raw = localStorage.getItem(`${PRODUCT_CONTENT_STAMP_KEY}::${sec}`);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed && (parsed.count !== undefined || parsed.maxUpdatedAt !== undefined)) {
@@ -295,9 +314,13 @@ function readProductContentStamp(): { count: number | null; maxUpdatedAt: string
   return null;
 }
 
-function saveProductContentStamp(stamp: { count: number | null; maxUpdatedAt: string | null }): void {
+function saveProductContentStamp(
+  stamp: { count: number | null; maxUpdatedAt: string | null },
+  sector?: ActiveSector
+): void {
   try {
-    safeLocalStorageSet(PRODUCT_CONTENT_STAMP_KEY, JSON.stringify(stamp));
+    const sec = sector === 'electrical' ? 'electrical' : 'home';
+    safeLocalStorageSet(`${PRODUCT_CONTENT_STAMP_KEY}::${sec}`, JSON.stringify(stamp));
   } catch {}
 }
 
@@ -307,9 +330,13 @@ function saveProductContentStamp(stamp: { count: number | null; maxUpdatedAt: st
  */
 const VISIT_CONTENT_STAMP_KEY = 'tantawy_visit_content_stamp_v1';
 
-function readVisitContentStamp(): { count: number | null; maxUpdatedAt: string | null } | null {
+function readVisitContentStamp(
+  userId?: string | null,
+  sector?: ActiveSector
+): { count: number | null; maxUpdatedAt: string | null } | null {
   try {
-    const raw = localStorage.getItem(VISIT_CONTENT_STAMP_KEY);
+    const key = `${VISIT_CONTENT_STAMP_KEY}::${resolveScopedSuffix(userId, sector)}`;
+    const raw = localStorage.getItem(key);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (parsed && (parsed.count !== undefined || parsed.maxUpdatedAt !== undefined)) {
@@ -322,9 +349,14 @@ function readVisitContentStamp(): { count: number | null; maxUpdatedAt: string |
   return null;
 }
 
-function saveVisitContentStamp(stamp: { count: number | null; maxUpdatedAt: string | null }): void {
+function saveVisitContentStamp(
+  stamp: { count: number | null; maxUpdatedAt: string | null },
+  userId?: string | null,
+  sector?: ActiveSector
+): void {
   try {
-    safeLocalStorageSet(VISIT_CONTENT_STAMP_KEY, JSON.stringify(stamp));
+    const key = `${VISIT_CONTENT_STAMP_KEY}::${resolveScopedSuffix(userId, sector)}`;
+    safeLocalStorageSet(key, JSON.stringify(stamp));
   } catch {}
 }
 
@@ -340,6 +372,7 @@ function targetScopeKey(scope?: TargetFetchScope): string {
     ...(scope.branchNames || []).map((b) => `b:${b}`).sort(),
     ...(scope.repNames || []).map((r) => `r:${r}`).sort(),
   ];
+  if (scope.sector) parts.push(`s:${scope.sector}`);
   return parts.length > 0 ? parts.join(',') : 'all';
 }
 
@@ -428,14 +461,16 @@ function expandRepNameVariants(names: string[]): string[] {
 }
 
 /**
- * بصمة الفواتير محفوظة لكل نطاق قراءة على حدة (مندوب/مشرف/مدير فرع/أدمن)
- * عشان تبديل الحساب على نفس الجهاز ما يخلطش البصمات.
+ * بصمة الفواتير محفوظة لكل نطاق قراءة على حدة (مندوب/مشرف/مدير فرع/أدمن + القطاع)
+ * عشان تبديل الحساب أو القطاع على نفس الجهاز ما يخلطش البصمات.
  */
 const INVOICE_CONTENT_STAMP_PREFIX = 'tantawy_invoice_content_stamp_v1::';
 
 function invoiceScopeKey(scope: InvoiceFetchScope): string {
   const repIds = (scope.repIds || []).map((r) => String(r).trim()).filter(Boolean).sort();
-  return repIds.length > 0 ? repIds.join(',') : 'all';
+  const repPart = repIds.length > 0 ? repIds.join(',') : 'all';
+  const secPart = scope.sector ? String(scope.sector) : 'all';
+  return `${repPart}::s:${secPart}`;
 }
 
 function readInvoiceContentStamp(scopeKey: string): { count: number | null; maxCreatedAt: string | null; table: string } | null {
@@ -473,6 +508,7 @@ function forecastScopeKey(monthKey: string, scope?: ForecastFetchScope): string 
     ...(scope.branchNames || []).map((b) => `b:${b}`).sort(),
     ...(scope.repIds || []).map((r) => `r:${r}`).sort(),
   ];
+  if (scope.sector) parts.push(`s:${scope.sector}`);
   return `${monthKey}::${parts.join(',') || 'all'}`;
 }
 
@@ -614,11 +650,18 @@ export const AppContext = createContext<AppContextType | undefined>(undefined);
  * في كل إقلاع على كل جهاز).
  * حدود صارمة: المندوب 30، المشرف 50، مدير الفرع 60، الإدارة 100
  */
-function buildInvoiceFetchScope(currentUser: User | null, users: User[]): InvoiceFetchScope {
+function buildInvoiceFetchScope(
+  currentUser: User | null,
+  users: User[],
+  activeSector?: ActiveSector
+): InvoiceFetchScope {
   if (!currentUser) return { limit: 30 };
-  // الأدمن/المطور/الدعم الفني: كل القطاعات (مفيش sector filter)
-  const isCrossSectorAdmin = currentUser.role === 'admin' || currentUser.role === 'developer' || currentUser.role === 'technical_support';
-  const sector = isCrossSectorAdmin ? undefined : currentUser.sector;
+  const sector: 'home' | 'electrical' | undefined =
+    activeSector === 'home' || activeSector === 'electrical'
+      ? activeSector
+      : currentUser.sector === 'home' || currentUser.sector === 'electrical'
+        ? currentUser.sector
+        : undefined;
 
   if (currentUser.role === 'sales_rep') {
     return { repIds: [currentUser.id], limit: 30, sector };
@@ -635,7 +678,7 @@ function buildInvoiceFetchScope(currentUser: User | null, users: User[]): Invoic
       .map((u) => u.id);
     return { repIds, limit: 60, sector };
   }
-  // إدارة/مطور: حد 100 فاتورة فقط (للمتابعة، مش للتحميل الكامل)
+  // إدارة/مطور: حد 100 فاتورة فقط ضمن القطاع النشط حالياً
   return { limit: 100, sector };
 }
 
@@ -670,8 +713,8 @@ function mapTargetRowToRecord(row: any): TargetRecord {
 }
 
 
-// Module-level ref for currentUser (accessible from services)
-export const currentUserRef = { current: null as User | null };
+// Re-export shared currentUserRef for compatibility with existing callers
+export { currentUserRef };
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Auth and Session Notice
   const [authTerminationNotice, setAuthTerminationNotice] = useState<string | null>(null);
@@ -739,6 +782,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Ref mirror so long-lived effects always see the current user list when
   // linking customers to their sales rep, without re-subscribing the listener.
   const usersRef = useRef<User[]>(users);
+  const hasSyncedUsersFromServerRef = useRef<boolean>(false);
   useEffect(() => {
     usersRef.current = users;
   }, [users]);
@@ -779,6 +823,88 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     currentUserRef.current = currentUser;
   }, [currentUser]);
 
+  const [activeSectorFilter, setActiveSectorFilterState] = useState<'home' | 'electrical'>(() => {
+    try {
+      const saved = localStorage.getItem('tantawy_active_sector_filter_v2');
+      if (saved === 'home' || saved === 'electrical') return saved;
+    } catch {}
+    return 'home';
+  });
+
+  const canManageSectorGate = useMemo(
+    () =>
+      Boolean(
+        currentUser &&
+          (currentUser.role === 'admin' ||
+            currentUser.role === 'developer' ||
+            CROSS_SECTOR_ADMIN_ROLES.has(currentUser.role) ||
+            currentUser.sector === 'both' ||
+            currentUser.sector === 'all')
+      ),
+    [currentUser?.role, currentUser?.sector]
+  );
+
+  /** القطاع الفعلي بعد تطبيق قواعد الأدوار — `'none'` يعني محجوب عن القطاعين. */
+  const effectiveSectorFilter = useMemo(
+    () => resolveEffectiveSector(currentUser, activeSectorFilter),
+    [currentUser, activeSectorFilter]
+  );
+
+  /** القطاع الإلزامي لطلبات السيرفر — كل المستخدمين (حتى الأدمن ومدير الفرع بقطاعين) يقرأون قطاعاً واحداً في المرة. */
+  const activeApiSector = useMemo<'home' | 'electrical' | undefined>(
+    () => (effectiveSectorFilter === 'home' || effectiveSectorFilter === 'electrical' ? effectiveSectorFilter : undefined),
+    [effectiveSectorFilter]
+  );
+
+  const setActiveSectorFilter = useCallback((sector: 'home' | 'electrical') => {
+    if (!canManageSectorGate) return;
+    setActiveSectorFilterState(sector);
+    try {
+      localStorage.setItem('tantawy_active_sector_filter_v2', sector);
+    } catch {}
+  }, [canManageSectorGate]);
+
+  const activeStorageCtxRef = useRef<{ userId: string | null; sector: ActiveSector }>({
+    userId: null,
+    sector: 'home',
+  });
+  activeStorageCtxRef.current = {
+    userId: currentUser?.id || null,
+    sector: effectiveSectorFilter,
+  };
+
+  const hydratedScopeRef = useRef<{ userId: string | null; sector: ActiveSector }>({
+    userId: null,
+    sector: 'home',
+  });
+
+  const getProductsCacheKey = useCallback(
+    (sec: ActiveSector = activeStorageCtxRef.current.sector) => getSectorProductsKey(sec),
+    []
+  );
+  const getCustomersCacheKey = useCallback(
+    (uid: string | null = activeStorageCtxRef.current.userId, sec: ActiveSector = activeStorageCtxRef.current.sector) =>
+      getUserSectorStorageKey(STORAGE_KEYS.CUSTOMERS, uid, sec),
+    []
+  );
+  const getInvoicesCacheKey = useCallback(
+    (uid: string | null = activeStorageCtxRef.current.userId, sec: ActiveSector = activeStorageCtxRef.current.sector) =>
+      getUserSectorStorageKey(STORAGE_KEYS.INVOICES, uid, sec),
+    []
+  );
+  const getVisitsCacheKey = useCallback(
+    (uid: string | null = activeStorageCtxRef.current.userId, sec: ActiveSector = activeStorageCtxRef.current.sector) =>
+      getUserSectorStorageKey(STORAGE_KEYS.VISITS, uid, sec),
+    []
+  );
+  const getTargetsCacheKey = useCallback(
+    (uid: string | null = activeStorageCtxRef.current.userId, sec: ActiveSector = activeStorageCtxRef.current.sector) =>
+      getUserSectorStorageKey(STORAGE_KEYS.TARGETS, uid, sec),
+    []
+  );
+
+  const [isLocalDataHydrated, setIsLocalDataHydrated] = useState(false);
+
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>(() => {
     const saved = localStorage.getItem('dream_dist_company_info_v1');
     if (saved) {
@@ -817,38 +943,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return {};
   });
 
-  // Target Records state (KPIs and Goals) - Strictly real data only
-  const [targets, setTargets] = useState<TargetRecord[]>(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.TARGETS);
-    if (!saved) return [];
-    try {
-      const parsed = JSON.parse(saved);
-      if (Array.isArray(parsed)) {
-        // Discard any dummy sample records to ensure 100% real data
-        return parsed.filter((r) => r && !String(r.id).startsWith('sample-trg'));
-      }
-      return [];
-    } catch {
-      return [];
-    }
-  });
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const fromIdb = await idbGet<TargetRecord[]>(STORAGE_KEYS.TARGETS);
-        if (!cancelled && Array.isArray(fromIdb) && fromIdb.length > 0) {
-          try { localStorage.removeItem(STORAGE_KEYS.TARGETS); } catch {}
-          setTargets((prev) => {
-            if (prev && prev.length > 0) return prev;
-            return fromIdb.filter((r: any) => r && !String(r.id).startsWith('sample-trg'));
-          });
-        }
-      } catch {}
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  // Target Records state (KPIs and Goals) - hydrated per (user, sector) from IndexedDB
+  const [targets, setTargets] = useState<TargetRecord[]>([]);
 
   /* ============================================================
      توقع التحصيلات — state
@@ -949,11 +1045,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [customerComments]);
 
   const forecastFetchScope = useMemo<ForecastFetchScope | undefined>(() => {
-    if (!currentUser) return undefined;
+    if (!currentUser || effectiveSectorFilter === 'none') return undefined;
     const role = currentUser.role;
-    // الأدمن/المطور/الدعم الفني: كل القطاعات (مفيش sector filter)
-    const isCrossSectorAdmin = role === 'admin' || role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(role);
-    const sector = isCrossSectorAdmin ? undefined : currentUser.sector;
+    const sector = activeApiSector;
 
     const branchNames = Array.from(
       new Set([currentUser.branchName].filter((b): b is string => Boolean(b && b.trim())))
@@ -974,36 +1068,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     if (role === 'supervisor') {
       const repUsers = users.filter((u) => u.supervisorId === currentUser.id);
-      const repNames = repUsers
-        .flatMap((u) => {
+      const repNames = [
+        cleanName(currentUser.name),
+        ...repUsers.flatMap((u) => {
           const fn = cleanName(u.name);
           const sn = fn.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
           return [fn, sn];
-        })
-        .filter((n) => n.length >= 3);
-      const repIds = repUsers.flatMap((u) => [u.id, u.username]).filter(Boolean) as string[];
-      if (branchNames.length > 0 || repNames.length > 0 || repIds.length > 0) {
+        }),
+      ].filter((n) => n.length >= 3);
+      const repIds = [currentUser.id, currentUser.username, ...repUsers.flatMap((u) => [u.id, u.username])].filter(Boolean) as string[];
+      if (repNames.length > 0 || repIds.length > 0) {
         return {
-          branchNames,
           repIds: Array.from(new Set(repIds)),
           repNames: Array.from(new Set(repNames)),
           sector,
         };
       }
-      return undefined;
+      return branchNames.length > 0 ? { branchNames, sector } : (sector ? { sector } : undefined);
     }
     if (role === 'branch_manager') {
-      return branchNames.length > 0 ? { branchNames, sector } : undefined;
+      return branchNames.length > 0 ? { branchNames, sector } : (sector ? { sector } : undefined);
     }
-    return undefined;
-  }, [currentUser?.id, currentUser?.name, currentUser?.username, currentUser?.branchName, currentUser?.role, currentUser?.sector, users]);
+    return sector ? { sector } : undefined;
+  }, [currentUser?.id, currentUser?.name, currentUser?.username, currentUser?.branchName, currentUser?.role, currentUser?.sector, activeApiSector, effectiveSectorFilter, users]);
 
   const targetFetchScope = useMemo<TargetFetchScope | undefined>(() => {
-    if (!currentUser) return undefined;
+    if (!currentUser || effectiveSectorFilter === 'none') return undefined;
     const role = currentUser.role;
-    // الأدمن/المطور/الدعم الفني فقط: كل القطاعات
+    const sector = activeApiSector;
     if (role === 'admin' || role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(role)) {
-      return undefined;
+      return sector ? { sector } : undefined;
     }
     const cleanName = (value?: string) =>
       (value || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
@@ -1018,25 +1112,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return {
         ...(repNames.length === 0 ? { branchNames } : {}),
         repNames,
-        sector: currentUser?.sector,
+        sector,
       };
     }
     if (role === 'supervisor') {
-      const repNames = users
-        .filter((u) => u.supervisorId === currentUser.id)
-        .flatMap((u) => {
-          const fn = cleanName(u.name);
-          const sn = fn.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
-          return [fn, sn];
-        });
+      const supName = cleanName(currentUser.name);
+      const supShort = supName.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
+      const repNames = [
+        supName,
+        supShort,
+        ...users
+          .filter((u) => u.supervisorId === currentUser.id)
+          .flatMap((u) => {
+            const fn = cleanName(u.name);
+            const sn = fn.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
+            return [fn, sn];
+          }),
+      ].filter((n) => n.length >= 3);
       return {
-        branchNames,
+        ...(repNames.length === 0 ? { branchNames } : {}),
         repNames: expandRepNameVariants(repNames),
-        sector: currentUser?.sector,
+        sector,
       };
     }
-    return branchNames.length > 0 ? { branchNames, sector: currentUser?.sector } : undefined;
-  }, [currentUser?.id, currentUser?.name, currentUser?.branchName, currentUser?.role, currentUser?.sector, users]);
+    return branchNames.length > 0 ? { branchNames, sector } : (sector ? { sector } : undefined);
+  }, [currentUser?.id, currentUser?.name, currentUser?.branchName, currentUser?.role, currentUser?.sector, activeApiSector, effectiveSectorFilter, users]);
 
   // Load the shared copy so every device and every role sees the same numbers.
   // التوقعات: الشهر الحالي بس من السيرفر مع بصمة محتوى من صف واحد لتفادي إعادة التنزيل عند عدم التغيير.
@@ -1233,17 +1333,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Load targets from the shared database so every device and role sees the same sheet update.
   // If Google Sheets read mode is enabled, prefer published sheet URLs to save Supabase egress.
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !isLocalDataHydrated || effectiveSectorFilter === 'none') return;
     let cancelled = false;
-    const isAdminLevel =
-      currentUser.role === 'admin' ||
-      currentUser.role === 'developer' ||
-      currentUser.role === 'technical_support';
     const monthsWindow = 12;
 
     const loadTargetsFromSheets = async (): Promise<boolean> => {
       const savedSources = getPublishedDataSources();
-      const keys = ['targets', 'targets_electrical'] as const;
+      const keys = effectiveSectorFilter === 'electrical' ? (['targets_electrical'] as const) : (['targets'] as const);
       const all: TargetRecord[] = [];
       for (const key of keys) {
         const src = (savedSources as any)[key];
@@ -1302,6 +1398,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           saveTargetContentStamp(stamp, targetFetchScope);
         }
       } else if (result.success && result.targets && result.targets.length === 0) {
+        setTargets([]);
         if (stamp && (stamp.count !== null || stamp.maxUpdatedAt !== null)) {
           saveTargetContentStamp(stamp, targetFetchScope);
         }
@@ -1310,7 +1407,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     })().catch(() => {});
     return () => { cancelled = true; };
-  }, [targetFetchScope, currentUser?.id, currentUser?.role, dataEpoch]);
+  }, [targetFetchScope, currentUser?.id, currentUser?.role, effectiveSectorFilter, isLocalDataHydrated, dataEpoch]);
 
 
   // 🏠⚡ وسم سجلات الأهداف بالقطاع المستهدف عند الاستيراد (منزلي / كهربائي)
@@ -1518,7 +1615,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (window.location.search || window.location.hash) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
-    supabase.auth.getSession().catch(() => null);
   }, []);
 
   const OFFLINE_PROFILE_KEY = 'tantawy_offline_profile_v1';
@@ -1646,6 +1742,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       saveOfflineSafeProfile(profile);
       currentUserRef.current = profile;
+      setUsers((prev) => {
+        if (prev.some((u) => u.id === profile.id)) return prev;
+        return [...prev, profile];
+      });
       setCurrentUser(profile);
       setIsAuthenticated(true);
     } catch {
@@ -1738,8 +1838,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [lastVersionSyncNotice, setLastVersionSyncNotice] = useState<string | null>(null);
   const clearVersionSyncNotice = () => setLastVersionSyncNotice(null);
 
-  const [isLocalDataHydrated, setIsLocalDataHydrated] = useState(false);
-
   const justLoggedInRef = useRef<boolean>(false);
   const dataVersionCheckInFlightRef = useRef<Promise<{ updated: boolean; version?: number; message: string }> | null>(null);
 
@@ -1803,16 +1901,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [customers]);
 
   /**
-   * حفظ الزيارات — IndexedDB بس (مع Debounce).
+   * حفظ الزيارات — IndexedDB بس لكل (مستخدم + قطاع) مع Debounce.
    */
   const persistVisits = useCallback((next: CustomerVisit[]) => {
-    debouncedIdbSet(STORAGE_KEYS.VISITS, next, 1200);
-  }, []);
+    const key = getVisitsCacheKey();
+    debouncedIdbSet(key, next, 1200);
+  }, [getVisitsCacheKey]);
 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
-    return debouncedIdbSet(STORAGE_KEYS.VISITS, visits, 1200);
-  }, [visits, isLocalDataHydrated]);
+    if (
+      hydratedScopeRef.current.userId !== activeStorageCtxRef.current.userId ||
+      hydratedScopeRef.current.sector !== activeStorageCtxRef.current.sector
+    ) {
+      return;
+    }
+    return debouncedIdbSet(getVisitsCacheKey(), visits, 1200);
+  }, [visits, isLocalDataHydrated, getVisitsCacheKey, currentUser?.id, effectiveSectorFilter]);
 
   // Persist users to IndexedDB and localStorage so offline sessions and registered reps are immediately available
   useEffect(() => {
@@ -1822,45 +1927,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [users]);
 
-  // Persist active session across browser refreshes and tab reloads
+  // Persist active session once currentUser is authenticated (never wipe storage before restoreSession completes)
   useEffect(() => {
     if (isAuthenticated && currentUser) {
       localStorage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
       localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, currentUser.id);
       safeLocalStorageSet(STORAGE_KEYS.CURRENT_USER_DATA, JSON.stringify(currentUser));
-    } else if (!isAuthenticated || !currentUser) {
-      localStorage.removeItem(STORAGE_KEYS.IS_AUTH);
-      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
-      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_DATA);
     }
   }, [currentUser, isAuthenticated]);
 
-  // Keep active currentUser in sync with updated users list (e.g. role update, branch change, account status, or deletion)
+  // Keep active currentUser in sync with updated users list after server sync (e.g. role update, branch change, account status, or deletion)
   useEffect(() => {
-    if (currentUser) {
-      if (users.length > 0) {
-        const fresh = users.find((u) => u.id === currentUser.id);
-        if (!fresh && currentUser.id !== 'u-admin-osama') {
-          // User was permanently deleted from the database
-          logout();
-          setAuthTerminationNotice('تم حذف هذا الحساب من قاعدة البيانات بواسطة إدارة الشركة. تم إنهاء الجلسة ولا يمكن تسجيل الدخول بهذا الحساب.');
-        } else if (fresh) {
-          if (fresh.approvalStatus === 'rejected' || fresh.isActive === false) {
-            logout();
-            setAuthTerminationNotice('تم إيقاف هذا الحساب من قبل الإدارة.');
-          } else if (
-            fresh.role !== currentUser.role ||
-            fresh.branchName !== currentUser.branchName ||
-            fresh.supervisorId !== currentUser.supervisorId ||
-            fresh.name !== currentUser.name ||
-            fresh.approvalStatus !== currentUser.approvalStatus
-          ) {
-            setCurrentUser(fresh);
-          }
-        }
+    if (!currentUser || !isAuthenticated || users.length === 0) return;
+    const fresh = users.find((u) => u.id === currentUser.id);
+    if (!fresh) {
+      // Only treat missing user as deleted if we actually fetched the authoritative users list from Supabase
+      if (hasSyncedUsersFromServerRef.current && currentUser.id !== 'u-admin-osama') {
+        logout();
+        setAuthTerminationNotice('تم حذف هذا الحساب من قاعدة البيانات بواسطة إدارة الشركة. تم إنهاء الجلسة ولا يمكن تسجيل الدخول بهذا الحساب.');
       }
+      return;
     }
-  }, [users]);
+    if (fresh.approvalStatus === 'rejected' || fresh.isActive === false) {
+      logout();
+      setAuthTerminationNotice('تم إيقاف هذا الحساب من قبل الإدارة.');
+    } else if (
+      fresh.role !== currentUser.role ||
+      fresh.branchName !== currentUser.branchName ||
+      fresh.supervisorId !== currentUser.supervisorId ||
+      fresh.name !== currentUser.name ||
+      fresh.approvalStatus !== currentUser.approvalStatus
+    ) {
+      setCurrentUser(fresh);
+    }
+  }, [users, currentUser, isAuthenticated]);
 
   const recordAuditLog = (logData: Omit<AuditLog, 'id' | 'timestamp' | 'formattedTime'>) => {
     try {
@@ -1883,43 +1983,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [selectedBranchFilter, setSelectedBranchFilter] = useState<string>('الكل');
 
-  const [activeSectorFilter, setActiveSectorFilterState] = useState<'home' | 'electrical'>(() => {
-    try {
-      const saved = localStorage.getItem('tantawy_active_sector_filter_v2');
-      if (saved === 'home' || saved === 'electrical') return saved;
-    } catch {}
-    return 'home';
-  });
-
-  const canManageSectorGate = useMemo(
-    () =>
-      Boolean(
-        currentUser &&
-          (currentUser.role === 'admin' ||
-            currentUser.role === 'developer' ||
-            CROSS_SECTOR_ADMIN_ROLES.has(currentUser.role) ||
-            currentUser.sector === 'both' ||
-            currentUser.sector === 'all')
-      ),
-    [currentUser?.role, currentUser?.sector]
-  );
-
-  /** القطاع الفعلي بعد تطبيق قواعد الأدوار — `'none'` يعني محجوب عن القطاعين. */
-  const effectiveSectorFilter = useMemo(
-    () => resolveEffectiveSector(currentUser, activeSectorFilter),
-    [currentUser, activeSectorFilter]
-  );
-
-  const setActiveSectorFilter = useCallback((sector: 'home' | 'electrical') => {
-    // تبديل القطاع ميزة إدارة عليا فقط. باقي الأدوار مقيّدة بقطاع حسابها أصلًا،
-    // ومن غير البوابة دي الاختيار كان بيتسجل في localStorage ويبقى مضلّل للواجهة.
-    if (!canManageSectorGate) return;
-    setActiveSectorFilterState(sector);
-    try {
-      localStorage.setItem('tantawy_active_sector_filter_v2', sector);
-    } catch {}
-  }, [canManageSectorGate]);
-
   const {
     installPromptEvent,
     canInstallPwa,
@@ -1935,65 +1998,212 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     triggerInstallPrompt,
   } = useUiPreferences();
 
-  // Hydrate high-capacity collections from IndexedDB seamlessly on startup
-  // Non-blocking: essential data first, heavy visit merging deferred to idle callback
+  // Hydrate high-capacity collections from IndexedDB per (user, activeSector) so switching sectors
+  // or refreshing never mixes caches or re-downloads already-cached sector catalogs.
+  const hydratedSigRef = useRef<string>('');
   useEffect(() => {
+    if (!isAuthenticated || !currentUser?.id) {
+      hydratedSigRef.current = '';
+      return;
+    }
+    const sig = `${currentUser.id}::${effectiveSectorFilter}`;
+    if (hydratedSigRef.current === sig) return;
+    hydratedSigRef.current = sig;
+
+    const uid = currentUser.id;
+    const sec = effectiveSectorFilter;
+
+    // Prevent stale writeback from previous sector onto new sector's IDB keys during switch
+    initialIdbSkipRef.current = {
+      products: true,
+      customers: true,
+      invoices: true,
+      cart: true,
+      targets: true,
+      forecasts: true,
+      comments: true,
+    };
+    setIsLocalDataHydrated(false);
+    productsRef.current = [];
+    customersRef.current = [];
+    invoicesRef.current = [];
+    visitsRef.current = [];
+    targetsRef.current = [];
+    lastBootCustScopeSigRef.current = '';
+    customerDownloadInFlightRef.current = false;
+    customerFullFetchAtRef.current = 0;
+    noStampPulledAtRef.current = 0;
+
+    if (sec === 'none') {
+      setProducts([]);
+      setCustomers([]);
+      setInvoices([]);
+      setVisits([]);
+      setTargets([]);
+      hydratedScopeRef.current = { userId: uid, sector: sec };
+      setIsLocalDataHydrated(true);
+      return;
+    }
+
     let isMounted = true;
+    const prodKey = getProductsCacheKey(sec);
+    const custKey = getCustomersCacheKey(uid, sec);
+    const invKey = getInvoicesCacheKey(uid, sec);
+    const visKey = getVisitsCacheKey(uid, sec);
+    const trgKey = getTargetsCacheKey(uid, sec);
+
     async function hydrateFromIndexedDB() {
       try {
-        // 1) Essential data first — parallel, fast
-        const [savedProducts, savedCustomers, savedInvoices, savedCart, savedVisits] = await Promise.all([
-          idbGet<Product[]>(STORAGE_KEYS.PRODUCTS),
-          idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS),
-          idbGet<Invoice[]>(STORAGE_KEYS.INVOICES),
+        const lastCachedUser = (() => {
+          try {
+            return localStorage.getItem(LAST_CACHED_USER_KEY);
+          } catch {
+            return null;
+          }
+        })();
+        const canMigrateUserLegacy = !lastCachedUser || lastCachedUser === uid;
+
+        let [savedProducts, savedCustomers, savedInvoices, savedCart, savedVisits, savedTargets] = await Promise.all([
+          idbGet<Product[]>(prodKey),
+          idbGet<Customer[]>(custKey),
+          idbGet<Invoice[]>(invKey),
           idbGet<CartItem[]>(STORAGE_KEYS.CART),
-          idbGet<CustomerVisit[]>(STORAGE_KEYS.VISITS),
+          idbGet<CustomerVisit[]>(visKey),
+          idbGet<TargetRecord[]>(trgKey),
         ]);
 
         if (!isMounted) return;
 
-        // Set essential data immediately (non-blocking state updates)
-        if (Array.isArray(savedProducts)) setProducts(sanitizeProducts(savedProducts));
-        if (Array.isArray(savedInvoices)) {
-          const deletedSet = getDeletedInvoiceIds();
-          const filtered = savedInvoices.filter(
-            (inv: Invoice) => !deletedSet.has(inv.id) && !deletedSet.has(inv.invoiceNumber)
-          );
-          setInvoices(filtered);
-        }
-        if (Array.isArray(savedCart)) setCart(savedCart);
-
-        // Customers: sanitize + dedupe (can be large, but single pass)
-        let dedupedCustomers: Customer[] = [];
-        if (Array.isArray(savedCustomers)) {
-          const sanitized = sanitizeCustomers(savedCustomers);
-          dedupedCustomers = deduplicateCustomersArray(sanitized);
-          setCustomers(dedupedCustomers);
-          saveLocalCustomersFingerprint(dedupedCustomers);
-          if (dedupedCustomers.length !== savedCustomers.length) {
-            idbSet(STORAGE_KEYS.CUSTOMERS, dedupedCustomers).catch(() => {});
+        // One-time migration from legacy unscoped product key (filtered to active sector)
+        if (!Array.isArray(savedProducts) || savedProducts.length === 0) {
+          const legacyProd = await idbGet<Product[]>(STORAGE_KEYS.PRODUCTS);
+          if (Array.isArray(legacyProd) && legacyProd.length > 0) {
+            const matched = legacyProd.filter((p) => matchesSector(p.sector, sec));
+            if (matched.length > 0) {
+              savedProducts = matched;
+              idbSet(prodKey, matched).catch(() => {});
+            }
           }
         }
 
-        // 2) Mark hydration done for essential data — UI can proceed
+        // One-time migration for same user from legacy unscoped user keys (filtered to active sector)
+        if (canMigrateUserLegacy) {
+          if (!Array.isArray(savedCustomers) || savedCustomers.length === 0) {
+            const legacyCust = await idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS);
+            if (Array.isArray(legacyCust) && legacyCust.length > 0) {
+              const matched = legacyCust.filter((c) => matchesSector(c.sector, sec));
+              if (matched.length > 0) {
+                savedCustomers = matched;
+                idbSet(custKey, matched).catch(() => {});
+              }
+            }
+          }
+          if (!Array.isArray(savedInvoices) || savedInvoices.length === 0) {
+            const legacyInv = await idbGet<Invoice[]>(STORAGE_KEYS.INVOICES);
+            if (Array.isArray(legacyInv) && legacyInv.length > 0) {
+              const matched = legacyInv.filter((inv) => !inv.sector || matchesSector(inv.sector, sec));
+              if (matched.length > 0) {
+                savedInvoices = matched;
+                idbSet(invKey, matched).catch(() => {});
+              }
+            }
+          }
+          if (!Array.isArray(savedVisits) || savedVisits.length === 0) {
+            const legacyVis = await idbGet<CustomerVisit[]>(STORAGE_KEYS.VISITS);
+            if (Array.isArray(legacyVis) && legacyVis.length > 0) {
+              const matched = legacyVis.filter((v) => !v.sector || matchesSector(v.sector, sec));
+              if (matched.length > 0) {
+                savedVisits = matched;
+                idbSet(visKey, matched).catch(() => {});
+              }
+            }
+          }
+          if (!Array.isArray(savedTargets) || savedTargets.length === 0) {
+            const legacyTrg = await idbGet<TargetRecord[]>(STORAGE_KEYS.TARGETS);
+            if (Array.isArray(legacyTrg) && legacyTrg.length > 0) {
+              const matched = legacyTrg.filter((t) => !t.sector || matchesSector(t.sector, sec));
+              if (matched.length > 0) {
+                savedTargets = matched;
+                idbSet(trgKey, matched).catch(() => {});
+              }
+            }
+          }
+        }
+
+        if (!isMounted) return;
+
+        try {
+          safeLocalStorageSet(LAST_CACHED_USER_KEY, uid);
+        } catch {}
+
+        // Set essential data immediately (always overwrite previous sector's in-memory arrays)
+        const cleanProducts = Array.isArray(savedProducts) ? sanitizeProducts(savedProducts) : [];
+        productsRef.current = cleanProducts;
+        setProducts(cleanProducts);
+
+        const deletedSet = getDeletedInvoiceIds();
+        const cleanInvoices = Array.isArray(savedInvoices)
+          ? savedInvoices.filter((inv: Invoice) => !deletedSet.has(inv.id) && !deletedSet.has(inv.invoiceNumber))
+          : [];
+        invoicesRef.current = cleanInvoices;
+        setInvoices(cleanInvoices);
+
+        if (Array.isArray(savedCart)) setCart(savedCart);
+
+        const cleanTargets = Array.isArray(savedTargets)
+          ? savedTargets.filter((r: any) => r && !String(r.id).startsWith('sample-trg'))
+          : [];
+        targetsRef.current = cleanTargets;
+        setTargets(cleanTargets);
+
+        let dedupedCustomers: Customer[] = [];
+        if (Array.isArray(savedCustomers) && savedCustomers.length > 0) {
+          const sanitized = sanitizeCustomers(savedCustomers);
+          dedupedCustomers = deduplicateCustomersArray(sanitized);
+          customersRef.current = dedupedCustomers;
+          setCustomers(dedupedCustomers);
+          saveLocalCustomersFingerprint(dedupedCustomers, uid, sec);
+          if (dedupedCustomers.length !== savedCustomers.length) {
+            idbSet(custKey, dedupedCustomers).catch(() => {});
+          }
+        } else {
+          customersRef.current = [];
+          setCustomers([]);
+        }
+
+        // Initial visits fast set (merged in background below)
+        const initialVisits = Array.isArray(savedVisits) ? savedVisits : [];
+        visitsRef.current = initialVisits;
+        setVisits(initialVisits);
+
+        hydratedScopeRef.current = { userId: uid, sector: sec };
         setIsLocalDataHydrated(true);
         refreshPendingInvoicesCount();
 
         // Clean up legacy localStorage mirrors (non-blocking)
-        [STORAGE_KEYS.CUSTOMERS, STORAGE_KEYS.INVOICES, STORAGE_KEYS.PRODUCTS].forEach((k) => {
+        [STORAGE_KEYS.CUSTOMERS, STORAGE_KEYS.INVOICES, STORAGE_KEYS.PRODUCTS, STORAGE_KEYS.TARGETS].forEach((k) => {
           try { localStorage.removeItem(k); } catch {}
         });
 
         // 3) Heavy visit merging: defer to idle callback (non-blocking)
-        // This processes thousands of visitHistory records without freezing UI
         const mergeVisitsInBackground = () => {
           const allVisitsMap = new Map<string, CustomerVisit>();
           const deletedVisitIds = getDeletedVisitIds();
 
-          // Helper to add visit if valid
-          const addVisit = (v: any, fallbackCustomerId?: string, fallbackCustomerName?: string, fallbackCustomerCode?: string, fallbackBranchName?: string, fallbackRepName?: string, fallbackRepId?: string) => {
+          const addVisit = (
+            v: any,
+            fallbackCustomerId?: string,
+            fallbackCustomerName?: string,
+            fallbackCustomerCode?: string,
+            fallbackBranchName?: string,
+            fallbackRepName?: string,
+            fallbackRepId?: string,
+            fallbackSector?: 'home' | 'electrical' | 'both' | 'all'
+          ) => {
             if (!v || !v.id) return;
             const vid = v.id || `visit-${fallbackCustomerId}-${v.date}`;
+            const vSector = v.sector || fallbackSector;
+            if (vSector && !matchesSector(vSector, sec)) return;
             if (deletedVisitIds.has(v.id) || deletedVisitIds.has(v.date) || allVisitsMap.has(vid)) return;
             allVisitsMap.set(vid, {
               ...v,
@@ -2004,51 +2214,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               branchName: v.branchName || fallbackBranchName,
               repName: v.repName || fallbackRepName || 'المندوب',
               repId: v.repId || fallbackRepId,
+              sector: vSector,
               status: v.status || 'منفذة',
             });
           };
 
-          // Add from savedVisits
           if (Array.isArray(savedVisits)) {
             savedVisits.forEach((v) => addVisit(v));
           }
 
-          // Add from legacy mirror
-          const legacyVisits = readLegacyVisitsMirror();
-          if (legacyVisits.length > 0) {
-            legacyVisits.forEach((v) => addVisit(v));
+          if (canMigrateUserLegacy) {
+            const legacyVisits = readLegacyVisitsMirror();
+            if (legacyVisits.length > 0) {
+              legacyVisits.forEach((v) => addVisit(v));
+            }
           }
 
-          // Add from customer visitHistory (the heavy part) — chunked with yield
-          if (Array.isArray(savedCustomers)) {
+          if (dedupedCustomers.length > 0) {
             let customerIndex = 0;
             const processCustomerChunk = () => {
-              const chunkSize = 50; // process 50 customers per idle callback
-              const endIndex = Math.min(customerIndex + chunkSize, savedCustomers.length);
-              
+              if (!isMounted || hydratedSigRef.current !== sig) return;
+              const chunkSize = 50;
+              const endIndex = Math.min(customerIndex + chunkSize, dedupedCustomers.length);
+
               for (let i = customerIndex; i < endIndex; i++) {
-                const c = savedCustomers[i];
+                const c = dedupedCustomers[i];
                 if (Array.isArray(c.visitHistory)) {
-                  c.visitHistory.forEach((v) => addVisit(v, c.id, c.name, c.code, c.branchName, c.salesRepName, c.repId));
+                  c.visitHistory.forEach((v) =>
+                    addVisit(v, c.id, c.name, c.code, c.branchName, c.salesRepName, c.repId, c.sector)
+                  );
                 }
               }
-              
+
               customerIndex = endIndex;
-              
-              if (customerIndex < savedCustomers.length) {
-                // Schedule next chunk
+
+              if (customerIndex < dedupedCustomers.length) {
                 if (typeof requestIdleCallback !== 'undefined') {
                   requestIdleCallback(processCustomerChunk, { timeout: 2000 });
                 } else {
                   setTimeout(processCustomerChunk, 0);
                 }
               } else {
-                // All done — finalize visits
                 finalizeVisits(allVisitsMap);
               }
             };
-            
-            // Start first chunk
+
             if (typeof requestIdleCallback !== 'undefined') {
               requestIdleCallback(processCustomerChunk, { timeout: 2000 });
             } else {
@@ -2060,7 +2270,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         };
 
         const finalizeVisits = (allVisitsMap: Map<string, CustomerVisit>) => {
-          if (!isMounted) return;
+          if (!isMounted || hydratedSigRef.current !== sig) return;
           setVisits((currentVisits) => {
             (currentVisits || []).forEach((v) => {
               if (v && v.id && !allVisitsMap.has(v.id)) allVisitsMap.set(v.id, v);
@@ -2073,19 +2283,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               reviewNote: v.reviewNote || 'زيارة مباشرة معتمدة تلقائياً',
             }));
             if (merged.length > 0) {
-              idbSet(STORAGE_KEYS.VISITS, merged).catch(() => {});
+              idbSet(visKey, merged).catch(() => {});
               clearLegacyVisitsMirror();
             }
             return merged;
           });
         };
 
-        // Kick off background visit merging
         mergeVisitsInBackground();
-
       } catch (err) {
         console.warn('IndexedDB initial hydration notice:', err);
         clearLegacyVisitsMirror();
+        hydratedScopeRef.current = { userId: uid, sector: sec };
         if (isMounted) setIsLocalDataHydrated(true);
       }
     }
@@ -2094,7 +2303,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isAuthenticated, currentUser?.id, effectiveSectorFilter, getProductsCacheKey, getCustomersCacheKey, getInvoicesCacheKey, getVisitsCacheKey, getTargetsCacheKey]);
 
   // Supabase State & Sync (on-demand probe inside DatabaseConnectionModal saves boot roundtrips for 500 users)
   const [supabaseStatus, setSupabaseStatus] = useState<SupabaseSyncStatus>({
@@ -2756,14 +2965,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
    * so a wrong scope can only download more — never show an empty list.
    */
   const customerFetchScope = useMemo<CustomerFetchScope | undefined>(() => {
-    if (!currentUser) return undefined;
+    if (!currentUser || effectiveSectorFilter === 'none') return undefined;
     const role = currentUser.role;
+    const sector = activeApiSector;
 
     const cleanName = (value?: string) =>
       (value || '').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
     const fullName = cleanName(currentUser.name);
     const nameTokens = fullName.split(' ').filter((token) => token.length > 1);
-    // أول كلمتين بتغطي الأسماء المختصرة في الشيتات («شهاب الدين» بدل الاسم الكامل).
     const shortName = nameTokens.slice(0, 2).join(' ');
 
     const resolvedBranch = resolveBranchName(currentUser.branchName) || currentUser.branchName || '';
@@ -2773,35 +2982,59 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const branchNameContains = extractBranchStems(currentUser.branchName);
 
     if (role === 'admin' || role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(role)) {
-      // الأدمن/المطور/الدعم الفني: صلاحية كاملة على كل القطاعات (هم اللي بيمنحوا الصلاحيات)
       return {
-        sector: undefined, // لا قيد قطاع — كل القطاعات
+        sector,
         slimFieldColumns: true,
       };
     }
 
     if (role === 'sales_rep') {
+      const repNames = expandRepNameVariants([fullName, shortName]);
+      const repIds = Array.from(new Set([currentUser.id, currentUser.username].filter(Boolean) as string[]));
       return {
-        branchNames,
-        branchNameContains,
-        repNames: expandRepNameVariants([fullName, shortName]),
-        repIds: Array.from(new Set([currentUser.id, currentUser.username].filter(Boolean) as string[])),
-        sector: currentUser?.sector,
+        ...(repNames.length === 0 && repIds.length === 0 ? { branchNames, branchNameContains } : {}),
+        repNames,
+        repIds,
+        sector,
         includeUnassignedBranch: false,
         strictNoFullFallback: true,
         slimFieldColumns: true,
       };
     }
 
-    // مدير الفرع والمشرف: نطاق الفرع + مناديبهم فقط، منع fallback للجدول كامل.
-    // slimFieldColumns يقلل أعمدة/حقول ثقيلة لتخفيف الـ egress.
-    // strictNoFullFallback: true = لو النطاق ما لقاش بيانات، نرجّع فاضي (ما نحمّلش كل الشركة).
+    if (role === 'supervisor') {
+      const supUsers = users.filter((u) => u.supervisorId === currentUser.id);
+      const repNames = expandRepNameVariants([
+        fullName,
+        shortName,
+        ...supUsers.flatMap((u) => {
+          const fn = cleanName(u.name);
+          const sn = fn.split(' ').filter((t) => t.length > 1).slice(0, 2).join(' ');
+          return [fn, sn];
+        }),
+      ]);
+      const repIds = Array.from(
+        new Set([currentUser.id, currentUser.username, ...supUsers.flatMap((u) => [u.id, u.username])].filter(Boolean) as string[])
+      );
+      if (supUsers.length > 0 && (repNames.length > 0 || repIds.length > 0)) {
+        return {
+          repNames,
+          repIds,
+          sector,
+          includeUnassignedBranch: false,
+          strictNoFullFallback: true,
+          slimFieldColumns: true,
+        };
+      }
+    }
+
+    // مدير الفرع (أو مشرف بلا مناديب مربوطين بعد): نطاق الفرع + القطاع النشط فقط
     return {
       branchNames,
       branchNameContains,
-      sector: currentUser?.sector,
-      includeUnassignedBranch: false, // لا عملاء من غير فرع
-      strictNoFullFallback: true, // ممنوع fallback للجدول كامل
+      sector,
+      includeUnassignedBranch: false,
+      strictNoFullFallback: true,
       slimFieldColumns: true,
     };
   }, [
@@ -2811,58 +3044,53 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     currentUser?.branchName,
     currentUser?.role,
     currentUser?.sector,
+    activeApiSector,
+    effectiveSectorFilter,
+    users,
   ]);
 
   /**
-   * نطاق قطاع الكتالوج على مستوى السيرفر (مطابق لفلتر القطاع في الواجهة):
-   * المندوب ومدير الفرع والمشرف بينزّلوا كتالوج قطاعهم بس — منزلي أو كهربا —
-   * بدل الكتالوج الكامل. الأدمن/المطوير/الدعم محتاجين الكتالوج الكامل عشان
-   * تبديل القطاعات في شاشات الاستيراد والتقارير، فبنسيبهم من غير قيد.
-   * المستخدم اللي القطاع بتاعه «both»/«all» أو مش مسجّل بياخد الكل برضه.
+   * نطاق قطاع الكتالوج على مستوى السيرفر — كل الأدوار (بما فيها الإدارة ومدير الفرع بقطاعين)
+   * بتحمّل كتالوج القطاع النشط حالياً فقط (منزلي أو كهرباء) لتخفيف الحجم والـ egress.
    */
   const productSectorScope = useMemo<ProductSectorScope>(() => {
-    const role = currentUser?.role;
-    // الأدمن/المطور/الدعم الفني: مفيش قيد قطاع (بيشوفوا الكل)
-    if (role === 'admin' || role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(role)) return undefined;
-    // باقي الأدوار: قطاعهم بس
-    if (role !== 'sales_rep' && role !== 'branch_manager' && role !== 'supervisor') return undefined;
-    const sector = currentUser?.sector;
-    return sector === 'home' || sector === 'electrical' ? sector : undefined;
-  }, [currentUser?.role, currentUser?.sector]);
+    return activeApiSector;
+  }, [activeApiSector]);
 
   /**
    * scope القراءة من جدول الزيارات:
-   * - المندوب: آخر 90 يوماً فقط + نطاقه الخاص (مع منع سحب الجدول كله كبديل).
-   * - المشرف: آخر 180 يوماً + مندوبيه التابعين + فرعه (بدلاً من سحب كل الشركة بلا حدود).
-   * - مدير الفرع: آخر 180 يوماً + فرعه.
-   * - الأدمن والمطور والدعم الفني: السجل كامل للتقارير الشاملة.
+   * - المندوب: آخر 90 يوماً فقط + عملائه هو فقط + قطاعه.
+   * - المشرف: آخر 180 يوماً + مندوبيه التابعين + قطاعه.
+   * - مدير الفرع: آخر 180 يوماً + فرعه + القطاع النشط.
+   * - الأدمن والمطور والدعم الفني: آخر 210 يوماً + القطاع النشط.
    */
   const visitFetchScope = useMemo<VisitFetchScope | undefined>(() => {
-    const role = currentUser?.role;
-    if (!currentUser) return undefined;
-    // الأدمن/المطور/الدعم الفني: نافذة 7 أشهر لكل القطاعات
+    if (!currentUser || effectiveSectorFilter === 'none') return undefined;
+    const role = currentUser.role;
+    const sector = activeApiSector;
+
     if (role === 'admin' || role === 'developer' || CROSS_SECTOR_ADMIN_ROLES.has(role)) {
       const adminSince = new Date();
       adminSince.setDate(adminSince.getDate() - 210);
-      return { sinceDate: adminSince.toISOString().slice(0, 10) };
+      return { sinceDate: adminSince.toISOString().slice(0, 10), sector };
     }
     if (role !== 'sales_rep' && role !== 'branch_manager' && role !== 'supervisor') {
-      // باقي الأدوار الإدارية (legal_advisor, warehouse_keeper): قطاعهم بس
       const adminSince = new Date();
       adminSince.setDate(adminSince.getDate() - 210);
-      return { sinceDate: adminSince.toISOString().slice(0, 10), sector: currentUser?.sector };
+      return { sinceDate: adminSince.toISOString().slice(0, 10), sector };
     }
 
     const since = new Date();
     if (role === 'sales_rep') {
       since.setDate(since.getDate() - 90);
-      if (!customerFetchScope) return { sinceDate: since.toISOString().slice(0, 10) };
+      if (!customerFetchScope) return { sinceDate: since.toISOString().slice(0, 10), sector };
       return {
-        branchNames: customerFetchScope.branchNames,
-        branchNameContains: customerFetchScope.branchNameContains,
+        ...(customerFetchScope.repNames?.length || customerFetchScope.repIds?.length
+          ? {}
+          : { branchNames: customerFetchScope.branchNames, branchNameContains: customerFetchScope.branchNameContains }),
         repNames: customerFetchScope.repNames,
         repIds: customerFetchScope.repIds,
-        sector: customerFetchScope.sector,
+        sector,
         includeUnassignedBranch: false,
         strictNoFullFallback: true,
         sinceDate: since.toISOString().slice(0, 10),
@@ -2892,29 +3120,30 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         new Set([currentUser.branchName].filter((b): b is string => Boolean(b && b.trim())))
       );
       return {
-        branchNames,
+        ...(repUsers.length === 0 ? { branchNames } : {}),
         repNames: Array.from(new Set(repNames)),
         repIds: Array.from(new Set(repIds)),
-        sector: currentUser?.sector,
+        sector,
         includeUnassignedBranch: false,
-        strictNoFullFallback: true, // ممنوع fallback للجدول كامل
+        strictNoFullFallback: true,
         sinceDate: since.toISOString().slice(0, 10),
       };
     }
 
     // branch_manager
     const scope = customerFetchScope;
-    if (!scope) return { sinceDate: since.toISOString().slice(0, 10) };
+    if (!scope) return { sinceDate: since.toISOString().slice(0, 10), sector };
     return {
       branchNames: scope.branchNames,
+      branchNameContains: scope.branchNameContains,
       repNames: scope.repNames,
       repIds: scope.repIds,
-      sector: scope.sector,
+      sector,
       includeUnassignedBranch: false,
-      strictNoFullFallback: true, // ممنوع fallback للجدول كامل
+      strictNoFullFallback: true,
       sinceDate: since.toISOString().slice(0, 10),
     };
-  }, [currentUser?.id, currentUser?.name, currentUser?.username, currentUser?.branchName, currentUser?.role, currentUser?.sector, customerFetchScope, users]);
+  }, [currentUser?.id, currentUser?.name, currentUser?.username, currentUser?.branchName, currentUser?.role, currentUser?.sector, activeApiSector, effectiveSectorFilter, customerFetchScope, users]);
 
   const checkDatabaseConnection = useCallback(async (): Promise<SupabaseSyncStatus> => {
     const conn = await testSupabaseConnection();
@@ -2926,6 +3155,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const syncWithSupabase = async (
     direction: 'fetch' | 'push' | 'both' = 'both'
   ): Promise<{ success: boolean; message: string }> => {
+    const activeSec = activeStorageCtxRef.current.sector;
+    if (activeSec === 'none') {
+      return { success: false, message: 'حسابك بلا قطاع مفعّل حالياً.' };
+    }
     setIsSupabaseSyncing(true);
     try {
       // 1. Test Connection
@@ -2952,7 +3185,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         }
 
         const invRes = await fetchInvoicesFromSupabase(
-          buildInvoiceFetchScope(currentUser, users)
+          buildInvoiceFetchScope(currentUser, users, activeApiSector)
         );
         if (invRes.success && invRes.invoices) {
           const remoteInvoices = invRes.invoices;
@@ -2970,7 +3203,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         if (productRes.success) {
           const validProducts = sanitizeProducts(productRes.products || []);
           setProducts(validProducts);
-          idbSet(STORAGE_KEYS.PRODUCTS, validProducts);
+          idbSet(getProductsCacheKey(), validProducts);
         }
       }
 
@@ -2981,7 +3214,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers || []), users);
           const validCustomers = deduplicateCustomersArray(linked);
           setCustomers(validCustomers);
-          idbSet(STORAGE_KEYS.CUSTOMERS, validCustomers);
+          idbSet(getCustomersCacheKey(), validCustomers);
+          saveLocalCustomersFingerprint(validCustomers, currentUser?.id, activeSec);
         }
       }
       if (direction === 'push' || direction === 'both') {
@@ -3071,6 +3305,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     if (!isSupabaseConfigured) {
       return Promise.resolve({ updated: false, message: 'وضع التخزين المحلي' });
     }
+    if (activeStorageCtxRef.current.sector === 'none') {
+      return Promise.resolve({ updated: false, message: 'حسابك بلا قطاع مفعّل' });
+    }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       return Promise.resolve({ updated: false, message: 'أوفلاين — استخدام البيانات المحفوظة محلياً' });
     }
@@ -3079,6 +3316,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
     const run = (async (): Promise<{ updated: boolean; version?: number; message: string }> => {
     try {
+      const ctxSnap = { ...activeStorageCtxRef.current };
       // Never purge and re-pull while our own authoritative write is still
       // landing on the server: the old copy would overwrite the fresh one.
       if (!force && Date.now() - authoritativeWriteAtRef.current < 120000) {
@@ -3099,7 +3337,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         }
         // لو البصمة المحفوظة مطابقة للي على السيرفر والعملاء موجودين محلياً، مفيش داعي للتنزيل الكامل.
         const stampNow = await fetchCustomerContentStamp(customerFetchScope);
-        const storedStampNow = readCustomerContentStamp();
+        const storedStampNow = readCustomerContentStamp(ctxSnap.userId, ctxSnap.sector);
         const hasCustomersLoaded = (customersRef.current?.length || 0) > 0 || stampNow?.count === 0;
         if (
           hasCustomersLoaded &&
@@ -3120,15 +3358,15 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           customerDownloadInFlightRef.current = false;
         }
         if (custRes.success && custRes.customers && custRes.customers.length > 0) {
-          if (stampNow) saveCustomerContentStamp(stampNow);
+          if (stampNow) saveCustomerContentStamp(stampNow, ctxSnap.userId, ctxSnap.sector);
           const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers), users);
           const valid = deduplicateCustomersArray(linked);
           const nextFingerprint = buildCustomersFingerprint(valid);
           setCustomers((current) => {
             if (buildCustomersFingerprint(current) === nextFingerprint) return current;
             customersRef.current = valid;
-            idbSet(STORAGE_KEYS.CUSTOMERS, valid).catch(() => {});
-            saveLocalCustomersFingerprint(valid);
+            idbSet(getCustomersCacheKey(ctxSnap.userId, ctxSnap.sector), valid).catch(() => {});
+            saveLocalCustomersFingerprint(valid, ctxSnap.userId, ctxSnap.sector);
             return valid;
           });
         }
@@ -3158,30 +3396,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       // المحلية بتفضل مكانها لحد ما الجديد يوصل فعلاً.
       const inScope = (s: SyncScope) => scope === 'all' || scope === s;
 
-      /**
-       * سحب الكتالوج داخل معالج الإصدار: تدريجي أولًا لو الجدول الرسمي
-       * هو المصدر (بعد ميجريشن updated_at) — يعني كل جهاز بينزّل الصفوف
-       * المتغيرة بس (~KB) بدل قراءة كاملة (939KB) مع كل نسخة كتالوج.
-       * أي فشل أو جدول مش authoritative بعد → القراءة الكاملة القديمة.
-       */
-      const pullProductsForVersionSync = async (): Promise<{ success: boolean; products?: Product[]; error?: string } | null> => {
-        if (!inScope('products')) return null;
-        if (await isProductsTableAuthoritative()) {
-          const inc = await fetchProductsIncremental(productSectorScope).catch(() => null);
-          if (inc?.success) {
-            const incoming = inc.products || [];
-            if (!inc.isFullFetch && incoming.length === 0) {
-              // مفيش تغييرات: نرجّع الحالة الحالية عشان منطق الاستبدال
-              // اللي تحت ميحذفش الأصناف الموجودة من غير سبب.
-              return { success: true, products: productsRef.current };
-            }
-            const merged = inc.isFullFetch ? incoming : mergeProductsIncremental(productsRef.current, incoming);
-            return { success: true, products: merged };
-          }
-        }
-        return fetchProductsFromSupabase({ sector: productSectorScope });
-      };
-
       // Fresh payloads, held until we know which ones actually arrived.
       let freshProducts: Product[] | null = null;
       let freshCustomers: Customer[] | null = null;
@@ -3197,19 +3411,46 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         currentUser.role === 'developer' ||
         currentUser.role === 'technical_support';
 
-      const invScope = buildInvoiceFetchScope(currentUser, users);
+      const invScope = buildInvoiceFetchScope(currentUser, users, activeApiSector);
       const invScopeKey = invoiceScopeKey(invScope);
 
-      const [visStamp, custStamp, trgStamp, invStamp] = await Promise.all([
+      const [prodStamp, visStamp, custStamp, trgStamp, invStamp] = await Promise.all([
+        inScope('products') ? fetchProductContentStamp(productSectorScope).catch(() => null) : Promise.resolve(null),
         inScope('visits') ? fetchVisitContentStamp(visitFetchScope) : Promise.resolve(null),
         inScope('customers') ? fetchCustomerContentStamp(customerFetchScope) : Promise.resolve(null),
         inScope('targets') ? fetchTargetContentStamp(targetFetchScope) : Promise.resolve(null),
         inScope('invoices') ? fetchInvoiceContentStamp(invScope) : Promise.resolve(null),
       ]);
 
+      const pullProductsForVersionSync = async (): Promise<{ success: boolean; products?: Product[]; error?: string } | null> => {
+        if (!inScope('products')) return null;
+        const storedProdStamp = readProductContentStamp(ctxSnap.sector);
+        if (
+          prodStamp &&
+          storedProdStamp &&
+          prodStamp.count === storedProdStamp.count &&
+          prodStamp.maxUpdatedAt === storedProdStamp.maxUpdatedAt &&
+          productsRef.current.length > 0
+        ) {
+          return { success: true, products: productsRef.current };
+        }
+        if (await isProductsTableAuthoritative()) {
+          const inc = await fetchProductsIncremental(productSectorScope).catch(() => null);
+          if (inc?.success) {
+            const incoming = inc.products || [];
+            if (!inc.isFullFetch && incoming.length === 0) {
+              return { success: true, products: productsRef.current };
+            }
+            const merged = inc.isFullFetch ? incoming : mergeProductsIncremental(productsRef.current, incoming);
+            return { success: true, products: merged };
+          }
+        }
+        return fetchProductsFromSupabase({ sector: productSectorScope });
+      };
+
       const pullCustomersForVersionSync = async (): Promise<Awaited<ReturnType<typeof fetchCustomersFromSupabase>> | null> => {
         if (!inScope('customers')) return null;
-        const storedCustStamp = readCustomerContentStamp();
+        const storedCustStamp = readCustomerContentStamp(ctxSnap.userId, ctxSnap.sector);
         if (
           custStamp &&
           storedCustStamp?.maxUpdatedAt &&
@@ -3238,7 +3479,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       const pullVisitsForVersionSync = async (): Promise<Awaited<ReturnType<typeof fetchVisitsFromSupabase>> | null> => {
         if (!inScope('visits')) return null;
-        const storedVisStamp = readVisitContentStamp();
+        const storedVisStamp = readVisitContentStamp(ctxSnap.userId, ctxSnap.sector);
         if (
           visStamp &&
           storedVisStamp?.maxUpdatedAt &&
@@ -3328,7 +3569,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
 
       const [prodRes, custRes, trgRes, invRes, visRes] = await Promise.all([
-        inScope('products') ? pullProductsForVersionSync() : Promise.resolve(null),
+        pullProductsForVersionSync(),
         pullCustomersForVersionSync(),
         pullTargetsForVersionSync(),
         pullInvoicesForVersionSync(),
@@ -3337,13 +3578,16 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       if (prodRes?.success) {
         freshProducts = sanitizeProducts(prodRes.products || []);
+        if (prodStamp && (prodStamp.count !== null || prodStamp.maxUpdatedAt !== null)) {
+          saveProductContentStamp(prodStamp, ctxSnap.sector);
+        }
       }
 
       if (custRes?.success) {
         const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers || []), usersRef.current);
         freshCustomers = deduplicateCustomersArray(linked);
         if (custStamp && (custStamp.count !== null || custStamp.maxUpdatedAt !== null)) {
-          saveCustomerContentStamp(custStamp);
+          saveCustomerContentStamp(custStamp, ctxSnap.userId, ctxSnap.sector);
         }
       }
 
@@ -3364,7 +3608,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (visRes?.success && visRes.visits) {
         freshVisits = visRes.visits;
         if (visStamp && (visStamp.count !== null || visStamp.maxUpdatedAt !== null)) {
-          saveVisitContentStamp(visStamp);
+          saveVisitContentStamp(visStamp, ctxSnap.userId, ctxSnap.sector);
         }
       }
 
@@ -3396,12 +3640,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
 
       for (const one of purgedScopes) {
-        await purgeLocalDataCaches(one);
+        await purgeLocalDataCaches(one, {
+          userId: ctxSnap.userId || undefined,
+          sector: ctxSnap.sector === 'electrical' ? 'electrical' : 'home',
+        });
       }
-
-      // مبيعات الأصناف: مش جزء من نطاقات النسخة، وبتتحدّث من صفحة الإكسل.
-      // بننزّل التغييرات (المقيّدة بالمندوب/الفرع) في الخلفية بعد أي نسخة جديدة.
-      void itemSalesSyncRef.current?.().catch(() => {});
 
       // Commit: everything below writes the fresh lists into React state and
       // back into IndexedDB, so it runs strictly after the purge.
@@ -3409,7 +3652,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       if (freshProducts) {
         setProducts(freshProducts);
-        idbSet(STORAGE_KEYS.PRODUCTS, freshProducts).catch(() => {});
+        idbSet(getProductsCacheKey(ctxSnap.sector), freshProducts).catch(() => {});
       }
 
       if (freshCustomers) {
@@ -3426,14 +3669,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             }
           });
           const next = Array.from(nextMap.values());
-          idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
+          idbSet(getCustomersCacheKey(ctxSnap.userId, ctxSnap.sector), next).catch(() => {});
           return next;
         });
       }
 
       if (freshTargets) {
         setTargets(freshTargets);
-        idbSet(STORAGE_KEYS.TARGETS, freshTargets).catch(() => {});
+        idbSet(getTargetsCacheKey(ctxSnap.userId, ctxSnap.sector), freshTargets).catch(() => {});
       }
 
       if (freshInvoices) {
@@ -3481,7 +3724,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       // Record a fingerprint of the data we just accepted. The heartbeat compares
       // against it so an admin edit lands on every client even if the version
       // stamp did not change.
-      saveLocalCustomersFingerprint(freshCustomers || customersRef.current);
+      saveLocalCustomersFingerprint(freshCustomers || customersRef.current, ctxSnap.userId, ctxSnap.sector);
 
       const noticeMsg = `تم تحديث البيانات تلقائياً ومسح الذاكرة المؤقتة القديمة بنجاح! (${remoteMeta.notes || 'تحديث تلقائي'})`;
       setLastVersionSyncNotice(noticeMsg);
@@ -3545,7 +3788,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const forcePurgeCacheAndReload = async (scope: SyncScope = 'all'): Promise<void> => {
     setIsVersionSyncing(true);
     try {
-      await purgeLocalDataCaches(scope);
+      await purgeLocalDataCaches(scope, {
+        userId: currentUser?.id,
+        sector: activeApiSector,
+      });
+      clearScopedContentStamps();
       await checkAndSyncDataVersion(true);
     } finally {
       setIsVersionSyncing(false);
@@ -3621,7 +3868,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   // Re-check on focus, tab visibility, realtime version broadcasts, and as a short heartbeat.
   // The heartbeat is intentionally defensive: realtime can be disconnected on mobile networks.
   useEffect(() => {
-    if (!isLocalDataHydrated || !isSupabaseConfigured) return;
+    if (!isLocalDataHydrated || !isSupabaseConfigured || effectiveSectorFilter === 'none') return;
     let checkInFlight = false;
     let lastHeartbeatCheck = Date.now();
     const HEARTBEAT_INTERVAL_MS = 25 * 60 * 1000;
@@ -3631,37 +3878,29 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const FULL_REFRESH_FALLBACK_MS = 60 * 60 * 1000;
 
     const check = () => {
-      if (checkInFlight || document.visibilityState === 'hidden') return;
+      if (checkInFlight || document.visibilityState === 'hidden' || !currentUserRef.current) return;
       checkInFlight = true;
       checkAndSyncDataVersion(false).catch(() => {}).finally(() => {
         checkInFlight = false;
       });
     };
 
-    /**
-     * Content heartbeat. Compares the customer data currently on screen against
-     * the server. If the numbers moved, the client swaps in the fresh list so
-     * every rep/supervisor sees the admin's numbers without doing anything.
-     *
-     * Previously this pulled all 3,400 customer rows (≈3-8MB, every column) on
-     * every device every 60 seconds — roughly 27GB/hour at 300 employees,
-     * against Supabase Free's 5GB/month egress. Now it first asks the server
-     * for a two-value stamp (row count + newest updated_at, one row of
-     * payload) and only pulls the full table when that stamp actually moved.
-     * The outcome is identical; only the bytes are gone.
-     */
     const checkCustomersContent = async (force: boolean = false) => {
-      if (checkInFlight || document.visibilityState === 'hidden') return;
+      if (checkInFlight || document.visibilityState === 'hidden' || !currentUserRef.current) return;
+      if (activeStorageCtxRef.current.sector === 'none') return;
       // Skip while our own write is still propagating, otherwise a lagging
       // server response overwrites the fresh data we just published.
       if (!force && Date.now() - authoritativeWriteAtRef.current < 120000) return;
+
+      const ctxSnap = { ...activeStorageCtxRef.current };
+      const custKey = getCustomersCacheKey(ctxSnap.userId, ctxSnap.sector);
 
       // 1) استعلام بصمة صف واحد. لو نفس البصمة المحفوظة من آخر تنزيل كامل
       // → مفيش تغيير على السيرفر، ومفيش أي بايتات جدول بتتنقل.
       const stamp = await fetchCustomerContentStamp(customerFetchScope);
       const stampComparable =
         stamp !== null && (stamp.count !== null || stamp.maxUpdatedAt !== null);
-      const storedStamp = readCustomerContentStamp();
+      const storedStamp = readCustomerContentStamp(ctxSnap.userId, ctxSnap.sector);
 
       if (!force && stampComparable && storedStamp) {
         const unchanged =
@@ -3670,7 +3909,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           const currentCount = customersRef.current?.length || customers.length;
           if (currentCount > 0) return;
           // لو الـstate لسه مااتملتش من IndexedDB، نقراها محلياً ونقفل التنزيل
-          const cachedCusts = await idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS);
+          const cachedCusts = await idbGet<Customer[]>(custKey);
           if (cachedCusts && cachedCusts.length > 0) {
             setCustomers(cachedCusts);
             return;
@@ -3711,7 +3950,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           });
           if (inc.success) {
             if (stampComparable) {
-              saveCustomerContentStamp({ count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt });
+              saveCustomerContentStamp(
+                { count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt },
+                ctxSnap.userId,
+                ctxSnap.sector
+              );
             }
             const incoming = sanitizeCustomers(inc.customers || []);
             if (incoming.length > 0) {
@@ -3719,18 +3962,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
               const next = deduplicateCustomersArray(
                 mergeCustomersIncremental(customersRef.current || [], linkedInc)
               );
-              /**
-               * شبكة أمان: لو العدد المحلي لسه أقل من عدد السيرفر بعد الدمج،
-               * يبقى فيه صفوف ما وصلتش (مثلاً صف جديد بـ updated_at أقدم من
-               * البصمة) → منصدّقش المزامنة الجزئية ونكمل بالتنزيل الكامل.
-               */
               const serverCount = typeof stamp?.count === 'number' ? stamp.count : null;
               const countStillShort = serverCount !== null && next.length < serverCount;
               if (!countStillShort) {
                 setCustomers(next);
                 customersRef.current = next;
-                idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
-                saveLocalCustomersFingerprint(next);
+                idbSet(custKey, next).catch(() => {});
+                saveLocalCustomersFingerprint(next, ctxSnap.userId, ctxSnap.sector);
                 return;
               }
             } else {
@@ -3753,17 +3991,23 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         const fresh = deduplicateCustomersArray(linked);
         const fingerprint = buildCustomersFingerprint(fresh);
         customerFullFetchAtRef.current = Date.now();
-        // The stamp we probed describes the exact table we just downloaded, so
-        // it becomes the new baseline for the next probe. Only on a successful
-        // read — a failed fetch must never claim we are in sync.
         if (stampComparable) {
-          saveCustomerContentStamp({ count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt });
+          saveCustomerContentStamp(
+            { count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt },
+            ctxSnap.userId,
+            ctxSnap.sector
+          );
         }
-        if (fingerprint === getLocalCustomersFingerprint() && (customersRef.current?.length || 0) >= fresh.length) return;
+        if (
+          fingerprint === getLocalCustomersFingerprint(ctxSnap.userId, ctxSnap.sector) &&
+          (customersRef.current?.length || 0) >= fresh.length
+        ) {
+          return;
+        }
         setCustomers(fresh);
         customersRef.current = fresh;
-        idbSet(STORAGE_KEYS.CUSTOMERS, fresh).catch(() => {});
-        saveLocalCustomersFingerprint(fresh);
+        idbSet(custKey, fresh).catch(() => {});
+        saveLocalCustomersFingerprint(fresh, ctxSnap.userId, ctxSnap.sector);
       } catch {
         // Network hiccup: the next heartbeat retries.
       } finally {
@@ -3845,18 +4089,20 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       realtimeCheckCustomersRef.current = null;
       realtimeCheckRef.current = null;
     };
-  }, [isLocalDataHydrated, dataEpoch, currentUser?.id]);
+  }, [isLocalDataHydrated, dataEpoch, currentUser?.id, effectiveSectorFilter]);
 
   // Initial Supabase connection check, fetch users, products, invoices & real-time sync
   useEffect(() => {
-    // Wait for IndexedDB hydration and an active logged-in account before syncing heavy domain data.
-    if (!isLocalDataHydrated || !currentUserRef.current || !isSupabaseConfigured) return;
+    // Wait for IndexedDB hydration and an active logged-in account & sector before syncing heavy domain data.
+    if (!isLocalDataHydrated || !currentUserRef.current || !isSupabaseConfigured || effectiveSectorFilter === 'none') return;
 
-    const isFreshLogin = justLoggedInRef.current;
+    const ctxSnap = { ...activeStorageCtxRef.current };
+    const prodKey = getProductsCacheKey(ctxSnap.sector);
+    const custKey = getCustomersCacheKey(ctxSnap.userId, ctxSnap.sector);
+    const invKey = getInvoicesCacheKey(ctxSnap.userId, ctxSnap.sector);
+    const visKey = getVisitsCacheKey(ctxSnap.userId, ctxSnap.sector);
+
     justLoggedInRef.current = false;
-
-    // Promotions/Announcements: مؤجل تماماً — لا نحمّلها عند الدخول أبداً (صفر egress)
-// هتتحمل لما المستخدم يفتح شاشة العروض أو بالإشارة من Realtime
 
     // 1) المستخدمون بيتغيروا نادرًا — 24 ساعة للمناديب و 12 ساعة لباقي الأدوار، ومن غير كلمات مرور للأجهزة غير الإدارية.
     const lastUsersSync = Number(localStorage.getItem(USERS_LAST_SYNC_KEY) || 0);
@@ -3871,8 +4117,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             try { localStorage.setItem(USERS_LAST_SYNC_KEY, String(Date.now())); } catch {}
           }
           if (res.success && res.users && res.users.length > 0) {
+            hasSyncedUsersFromServerRef.current = true;
             setUsers((prev) => {
-              // لا تُحفظ أو تُدمج أي بيانات اعتماد على الجهاز — Supabase Auth فقط.
               const dedup = sanitizeAndDeduplicateUsers(res.users!);
               if (dedup.removedUserIds.length > 0) {
                 dedup.removedUserIds.forEach((remId) => {
@@ -3908,7 +4154,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     }
 
         const bootHasLocalCache =
-          !isFreshLogin &&
           (productsRef.current?.length || 0) > 0 &&
           (customersRef.current?.length || 0) > 0;
         const bootJitterWait: Promise<void> =
@@ -3921,7 +4166,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                 bootJitterTimersRef.current.add(t);
               })
             : Promise.resolve();
-        // تشغيل فحص الفواتير والزيارات بعد انتهاء checkAndSyncDataVersion حتى لا يتكرر السحب مرتين بالتوازي عند دخول الأدمن.
         let secondaryBootTimer: number | null = null;
         let bootCancelled = false;
 
@@ -3932,7 +4176,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             if (productsRef.current.length === 0) {
               if (isGoogleSheetsReadMode()) {
                 const savedSources = getPublishedDataSources();
-                const prodKeys = ['products', 'products_electrical'] as const;
+                const prodKeys = ctxSnap.sector === 'electrical' ? (['products_electrical'] as const) : (['products'] as const);
                 (async () => {
                   const { fetchAndParseGoogleSheet } = await import('../services/excelService');
                   const allProducts: Product[] = [];
@@ -3945,11 +4189,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                       } catch {}
                     }
                   }
-                  if (allProducts.length > 0) {
+                  if (allProducts.length > 0 && !bootCancelled) {
                     setProducts((curr) => {
                       if (curr.length > 0) return curr;
                       const valid = sanitizeProducts(allProducts);
-                      idbSet(STORAGE_KEYS.PRODUCTS, valid).catch(() => {});
+                      idbSet(prodKey, valid).catch(() => {});
                       return valid;
                     });
                   }
@@ -3959,12 +4203,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                   fetchProductsFromSupabase({ sector: productSectorScope }),
                   fetchProductContentStamp(productSectorScope).catch(() => null),
                 ]).then(([pRes, pStamp]) => {
+                  if (bootCancelled) return;
                   if (pRes.success && pRes.products && pRes.products.length > 0) {
-                    if (pStamp) saveProductContentStamp(pStamp);
+                    if (pStamp) saveProductContentStamp(pStamp, ctxSnap.sector);
                     setProducts((curr) => {
                       if (curr.length === 0) {
                         const valid = sanitizeProducts(pRes.products!);
-                        idbSet(STORAGE_KEYS.PRODUCTS, valid).catch(() => {});
+                        idbSet(prodKey, valid).catch(() => {});
                         return valid;
                       }
                       return curr;
@@ -3973,10 +4218,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                 });
               }
             } else if (!isGoogleSheetsReadMode() && navigator.onLine !== false) {
-              // Verify if Supabase products table changed (e.g., Google Sheets pushed new rows/prices/families without bumping data version)
               fetchProductContentStamp(productSectorScope).then(async (remotePStamp) => {
+                if (bootCancelled) return;
                 if (!remotePStamp || (remotePStamp.count === null && remotePStamp.maxUpdatedAt === null)) return;
-                const storedPStamp = readProductContentStamp();
+                const storedPStamp = readProductContentStamp(ctxSnap.sector);
                 if (
                   storedPStamp &&
                   storedPStamp.count === remotePStamp.count &&
@@ -3985,22 +4230,23 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                   return;
                 }
                 const pRes = await fetchProductsFromSupabase({ sector: productSectorScope });
+                if (bootCancelled) return;
                 if (pRes.success && pRes.products && pRes.products.length > 0) {
                   const valid = sanitizeProducts(pRes.products);
                   setProducts(valid);
-                  idbSet(STORAGE_KEYS.PRODUCTS, valid).catch(() => {});
-                  saveProductContentStamp(remotePStamp);
+                  idbSet(prodKey, valid).catch(() => {});
+                  saveProductContentStamp(remotePStamp, ctxSnap.sector);
                 }
               }).catch(() => {});
             }
             const hasLocalCusts = (customersRef.current?.length || 0) > 0;
             if (hasLocalCusts && navigator.onLine !== false) {
-              // Run a 1-row content stamp check so fresh Google Sheet updates in Supabase aren't hidden by IDB
               realtimeCheckCustomersRef.current?.();
             }
             if (!hasLocalCusts) {
-              idbGet<Customer[]>(STORAGE_KEYS.CUSTOMERS).then((cached) => {
-                if (!isFreshLogin && cached && cached.length > 0) {
+              idbGet<Customer[]>(custKey).then((cached) => {
+                if (bootCancelled) return;
+                if (cached && cached.length > 0) {
                   customersRef.current = cached;
                   setCustomers(cached);
                   if (navigator.onLine !== false) realtimeCheckCustomersRef.current?.();
@@ -4008,7 +4254,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                 }
                 if (isGoogleSheetsReadMode()) {
                   const savedSources = getPublishedDataSources();
-                  const custKeys = ['customers', 'customers_electrical'] as const;
+                  const custKeys = ctxSnap.sector === 'electrical' ? (['customers_electrical'] as const) : (['customers'] as const);
                   (async () => {
                     const { fetchDetailedCustomersFromGoogleSheet } = await import(
                       '../services/customerAnalyticsService'
@@ -4023,13 +4269,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                         } catch {}
                       }
                     }
-                    if (allCustomers.length > 0) {
+                    if (allCustomers.length > 0 && !bootCancelled) {
                       const linked = linkCustomersToUsers(sanitizeCustomers(allCustomers), usersRef.current);
                       const valid = deduplicateCustomersArray(linked);
                       setCustomers((curr) => {
                         if (curr.length > 0) return curr;
-                        idbSet(STORAGE_KEYS.CUSTOMERS, valid).catch(() => {});
-                        saveLocalCustomersFingerprint(valid);
+                        idbSet(custKey, valid).catch(() => {});
+                        saveLocalCustomersFingerprint(valid, ctxSnap.userId, ctxSnap.sector);
                         return valid;
                       });
                     }
@@ -4037,10 +4283,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                   return;
                 }
                 fetchCustomersFromSupabase(customerFetchScope).then(async (cRes) => {
+                  if (bootCancelled) return;
                   if (cRes.success && cRes.customers && cRes.customers.length > 0) {
                     const linked = linkCustomersToUsers(sanitizeCustomers(cRes.customers!), usersRef.current);
                     const valid = deduplicateCustomersArray(linked);
                     const queued = await getQueuedMutations();
+                    if (bootCancelled) return;
                     const pendingCustIds = new Set(
                       queued.filter((m) => m.entity === 'customers' && m.op === 'upsert').map((m) => m.entityId)
                     );
@@ -4053,8 +4301,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                         }
                       });
                       const next = Array.from(map.values());
-                      idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
-                      saveLocalCustomersFingerprint(next);
+                      idbSet(custKey, next).catch(() => {});
+                      saveLocalCustomersFingerprint(next, ctxSnap.userId, ctxSnap.sector);
                       return next;
                     });
                   }
@@ -4063,9 +4311,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             }
           }
 
-          // تأخير كبير (5 ثواني) بعد تحديث الحالة الأساسية عشان الواجهة ترسم بسرعة،
-          // ثم فحص الفواتير والزيارات بالبصمة (لو متحدثتش بالفعل في checkAndSyncDataVersion).
-          // هذا يقلل الازدحام على الشبكة عند الدخول ويمنع تجميد الواجهة.
           secondaryBootTimer = window.setTimeout(() => {
             if (bootCancelled) return;
             loadInitialInvoices().catch(() => {});
@@ -4078,25 +4323,16 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         const deletedInvoiceIds = getDeletedInvoiceIds();
         const loadInitialInvoices = async () => {
           const activeUser = currentUserRef.current || currentUser;
-          // للمندوب: لو في كاش محلي، نكتفي بالبصمة (1 row) ولا نحمل فواتير أبداً عند الدخول
           const role = activeUser?.role;
-          const cachedInvoices = await idbGet<Invoice[]>(STORAGE_KEYS.INVOICES);
-          const hasLocalInvCache = invoicesRef.current.length > 0 || (cachedInvoices && cachedInvoices.length > 0);
-          if (role === 'sales_rep' && hasLocalInvCache && navigator.onLine !== false) {
-            // بصمة سريعة فقط — التحميل الكامل عند الطلب
-            const invScope = { ...buildInvoiceFetchScope(activeUser, usersRef.current.length > 0 ? usersRef.current : users), limit: 50 };
-            const stamp = await fetchInvoiceContentStamp(invScope);
-            if (stamp) {
-              const storedStamp = readInvoiceContentStamp(invoiceScopeKey(invScope));
-              if (storedStamp && stamp.count === storedStamp.count && stamp.maxCreatedAt === storedStamp.maxCreatedAt) {
-                return; // مفيش تغيير — نطلع من غير ما نحمل
-              }
-            }
-          }
-
           const activeUsers = usersRef.current.length > 0 ? usersRef.current : users;
-          const invScope = { ...buildInvoiceFetchScope(activeUser, activeUsers), limit: 50 };
+          const invScope = { ...buildInvoiceFetchScope(activeUser, activeUsers, activeApiSector), limit: 50 };
           const invScopeKey = invoiceScopeKey(invScope);
+          const cachedLocalInvoices =
+            invoicesRef.current.length > 0
+              ? invoicesRef.current
+              : (await idbGet<Invoice[]>(invKey)) || [];
+          const hasLocalInvCache = cachedLocalInvoices.length > 0;
+
           const stamp = await fetchInvoiceContentStamp(invScope);
           const storedStamp = readInvoiceContentStamp(invScopeKey);
           const stampMatches =
@@ -4106,13 +4342,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             stamp.maxCreatedAt === storedStamp.maxCreatedAt &&
             stamp.table === storedStamp.table;
 
-          const cachedLocalInvoices =
-            invoicesRef.current.length > 0
-              ? invoicesRef.current
-              : (await idbGet<Invoice[]>(STORAGE_KEYS.INVOICES)) || [];
+          if (role === 'sales_rep' && hasLocalInvCache && navigator.onLine !== false && stampMatches) {
+            if (invoicesRef.current.length === 0) setInvoices(cachedLocalInvoices);
+            return;
+          }
 
-          if (stampMatches && (cachedLocalInvoices.length > 0 || stamp?.count === 0)) {
-            if (invoicesRef.current.length === 0 && cachedLocalInvoices.length > 0) {
+          if (stampMatches && (hasLocalInvCache || stamp?.count === 0)) {
+            if (invoicesRef.current.length === 0 && hasLocalInvCache) {
               setInvoices(cachedLocalInvoices);
             }
             return;
@@ -4126,7 +4362,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             typeof storedStamp.count === 'number' &&
             stamp.count >= storedStamp.count &&
             stamp.table === storedStamp.table &&
-            cachedLocalInvoices.length > 0;
+            hasLocalInvCache;
 
           const res = canIncrementalInv
             ? await fetchInvoicesFromSupabase(invScope, {
@@ -4135,12 +4371,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
               })
             : await fetchInvoicesFromSupabase(invScope);
 
+          if (bootCancelled) return;
           if (res.success && res.invoices) {
             if (stamp) saveInvoiceContentStamp(invScopeKey, stamp);
             const remoteInvoices = res.invoices.filter(
               (inv) => !deletedInvoiceIds.has(inv.id) && !deletedInvoiceIds.has(inv.invoiceNumber)
             );
             const queued = await getQueuedMutations();
+            if (bootCancelled) return;
             const pendingMutations = new Set(
               queued.filter((m) => m.entity === 'invoices' && m.op === 'upsert').map((m) => m.entityId)
             );
@@ -4171,43 +4409,34 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           }
         };
 
-        // 5. Fetch Visits from Supabase (narrowed by the role scope)
+        // 5. Fetch Visits from Supabase (narrowed by the role & sector scope)
         const deletedVisitIds = getDeletedVisitIds();
         const loadInitialVisits = async () => {
           const activeUser = currentUserRef.current || currentUser;
-          // للمندوب: لو في كاش محلي، نكتفي بالبصمة (1 row) ولا نحمل زيارات أبداً عند الدخول
           const role = activeUser?.role;
-          const cachedVisits = await idbGet<CustomerVisit[]>(STORAGE_KEYS.VISITS);
-          const hasLocalVisitCache = visitsRef.current.length > 0 || (cachedVisits && cachedVisits.length > 0);
-          if (role === 'sales_rep' && hasLocalVisitCache && navigator.onLine !== false) {
-            // بصمة سريعة فقط — التحميل الكامل عند الطلب
-            const stamp = await fetchVisitContentStamp(visitFetchScope);
-            const comparable = stamp !== null && (stamp.count !== null || stamp.maxUpdatedAt !== null);
-            const stored = readVisitContentStamp();
-            if (comparable && stored && stamp.count === stored.count && stamp.maxUpdatedAt === stored.maxUpdatedAt) {
-              return; // مفيش تغيير — نطلع من غير ما نحمل
-            }
-          }
+          const currentVisits = visitsRef.current;
+          const localVisits =
+            currentVisits.length > 0 ? currentVisits : (await idbGet<CustomerVisit[]>(visKey)) || [];
+          const hasLocalVisitCache = localVisits.length > 0;
 
-          // نفس فكرة بصمة العملاء: استعلام صف واحد الأول، ومفيش تنزيل
-          // للجدول كله غير لو المحتوى اتغير فعلًا على السيرفر.
           const stamp = await fetchVisitContentStamp(visitFetchScope);
           const comparable =
             stamp !== null && (stamp.count !== null || stamp.maxUpdatedAt !== null);
-          const stored = readVisitContentStamp();
-          const currentVisits = visitsRef.current;
+          const stored = readVisitContentStamp(ctxSnap.userId, ctxSnap.sector);
           const unchanged =
             comparable &&
             stored !== null &&
             stamp!.count === stored.count &&
             stamp!.maxUpdatedAt === stored.maxUpdatedAt;
-          if (unchanged) {
-            const localVisits =
-              currentVisits.length > 0 ? currentVisits : (await idbGet<CustomerVisit[]>(STORAGE_KEYS.VISITS)) || [];
-            if (localVisits.length > 0) {
-              if (currentVisits.length === 0) setVisits(localVisits);
-              return;
-            }
+
+          if (role === 'sales_rep' && hasLocalVisitCache && navigator.onLine !== false && unchanged) {
+            if (currentVisits.length === 0) setVisits(localVisits);
+            return;
+          }
+
+          if (unchanged && hasLocalVisitCache) {
+            if (currentVisits.length === 0) setVisits(localVisits);
+            return;
           }
 
           const canIncremental =
@@ -4223,8 +4452,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
               const inc = await fetchVisitsFromSupabase(visitFetchScope, {
                 updatedSince: stored!.maxUpdatedAt!,
               });
+              if (bootCancelled) return;
               if (inc.success) {
-                saveVisitContentStamp({ count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt });
+                saveVisitContentStamp(
+                  { count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt },
+                  ctxSnap.userId,
+                  ctxSnap.sector
+                );
                 const changedVisits = (inc.visits || []).filter((v) => !deletedVisitIds.has(v.id));
                 const projectedIds = new Set(currentVisits.map((v) => v.id));
                 changedVisits.forEach((v) => projectedIds.add(v.id));
@@ -4233,6 +4467,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
                 if (!countStillShort) {
                   if (changedVisits.length > 0) {
                     const queued = await getQueuedMutations();
+                    if (bootCancelled) return;
                     const pendingVisitIds = new Set(
                       queued.filter((m) => m.entity === 'visits' && m.op === 'upsert').map((m) => m.entityId)
                     );
@@ -4257,13 +4492,18 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           }
 
           const res = await fetchVisitsFromSupabase(visitFetchScope);
-          if (!res.success || !res.visits) return;
+          if (bootCancelled || !res.success || !res.visits) return;
           if (comparable) {
-            saveVisitContentStamp({ count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt });
+            saveVisitContentStamp(
+              { count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt },
+              ctxSnap.userId,
+              ctxSnap.sector
+            );
           }
 
           const remoteVisits = res.visits.filter((v) => !deletedVisitIds.has(v.id));
           const queued = await getQueuedMutations();
+          if (bootCancelled) return;
           const pendingVisitIds = new Set(
             queued.filter((m) => m.entity === 'visits' && m.op === 'upsert').map((m) => m.entityId)
           );
@@ -4286,12 +4526,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           bootJitterTimersRef.current.forEach((t) => window.clearTimeout(t));
           bootJitterTimersRef.current.clear();
         };
-  }, [isLocalDataHydrated, dataEpoch, currentUser?.id]);
+  }, [isLocalDataHydrated, dataEpoch, currentUser?.id, effectiveSectorFilter]);
 
   // Consolidated single Realtime WebSocket channel.
-  // المندوبين كانوا متفصلين تمامًا (حماية限 الـ 200 connection)، دلوقتي بنفتح لهم
-  // قناة خفيفة واحدة تستقبل بس إشارة «نسخة بيانات جديدة» وتعمل incremental pull —
-  // من غير اشتراكات الفواتير/العملاء/الزيارات التانية.
   useEffect(() => {
     if (!isLocalDataHydrated || !isSupabaseConfigured) return;
 
@@ -4312,7 +4549,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             // jitter عشان ما كل المندوبين يسحبوش في نفس اللحظة
             signalTimer = window.setTimeout(() => {
               signalTimer = null;
-              void itemSalesSyncRef.current?.().catch(() => {});
+              realtimeCheckRef.current?.();
             }, 2000 + Math.floor(Math.random() * 6000));
           }
         )
@@ -4445,8 +4682,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             const next = customersRef.current.filter((c) => c.id !== deleted.id);
             customersRef.current = next;
             setCustomers(next);
-            idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
-            saveLocalCustomersFingerprint(next);
+            idbSet(getCustomersCacheKey(), next).catch(() => {});
+            saveLocalCustomersFingerprint(next, activeStorageCtxRef.current.userId, activeStorageCtxRef.current.sector);
           }
         })
         .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'customer_comments' }, (payload) => {
@@ -4629,7 +4866,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       lastSyncTimestamp = now;
 
       try {
-        const scope = buildInvoiceFetchScope(activeUser, usersRef.current);
+        const liveSec = activeStorageCtxRef.current.sector;
+        const apiSec = liveSec === 'home' || liveSec === 'electrical' ? liveSec : undefined;
+        const scope = buildInvoiceFetchScope(activeUser, usersRef.current, apiSec);
         const scopeKey = invoiceScopeKey(scope);
 
         // 1) بصمة صف واحد بدل تنزيل الفواتير: لو العدد وآخر تعديل/إنشاء ماتغيّروش مفيش تنزيل.
@@ -4715,7 +4954,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
       lastManualRefreshRef.current = now;
 
-      const invScope = buildInvoiceFetchScope(currentUserRef.current || currentUser, usersRef.current);
+      const liveSec = activeStorageCtxRef.current.sector;
+      const apiSec = liveSec === 'home' || liveSec === 'electrical' ? liveSec : undefined;
+      const invScope = buildInvoiceFetchScope(currentUserRef.current || currentUser, usersRef.current, apiSec);
       const scopeKey = invoiceScopeKey(invScope);
       const stamp = await fetchInvoiceContentStamp(invScope);
       const stored = readInvoiceContentStamp(scopeKey);
@@ -4799,14 +5040,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
   const updateCustomer = (updatedCust: Customer) => {
     setCustomers((prev) => prev.map((c) => (c.id === updatedCust.id ? updatedCust : c)));
-    idbSet(STORAGE_KEYS.CUSTOMERS, customers.map((c) => (c.id === updatedCust.id ? updatedCust : c)))
+    idbSet(getCustomersCacheKey(), customers.map((c) => (c.id === updatedCust.id ? updatedCust : c)))
       .catch(() => {});
     syncOrQueue('customers', 'upsert', updatedCust.id, updatedCust, () =>
       saveCustomersToSupabase([updatedCust])
     ).catch((e) => console.warn('Supabase customer update error:', e));
-    // تعديل مندوب روتيني ما بينشرش نسخة جديدة: كل broadcast كان بيسبب فحص
-    // إصدار على كل الأجهزة الموصولة + حدث Realtime لكل مشرف/مدير. البصمة
-    // المحتوى (25 دقيقة) بتوصل التحديث لباقي الأجهزة برضه من غير كل ده.
     if (currentUser?.role !== 'sales_rep') {
       publishDataVersionUpdate({
         scope: 'customers',
@@ -4817,7 +5055,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
   const deleteCustomer = (customerId: string) => {
     setCustomers((prev) => prev.filter((c) => c.id !== customerId));
-    idbSet(STORAGE_KEYS.CUSTOMERS, customers.filter((c) => c.id !== customerId)).catch(() => {});
+    idbSet(getCustomersCacheKey(), customers.filter((c) => c.id !== customerId)).catch(() => {});
     // Delete from Supabase, or park it in the offline outbox until the network returns.
     syncOrQueue('customers', 'delete', customerId, undefined, () =>
       deleteCustomerFromSupabase(customerId)
@@ -4835,7 +5073,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const duplicatesRemoved = Math.max(0, originalCount - cleaned.length);
     if (duplicatesRemoved > 0 || cleaned.length !== originalCount) {
       setCustomers(cleaned);
-      idbSet(STORAGE_KEYS.CUSTOMERS, cleaned).catch(() => {});
+      idbSet(getCustomersCacheKey(), cleaned).catch(() => {});
       saveCustomersToSupabase(cleaned).catch((e) => console.warn('Supabase customer clean save error:', e));
     }
     return {
@@ -4973,10 +5211,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     } else {
       finalCustomers = deduplicateCustomersArray([...customers, ...sectorFilteredIncoming]);
     }
-    idbSet(STORAGE_KEYS.CUSTOMERS, finalCustomers).catch(() => {});
+    idbSet(getCustomersCacheKey(), finalCustomers).catch(() => {});
     setCustomers(finalCustomers);
     authoritativeWriteAtRef.current = Date.now();
-    saveLocalCustomersFingerprint(finalCustomers);
+    saveLocalCustomersFingerprint(finalCustomers, activeStorageCtxRef.current.userId, activeStorageCtxRef.current.sector);
 
     try {
       const res = await replaceCustomersInSupabase(finalCustomers);
@@ -5018,7 +5256,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const clearCustomersCacheAndReset = () => {
     setCustomers([]);
     setActiveCustomersCache([]);
-    idbDelete(STORAGE_KEYS.CUSTOMERS).catch(() => {});
+    idbDelete(getCustomersCacheKey()).catch(() => {});
     localStorage.removeItem(STORAGE_KEYS.CUSTOMERS);
   };
 
@@ -5188,7 +5426,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         return c;
       });
       if (changed) {
-        idbSet(STORAGE_KEYS.CUSTOMERS, updated);
+        idbSet(getCustomersCacheKey(), updated);
       }
       return changed ? updated : prev;
     });
@@ -5237,7 +5475,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const needsLinking = prev.some((c) => (c.salesRepName || c.repName) && !c.repId);
       if (!needsLinking && prev.length > 0) return prev;
       const linked = linkCustomersToUsers(prev, users);
-      idbSet(STORAGE_KEYS.CUSTOMERS, linked).catch(() => {});
+      idbSet(getCustomersCacheKey(), linked).catch(() => {});
       return linked;
     });
   }, [users]);
@@ -5261,33 +5499,42 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     comments: true,
   });
 
-  // Sync high-capacity data directly to IndexedDB (preventing LocalStorage quota overflow & main-thread freezes).
-  // Debounced per-key inside debouncedIdbSet; returning the cancel handle ensures overlapping edits coalesce cleanly.
+  // Sync high-capacity data directly to IndexedDB per active scope (sector / user+sector).
+  // Guards against writing into a newly switched scope before its own hydration completes.
   useEffect(() => {
     if (!isLocalDataHydrated) return;
+    const ctx = activeStorageCtxRef.current;
+    if (ctx.sector === 'none') return;
+    if (hydratedScopeRef.current.userId !== ctx.userId || hydratedScopeRef.current.sector !== ctx.sector) return;
     if (initialIdbSkipRef.current.products) {
       initialIdbSkipRef.current.products = false;
       return;
     }
-    return debouncedIdbSet(STORAGE_KEYS.PRODUCTS, products, 1800);
+    return debouncedIdbSet(getProductsCacheKey(ctx.sector), products, 1800);
   }, [products, isLocalDataHydrated]);
 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
+    const ctx = activeStorageCtxRef.current;
+    if (ctx.sector === 'none') return;
+    if (hydratedScopeRef.current.userId !== ctx.userId || hydratedScopeRef.current.sector !== ctx.sector) return;
     if (initialIdbSkipRef.current.customers) {
       initialIdbSkipRef.current.customers = false;
       return;
     }
-    return debouncedIdbSet(STORAGE_KEYS.CUSTOMERS, customers, 1800);
+    return debouncedIdbSet(getCustomersCacheKey(ctx.userId, ctx.sector), customers, 1800);
   }, [customers, isLocalDataHydrated]);
 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
+    const ctx = activeStorageCtxRef.current;
+    if (ctx.sector === 'none') return;
+    if (hydratedScopeRef.current.userId !== ctx.userId || hydratedScopeRef.current.sector !== ctx.sector) return;
     if (initialIdbSkipRef.current.invoices) {
       initialIdbSkipRef.current.invoices = false;
       return;
     }
-    return debouncedIdbSet(STORAGE_KEYS.INVOICES, invoices, 1500);
+    return debouncedIdbSet(getInvoicesCacheKey(ctx.userId, ctx.sector), invoices, 1500);
   }, [invoices, isLocalDataHydrated]);
 
   useEffect(() => {
@@ -5301,11 +5548,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
   useEffect(() => {
     if (!isLocalDataHydrated) return;
+    const ctx = activeStorageCtxRef.current;
+    if (ctx.sector === 'none') return;
+    if (hydratedScopeRef.current.userId !== ctx.userId || hydratedScopeRef.current.sector !== ctx.sector) return;
     if (initialIdbSkipRef.current.targets) {
       initialIdbSkipRef.current.targets = false;
       return;
     }
-    return debouncedIdbSet(STORAGE_KEYS.TARGETS, targets, 1500);
+    return debouncedIdbSet(getTargetsCacheKey(ctx.userId, ctx.sector), targets, 1500);
   }, [targets, isLocalDataHydrated]);
 
   useEffect(() => {
@@ -5329,41 +5579,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   }, [customerComments, isLocalDataHydrated]);
 
   useEffect(() => {
-    idbSet(STORAGE_KEYS.USERS, users);
-    safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(users));
-  }, [users]);
-
-  useEffect(() => {
     safeLocalStorageSet(STORAGE_KEYS.CLOUDINARY, JSON.stringify(cloudinaryConfig));
   }, [cloudinaryConfig]);
 
   useEffect(() => {
     safeLocalStorageSet(STORAGE_KEYS.ACCOUNTING_LOGS, JSON.stringify(accountingLogs));
   }, [accountingLogs]);
-
-  useEffect(() => {
-    if (currentUser && isAuthenticated) {
-      safeLocalStorageSet(STORAGE_KEYS.CURRENT_USER_ID, currentUser.id);
-      safeLocalStorageSet(STORAGE_KEYS.IS_AUTH, 'true');
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_ID);
-      safeLocalStorageSet(STORAGE_KEYS.IS_AUTH, 'false');
-    }
-  }, [currentUser, isAuthenticated]);
-
-  // Real-time Session Watcher: If current user is deleted or deactivated by admin, immediately terminate session
-  useEffect(() => {
-    if (currentUser && isAuthenticated && users.length > 0) {
-      const activeAccount = users.find((u) => u.id === currentUser.id);
-      if (!activeAccount) {
-        logout();
-        setAuthTerminationNotice('تم حذف هذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
-      } else if (!activeAccount.isActive || activeAccount.approvalStatus === 'rejected') {
-        logout();
-        setAuthTerminationNotice('تم إيقاف هذا الحساب من قبل إدارة شركة دريم. تم إنهاء الجلسة فوراً.');
-      }
-    }
-  }, [users, currentUser, isAuthenticated]);
 
   // Multi-tab sync for immediate logout on user deletion across tabs
   useEffect(() => {
@@ -5409,10 +5630,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const clearScopedContentStamps = useCallback(() => {
     try {
       localStorage.removeItem(CUSTOMER_CONTENT_STAMP_KEY);
+      localStorage.removeItem(PRODUCT_CONTENT_STAMP_KEY);
       localStorage.removeItem(VISIT_CONTENT_STAMP_KEY);
       localStorage.removeItem(TARGET_CONTENT_STAMP_KEY);
       Object.keys(localStorage).forEach((key) => {
         if (
+          key.startsWith(`${CUSTOMER_CONTENT_STAMP_KEY}::`) ||
+          key.startsWith(`${PRODUCT_CONTENT_STAMP_KEY}::`) ||
+          key.startsWith(`${VISIT_CONTENT_STAMP_KEY}::`) ||
           key.startsWith(`${TARGET_CONTENT_STAMP_KEY}::`) ||
           key.startsWith(INVOICE_CONTENT_STAMP_PREFIX) ||
           key.startsWith(FORECAST_MONTH_STAMP_PREFIX)
@@ -5454,40 +5679,19 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
     }
 
-    // ===== Fast Path: cached offline profile for instant login =====
-    // إذا كان في بروفايل محفوظ محلياً لنفس المستخدم، ندخل فوراً ونحدث في الباكجروند
-    const cachedProfile = readOfflineSafeProfile(cachedUserId);
-    const cachedUserId = localStorage.getItem(STORAGE_KEYS.CURRENT_USER_ID);
-    const isSameUser = cachedProfile && cachedUserId && (
-      cachedProfile.id === cachedUserId ||
-      cachedProfile.username?.toLowerCase() === cleanId ||
-      cachedProfile.email?.toLowerCase() === cleanId
-    );
-    if (isSameUser && cachedProfile.approvalStatus === 'active' && cachedProfile.isActive !== false) {
-      // دخول فوري بالبيانات المخزنة
-      justLoggedInRef.current = true;
-      clearScopedContentStamps();
-      currentUserRef.current = cachedProfile;
-      setCurrentUser(cachedProfile);
-      setIsAuthenticated(true);
-      localStorage.setItem(STORAGE_KEYS.IS_AUTH, 'true');
-      setDataEpoch((n) => n + 1);
-
-      // تحديث البروفايل في الباكجروند (non-blocking)
-      refreshProfileAfterLogin(identifier, cleanPass, cachedProfile).catch(() => {});
-
-      return { success: true, message: `مرحباً بك ${cachedProfile.name}`, user: cachedProfile };
-    }
-
     // ===== 1) التحقق المركزي (Supabase Auth) — قبل أي استعلام عن المستخدم =====
-    // التحقق أولًا يمنع معرفة "هل اسم المستخدم موجود؟" بدون كلمة مرور صحيحة.
+    // التحقق أولًا يمنع معرفة "هل اسم المستخدم موجود؟" بدون كلمة مرور صحيحة،
+    // كما يمنع أي ثغرة TDZ أو تجاوز لكلمة المرور عبر الكاش المحلي.
     const serverOutcome = await tryServerSignIn(identifier, cleanPass);
     if (serverOutcome.kind !== 'success') {
+      const isOfflineNow = typeof navigator !== 'undefined' && navigator.onLine === false;
       const message =
         serverOutcome.kind === 'unavailable'
           ? serverOutcome.reason === 'lookup-rpc-missing'
             ? 'خدمة المصادقة المركزية غير مكتملة الإعداد على قاعدة البيانات. راجع إدارة النظام (ملف p0_auth_lockdown.sql).'
-            : 'تعذر الاتصال بخدمة المصادقة المركزية. تحقق من اتصال الإنترنت ثم حاول مرة أخرى.'
+            : isOfflineNow
+              ? 'لا يوجد اتصال بالإنترنت حالياً. يرجى الاتصال بالشبكة للتحقق من كلمة المرور وتسجيل الدخول.'
+              : 'تعذر الاتصال بخدمة المصادقة المركزية. تحقق من اتصال الإنترنت ثم حاول مرة أخرى.'
           : serverOutcome.kind === 'no-server-account'
             ? 'هذا الحساب غير مُفعّل على المصادقة المركزية بعد. يرجى التواصل مع الإدارة لتفعيل الحساب.'
             : 'اسم المستخدم أو كلمة المرور غير صحيحة.';
@@ -5497,7 +5701,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         message,
       };
     }
-    const serverAuthUserId: string = serverOutcome.authUserId;
+
     if (serverOutcome.email) {
       linkAuthUserToProfile(serverOutcome.authUserId, serverOutcome.email).catch(() => {});
     }
@@ -5513,11 +5717,25 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       found = profileRes.value;
     } else if (supabaseRes.status === 'fulfilled' && supabaseRes.value?.success && supabaseRes.value.user) {
       found = supabaseRes.value.user;
-      // دمج المستخدم في القائمة المحلية
+    } else {
+      // Fallback آمن فقط بعد نجاح المصادقة من السيرفر إذا تعثرت قراءة الملف مؤقتاً
+      const cachedProfile = readOfflineSafeProfile(serverOutcome.authUserId);
+      if (
+        cachedProfile &&
+        (cachedProfile.auth_user_id === serverOutcome.authUserId ||
+          (serverOutcome.email && cachedProfile.email?.toLowerCase() === serverOutcome.email.toLowerCase()))
+      ) {
+        found = cachedProfile;
+      }
+    }
+
+    if (found) {
+      // دمج المستخدم في القائمة المحلية قبل تفعيل الجلسة لمنع أي خروج لحظي خاطئ
+      const verifiedFound = found;
       setUsers((prev) => {
         const map = new Map<string, User>();
         prev.forEach((u) => map.set(u.id, u));
-        map.set(found!.id, found!);
+        map.set(verifiedFound.id, verifiedFound);
         const updated = Array.from(map.values());
         safeLocalStorageSet(STORAGE_KEYS.USERS, JSON.stringify(updated));
         return updated;
@@ -5550,10 +5768,13 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
     }
 
-    // الدور والفرع والاعتماد اتقرأوا من القاعدة أعلاه، والفحوصات تمت قبل كده.
-
+    // الاحتفاظ بالكتالوج وكاش الحساب المحفوظ في IndexedDB مع إعادة تعيين مؤقتات الفحص في الذاكرة فقط
     justLoggedInRef.current = true;
-    clearScopedContentStamps();
+    noStampPulledAtRef.current = 0;
+    customerFullFetchAtRef.current = 0;
+    lastBootCustScopeSigRef.current = '';
+    lastBootHeartbeatAtRef.current = 0;
+    customerDownloadInFlightRef.current = false;
     saveOfflineSafeProfile(found);
     currentUserRef.current = found;
     setCurrentUser(found);
@@ -5563,43 +5784,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     setDataEpoch((n) => n + 1);
 
     return { success: true, message: `مرحباً بك ${found.name}`, user: found };
-  };
-
-  // تحديث البروفايل بعد الدخول السريع (باكجروند)
-  const refreshProfileAfterLogin = async (
-    identifier: string,
-    cleanPass: string,
-    currentCached: User
-  ): Promise<void> => {
-    try {
-      const serverOutcome = await tryServerSignIn(identifier, cleanPass);
-      if (serverOutcome.kind !== 'success') return;
-
-      if (serverOutcome.email) {
-        await linkAuthUserToProfile(serverOutcome.authUserId, serverOutcome.email);
-      }
-
-      const [profileRes, supabaseRes] = await Promise.allSettled([
-        fetchMyProfile(),
-        findUserInSupabase(identifier),
-      ]);
-
-      let freshProfile: User | null = null;
-      if (profileRes.status === 'fulfilled' && profileRes.value) {
-        freshProfile = profileRes.value;
-      } else if (supabaseRes.status === 'fulfilled' && supabaseRes.value?.success && supabaseRes.value.user) {
-        freshProfile = supabaseRes.value.user;
-      }
-
-      if (freshProfile && freshProfile.approvalStatus === 'active' && freshProfile.isActive !== false) {
-        saveOfflineSafeProfile(freshProfile);
-        currentUserRef.current = freshProfile;
-        setCurrentUser(freshProfile);
-        localStorage.setItem(STORAGE_KEYS.CURRENT_USER_ID, freshProfile.id);
-      }
-    } catch {
-      // فشل صامت — البروفايل المخزن محلياً يظل صالحاً
-    }
   };
 
   const register = async (userData: {
@@ -5660,6 +5844,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   };
 
   const logout = () => {
+    // مسح الجلسة فقط دون إتلاف كاش البيانات والكتالوج المحفوظ محلياً في IndexedDB
+    hydratedSigRef.current = '';
+    hydratedScopeRef.current = { userId: null, sector: 'home' };
+    setIsLocalDataHydrated(false);
     currentUserRef.current = null;
     setCurrentUser(null);
     setIsAuthenticated(false);
@@ -5669,23 +5857,12 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER_DATA);
     clearCart();
 
-    [STORAGE_KEYS.PRODUCTS, STORAGE_KEYS.INVOICES, STORAGE_KEYS.CUSTOMERS, STORAGE_KEYS.VISITS, STORAGE_KEYS.TARGETS].forEach(
-      (k) => {
-        try {
-          localStorage.removeItem(k);
-        } catch {
-          /* تجاهل */
-        }
-      }
-    );
-    idbSet(STORAGE_KEYS.PRODUCTS, []).catch(() => {});
-    idbSet(STORAGE_KEYS.INVOICES, []).catch(() => {});
-    idbSet(STORAGE_KEYS.CUSTOMERS, []).catch(() => {});
-    idbSet(STORAGE_KEYS.VISITS, []).catch(() => {});
-    idbSet(STORAGE_KEYS.TARGETS, []).catch(() => {});
-    clearLocalDataVersion();
-    setGlobalDataVersion(null);
-    clearScopedContentStamps();
+    noStampPulledAtRef.current = 0;
+    customerFullFetchAtRef.current = 0;
+    lastBootCustScopeSigRef.current = '';
+    lastBootHeartbeatAtRef.current = 0;
+    customerDownloadInFlightRef.current = false;
+
     setProducts([]);
     setInvoices([]);
     setCustomers([]);
@@ -6724,7 +6901,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const next = [primaryInvoice, ...invoicesRef.current];
     invoicesRef.current = next;
     setInvoices(next);
-    idbSet(STORAGE_KEYS.INVOICES, next).catch(() => {});
+    idbSet(getInvoicesCacheKey(), next).catch(() => {});
 
     // Auto-detect and register new customer or link to representative
     if (orderData.customerName && orderData.customerName.trim() !== 'عميل تجزئة عام') {
@@ -6755,7 +6932,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         };
         setCustomers((prev) => {
           const nextCusts = prev.map((c) => (c.id === matched.id ? updatedCust : c));
-          idbSet(STORAGE_KEYS.CUSTOMERS, nextCusts).catch(() => {});
+          idbSet(getCustomersCacheKey(), nextCusts).catch(() => {});
           return nextCusts;
         });
         syncOrQueue('customers', 'upsert', updatedCust.id, updatedCust, () =>
@@ -7673,7 +7850,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (updatedCustomerRecord) {
         customersRef.current = nextCusts;
         setCustomers(nextCusts);
-        idbSet(STORAGE_KEYS.CUSTOMERS, nextCusts).catch(() => {});
+        idbSet(getCustomersCacheKey(), nextCusts).catch(() => {});
         const toSync = updatedCustomerRecord;
         syncOrQueue('customers', 'upsert', toSync.id, toSync, () =>
           saveCustomersToSupabase([toSync])
@@ -7713,7 +7890,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     });
     invoicesRef.current = nextInvoices;
     setInvoices(nextInvoices);
-    idbSet(STORAGE_KEYS.INVOICES, nextInvoices).catch(() => {});
+    idbSet(getInvoicesCacheKey(), nextInvoices).catch(() => {});
 
     // 4. Record Audit Log
     recordAuditLog({
@@ -7802,7 +7979,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (updatedCust) {
         customersRef.current = nextCusts;
         setCustomers(nextCusts);
-        idbSet(STORAGE_KEYS.CUSTOMERS, nextCusts).catch(() => {});
+        idbSet(getCustomersCacheKey(), nextCusts).catch(() => {});
         const toSync = updatedCust;
         syncOrQueue('customers', 'upsert', toSync.id, toSync, () =>
           saveCustomersToSupabase([toSync])
@@ -7830,7 +8007,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     // 3. Immediately persist updated invoices to IndexedDB
     const remaining = invoices.filter((inv) => inv.id !== targetId);
-    idbSet(STORAGE_KEYS.INVOICES, remaining).catch(() => {});
+    idbSet(getInvoicesCacheKey(), remaining).catch(() => {});
 
     // 4. Record Audit Log
     recordAuditLog({
@@ -7971,7 +8148,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         return p;
       });
 
-      idbSet(STORAGE_KEYS.PRODUCTS, updated);
+      idbSet(getProductsCacheKey(), updated);
       saveProductsToSupabase(updated).then((result) => {
         if (!result.success) {
           console.warn('Supabase image links sync warning:', result.error || 'Product save failed.');
@@ -8018,7 +8195,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
   const wipeAllProductsAndData = async (options?: { wipeInvoices?: boolean }) => {
     setProducts([]);
     setCart([]);
-    idbSet(STORAGE_KEYS.PRODUCTS, []);
+    idbSet(getProductsCacheKey(), []);
     idbSet(STORAGE_KEYS.CART, []);
 
     if (options?.wipeInvoices) {
@@ -8027,7 +8204,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         console.warn('Supabase invoice wipe warning:', remoteDelete.error);
       }
       setInvoices([]);
-      idbSet(STORAGE_KEYS.INVOICES, []);
+      idbSet(getInvoicesCacheKey(), []);
       safeLocalStorageSet(STORAGE_KEYS.DELETED_INVOICE_IDS, JSON.stringify([]));
     }
 
@@ -8384,7 +8561,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
     setCustomers((prev) => {
       const next = prev.map((c) => (c.id === customer.id ? updatedCustomer : c));
-      idbSet(STORAGE_KEYS.CUSTOMERS, next).catch(() => {});
+      idbSet(getCustomersCacheKey(), next).catch(() => {});
       return next;
     });
 
@@ -8501,7 +8678,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       };
     });
     setCustomers(nextCustomers);
-    idbSet(STORAGE_KEYS.CUSTOMERS, nextCustomers).catch((error) =>
+    idbSet(getCustomersCacheKey(), nextCustomers).catch((error) =>
       console.warn('Imported visit customer history persistence notice:', error)
     );
 
@@ -8544,7 +8721,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         };
       });
       setCustomers(updatedCustomers);
-      idbSet(STORAGE_KEYS.CUSTOMERS, updatedCustomers).catch((error) =>
+      idbSet(getCustomersCacheKey(), updatedCustomers).catch((error) =>
         console.warn('Imported visit sync-state persistence notice:', error)
       );
     }
@@ -8988,7 +9165,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     const found = users.find((u) => u.id === userId);
     if (found) {
       justLoggedInRef.current = true;
-      clearScopedContentStamps();
+      noStampPulledAtRef.current = 0;
+      customerFullFetchAtRef.current = 0;
+      lastBootCustScopeSigRef.current = '';
+      lastBootHeartbeatAtRef.current = 0;
+      customerDownloadInFlightRef.current = false;
       currentUserRef.current = found;
       setCurrentUser(found);
       setIsAuthenticated(true);
@@ -9016,9 +9197,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const validCustomers = deduplicateCustomersArray(linked);
 
       setCustomers(validCustomers);
-      idbSet(STORAGE_KEYS.CUSTOMERS, validCustomers).catch(() => {});
+      idbSet(getCustomersCacheKey(), validCustomers).catch(() => {});
+      saveLocalCustomersFingerprint(validCustomers, activeStorageCtxRef.current.userId, activeStorageCtxRef.current.sector);
 
-      const added = custRes.isFullFetch ? validCustomers.length : incoming.length;
       return {
         success: true,
         message: custRes.isFullFetch
@@ -9039,7 +9220,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const incoming = res.targets || [];
       const merged = mergeTargetsIncremental(targetsRef.current, incoming.map(mapTargetRowToRecord));
       setTargets(merged);
-      idbSet(STORAGE_KEYS.TARGETS, merged).catch(() => {});
+      idbSet(getTargetsCacheKey(), merged).catch(() => {});
       return { success: true, message: `تم تحميل ${merged.length} هدف`, count: merged.length };
     } catch (err: any) {
       return { success: false, message: err?.message || 'حدث خطأ أثناء تحميل الأهداف' };
@@ -9058,7 +9239,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
       const merged = mergeTargetsIncremental(targetsRef.current, incoming.map(mapTargetRowToRecord));
       setTargets(merged);
-      idbSet(STORAGE_KEYS.TARGETS, merged).catch(() => {});
+      idbSet(getTargetsCacheKey(), merged).catch(() => {});
       return {
         success: true,
         message: res.isFullFetch
@@ -9084,7 +9265,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       }
       const merged = mergeProductsIncremental(productsRef.current, incoming);
       setProducts(merged);
-      idbSet(STORAGE_KEYS.PRODUCTS, merged).catch(() => {});
+      idbSet(getProductsCacheKey(), merged).catch(() => {});
       return {
         success: true,
         message: res.isFullFetch

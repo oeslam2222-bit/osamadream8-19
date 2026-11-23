@@ -18,7 +18,7 @@ import { resolveDisplayPrice, stripPlaceholderText } from '../../services/produc
 import { resolveProductPromotion } from '../../services/promotionService';
 import { getBranchStockForProduct } from '../../services/arabicMatchingService';
 import { Product } from '../../types';
-import { COMPANY_WAREHOUSES } from '../ProductCatalog';
+import { COMPANY_WAREHOUSES } from './warehouses';
 
 interface ProductCardProps {
   product: Product;

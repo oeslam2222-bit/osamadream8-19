@@ -318,8 +318,28 @@ export interface UploadOptions {
 
 export async function uploadImageToCloudinary(
   file: File,
-  options: UploadOptions = {}
+  options?: UploadOptions
+): Promise<{ url: string; publicId?: string }>;
+export async function uploadImageToCloudinary(
+  file: File,
+  config?: CloudinaryConfig,
+  folder?: string
+): Promise<{ url: string; publicId?: string }>;
+export async function uploadImageToCloudinary(
+  file: File,
+  configOrOptions: UploadOptions | CloudinaryConfig = {},
+  legacyFolder?: string
 ): Promise<{ url: string; publicId?: string }> {
+  const isLegacyConfig =
+    typeof legacyFolder === 'string' ||
+    (configOrOptions != null &&
+      typeof configOrOptions === 'object' &&
+      ('cloudName' in configOrOptions || 'uploadPreset' in configOrOptions || 'folderPrefix' in configOrOptions));
+
+  const options: UploadOptions = isLegacyConfig
+    ? { config: configOrOptions as CloudinaryConfig, folder: legacyFolder }
+    : (configOrOptions as UploadOptions);
+
   const {
     config = DEFAULT_CLOUDINARY_CONFIG,
     folder = 'tantawy_visits',
@@ -353,7 +373,7 @@ export async function uploadImageToCloudinary(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       // XMLHttpRequest للـ progress (fetch ما يدعمش progress)
-      await new Promise<void>((resolve, reject) => {
+      const responseText = await new Promise<string>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', uploadUrl);
 
@@ -367,7 +387,7 @@ export async function uploadImageToCloudinary(
 
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
-            resolve();
+            resolve(xhr.responseText || '{}');
           } else {
             reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText}`));
           }
@@ -379,10 +399,7 @@ export async function uploadImageToCloudinary(
         xhr.send(formData);
       });
 
-      // Parse response
-      const data = JSON.parse(
-        (await fetch(uploadUrl, { method: 'POST', body: formData })).text()
-      ) as {
+      const data = JSON.parse(responseText) as {
         secure_url?: string;
         public_id?: string;
         error?: { message?: string };

@@ -182,50 +182,82 @@ export async function publishNewDataVersion(params: {
  * Purge stale local caches for specific scopes to prevent duplicates
  * Safely preserves user authentication, active cart, and pending offline orders.
  */
-export async function purgeLocalDataCaches(scope: SyncScope = 'all'): Promise<void> {
+export async function purgeLocalDataCaches(
+  scope: SyncScope = 'all',
+  options?: { userId?: string; sector?: 'home' | 'electrical' }
+): Promise<void> {
   const tasks: Promise<any>[] = [];
+  const sectorsToPurge: Array<'home' | 'electrical'> = options?.sector
+    ? [options.sector]
+    : ['home', 'electrical'];
+  const userId = options?.userId;
+
+  const purgeUserSectorKey = (baseKey: string) => {
+    if (userId) {
+      sectorsToPurge.forEach((sec) => {
+        tasks.push(idbDelete(`${baseKey}::${userId}::${sec}`));
+      });
+    }
+  };
 
   if (scope === 'all' || scope === 'products') {
-    tasks.push(idbDelete('dream_dist_products_v9'));
-    tasks.push(idbDelete('dream_dist_products_v8'));
-    try {
-      window.localStorage.removeItem('dream_dist_products_v9');
-      window.localStorage.removeItem('dream_dist_products_v8');
-    } catch {}
+    sectorsToPurge.forEach((sec) => {
+      tasks.push(idbDelete(`dream_dist_products_v9::${sec}`));
+    });
+    if (!options?.sector) {
+      tasks.push(idbDelete('dream_dist_products_v9'));
+      tasks.push(idbDelete('dream_dist_products_v8'));
+      try {
+        window.localStorage.removeItem('dream_dist_products_v9');
+        window.localStorage.removeItem('dream_dist_products_v8');
+      } catch {}
+    }
   }
 
   if (scope === 'all' || scope === 'customers') {
-    tasks.push(idbDelete('dream_dist_customers_v9'));
-    tasks.push(idbDelete('dream_dist_customers_v8'));
-    tasks.push(idbDelete('dream_dist_customers_v3'));
-    try {
-      window.localStorage.removeItem('dream_dist_customers_v9');
-      window.localStorage.removeItem('dream_dist_customers_v8');
-      window.localStorage.removeItem('dream_dist_customers_v3');
-    } catch {}
+    purgeUserSectorKey('dream_dist_customers_v9');
+    if (!options?.sector) {
+      tasks.push(idbDelete('dream_dist_customers_v9'));
+      tasks.push(idbDelete('dream_dist_customers_v8'));
+      tasks.push(idbDelete('dream_dist_customers_v3'));
+      try {
+        window.localStorage.removeItem('dream_dist_customers_v9');
+        window.localStorage.removeItem('dream_dist_customers_v8');
+        window.localStorage.removeItem('dream_dist_customers_v3');
+      } catch {}
+    }
   }
 
   if (scope === 'all' || scope === 'targets') {
-    tasks.push(idbDelete('dream_dist_targets_v1'));
-    try {
-      window.localStorage.removeItem('dream_dist_targets_v1');
-    } catch {}
+    purgeUserSectorKey('dream_dist_targets_v1');
+    if (!options?.sector) {
+      tasks.push(idbDelete('dream_dist_targets_v1'));
+      try {
+        window.localStorage.removeItem('dream_dist_targets_v1');
+      } catch {}
+    }
   }
 
   if (scope === 'all' || scope === 'invoices') {
-    tasks.push(idbDelete('dream_dist_invoices_v9'));
-    tasks.push(idbDelete('dream_dist_invoices_v8'));
-    try {
-      window.localStorage.removeItem('dream_dist_invoices_v9');
-      window.localStorage.removeItem('dream_dist_invoices_v8');
-    } catch {}
+    purgeUserSectorKey('dream_dist_invoices_v9');
+    if (!options?.sector) {
+      tasks.push(idbDelete('dream_dist_invoices_v9'));
+      tasks.push(idbDelete('dream_dist_invoices_v8'));
+      try {
+        window.localStorage.removeItem('dream_dist_invoices_v9');
+        window.localStorage.removeItem('dream_dist_invoices_v8');
+      } catch {}
+    }
   }
 
   if (scope === 'all' || scope === 'visits') {
-    tasks.push(idbDelete('dream_dist_customer_visits_v1'));
-    try {
-      window.localStorage.removeItem('dream_dist_customer_visits_v1');
-    } catch {}
+    purgeUserSectorKey('dream_dist_customer_visits_v1');
+    if (!options?.sector) {
+      tasks.push(idbDelete('dream_dist_customer_visits_v1'));
+      try {
+        window.localStorage.removeItem('dream_dist_customer_visits_v1');
+      } catch {}
+    }
   }
 
   // Purge specific data caches without destroying user login, active cart, or offline queue!
@@ -244,7 +276,7 @@ export async function purgeLocalDataCaches(scope: SyncScope = 'all'): Promise<vo
     'dream_dist_forecast_plans_v1',
   ];
 
-  if (scope === 'all') {
+  if (scope === 'all' && !options?.sector) {
     keysToPurge.forEach((key) => {
       tasks.push(idbDelete(key));
       try {
