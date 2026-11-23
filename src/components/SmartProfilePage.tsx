@@ -1427,7 +1427,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               displayedReps.map((rep) => {
                 const salesPct = pctOf(rep.salesAchieved, rep.salesTarget);
                 const repUser = findRepUser(users, rep.repName);
-                const repAvatar = repUser?.avatar || '/assets/rep-avatar.jpg';
+                const repAvatar = '/assets/rep-avatar.jpg';
                 return (
                   <div
                     key={rep.repKey}
@@ -1561,7 +1561,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <img
-                    src={selectedRepUser?.avatar || '/assets/rep-avatar.jpg'}
+                    src="/assets/rep-avatar.jpg"
                     alt={selectedRep.repName}
                     referrerPolicy="no-referrer"
                     onError={(e) => {

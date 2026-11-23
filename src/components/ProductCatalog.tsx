@@ -689,6 +689,22 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
   const modalPromoInfo = selectedProductForModal
     ? resolveProductPromotion(selectedProductForModal, promotions)
     : null;
+  const modalVariants = useMemo(() => {
+    if (!selectedProductForModal) return [];
+    const clean = (v?: string | null) => String(v || '').trim().replace(/^#/, '').toLowerCase();
+    const baseCode = clean(selectedProductForModal.code);
+    if (!baseCode) return [selectedProductForModal];
+    const seen = new Set<string>();
+    const list: Product[] = [];
+    for (const c of products) {
+      if (clean(c.code) !== baseCode) continue;
+      const key = clean(c.unifiedCode) || `${String(c.color || '').trim().toLowerCase()}|${c.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      list.push(c);
+    }
+    return list.length > 0 ? list : [selectedProductForModal];
+  }, [selectedProductForModal, products]);
 
   // Add item to cart with quantity (ذكي: لو الشدة = 1 يضاف كقطع، ولو أكبر يضاف ككرتونة)
   const handleAddToCart = useCallback((product: Product) => {
@@ -1908,6 +1924,61 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
                 <X className="w-4 h-4" />
               </button>
             </div>
+
+            <div
+              className="w-full max-h-72 aspect-square bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden flex items-center justify-center cursor-zoom-in"
+              onClick={() => {
+                const src = getProductImageUrl(selectedProductForModal, cloudinaryConfig);
+                if (src && !src.startsWith('data:image/svg+xml')) {
+                  setLightboxImage({
+                    src,
+                    alt: stripPlaceholderText(selectedProductForModal.name) || selectedProductForModal.code || 'صورة المنتج',
+                  });
+                }
+              }}
+              title="اضغط لتكبير الصورة"
+            >
+              <ProductImage
+                product={selectedProductForModal}
+                cloudinaryConfig={cloudinaryConfig}
+                targetSize={560}
+                sizeVariant="modal"
+                containerClassName="w-full h-full flex items-center justify-center"
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+
+            {modalVariants.length > 1 && (
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-black text-slate-500">صور/ألوان الكود ({modalVariants.length})</div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {modalVariants.map((v) => {
+                    const active = v.id === selectedProductForModal.id;
+                    return (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => setSelectedProductForModal(v)}
+                        className={`shrink-0 w-16 rounded-xl border p-1 transition ${active ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                        title={`${v.color || 'بدون لون'} ${v.unifiedCode ? `#${String(v.unifiedCode).replace(/^#/, '')}` : ''}`}
+                      >
+                        <div className="w-full aspect-square rounded-lg bg-slate-50 overflow-hidden flex items-center justify-center">
+                          <ProductImage
+                            product={v}
+                            cloudinaryConfig={cloudinaryConfig}
+                            targetSize={96}
+                            sizeVariant="thumbnail"
+                            containerClassName="w-full h-full flex items-center justify-center"
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                        <div className="mt-1 text-[9px] font-black text-slate-700 truncate">{v.color || '—'}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* الألوان / الأكواد الموحدة لنفس كود المنتج */}
             <ProductVariantPicker

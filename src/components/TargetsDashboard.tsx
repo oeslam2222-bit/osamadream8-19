@@ -336,7 +336,7 @@ export const TargetsDashboard: React.FC = () => {
         rep,
         ...agg,
         records,
-        avatar: user?.avatar || '/assets/rep-avatar.jpg',
+        avatar: '/assets/rep-avatar.jpg',
         branch,
         supervisor,
         sector,
@@ -379,7 +379,7 @@ export const TargetsDashboard: React.FC = () => {
 
     return {
       repName: inPeriod?.rep || openRepName,
-      avatar: inPeriod?.avatar || user?.avatar || '/assets/rep-avatar.jpg',
+      avatar: '/assets/rep-avatar.jpg',
       branch: inPeriod?.branch || user?.branchName || 'غير محدد',
       supervisor: inPeriod?.supervisor || user?.supervisorName || 'بدون مشرف',
       sector: inPeriod?.sector || user?.sector,

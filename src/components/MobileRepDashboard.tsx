@@ -463,7 +463,7 @@ export const MobileRepDashboard: React.FC<MobileRepDashboardProps> = ({
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <img
-              src={currentUser?.avatar || '/pwa-192x192.png'}
+              src="/assets/rep-avatar.jpg"
               alt={currentUser?.name || 'المندوب'}
               className="w-12 h-12 rounded-2xl object-cover border-2 border-[var(--app-warn)] shadow-sm shrink-0"
             />

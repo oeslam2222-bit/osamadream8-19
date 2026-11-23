@@ -57,7 +57,7 @@ import { UserRole } from '../types';
 import { InstallAppModal } from './InstallAppModal';
 import { SystemSettingsAndAboutModal } from './SystemSettingsAndAboutModal';
 import { InternalNotificationCenter } from './InternalNotificationCenter';
-import { UserProfileAvatarModal } from './UserProfileAvatarModal';
+/* تم تعطيل رفع الصورة الشخصية — الأفاتار الرسمي ثابت لكل المستخدمين */
 import { DatabaseConnectionModal } from './DatabaseConnectionModal';
 import { SyncStatusCenter } from './SyncStatusCenter';
 
@@ -117,7 +117,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
-  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  // Avatar upload disabled: official avatar is fixed for all users.
   const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
   const [isDbModalOpen, setIsDbModalOpen] = useState(false);
   const [isSyncCenterOpen, setIsSyncCenterOpen] = useState(false);
@@ -313,7 +313,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="ds-sidebar__user">
           <div className="ds-sidebar__user-avatar" aria-hidden="true">
             <img
-              src={currentUser.avatar || '/assets/rep-avatar.jpg'}
+              src={DEFAULT_EXECUTIVE_AVATAR}
               alt={displayName}
               referrerPolicy="no-referrer"
               className="w-full h-full object-cover rounded-[10px]"
@@ -575,7 +575,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <span className="ds-avatar" aria-hidden="true">
                   <img
-                    src={currentUser.avatar || '/assets/rep-avatar.jpg'}
+                    src={DEFAULT_EXECUTIVE_AVATAR}
                     alt={displayName}
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover rounded-full"
@@ -598,7 +598,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <div className="ds-popover__head">
                       <span className="ds-avatar ds-popover__avatar" aria-hidden="true">
                         <img
-                          src={currentUser.avatar || '/assets/rep-avatar.jpg'}
+                          src={DEFAULT_EXECUTIVE_AVATAR}
                           alt={displayName}
                           referrerPolicy="no-referrer"
                           className="w-full h-full object-cover rounded-2xl"
@@ -624,17 +624,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {currentUser.role === 'supervisor' && <div className="ds-row"><span>عدد المناديب</span><span>{supervisedRepsCount}</span></div>}
                       <div className="ds-row"><span>حالة الحساب</span><span style={{ color: 'var(--app-success-text)' }}>مفعّل ونشط</span></div>
                     </div>
-                    <button
-                      type="button"
-                      className="ds-btn ds-btn--outline mb-2 w-full flex items-center justify-center gap-2 text-xs font-bold py-2 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl cursor-pointer"
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        setIsAvatarModalOpen(true);
-                      }}
-                    >
-                      <Camera className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                      <span>تغيير الصورة الشخصية (Cloudinary)</span>
-                    </button>
+                    {/* تغيير الصورة الشخصية معطّل — الأفاتار الرسمي ثابت */}
                     <button
                       type="button"
                       className="ds-btn ds-btn--danger"
@@ -789,17 +779,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <Settings aria-hidden="true" />
                 <span>إعدادات النظام والخصوصية</span>
               </button>
-              <button
-                type="button"
-                className="ds-btn ds-btn--soft-primary"
-                onClick={() => {
-                  setIsMobileDrawerOpen(false);
-                  setIsAvatarModalOpen(true);
-                }}
-              >
-                <Camera aria-hidden="true" />
-                <span>تغيير صورتي الشخصية (Cloudinary)</span>
-              </button>
+              {/* تغيير الصورة الشخصية معطّل — الأفاتار الرسمي ثابت */}
               <button type="button" className="ds-btn ds-btn--soft-danger" onClick={() => { setIsMobileDrawerOpen(false); logout(); }}>
                 <LogOut aria-hidden="true" />
                 <span>تسجيل الخروج</span>
@@ -824,11 +804,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         />
       )}
 
-      {/* مودال تغيير صورة الملف الشخصي وتخزينها في Cloudinary */}
-      <UserProfileAvatarModal
-        isOpen={isAvatarModalOpen}
-        onClose={() => setIsAvatarModalOpen(false)}
-      />
+      {/* رفع الصورة الشخصية معطّل — الأفاتار الرسمي ثابت */}
 
       {/* مودال حالة قاعدة البيانات والمزامنة */}
       <DatabaseConnectionModal

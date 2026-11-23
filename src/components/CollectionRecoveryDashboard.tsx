@@ -297,7 +297,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     const byId = new Map<string, string>();
     const byName = new Map<string, string>();
     users.forEach((u) => {
-      const av = u.avatar || '/assets/rep-avatar.jpg';
+      const av = '/assets/rep-avatar.jpg';
       if (u.id) byId.set(u.id, av);
       if (u.username) byId.set(u.username, av);
       if (u.name) {
@@ -728,7 +728,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         <div className="tg-card !flex-row !items-center !justify-between gap-3 border border-emerald-200 bg-gradient-to-l from-emerald-50 to-white">
           <div className="flex items-center gap-3 min-w-0">
             <img
-              src={topRep.avatarUrl || '/assets/rep-avatar.jpg'}
+              src="/assets/rep-avatar.jpg"
               alt={topRep.repName}
               referrerPolicy="no-referrer"
               onError={(e) => {
@@ -1145,7 +1145,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                     <td className="py-3 pr-4 pl-2">
                       <div className="flex items-center gap-3">
                         <img
-                          src={row.avatarUrl || '/assets/rep-avatar.jpg'}
+                          src="/assets/rep-avatar.jpg"
                           alt={row.repName}
                           referrerPolicy="no-referrer"
                           onError={(e) => {
@@ -1196,7 +1196,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
             >
               <div className="flex items-center gap-3">
                 <img
-                  src={rep.avatarUrl || '/assets/rep-avatar.jpg'}
+                  src="/assets/rep-avatar.jpg"
                   alt={rep.repName}
                   referrerPolicy="no-referrer"
                   onError={(e) => {

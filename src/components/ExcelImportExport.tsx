@@ -310,8 +310,16 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       }
       const sectorTagged = res.customers.map((c) => ({
         ...c,
-        sector: activeSectorTab,
+        sector: (c.sector === 'electrical' || c.sector === 'home' || c.sector === 'both' || c.sector === 'all')
+          ? c.sector
+          : activeSectorTab,
       }));
+      const importedHome = sectorTagged.filter((c) => !c.sector || c.sector === 'home' || c.sector === 'both' || c.sector === 'all').length;
+      const importedElec = sectorTagged.filter((c) => c.sector === 'electrical' || c.sector === 'both' || c.sector === 'all').length;
+      const hasMixed = sectorTagged.some((c) => c.sector === 'electrical') && sectorTagged.some((c) => !c.sector || c.sector === 'home');
+      const sectorLabel = hasMixed
+        ? 'القطاعين (منزلي + كهرباء)'
+        : (activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية');
       const importResult = await importCustomersList(sectorTagged, 'merge');
       if (!importResult.success) {
         throw new Error(importResult.message);
@@ -323,7 +331,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       }
       setSheetSuccess((prev) => ({
         ...prev,
-        [key]: `تم بنجاح تحديث ${importResult.count} عميل فريد لـ (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'})، وحذف أي مكررات سابقة. البيانات محدثة ومتاحة الآن للمناديب والمشرفين.`
+        [key]: `تم بنجاح تحديث ${importResult.count} عميل فريد لـ (${sectorLabel})${hasMixed ? ` — منزلي: ${importedHome.toLocaleString('ar-EG')} / كهرباء: ${importedElec.toLocaleString('ar-EG')}` : ''}، وحذف أي مكررات سابقة. البيانات محدثة ومتاحة الآن للمناديب والمشرفين.`
       }));
       return { ok: true, message: `تم تحديث ${importResult.count} عميل فريد` };
     } catch (err: any) {
@@ -818,14 +826,22 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
       setMasterSyncProgress(`جاري دمج وحفظ ${res.customers.length.toLocaleString('ar-EG')} عميل...`);
       const sectorTagged = res.customers.map((c) => ({
         ...c,
-        sector: activeSectorTab,
+        sector: (c.sector === 'electrical' || c.sector === 'home' || c.sector === 'both' || c.sector === 'all')
+          ? c.sector
+          : activeSectorTab,
       }));
+      const importedHome = sectorTagged.filter((c) => !c.sector || c.sector === 'home' || c.sector === 'both' || c.sector === 'all').length;
+      const importedElec = sectorTagged.filter((c) => c.sector === 'electrical' || c.sector === 'both' || c.sector === 'all').length;
+      const hasMixed = sectorTagged.some((c) => c.sector === 'electrical') && sectorTagged.some((c) => !c.sector || c.sector === 'home');
+      const sectorLabel = hasMixed
+        ? 'القطاعين (منزلي + كهرباء)'
+        : (activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية');
       const importRes = await importCustomersList(sectorTagged, 'merge');
       setMasterSyncPercent(100);
       setMasterSyncProgress(`تم حفظ ${importRes.count?.toLocaleString('ar-EG') || ''} عميل بنجاح.`);
       setSheetSuccess((prev) => ({
         ...prev,
-        [key]: `تم بنجاح رفع ملف الإكسل وتحديث ${importRes.count} عميل لـ (${activeSectorTab === 'electrical' ? 'قطاع الكهرباء' : 'قطاع الأدوات المنزلية'}) بدون تكرار!`
+        [key]: `تم بنجاح رفع ملف الإكسل وتحديث ${importRes.count} عميل لـ (${sectorLabel})${hasMixed ? ` — منزلي: ${importedHome.toLocaleString('ar-EG')} / كهرباء: ${importedElec.toLocaleString('ar-EG')}` : ''} بدون تكرار!`
       }));
     } catch (err: any) {
       setMasterSyncProgress(null);
@@ -1478,9 +1494,9 @@ function onEdit(e) {
           }`}
         >
           <Home className="w-4 h-4" />
-          <span>قطاع الأدوات المنزلية (Household)</span>
+          <span>قاعدة العملاء (منزلي + كهرباء)</span>
           <span className="text-[11px] px-2.5 py-0.5 rounded-lg font-bold bg-white/15 text-white tabular-nums">
-            {products.filter((p) => !p.sector || p.sector === 'home').length} صنف
+            شيت واحد
           </span>
         </button>
       </div>
@@ -1506,7 +1522,7 @@ function onEdit(e) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-base sm:text-lg font-black text-slate-900">
-                        1. شيت قاعدة العملاء والمديونيات ({sectorTitle})
+                        1. شيت قاعدة العملاء والمديونيات (منزلي + كهرباء)
                       </h3>
                       <span className={`text-[11px] px-2 py-0.5 rounded-lg font-bold ${
                         isConnected
@@ -1520,25 +1536,37 @@ function onEdit(e) {
                       </span>
                     </div>
                     <p className="text-xs sm:text-[13px] font-medium text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                      قاعدة بيانات عملاء {sectorTitle}، الأكواد، الفروع، المديونيات الحالية، الحد الائتماني، وتعيين المناديب والمشرفين
+                      قاعدة بيانات عملاء القطاعين (منزلي + كهرباء)، الأكواد، الفروع، المديونيات الحالية، الحد الائتماني، وتعيين المناديب والمشرفين. لو الشيت فيه عمود قطاع، هيتم توزيع البيانات تلقائيًا.
                     </p>
                   </div>
                 </div>
 
                 {/* Quick Metrics */}
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  <div className="bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-center">
-                    <div className="text-[11px] text-slate-600 dark:text-slate-300 font-bold">العملاء الحاليين</div>
-                    <div className="text-sm font-black text-slate-900 font-mono tabular-nums mt-0.5">
-                      {customers.filter((c) => activeSectorTab === 'electrical' ? c.sector === 'electrical' : (!c.sector || c.sector === 'home')).length.toLocaleString('ar-EG')} عميل
-                    </div>
-                  </div>
-                  <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] px-3.5 py-2 rounded-xl text-center">
-                    <div className="text-[11px] text-[var(--app-risk-text)] font-bold">إجمالي المديونيات</div>
-                    <div className="text-sm font-black text-[var(--app-risk-text)] font-mono tabular-nums mt-0.5">
-                      {formatCurrency(customers.filter((c) => activeSectorTab === 'electrical' ? c.sector === 'electrical' : (!c.sector || c.sector === 'home')).reduce((sum, c) => sum + (c.currentBalance ?? c.balance ?? 0), 0))}
-                    </div>
-                  </div>
+                  {(() => {
+                    const homeCustomers = customers.filter((c) => !c.sector || c.sector === 'home' || c.sector === 'both' || c.sector === 'all');
+                    const electricalCustomers = customers.filter((c) => c.sector === 'electrical' || c.sector === 'both' || c.sector === 'all');
+                    const homeDebt = homeCustomers.reduce((sum, c) => sum + (Number(c.currentBalance ?? c.balance ?? 0) || 0), 0);
+                    const electricalDebt = electricalCustomers.reduce((sum, c) => sum + (Number(c.currentBalance ?? c.balance ?? 0) || 0), 0);
+                    return (
+                      <>
+                        <div className="bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-center min-w-[170px]">
+                          <div className="text-[11px] text-slate-600 dark:text-slate-300 font-bold">العملاء الحاليين (القطاعين)</div>
+                          <div className="mt-1 space-y-0.5 text-[11px] font-black tabular-nums">
+                            <div className="flex items-center justify-between gap-3"><span className="text-slate-500">منزلي</span><span className="text-slate-900">{homeCustomers.length.toLocaleString('ar-EG')}</span></div>
+                            <div className="flex items-center justify-between gap-3"><span className="text-slate-500">كهرباء</span><span className="text-slate-900">{electricalCustomers.length.toLocaleString('ar-EG')}</span></div>
+                          </div>
+                        </div>
+                        <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] px-3.5 py-2 rounded-xl text-center min-w-[220px]">
+                          <div className="text-[11px] text-[var(--app-risk-text)] font-bold">إجمالي المديونيات (القطاعين)</div>
+                          <div className="mt-1 space-y-0.5 text-[11px] font-black tabular-nums">
+                            <div className="flex items-center justify-between gap-3"><span className="text-[var(--app-risk-text)]/80">منزلي</span><span className="text-[var(--app-risk-text)]">{formatCurrency(homeDebt)}</span></div>
+                            <div className="flex items-center justify-between gap-3"><span className="text-[var(--app-risk-text)]/80">كهرباء</span><span className="text-[var(--app-risk-text)]">{formatCurrency(electricalDebt)}</span></div>
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
               </div>
 

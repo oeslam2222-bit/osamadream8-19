@@ -13,7 +13,7 @@ import { formatCompactCurrency, formatCurrency } from '../services/invoiceServic
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import { Customer, CustomerVisit, Invoice, TargetRecord } from '../types';
 import { IconBadge } from './ui/IconBadge';
-import { UserProfileAvatarModal } from './UserProfileAvatarModal';
+const DEFAULT_EXECUTIVE_AVATAR = '/assets/rep-avatar.jpg';
 import { LiveClock } from './LiveClock';
 import { KPICard } from './KPICard';
 import { MiniGauge } from './ui/PerformanceGauge';
@@ -68,7 +68,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   const isSupervisor = currentUser?.role === 'supervisor';
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
-  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+  // Avatar upload disabled: official avatar is fixed for all users.
   const [selectedTargetMonth, setSelectedTargetMonth] = useState<number>(11); // 11: نوفمبر, 10: أكتوبر
 
   // Filter mode for Today vs All
@@ -589,27 +589,19 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
 
         <div className="relative z-10 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <button
-              type="button"
-              className="relative shrink-0 cursor-pointer group focus:outline-hidden"
-              onClick={() => setIsAvatarModalOpen(true)}
-              title="تعديل أو رفع صورتك الشخصية"
-            >
+            <div className="relative shrink-0" title={displayName}>
               <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden border-2 border-white dark:border-[#26364D] shadow-sm ring-2 ring-blue-500/20 bg-slate-100 dark:bg-[#17243A]">
                 <img
-                  src={currentUser?.avatar || '/assets/rep-avatar.jpg'}
+                  src={DEFAULT_EXECUTIVE_AVATAR}
                   alt={displayName}
                   referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                  className="w-full h-full object-cover"
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src = '/assets/rep-avatar.jpg';
+                    (e.target as HTMLImageElement).src = DEFAULT_EXECUTIVE_AVATAR;
                   }}
                 />
               </div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#2563EB] text-white flex items-center justify-center shadow-xs border border-white dark:border-[#111C2E]">
-                <Camera className="w-2.5 h-2.5 stroke-[2.2]" />
-              </div>
-            </button>
+            </div>
 
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
@@ -956,11 +948,7 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
         </button>
       </div>
 
-      {/* مودال تعديل ورفع صورة المندوب عبر Cloudinary */}
-      <UserProfileAvatarModal
-        isOpen={isAvatarModalOpen}
-        onClose={() => setIsAvatarModalOpen(false)}
-      />
+      {/* رفع الصورة الشخصية معطّل — الأفاتار الرسمي ثابت */}
     </div>
   );
 };

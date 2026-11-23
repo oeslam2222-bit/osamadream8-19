@@ -91,7 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="px-4 py-4 border-b border-slate-200 dark:border-[#26364D]">
               <div className="flex items-center gap-3">
                 <img
-                  src={currentUser.avatar || '/assets/rep-avatar.jpg'}
+                  src="/assets/rep-avatar.jpg"
                   alt={currentUser.name}
                   referrerPolicy="no-referrer"
                   className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shadow-xs"
