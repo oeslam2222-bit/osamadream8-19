@@ -234,3 +234,9 @@ html, body { overflow-x: clip !important; }
   .shell-side .ds-sidebar__item { justify-content: center !important; padding: 0 !important; }
   .shell-side .ds-sidebar__item[aria-current="page"]::before { display: none; }
 }
+
+/* مركز الصلاحيات: المودال كان max-w-2xl (672px) وجواه عمود 360px → التفاصيل مخنوقة */
+.pm-modal .pm-foot-note b { white-space: nowrap; }
+@media (min-width: 1024px) and (max-width: 1180px) {
+  .pm-modal .pm-body { grid-template-columns: 300px minmax(0, 1fr) !important; }
+}

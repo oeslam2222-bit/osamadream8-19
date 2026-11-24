@@ -136,7 +136,9 @@ const PendingSyncView = lazyNamed(() => import('./components/PendingSyncView'), 
  * حد أقصى 5 تبويبات (الأحدث آخرًا) عشان الذاكرة والخلفية ما يزيدوش، والرئيسية
  * مثبّتة لأنها أكثر وجهة رجوع عند المندوبين.
  */
-const MOUNTED_TABS_LIMIT = 5;
+// كان 5: كل شاشة مخفية بتتعاد رسمها مع أي تحديث في AppContext (مزامنة، فاتورة…)،
+// فـ5 شاشات تقيلة = تهنيج. 2 = الرئيسية + الشاشة الحالية (+ اللي قبلها لحظياً).
+const MOUNTED_TABS_LIMIT = 2;
 const PINNED_TABS: readonly string[] = ['home'];
 const ACTIVE_TAB_STORAGE_KEY = 'tantawy_active_tab';
 
@@ -165,9 +167,14 @@ function persistActiveTab(tab: string, userId?: string): void {
 }
 
 /** غلاف تبويب: بيختفي بـ display:none وهو محفوظ، وبيظهر فورًا عند الرجوع. */
-const TabPane: React.FC<{ hidden: boolean; children: React.ReactNode }> = ({ hidden, children }) => (
+const TabPaneInner: React.FC<{ hidden: boolean; children: React.ReactNode }> = ({ hidden, children }) => (
   <div style={hidden ? { display: 'none' } : undefined}>{children}</div>
 );
+/**
+ * الشاشة المخفية «متجمّدة»: لما MainLayout يتعاد رسمه، مابنعيدش رسم شاشة
+ * مخفية كانت مخفية قبل كده. بترجع تتحدث أول ما تظهر.
+ */
+const TabPane = React.memo(TabPaneInner, (prev, next) => prev.hidden && next.hidden);
 
 const MainLayout: React.FC = () => {
   const { isDark } = useTheme();
