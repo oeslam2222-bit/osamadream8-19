@@ -477,7 +477,35 @@ export function parseTargetRawRows(rawRows: any[][]): TargetRecord[] {
  * 2) فحص اسم/كود الفرع واسم المندوب (أكواد الفروع الكهربائية أو كلمة "كهرب" / "منزل").
  * 3) قطاع المندوب نفسه أو كود فرعه من قائمة المستخدمين.
  * 4) استنتاج القطاع من عملاء المندوب (إن وُجدت قائمة العملاء).
+ *
+ * ملاحظة الأداء: الاستنتاج ده بيتم نداءه من عشرات الأماكن لكل سجل هدف، وكان
+ * بيمر على كل المستخدمين وكل العملاء في كل مرة (O(targets × customers) مع
+ * تطبيع عربي لكل مقارنة). بندوّب النتيجة في WeakMap مفتاحها مصفوفة
+ * users ثم مصفوفة customers ثم خصائص السجل، فالنتيجة بتتحسب مرة واحدة لكل
+ * (نسخة بيانات + سجل) وترجع فورًا بعد كده. الـWeakMap بيمسح نفسه تلقائيًا
+ * لما مصفوفة البيانات تتغيّر.
  */
+type InferredSector = 'home' | 'electrical' | undefined;
+
+const sectorInferenceCache = new WeakMap<
+  User[],
+  WeakMap<object, Map<string, InferredSector>>
+>();
+
+function getSectorCacheFor(allUsers: User[], customers: object[]) {
+  let byCustomers = sectorInferenceCache.get(allUsers);
+  if (!byCustomers) {
+    byCustomers = new WeakMap();
+    sectorInferenceCache.set(allUsers, byCustomers);
+  }
+  let cache = byCustomers.get(customers);
+  if (!cache) {
+    cache = new Map();
+    byCustomers.set(customers, cache);
+  }
+  return cache;
+}
+
 export function inferTargetSector(
   record: TargetRecord,
   allUsers: User[] = [],
@@ -490,8 +518,30 @@ export function inferTargetSector(
     branchName?: string;
   }> = []
 ): 'home' | 'electrical' | undefined {
+  // المسار السريع: لو السجل نفسه بيحدد القطاع مفيش داعي لأي بحث.
   if (record.sector === 'home' || record.sector === 'electrical') return record.sector;
 
+  const cache = getSectorCacheFor(allUsers, customers);
+  const cacheKey = `${record.branch || ''}\u0000${record.repName || ''}\u0000${record.sector || ''}\u0000${record.notes || ''}`;
+  if (cache.has(cacheKey)) return cache.get(cacheKey);
+
+  const result = computeTargetSector(record, allUsers, customers);
+  cache.set(cacheKey, result);
+  return result;
+}
+
+function computeTargetSector(
+  record: TargetRecord,
+  allUsers: User[] = [],
+  customers: Array<{
+    sector?: 'home' | 'electrical' | 'both' | 'all';
+    name?: string;
+    storeName?: string;
+    repName?: string;
+    salesRepName?: string;
+    branchName?: string;
+  }> = []
+): 'home' | 'electrical' | undefined {
   const { sector: noteSector } = extractTargetSectorFromNotes(record.notes);
   if (noteSector) return noteSector;
 
@@ -581,47 +631,60 @@ export function filterTargetsForUser(
       });
     }
 
-    return records.filter((r) => {
-      const cleanRepName = (r.repName || '').trim();
-      if (!cleanRepName) return false;
+    // كل السجلات لنفس المندوب بترجع نفس القرار، فبنحسبه مرة واحدة لكل اسم+فرع.
+    // وتطبيع اسم المستخدم والتوكنز كان بيتكرر لكل سجل — بقى مرة واحدة هنا.
+    const normU = normalizeArabicText(currentName).replace(/^(مندوب|كود|أستاذ|أ|م)\s*/g, '').trim();
+    const tokensU = normU.split(/\s+/).filter((t) => t.length >= 2);
+    const userDigits = ((currentUser.username || '') + ' ' + (currentUser.id || '') + ' ' + ((currentUser as any).code || '')).match(/\d+/g)?.join('');
+    const aliasList = Array.from(repAliases)
+      .filter(Boolean)
+      .map((alias) => {
+        const norm = normalizeArabicText(alias);
+        return {
+          alias,
+          lower: alias.toLowerCase(),
+          norm,
+          compact: norm.replace(/\s+/g, ''),
+          digits: alias.match(/\d+/g)?.join(''),
+        };
+      });
+
+    const decideSalesRepRecord = (cleanRepName: string, recordBranch?: string): boolean => {
+      // التطبيع بيتحسب مرة واحدة للسجل بدل مرة لكل alias.
+      const normRepName = normalizeArabicText(cleanRepName);
+      const compactRepName = normRepName.replace(/\s+/g, '');
+      const lowerRepName = cleanRepName.toLowerCase();
 
       // 1. Direct Arabic & alias match
-      for (const alias of repAliases) {
-        if (!alias) continue;
-        if (isArabicNameMatch(cleanRepName, alias)) return true;
-        if (normalizeArabicText(cleanRepName) === normalizeArabicText(alias)) return true;
-        if (cleanRepName.toLowerCase() === alias.toLowerCase()) return true;
+      for (const a of aliasList) {
+        if (isArabicNameMatch(cleanRepName, a.alias)) return true;
+        if (normRepName === a.norm) return true;
+        if (lowerRepName === a.lower) return true;
 
-        const normR = normalizeArabicText(cleanRepName);
-        const normA = normalizeArabicText(alias);
         // احتواء بالاسم الكامل فقط لما الجانب الأقصر اسم متعدد الكلمات
         // (زي "أحمد سيد" ⊂ "أحمد سيد محمد"). الـ substring الأعمى كان بيسمح
         // لـ "أحمد" (اسم مفرد) ياخد صف "أحمد سيد" بتاع زميله.
-        const shorter = normA.length <= normR.length ? normA : normR;
-        const longer = normA.length <= normR.length ? normR : normA;
+        const shorter = a.norm.length <= normRepName.length ? a.norm : normRepName;
+        const longer = a.norm.length <= normRepName.length ? normRepName : a.norm;
         if (shorter.includes(' ') && longer.includes(shorter)) return true;
 
         // Compact spaces
-        if (normR.replace(/\s+/g, '') === normA.replace(/\s+/g, '')) return true;
+        if (compactRepName === a.compact) return true;
       }
 
       // 2. Numeric rep code match (e.g. "15 - أحمد" or "(15)" or "كود 15")
       const repDigits = cleanRepName.match(/\d+/g)?.join('');
       if (repDigits) {
-        const userDigits = ((currentUser.username || '') + ' ' + (currentUser.id || '') + ' ' + ((currentUser as any).code || '')).match(/\d+/g)?.join('');
         if (userDigits && userDigits.includes(repDigits)) return true;
-        for (const alias of repAliases) {
-          const aliasDigits = alias.match(/\d+/g)?.join('');
-          if (aliasDigits && aliasDigits === repDigits) return true;
+        for (const a of aliasList) {
+          if (a.digits && a.digits === repDigits) return true;
         }
       }
 
-// 3. Branch-scoped token matching: if within rep's branch, match name tokens
-       if (currentUser.branchName && isBranchMatch(r.branch, currentUser.branchName, { allowUnassigned: false })) {
-        const normR = normalizeArabicText(cleanRepName).replace(/^(مندوب|كود|أستاذ|أ|م)\s*/g, '').trim();
-        const normU = normalizeArabicText(currentName).replace(/^(مندوب|كود|أستاذ|أ|م)\s*/g, '').trim();
+      // 3. Branch-scoped token matching: if within rep's branch, match name tokens
+      if (currentUser.branchName && isBranchMatch(recordBranch, currentUser.branchName, { allowUnassigned: false })) {
+        const normR = normRepName.replace(/^(مندوب|كود|أستاذ|أ|م)\s*/g, '').trim();
         const tokensR = normR.split(/\s+/).filter((t) => t.length >= 2);
-        const tokensU = normU.split(/\s+/).filter((t) => t.length >= 2);
 
         if (tokensR.length >= 2 && tokensU.length >= 2) {
           const matchCount = tokensR.filter((tr) => tokensU.some((tu) => tr === tu || isArabicNameMatch(tr, tu))).length;
@@ -641,6 +704,18 @@ export function filterTargetsForUser(
       }
 
       return false;
+    };
+
+    const decisionCache = new Map<string, boolean>();
+    return records.filter((r) => {
+      const cleanRepName = (r.repName || '').trim();
+      if (!cleanRepName) return false;
+      const cacheKey = `${cleanRepName}\u0000${r.branch || ''}`;
+      const cached = decisionCache.get(cacheKey);
+      if (cached !== undefined) return cached;
+      const decision = decideSalesRepRecord(cleanRepName, r.branch);
+      decisionCache.set(cacheKey, decision);
+      return decision;
     });
   }
 
@@ -648,6 +723,8 @@ export function filterTargetsForUser(
   if (currentUser.role === 'supervisor') {
     const currentName = currentUser.name || '';
     const currentUsername = currentUser.username || '';
+    const normCurrentName = normalizeArabicText(currentName);
+    const normUsername = currentUsername ? normalizeArabicText(currentUsername) : '';
 
     // Collect supervised rep names from users list
     const directSupervised = allUsers.filter((u) => u.supervisorId === currentUser.id);
@@ -658,37 +735,58 @@ export function filterTargetsForUser(
       if (c.supervisorName && c.repName) {
         if (
           isArabicNameMatch(c.supervisorName, currentName) ||
-          normalizeArabicText(c.supervisorName) === normalizeArabicText(currentName)
+          normalizeArabicText(c.supervisorName) === normCurrentName
         ) {
           supervisedNames.add(normalizeArabicText(c.repName));
         }
       }
     });
+    const supervisedNameList = Array.from(supervisedNames);
 
-    return records.filter((r) => {
-// Must belong to supervisor's branch or general branch
-       if (!isBranchMatch(r.branch, currentUser.branchName, { allowUnassigned: false })) return false;
+    const decideSupervisorRecord = (repName: string | undefined, recordBranch?: string): boolean => {
+      // Must belong to supervisor's branch or general branch
+      if (!isBranchMatch(recordBranch, currentUser.branchName, { allowUnassigned: false })) return false;
+
+      // التطبيع مرة واحدة للسجل بدل 4 مرات.
+      const normRep = normalizeArabicText(repName);
 
       // Check if record is for the supervisor himself
-      if (isArabicNameMatch(r.repName, currentName)) return true;
-      if (normalizeArabicText(r.repName) === normalizeArabicText(currentName)) return true;
-      if (currentUsername && normalizeArabicText(r.repName).includes(normalizeArabicText(currentUsername))) return true;
+      if (isArabicNameMatch(repName, currentName)) return true;
+      if (normRep === normCurrentName) return true;
+      if (normUsername && normRep.includes(normUsername)) return true;
 
       // Check if it matches any of his supervised reps
-      if (supervisedNames.size > 0) {
-        const normRep = normalizeArabicText(r.repName);
-        return Array.from(supervisedNames).some((sn) => isArabicNameMatch(r.repName, sn) || normRep.includes(sn));
+      if (supervisedNameList.length > 0) {
+        return supervisedNameList.some((sn) => isArabicNameMatch(repName, sn) || normRep.includes(sn));
       }
 
       // No explicit assignment means the record is not visible to this supervisor.
       // Branch membership alone must never grant access to the whole branch team.
       return false;
+    };
+
+    const decisionCache = new Map<string, boolean>();
+    return records.filter((r) => {
+      const cacheKey = `${r.repName || ''}\u0000${r.branch || ''}`;
+      const cached = decisionCache.get(cacheKey);
+      if (cached !== undefined) return cached;
+      const decision = decideSupervisorRecord(r.repName, r.branch);
+      decisionCache.set(cacheKey, decision);
+      return decision;
     });
   }
 
   // 4. Branch Manager: strictly sees records of his branch only
   if (currentUser.role === 'branch_manager') {
-    return records.filter((r) => isBranchMatch(r.branch, currentUser.branchName, { allowUnassigned: false }));
+    const branchDecision = new Map<string, boolean>();
+    return records.filter((r) => {
+      const key = r.branch || '';
+      const cached = branchDecision.get(key);
+      if (cached !== undefined) return cached;
+      const decision = isBranchMatch(r.branch, currentUser.branchName, { allowUnassigned: false });
+      branchDecision.set(key, decision);
+      return decision;
+    });
   }
 
   return [];

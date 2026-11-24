@@ -511,6 +511,51 @@ export function findPromotionForProduct(
   });
 }
 
+/**
+ * نفس منطق findPromotionForProduct بالظبط، بس أكواد وأسماء العروض بتتنضّف مرة
+ * واحدة بدل ما تتنضّف (regex) لكل صنف × كل عرض. الكتالوج كان بيعمل
+ * ~3,400 صنف × مئات العروض من التنضيف ده مع كل فتح → تهنيج.
+ * بيرجّع أول عرض مطابق بنفس ترتيب القائمة الأصلية.
+ */
+export function buildPromotionMatcher(
+  promotions: PromotionOffer[]
+): (prod: Pick<Product, 'code' | 'unifiedCode' | 'name'> & { color?: string; size?: string }) => PromotionOffer | undefined {
+  const prepared = (promotions || [])
+    .filter((promo) => !promo.status || promo.status === 'نشط')
+    .map((promo) => ({
+      promo,
+      pCode: cleanProductCode(promo.productCode).toLowerCase(),
+      pUnified: cleanProductCode(promo.unifiedCode?.replace(/^#/, '')).toLowerCase(),
+      pBase: extractBaseProductCode(promo.productCode).toLowerCase(),
+      pName: (promo.productName || '').trim().toLowerCase(),
+    }));
+  if (prepared.length === 0) return () => undefined;
+
+  return (prod) => {
+    if (!prod) return undefined;
+    const prodCode = cleanProductCode(prod.code).toLowerCase();
+    const prodUnified = cleanProductCode(prod.unifiedCode?.replace(/^#/, '')).toLowerCase();
+    const prodBase = extractBaseProductCode(prod.code).toLowerCase();
+    const prodName = (prod.name || '').trim().toLowerCase();
+    for (const { promo, pCode, pUnified, pBase, pName } of prepared) {
+      if (!variantMatches(promo, prod)) continue;
+      if (pCode && (pCode === prodCode || pCode === prodBase)) return promo;
+      if (pBase && (pBase === prodBase || pBase === prodCode)) return promo;
+      if (pUnified && (pUnified === prodUnified || pUnified === prodCode)) return promo;
+      if (
+        pName &&
+        prodName &&
+        (pName === prodName ||
+          (prodName.length > 5 && pName.includes(prodName)) ||
+          (pName.length > 5 && prodName.includes(pName)))
+      ) {
+        return promo;
+      }
+    }
+    return undefined;
+  };
+}
+
 export interface ResolvedProductPromoInfo {
   hasPromo: boolean;
   promo?: PromotionOffer;
@@ -526,7 +571,9 @@ export interface ResolvedProductPromoInfo {
  */
 export function resolveProductPromotion(
   prod: Product,
-  promotions: PromotionOffer[] = []
+  promotions: PromotionOffer[] = [],
+  /** اختياري: matcher جاهز من buildPromotionMatcher — أسرع بكتير لما بنحسب لكل الأصناف */
+  matcher?: ReturnType<typeof buildPromotionMatcher>
 ): ResolvedProductPromoInfo {
   const factor = prod.cartonQuantity && prod.cartonQuantity > 0 ? prod.cartonQuantity : prod.factor || 1;
   const rawPiece = Number(prod.piecePrice || prod.salesPrice || 0);
@@ -541,7 +588,7 @@ export function resolveProductPromotion(
         ? Math.round((originalCartonPrice / factor) * 100) / 100
         : originalCartonPrice;
 
-  const matchedPromo = findPromotionForProduct(prod, promotions);
+  const matchedPromo = matcher ? matcher(prod) : findPromotionForProduct(prod, promotions);
   const inlinePromoPrice = Number(prod.promoPrice || prod.offerPrice || 0);
   const inlineDiscount = Number(prod.discountPercent || prod.discountPercentage || 0);
 

@@ -621,6 +621,14 @@ async function checkInventory(branch: string, sector: string): Promise<void> {
   } catch {}
 }
 
+/**
+ * جدول targets مافيهوش عمود sector → الطلب بالفلتر بيرجع 400 وبعدين بيتعاد
+ * من غيره، في كل دورة. بنفتكر النتيجة مرة واحدة ونبطّل نجرب.
+ */
+let targetsSectorUnsupported = false;
+/** جدول returns مش موجود (المرتجعات متسجلة في الزيارات) → 404 في كل دورة. */
+let returnsTableMissing = false;
+
 async function checkTargets(branch: string, sector: string): Promise<void> {
   try {
     const sb = await getSupabase();
@@ -634,13 +642,14 @@ async function checkTargets(branch: string, sector: string): Promise<void> {
         .eq('year', currentYear)
         .eq('month', currentMonth)
         .eq('branch', branch);
-      if (withSector && (sector === 'home' || sector === 'electrical')) {
+      if (withSector && !targetsSectorUnsupported && (sector === 'home' || sector === 'electrical')) {
         q = q.or(`sector.in.(${sector},both,all),sector.is.null`);
       }
       return q.limit(200);
     };
     let { data, error } = await run(true);
-    if (error && (sector === 'home' || sector === 'electrical')) {
+    if (error && !targetsSectorUnsupported && (sector === 'home' || sector === 'electrical')) {
+      targetsSectorUnsupported = true;
       ({ data } = await run(false));
     }
     if (data && data.length > 0) {
@@ -719,14 +728,20 @@ async function checkTasks(repId: string, branch: string, sector: string): Promis
 }
 
 async function checkReturns(branch: string, sector: string): Promise<void> {
+  if (returnsTableMissing) return;
   try {
     const sb = await getSupabase();
     const since = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-    const { count } = await sb
+    const { count, error } = await sb
       .from('returns')
       .select('id', { count: 'exact', head: true })
       .eq('branch_name', branch)
       .gte('updated_at', since);
+    if (error) {
+      // الجدول مش موجود أو مش متاح — نبطّل الاستعلام ده للجلسة دي
+      returnsTableMissing = true;
+      return;
+    }
     if (count && count > 0) {
       notifyReturnsUpdate({
         branch,

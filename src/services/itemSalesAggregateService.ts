@@ -36,6 +36,8 @@ export interface ItemSalesAggRep {
   p: number;
   a: number;
   cu: number;
+  /** الفرع الأساسي للمندوب (أكبر فرع بالمبلغ) — لفلتر «الفرع ← المندوب». اختياري للتوافق مع الملخصات القديمة. */
+  w?: string;
 }
 
 export interface ItemSalesAggWarehouse {
@@ -93,7 +95,7 @@ export function buildItemSalesAggregates(
   type Bucket = {
     doc: ItemSalesAggDoc;
     items: Map<string, ItemSalesAggItem & { customerSet: Set<string> }>;
-    reps: Map<string, ItemSalesAggRep & { customerSet: Set<string> }>;
+    reps: Map<string, ItemSalesAggRep & { customerSet: Set<string>; whAmounts: Map<string, number> }>;
     warehouses: Map<string, ItemSalesAggWarehouse & { customerSet: Set<string> }>;
     customers: Map<string, ItemSalesAggCustomer & { itemSet: Set<string> }>;
     totalsCustomers: Set<string>;
@@ -161,10 +163,11 @@ export function buildItemSalesAggregates(
     }
 
     if (repName) {
-      const rep = bucket.reps.get(repName) || { n: repName, p: 0, a: 0, cu: 0, customerSet: new Set<string>() };
+      const rep = bucket.reps.get(repName) || { n: repName, p: 0, a: 0, cu: 0, customerSet: new Set<string>(), whAmounts: new Map<string, number>() };
       rep.p += quantity;
       rep.a += amount;
       if (customerCode) rep.customerSet.add(customerCode);
+      if (warehouse) rep.whAmounts.set(warehouse, (rep.whAmounts.get(warehouse) || 0) + amount);
       bucket.reps.set(repName, rep);
     }
 
@@ -200,7 +203,12 @@ export function buildItemSalesAggregates(
       .map(({ customerSet, ...item }) => ({ ...item, p: round(item.p), a: round(item.a), cu: customerSet.size }))
       .sort((left, right) => right.a - left.a);
     bucket.doc.reps = Array.from(bucket.reps.values())
-      .map(({ customerSet, ...rep }) => ({ ...rep, p: round(rep.p), a: round(rep.a), cu: customerSet.size }))
+      .map(({ customerSet, whAmounts, ...rep }) => {
+        let w: string | undefined;
+        let best = -Infinity;
+        whAmounts.forEach((amt, name) => { if (amt > best) { best = amt; w = name; } });
+        return { ...rep, p: round(rep.p), a: round(rep.a), cu: customerSet.size, ...(w ? { w } : {}) };
+      })
       .sort((left, right) => right.a - left.a);
     bucket.doc.warehouses = Array.from(bucket.warehouses.values())
       .map(({ customerSet, ...wh }) => ({ ...wh, p: round(wh.p), a: round(wh.a), cu: customerSet.size }))
@@ -314,22 +322,17 @@ export async function fetchItemSalesAggregates(options?: {
       return { success: cached.length > 0, docs: cached, fromCache: true };
     }
 
-    const idPrefix =
-      month && sector
-        ? itemSalesAggregateId(month, sector)
-        : month
-          ? `${ITEM_SALES_AGG_PREFIX}`
-          : ITEM_SALES_AGG_PREFIX;
+    // IDs صريحة بدل like: بننزّل القطاع المطلوب بس (كان بينزّل القطاعين ويرمي واحد)،
+    // ومن غير ما نلمس ملفات الفلترة بالفرع/المندوب اللي بتبدأ بنفس البادئة.
+    const sectors: ItemSalesSector[] = sector ? [sector] : ['home', 'electrical'];
+    const months = month ? [month] : [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    const ids = sectors.flatMap((sec) => months.map((m) => itemSalesAggregateId(m, sec)));
 
-    let query = supabase
+    const { data, error } = await supabase
       .from('orders')
       .select('id, items, updated_at')
-      .like('id', `${idPrefix}%`)
-      .order('id', { ascending: true })
-      .limit(40);
-    if (month && sector) query = query.eq('id', itemSalesAggregateId(month, sector));
-
-    const { data, error } = await query;
+      .in('id', ids)
+      .order('id', { ascending: true });
     if (error) {
       const cached = await getCachedItemSalesAggregates(options);
       return {
@@ -421,5 +424,179 @@ export async function fetchItemSalesForRep(
     return { success: true, rows: (data || []).map(mapSupabaseRowToCustomerItemSale) };
   } catch (err: any) {
     return { success: false, rows: [], error: err?.message || 'فشل جلب مبيعات المندوب بالصنف' };
+  }
+}
+
+
+/* ==========================================================================
+   تفصيل الفرع/المندوب بالصنف (Cross docs)
+   --------------------------------------------------------------------------
+   الملخص الأساسي فيه إجمالي كل فرع ومندوب بس. عشان «مبيعات الفرع بالصنف»
+   و«أصناف المندوب»، بنحفظ صف صغير منفصل لكل (قطاع × شهر × فرع) و
+   (قطاع × شهر × مندوب). الصفحة بتنزّل الملفات دي بس لما حد يختار فرع أو
+   مندوب — فمفيش egress زيادة على الفتح العادي.
+   صيغة الصنف: [مفتاح الصنف, الكمية, المبلغ] — المفتاح نفس c || n في الملخص الأساسي.
+   ========================================================================== */
+
+export type ItemSalesCrossKind = 'w' | 'r';
+
+export interface ItemSalesCrossDoc {
+  v: 1;
+  kind: ItemSalesCrossKind;
+  name: string;
+  month: number;
+  sector: ItemSalesSector;
+  updatedAt: string;
+  i: Array<[string, number, number]>;
+}
+
+const CROSS_PREFIX = `${ITEM_SALES_AGG_PREFIX}x_`;
+const CROSS_CACHE_PREFIX = 'tantawy_item_sales_cross_v1::';
+
+/** FNV-1a: اسم عربي → slug ثابت قصير يصلح كـ id */
+export function itemSalesNameSlug(name: string): string {
+  const clean = String(name || '').trim().replace(/\s+/g, ' ');
+  let h = 0x811c9dc5;
+  for (let i = 0; i < clean.length; i += 1) {
+    h ^= clean.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(36);
+}
+
+export function itemSalesCrossId(kind: ItemSalesCrossKind, name: string, month: number, sector: ItemSalesSector): string {
+  return `${CROSS_PREFIX}${sector}_${String(month).padStart(2, '0')}_${kind}_${itemSalesNameSlug(name)}`;
+}
+
+export function buildItemSalesCrossDocs(
+  records: CustomerItemSaleRecord[],
+  options: BuildAggregateOptions = {}
+): ItemSalesCrossDoc[] {
+  const resolveSector = options.resolveSector ?? (() => 'home' as ItemSalesSector);
+  const map = new Map<string, { doc: ItemSalesCrossDoc; items: Map<string, [number, number]> }>();
+  const now = new Date().toISOString();
+
+  const add = (kind: ItemSalesCrossKind, name: string, month: number, sector: ItemSalesSector, key: string, p: number, a: number) => {
+    const id = itemSalesCrossId(kind, name, month, sector);
+    let entry = map.get(id);
+    if (!entry) {
+      entry = { doc: { v: 1, kind, name, month, sector, updatedAt: now, i: [] }, items: new Map() };
+      map.set(id, entry);
+    }
+    const cur = entry.items.get(key) || [0, 0];
+    cur[0] += p;
+    cur[1] += a;
+    entry.items.set(key, cur);
+  };
+
+  for (const record of records || []) {
+    const month = Number(record.month);
+    if (!Number.isFinite(month) || month < 1 || month > 12) continue;
+    const p = Number(record.quantity) || 0;
+    const a = Number(record.amount) || 0;
+    if (p === 0 && a === 0) continue;
+    const key = String(record.unifiedCode || record.itemCode || '').trim() || String(record.itemName || '').trim();
+    if (!key) continue;
+    const sector = resolveSector(record);
+    const warehouse = String(record.warehouse || '').trim();
+    const repName = String(record.repName || '').trim();
+    if (warehouse) add('w', warehouse, month, sector, key, p, a);
+    if (repName) add('r', repName, month, sector, key, p, a);
+  }
+
+  const docs: ItemSalesCrossDoc[] = [];
+  map.forEach(({ doc, items }) => {
+    doc.i = Array.from(items.entries())
+      .map(([k, [p, a]]) => [k, round(p), round(a)] as [string, number, number])
+      .sort((l, r) => r[2] - l[2]);
+    docs.push(doc);
+  });
+  return docs;
+}
+
+export async function saveItemSalesCrossDocs(docs: ItemSalesCrossDoc[]): Promise<{ success: boolean; saved: number; error?: string }> {
+  if (!docs || docs.length === 0) return { success: true, saved: 0 };
+  try {
+    const payload = docs.map((doc) => {
+      const id = itemSalesCrossId(doc.kind, doc.name, doc.month, doc.sector);
+      return {
+        id,
+        invoice_number: id,
+        customer_name: `تفصيل ${doc.kind === 'w' ? 'فرع' : 'مندوب'} بالصنف — ${doc.name} — شهر ${doc.month}`,
+        customer_phone: '',
+        rep_name: '',
+        branch_name: doc.sector === 'electrical' ? 'كهرباء' : 'منزلي',
+        status: 'aggregate',
+        total_cartons: doc.i.length,
+        total_pieces: 0,
+        estimated_grand_total: 0,
+        items: JSON.stringify(doc),
+        created_at: doc.updatedAt,
+      };
+    });
+    const chunkSize = 40;
+    let saved = 0;
+    for (let index = 0; index < payload.length; index += chunkSize) {
+      const { error } = await supabase.from('orders').upsert(payload.slice(index, index + chunkSize), { onConflict: 'id' });
+      if (error) return { success: false, saved, error: error.message };
+      saved += Math.min(chunkSize, payload.length - index);
+    }
+    return { success: true, saved };
+  } catch (err: any) {
+    return { success: false, saved: 0, error: err?.message || 'فشل حفظ تفصيل الفروع والمناديب' };
+  }
+}
+
+/** يحفظ الملخص الأساسي + تفصيل الفروع والمناديب — نفس نقطة الاستدعاء بعد الاستيراد. */
+export async function publishItemSalesSummaries(
+  records: CustomerItemSaleRecord[],
+  options: BuildAggregateOptions = {}
+): Promise<void> {
+  if (!records || records.length === 0) return;
+  await saveItemSalesAggregates(buildItemSalesAggregates(records, options));
+  await saveItemSalesCrossDocs(buildItemSalesCrossDocs(records, options));
+}
+
+/**
+ * يجيب تفصيل فرع أو مندوب لشهور معيّنة — بالـid الصريح بس (صف لكل شهر).
+ * الكاش المحلي بيخلي الفلتر يشتغل أوفلاين وما يتنزلش تاني لو اتفتح قبل كده.
+ */
+export async function fetchItemSalesCrossDocs(
+  kind: ItemSalesCrossKind,
+  name: string,
+  sector: ItemSalesSector,
+  months: number[]
+): Promise<{ docs: ItemSalesCrossDoc[]; fromCache?: boolean; error?: string }> {
+  const ids = months.map((m) => itemSalesCrossId(kind, name, m, sector));
+  const readCache = async () => {
+    const out: ItemSalesCrossDoc[] = [];
+    for (const id of ids) {
+      try {
+        const doc = await idbGet<ItemSalesCrossDoc>(`${CROSS_CACHE_PREFIX}${id}`);
+        if (doc && doc.v === 1) out.push(doc);
+      } catch {}
+    }
+    return out;
+  };
+  if (!ids.length) return { docs: [] };
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return { docs: await readCache(), fromCache: true };
+  }
+  try {
+    const { data, error } = await supabase.from('orders').select('id, items').in('id', ids);
+    if (error) return { docs: await readCache(), fromCache: true, error: error.message };
+    const docs: ItemSalesCrossDoc[] = [];
+    for (const row of data || []) {
+      try {
+        const parsed = typeof (row as any).items === 'string' ? JSON.parse((row as any).items) : (row as any).items;
+        if (parsed && parsed.v === 1 && Array.isArray(parsed.i)) {
+          docs.push(parsed as ItemSalesCrossDoc);
+          void idbSet(`${CROSS_CACHE_PREFIX}${(row as any).id}`, parsed);
+        }
+      } catch {}
+    }
+    return { docs };
+  } catch (err: any) {
+    return { docs: await readCache(), fromCache: true, error: err?.message };
   }
 }
