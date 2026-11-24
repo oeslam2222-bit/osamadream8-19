@@ -1,0 +1,242 @@
+/* ==========================================================================
+   layout-fix.css — المصدر الوحيد لتخطيط الشاشة (يُحمَّل آخر ملف في main.tsx)
+   --------------------------------------------------------------------------
+   المشكلة: المحتوى كان بيتزق مرتين — مرة بعمود الـgrid في App.tsx، ومرة
+   بـ margin-inline-start (246px في brand-v2.css و264px في identity.css).
+   النتيجة: فراغ جنب السايدبار، ومحتوى مقصوص من الناحية التانية.
+   الحل: grid واحد بمناطق مسمّاة، ومفيش أي margin للإزاحة.
+   ========================================================================== */
+
+:root { --shell-side-w: 0px; }
+@media (min-width: 768px)  { :root { --shell-side-w: 84px; } }   /* تابلت: أيقونات بس */
+@media (min-width: 1024px) { :root { --shell-side-w: 246px; } }  /* لابتوب/ويب */
+
+/* إلغاء كل الإزاحات القديمة */
+.ds-topbar,
+.app-main,
+footer {
+  margin-inline-start: 0 !important;
+  margin-inline-end: 0 !important;
+}
+
+/* overflow: hidden على html/body/الشل بيعمل «حاوية سكرول» بتبوّظ position: sticky
+   (السايدبار والشريط العلوي كانوا بيطلعوا مع السكرول). clip بيقص بنفس الشكل
+   من غير ما يكسر الـsticky. */
+html, body { overflow-x: clip !important; }
+
+.tantawy-shell {
+  overflow-x: clip !important;
+  overflow-y: visible !important;
+  display: grid !important;
+  grid-template-columns: var(--shell-side-w) minmax(0, 1fr) !important;
+  grid-template-rows: auto auto 1fr auto;
+  grid-template-areas:
+    "side status"
+    "side top"
+    "side main"
+    "side foot";
+  min-height: 100dvh;
+}
+
+/* موبايل: عمود واحد، والتنقل من القائمة السفلية */
+@media (max-width: 767px) {
+  .tantawy-shell {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas: "status" "top" "main" "foot";
+  }
+  .shell-side { display: none !important; }
+}
+
+.shell-overlay { display: contents; }
+.shell-status { grid-area: status !important; }
+.shell-top    { grid-area: top !important; position: sticky; top: 0; z-index: 40; min-width: 0; }
+.shell-main   { grid-area: main !important; min-width: 0; }
+.shell-foot   { grid-area: foot !important; min-width: 0; }
+
+.shell-side {
+  grid-area: side !important;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100dvh;
+  min-width: 0;
+}
+.shell-side .ds-sidebar {
+  position: relative !important;
+  width: 100% !important;
+  height: 100dvh;
+}
+
+/* المحتوى ياخد عرض المساحة المتاحة بس — مفيش حاجة تطلع بره الشاشة */
+.shell-main > div {
+  max-width: 1440px;
+  margin-inline: auto;
+  padding-inline: clamp(8px, 2vw, 24px) !important;
+  padding-block: clamp(8px, 1.5vw, 20px) !important;
+  box-sizing: border-box;
+}
+
+/* الشريط العلوي: الإجراءات الثانوية في قائمة «المزيد» على كل المقاسات */
+.ds-vis-never { display: none !important; }
+.ds-topbar__main { min-width: 0; gap: 8px; }
+.ds-search { max-width: 460px; }
+
+@media print {
+  .tantawy-shell { display: block !important; }
+  .shell-side, .shell-top, .shell-status { display: none !important; }
+}
+
+/* بحث أوامر البيع: كان بيطلع بره خانته ويغطي «كل المراحل» */
+.orders-search { flex: 1 1 260px; min-width: 0; max-width: 460px; }
+.orders-search .tg-input {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+  padding-inline-start: 36px !important;
+}
+
+/* ==========================================================================
+   أساس الموبايل لكل الصفحات (≤ 767px)
+   ========================================================================== */
+@media (max-width: 767px) {
+  /* خانات الإدخال 16px: أقل من كده iPhone بيعمل زوم على الصفحة عند الكتابة */
+  .app-main input:not([type="checkbox"]):not([type="radio"]),
+  .app-main select,
+  .app-main textarea,
+  [role="dialog"] input:not([type="checkbox"]):not([type="radio"]),
+  [role="dialog"] select,
+  [role="dialog"] textarea { font-size: 16px !important; }
+
+  /* الخطوط الميكروسكوبية (8–10px) تبقى مقروءة */
+  .app-main .text-\[8px\],
+  .app-main .text-\[8\.5px\],
+  .app-main .text-\[9px\],
+  .app-main .text-\[9\.5px\] { font-size: 11px !important; }
+  .app-main .text-\[10px\],
+  .app-main .text-\[10\.5px\] { font-size: 12px !important; }
+
+  /* أي جدول عريض يسكرول جوه نفسه بدل ما يوسّع الصفحة */
+  .app-main table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .app-main .overflow-x-auto > table,
+  .app-main .ss-tablewrap > table { display: table; }
+
+  /* الصور والرسوم ما تعديش عرض الشاشة */
+  .app-main img, .app-main svg, .app-main canvas { max-width: 100%; }
+
+  /* المحتوى ما يستخباش تحت القائمة السفلية */
+  .shell-main { padding-bottom: calc(var(--ds-bottom-h, 64px) + env(safe-area-inset-bottom) + 12px); }
+  .shell-foot { display: none; }
+}
+
+/* ==========================================================================
+   تلميع الشريط الجانبي (نفس الكحلي — أهدى وأنضف)
+   ========================================================================== */
+@media (min-width: 1024px) {
+  /* اللوجو مكرر: في السايدبار وفي الشريط العلوي — نسيبه في السايدبار بس */
+  .ds-topbar .ds-brand { display: none !important; }
+}
+
+.shell-side .ds-sidebar {
+  padding: 16px 12px 12px !important;
+  gap: 4px;
+  scrollbar-width: none;
+}
+.shell-side .ds-sidebar:hover { scrollbar-width: thin; }
+.shell-side .ds-sidebar::-webkit-scrollbar { width: 0; }
+.shell-side .ds-sidebar:hover::-webkit-scrollbar { width: 6px; }
+
+/* اللوجو */
+.shell-side .ds-sidebar__brand { padding: 0 6px 14px !important; margin-bottom: 8px; gap: 10px; }
+.shell-side .ds-sidebar__logo { width: 40px !important; height: 40px !important; border-radius: 12px !important; }
+
+/* كارت المستخدم: سطر واحد مضغوط بدل الكارت الكبير (التفاصيل في قائمة الحساب فوق) */
+.shell-side .ds-sidebar__user {
+  padding: 8px 10px !important;
+  margin: 0 0 6px !important;
+  border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: none !important;
+  gap: 10px !important;
+  align-items: center !important;
+}
+.shell-side .ds-sidebar__user-avatar { width: 34px !important; height: 34px !important; }
+.shell-side .ds-sidebar__user-name { font-size: 13px !important; color: #fff !important; }
+.shell-side .ds-sidebar__user-role { font-size: 11.5px !important; color: #8fb3d9 !important; font-weight: 600 !important; }
+.shell-side .ds-sidebar__user-branch { display: none !important; }
+
+/* عناوين الأقسام */
+.shell-side .ds-sidebar__section {
+  font-size: 11.5px !important;
+  font-weight: 700 !important;
+  color: rgba(226, 236, 248, 0.45) !important;
+  padding: 14px 12px 6px !important;
+  margin: 0 !important;
+  letter-spacing: 0;
+}
+
+/* العناصر: أيقونة من غير مربع، خط أهدى، ارتفاع ثابت */
+.shell-side .ds-sidebar__nav { gap: 2px !important; }
+.shell-side .ds-sidebar__item {
+  position: relative;
+  min-height: 40px !important;
+  padding: 0 12px !important;
+  gap: 12px !important;
+  border-radius: 10px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: rgba(226, 236, 248, 0.78) !important;
+  transition: background-color .15s ease, color .15s ease;
+}
+.shell-side .ds-sidebar__label { font-size: 14px !important; font-weight: 600 !important; color: inherit !important; }
+.shell-side .ds-sidebar__icon-badge {
+  width: 20px !important; height: 20px !important;
+  background: transparent !important; border: 0 !important; box-shadow: none !important;
+  color: inherit !important; margin: 0 !important;
+}
+.shell-side .ds-sidebar__icon-badge svg { width: 19px !important; height: 19px !important; }
+
+.shell-side .ds-sidebar__item:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  color: #fff !important;
+}
+
+/* العنصر النشط: خلفية هادية + شريط تيل صغير على الحافة بدل الزرار الفاقع */
+.shell-side .ds-sidebar__item[aria-current="page"] {
+  background: rgba(20, 184, 166, 0.14) !important;
+  color: #fff !important;
+}
+.shell-side .ds-sidebar__item[aria-current="page"] .ds-sidebar__label { font-weight: 800 !important; }
+.shell-side .ds-sidebar__item[aria-current="page"] .ds-sidebar__icon-badge { color: #2dd4bf !important; }
+.shell-side .ds-sidebar__item[aria-current="page"]::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  top: 9px; bottom: 9px;
+  width: 3px;
+  border-radius: 3px;
+  background: #2dd4bf;
+}
+
+/* شارة «مميز» وأي عدّاد: أصغر وما تسرقش العين */
+.shell-side .ds-sidebar__item .ds-count,
+.shell-side .ds-sidebar__item [class*="badge"]:not(.ds-sidebar__icon-badge) {
+  font-size: 11px !important;
+  padding: 1px 8px !important;
+  min-height: 0 !important;
+  box-shadow: none !important;
+}
+
+/* تابلت (أيقونات بس): العنصر النشط دائرة هادية */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .shell-side .ds-sidebar__item { justify-content: center !important; padding: 0 !important; }
+  .shell-side .ds-sidebar__item[aria-current="page"]::before { display: none; }
+}
+
+/* مركز الصلاحيات: المودال كان max-w-2xl (672px) وجواه عمود 360px → التفاصيل مخنوقة */
+.pm-modal .pm-foot-note b { white-space: nowrap; }
+@media (min-width: 1024px) and (max-width: 1180px) {
+  .pm-modal .pm-body { grid-template-columns: 300px minmax(0, 1fr) !important; }
+}
