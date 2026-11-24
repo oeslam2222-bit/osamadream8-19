@@ -24,6 +24,19 @@ import { resolveSafeCustomerCode } from './excelService';
 import { optimizeImageUrl } from './cloudinaryService';
 
 /**
+ * يهرّب النص قبل إدخاله في `innerHTML` — يمنع XSS من أسماء العملاء/الأصناف
+ * اللي可能 فيها `<img onerror=...>` أو وسوم HTML.
+ */
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
  * Render and construct pixel-perfect jsPDF Document for Dream Distribution
  */
 export async function createInvoicePDFDocument(
@@ -80,13 +93,13 @@ export async function createInvoicePDFDocument(
       <tr style="border-bottom: 1px solid #e2e8f0; ${idx % 2 === 1 ? 'background-color: #f8fafc;' : 'background-color: #ffffff;'}">
         <td style="padding: 6px 8px; text-align: center; font-weight: bold; font-size: 11px; color: #64748b; width: 30px;">${idx + 1}</td>
         <td style="padding: 6px 8px; font-weight: 800; font-size: 11px; color: #0f172a; white-space: nowrap; width: 85px;">
-          ${item.productCode}
+          ${escapeHtml(item.productCode)}
         </td>
         <td style="padding: 6px 8px; font-weight: 700; font-size: 11px; color: #4338ca; white-space: nowrap; width: 80px;">
-          ${unifiedCode ? `<span style="background: #e0e7ff; color: #3730a3; padding: 2px 5px; border-radius: 4px;">#${unifiedCode.replace('#', '')}</span>` : '<span style="color: #94a3b8;">---</span>'}
+          ${unifiedCode ? `<span style="background: #e0e7ff; color: #3730a3; padding: 2px 5px; border-radius: 4px;">#${escapeHtml(unifiedCode.replace('#', ''))}</span>` : '<span style="color: #94a3b8;">---</span>'}
         </td>
         <td style="padding: 6px 8px; font-weight: 800; font-size: 11.5px; color: #0f172a; line-height: 1.4;">
-          ${item.productName}
+          ${escapeHtml(item.productName)}
           ${item.fulfilledFrom === 'main_warehouse' ? '<span style="display: inline-block; background: #fef3c7; color: #92400e; font-size: 9.5px; font-weight: bold; padding: 1px 4px; border-radius: 4px; margin-right: 4px;">مخزن 6 أكتوبر</span>' : ''}
         </td>
         <td style="padding: 6px 8px; text-align: center; font-size: 11px; color: #475569; width: 50px;">${cartonQty}</td>
@@ -117,8 +130,8 @@ export async function createInvoicePDFDocument(
           <div style="display: flex; align-items: center; gap: 8px;">
             <div style="background: #f59e0b; color: #000; font-weight: 900; width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 18px;">D</div>
             <div>
-              <div style="font-size: 18px; font-weight: 900; color: #0f172a;">${comp.nameArabic}</div>
-              <div style="font-size: 10px; font-weight: bold; color: #64748b;">${comp.nameEnglish}</div>
+              <div style="font-size: 18px; font-weight: 900; color: #0f172a;">${escapeHtml(comp.nameArabic)}</div>
+              <div style="font-size: 10px; font-weight: bold; color: #64748b;">${escapeHtml(comp.nameEnglish)}</div>
             </div>
           </div>
           <div style="font-size: 10.5px; color: #475569; margin-top: 5px;">مقر الشركة:regionOctober</div>
@@ -129,9 +142,9 @@ export async function createInvoicePDFDocument(
           <div style="display: inline-block; background: ${isShortage ? '#4f46e5' : '#0f172a'}; color: #fef08a; font-weight: 900; font-size: 11px; padding: 4px 10px; border-radius: 6px;">
             ${isShortage ? 'فاتورة نواقص معتمدة (صرف من أكتوبر)' : 'فاتورة مبيعات معتمدة (صرف من الفرع)'}
           </div>
-          <div style="font-size: 15px; font-weight: 900; color: #0f172a; margin-top: 4px; font-family: monospace;">${invoice.invoiceNumber}</div>
-          <div style="font-size: 10px; color: #64748b;">التاريخ: ${invoice.date} ${invoice.time ? `(${invoice.time})` : ''}</div>
-          <div style="font-size: 10px; color: #475569; font-weight: bold;">الحالة: ${invoice.status}</div>
+          <div style="font-size: 15px; font-weight: 900; color: #0f172a; margin-top: 4px; font-family: monospace;">${escapeHtml(invoice.invoiceNumber)}</div>
+          <div style="font-size: 10px; color: #64748b;">التاريخ: ${escapeHtml(invoice.date)} ${invoice.time ? `(${escapeHtml(invoice.time)})` : ''}</div>
+          <div style="font-size: 10px; color: #475569; font-weight: bold;">الحالة: ${escapeHtml(invoice.status)}</div>
         </div>
       </div>
 
@@ -139,26 +152,26 @@ export async function createInvoicePDFDocument(
       ${isShortage ? `
         <div style="margin-top: 10px; background: #e0e7ff; border: 1px solid #818cf8; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 800; color: #312e81; display: flex; justify-content: space-between;">
           <span>📦 بيان نواقص: محولة للصرف والاستلام من المخزن المركزي بمدينة 6 أكتوبر</span>
-          ${invoice.parentInvoiceNumber ? `<span>الفاتورة الأصلية: <strong>${invoice.parentInvoiceNumber}</strong></span>` : ''}
+          ${invoice.parentInvoiceNumber ? `<span>الفاتورة الأصلية: <strong>${escapeHtml(invoice.parentInvoiceNumber)}</strong></span>` : ''}
         </div>
       ` : invoice.hasShortageSplit ? `
         <div style="margin-top: 10px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 800; color: #92400e; display: flex; justify-content: space-between;">
           <span>✅ فاتورة الأصناف المتوفرة بالفرع. تم إنشاء فاتورة نواقص منفصلة للأصناف المتبقية</span>
-          ${invoice.shortageInvoiceNumber ? `<span>فاتورة النواقص: <strong>${invoice.shortageInvoiceNumber}</strong></span>` : ''}
+          ${invoice.shortageInvoiceNumber ? `<span>فاتورة النواقص: <strong>${escapeHtml(invoice.shortageInvoiceNumber)}</strong></span>` : ''}
         </div>
       ` : ''}
 
       <!-- Customer & Order Meta Grid -->
       <div style="margin-top: 10px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px;">
         <div>
-          <div>اسم العميل: <strong style="color: #0f172a; font-size: 12px;">${invoice.customerName}</strong></div>
-          <div style="margin-top: 3px; color: #475569;">كود العميل: <strong style="color: #3730a3; font-size: 12px;">${displayCustomerCode}</strong> • هاتف: <strong>${invoice.customerPhone || '---'}</strong></div>
-          <div style="margin-top: 3px; color: #475569;">العنوان: <strong>${invoice.customerAddress || '---'}</strong> ${invoice.customerTaxNumber ? `• ب.ض: <strong>${invoice.customerTaxNumber}</strong>` : ''}</div>
+          <div>اسم العميل: <strong style="color: #0f172a; font-size: 12px;">${escapeHtml(invoice.customerName)}</strong></div>
+          <div style="margin-top: 3px; color: #475569;">كود العميل: <strong style="color: #3730a3; font-size: 12px;">${escapeHtml(displayCustomerCode)}</strong> • هاتف: <strong>${escapeHtml(invoice.customerPhone || '---')}</strong></div>
+          <div style="margin-top: 3px; color: #475569;">العنوان: <strong>${escapeHtml(invoice.customerAddress || '---')}</strong> ${invoice.customerTaxNumber ? `• ب.ض: <strong>${escapeHtml(invoice.customerTaxNumber)}</strong>` : ''}</div>
         </div>
         <div>
-          <div>الفرع المنفذ: <strong style="color: #0f172a;">${invoice.branchName}</strong></div>
-          <div style="margin-top: 3px; color: #475569;">المندوب المسؤول: <strong>${invoice.repName}</strong> ${invoice.supervisorName ? `• المشرف: <strong>${invoice.supervisorName}</strong>` : ''}</div>
-          <div style="margin-top: 3px; color: #475569;">طريقة السداد: <strong style="color: #047857;">${invoice.paymentMethod}</strong> • إجمالي الكراتين: <strong>${invoice.totalCartons} ك</strong></div>
+          <div>الفرع المنفذ: <strong style="color: #0f172a;">${escapeHtml(invoice.branchName)}</strong></div>
+          <div style="margin-top: 3px; color: #475569;">المندوب المسؤول: <strong>${escapeHtml(invoice.repName)}</strong> ${invoice.supervisorName ? `• المشرف: <strong>${escapeHtml(invoice.supervisorName)}</strong>` : ''}</div>
+          <div style="margin-top: 3px; color: #475569;">طريقة السداد: <strong style="color: #047857;">${escapeHtml(invoice.paymentMethod)}</strong> • إجمالي الكراتين: <strong>${escapeHtml(String(invoice.totalCartons))} ك</strong></div>
         </div>
       </div>
 
@@ -632,18 +645,9 @@ export async function buildClientCatalogPDF(
 
     const cardsHtml = pageItems
       .map(({ product, dataUrl }) => {
-        const safeName = (product.name || 'صنف')
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
-        const safeCode = (product.code || '')
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
-        const safeUnified = (product.unifiedCode || '')
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;');
+        const safeName = escapeHtml(product.name || 'صنف');
+        const safeCode = escapeHtml(product.code || '');
+        const safeUnified = escapeHtml(product.unifiedCode || '');
 
         const imgBlock = dataUrl
           ? `<img src="${dataUrl}" alt="${safeName}" style="max-width:100%;max-height:100%;object-fit:contain;" />`
