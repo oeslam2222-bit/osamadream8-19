@@ -1,0 +1,2128 @@
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowUpDown,
+  Building,
+  Check,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  FileText,
+  Filter,
+  Flame,
+  Grid,
+  Heart,
+  Layers,
+  List,
+  Package,
+  Plus,
+  Minus,
+  RotateCcw,
+  RotateCw,
+  Search,
+  ShoppingCart,
+  Sparkles,
+  Star,
+  Store,
+  Tag,
+  Trash2,
+  Truck,
+  Upload,
+  Wallet,
+  Coins,
+  Calendar,
+  X,
+  XCircle,
+  Zap,
+  Download,
+  Loader2,
+} from 'lucide-react';
+import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
+import { useApp } from '../context/AppContext';
+import { useCart } from '../context/cartContext';
+import { sanitizeStoredImageUrl } from '../context/appContextHelpers';
+import { useTheme } from '../context/themeContext';
+import { ProductImage } from './ProductImage';
+import { ProductCard } from './catalog/ProductCard';
+import {
+  getProductImageUrl,
+  getCandidateImageUrls,
+  optimizeImageUrl,
+} from '../services/cloudinaryService';
+import { formatCurrency } from '../services/invoiceService';
+import { resolveDisplayPrice, stripPlaceholderText } from '../services/productPricing';
+import { filterPromotionsForUser, resolveProductPromotion, buildPromotionMatcher } from '../services/promotionService';
+import { ProductVariantPicker } from './catalog/ProductVariantPicker';
+import { cacheProductImages, getCachedImagesStats } from '../services/imageCacheService';
+import { parseExcelProducts, fetchAndParseGoogleSheet } from '../services/excelService';
+// نوع فقط: لا نسحب jsPDF/html2canvas لحزمة الكتالوج. الدالة بتتحمّل عند الضغط.
+import type { ClientCatalogProduct, CatalogExportProgress } from '../services/pdfService';
+import { Customer, Product } from '../types';
+import { getBranchStockForProduct } from '../services/arabicMatchingService';
+import { COMPANY_WAREHOUSES } from './catalog/warehouses';
+export { COMPANY_WAREHOUSES };
+
+interface ProductCatalogProps {
+  onOpenCart?: () => void;
+  selectedCustomer?: Customer | null;
+  onClearSelectedCustomer?: () => void;
+  onNavigateToInvoices?: (invoice?: any) => void;
+  /** تنقل بين تابات التطبيق من كروت المؤشرات العلوية (مرتجعات / تحصيلات) */
+  onNavigateToTab?: (tab: string) => void;
+  /** بحث تلقائي ممرر من صفحة العروض أو الشريط العلوي */
+  initialSearchQuery?: string;
+  searchSeq?: number;
+}
+
+export const ProductCatalog: React.FC<ProductCatalogProps> = ({
+  onOpenCart,
+  selectedCustomer,
+  onClearSelectedCustomer,
+  onNavigateToTab,
+  initialSearchQuery,
+  searchSeq,
+}) => {
+  const {
+    products,
+    getVisibleProducts,
+    promotions: rawPromotions,
+    currentUser,
+    branches,
+    importProductsList,
+    wipeAllProductsAndData,
+    cloudinaryConfig,
+    visits,
+    selectedBranchFilter,
+    setSelectedBranchFilter,
+    activeSectorFilter,
+    setActiveSectorFilter,
+    canManageSectorGate,
+    effectiveSectorFilter,
+  } = useApp();
+  const { addToCart, cart, getCartSummary } = useCart();
+
+  const promotions = useMemo(
+    () => filterPromotionsForUser(rawPromotions, currentUser, products),
+    [rawPromotions, currentUser, products]
+  );
+
+  const { isDark } = useTheme();
+
+  // Search & Filters
+  const [searchTerm, setSearchTerm] = useState(initialSearchQuery || '');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(initialSearchQuery || '');
+  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
+  const searchWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchWrapperRef.current && !searchWrapperRef.current.contains(e.target as Node)) {
+        setShowSearchSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+  const [selectedDept, setSelectedDept] = useState<string>('الكل');
+  const [selectedBrand, setSelectedBrand] = useState<string>('الكل');
+  const [selectedStatus, setSelectedStatus] = useState<string>('الكل');
+  // فلتر السعر (من/إلى) — مثال: من 0 إلى 100000
+  const [minPrice, setMinPrice] = useState<string>('');
+  const [maxPrice, setMaxPrice] = useState<string>('');
+  // إخفاء الأصناف ذات الرصيد الصفري (المخزن الرئيسي ومخزن الفرع = 0) افتراضياً
+  const [onlyInStock, setOnlyInStock] = useState<boolean>(true);
+  // فلتر عرض الأصناف التي عليها عروض خصم خاص فقط
+  const [onlyPromos, setOnlyPromos] = useState<boolean>(false);
+  // عرض أرصدة كافة المخازن الـ 8 تفصيلياً (7 فروع + مخزن أكتوبر)
+  const [showAllWarehouses, setShowAllWarehouses] = useState<boolean>(false);
+  // لوحة "المزيد من الفلتر" — مطوية افتراضياً عشان الشريط يفضل زي التصميم
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
+  // طريقة عرض الكتالوج: كروت (زي المرجع) أو جدول ERP — بيتم الحفظ محلياً
+  const [catalogView, setCatalogView] = useState<'cards' | 'table'>(() => {
+    try {
+      return localStorage.getItem('tantawy_catalog_view') === 'table' ? 'table' : 'cards';
+    } catch {
+      return 'cards';
+    }
+  });
+
+  const switchCatalogView = (view: 'cards' | 'table') => {
+    setCatalogView(view);
+    try {
+      localStorage.setItem('tantawy_catalog_view', view);
+    } catch {}
+  };
+  const [sortBy, setSortBy] = useState<
+    'default' | 'branch_stock_desc' | 'october_stock_desc' | 'price_asc' | 'price_desc' | 'name_asc'
+  >('default');
+
+  // Favorites state
+  const [favorites, setFavorites] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('tantawy_fav_products');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleFavorite = (productId: string) => {
+    setFavorites((prev) => {
+      const next = { ...prev, [productId]: !prev[productId] };
+      try {
+        localStorage.setItem('tantawy_fav_products', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  // Show favorites only toggle
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState<boolean>(false);
+
+  // Reset page when favorites filter toggles
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [showFavoritesOnly]);
+
+  // Pagination state (default: 12 as per reference design image_d67a7a7d.png)
+  const [itemsPerPage, setItemsPerPage] = useState<number>(12);
+  const [currentPage, setCurrentPage] = useState<1 | number>(1);
+
+  // Cart Drawer & Modals
+  const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
+  const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<{ src: string; alt: string } | null>(null);
+  const [addedItemToast, setAddedItemToast] = useState<{ name: string; count: string } | null>(null);
+  const [stockErrorToast, setStockErrorToast] = useState<string | null>(null);
+
+  const handleSelectProduct = useCallback((product: Product) => {
+    setSelectedProductForModal(product);
+  }, [setSelectedProductForModal]);
+
+  // PDF Export States
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState<CatalogExportProgress | null>(null);
+
+  // Remember catalog filters in localStorage per user
+  const CATALOG_FILTERS_KEY = `tantawy_catalog_filters_${currentUser?.id || 'guest'}`;
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(CATALOG_FILTERS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.searchTerm !== undefined) setSearchTerm(parsed.searchTerm);
+        if (parsed.selectedDept !== undefined) setSelectedDept(parsed.selectedDept);
+        if (parsed.selectedBrand !== undefined) setSelectedBrand(parsed.selectedBrand);
+        if (parsed.selectedStatus !== undefined) setSelectedStatus(parsed.selectedStatus);
+        if (parsed.onlyInStock !== undefined) setOnlyInStock(parsed.onlyInStock);
+        if (parsed.sortBy !== undefined) setSortBy(parsed.sortBy);
+        if (parsed.activeSectorFilter !== undefined) {
+          // القيمة القديمة 'all' غير مدعومة بعد إزالة خيار "الكل" — تُحوّل للقطاع الافتراضي.
+          setActiveSectorFilter(
+            parsed.activeSectorFilter === 'home' || parsed.activeSectorFilter === 'electrical'
+              ? parsed.activeSectorFilter
+              : defaultSector
+          );
+        }
+        if (parsed.minPrice !== undefined) setMinPrice(parsed.minPrice);
+        if (parsed.maxPrice !== undefined) setMaxPrice(parsed.maxPrice);
+      }
+    } catch {}
+  }, [CATALOG_FILTERS_KEY, currentUser?.id]);
+
+  const saveCatalogFilters = useCallback(() => {
+    try {
+      localStorage.setItem(CATALOG_FILTERS_KEY, JSON.stringify({
+        searchTerm,
+        selectedDept,
+        selectedBrand,
+        selectedStatus,
+        onlyInStock,
+        sortBy,
+        activeSectorFilter,
+        minPrice,
+        maxPrice,
+      }));
+    } catch {}
+  }, [searchTerm, selectedDept, selectedBrand, selectedStatus, onlyInStock, sortBy, activeSectorFilter, minPrice, maxPrice, CATALOG_FILTERS_KEY]);
+
+  // Card quantities
+  const [cardQuantities, setCardQuantities] = useState<Record<string, number>>({});
+  const [cardOrderTypes, setCardOrderTypes] = useState<Record<string, 'carton' | 'piece'>>({});
+
+  // Sync external search query triggered from PromotionsOffersView or Navbar search
+  useEffect(() => {
+    if (searchSeq && searchSeq > 0 && initialSearchQuery !== undefined) {
+      setSearchTerm(initialSearchQuery);
+      setDebouncedSearchTerm(initialSearchQuery);
+      setOnlyInStock(false);
+      setOnlyPromos(false);
+      setShowSearchSuggestions(false);
+      setCurrentPage(1);
+    }
+  }, [initialSearchQuery, searchSeq]);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Save filters whenever they change
+  useEffect(() => {
+    saveCatalogFilters();
+  }, [searchTerm, selectedDept, selectedBrand, selectedStatus, onlyInStock, sortBy, activeSectorFilter, saveCatalogFilters]);
+
+  // Reset page when search or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedDept, selectedBrand, selectedStatus, onlyInStock, onlyPromos, sortBy, activeSectorFilter]);
+
+  // Active branch context
+  const currentActiveBranch = useMemo(() => {
+    if (
+      currentUser?.role === 'sales_rep' ||
+      currentUser?.role === 'supervisor' ||
+      currentUser?.role === 'branch_manager'
+    ) {
+      return currentUser.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+    }
+    return selectedBranchFilter !== 'الكل'
+      ? selectedBranchFilter
+      : currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+  }, [currentUser, selectedBranchFilter]);
+
+  const defaultSector: 'home' | 'electrical' =
+    currentUser?.sector === 'electrical' ? 'electrical' : 'home';
+
+  // كاش رصيد الفرع: حساب رصيد الصنف (مطابقة عربية) كان بيتكرر 3–4 مرات
+  // لكل صنف في الفلترة والترتيب والمؤشرات وتصدير الـ PDF — ده كان تقل الصفحة.
+  const branchStockCacheRef = useRef<{ branch: string; map: Map<string, number> }>({
+    branch: '',
+    map: new Map(),
+  });
+
+  const getProductBranchStock = useCallback(
+    (p: Product) => {
+      const cache = branchStockCacheRef.current;
+      if (cache.branch !== currentActiveBranch) {
+        cache.branch = currentActiveBranch;
+        cache.map.clear();
+      }
+      const key = p.id || p.code || p.name;
+      const cached = cache.map.get(key);
+      if (cached !== undefined) return cached;
+      const value = getBranchStockForProduct(p, currentActiveBranch);
+      cache.map.set(key, value);
+      return value;
+    },
+    [currentActiveBranch]
+  );
+
+  const getWarehouseStock = useCallback((p: Product, warehouseKey: string): number => {
+    if (warehouseKey === 'مخزون اكتوبر' || warehouseKey.includes('اكتوبر') || warehouseKey.includes('أكتوبر')) {
+      return p.mainWarehouseActual || (p.branchStocks?.['مخزون اكتوبر'] ?? p.branchStocks?.['الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)'] ?? 0);
+    }
+    if (p.branchStocks) {
+      if (p.branchStocks[warehouseKey] !== undefined) return p.branchStocks[warehouseKey];
+      if (p.branchStocks[`فرع ${warehouseKey}`] !== undefined) return p.branchStocks[`فرع ${warehouseKey}`];
+    }
+    return getBranchStockForProduct(p, `فرع ${warehouseKey}`);
+  }, []);
+
+  // Dynamic Departments -> عمود "الصنف" (Item group / Department)
+  const departmentsList = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => {
+      const raw = p.itemGroup || p.department || p.category || '';
+      const d = stripPlaceholderText(raw).trim();
+      if (d && d !== 'عام' && !d.toLowerCase().includes('blank')) set.add(d);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [products]);
+
+  // Dynamic Brands / Categories -> عمود "الصنف بالعائلة" (Family Name / Classification)
+  const brandsList = useMemo(() => {
+    const set = new Set<string>();
+    products.forEach((p) => {
+      const raw = p.familyName || p.classification || '';
+      const b = stripPlaceholderText(raw).trim();
+      if (b && b !== 'عام' && b !== 'فئة A' && !b.toLowerCase().includes('blank')) set.add(b);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b, 'ar'));
+  }, [products]);
+
+  // كاش تصنيف القطاع — بيوفّر إعادة بناء النص لكل صنف في كل فلترة.
+  const electricalCacheRef = useRef<Map<string, boolean>>(new Map());
+
+  useEffect(() => {
+    electricalCacheRef.current.clear();
+  }, [products, currentUser?.sector]);
+
+  // Check if a product belongs to electrical sector (القطاع الكهربائي)
+  const isProductElectrical = useCallback((p: Product) => {
+    const key = p.id || p.code || p.name;
+    const cached = electricalCacheRef.current.get(key);
+    if (cached !== undefined) return cached;
+
+    let result = false;
+    if (p.sector === 'electrical' || p.sector === 'both' || p.sector === 'all') {
+      result = true;
+    } else {
+      const checkStr = `${p.sector || ''} ${p.department || ''} ${p.category || ''} ${p.itemGroup || ''} ${p.familyName || ''} ${p.name || ''}`.toLowerCase();
+      result =
+        // Arabic keywords
+        checkStr.includes('كهربا') ||
+        checkStr.includes('لمبة') ||
+        checkStr.includes('مفتاح') ||
+        checkStr.includes('كابل') ||
+        checkStr.includes('سلك') ||
+        checkStr.includes('شاسيه') ||
+        checkStr.includes('قاطع') ||
+        checkStr.includes('فيشة') ||
+        checkStr.includes('لقمة') ||
+        checkStr.includes('دواية') ||
+        checkStr.includes('وش') ||
+        checkStr.includes('سبوت') ||
+        checkStr.includes('كشاف') ||
+        // English keywords
+        checkStr.includes('electrical') ||
+        checkStr.includes('electric') ||
+        checkStr.includes('cable') ||
+        checkStr.includes('wire') ||
+        checkStr.includes('switch') ||
+        checkStr.includes('bulb') ||
+        checkStr.includes('lamp') ||
+        checkStr.includes('socket') ||
+        checkStr.includes('plug') ||
+        checkStr.includes('breaker') ||
+        checkStr.includes('fuse');
+    }
+
+    electricalCacheRef.current.set(key, result);
+    return result;
+  }, []);
+
+  // Precomputed promo lookup per visible product
+  const promoByProductId = useMemo(() => {
+    const map = new Map<string, ReturnType<typeof resolveProductPromotion>>();
+    if (!promotions || promotions.length === 0) return map;
+    const activePromos = promotions.filter((pr) => pr.status === 'نشط');
+    if (activePromos.length === 0) return map;
+    // matcher واحد للقائمة كلها — بدل تنضيف أكواد العروض لكل صنف من الأول
+    const matcher = buildPromotionMatcher(activePromos);
+    getVisibleProducts().forEach((p) => {
+      const key = p.id || p.code || p.name;
+      map.set(key, resolveProductPromotion(p, activePromos, matcher));
+    });
+    return map;
+  }, [getVisibleProducts, promotions]);
+
+  // Sector-scoped product families summary (توزيع الأصناف بالعائلة)
+  const familyBreakdown = useMemo(() => {
+    const counts = new Map<string, { name: string; count: number; stock: number }>();
+    getVisibleProducts().forEach((p) => {
+      if (effectiveSectorFilter === 'none') return;
+      const isElec = isProductElectrical(p);
+      if (effectiveSectorFilter === 'electrical' && !isElec) return;
+      if (effectiveSectorFilter === 'home' && isElec && p.sector !== 'both' && p.sector !== 'all') return;
+      const rawBrand = p.familyName || p.classification || '';
+      const fam = stripPlaceholderText(rawBrand).trim();
+      if (!fam || fam === 'عام' || fam === 'فئة A' || fam.toLowerCase().includes('blank')) return;
+      const cur = counts.get(fam) || { name: fam, count: 0, stock: 0 };
+      cur.count += 1;
+      cur.stock += Math.max(0, getProductBranchStock(p)) + Math.max(0, p.mainWarehouseActual || 0);
+      counts.set(fam, cur);
+    });
+    return Array.from(counts.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 12);
+  }, [getVisibleProducts, effectiveSectorFilter, isProductElectrical, getProductBranchStock]);
+
+  // فهرس الفلترة الجاهز: toLowerCase و stripPlaceholderText لكل صنف بتتحسب مرة
+  // واحدة عند تغيّر قائمة الأصناف، بدل ما تتكرر على كل صنف مع كل حرف بحث أو
+  // تغيير فلتر. نفس المفتاح المستخدم في باقي الشاشة (id/code/name).
+  const catalogFilterIndex = useMemo(() => {
+    const map = new Map<
+      string,
+      { name: string; code: string; unified: string; barcode: string; dept: string; brand: string }
+    >();
+    getVisibleProducts().forEach((p) => {
+      const rawDept = p.itemGroup || p.department || p.category || '';
+      const rawBrand = p.familyName || p.classification || '';
+      map.set(p.id || p.code || p.name, {
+        name: (p.name || '').toLowerCase(),
+        code: (p.code || '').toLowerCase(),
+        unified: (p.unifiedCode || '').toLowerCase(),
+        barcode: p.barcode || '',
+        dept: stripPlaceholderText(rawDept).trim(),
+        brand: stripPlaceholderText(rawBrand).trim(),
+      });
+    });
+    return map;
+  }, [getVisibleProducts]);
+
+  // Collator واحد مُعاد استخدامه بدل إنشاء واحد لكل مقارنة في ترتيب الأسماء.
+  const nameCollator = useMemo(() => new Intl.Collator('ar'), []);
+
+  // Filtered Products
+  const filteredProducts = useMemo(() => {
+    let result = getVisibleProducts().filter((p) => {
+      const idx = catalogFilterIndex.get(p.id || p.code || p.name);
+      // 1. Sector filter — القطاع الفعلي بعد قواعد الأدوار
+      if (effectiveSectorFilter === 'none') return false;
+      const isElec = isProductElectrical(p);
+      if (effectiveSectorFilter === 'electrical' && !isElec) return false;
+      if (effectiveSectorFilter === 'home' && isElec && p.sector !== 'both' && p.sector !== 'all') return false;
+
+      // 2. Hide products with 0 stock in both main warehouse and rep's branch
+      const branchStock = getProductBranchStock(p);
+      const octoberStock = p.mainWarehouseActual || 0;
+      if (onlyInStock && branchStock <= 0 && octoberStock <= 0) {
+        return false;
+      }
+
+      // 3. Search match (اسم المنتج، كود المنتج / Item number، الكود الموحد، الباركود)
+      if (debouncedSearchTerm) {
+        const q = debouncedSearchTerm.toLowerCase().trim();
+        const cleanQ = q.replace('#', '');
+        const name = idx ? idx.name : (p.name || '').toLowerCase();
+        const code = idx ? idx.code : (p.code || '').toLowerCase();
+        const unified = idx ? idx.unified : (p.unifiedCode || '').toLowerCase();
+        const barcode = idx ? idx.barcode : p.barcode || '';
+        const matchesName = name.includes(q);
+        const matchesCode = code.includes(cleanQ);
+        const matchesUnified = Boolean(unified && unified.includes(cleanQ));
+        const matchesBarcode = Boolean(barcode && barcode.includes(q));
+        if (!matchesName && !matchesCode && !matchesUnified && !matchesBarcode) return false;
+      }
+
+      // 4. Department / الصنف filter
+      if (selectedDept !== 'الكل') {
+        const pDept = idx
+          ? idx.dept
+          : stripPlaceholderText(p.itemGroup || p.department || p.category || '').trim();
+        if (pDept !== selectedDept) return false;
+      }
+
+      // 5. Brand / الصنف بالعائلة filter
+      if (selectedBrand !== 'الكل') {
+        const pBrand = idx
+          ? idx.brand
+          : stripPlaceholderText(p.familyName || p.classification || '').trim();
+        if (pBrand !== selectedBrand) return false;
+      }
+
+      // 6. Status filter
+      if (selectedStatus !== 'الكل') {
+        if (selectedStatus === 'متوفر' && branchStock <= 0) return false;
+        if (selectedStatus === 'محدود' && (branchStock > 0 || octoberStock <= 0)) return false;
+        if (selectedStatus === 'نفد جزئياً' && branchStock > 0 && octoberStock > 0) return false;
+      }
+
+      // 7. Price filter (من/إلى)
+      if (minPrice !== '' || maxPrice !== '') {
+        const price = Number(p.cartonPrice || 0);
+        const min = minPrice !== '' ? Number(minPrice) : 0;
+        const max = maxPrice !== '' ? Number(maxPrice) : Infinity;
+        if (price < min || price > max) return false;
+      }
+
+      // 8. Promotions filter (خصم خاص)
+      if (onlyPromos && !promoByProductId.get(p.id || p.code || p.name)?.hasPromo) {
+        return false;
+      }
+
+      return true;
+    });
+
+    // Sorting
+    if (sortBy === 'branch_stock_desc') {
+      result.sort((a, b) => getProductBranchStock(b) - getProductBranchStock(a));
+    } else if (sortBy === 'october_stock_desc') {
+      result.sort((a, b) => (b.mainWarehouseActual || 0) - (a.mainWarehouseActual || 0));
+    } else if (sortBy === 'price_asc') {
+      result.sort((a, b) => a.cartonPrice - b.cartonPrice);
+    } else if (sortBy === 'price_desc') {
+      result.sort((a, b) => b.cartonPrice - a.cartonPrice);
+    } else if (sortBy === 'name_asc') {
+      result.sort((a, b) => nameCollator.compare(a.name, b.name));
+    }
+
+    return result;
+  }, [
+    getVisibleProducts,
+    catalogFilterIndex,
+    nameCollator,
+    promoByProductId,
+    effectiveSectorFilter,
+    onlyInStock,
+    onlyPromos,
+    debouncedSearchTerm,
+    selectedDept,
+    selectedBrand,
+    selectedStatus,
+    minPrice,
+    maxPrice,
+    sortBy,
+    getProductBranchStock,
+    isProductElectrical,
+  ]);
+
+  // احسب عدد تكرار كل كود أساسي في القائمة المعروضة (لإظهار شارة "مكرر X مرة" عند البحث)
+  const codeRepeatCount = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredProducts.forEach((p) => {
+      const c = (p.code || '').trim().toLowerCase();
+      if (c) map.set(c, (map.get(c) || 0) + 1);
+    });
+    return map;
+  }, [filteredProducts]);
+
+  // فهرس بحث جاهز (أحرف صغيرة) — بيتبني مرة واحدة بدل ما يتحسب مع كل حرف يتكتب.
+  const searchIndex = useMemo(() => {
+    const map = new Map<string, { name: string; code: string; unified: string; dept: string }>();
+    getVisibleProducts().forEach((p) => {
+      map.set(p.id || p.code || p.name, {
+        name: (p.name || '').toLowerCase(),
+        code: (p.code || '').toLowerCase(),
+        unified: (p.unifiedCode || '').toLowerCase(),
+        dept: (p.department || p.category || p.itemGroup || '').toLowerCase(),
+      });
+    });
+    return map;
+  }, [getVisibleProducts]);
+
+  // Smart Search Suggestions: لو كتب حرف يظهرله اقتراحات فورية وأقرب أصناف مطابقة
+  const searchSuggestions = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return [];
+    const cleanQ = q.replace('#', '');
+    const pool = getVisibleProducts();
+
+    const priorityMatches: Product[] = [];
+    const secondaryMatches: Product[] = [];
+
+    for (const p of pool) {
+      const idx = searchIndex.get(p.id || p.code || p.name);
+      if (!idx) continue;
+      const name = idx.name;
+      const code = idx.code;
+      const unified = idx.unified;
+      const dept = idx.dept;
+
+      // Check if starts with query (highest relevance)
+      if (name.startsWith(q) || code.startsWith(cleanQ) || unified.startsWith(cleanQ)) {
+        priorityMatches.push(p);
+      } else if (
+        name.includes(q) ||
+        code.includes(cleanQ) ||
+        unified.includes(cleanQ) ||
+        dept.includes(q)
+      ) {
+        secondaryMatches.push(p);
+      }
+
+      if (priorityMatches.length + secondaryMatches.length >= 25) break;
+    }
+
+    return [...priorityMatches, ...secondaryMatches].slice(0, 8);
+  }, [searchTerm, getVisibleProducts, searchIndex]);
+
+  const isAllBranchesView = useMemo(() => {
+    const isAdminLevel =
+      currentUser?.role === 'admin' ||
+      currentUser?.role === 'developer' ||
+      currentUser?.role === 'technical_support';
+    return isAdminLevel && selectedBranchFilter === 'الكل';
+  }, [currentUser?.role, selectedBranchFilter]);
+
+  // Focused Inventory Stock Metrics
+  const stats = useMemo(() => {
+    let branchCartons = 0;
+    let octoberCartons = 0;
+    let availableItemsCount = 0;
+
+    const getRegionalBranchesStock = (p: Product): number => {
+      if (p.branchStocks && typeof p.branchStocks === 'object') {
+        const entries = Object.entries(p.branchStocks);
+        if (entries.length > 0) {
+          let sum = 0;
+          for (const [k, val] of entries) {
+            if (typeof val !== 'number' || Number.isNaN(val)) continue;
+            if (k.includes('أكتوبر') || k.includes('اكتوبر') || k.includes('الرئيسي')) continue;
+            sum += Math.max(0, val);
+          }
+          return sum;
+        }
+      }
+      if (
+        p.branchName &&
+        (p.branchName.includes('أكتوبر') || p.branchName.includes('اكتوبر') || p.branchName.includes('الرئيسي'))
+      ) {
+        return 0;
+      }
+      return Math.max(0, p.branchStockActual || 0);
+    };
+
+    filteredProducts.forEach((p) => {
+      const bStock = isAllBranchesView ? getRegionalBranchesStock(p) : getProductBranchStock(p);
+      const oStock = p.mainWarehouseActual || 0;
+      if (bStock > 0 || oStock > 0) {
+        availableItemsCount += 1;
+      }
+      branchCartons += Math.max(0, bStock);
+      octoberCartons += Math.max(0, oStock);
+    });
+
+    return {
+      branchCartons,
+      octoberCartons,
+      availableItemsCount,
+    };
+  }, [filteredProducts, getProductBranchStock, isAllBranchesView]);
+
+  // عدّادات تشغيلية للكروت العلوية: مرتجعات تحتاج مراجعة + عمليات التحصيل
+  const opsStats = useMemo(() => {
+    let returnsPending = 0;
+    let collectionsCount = 0;
+
+    (visits || []).forEach((v) => {
+      const hasReturn = Boolean(v.isReturn) || Number(v.returnValue || 0) > 0;
+      const returnClosed = v.returnStatus === 'مرفوض' || v.returnStatus === 'تم الاستلام بالمخزن';
+      if (hasReturn && !returnClosed) returnsPending += 1;
+      if (Number(v.collectedAmount || 0) > 0) collectionsCount += 1;
+    });
+
+    return { returnsPending, collectionsCount };
+  }, [visits]);
+
+  // Pagination calculation
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / itemsPerPage));
+  const paginatedProducts = useMemo(() => {
+    let products = filteredProducts;
+    if (showFavoritesOnly) {
+      products = products.filter((p) => Boolean(favorites[p.id]));
+    }
+    const start = (currentPage - 1) * itemsPerPage;
+    return products.slice(start, start + itemsPerPage);
+  }, [filteredProducts, currentPage, itemsPerPage, showFavoritesOnly, favorites]);
+
+  // سعر الصنف المفتوح في المودال — نفس القاعدة المستخدمة في الكارت.
+  const modalPricing = selectedProductForModal
+    ? resolveDisplayPrice({
+        piecePrice: selectedProductForModal.piecePrice ?? selectedProductForModal.salesPrice,
+        cartonPrice: selectedProductForModal.cartonPrice,
+        factor: selectedProductForModal.cartonQuantity ?? selectedProductForModal.factor,
+      })
+    : null;
+  const modalPromoInfo = selectedProductForModal
+    ? resolveProductPromotion(selectedProductForModal, promotions)
+    : null;
+  const modalVariants = useMemo(() => {
+    if (!selectedProductForModal) return [];
+    const clean = (v?: string | null) => String(v || '').trim().replace(/^#/, '').toLowerCase();
+    const baseCode = clean(selectedProductForModal.code);
+    if (!baseCode) return [selectedProductForModal];
+    const seen = new Set<string>();
+    const list: Product[] = [];
+    for (const c of products) {
+      if (clean(c.code) !== baseCode) continue;
+      const key = clean(c.unifiedCode) || `${String(c.color || '').trim().toLowerCase()}|${c.id}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      list.push(c);
+    }
+    return list.length > 0 ? list : [selectedProductForModal];
+  }, [selectedProductForModal, products]);
+
+  // Add item to cart with quantity (ذكي: لو الشدة = 1 يضاف كقطع، ولو أكبر يضاف ككرتونة)
+  const handleAddToCart = useCallback((product: Product) => {
+    const factor = product.cartonQuantity ?? product.factor ?? 1;
+    const isSingle = factor <= 1;
+    const type = isSingle ? 'piece' : (cardOrderTypes[product.id] || 'carton');
+    const qty = cardQuantities[product.id] || 1;
+
+    const branchStock = getProductBranchStock(product);
+    const octoberStock = product.mainWarehouseActual || 0;
+    const totalAvail = branchStock + octoberStock;
+
+    if (totalAvail <= 0) {
+      setStockErrorToast(`الصنف (${stripPlaceholderText(product.name)}) غير متوفر حالياً في أي مخزن!`);
+      setTimeout(() => setStockErrorToast(null), 3500);
+      return;
+    }
+
+    const res = addToCart(product, type, qty, 0);
+    if (!res.success) {
+      setStockErrorToast(res.message || 'تعذر إضافة الصنف للمخزون.');
+      setTimeout(() => setStockErrorToast(null), 3500);
+      return;
+    }
+
+    setAddedItemToast({
+      name: stripPlaceholderText(product.name),
+      count: isSingle ? `${qty} قطعة` : `${qty} ${type === 'carton' ? 'كرتونة' : 'قطعة'}`,
+    });
+    setTimeout(() => setAddedItemToast(null), 3000);
+  }, [addToCart, cardQuantities, cardOrderTypes, getProductBranchStock, stripPlaceholderText, setStockErrorToast, setAddedItemToast]);
+
+  const handleQtyChange = (productId: string, delta: number) => {
+    setCardQuantities((prev) => {
+      const current = prev[productId] || 1;
+      const next = Math.max(1, current + delta);
+      return { ...prev, [productId]: next };
+    });
+  };
+
+  // PDF Export Trigger (فقط الأصناف التي يتوفر لها مخزون > 0 في الفرع أو أكتوبر)
+  const handleExportPDF = async () => {
+    // استبعاد أي صنف رصيده صفر في مخزن المندوب والمخزن الرئيسي معاً
+    const inStockProducts = filteredProducts.filter((p) => {
+      const branchStock = getProductBranchStock(p);
+      const octoberStock = p.mainWarehouseActual || 0;
+      return branchStock > 0 || octoberStock > 0;
+    });
+
+    if (inStockProducts.length === 0) {
+      setStockErrorToast('لا توجد منتجات يتوفر بها رصيد مخزني حالياً في الفرع أو أكتوبر لتصديرها.');
+      setTimeout(() => setStockErrorToast(null), 3500);
+      return;
+    }
+
+    setIsExportingPDF(true);
+    try {
+      // تصدير ما يصل إلى 150 صنفاً متوفراً بالمخازن
+      const catalogItems: ClientCatalogProduct[] = inStockProducts.slice(0, 150).map((p) => ({
+        id: p.id,
+        name: p.name,
+        code: p.code,
+        unifiedCode: p.unifiedCode,
+        imageUrl: p.imageUrl ? getProductImageUrl(p, cloudinaryConfig) : undefined,
+      }));
+
+      const catLabel =
+        selectedDept !== 'الكل'
+          ? selectedDept
+          : effectiveSectorFilter === 'electrical'
+          ? 'قطاع الكهرباء'
+          : effectiveSectorFilter === 'home'
+          ? 'القطاع المنزلي'
+          : 'الكتالوج العام';
+
+      const { buildClientCatalogPDF } = await import('../services/pdfService');
+      const res = await buildClientCatalogPDF(catalogItems, {
+        categoryName: catLabel,
+        onProgress: (prog) => {
+          setPdfProgress(prog);
+        },
+      });
+
+      res.pdf.save(res.filename);
+      setAddedItemToast({
+        name: `تم تصدير ${res.exportedCount} صنف متوفر كـ PDF بنجاح 📄`,
+        count: 'جاهز للمشاركة المباشرة مع العملاء',
+      });
+      setTimeout(() => setAddedItemToast(null), 4000);
+    } catch (e: any) {
+      console.error(e);
+      setStockErrorToast('حدث خطأ أثناء تصدير ملف الـ PDF');
+      setTimeout(() => setStockErrorToast(null), 3500);
+    } finally {
+      setIsExportingPDF(false);
+      setPdfProgress(null);
+    }
+  };
+
+  const cartSummary = getCartSummary();
+  const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
+
+  // عدد الفلاتر المتقدمة المفعّلة — بيظهر كشعار على زر "المزيد من الفلتر"
+  const activeAdvancedCount =
+    (onlyInStock ? 0 : 1) + (onlyPromos ? 1 : 0);
+
+  const handleResetFilters = () => {
+    setSearchTerm('');
+    setSelectedDept('الكل');
+    setSelectedBrand('الكل');
+    setSelectedStatus('الكل');
+    setOnlyInStock(true);
+    setOnlyPromos(false);
+    setSortBy('default');
+    setActiveSectorFilter(defaultSector);
+    saveCatalogFilters();
+  };
+
+  return (
+    <div className="catalog-page tantawy-screen min-w-0 w-full max-w-full space-y-6 pb-20 font-cairo" dir="rtl">
+      <div className="catalog-hero rounded-[32px] border border-white/12 bg-[radial-gradient(circle_at_top_left,_rgba(61,216,176,0.22),transparent_35%),linear-gradient(135deg,#0f2b3d_0%,#0a1c2c_45%,#071726_100%)] shadow-[0_20px_50px_rgba(2,6,23,0.35)]">
+        <div className="relative z-10 flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="catalog-hero__icon flex h-16 w-16 shrink-0 items-center justify-center rounded-[26px] border border-white/14 bg-white/12 text-white shadow-xl backdrop-blur-md">
+              <ShoppingCart className="h-8 w-8" />
+            </div>
+            <div>
+              <h1 className="catalog-hero__title text-3xl font-black tracking-tight text-white sm:text-[32px] leading-tight">كتالوج الأصناف</h1>
+              <p className="catalog-hero__desc mt-1 text-[12px] font-semibold text-white/80 sm:text-sm leading-relaxed">
+                اختر المنتجات بسهولة وأضفها إلى فاتورتك — تصفح حسب القطاع، الماركة، والمخزون المتوفر.
+              </p>
+            </div>
+          </div>
+
+          <div className="relative z-20 w-full lg:max-w-2xl" ref={searchWrapperRef}>
+            <div className="relative">
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setShowSearchSuggestions(true);
+                }}
+                onFocus={() => {
+                  if (searchTerm.trim().length > 0) {
+                    setShowSearchSuggestions(true);
+                  }
+                }}
+                placeholder="ابحث باسم المنتج أو كود المنتج أو الكود الموحد ..."
+                className="w-full rounded-[20px] border border-white/50 bg-white/90 py-3.5 pl-12 pr-11 text-xs font-bold text-slate-800 shadow-xl shadow-slate-950/25 transition-all focus:outline-none focus:ring-2 focus:ring-[#3dd8b0]/80 focus:ring-offset-1 sm:text-sm sm:py-4 sm:pl-14"
+              />
+              <Search className="pointer-events-none absolute right-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-400" />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setShowSearchSuggestions(false);
+                  }}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 rounded-lg p-1 text-slate-400 transition-all hover:bg-white/70 hover:text-slate-700"
+                  title="مسح البحث"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+
+          {showSearchSuggestions && searchTerm.trim().length > 0 && (
+            <div className="absolute left-0 right-0 top-full z-[100] mt-2 max-h-96 overflow-hidden overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl divide-y divide-slate-200">
+              <div className="flex items-center justify-between bg-slate-50 px-3.5 py-2 text-[11px] font-bold text-slate-600">
+                <span>اقتراحات البحث الذكي ({searchSuggestions.length} صنف)</span>
+                <span className="text-[10px] font-extrabold text-blue-600">اضغط لاختيار الصنف</span>
+              </div>
+
+              {searchSuggestions.length > 0 ? (
+                searchSuggestions.map((prod) => {
+                  const bStock = getProductBranchStock(prod);
+                  const oStock = prod.mainWarehouseActual || 0;
+                  const isAvailable = bStock > 0 || oStock > 0;
+                  const promoInfo = resolveProductPromotion(prod, promotions);
+
+                  return (
+                    <button
+                      key={prod.id}
+                      type="button"
+                      onClick={() => {
+                        setSearchTerm(prod.name);
+                        setShowSearchSuggestions(false);
+                      }}
+                      className="w-full text-right p-3 hover:bg-blue-50/70 transition flex items-center gap-3 cursor-pointer group"
+                    >
+                      {/* Product Thumbnail */}
+                      <div className="w-11 h-11 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 flex items-center justify-center p-1">
+                        <ProductImage
+                          product={prod}
+                          cloudinaryConfig={cloudinaryConfig}
+                          targetSize={110}
+                          sizeVariant="thumbnail"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+
+                      {/* Product Details */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-black text-primary group-hover:text-blue-700 transition truncate">
+                            {prod.name}
+                          </span>
+                          {promoInfo.hasPromo && (
+                            <span className="tg-special-discount-badge shrink-0">
+                              <Flame className="w-3 h-3" />
+                              خصم خاص -{promoInfo.discountPercentage}%
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2 mt-1 flex-wrap text-[11px]">
+                          <span className="font-mono font-bold bg-slate-100 text-secondary px-1.5 py-0.5 rounded border border-slate-200 text-[10px]">
+                            كود: {prod.code}
+                          </span>
+                          {prod.unifiedCode && (
+                            <span className="font-mono font-black bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 text-[10px]">
+                              #{prod.unifiedCode.replace('#', '')}
+                            </span>
+                          )}
+                          {promoInfo.hasPromo ? (
+                            <span className="flex items-center gap-1.5 text-[10px] font-black">
+                              <span className="line-through text-slate-400">
+                                {promoInfo.originalCartonPrice.toLocaleString()} ج.م
+                              </span>
+                              <span className="text-emerald-700">
+                                {promoInfo.promoCartonPrice.toLocaleString()} ج.م
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-light text-[10px]">
+                              {prod.cartonPrice.toLocaleString()} ج.م
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Stock Badges */}
+                      <div className="shrink-0 text-left">
+                        {isAvailable ? (
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="text-[10px] font-bold text-[var(--app-text)] bg-[var(--app-card-secondary)] px-2 py-0.5 rounded-md border border-[#CBD5E1]">
+                              الفرع: {bStock} ك
+                            </span>
+                            <span className="text-[10px] font-bold text-[var(--app-primary-text)] bg-[var(--app-primary-tint)] px-2 py-0.5 rounded-md border border-[#BFDBFE]">
+                              أكتوبر: {oStock} ك
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-[10px] font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                            غير متوفر
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="p-4 text-center text-xs text-light font-bold">
+                  لا توجد نتائج مطابقة لـ &quot;{searchTerm}&quot;
+                </div>
+              )}
+            </div>
+          )}
+          </div>
+        </div>
+      </div>
+
+      {/* Selected Customer Bar if applicable */}
+      {selectedCustomer && (
+        <div className="bg-[var(--app-primary-tint)] border border-[#BFDBFE] rounded-2xl p-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-[#1E3A8A] text-white flex items-center justify-center font-bold text-xs">
+              عميل
+            </div>
+            <div>
+              <div className="text-xs font-black text-blue-950">
+                الطلب محدد للعميل: {selectedCustomer.name} ({selectedCustomer.code})
+              </div>
+              <div className="text-[11px] text-blue-700 font-bold">
+                المديونية الحالية: {formatCurrency(selectedCustomer.balance || 0)}
+              </div>
+            </div>
+          </div>
+          {onClearSelectedCustomer && (
+            <button
+              type="button"
+              onClick={onClearSelectedCustomer}
+              className="text-xs font-bold text-rose-600 hover:underline cursor-pointer"
+            >
+              إلغاء التحديد
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 2. Focused Inventory Stock KPI Cards (3 Cards) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2.5 sm:gap-3.5">
+        {/* مخزون فرع المندوب / إجمالي الفروع */}
+        <div className="tg-kpi tg-kpi--blue min-w-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="tg-kpi__icon">
+              <Store className="w-5 h-5 sm:w-6 sm:h-6" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="tg-kpi__label">
+                {isAllBranchesView ? 'إجمالي مخزون الفروع' : 'مخزون فرع المندوب'}
+              </p>
+              <p className="tg-kpi__value whitespace-nowrap truncate">
+                {stats.branchCartons.toLocaleString('en-US')}{' '}
+                <span className="text-xs font-bold text-white/90">كرتونة</span>
+              </p>
+              <p className="tg-kpi__hint">
+                {isAllBranchesView
+                  ? 'مجموع أرصدة الـ 7 فروع (بدون أكتوبر)'
+                  : `رصيد متاح بالفرع (${currentActiveBranch})`}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSortBy('branch_stock_desc')}
+            title="ترتيب حسب مخزون الفرع"
+            aria-label="ترتيب حسب مخزون الفرع"
+            className="w-8 h-8 rounded-full bg-white/15 text-white border border-white/25 hover:bg-white/25 flex items-center justify-center shrink-0 transition cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* مخزون أكتوبر المركزي */}
+        <div className="tg-kpi tg-kpi--green min-w-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="tg-kpi__icon">
+              <Package className="w-5 h-5 sm:w-6 sm:h-6" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="tg-kpi__label">المخزن الرئيسي (أكتوبر)</p>
+              <p className="tg-kpi__value whitespace-nowrap truncate">
+                {stats.octoberCartons.toLocaleString('en-US')}{' '}
+                <span className="text-xs font-bold text-white/90">كرتونة</span>
+              </p>
+              <p className="tg-kpi__hint">رصيد مركزي متاح للسحب</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSortBy('october_stock_desc')}
+            title="ترتيب حسب مخزون أكتوبر"
+            aria-label="ترتيب حسب مخزون أكتوبر"
+            className="w-8 h-8 rounded-full bg-white/15 text-white border border-white/25 hover:bg-white/25 flex items-center justify-center shrink-0 transition cursor-pointer"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* الأصناف المتوفرة للطلب */}
+        <div className="tg-kpi tg-kpi--violet min-w-0 sm:col-span-2 lg:col-span-1">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+            <div className="tg-kpi__icon">
+              <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="tg-kpi__label">الأصناف المتوفرة للطلب</p>
+              <p className="tg-kpi__value whitespace-nowrap truncate">
+                {stats.availableItemsCount.toLocaleString('en-US')}{' '}
+                <span className="text-xs font-bold text-white/90">صنف متاح</span>
+              </p>
+              <p className="tg-kpi__hint">بمخزون &gt; 0 في الفرع أو أكتوبر</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Filter Bar */}
+      <div className="bg-white rounded-[26px] border border-slate-100 shadow-lg p-4 select-none space-y-4 font-cairo">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* القطاعات — تبديل القطاع ميزة إدارة عليا فقط (admin/developer) */}
+          {canManageSectorGate && (
+          <div className="catalog-sectors flex flex-wrap items-center gap-1 p-1.5 bg-slate-50 rounded-[20px] border border-slate-200 shadow-sm">
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSectorFilter('home');
+                saveCatalogFilters();
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                activeSectorFilter === 'home'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              🏠 منزلي
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSectorFilter('electrical');
+                saveCatalogFilters();
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                activeSectorFilter === 'electrical'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              ⚡ كهرباء
+            </button>
+          </div>
+          )}
+
+          {/* زر التبديل لعرض تفاصيل الـ 8 مخازن (7 فروع + مخزن أكتوبر المركزي) */}
+          <button
+            type="button"
+            onClick={() => setShowAllWarehouses((v) => !v)}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap shrink-0 ${
+              showAllWarehouses
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'
+            }`}
+            title="عرض كشف أرصدة المخازن الـ 8 لكل صنف"
+          >
+            <Building className="w-4 h-4" />
+            <span>{showAllWarehouses ? 'عرض مختصر (فرعك + أكتوبر)' : 'عرض أرصدة الـ 8 مخازن'}</span>
+          </button>
+
+          {/* زر فلترة أصناف عروض دريم طنطاوي (خصم خاص) */}
+          <button
+            type="button"
+            onClick={() => setOnlyPromos((v) => !v)}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition cursor-pointer whitespace-nowrap shrink-0 border ${
+              onlyPromos
+                ? 'bg-[#fef3c7] border-[#f59e0b] text-[#92400e] shadow-xs'
+                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-amber-50/70'
+            }`}
+            title="تصفية الأصناف المربوطة بعروض دريم طنطاوي"
+          >
+            <Flame className={`w-4 h-4 ${onlyPromos ? 'text-amber-600' : 'text-amber-500'}`} />
+            <span>عروض خصم خاص</span>
+          </button>
+
+          {/* المزيد من الفلتر (يفتح لوحة الفلاتر المتقدمة) */}
+          <button
+            type="button"
+            onClick={() => setShowAdvancedFilters((v) => !v)}
+            aria-expanded={showAdvancedFilters}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-black shadow-sm transition cursor-pointer ${
+              showAdvancedFilters
+                ? 'bg-[var(--app-accent)] text-white'
+                : 'bg-[var(--app-navy)] text-white hover:opacity-90'
+            }`}
+          >
+            <Filter className="w-4 h-4" />
+            <span>المزيد من الفلتر</span>
+            {activeAdvancedCount > 0 && (
+              <span className="bg-white/25 text-white rounded-full px-1.5 py-0.5 text-[10px] font-black">
+                {activeAdvancedCount}
+              </span>
+            )}
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} />
+          </button>
+
+          {/* الترتيب حسب */}
+          <div className="relative">
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              aria-label="الترتيب حسب"
+              className="appearance-none bg-white border border-slate-200 hover:border-slate-300 rounded-[16px] px-3.5 py-2.5 pr-3 pl-10 text-[11px] font-black text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+            >
+              <option value="default">الترتيب حسب</option>
+              <option value="branch_stock_desc">الأعلى مخزوناً بفرعك</option>
+              <option value="october_stock_desc">الأعلى بمخزن أكتوبر</option>
+              <option value="price_asc">السعر: من الأقل للأعلى</option>
+              <option value="price_desc">السعر: من الأعلى للأقل</option>
+              <option value="name_asc">الاسم أبجدياً</option>
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-light absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          {/* كل الحالات */}
+          <div className="relative">
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              aria-label="كل الحالات"
+              className="appearance-none bg-white border border-slate-200 hover:border-slate-300 rounded-[16px] px-3.5 py-2.5 pr-3 pl-10 text-[11px] font-black text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer"
+            >
+              <option value="الكل">كل الحالات</option>
+              <option value="متوفر">متوفر بفرعك</option>
+              <option value="محدود">متوفر بأكتوبر فقط</option>
+              <option value="نفد جزئياً">غير متوفر (0)</option>
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-light absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          {/* الصنف بالعائلة (من عمود الصنف بالعائله / Family Name) */}
+          <div className="relative">
+            <select
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+              aria-label="الصنف بالعائلة"
+              className="appearance-none bg-white border border-slate-200 hover:border-slate-300 rounded-[16px] px-3.5 py-2.5 pr-3 pl-10 text-[11px] font-black text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer max-w-[180px]"
+            >
+              <option value="الكل">الصنف بالعائلة (الكل)</option>
+              {brandsList.map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-light absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          {/* الصنف (من عمود اسم الصنف / Item group) */}
+          <div className="relative">
+            <select
+              value={selectedDept}
+              onChange={(e) => setSelectedDept(e.target.value)}
+              aria-label="الصنف"
+              className="appearance-none bg-white border border-slate-200 hover:border-slate-300 rounded-[16px] px-3.5 py-2.5 pr-3 pl-10 text-[11px] font-black text-secondary focus:outline-none focus:ring-2 focus:ring-blue-500/50 cursor-pointer max-w-[180px]"
+            >
+              <option value="الكل">الصنف (الكل)</option>
+              {departmentsList.map((d) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 text-light absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          {/* فلتر السعر: من / إلى */}
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs font-black">
+            <span className="text-muted">سعر القطعة:</span>
+            <span className="text-muted mx-1">من</span>
+            <input
+              type="number"
+              placeholder="من"
+              value={minPrice}
+              onChange={(e) => setMinPrice(e.target.value)}
+              aria-label="السعر من"
+              className="w-20 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <span className="text-muted mx-1">إلى</span>
+            <input
+              type="number"
+              placeholder="إلى"
+              value={maxPrice}
+              onChange={(e) => setMaxPrice(e.target.value)}
+              aria-label="السعر إلى"
+              className="w-20 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-right focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="hidden md:block flex-1" />
+
+          {/* معاينة الفاتورة */}
+          {cart.length > 0 && onOpenCart && (
+            <button
+              type="button"
+              onClick={onOpenCart}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-xs font-black shadow-sm shadow-blue-500/20 transition active:scale-95 cursor-pointer"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              <span>معاينة الفاتورة ({cart.length})</span>
+            </button>
+          )}
+
+          {/* تبديل طريقة العرض: كروت / جدول ERP */}
+          <div className="catalog-sectors flex flex-wrap items-center gap-1 p-1.5 bg-slate-50 rounded-[20px] border border-slate-200 shadow-sm">
+            <button
+              type="button"
+              onClick={() => switchCatalogView('cards')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                catalogView === 'cards'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="عرض الكروت (زي الكتالوج المرجعي)"
+            >
+              <Grid className="w-3.5 h-3.5" />
+              <span>كروت</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => switchCatalogView('table')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition cursor-pointer ${
+                catalogView === 'table'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+              title="عرض جدول ERP تفصيلي (للشاشات الكبيرة)"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>جدول</span>
+            </button>
+          </div>
+
+          {/* تحديث / إعادة ضبط الفلاتر */}
+          <button
+            type="button"
+            onClick={handleResetFilters}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-secondary transition cursor-pointer"
+          >
+            <RotateCw className="w-3.5 h-3.5 text-light" />
+            <span>تحديث</span>
+          </button>
+        </div>
+
+        {/* لوحة الفلاتر المتقدمة */}
+        {showAdvancedFilters && (
+          <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center gap-2">
+            {/* المتوفر بالمخازن فقط */}
+            <button
+              type="button"
+              onClick={() => setOnlyInStock(!onlyInStock)}
+              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-black transition cursor-pointer ${
+                onlyInStock
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800 shadow-xs'
+                  : 'bg-white border-slate-200 text-muted hover:bg-slate-50'
+              }`}
+            >
+              <CheckCircle2 className={`w-3.5 h-3.5 ${onlyInStock ? 'text-emerald-600' : 'text-light'}`} />
+              <span>المتوفر بالمخازن فقط (مخزون &gt; 0)</span>
+            </button>
+
+            {/* أزرار القطاع — للإدارة العليا فقط (admin/developer) */}
+            {canManageSectorGate && (
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setActiveSectorFilter('home')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                  activeSectorFilter === 'home' ? 'bg-blue-600 text-white shadow-xs' : 'text-muted hover:text-primary'
+                }`}
+              >
+                🏠 منزلي {currentUser?.sector === 'home' ? '⭐' : ''}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSectorFilter('electrical')}
+                className={`px-3 py-1.5 rounded-xl text-xs font-black transition cursor-pointer ${
+                  activeSectorFilter === 'electrical' ? 'bg-blue-600 text-white shadow-xs' : 'text-muted hover:text-primary'
+                }`}
+              >
+                ⚡ كهرباء {currentUser?.sector === 'electrical' ? '⭐' : ''}
+              </button>
+            </div>
+            )}
+
+            {/* تصدير PDF */}
+            <button
+              type="button"
+              onClick={handleExportPDF}
+              disabled={isExportingPDF}
+              className="flex items-center gap-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-700 hover:to-rose-800 text-white px-3.5 py-2 rounded-xl text-xs font-black shadow-sm transition active:scale-95 disabled:opacity-50 cursor-pointer"
+            >
+              {isExportingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
+              <span>{isExportingPDF ? 'جاري تجهيز الكتالوج...' : 'تصدير الصور كـ PDF 📄'}</span>
+            </button>
+
+            {/* فرعك */}
+            <div className="flex items-center gap-1 text-xs text-light font-bold bg-white px-3 py-2 rounded-xl border border-slate-200">
+              <span>فرعك:</span>
+              <span className="font-black text-secondary">{currentActiveBranch}</span>
+            </div>
+
+            {/* الأصناف المتوفرة للطلب */}
+            <div className="flex items-center gap-1 text-xs text-light font-bold bg-white px-3 py-2 rounded-xl border border-slate-200">
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+              <span>أصناف متاحة للطلب:</span>
+              <span className="font-black text-indigo-600">{stats.availableItemsCount.toLocaleString('en-US')}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* PDF Export Progress Modal */}
+      {isExportingPDF && pdfProgress && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-full sm:max-w-lg shadow-2xl border border-slate-100 space-y-4 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+              <FileText className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="font-black text-primary text-base">جاري إنشاء ملف الكتالوج PDF</h3>
+              <p className="text-xs text-light font-bold mt-1">
+                {pdfProgress.phase === 'images'
+                  ? `تحميل ومعالجة صور الأصناف (${pdfProgress.current} من ${pdfProgress.total})`
+                  : `بناء صفحات الـ PDF والخطوط العربية (${pdfProgress.current} من ${pdfProgress.total})`}
+              </p>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+              <div
+                className="bg-rose-600 h-full rounded-full transition-all duration-200"
+                style={{ width: `${pdfProgress.percent}%` }}
+              />
+            </div>
+            <div className="text-xs font-black text-secondary font-mono">{pdfProgress.percent}%</div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notifications */}
+      {addedItemToast && (
+        <div className="fixed bottom-6 left-6 z-50 bg-[#0f1b2d] text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4">
+          <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-bold">
+            <Check className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-xs text-emerald-400 font-bold">تمت الإضافة إلى الفاتورة</div>
+            <div className="text-sm font-black truncate max-w-xs">{addedItemToast.name}</div>
+            <div className="text-[11px] text-slate-300">{addedItemToast.count}</div>
+          </div>
+        </div>
+      )}
+
+      {stockErrorToast && (
+        <div className="fixed top-20 left-6 z-50 max-w-sm bg-rose-600 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 shrink-0" />
+            <span className="text-xs font-bold leading-relaxed">{stockErrorToast}</span>
+          </div>
+          <button type="button" onClick={() => setStockErrorToast(null)} className="text-white/80 hover:text-white">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Favorites Bar */}
+      <div className="hidden lg:flex items-center justify-between gap-3 px-4 py-2 mb-3 bg-surface border border-border-primary rounded-2xl">
+        <div className="flex items-center gap-2">
+          <Heart className="w-4 h-4 text-rose-500 fill-rose-500" />
+          <span className="font-black text-primary text-sm">
+            {Object.keys(favorites).length} صنف في المفضلة
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowFavoritesOnly((prev) => !prev)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition ${
+              showFavoritesOnly
+                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                : 'bg-white text-muted border border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            عرض المفضلة فقط
+          </button>
+          {Object.keys(favorites).length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setFavorites({});
+                try {
+                  localStorage.removeItem('tantawy_fav_products');
+                } catch {}
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold transition bg-white text-muted border border-slate-200 hover:bg-slate-50"
+            >
+              مسح الكل
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Family Breakdown Summary Strip — توزيع الأصناف بالعائلة */}
+      {familyBreakdown.length > 0 && (
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-3.5 space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-black text-slate-900">
+              <Layers className="w-4 h-4 text-blue-600" />
+              <span>توزيع الأصناف بالعائلة</span>
+              <span className="text-[11px] font-bold text-slate-500">({brandsList.length} عائلة مسجلة)</span>
+            </div>
+            {selectedBrand !== 'الكل' && (
+              <button
+                type="button"
+                onClick={() => setSelectedBrand('الكل')}
+                className="text-[11px] font-black text-blue-600 hover:underline cursor-pointer"
+              >
+                عرض كل العائلات
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-1">
+            {familyBreakdown.map((fam) => {
+              const active = selectedBrand === fam.name;
+              return (
+                <button
+                  key={fam.name}
+                  type="button"
+                  onClick={() => setSelectedBrand(active ? 'الكل' : fam.name)}
+                  className={`shrink-0 rounded-xl border px-3 py-2 text-right transition cursor-pointer ${
+                    active
+                      ? 'bg-[#0f2b38] text-white border-[#0f2b38] shadow-sm'
+                      : 'bg-slate-50 hover:bg-blue-50/70 text-slate-800 border-slate-200'
+                  }`}
+                >
+                  <div className="text-xs font-black truncate max-w-[140px]">{fam.name}</div>
+                  <div className={`text-[10px] font-bold mt-0.5 tabular-nums ${active ? 'text-blue-200' : 'text-slate-500'}`}>
+                    {fam.count} صنف · {fam.stock.toLocaleString('en-US')} ك
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 4. Conditional View: ERP Table OR Product Cards Grid (never both in DOM) */}
+      {catalogView === 'table' ? (
+      <div className="catalog-erp-wrap w-full overflow-x-auto border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xs bg-white dark:bg-[#0f172a] animate-in fade-in">
+        <table className="catalog-erp-table w-full min-w-[1250px] text-right border-collapse text-xs">
+          <thead className="bg-[var(--tg-card-2)] text-[var(--app-text)] font-black border-b border-[var(--tg-line-strong)] select-none sticky top-0 z-10">
+            <tr>
+              <th className="p-3 text-center font-black w-12">#</th>
+              <th className="p-3 text-center font-black w-16">الصورة</th>
+              <th className="p-3 text-right font-black w-28">كود المنتج</th>
+              <th className="p-3 text-right font-black w-24">الكود الموحد</th>
+              <th className="p-3 text-right font-black min-w-[200px]">اسم المنتج</th>
+              <th className="p-3 text-right font-black w-32">الصنف بالعائلة</th>
+              <th className="p-3 text-right font-black w-32">المجموعة</th>
+              <th className="p-3 text-center font-black w-24">القطاع</th>
+              <th className="p-3 text-right font-black w-24">سعر القطعة</th>
+              <th className="p-3 text-right font-black w-24">سعر الكرتونة</th>
+              <th className="p-3 text-center font-black w-20">الشدة</th>
+              {showAllWarehouses ? (
+                <>
+                  {COMPANY_WAREHOUSES.map((wh) => (
+                    <th
+                      key={wh.key}
+                      className="p-3 text-center font-black text-[11px]"
+                      title={wh.label}
+                    >
+                      {wh.shortLabel}
+                    </th>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <th className="p-3 text-center font-black w-24">مخزون الفرع</th>
+                  <th className="p-3 text-center font-black w-28">مخزون أكتوبر</th>
+                </>
+              )}
+              <th className="p-3 text-center font-black w-14">المفضلة</th>
+              <th className="p-3 text-center font-black w-28">إضافة للسلة</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold">
+            {paginatedProducts.map((p, rowIdx) => {
+              const branchStock = getProductBranchStock(p);
+              const octoberStock = p.mainWarehouseActual || 0;
+              const isElec = isProductElectrical(p);
+              const priceInfo = resolveDisplayPrice({
+                piecePrice: p.piecePrice ?? p.salesPrice,
+                cartonPrice: p.cartonPrice,
+                factor: p.cartonQuantity ?? p.factor,
+              });
+              const promoInfo = promoByProductId.get(p.id || p.code || p.name) || resolveProductPromotion(p, promotions);
+              const displayName = stripPlaceholderText(p.name);
+              const familyLabel = stripPlaceholderText(p.familyName || p.classification || '').trim() || '—';
+              const groupLabel = stripPlaceholderText(p.itemGroup || p.department || p.category || '').trim() || '—';
+              const globalIdx = (currentPage - 1) * itemsPerPage + rowIdx + 1;
+              const isOutOfStock = branchStock <= 0 && octoberStock <= 0;
+
+              return (
+                <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition group bg-white dark:bg-[#0f172a] font-cairo">
+                  <td className="p-3 text-center font-extrabold text-slate-500 dark:text-slate-400 text-xs">{globalIdx}</td>
+                  <td className="p-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const img = getProductImageUrl(p, cloudinaryConfig);
+                        if (img && !img.startsWith('data:image/svg+xml')) {
+                          setLightboxImage({ src: img, alt: p.name });
+                        }
+                      }}
+                      className="flex items-center justify-center mx-auto"
+                    >
+                      <div className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden flex items-center justify-center cursor-pointer hover:shadow-md transition shadow-xs">
+                        {sanitizeStoredImageUrl(p.imageUrl) ? (
+                          <img
+                            src={getProductImageUrl(p, cloudinaryConfig)}
+                            alt={p.name}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            decoding="async"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs font-extrabold">
+                            📦
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  </td>
+                  <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white text-xs font-mono truncate">{p.code || '—'}</td>
+                  <td className="p-3 text-right text-xs font-mono font-extrabold text-[var(--app-primary-text)] truncate">
+                    {p.unifiedCode ? (p.unifiedCode.startsWith('#') ? p.unifiedCode : `#${p.unifiedCode}`) : '—'}
+                  </td>
+                  <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white max-w-[260px]" title={displayName}>
+                    <div className="truncate">{displayName || `صنف ${p.code}`}</div>
+                    {promoInfo.hasPromo && (
+                      <span className="tg-special-discount-badge mt-1 inline-flex">
+                        <Flame className="w-3 h-3" />
+                        خصم خاص -{promoInfo.discountPercentage}%
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-3 text-right text-xs font-bold text-slate-700 dark:text-slate-300 max-w-[140px] truncate" title={familyLabel}>
+                    {familyLabel}
+                  </td>
+                  <td className="p-3 text-right text-xs font-bold text-slate-600 dark:text-slate-400 max-w-[140px] truncate" title={groupLabel}>
+                    {groupLabel}
+                  </td>
+                  <td className="p-3 text-center">
+                    <span className={`inline-block px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold shrink-0 ${
+                      isElec ? 'bg-[var(--app-primary-tint)] text-[var(--app-primary-text)] border border-[#BFDBFE] dark:bg-[#1E3A8A]/20 dark:text-[#93C5FD]' : 'bg-[#F0FDFA] text-[#0F766E] border border-[#99F6E4] dark:bg-[#0D9488]/15 dark:text-[#5EEAD4]'
+                    }`}>
+                      {isElec ? '⚡ كهرباء' : '🏠 منزلي'}
+                    </span>
+                  </td>
+                  <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white">
+                    {promoInfo.hasPromo && promoInfo.promoPiecePrice > 0 ? (
+                      <div>
+                        <span className="line-through text-[10px] text-slate-400 font-mono block">
+                          {formatCurrency(promoInfo.originalPiecePrice)}
+                        </span>
+                        <span className="font-black font-mono text-emerald-700">
+                          {formatCurrency(promoInfo.promoPiecePrice)}
+                        </span>
+                      </div>
+                    ) : priceInfo.piecePrice > 0 ? (
+                      <span className="font-extrabold font-mono">{formatCurrency(priceInfo.piecePrice)}</span>
+                    ) : (
+                      <span className="text-slate-400">—</span>
+                    )}
+                    <span className="text-[10px] text-slate-400 block font-normal">/قطعة</span>
+                  </td>
+                  <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white">
+                    {priceInfo.factor > 1 && priceInfo.cartonPrice > 0 ? (
+                      promoInfo.hasPromo ? (
+                        <div>
+                          <span className="line-through text-[10px] text-slate-400 font-mono block">
+                            {formatCurrency(promoInfo.originalCartonPrice)}
+                          </span>
+                          <span className="font-black font-mono text-emerald-700">
+                            {formatCurrency(promoInfo.promoCartonPrice)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="font-extrabold font-mono">{formatCurrency(priceInfo.cartonPrice)}</span>
+                      )
+                    ) : (
+                      <span className="text-slate-400 text-xs font-normal">فردي</span>
+                    )}
+                    <span className="text-[10px] text-slate-400 block font-normal">/كرتونة</span>
+                  </td>
+                  <td className="p-3 text-center font-mono">
+                    {priceInfo.factor > 1 ? (
+                      <span className="inline-block bg-[var(--app-primary-tint)] text-[var(--app-primary-text)] border border-[#bfdbfe] text-[10px] px-2 py-0.5 rounded-md font-black">
+                        {priceInfo.factor} ق/ك
+                      </span>
+                    ) : (
+                      <span className="inline-block bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[10px] px-2 py-0.5 rounded-md font-bold">
+                        1
+                      </span>
+                    )}
+                  </td>
+                  {showAllWarehouses ? (
+                    <>
+                      {COMPANY_WAREHOUSES.map((wh) => {
+                        const stock = getWarehouseStock(p, wh.key);
+                        return (
+                          <td key={wh.key} className="p-3 text-center">
+                            <span className={`px-2 py-0.5 rounded-lg text-xs font-black font-mono ${
+                              stock > 0
+                                ? 'bg-[#0B1220] text-white border border-[#0B1220] dark:bg-[#0B1220] dark:text-white dark:border-slate-600'
+                                : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-800 dark:border-slate-700'
+                            }`}>
+                              {stock}
+                            </span>
+                          </td>
+                        );
+                      })}
+                    </>
+                  ) : (
+                    <>
+                      <td className="p-3 text-center">
+                        <span className={`px-2.5 py-1 rounded-xl text-[10px] font-extrabold font-mono ${
+                          branchStock > 0
+                            ? 'bg-[#0B1220] text-white border border-[#0B1220] dark:bg-[#0B1220] dark:text-white dark:border-slate-600'
+                            : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-800 dark:border-slate-700'
+                        }`}>
+                          {branchStock}
+                        </span>
+                      </td>
+                      <td className="p-3 text-center">
+                        <span className={`px-2.5 py-1 rounded-xl text-[10px] font-extrabold font-mono ${
+                          octoberStock > 0
+                            ? 'bg-[#0B1220] text-white border border-[#0B1220] dark:bg-[#0B1220] dark:text-white dark:border-slate-600'
+                            : 'bg-slate-100 text-slate-400 border border-slate-200 dark:bg-slate-800 dark:border-slate-700'
+                        }`}>
+                          {octoberStock}
+                        </span>
+                      </td>
+                    </>
+                  )}
+                  <td className="p-3 text-center">
+                    <button
+                      type="button"
+                      onClick={() => toggleFavorite(p.id)}
+                      aria-label={Boolean(favorites[p.id]) ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
+                      className={`w-8 h-8 rounded-xl border flex items-center justify-center transition cursor-pointer mx-auto ${
+                        favorites[p.id]
+                          ? 'bg-rose-50 border-rose-200 text-rose-600 dark:bg-rose-950/40'
+                          : 'border-slate-200 text-slate-400 hover:text-slate-800 dark:border-slate-700 dark:text-slate-400 bg-white dark:bg-slate-800'
+                      }`}
+                    >
+                      <Heart className={`w-4 h-4 ${favorites[p.id] ? 'fill-rose-600' : ''}`} />
+                    </button>
+                  </td>
+                  <td className="p-3 text-center">
+                    {isOutOfStock ? (
+                      <span className="inline-block py-1 px-2 rounded-xl text-[10px] font-extrabold text-slate-400 bg-slate-100 dark:bg-slate-800 dark:text-slate-500 border border-slate-200 dark:border-slate-700 text-center">
+                        نفد الرصيد
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleAddToCart(p)}
+                        className="w-full py-2 px-2.5 rounded-xl text-[10px] font-extrabold transition-all bg-[#0f2b38] hover:bg-[#00827a] text-white shadow-xs active:scale-95 cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <ShoppingCart className="w-3.5 h-3.5 shrink-0 text-[#7fc0ff]" />
+                        <span>إضافة</span>
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            {paginatedProducts.length === 0 && (
+              <tr>
+                <td colSpan={showAllWarehouses ? COMPANY_WAREHOUSES.length + 13 : 15} className="p-8 text-center text-slate-500 font-bold">
+                  <Package className="w-8 h-8 mx-auto text-slate-400 mb-2" />
+                  <p className="text-slate-600 dark:text-slate-400">لم يتم العثور على أصناف مطابقة للبحث أو الفلاتر المحددة</p>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      ) : (
+      <div className="grid cat-grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 sm:gap-4">
+        {paginatedProducts.map((p) => (
+          <ProductCard
+            key={p.id}
+            product={p}
+            cloudinaryConfig={cloudinaryConfig}
+            promotions={promotions}
+            isFav={Boolean(favorites[p.id])}
+            onToggleFavorite={toggleFavorite}
+            currentQty={cardQuantities[p.id] || 1}
+            onQtyChange={handleQtyChange}
+            onAddToCart={handleAddToCart}
+            onSelectProduct={handleSelectProduct}
+            currentActiveBranch={currentActiveBranch}
+            showAllWarehouses={showAllWarehouses}
+            setShowAllWarehouses={setShowAllWarehouses}
+          />
+        ))}
+
+        {filteredProducts.length === 0 && (
+          <div className="col-span-full py-16 text-center text-light font-bold bg-white rounded-3xl border border-slate-100 p-8 space-y-3">
+            <Package className="w-12 h-12 mx-auto text-slate-300" />
+            <p className="text-sm">لم يتم العثور على أصناف مطابقة للبحث أو الفلاتر المحددة</p>
+            {onlyInStock && (
+              <button
+                type="button"
+                onClick={() => setOnlyInStock(false)}
+                className="text-xs text-blue-600 hover:underline font-black block mx-auto cursor-pointer"
+              >
+                عرض كل الأصناف شاملة المنتهية (رصيد = 0)
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSectorFilter(defaultSector);
+                setSelectedDept('الكل');
+                setSelectedBrand('الكل');
+                setSelectedStatus('الكل');
+                setMinPrice('');
+                setMaxPrice('');
+                setOnlyPromos(false);
+                setOnlyInStock(false);
+                setSearchTerm('');
+              }}
+              className="text-xs bg-[#0f2b38] text-white px-4 py-2.5 rounded-xl font-black block mx-auto cursor-pointer"
+            >
+              إظهار كل الأصناف (مسح كل الفلاتر)
+            </button>
+          </div>
+        )}
+      </div>
+      )}
+
+      {/* 5. Pagination Bar */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5 flex flex-col md:flex-row items-center justify-between gap-3 select-none">
+        {/* Right: عرض X – Y من إجمالي Z صنف */}
+        <div className="text-xs font-bold text-light">
+          {filteredProducts.length === 0 ? (
+            'لا توجد نتائج'
+          ) : (
+            <span>
+              عرض {(currentPage - 1) * itemsPerPage + 1} –{' '}
+              {Math.min(currentPage * itemsPerPage, filteredProducts.length)} من{' '}
+              <span className="font-black text-secondary">{filteredProducts.length.toLocaleString('en-US')}</span>{' '}
+              صنف
+            </span>
+          )}
+        </div>
+
+        {/* Center: أرقام الصفحات */}
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              aria-label="الصفحة السابقة"
+              className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-muted flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              let pg = i + 1;
+              if (totalPages > 5 && currentPage > 3) {
+                pg = currentPage - 2 + i;
+                if (pg > totalPages) pg = totalPages - (4 - i);
+              }
+              if (pg < 1 || pg > totalPages) return null;
+              return (
+                <button
+                  key={pg}
+                  type="button"
+                  onClick={() => setCurrentPage(pg)}
+                  aria-label={`الصفحة ${pg}`}
+                  aria-current={currentPage === pg ? 'page' : undefined}
+                  className={`w-9 h-9 rounded-xl text-xs font-black flex items-center justify-center transition cursor-pointer ${
+                    currentPage === pg
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'bg-white border border-slate-200 text-secondary hover:bg-slate-50'
+                  }`}
+                >
+                  {pg}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              aria-label="الصفحة التالية"
+              className="w-9 h-9 rounded-xl border border-slate-200 bg-white text-muted flex items-center justify-center hover:bg-slate-50 disabled:opacity-30 disabled:pointer-events-none transition cursor-pointer"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Left: عدد النتائج في الصفحة */}
+        <div className="flex items-center gap-2 text-xs font-bold text-muted">
+          <span>عدد النتائج في الصفحة:</span>
+          <select
+            value={itemsPerPage}
+            onChange={(e) => setItemsPerPage(Number(e.target.value))}
+            aria-label="عدد النتائج في الصفحة"
+            className="bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-black text-secondary focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+          >
+            <option value={12}>12</option>
+            <option value={24}>24</option>
+            <option value={48}>48</option>
+            <option value={96}>96</option>
+          </select>
+        </div>
+      </div>
+
+      {/* 6. Product Details Modal */}
+      {selectedProductForModal && (
+        <div
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedProductForModal(null);
+          }}
+        >
+          <div className="bg-white rounded-3xl p-6 w-full max-w-lg shadow-2xl border border-slate-100 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h2 className="text-base font-black text-primary">
+                {stripPlaceholderText(selectedProductForModal.name) || `صنف ${selectedProductForModal.code}`}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setSelectedProductForModal(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-light flex items-center justify-center cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div
+              className="w-full max-h-72 aspect-square bg-slate-50 rounded-2xl border border-slate-100 overflow-hidden flex items-center justify-center cursor-zoom-in"
+              onClick={() => {
+                const src = getProductImageUrl(selectedProductForModal, cloudinaryConfig);
+                if (src && !src.startsWith('data:image/svg+xml')) {
+                  setLightboxImage({
+                    src,
+                    alt: stripPlaceholderText(selectedProductForModal.name) || selectedProductForModal.code || 'صورة المنتج',
+                  });
+                }
+              }}
+              title="اضغط لتكبير الصورة"
+            >
+              <ProductImage
+                product={selectedProductForModal}
+                cloudinaryConfig={cloudinaryConfig}
+                targetSize={560}
+                sizeVariant="modal"
+                containerClassName="w-full h-full flex items-center justify-center"
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+
+            {modalVariants.length > 1 && (
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-black text-slate-500">صور/ألوان الكود ({modalVariants.length})</div>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {modalVariants.map((v) => {
+                    const active = v.id === selectedProductForModal.id;
+                    return (
+                      <button
+                        key={v.id}
+                        type="button"
+                        onClick={() => setSelectedProductForModal(v)}
+                        className={`shrink-0 w-16 rounded-xl border p-1 transition ${active ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                        title={`${v.color || 'بدون لون'} ${v.unifiedCode ? `#${String(v.unifiedCode).replace(/^#/, '')}` : ''}`}
+                      >
+                        <div className="w-full aspect-square rounded-lg bg-slate-50 overflow-hidden flex items-center justify-center">
+                          <ProductImage
+                            product={v}
+                            cloudinaryConfig={cloudinaryConfig}
+                            targetSize={96}
+                            sizeVariant="thumbnail"
+                            containerClassName="w-full h-full flex items-center justify-center"
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                        <div className="mt-1 text-[9px] font-black text-slate-700 truncate">{v.color || '—'}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* الألوان / الأكواد الموحدة لنفس كود المنتج */}
+            <ProductVariantPicker
+              product={selectedProductForModal}
+              allProducts={products}
+              onSelect={(variant) => setSelectedProductForModal(variant)}
+            />
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-slate-50 rounded-xl">
+                <span className="text-[10px] text-light block font-bold">كود المنتج (Item number)</span>
+                <span className="font-mono font-bold text-secondary">{selectedProductForModal.code}</span>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl">
+                <span className="text-[10px] text-light block font-bold">الكود الموحد</span>
+                <span className="font-mono font-bold text-secondary">
+                  {selectedProductForModal.unifiedCode || '—'}
+                </span>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl">
+                <span className="text-[10px] text-light block font-bold">القسم (Item group)</span>
+                <span className="font-bold text-secondary">
+                  {selectedProductForModal.department || selectedProductForModal.category || 'عام'}
+                </span>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl">
+                <span className="text-[10px] text-light block font-bold">العائلة (Family Name)</span>
+                <span className="font-bold text-secondary">
+                  {selectedProductForModal.familyName || selectedProductForModal.classification || '—'}
+                </span>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl">
+                <span className="text-[10px] text-light block font-bold">القطاع</span>
+                <span className="font-black text-blue-700">
+                  {isProductElectrical(selectedProductForModal) ? '⚡ قطاع الكهرباء' : '🏠 القطاع المنزلي'}
+                </span>
+              </div>
+              <div className="p-3 bg-slate-50 rounded-xl">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[10px] text-light block font-bold">
+                    سعر {modalPricing?.unitLabel}
+                  </span>
+                  {modalPromoInfo?.hasPromo && (
+                    <span className="tg-special-discount-badge">
+                      خصم خاص -{modalPromoInfo.discountPercentage}%
+                    </span>
+                  )}
+                </div>
+                {modalPromoInfo?.hasPromo ? (
+                  <div className="mt-1 flex items-center gap-2 flex-wrap">
+                    <span className="text-xs line-through text-slate-400 font-bold">
+                      {formatCurrency(modalPricing?.isSinglePiece ? modalPromoInfo.originalPiecePrice : modalPromoInfo.originalCartonPrice)}
+                    </span>
+                    <span className="font-black text-[#047857] text-sm">
+                      {formatCurrency(modalPricing?.isSinglePiece ? modalPromoInfo.promoPiecePrice : modalPromoInfo.promoCartonPrice)}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="font-black text-blue-600 text-sm">
+                    {formatCurrency(modalPricing?.displayPrice || 0)}
+                  </span>
+                )}
+                <span className="block text-[10px] text-light font-bold mt-1">
+                  {modalPricing && !modalPricing.isSinglePiece
+                    ? `القطعة: ${formatCurrency(modalPromoInfo?.hasPromo ? modalPromoInfo.promoPiecePrice : modalPricing.piecePrice)} • الشدة: ${modalPricing.factor} ق/ك`
+                    : 'يُباع بالقطعة (الشدة 1)'}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                handleAddToCart(selectedProductForModal);
+                setSelectedProductForModal(null);
+              }}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-2.5 rounded-xl flex items-center justify-center gap-2 text-xs shadow-md transition cursor-pointer"
+            >
+              <ShoppingCart className="w-4 h-4" />
+              <span>إضافة الصنف إلى الفاتورة</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 7. Lightbox Zoom */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setLightboxImage(null);
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 left-4 w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <img
+            src={lightboxImage.src}
+            alt={lightboxImage.alt}
+            className="max-w-[85vw] max-h-[85vh] rounded-2xl shadow-2xl object-contain bg-white p-2"
+          />
+        </div>
+      )}
+
+    </div>
+  );
+};

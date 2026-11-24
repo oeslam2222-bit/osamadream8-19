@@ -136,9 +136,10 @@ const PendingSyncView = lazyNamed(() => import('./components/PendingSyncView'), 
  * حد أقصى 5 تبويبات (الأحدث آخرًا) عشان الذاكرة والخلفية ما يزيدوش، والرئيسية
  * مثبّتة لأنها أكثر وجهة رجوع عند المندوبين.
  */
-// كان 5: كل شاشة مخفية بتتعاد رسمها مع أي تحديث في AppContext (مزامنة، فاتورة…)،
-// فـ5 شاشات تقيلة = تهنيج. 2 = الرئيسية + الشاشة الحالية (+ اللي قبلها لحظياً).
-const MOUNTED_TABS_LIMIT = 2;
+// 5 شاشات محفوظة: الرجوع لشاشة اتفتحت قبل كده فوري من غير إعادة تحميل وحساب.
+// (تجربة 2 خلت كل تنقّل يبني الشاشة من الأول = بطء في التارجت/المناديب/العملاء.)
+// الشاشات المخفية متجمّدة بـ TabPane (React.memo) فمش بتتعاد رسمها مع MainLayout.
+const MOUNTED_TABS_LIMIT = 5;
 const PINNED_TABS: readonly string[] = ['home'];
 const ACTIVE_TAB_STORAGE_KEY = 'tantawy_active_tab';
 
