@@ -562,7 +562,7 @@ export const CustomersScreen: React.FC = () => {
                       {/* View profile button */}
                       <button
                         onClick={() => {}}
-                        className="mt-3 w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-2 rounded-xl transition active:scale-95 flex items-center justify-center gap-1.5"
+                        className="mt-3 w-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold py-2 rounded-xl transition active:scale-95 flex items-center justify-center gap-1.5"
                       >
                         <Eye className="w-4 h-4" /> عرض البروفايل
                       </button>

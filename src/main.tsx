@@ -17,9 +17,6 @@ import '@fontsource/cairo/arabic-900.css';
 import '@fontsource/cairo/latin-900.css';
 import cairoArabic400 from '@fontsource/cairo/files/cairo-arabic-400-normal.woff2?url';
 import cairoArabic700 from '@fontsource/cairo/files/cairo-arabic-700-normal.woff2?url';
-import cairoArabic900 from '@fontsource/cairo/files/cairo-arabic-900-normal.woff2?url';
-import cairoLatin400 from '@fontsource/cairo/files/cairo-latin-400-normal.woff2?url';
-import cairoLatin700 from '@fontsource/cairo/files/cairo-latin-700-normal.woff2?url';
 import './index.css';
 import './styles/tailwind-utilities.css';
 import './styles/missing-utilities.css';
@@ -84,11 +81,10 @@ const preloadFont = (href: string) => {
   document.head.appendChild(link);
 };
 
+// بنعمل preload للوزنين اللي بيظهروا في أول رسم بس. باقي الأوزان بتتنزّل
+// عند الحاجة من غير ما تزاحم أول تحميل على شبكة الموبايل.
 preloadFont(cairoArabic400);
 preloadFont(cairoArabic700);
-preloadFont(cairoArabic900);
-preloadFont(cairoLatin400);
-preloadFont(cairoLatin700);
 
 const CHUNK_RECOVERY_KEY = 'tantawy:chunk-recovery';
 

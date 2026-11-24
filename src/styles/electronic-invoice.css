@@ -252,3 +252,10 @@ html.dark .ein-foot { background: var(--app-card-secondary); }
   .ein-footbtn--primary { min-width: 84px; }
   .ein-foot__note { display: none; }
 }
+
+/* الوضع الليلي: الزر الأساسي في الفوتر بنفس لون الهوية لكن بحد فاتح
+   عشان ما يذوبش في خلفية الفوتر الغامقة */
+html.dark .ein-footbtn--primary {
+  border-color: rgba(255, 255, 255, 0.22);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}

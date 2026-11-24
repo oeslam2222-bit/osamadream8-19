@@ -33,6 +33,7 @@ html.dark {
 @media (max-width: 1023px) { .ds-vis-ge-lg { display: none !important; } }
 @media (min-width: 1024px) { .ds-vis-lt-lg { display: none !important; } }
 @media (max-width: 1279px) { .ds-vis-ge-xl { display: none !important; } }
+@media (min-width: 1280px) { .ds-vis-lt-xl { display: none !important; } }
 
 /* إعادة ضبط أنماط الأزرار الافتراضية للمتصفح */
 .ds-bottom__item, .ds-theme-switch button, .ds-tab { background: transparent; border: 0; box-shadow: none; font-family: inherit; }
@@ -42,13 +43,12 @@ html.dark {
 
 /* ---------- الشريط الجانبي المكتبي (على الجانب الأيمن لنظام RTL) ---------- */
 .ds-sidebar {
-  position: fixed;
+  position: sticky;
   top: 0;
-  bottom: 0;
   right: 0;
   left: auto;
   z-index: 45;
-  width: 260px;
+  width: 258px;
   display: none;
   flex-direction: column;
   background: var(--app-card);
@@ -59,6 +59,7 @@ html.dark {
   padding: 16px 12px 14px;
   overflow-y: auto;
   scrollbar-width: thin;
+  height: 100dvh;
 }
 html.dark .ds-sidebar {
   box-shadow: -2px 0 20px rgba(0, 0, 0, 0.4);
@@ -297,6 +298,8 @@ html.dark .ds-sidebar__theme-btn.is-active {
   min-height: var(--ds-topbar-h);
   padding: 8px var(--ds-gutter);
   display: flex; align-items: center; gap: 10px;
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 .ds-topbar__spacer { flex: 1 1 0; min-width: 0; }
 
@@ -447,13 +450,6 @@ html.dark .ds-iconbtn--primary { color: #fff; }
   .ds-sidebar {
     display: flex !important;
   }
-  /* RTL-safe: inline-start = جهة بداية السطر (يمين في RTL) حيث يوجد السايدبار */
-  .ds-topbar,
-  .app-main,
-  footer {
-    margin-inline-start: 260px !important;
-    margin-inline-end: 0 !important;
-  }
   .ds-tabs {
     display: none !important;
   }
@@ -543,6 +539,10 @@ html:not(.dark) .ds-bottom__item[aria-current="page"] { color: var(--app-primary
 /* ==========================================================================
    تحسينات عامة للمحتوى (موبايل / لابتوب) — آمنة ولا تغيّر المنطق
    ========================================================================== */
+
+/* المسافات: نظام ثابت 8/16/24 بكسل بين الكروت وجواها */
+.app-main > * { min-width: 0; }
+.app-main { min-width: 0; }
 
 /* التباعد بين الحروف يكسر اتصال الحروف العربية */
 [class*="tracking-"] { letter-spacing: normal !important; }
@@ -936,8 +936,8 @@ html.dark .cf-switch-text small {
 /* ---------- Hero ---------- */
 .tg-hero {
   position: relative;
-  border-radius: 28px;
-  padding: 24px;
+  border-radius: 24px;
+  padding: 16px 12px 20px;
   background: linear-gradient(135deg, #FFFFFF 0%, #F1F5F9 100%);
   border: 1px solid #E2E8F0;
   box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06), 0 8px 32px rgba(37, 99, 235, 0.08);
@@ -959,22 +959,22 @@ html.dark .tg-hero {
   width: 320px;
   height: 320px;
   background: #2563EB;
-  top: -80px;
-  right: -80px;
+  top: -90px;
+  right: -90px;
 }
 .tg-hero__blob--green {
   width: 280px;
   height: 280px;
   background: #10B981;
-  bottom: -60px;
-  left: -60px;
+  bottom: -70px;
+  left: -70px;
 }
 .tg-hero__inner {
   position: relative;
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 @media (min-width: 768px) {
   .tg-hero__inner { flex-direction: row; align-items: center; justify-content: space-between; }
@@ -982,7 +982,7 @@ html.dark .tg-hero {
 .tg-hero__main {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   flex: 1;
   min-width: 0;
 }
@@ -1086,7 +1086,7 @@ html.dark .tg-btn--ghost:hover { background: #1E293B; color: #F8FAFC; }
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-radius: 16px;
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
@@ -1100,20 +1100,27 @@ html.dark .tg-mini {
 }
 .tg-mini--wide { flex: 1; flex-direction: row; align-items: center; justify-content: space-between; }
 .tg-mini__label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
   color: #64748B;
 }
 html.dark .tg-mini__label { color: #94A3B8 !important; }
 .tg-mini__value {
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 900;
   color: #0F2B38;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 html.dark .tg-mini__value { color: #F8FAFC !important; }
+.tg-mini__unit {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748B;
+  opacity: 0.85;
+}
+html.dark .tg-mini__unit { color: #94A3B8 !important; opacity: 0.9; }
 .tg-mini__trend { width: 15px; height: 15px; color: #10B981; }
 .tg-mini__trend--blue { color: #2563EB; }
 .tg-mini__bar {

@@ -2265,3 +2265,274 @@ html.dark [class*="text-[#64748b]"],
 html.dark [class*="text-[#64748B]"] {
   color: var(--tg-muted) !important;
 }
+
+/* ==========================================================================
+   v2.3 — شريط كروت المؤشرات (KPI) في كل الشاشات
+   --------------------------------------------------------------------------
+   المشكلة اللي كانت بتحصل: الأعمدة كانت بتتوسّع مع محتوى الكارت (بادينج +
+   رقم طويل بمسافات) فالكلاس `grid-cols-*` ما يقدرش يصغّرها، فالصف يطلع أوسع
+   من الشاشة ويتقص من ناحية الشمال (RTL). الحل: أعمدة minmax(0,1fr) ثابتة +
+   min-width:0 للكروت + box-sizing صريح + تصغير آمن للرقم على الشاشات الضيقة.
+   القواعد دي محايدة عن Tailwind ومطبّقة في كل الشاشات اللي بتستخدم .kpi-grid
+   ========================================================================== */
+
+.kpi-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+  width: 100% !important;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.kpi-grid > *,
+.kpi-grid .tg-kpi {
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+
+.kpi-grid > * {
+  height: 100%;
+}
+
+@media (min-width: 640px) {
+  .kpi-grid {
+    gap: 12px !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 16px !important;
+  }
+}
+
+/* كارت المؤشر: نفس المقاس على كل الشاشات اللي بتستخدم .tg-kpi */
+.tg-kpi {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border-radius: 20px;
+  min-height: 112px;
+  overflow: hidden;
+}
+
+.tg-kpi__value {
+  display: block;
+  max-width: 100%;
+  font-size: clamp(15px, 2vw, 24px);
+  line-height: 1.15;
+  letter-spacing: -0.2px;
+  font-variant-numeric: tabular-nums;
+  /* لو الرقم أطول من الكارت لأي سبب يلف بدل ما يتقص */
+  overflow-wrap: anywhere;
+}
+
+.tg-kpi__label {
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.tg-kpi__hint {
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+@media (max-width: 767px) {
+  .tg-kpi {
+    padding: 11px 12px;
+    border-radius: 16px;
+    min-height: 0;
+    gap: 3px;
+  }
+  .tg-kpi__value {
+    font-size: clamp(14px, 4.4vw, 20px);
+    letter-spacing: -0.2px;
+  }
+  .tg-kpi__label {
+    font-size: 11.5px;
+  }
+  .tg-kpi__hint {
+    font-size: 10.5px;
+  }
+}
+
+/* ==========================================================================
+   v2.4 — تناسق ألوان درج التنقل (موبايل)
+   الدرج دايمًا كحلي، فالأزرار والعناصر جواه لازم تاخد ألوانها من الدرج نفسه
+   مش من كروت الوضع النهاري (ده اللي كان بيعمل بقع فاتحة/بنية على الكحلي).
+   ========================================================================== */
+
+/* 1) شريط التمرير: كان بيبان كشريط أبيض على شمال القائمة */
+.ds-drawer__list {
+  padding: 10px 12px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+.ds-drawer__list::-webkit-scrollbar { width: 6px; height: 6px; }
+.ds-drawer__list::-webkit-scrollbar-track { background: transparent; }
+.ds-drawer__list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+}
+.ds-drawer__list::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.34); }
+
+/* 2) عناوين المجموعات: تباين أعلى وفاصل بصري خفيف */
+.ds-drawer__label {
+  color: #9fbdd8 !important;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  padding: 12px 8px 5px;
+}
+.ds-drawer__group:first-child .ds-drawer__label { padding-top: 4px; }
+
+/* 3) الأيقونات: شيب واحد هادي بدل ألوان متفرقة في كل صف */
+.ds-drawer__item .ds-ico {
+  background: rgba(255, 255, 255, 0.09) !important;
+  color: #bcd7ef !important;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.ds-drawer__item[aria-current='page'] .ds-ico {
+  background: rgba(255, 255, 255, 0.22) !important;
+  color: #ffffff !important;
+  border-color: transparent;
+}
+
+/* 4) الصفوف: نفس الارتفاع والحدود في الوضعين */
+.ds-drawer__item {
+  min-height: 48px;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+.ds-drawer__item:hover { background: rgba(255, 255, 255, 0.10); }
+
+/* 5) بيانات المستخدم أعلى الدرج */
+.ds-drawer__name { font-size: 15px; font-weight: 800; }
+.ds-drawer__role { font-size: 12px; font-weight: 700; }
+.ds-drawer__branch { font-size: 11px; font-weight: 600; color: #9db8d2; }
+
+/* 6) شارة «مميز» */
+.ds-drawer__promo {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  background: rgba(245, 158, 11, 0.18);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fbbf24;
+}
+
+/* 7) الفوتر: أزرار بنفس هوية الدرج (كانت بتاخد لون كارت الوضع النهاري) */
+.ds-drawer__foot {
+  background: rgba(4, 18, 32, 0.45);
+  border-top-color: rgba(255, 255, 255, 0.10);
+}
+.ds-drawer__foot .ds-btn {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #e8f1fb;
+}
+.ds-drawer__foot .ds-btn:hover { background: rgba(255, 255, 255, 0.13); }
+.ds-drawer__foot .ds-btn--soft-danger {
+  background: rgba(248, 113, 113, 0.14);
+  border-color: rgba(248, 113, 113, 0.32);
+  color: #fecaca;
+}
+.ds-drawer__foot .ds-btn--soft-danger:hover { background: rgba(248, 113, 113, 0.22); }
+
+/* ==========================================================================
+   v2.5 — كروت الكتالوج: رسم/تحميل للكروت الظاهرة فقط
+   content-visibility بيخلي المتصفح يتخطى تخطيط ورسم الكروت اللي برّه الشاشة،
+   فالصفحات الطويلة (كتالوج/مبيعات) بتفتح أسرع من غير ما يتغير شكل أي كارت.
+   ========================================================================== */
+.cat-grid > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+
+/* ==========================================================================
+   v2.6 — قوائم العملاء/المناديب: رسم العناصر الظاهرة فقط
+   نفس فكرة الكتالوج لكن على شبكات الكروت الطويلة، فالسكرول والتصفية على
+   الموبايل محتاجين شغل أقل من المتصفح.
+   ========================================================================== */
+.cust-grid > *,
+.rep-grid > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 260px;
+}
+
+/* ==========================================================================
+   v2.7 — الخطوط الصغيرة جدًا على الموبايل
+   فيه عناصر مكتوبة بـ 8/8.5/9px ودي مش مقروءة على شاشة الموبايل (وخصوصًا
+   العربي) وبتاكل في التنسيق. على الموبايل بس بنرفعها لـ 10px مع line-height
+   مريح. الديسكتوب زي ما هو.
+   ========================================================================== */
+@media (max-width: 767px) {
+  [class*="text-[8px]"],
+  [class*="text-[8.5px]"],
+  [class*="text-[9px]"] {
+    font-size: 10px !important;
+    line-height: 1.35;
+  }
+}
+
+/* ==========================================================================
+   v2.8 — تباين أزرار الأزرق الأساسي في الوضع الليلي
+   #3B82F6 مع نص أبيض = 3.68:1 (أقل من 4.5 المطلوب للنص الصغير).
+   بنعمّق خلفية الزر اللي جواه نص أبيض بس، من غير ما نلمس التوكن نفسه
+   (لأنه مستخدم كلون نص/أيقونة على الخلفيات الغامقة ومحتاج يفضل فاتح).
+   #1D4ED8 مع الأبيض = 5.5:1 ✓
+   ========================================================================== */
+html.dark [class*="bg-[var(--app-primary)]"][class*="text-white"],
+html.dark [class*="bg-[#3b82f6]"][class*="text-white"] {
+  background-color: #1d4ed8 !important;
+}
+
+/* ==========================================================================
+   v2.9 — تناسق كروت الموبايل: نفس نصف القطر/الحشو/الظل لكل عائلات الكروت
+   الكروت كانت واخدة ظلال تقيلة (shadow-md/xl) على كل عنصر في الشبكة، وده
+   أغلى حاجة في الرسم/التمرير على الموبايل. هنا بنوحّد الشكل ونخفّف الظل
+   مع الاحتفاظ بالحدود الملونة اللي بتفصل الكارت عن الخلفية.
+   ========================================================================== */
+@media (max-width: 767px) {
+  .cust-card,
+  .rep-card,
+  .tg-card {
+    border-radius: 16px;
+    padding: 14px;
+  }
+
+  .cat-grid > *,
+  .cust-grid > *,
+  .rep-grid > * {
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.04);
+  }
+
+  /* نفس الظل الخفيف لأباطح الكروت داخل الشبكات */
+  .cat-grid > * > *,
+  .cust-grid > * > *,
+  .rep-grid > * > * {
+    box-shadow: none;
+  }
+}
+
+/* الوضع الليلي: نفس الحدود بنفس الدرجة، وظل أهدى (بدون توهيج) */
+html.dark .cust-card,
+html.dark .rep-card,
+html.dark .tg-card {
+  /* لون الخلفية بيتساب زي ما هو (فيه كروت ملوّنة دلاليًا) — بنوحّد الحد بس */
+  border-color: var(--app-border);
+}
+html.dark .cat-grid > *,
+html.dark .cust-grid > *,
+html.dark .rep-grid > * {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}

@@ -36,7 +36,6 @@ export interface AppContextType {
   customers: Customer[];
   visits: CustomerVisit[];
   invoices: Invoice[];
-  cart: CartItem[];
   cloudinaryConfig: CloudinaryConfig;
   saveCustomersToSupabase: (customers: Customer[]) => Promise<{ success: boolean; error?: string }>;
   accountingLogs: AccountingSyncLog[];
@@ -128,21 +127,8 @@ export interface AppContextType {
   serverAuthEnabled: boolean;
   serverAuthProbe: { checked: boolean; reachable: boolean; lastCheckedAt?: string };
 
-  // Cart Actions (Smart Carton & Piece Logic)
-  addToCart: (product: Product, orderType?: 'carton' | 'piece' | 'mixed', count?: number, piecesCount?: number) => { success: boolean; message?: string };
-  updateCartItem: (productId: string, updates: Partial<CartItem>) => void;
-  removeFromCart: (productId: string) => void;
-  clearCart: () => void;
-  getCartSummary: (customDiscountPercent?: number) => {
-    totalCartons: number;
-    totalPieces: number;
-    subtotal: number;
-    discountPercentage: number;
-    discountAmount: number;
-    taxAmount: number;
-    grandTotal: number;
-    itemCount: number;
-  };
+  // Cart Actions بقت في CartContext المستقل — استخدم useCart() من
+  // '../context/cartContext' بدل useApp() لأي حاجة متعلقة بالكارت.
 
   // Product & Inventory Actions
   inventoryLogs: InventoryTransaction[];

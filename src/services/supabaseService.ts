@@ -611,11 +611,20 @@ function applyScopeToQuery(
   return next;
 }
 
-/** حد أدنى جداً: 5,000 صف بس للعميل العادي — يقلل egress لـ 500 مستخدم */
-const MAX_VISIT_PAGES = 5;
+/**
+ * سقف حماية 10,000 زيارة — مش رقم تشغيل.
+ *
+ * كان 5 صفحات (5,000 صف) والقاعدة عدّته: الصفوف الأقدم كانت بتتشال
+ * **بصمت** من غير أي أثر للمستخدم. السقف اتضاعف وبقى بيطبع تحذير واضح
+ * في الكونسول عند الوصول له بدل القطع الصامت.
+ */
+const MAX_VISIT_PAGES = 10;
 
-/** حد أدنى جداً: 5,000 عميل بس — يقلل egress لـ 500 مستخدم */
-const MAX_CUSTOMER_PAGES = 5;
+/**
+ * سقف حماية 10,000 عميل — مش رقم تشغيل.
+ * كان 5,000 عميل والزيادة كانت بتتشال بصمت. دلوقتي 10,000 + تحذير صريح.
+ */
+const MAX_CUSTOMER_PAGES = 10;
 
 const isMissingColumnError = (err: any): boolean => {
   const code = String(err?.code || '');
@@ -785,6 +794,13 @@ async function fetchAllRows(
     if (error) return { data: rows, error };
     rows.push(...(data || []));
     if (!data || data.length < pageSize) break;
+    if (from + pageSize >= MAX_CUSTOMER_PAGES * pageSize) {
+      console.warn(
+        `Cut at ${MAX_CUSTOMER_PAGES * pageSize} rows from '${table}': the page cap was reached, ` +
+          'so later rows were NOT loaded. This is a safety ceiling, not a normal state — ' +
+          'increase MAX_CUSTOMER_PAGES or narrow the fetch scope.'
+      );
+    }
   }
 
   return { data: rows, error: null };
@@ -1017,8 +1033,11 @@ async function fetchCustomersFromSupabaseImpl(
  * AppContext بتشتغل كل ربع ساعة.
  */
 export interface CustomerContentStamp {
+  /** مهجور: كان COUNT على الجدول كامل. بقى `null` دايمًا. */
   count: number | null;
   maxUpdatedAt: string | null;
+  /** الجدول فاضي فعلًا (استعلام ناجح بـ0 صف) — بديل `count === 0` بدون COUNT. */
+  empty?: boolean;
 }
 
 export async function fetchCustomerContentStamp(
@@ -1029,23 +1048,27 @@ export async function fetchCustomerContentStamp(
     const runStamp = () => {
       let query = supabase
         .from('customers')
-        .select('updated_at', { count: 'exact' })
+        // بدون `{ count: 'exact' }`: COUNT على الجدول كامل بيتنفّذ على السيرفر
+        // مع كل بصمة (كل جهاز كل 25 دقيقة) وكان بيحمّل قاعدة البيانات من غير
+        // أي فايدة — `max(updated_at)` لوحده كافي لكشف أي تعديل.
+        .select('updated_at')
         .order('updated_at', { ascending: false, nullsFirst: false })
         .limit(1);
       return applyScopeToQuery(query, scope, 'customers');
     };
 
-    let { data, error, count } = await runStamp();
+    let { data, error } = await runStamp();
     if (error && isMissingSectorError(error)) {
       rememberMissingColumn('customers', 'sector');
-      ({ data, error, count } = await runStamp());
+      ({ data, error } = await runStamp());
     }
     if (error) return null;
 
     const maxUpdatedAt = data && data.length > 0 ? data[0]?.updated_at ?? null : null;
     return {
-      count: typeof count === 'number' ? count : null,
+      count: null,
       maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
+      empty: (data?.length ?? 0) === 0,
     };
   } catch {
     return null;
@@ -1053,8 +1076,11 @@ export async function fetchCustomerContentStamp(
 }
 
 export interface VisitContentStamp {
+  /** مهجور: كان COUNT على الجدول كامل. بقى `null` دايمًا. */
   count: number | null;
   maxUpdatedAt: string | null;
+  /** الجدول فاضي فعلًا (استعلام ناجح بـ0 صف). */
+  empty?: boolean;
 }
 
 /**
@@ -1093,8 +1119,11 @@ function applyTargetScope(query: any, scope?: TargetFetchScope): any {
 }
 
 export interface TargetContentStamp {
+  /** مهجور: كان COUNT على الجدول كامل. بقى `null` دايمًا. */
   count: number | null;
   maxUpdatedAt: string | null;
+  /** الجدول فاضي فعلًا (استعلام ناجح بـ0 صف). */
+  empty?: boolean;
 }
 
 export function fetchTargetContentStamp(
@@ -1105,21 +1134,23 @@ export function fetchTargetContentStamp(
       const runQuery = () => {
         let query = supabase
           .from('targets')
-          .select('updated_at', { count: 'exact' })
+          // بدون `{ count: 'exact' }` — البصمة آخر updated_at بس.
+          .select('updated_at')
           .order('updated_at', { ascending: false, nullsFirst: false })
           .limit(1);
         return applyTargetScope(query, scope);
       };
-      let { data, error, count } = await runQuery();
+      let { data, error } = await runQuery();
       if (error && isMissingSectorError(error)) {
         rememberMissingColumn('targets', 'sector');
-        ({ data, error, count } = await runQuery());
+        ({ data, error } = await runQuery());
       }
       if (error) return null;
       const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
       return {
-        count: typeof count === 'number' ? count : null,
+        count: null,
         maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
+        empty: (data?.length ?? 0) === 0,
       };
     } catch {
       return null;
@@ -1128,8 +1159,11 @@ export function fetchTargetContentStamp(
 }
 
 export interface ProductContentStamp {
+  /** مهجور: كان COUNT على الجدول كامل. بقى `null` دايمًا. */
   count: number | null;
   maxUpdatedAt: string | null;
+  /** الجدول فاضي فعلًا (استعلام ناجح بـ0 صف). */
+  empty?: boolean;
 }
 
 export function fetchProductContentStamp(
@@ -1140,21 +1174,23 @@ export function fetchProductContentStamp(
       const runQuery = () => {
         let query = supabase
           .from('products')
-          .select('updated_at', { count: 'exact' })
+          // بدون `{ count: 'exact' }` — البصمة آخر updated_at بس.
+          .select('updated_at')
           .order('updated_at', { ascending: false, nullsFirst: false })
           .limit(1);
         return applyProductSectorScope(query, sector);
       };
-      let { data, error, count } = await runQuery();
+      let { data, error } = await runQuery();
       if (error && isMissingSectorError(error)) {
         rememberMissingColumn('products', 'sector');
-        ({ data, error, count } = await runQuery());
+        ({ data, error } = await runQuery());
       }
       if (error) return null;
       const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
       return {
-        count: typeof count === 'number' ? count : null,
+        count: null,
         maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
+        empty: (data?.length ?? 0) === 0,
       };
     } catch {
       return null;
@@ -1185,7 +1221,8 @@ export async function fetchVisitContentStamp(
     const buildQuery = (column: 'updated_at' | 'created_at') => {
       let query = supabase
         .from('visits')
-        .select(column, { count: 'exact' })
+        // بدون `{ count: 'exact' }` — البصمة آخر updated_at (أو created_at) بس.
+        .select(column)
         .order(column, { ascending: false, nullsFirst: false })
         .limit(1);
       query = applyScopeToQuery(query, scope, 'visits');
@@ -1216,8 +1253,9 @@ export async function fetchVisitContentStamp(
     const row = result.data && result.data.length > 0 ? (result.data[0] as any) : null;
     const latest = row ? row[column] ?? null : null;
     return {
-      count: typeof result.count === 'number' ? result.count : null,
+      count: null,
       maxUpdatedAt: latest ? String(latest) : null,
+      empty: (result.data?.length ?? 0) === 0,
     };
   } catch {
     return null;
@@ -3409,10 +3447,13 @@ async function fetchInvoicesFromSupabaseImpl(
  * و Realtime بيفضل مسؤول عن تعديلات الحالة/الموافقات الفورية.
  */
 export interface InvoiceContentStamp {
+  /** مهجور: كان COUNT على الجدول كامل. بقى `null` دايمًا. */
   count: number | null;
   maxCreatedAt: string | null;
   table: 'orders' | 'invoices';
   stampColumn?: 'updated_at' | 'created_at';
+  /** الجدول فاضي فعلًا (أو مفيش فواتير في نطاق المستخدم). */
+  empty?: boolean;
 }
 
 export interface SalesSummaryKpis {
@@ -3508,13 +3549,14 @@ export async function fetchInvoiceContentStamp(
 ): Promise<InvoiceContentStamp | null> {
   const repIds = (scope?.repIds || []).map((r) => String(r).trim()).filter(Boolean);
   if (Array.isArray(scope?.repIds) && repIds.length === 0) {
-    return { count: 0, maxCreatedAt: null, table: 'orders', stampColumn: 'created_at' };
+    return { count: null, maxCreatedAt: null, table: 'orders', stampColumn: 'created_at', empty: true };
   }
 
   const probe = async (table: 'orders' | 'invoices', col: 'updated_at' | 'created_at') => {
     let query = supabase
       .from(table)
-      .select(col, { count: 'exact' })
+      // بدون `{ count: 'exact' }` — البصمة آخر تاريخ/تعديل بس.
+      .select(col)
       .order(col, { ascending: false, nullsFirst: false })
       .limit(1) as any;
     query = query.not('id', 'like', 'dream_%');
@@ -3557,10 +3599,11 @@ export async function fetchInvoiceContentStamp(
     if (res.error) return null;
     const maxVal = res.data && res.data.length > 0 ? (res.data[0] as any)?.[stampColumn] ?? null : null;
     return {
-      count: typeof res.count === 'number' ? res.count : null,
+      count: null,
       maxCreatedAt: maxVal != null ? String(maxVal) : null,
       table,
       stampColumn,
+      empty: (res.data?.length ?? 0) === 0,
     };
   } catch {
     return null;
@@ -4682,8 +4725,11 @@ export interface ForecastFetchScope {
 }
 
 export interface ContentStampMeta {
+  /** مهجور: كان COUNT على الجدول كامل. بقى `null` دايمًا. */
   count: number | null;
   maxUpdatedAt: string | null;
+  /** الجدول فاضي فعلًا (استعلام ناجح بـ0 صف). */
+  empty?: boolean;
 }
 
 const FORECAST_SELECT_COLUMNS = [
@@ -4842,22 +4888,24 @@ export function fetchForecastMonthStamp(
       const runForecastStamp = () => {
         let query = supabase
           .from('collection_forecasts')
-          .select('updated_at', { count: 'exact' })
+          // بدون `{ count: 'exact' }` — البصمة آخر updated_at بس.
+          .select('updated_at')
           .eq('month_key', monthKey)
           .order('updated_at', { ascending: false, nullsFirst: false })
           .limit(1);
         return applyForecastScope(query, scope);
       };
-      let { data, error, count } = await runForecastStamp();
+      let { data, error } = await runForecastStamp();
       if (error && isMissingSectorError(error)) {
         rememberMissingColumn('collection_forecasts', 'sector');
-        ({ data, error, count } = await runForecastStamp());
+        ({ data, error } = await runForecastStamp());
       }
       if (error) return null;
       const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
       return {
-        count: typeof count === 'number' ? count : null,
+        count: null,
         maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
+        empty: (data?.length ?? 0) === 0,
       };
     } catch {
       return null;
@@ -4867,16 +4915,18 @@ export function fetchForecastMonthStamp(
 
 export async function fetchForecastPlansStamp(): Promise<ContentStampMeta | null> {
   try {
-    const { data, error, count } = await supabase
+    const { data, error } = await supabase
       .from('forecast_month_plans')
-      .select('updated_at', { count: 'exact' })
+      // بدون `{ count: 'exact' }` — البصمة آخر updated_at بس.
+      .select('updated_at')
       .order('updated_at', { ascending: false, nullsFirst: false })
       .limit(1);
     if (error) return null;
     const maxUpdatedAt = data && data.length > 0 ? (data[0] as any)?.updated_at ?? null : null;
     return {
-      count: typeof count === 'number' ? count : null,
+      count: null,
       maxUpdatedAt: maxUpdatedAt ? String(maxUpdatedAt) : null,
+      empty: (data?.length ?? 0) === 0,
     };
   } catch {
     return null;
@@ -4890,7 +4940,8 @@ export async function fetchCustomerCommentsStamp(
     const buildStampQuery = (col: 'updated_at' | 'created_at') => {
       let query = supabase
         .from('customer_comments')
-        .select(col, { count: 'exact' })
+        // بدون `{ count: 'exact' }` — البصمة آخر تاريخ/تعديل بس.
+        .select(col)
         .order(col, { ascending: false, nullsFirst: false })
         .limit(1);
       return applyCommentsScope(query, scope);
@@ -4914,8 +4965,9 @@ export async function fetchCustomerCommentsStamp(
     const row = res.data && res.data.length > 0 ? (res.data[0] as any) : null;
     const latest = row ? row[usedCol] ?? null : null;
     return {
-      count: typeof res.count === 'number' ? res.count : null,
+      count: null,
       maxUpdatedAt: latest ? String(latest) : null,
+      empty: (res.data?.length ?? 0) === 0,
     };
   } catch {
     return null;

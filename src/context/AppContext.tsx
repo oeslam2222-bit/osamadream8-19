@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { CartContext } from './cartContext';
 import { COMPANY_INFO, INITIAL_AUDIT_LOGS, INITIAL_BRANCHES, INITIAL_USERS } from '../data/mockData';
 import { inferCustomerSector, BRANCHES } from '../data/branchDefinitions';
 import { DEFAULT_CLOUDINARY_CONFIG, normalizeCloudinaryConfig } from '../services/cloudinaryService';
@@ -533,13 +534,22 @@ function saveContentStamp(storageKey: string, stamp: { count: number | null; max
   } catch {}
 }
 
+/**
+ * المقارنة بقت على `maxUpdatedAt` فقط.
+ *
+ * `count` كان جاي من `{ count: 'exact' }` — COUNT على الجدول كامل بيتنفّذ على
+ * السيرفر مع كل بصمة على كل جهاز. اتشال من استعلامات البصمة وبقى `null`
+ * دايمًا، فمقارنته كانت هتخلّي كل جهاز يعتبر نفسه قديم ويعيد التنزيل للأبد.
+ * بصمتين بـ`null` في الطرفين = الجدول فاضي في الحالتين = متساويتين.
+ */
 function areContentStampsEqual(
   a: { count: number | null; maxUpdatedAt: string | null } | null,
   b: { count: number | null; maxUpdatedAt: string | null } | null
 ): boolean {
   if (!a || !b) return false;
-  if (a.count === null && a.maxUpdatedAt === null) return false;
-  return a.count === b.count && a.maxUpdatedAt === b.maxUpdatedAt;
+  if (!a.maxUpdatedAt && !b.maxUpdatedAt) return true;
+  if (!a.maxUpdatedAt || !b.maxUpdatedAt) return false;
+  return a.maxUpdatedAt === b.maxUpdatedAt;
 }
 
 /**
@@ -1173,10 +1183,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const localHasBootMonth = forecasts.some((f) => f.monthKey === bootMonth);
       const skipForecasts =
-        areContentStampsEqual(fStamp, storedFStamp) && (localHasBootMonth || fStamp?.count === 0);
+        areContentStampsEqual(fStamp, storedFStamp) && (localHasBootMonth || fStamp?.empty);
 
       const skipPlans =
-        areContentStampsEqual(pStamp, storedPStamp) && (forecastPlans.length > 0 || pStamp?.count === 0);
+        areContentStampsEqual(pStamp, storedPStamp) && (forecastPlans.length > 0 || pStamp?.empty);
 
       const [fRes, pRes] = await Promise.all([
         skipForecasts ? Promise.resolve(null) : fetchForecastsByMonthFromSupabase(bootMonth, forecastFetchScope),
@@ -1231,19 +1241,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (
       areContentStampsEqual(stamp, storedStamp) &&
-      (localMonthRows.length > 0 || stamp?.count === 0)
+      (localMonthRows.length > 0 || stamp?.empty)
     ) {
       loadedForecastMonthsRef.current?.add(monthKey);
       return;
     }
 
     const canIncremental =
-      stamp !== null &&
-      storedStamp !== null &&
-      !!storedStamp.maxUpdatedAt &&
-      typeof stamp.count === 'number' &&
-      typeof storedStamp.count === 'number' &&
-      stamp.count >= storedStamp.count &&
+      !!stamp?.maxUpdatedAt &&
+      !!storedStamp?.maxUpdatedAt &&
       localMonthRows.length > 0;
 
     const res = canIncremental
@@ -1304,18 +1310,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const localCount = customerCommentsRef.current.length;
     if (
       areContentStampsEqual(stamp, storedStamp) &&
-      (localCount > 0 || stamp?.count === 0)
+      (localCount > 0 || stamp?.empty)
     ) {
       return;
     }
 
     const canIncremental =
-      stamp !== null &&
-      storedStamp !== null &&
-      !!storedStamp.maxUpdatedAt &&
-      typeof stamp.count === 'number' &&
-      typeof storedStamp.count === 'number' &&
-      stamp.count >= storedStamp.count &&
+      !!stamp?.maxUpdatedAt &&
+      !!storedStamp?.maxUpdatedAt &&
       localCount > 0;
 
     const res = canIncremental
@@ -1396,11 +1398,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const stored = readTargetContentStamp(targetFetchScope);
       const localCount = targetsRef.current.length;
       const unchanged =
-        stamp !== null &&
-        stored !== null &&
-        stamp.count === stored.count &&
-        stamp.maxUpdatedAt === stored.maxUpdatedAt &&
-        (localCount >= (stamp.count ?? 0) || stamp.count === 0);
+        areContentStampsEqual(stamp, stored) &&
+        (localCount > 0 || stamp?.empty === true);
       if (unchanged) return;
 
       const result = await fetchTargetsRecentMonths(monthsWindow, targetFetchScope);
@@ -1408,12 +1407,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (result.success && result.targets && result.targets.length > 0) {
         const mapped: TargetRecord[] = result.targets.map(mapTargetRowToRecord);
         setTargets(mapped);
-        if (stamp && (stamp.count !== null || stamp.maxUpdatedAt !== null)) {
+        if (stamp && (stamp.maxUpdatedAt !== null || stamp.empty === true)) {
           saveTargetContentStamp(stamp, targetFetchScope);
         }
       } else if (result.success && result.targets && result.targets.length === 0) {
         setTargets([]);
-        if (stamp && (stamp.count !== null || stamp.maxUpdatedAt !== null)) {
+        if (stamp && (stamp.maxUpdatedAt !== null || stamp.empty === true)) {
           saveTargetContentStamp(stamp, targetFetchScope);
         }
       } else {
@@ -3363,14 +3362,14 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         // لو البصمة المحفوظة مطابقة للي على السيرفر والعملاء موجودين محلياً، مفيش داعي للتنزيل الكامل.
         const stampNow = await fetchCustomerContentStamp(customerFetchScope);
         const storedStampNow = readCustomerContentStamp(ctxSnap.userId, ctxSnap.sector);
-        const hasCustomersLoaded = (customersRef.current?.length || 0) > 0 || stampNow?.count === 0;
-        if (
-          hasCustomersLoaded &&
-          stampNow &&
-          storedStampNow &&
-          stampNow.count === storedStampNow.count &&
-          stampNow.maxUpdatedAt === storedStampNow.maxUpdatedAt
-        ) {
+        const hasCustomersLoaded = (customersRef.current?.length || 0) > 0 || stampNow?.empty === true;
+        // البصمة نفسها فشلت (عمود updated_at مش موجود أو الشبكة) وفي بيانات
+        // محلية → مفيش سحب للجدول كامل. نفس سبب إلغاء FULL_REFRESH_FALLBACK_MS:
+        // أي عطل في البصمة كان بيدفع تمن تنزيل 3-6MB كل ساعة على كل جهاز.
+        if (!stampNow && (customersRef.current?.length || 0) > 0) {
+          return { updated: false, message: 'تعذّر فحص بصمة العملاء — الاعتماد على النسخة المحلية' };
+        }
+        if (hasCustomersLoaded && areContentStampsEqual(stampNow, storedStampNow)) {
           noStampPulledAtRef.current = Date.now();
           return { updated: false, message: 'بيانات العملاء محدثة بالفعل' };
         }
@@ -3450,13 +3449,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const pullProductsForVersionSync = async (): Promise<{ success: boolean; products?: Product[]; error?: string } | null> => {
         if (!inScope('products')) return null;
         const storedProdStamp = readProductContentStamp(ctxSnap.sector);
-        if (
-          prodStamp &&
-          storedProdStamp &&
-          prodStamp.count === storedProdStamp.count &&
-          prodStamp.maxUpdatedAt === storedProdStamp.maxUpdatedAt &&
-          productsRef.current.length > 0
-        ) {
+        if (areContentStampsEqual(prodStamp, storedProdStamp) && productsRef.current.length > 0) {
           return { success: true, products: productsRef.current };
         }
         if (await isProductsTableAuthoritative()) {
@@ -3476,15 +3469,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const pullCustomersForVersionSync = async (): Promise<Awaited<ReturnType<typeof fetchCustomersFromSupabase>> | null> => {
         if (!inScope('customers')) return null;
         const storedCustStamp = readCustomerContentStamp(ctxSnap.userId, ctxSnap.sector);
-        if (
-          custStamp &&
-          storedCustStamp?.maxUpdatedAt &&
-          typeof custStamp.count === 'number' &&
-          typeof storedCustStamp.count === 'number' &&
-          custStamp.count >= storedCustStamp.count &&
-          customersRef.current.length > 0
-        ) {
-          if (custStamp.count === storedCustStamp.count && custStamp.maxUpdatedAt === storedCustStamp.maxUpdatedAt) {
+        if (storedCustStamp?.maxUpdatedAt && customersRef.current.length > 0) {
+          if (areContentStampsEqual(custStamp, storedCustStamp)) {
             return { success: true, customers: customersRef.current };
           }
           const inc = await fetchCustomersFromSupabase(customerFetchScope, {
@@ -3493,10 +3479,10 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           if (inc?.success) {
             const incoming = sanitizeCustomers(inc.customers || []);
             const linkedInc = linkCustomersToUsers(incoming, users);
-            const merged = deduplicateCustomersArray(mergeCustomersIncremental(customersRef.current, linkedInc));
-            if (merged.length >= custStamp.count) {
-              return { success: true, customers: merged };
-            }
+            return {
+              success: true,
+              customers: deduplicateCustomersArray(mergeCustomersIncremental(customersRef.current, linkedInc)),
+            };
           }
         }
         return fetchCustomersFromSupabase(customerFetchScope);
@@ -3505,15 +3491,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const pullVisitsForVersionSync = async (): Promise<Awaited<ReturnType<typeof fetchVisitsFromSupabase>> | null> => {
         if (!inScope('visits')) return null;
         const storedVisStamp = readVisitContentStamp(ctxSnap.userId, ctxSnap.sector);
-        if (
-          visStamp &&
-          storedVisStamp?.maxUpdatedAt &&
-          typeof visStamp.count === 'number' &&
-          typeof storedVisStamp.count === 'number' &&
-          visStamp.count >= storedVisStamp.count &&
-          visitsRef.current.length > 0
-        ) {
-          if (visStamp.count === storedVisStamp.count && visStamp.maxUpdatedAt === storedVisStamp.maxUpdatedAt) {
+        if (storedVisStamp?.maxUpdatedAt && visitsRef.current.length > 0) {
+          if (areContentStampsEqual(visStamp, storedVisStamp)) {
             return { success: true, visits: visitsRef.current };
           }
           const inc = await fetchVisitsFromSupabase(visitFetchScope, {
@@ -3523,9 +3502,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             const map = new Map<string, CustomerVisit>();
             visitsRef.current.forEach((v) => map.set(v.id, v));
             (inc.visits || []).forEach((v) => map.set(v.id, { ...v, syncStatus: 'synced' }));
-            if (map.size >= visStamp.count) {
-              return { success: true, visits: Array.from(map.values()) };
-            }
+            return { success: true, visits: Array.from(map.values()) };
           }
         }
         return fetchVisitsFromSupabase(visitFetchScope);
@@ -3534,13 +3511,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const pullTargetsForVersionSync = async (): Promise<Awaited<ReturnType<typeof fetchTargetsRecentMonths>> | null> => {
         if (!inScope('targets')) return null;
         const storedTrgStamp = readTargetContentStamp(targetFetchScope);
-        if (
-          trgStamp &&
-          storedTrgStamp &&
-          trgStamp.count === storedTrgStamp.count &&
-          trgStamp.maxUpdatedAt === storedTrgStamp.maxUpdatedAt &&
-          targetsRef.current.length > 0
-        ) {
+        if (areContentStampsEqual(trgStamp, storedTrgStamp) && targetsRef.current.length > 0) {
           return null;
         }
         const inc = await fetchTargetsIncremental(targetFetchScope).catch(() => null);
@@ -3562,7 +3533,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         if (
           invStamp &&
           storedInvStamp &&
-          invStamp.count === storedInvStamp.count &&
           invStamp.maxCreatedAt === storedInvStamp.maxCreatedAt &&
           invStamp.table === storedInvStamp.table &&
           invoicesRef.current.length > 0
@@ -3572,10 +3542,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         const canIncInv =
           invStamp !== null &&
           storedInvStamp !== null &&
+          !!invStamp.maxCreatedAt &&
           !!storedInvStamp.maxCreatedAt &&
-          typeof invStamp.count === 'number' &&
-          typeof storedInvStamp.count === 'number' &&
-          invStamp.count >= storedInvStamp.count &&
           invStamp.table === storedInvStamp.table &&
           invoicesRef.current.length > 0;
         if (canIncInv) {
@@ -3603,7 +3571,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       if (prodRes?.success) {
         freshProducts = sanitizeProducts(prodRes.products || []);
-        if (prodStamp && (prodStamp.count !== null || prodStamp.maxUpdatedAt !== null)) {
+        if (prodStamp && (prodStamp.maxUpdatedAt !== null || prodStamp.empty === true)) {
           saveProductContentStamp(prodStamp, ctxSnap.sector);
         }
       }
@@ -3611,7 +3579,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (custRes?.success) {
         const linked = linkCustomersToUsers(sanitizeCustomers(custRes.customers || []), usersRef.current);
         freshCustomers = deduplicateCustomersArray(linked);
-        if (custStamp && (custStamp.count !== null || custStamp.maxUpdatedAt !== null)) {
+        if (custStamp && (custStamp.maxUpdatedAt !== null || custStamp.empty === true)) {
           saveCustomerContentStamp(custStamp, ctxSnap.userId, ctxSnap.sector);
         }
       }
@@ -3620,7 +3588,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         freshTargets = (trgRes.targets || []).map((t: any) =>
           t && typeof t.repName === 'string' ? t : mapTargetRowToRecord(t)
         );
-        if (trgStamp && (trgStamp.count !== null || trgStamp.maxUpdatedAt !== null)) {
+        if (trgStamp && (trgStamp.maxUpdatedAt !== null || trgStamp.empty === true)) {
           saveTargetContentStamp(trgStamp, targetFetchScope);
         }
       }
@@ -3632,7 +3600,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
       if (visRes?.success && visRes.visits) {
         freshVisits = visRes.visits;
-        if (visStamp && (visStamp.count !== null || visStamp.maxUpdatedAt !== null)) {
+        if (visStamp && (visStamp.maxUpdatedAt !== null || visStamp.empty === true)) {
           saveVisitContentStamp(visStamp, ctxSnap.userId, ctxSnap.sector);
         }
       }
@@ -3897,10 +3865,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     let checkInFlight = false;
     let lastHeartbeatCheck = Date.now();
     const HEARTBEAT_INTERVAL_MS = 25 * 60 * 1000;
-    // شبكة أمان: لو استعلام البصمة نفسه فشل (عمود updated_at مش موجود أو
-    // الشبكة وقعت) بنعمل تحميل كامل مرة كل ساعة. البصمة المحفوظة على الجهاز
-    // بتغطي الحالة الطبيعية، فمش محتاجين نعيد تنزيل الجدول عند كل فتح.
-    const FULL_REFRESH_FALLBACK_MS = 60 * 60 * 1000;
 
     const check = () => {
       if (checkInFlight || document.visibilityState === 'hidden' || !currentUserRef.current) return;
@@ -3924,12 +3888,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       // → مفيش تغيير على السيرفر، ومفيش أي بايتات جدول بتتنقل.
       const stamp = await fetchCustomerContentStamp(customerFetchScope);
       const stampComparable =
-        stamp !== null && (stamp.count !== null || stamp.maxUpdatedAt !== null);
+        stamp !== null && (stamp.maxUpdatedAt !== null || stamp.empty === true);
       const storedStamp = readCustomerContentStamp(ctxSnap.userId, ctxSnap.sector);
 
       if (!force && stampComparable && storedStamp) {
-        const unchanged =
-          stamp!.count === storedStamp.count && stamp!.maxUpdatedAt === storedStamp.maxUpdatedAt;
+        const unchanged = areContentStampsEqual(stamp, storedStamp);
         if (unchanged) {
           const currentCount = customersRef.current?.length || customers.length;
           if (currentCount > 0) return;
@@ -3942,10 +3905,18 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         }
       }
 
-      // 2) البصمة غير متاحة (عمود updated_at مش موجود مثلًا) → نستخدم
-      // مؤقّت بطيء بدل ما نضرب الجدول كله في كل نبضة/فتح للتطبيق.
+      // 2) البصمة غير متاحة (عمود updated_at مش موجود مثلًا):
+      // كان فيه تنزيل كامل للجدول مرة كل ساعة على كل جهاز كـ«شبكة أمان» —
+      // أي جهاز على شبكة ضعيفة كان بيسحب آلاف الصفوف كل ساعة بلا داعي.
+      // بقى التنزيل الكامل مسموح في ثلاث حالات بس:
+      //   • force (طلب صريح من المستخدم)
+      //   • ختم إصدار منشور اتغيّر (checkAndSyncDataVersion)
+      //   • مفيش بيانات عملاء محلية أصلًا (جهاز جديد / كاش ممسوح)
       if (!force && !stampComparable) {
-        if (Date.now() - customerFullFetchAtRef.current < FULL_REFRESH_FALLBACK_MS) return;
+        const hasLocalCustomers =
+          (customersRef.current?.length || 0) > 0 ||
+          ((await idbGet<Customer[]>(custKey))?.length || 0) > 0;
+        if (hasLocalCustomers) return;
       }
 
       if (customerDownloadInFlightRef.current) return;
@@ -3961,9 +3932,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         !force &&
         stampComparable &&
         !!storedStamp?.maxUpdatedAt &&
-        typeof stamp?.count === 'number' &&
-        typeof storedStamp?.count === 'number' &&
-        stamp!.count! >= storedStamp!.count! &&
         (customersRef.current?.length || 0) > 0;
 
       if (canIncremental) {
@@ -3974,12 +3942,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             updatedSince: storedStamp!.maxUpdatedAt!,
           });
           if (inc.success) {
-            if (stampComparable) {
-              saveCustomerContentStamp(
-                { count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt },
-                ctxSnap.userId,
-                ctxSnap.sector
-              );
+            if (stampComparable && stamp) {
+              saveCustomerContentStamp(stamp, ctxSnap.userId, ctxSnap.sector);
             }
             const incoming = sanitizeCustomers(inc.customers || []);
             if (incoming.length > 0) {
@@ -3987,15 +3951,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
               const next = deduplicateCustomersArray(
                 mergeCustomersIncremental(customersRef.current || [], linkedInc)
               );
-              const serverCount = typeof stamp?.count === 'number' ? stamp.count : null;
-              const countStillShort = serverCount !== null && next.length < serverCount;
-              if (!countStillShort) {
-                setCustomers(next);
-                customersRef.current = next;
-                idbSet(custKey, next).catch(() => {});
-                saveLocalCustomersFingerprint(next, ctxSnap.userId, ctxSnap.sector);
-                return;
-              }
+              setCustomers(next);
+              customersRef.current = next;
+              idbSet(custKey, next).catch(() => {});
+              saveLocalCustomersFingerprint(next, ctxSnap.userId, ctxSnap.sector);
+              return;
             } else {
               return;
             }
@@ -4016,12 +3976,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         const fresh = deduplicateCustomersArray(linked);
         const fingerprint = buildCustomersFingerprint(fresh);
         customerFullFetchAtRef.current = Date.now();
-        if (stampComparable) {
-          saveCustomerContentStamp(
-            { count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt },
-            ctxSnap.userId,
-            ctxSnap.sector
-          );
+        if (stampComparable && stamp) {
+          saveCustomerContentStamp(stamp, ctxSnap.userId, ctxSnap.sector);
         }
         if (
           fingerprint === getLocalCustomersFingerprint(ctxSnap.userId, ctxSnap.sector) &&
@@ -4245,13 +4201,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             } else if (!isGoogleSheetsReadMode() && navigator.onLine !== false) {
               fetchProductContentStamp(productSectorScope).then(async (remotePStamp) => {
                 if (bootCancelled) return;
-                if (!remotePStamp || (remotePStamp.count === null && remotePStamp.maxUpdatedAt === null)) return;
+                if (!remotePStamp || (remotePStamp.maxUpdatedAt === null && remotePStamp.empty !== true)) return;
                 const storedPStamp = readProductContentStamp(ctxSnap.sector);
-                if (
-                  storedPStamp &&
-                  storedPStamp.count === remotePStamp.count &&
-                  storedPStamp.maxUpdatedAt === remotePStamp.maxUpdatedAt
-                ) {
+                if (areContentStampsEqual(storedPStamp, remotePStamp)) {
                   return;
                 }
                 const pRes = await fetchProductsFromSupabase({ sector: productSectorScope });
@@ -4363,7 +4315,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           const stampMatches =
             stamp !== null &&
             storedStamp !== null &&
-            stamp.count === storedStamp.count &&
             stamp.maxCreatedAt === storedStamp.maxCreatedAt &&
             stamp.table === storedStamp.table;
 
@@ -4372,7 +4323,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
             return;
           }
 
-          if (stampMatches && (hasLocalInvCache || stamp?.count === 0)) {
+          if (stampMatches && (hasLocalInvCache || stamp?.empty === true)) {
             if (invoicesRef.current.length === 0 && hasLocalInvCache) {
               setInvoices(cachedLocalInvoices);
             }
@@ -4382,10 +4333,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           const canIncrementalInv =
             stamp !== null &&
             storedStamp !== null &&
+            !!stamp.maxCreatedAt &&
             !!storedStamp.maxCreatedAt &&
-            typeof stamp.count === 'number' &&
-            typeof storedStamp.count === 'number' &&
-            stamp.count >= storedStamp.count &&
             stamp.table === storedStamp.table &&
             hasLocalInvCache;
 
@@ -4446,13 +4395,9 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
           const stamp = await fetchVisitContentStamp(visitFetchScope);
           const comparable =
-            stamp !== null && (stamp.count !== null || stamp.maxUpdatedAt !== null);
+            stamp !== null && (stamp.maxUpdatedAt !== null || stamp.empty === true);
           const stored = readVisitContentStamp(ctxSnap.userId, ctxSnap.sector);
-          const unchanged =
-            comparable &&
-            stored !== null &&
-            stamp!.count === stored.count &&
-            stamp!.maxUpdatedAt === stored.maxUpdatedAt;
+          const unchanged = comparable && areContentStampsEqual(stamp, stored);
 
           if (role === 'sales_rep' && hasLocalVisitCache && navigator.onLine !== false && unchanged) {
             if (currentVisits.length === 0) setVisits(localVisits);
@@ -4467,9 +4412,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
           const canIncremental =
             comparable &&
             !!stored?.maxUpdatedAt &&
-            typeof stamp?.count === 'number' &&
-            typeof stored?.count === 'number' &&
-            stamp!.count! >= stored!.count! &&
             currentVisits.length > 0;
 
           if (canIncremental) {
@@ -4479,17 +4421,11 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
               });
               if (bootCancelled) return;
               if (inc.success) {
-                saveVisitContentStamp(
-                  { count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt },
-                  ctxSnap.userId,
-                  ctxSnap.sector
-                );
+                saveVisitContentStamp(stamp!, ctxSnap.userId, ctxSnap.sector);
                 const changedVisits = (inc.visits || []).filter((v) => !deletedVisitIds.has(v.id));
-                const projectedIds = new Set(currentVisits.map((v) => v.id));
-                changedVisits.forEach((v) => projectedIds.add(v.id));
-                const countStillShort =
-                  typeof stamp?.count === 'number' && projectedIds.size < stamp.count;
-                if (!countStillShort) {
+                // مفيش COUNT على السيرفر، فمش بنقدر نتأكد إن العدد مكتمل. الدمج
+                // التدريجي كافي — الحذف بييجي من إشارة realtime أو نسخة منشورة.
+                {
                   if (changedVisits.length > 0) {
                     const queued = await getQueuedMutations();
                     if (bootCancelled) return;
@@ -4518,12 +4454,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
 
           const res = await fetchVisitsFromSupabase(visitFetchScope);
           if (bootCancelled || !res.success || !res.visits) return;
-          if (comparable) {
-            saveVisitContentStamp(
-              { count: stamp!.count, maxUpdatedAt: stamp!.maxUpdatedAt },
-              ctxSnap.userId,
-              ctxSnap.sector
-            );
+          if (comparable && stamp) {
+            saveVisitContentStamp(stamp, ctxSnap.userId, ctxSnap.sector);
           }
 
           const remoteVisits = res.visits.filter((v) => !deletedVisitIds.has(v.id));
@@ -4902,7 +4834,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         if (
           stamp &&
           stored &&
-          stamp.count === stored.count &&
           stamp.maxCreatedAt === stored.maxCreatedAt &&
           stamp.table === stored.table
         ) {
@@ -4912,10 +4843,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         const canIncremental =
           stamp !== null &&
           stored !== null &&
+          !!stamp.maxCreatedAt &&
           !!stored.maxCreatedAt &&
-          typeof stamp.count === 'number' &&
-          typeof stored.count === 'number' &&
-          stamp.count >= stored.count &&
           stamp.table === stored.table &&
           invoicesRef.current.length > 0;
 
@@ -4988,7 +4917,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (
         stamp &&
         stored &&
-        stamp.count === stored.count &&
         stamp.maxCreatedAt === stored.maxCreatedAt &&
         stamp.table === stored.table &&
         invoicesRef.current.length > 0
@@ -5003,10 +4931,8 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       const canIncremental =
         stamp !== null &&
         stored !== null &&
+        !!stamp.maxCreatedAt &&
         !!stored.maxCreatedAt &&
-        typeof stamp.count === 'number' &&
-        typeof stored.count === 'number' &&
-        stamp.count >= stored.count &&
         stamp.table === stored.table &&
         invoicesRef.current.length > 0;
 
@@ -8410,6 +8336,43 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       if (customer.id) customersByReference.set(customer.id, customer);
       if (customer.code) customersByReference.set(customer.code, customer);
     });
+    // فهارس ثابتة تتفرّز مرة واحدة بدل `users.find`/`users.some` جوه كل زيارة.
+    const usersById = new Map<string, User>();
+    users.forEach((u) => {
+      if (u.id) usersById.set(u.id, u);
+    });
+    // نتائج عضوية العميل للفرع/المشرف بتتكرر مع كل زيارة لنفس العميل.
+    const branchMembership = new Map<string, boolean>();
+    const supervisorMembership = new Map<string, boolean>();
+    const repNameMatchCache = new Map<string, boolean>();
+    const repLookupCache = new Map<string, User | undefined>();
+    const meNormalized = normalizeArabicText(currentUser.name || '');
+
+    const matchesRepName = (name?: string): boolean => {
+      if (!name) return false;
+      const cached = repNameMatchCache.get(name);
+      if (cached !== undefined) return cached;
+      const result =
+        isArabicNameMatch(name, currentUser.name) ||
+        (normalizeArabicText(name) === meNormalized && Boolean(meNormalized));
+      repNameMatchCache.set(name, result);
+      return result;
+    };
+
+    /** بحث المندوب الخاص بزيارة معيّن — نتيجته متكررة بكثرة، فبتتخزن بالاسم. */
+    const findVisitRep = (visit: CustomerVisit): User | undefined => {
+      if (visit.repId) {
+        const direct = usersById.get(visit.repId);
+        if (direct) return direct;
+      }
+      const name = visit.repName || '';
+      if (!name) return undefined;
+      if (repLookupCache.has(name)) return repLookupCache.get(name);
+      const found = users.find((u) => isArabicNameMatch(u.name, name));
+      repLookupCache.set(name, found);
+      return found;
+    };
+
     const effectiveSector = resolveEffectiveSector(currentUser, activeSectorFilter);
     const isSectorAllowed = (visit: CustomerVisit): boolean => {
       const customer = customersByReference.get(visit.customerId || '') || customersByReference.get(visit.customerCode || '');
@@ -8427,25 +8390,45 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       // Branch Manager: STRICTLY sees visits belonging to his own branch only
       if (currentUser.role === 'branch_manager') {
         if (!currentUser.branchName) return [];
+        const managerBranch = currentUser.branchName;
+        const belongsToBranch = (customerId?: string): boolean => {
+          if (!customerId) return false;
+          const cached = branchMembership.get(customerId);
+          if (cached !== undefined) return cached;
+          const c = customersByReference.get(customerId);
+          const result = Boolean(c && doesCustomerBelongToBranch(c, managerBranch, users));
+          branchMembership.set(customerId, result);
+          return result;
+        };
         return visits.filter((v) => {
           if (!isSectorAllowed(v)) return false;
-          if (v.branchName && isBranchMatch(v.branchName, currentUser.branchName, { allowUnassigned: false })) return true;
-          const c = customers.find((cust) => cust.id === v.customerId);
-          return Boolean(c && doesCustomerBelongToBranch(c, currentUser.branchName, users));
+          if (v.branchName && isBranchMatch(v.branchName, managerBranch, { allowUnassigned: false })) return true;
+          return belongsToBranch(v.customerId);
         });
       }
 
       // Supervisor: STRICTLY sees visits belonging to his branch and his supervised reps
       if (currentUser.role === 'supervisor') {
+        const belongsToSupervisor = (customerId?: string): boolean => {
+          if (!customerId) return false;
+          const cached = supervisorMembership.get(customerId);
+          if (cached !== undefined) return cached;
+          const c = customersByReference.get(customerId);
+          const result = Boolean(c && doesCustomerBelongToSupervisor(c, currentUser, users));
+          supervisorMembership.set(customerId, result);
+          return result;
+        };
         return visits.filter((v) => {
           if (!isSectorAllowed(v)) return false;
           if (v.supervisorId === currentUser.id) return true;
           if (v.createdBy === currentUser.id) return true;
-          if (v.repId && users.some((u) => u.id === v.repId && u.supervisorId === currentUser.id)) return true;
-          const rep = users.find((u) => u.id === v.repId || isArabicNameMatch(u.name, v.repName || ''));
+          if (v.repId) {
+            const direct = usersById.get(v.repId);
+            if (direct?.supervisorId === currentUser.id) return true;
+          }
+          const rep = findVisitRep(v);
           if (rep && (rep.supervisorId === currentUser.id || rep.id === currentUser.id)) return true;
-          const c = customers.find((cust) => cust.id === v.customerId);
-          return Boolean(c && doesCustomerBelongToSupervisor(c, currentUser, users));
+          return belongsToSupervisor(v.customerId);
         });
       }
 
@@ -8457,9 +8440,7 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         if (currentUser.username && v.repId && v.repId.toLowerCase() === currentUser.username.toLowerCase()) return true;
 
         // 2. Arabic Name match
-        if (v.repName && (isArabicNameMatch(v.repName, currentUser.name) || normalizeArabicText(v.repName) === normalizeArabicText(currentUser.name))) {
-          return true;
-        }
+        if (v.repName && matchesRepName(v.repName)) return true;
 
         // 3. Created by this rep for himself
         if (v.createdBy === currentUser.id && (!v.repId || v.repId === currentUser.id)) return true;
@@ -9460,7 +9441,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       customers,
       visits,
       invoices,
-      cart,
       cloudinaryConfig,
       accountingLogs,
       inventoryLogs,
@@ -9505,11 +9485,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       register,
       logout,
       updateCurrentUserAvatar,
-      addToCart,
-      updateCartItem,
-      removeFromCart,
-      clearCart,
-      getCartSummary,
       addProduct,
       updateProduct,
       deleteProduct,
@@ -9637,7 +9612,6 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
       customers,
       visits,
       invoices,
-      cart,
       cloudinaryConfig,
       accountingLogs,
       inventoryLogs,
@@ -9686,9 +9660,17 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
     ]
   );
 
+  // كارت الطلب بيتوزّع من provider مستقل: تعديل كمية في الكاشير بقى مش بيغيّر
+  // قيمة AppContext الرئيسية، فالشاشات اللي مش بتستخدم الكارت ما بتترندرش.
+  // من غير useMemo عن قصد: الدوال بتتقفل على الحالة الحالية (fresh closures)،
+  // وأي memo بديبات ناقصة كان ممكن يخزّن نسخة قديمة ويضيّع تعديل كمية.
+  const cartValue = { cart, addToCart, updateCartItem, removeFromCart, clearCart, getCartSummary };
+
   return (
     <AppContext.Provider value={contextValue}>
-      {children}
+      <CartContext.Provider value={cartValue}>
+        {children}
+      </CartContext.Provider>
     </AppContext.Provider>
   );
 };

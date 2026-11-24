@@ -51,7 +51,7 @@ export const InvoicesScreen: React.FC = () => {
           </button>
           <button
             onClick={() => setFilter('pending')}
-            className={`flex-shrink-0 h-9 px-4 rounded-full text-xs font-bold transition ${filter === 'pending' ? 'bg-amber-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'}`}
+            className={`flex-shrink-0 h-9 px-4 rounded-full text-xs font-bold transition ${filter === 'pending' ? 'bg-amber-700 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'}`}
           >
             قيد المراجعة ({counts.pending})
           </button>

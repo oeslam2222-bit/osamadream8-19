@@ -747,9 +747,17 @@ export function doesCustomerBelongToRep(customer: Customer, repUser: User): bool
  * see the customers of their own reps, so this distinction is what keeps a
  * branch-wide supervisorName column from exposing the whole branch.
  */
+const salesRepsCache = new WeakMap<User[], User[]>();
+
 export function findOwningSalesRep(customer: Customer, allUsers: User[]): User | null {
   if (!customer || !Array.isArray(allUsers)) return null;
-  const reps = allUsers.filter((u) => u.role === 'sales_rep');
+  // فلترة المندوبين كانت بتتعمل لكل عميل (O(customers × users)) — بقت مرة واحدة
+  // لكل نسخة من مصفوفة المستخدمين، والـWeakMap بيمسحها لما المصفوفة تتغيّر.
+  let reps = salesRepsCache.get(allUsers);
+  if (!reps) {
+    reps = allUsers.filter((u) => u.role === 'sales_rep');
+    salesRepsCache.set(allUsers, reps);
+  }
   if (reps.length === 0) return null;
   return reps.find((rep) => doesCustomerBelongToRep(customer, rep)) || null;
 }
