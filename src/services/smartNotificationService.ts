@@ -97,7 +97,7 @@ function simpleHash(str: string): string {
  * يولد groupKey حسب النوع والسياق
  */
 function buildGroupKey(type: NotificationType, scope?: { branch?: string; sector?: string; repId?: string }): string {
-  const parts = [type];
+  const parts: string[] = [type];
   if (scope?.branch) parts.push(`branch:${scope.branch}`);
   if (scope?.sector) parts.push(`sector:${scope.sector}`);
   if (scope?.repId) parts.push(`rep:${scope.repId}`);
@@ -625,7 +625,7 @@ async function checkTargets(branch: string, sector: string): Promise<void> {
         branch,
         sector: sector as any,
         month: parseInt(monthKey.split('-')[1], 10),
-        repNames: [...new Set(data.map((t) => t.rep_name).filter(Boolean))],
+        repNames: [...new Set(data.map((t) => t.rep_name).filter(Boolean))] as string[],
       });
     }
   } catch {}

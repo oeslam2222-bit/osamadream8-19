@@ -352,8 +352,14 @@ export async function uploadImageToCloudinary(
   let lastError: Error | null = null;
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      // XMLHttpRequest للـ progress (fetch ما يدعمش progress)
-      await new Promise<void>((resolve, reject) => {
+      // XMLHttpRequest للـ progress (fetch ما يدعمش progress) — بيرفع الصورة
+      // مرة واحدة بس ويرجّع الرد المقروء منه مباشرة (كان فيه fetch تاني بيرفع
+      // الصورة مرتين + JSON.parse بدون await فبيفشل دايمًا).
+      const data = await new Promise<{
+        secure_url?: string;
+        public_id?: string;
+        error?: { message?: string };
+      }>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('POST', uploadUrl);
 
@@ -367,7 +373,11 @@ export async function uploadImageToCloudinary(
 
         xhr.onload = () => {
           if (xhr.status >= 200 && xhr.status < 300) {
-            resolve();
+            try {
+              resolve(JSON.parse(xhr.responseText));
+            } catch {
+              reject(new Error('تعذر قراءة رد Cloudinary'));
+            }
           } else {
             reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText}`));
           }
@@ -378,15 +388,6 @@ export async function uploadImageToCloudinary(
 
         xhr.send(formData);
       });
-
-      // Parse response
-      const data = JSON.parse(
-        (await fetch(uploadUrl, { method: 'POST', body: formData })).text()
-      ) as {
-        secure_url?: string;
-        public_id?: string;
-        error?: { message?: string };
-      };
 
       if (data.error) throw new Error(data.error.message || 'فشل رفع الصورة');
       if (!data.secure_url) throw new Error('لم يتم إرجاع رابط الصورة');
@@ -497,7 +498,7 @@ export async function uploadCustomerPhoto(
   const compressed = await compressImageFile(file, 800, 800, 0.7);
   const cleanCode = (customerCode || customerId || 'cust').replace(/[^a-zA-Z0-9_-]/g, '_');
   const targetFolder = `customer_photos/${cleanCode}`;
-  return uploadImageToCloudinary(compressed, config, targetFolder);
+  return uploadImageToCloudinary(compressed, { config, folder: targetFolder });
 }
 
 /**
@@ -513,7 +514,7 @@ export async function uploadProductPhoto(
   const compressed = await compressImageFile(file, 800, 800, 0.7);
   const cleanCode = (productCode || productId || 'product').replace(/[^a-zA-Z0-9_-]/g, '_');
   const targetFolder = `product_photos/${cleanCode}`;
-  const result = await uploadImageToCloudinary(compressed, config, targetFolder);
+  const result = await uploadImageToCloudinary(compressed, { config, folder: targetFolder });
   return { ...result, publicId: result.publicId || cleanCode };
 }
 
@@ -529,6 +530,6 @@ export async function uploadUserAvatar(
   const compressed = await compressImageFile(file, 320, 320, 0.75);
   const cleanId = (userId || 'user').replace(/[^a-zA-Z0-9_-]/g, '_');
   const targetFolder = `user_avatars/${cleanId}`;
-  return uploadImageToCloudinary(compressed, config, targetFolder);
+  return uploadImageToCloudinary(compressed, { config, folder: targetFolder });
 }
 
