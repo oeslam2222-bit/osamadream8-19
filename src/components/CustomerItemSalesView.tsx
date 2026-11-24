@@ -25,6 +25,7 @@ import {
   Users,
   X
 } from 'lucide-react';
+import { useToast } from './ui/Toast';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { formatCurrency } from '../services/invoiceService';
@@ -124,6 +125,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     canManageSectorGate,
     effectiveSectorFilter,
   } = useApp();
+  const { showToast } = useToast();
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
   /** تشخيص أعداد السجلات للمطور والدعم الفني فقط. */
   const canSeeDiagnostics =
@@ -1198,7 +1200,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
   // التصدير معطل — متاح للفواتير فقط
   const handleExportExcel = () => {
-    alert('تصدير Excel معطل — متاح للفواتير فقط');
+    showToast({ type: 'info', title: 'تصدير Excel', description: 'متاح للفواتير فقط' });
   };
 
   const handleStartOrderForCustomer = (account: string, itemCode?: string) => {

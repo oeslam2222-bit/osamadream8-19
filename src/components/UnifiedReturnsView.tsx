@@ -34,6 +34,7 @@ import {
   ShieldCheck,
   Lock
 } from 'lucide-react';
+import { useToast } from './ui/Toast';
 import { useApp } from '../context/AppContext';
 import { compressImageFile, normalizeCloudinaryConfig, uploadImageToCloudinary } from '../services/cloudinaryService';
 import {
@@ -76,6 +77,7 @@ export const UnifiedReturnsView: React.FC = () => {
     setActiveSectorFilter,
     canManageSectorGate,
   } = useApp();
+  const { showToast } = useToast();
 
   const visibleVisits = useMemo(() => getVisibleVisits(), [getVisibleVisits]);
 
@@ -185,7 +187,7 @@ export const UnifiedReturnsView: React.FC = () => {
   }, [isCreateModalOpen, selectedCustomer, returnRepGps, visits, currentUser?.id]);
 
   const handleExportReturnExcel = (visit: CustomerVisit) => {
-    alert('تصدير Excel معطل — متاح للفواتير فقط');
+    showToast({ type: 'info', title: 'تصدير Excel', description: 'متاح للفواتير فقط' });
   };
 
   // Extract all return visits

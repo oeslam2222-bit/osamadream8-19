@@ -28,6 +28,7 @@ import { cleanProductCode } from '../services/excelService';
 import { isBranchMatch } from '../services/arabicMatchingService';
 import { formatCurrency, formatArabicDate } from '../services/invoiceService';
 import { buildDispatchReport, downloadDispatchReport } from '../services/dispatchReportService';
+import { useToast } from './ui/Toast';
 
 interface ShortagePullModalProps {
   isOpen: boolean;
@@ -69,6 +70,7 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
   currentUser,
   onConfirmDispatch,
 }) => {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'aggregate' | 'invoices'>('aggregate');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBranch, setSelectedBranch] = useState<string>('الكل');
@@ -323,7 +325,7 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
 
   // Handler 3: Export Excel ERP for Central Warehouse — معطل (متاح للفواتير فقط)
   const handleExportExcel = async () => {
-    alert('تصدير Excel معطل — متاح للفواتير فقط');
+    showToast({ type: 'info', title: 'تصدير Excel', description: 'متاح للفواتير فقط' });
     setIsExportingExcel(false);
   };
 

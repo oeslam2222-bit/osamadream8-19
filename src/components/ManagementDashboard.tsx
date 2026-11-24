@@ -30,6 +30,7 @@ import {
   Wallet,
   Zap,
 } from 'lucide-react';
+import { useToast } from './ui/Toast';
 import {
   Area,
   AreaChart,
@@ -118,6 +119,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
     getVisibleTargets,
     getVisibleVisits,
   } = useApp();
+  const { showToast } = useToast();
 
   // Role helpers
   const isSuperAdmin = currentUser?.role === 'admin' || currentUser?.role === 'developer';
@@ -826,7 +828,7 @@ export const ManagementDashboard: React.FC<ManagementDashboardProps> = ({ onNavi
 
   // Export Power BI Styled Report to Excel — معطل (متاح للفواتير فقط)
   const handleExportPowerBIReport = () => {
-    alert('تصدير Excel معطل — متاح للفواتير فقط');
+    showToast({ type: 'info', title: 'تصدير Excel', description: 'متاح للفواتير فقط' });
   };
 
   const chartConfig = chartMetric === 'sales'

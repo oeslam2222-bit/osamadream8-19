@@ -10,6 +10,7 @@ import {
   FileSpreadsheet,
   Filter,
 } from 'lucide-react';
+import { useToast } from './ui/Toast';
 import { useApp } from '../context/AppContext';
 import type { AuditLog } from '../types';
 
@@ -38,6 +39,7 @@ const BADGE_META: Record<NonNullable<AuditLog['badgeType']>, { label: string; cl
 
 export const AuditLogView: React.FC = () => {
   const { auditLogs, clearAuditLogs, currentUser } = useApp();
+  const { showToast } = useToast();
   const [search, setSearch] = useState('');
   const [badgeFilter, setBadgeFilter] = useState<string>('all');
   const [confirmClear, setConfirmClear] = useState(false);
@@ -70,7 +72,7 @@ export const AuditLogView: React.FC = () => {
   }, [auditLogs]);
 
   const handleExportExcel = () => {
-    alert('تصدير Excel معطل — متاح للفواتير فقط');
+    showToast({ type: 'info', title: 'تصدير Excel', description: 'متاح للفواتير فقط' });
   };
 
   return (
