@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Invoice, ReturnedItem, ReturnRecord } from '../types';
 import { useApp } from '../context/AppContext';
+import { useToast } from './ui/Toast';
 import { formatCurrency } from '../services/invoiceService';
 
 interface OrderReturnModalProps {
@@ -34,6 +35,7 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
   onSuccess,
 }) => {
   const { processOrderReturn } = useApp();
+  const { showToast } = useToast();
 
   const [returnMode, setReturnMode] = useState<'partial' | 'full'>('partial');
   const [returnReason, setReturnReason] = useState<string>('مرتجع بطلب العميل واسترجاع البضاعة للمخزن');
@@ -230,12 +232,12 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
 
   const handleSubmitReturn = () => {
     if (calculatedItems.length === 0) {
-      alert('يرجى تحديد كمية مرتجعة (كراتين أو قطع) لصنف واحد على الأقل قبل التأكيد.');
+      showToast({ type: 'error', title: 'الكمية مطلوبة', description: 'يرجى تحديد كمية مرتجعة (كراتين أو قطع) لصنف واحد على الأقل قبل التأكيد.' });
       return;
     }
 
     if (!returnReason.trim()) {
-      alert('يرجى كتابة أو اختيار سبب المرتجع.');
+      showToast({ type: 'error', title: 'سبب المرتجع مطلوب', description: 'يرجى كتابة أو اختيار سبب المرتجع.' });
       return;
     }
 
@@ -254,7 +256,7 @@ export const OrderReturnModal: React.FC<OrderReturnModalProps> = ({
         }
         onClose();
       } else {
-        alert(result.message || 'حدث خطأ أثناء تسجيل المرتجع');
+        showToast({ type: 'error', title: 'تعذر تسجيل المرتجع', description: result.message || 'حدث خطأ أثناء تسجيل المرتجع' });
       }
     } finally {
       setIsSubmitting(false);
