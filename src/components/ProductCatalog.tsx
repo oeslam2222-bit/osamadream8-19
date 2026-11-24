@@ -53,7 +53,7 @@ import {
 } from '../services/cloudinaryService';
 import { formatCurrency } from '../services/invoiceService';
 import { resolveDisplayPrice, stripPlaceholderText } from '../services/productPricing';
-import { filterPromotionsForUser, resolveProductPromotion } from '../services/promotionService';
+import { filterPromotionsForUser, resolveProductPromotion, buildPromotionMatcher } from '../services/promotionService';
 import { ProductVariantPicker } from './catalog/ProductVariantPicker';
 import { cacheProductImages, getCachedImagesStats } from '../services/imageCacheService';
 import { parseExcelProducts, fetchAndParseGoogleSheet } from '../services/excelService';
@@ -415,9 +415,11 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     if (!promotions || promotions.length === 0) return map;
     const activePromos = promotions.filter((pr) => pr.status === 'نشط');
     if (activePromos.length === 0) return map;
+    // matcher واحد للقائمة كلها — بدل تنضيف أكواد العروض لكل صنف من الأول
+    const matcher = buildPromotionMatcher(activePromos);
     getVisibleProducts().forEach((p) => {
       const key = p.id || p.code || p.name;
-      map.set(key, resolveProductPromotion(p, activePromos));
+      map.set(key, resolveProductPromotion(p, activePromos, matcher));
     });
     return map;
   }, [getVisibleProducts, promotions]);
