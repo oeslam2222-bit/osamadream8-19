@@ -34,6 +34,7 @@ import {
   Smartphone,
   RefreshCw
 } from 'lucide-react';
+import { useToast } from './ui/Toast';
 import { useApp } from '../context/AppContext';
 import { formatCompactCurrency, formatCurrency } from '../services/invoiceService';
 import { getBranchStockForProduct } from '../services/arabicMatchingService';
@@ -67,6 +68,7 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
     approveOrder,
     isOffline,
   } = useApp();
+  const { showToast } = useToast();
 
   const [stockSearchTerm, setStockSearchTerm] = useState('');
   const [stockFilterType, setStockFilterType] = useState<'all' | 'critical' | 'depleted'>('critical');
@@ -217,13 +219,13 @@ export const HomeExecutiveDashboard: React.FC<HomeExecutiveDashboardProps> = ({
       setSuccessToast(res.message);
       setTimeout(() => setSuccessToast(null), 3500);
     } else {
-      alert(res.message);
+      showToast({ type: 'error', title: 'تعذر الاعتماد', description: res.message });
     }
   };
 
   // ONE-CLICK EXECUTIVE EXPORT — معطل (متاح للفواتير فقط)
   const handleExportExecutiveBriefing = () => {
-    alert('تصدير Excel معطل — متاح للفواتير فقط');
+    showToast({ type: 'info', title: 'تصدير Excel', description: 'متاح للفواتير فقط' });
     setIsExportingReport(false);
   };
 

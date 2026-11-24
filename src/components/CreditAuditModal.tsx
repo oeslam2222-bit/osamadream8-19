@@ -30,6 +30,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+import { useToast } from './ui/Toast';
 import { useApp } from '../context/AppContext';
 import { exportElectronicInvoiceToExcel } from '../services/excelService';
 import { formatCurrency } from '../services/invoiceService';
@@ -56,6 +57,7 @@ export const CreditAuditModal: React.FC<CreditAuditModalProps> = ({
   onReject,
 }) => {
   const { customers, invoices, getVisibleInvoices, currentUser, companyInfo, updateOrderStatus } = useApp();
+  const { showToast } = useToast();
 
   if (!isOpen || !invoice) return null;
 
@@ -133,7 +135,7 @@ ${isExceeded ? `🚨 *حالة الفاتورة:* متجاوزة الحد الا
 ⏰ تم الإصدار عبر نظام دريم للتوزيع`;
 
     navigator.clipboard.writeText(text);
-    alert('✅ تم نسخ التقرير المالي الشامل بتنسيق الواتساب بنجاح!');
+    showToast({ type: 'success', title: 'تم النسخ', description: 'تم نسخ التقرير المالي الشامل بتنسيق الواتساب بنجاح!' });
   };
 
   return (

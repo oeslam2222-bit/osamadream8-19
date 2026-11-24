@@ -24,6 +24,7 @@ import {
   HelpCircle,
   ExternalLink
 } from 'lucide-react';
+import { useToast } from './ui/Toast';
 import { useApp } from '../context/AppContext';
 import { normalizeCloudinaryConfig } from '../services/cloudinaryService';
 
@@ -48,6 +49,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
     cloudinaryConfig,
     updateCloudinarySettings
   } = useApp();
+  const { showToast } = useToast();
 
   const [activeTab, setActiveTab] = useState<'settings' | 'team' | 'about' | 'install' | 'privacy'>(defaultTab);
   const [autoSyncOrders, setAutoSyncOrders] = useState(true);
@@ -545,7 +547,7 @@ export const SystemSettingsAndAboutModal: React.FC<SystemSettingsAndAboutModalPr
                       } else if (setIsInstallModalOpen) {
                         setIsInstallModalOpen(true);
                       } else {
-                        alert('يمكنك تثبيت التطبيق بالنقر على زر المشاركة أو القائمة في المتصفح واختيار "إضافة إلى الشاشة الرئيسية".');
+                        showToast({ type: 'info', title: 'تثبيت التطبيق', description: 'يمكنك تثبيت التطبيق بالنقر على زر المشاركة أو القائمة في المتصفح واختيار "إضافة إلى الشاشة الرئيسية".' });
                       }
                     }}
                     className="bg-navy-panel hover:bg-navy-hover text-[#2dd4bf] font-black px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-md shrink-0 cursor-pointer transition"

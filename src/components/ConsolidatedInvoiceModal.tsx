@@ -18,6 +18,7 @@ import {
   Warehouse,
   X,
 } from 'lucide-react';
+import { useToast } from './ui/Toast';
 import { Invoice, Product } from '../types';
 import {
   buildConsolidatedInvoicesData,
@@ -41,6 +42,7 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
   products,
   currentBranch,
 }) => {
+  const { showToast } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterMode, setFilterMode] = useState<'all' | 'october_only' | 'branch_covered' | 'october_deficit'>('all');
   const [expandedLineId, setExpandedLineId] = useState<string | null>(null);
@@ -88,7 +90,7 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
       setExportNotice('تم تصدير شيت الإكسل المنسق والمميز لبيان دمج الفواتير وتوريد مخزن أكتوبر بنجاح 📊');
       setTimeout(() => setExportNotice(null), 4500);
     } catch (err: any) {
-      alert(`حدث خطأ أثناء تصدير الإكسل: ${err?.message || ''}`);
+      showToast({ type: 'error', title: 'فشل تصدير الإكسل', description: `حدث خطأ أثناء تصدير الإكسل: ${err?.message || ''}` });
     } finally {
       setIsExporting(false);
     }

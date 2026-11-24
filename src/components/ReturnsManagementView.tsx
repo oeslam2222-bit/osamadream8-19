@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import {
   Package, Search, Image as ImageIcon, Truck
 } from 'lucide-react';
+import { useToast } from './ui/Toast';
 import type { Invoice } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 
@@ -19,6 +20,7 @@ export const ReturnsManagementView: React.FC<ReturnsManagementViewProps> = ({
     getVisibleInvoices,
     updateOrderStatus,
   } = useApp();
+  const { showToast } = useToast();
 
   const visibleInvoices = useMemo(() => {
     return (getVisibleInvoices ? getVisibleInvoices() : invoices).filter(
@@ -49,7 +51,7 @@ export const ReturnsManagementView: React.FC<ReturnsManagementViewProps> = ({
     if (!confirm('هل تريد إغلاق هذا الطلب نهائياً؟')) return;
     const res = updateOrderStatus(invoiceId, 'مرتجع', 'تم إغلاق طلب المرتجع');
     if (res?.success) {
-      alert('تم إغلاق الطلب بنجاح');
+      showToast({ type: 'success', title: 'تم الإغلاق', description: 'تم إغلاق الطلب بنجاح' });
     }
   };
 

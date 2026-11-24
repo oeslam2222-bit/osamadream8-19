@@ -20,6 +20,7 @@ import {
   Wifi,
   Zap
 } from 'lucide-react';
+import { useToast } from './ui/Toast';
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { COMPANY_INFO } from '../data/mockData';
@@ -41,6 +42,7 @@ export const AccountingSyncView: React.FC = () => {
     importProductsList,
     dispatchOrderToMicrosoft
   } = useApp();
+  const { showToast } = useToast();
 
   const [activeSubTab, setActiveSubTab] = useState<'erp' | 'supabase' | 'sql' | 'backup'>('erp');
   const [isSyncingAll, setIsSyncingAll] = useState(false);
@@ -629,7 +631,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;
                           setTimeout(() => setSyncStatusMsg(null), 4000);
                         }
                       } catch (err) {
-                        alert('الملف غير صالح أو بصيغة JSON غير صحيحة');
+                        showToast({ type: 'error', title: 'ملف غير صالح', description: 'الملف غير صالح أو بصيغة JSON غير صحيحة' });
                       }
                     };
                     reader.readAsText(file);

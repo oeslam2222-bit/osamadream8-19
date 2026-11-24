@@ -28,6 +28,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+import { useToast } from './ui/Toast';
 import { useApp } from '../context/AppContext';
 import type { Customer } from '../types';
 import { formatCurrency } from '../services/invoiceService';
@@ -94,6 +95,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
     canManageSectorGate,
     effectiveSectorFilter,
   } = useApp();
+  const { showToast } = useToast();
 
   const activeSector: 'home' | 'electrical' | 'none' = canManageSectorGate
     ? activeSectorFilter
@@ -366,7 +368,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
     if (!findingsCustomer) return;
     const legalCase = getLegalCaseForCustomer(findingsCustomer);
     if (!legalCase) {
-      alert('لا يوجد ملف قانوني مسجل لهذا العميل — يجب إحالة العميل للشؤون القانونية أولاً.');
+      showToast({ type: 'error', title: 'لا يوجد ملف قانوني', description: 'يجب إحالة العميل للشؤون القانونية أولاً.' });
       return;
     }
     const res = addLegalStatement(

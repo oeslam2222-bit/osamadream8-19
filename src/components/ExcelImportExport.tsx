@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useToast } from './ui/Toast';
 import {
   cleanCustomerCode,
   cleanCustomerPhone,
@@ -132,6 +133,7 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
     syncProductsIncrementally,
     syncCustomerItemSalesIncrementally,
   } = useApp();
+  const { showToast } = useToast();
 
   // دليل العملاء المحدَّث دائماً: "مزامنة الكل" بتنفذ أكثر من استيراد في نفس الدورة،
   // والقيمة القديمة من الـ closure بتخلي ربط مبيعات الأصناف بالعملاء الجدد يفشل.
@@ -1282,11 +1284,11 @@ function onEdit(e) {
                 type="button"
                 onClick={async () => {
                   const res = await syncCustomersIncrementally();
-                  alert(
-                    res.success
-                      ? res.message || 'تم مزامنة العملاء من السيرفر بنجاح'
-                      : 'فشل المزامنة: ' + (res.message || 'خطأ غير معروف')
-                  );
+                  showToast({
+                    type: res.success ? 'success' : 'error',
+                    title: res.success ? 'تمت المزامنة' : 'فشل المزامنة',
+                    description: res.success ? (res.message || 'تم مزامنة العملاء من السيرفر بنجاح') : (res.message || 'خطأ غير معروف'),
+                  });
                 }}
                 className="bg-[#1e3a8a] hover:bg-[#1e408f] text-white font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 title="يسحب فقط العملاء الجدد أو اللي اتعدلوا منذ آخر مزامنة (لا يستبدل الـ 5000 عميل)"
@@ -1299,11 +1301,11 @@ function onEdit(e) {
               type="button"
               onClick={async () => {
                 const res = await syncTargetsIncrementally();
-                alert(
-                  res.success
-                    ? res.message || 'تم مزامنة الأهداف من السيرفر بنجاح'
-                    : 'فشل المزامنة: ' + (res.message || 'خطأ غير معروف')
-                );
+                showToast({
+                  type: res.success ? 'success' : 'error',
+                  title: res.success ? 'تمت المزامنة' : 'فشل المزامنة',
+                  description: res.success ? (res.message || 'تم مزامنة الأهداف من السيرفر بنجاح') : (res.message || 'خطأ غير معروف'),
+                });
               }}
               className="bg-[#1e3a8a] hover:bg-[#1e408f] text-white font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
               title="يسحب فقط الأهداف الجدد أو اللي اتعدلوا منذ آخر مزامنة"
@@ -1316,11 +1318,11 @@ function onEdit(e) {
               type="button"
               onClick={async () => {
                 const res = await syncProductsIncrementally();
-                alert(
-                  res.success
-                    ? res.message || 'تم مزامنة الأصناف من السيرفر بنجاح'
-                    : 'فشل المزامنة: ' + (res.message || 'خطأ غير معروف')
-                );
+                showToast({
+                  type: res.success ? 'success' : 'error',
+                  title: res.success ? 'تمت المزامنة' : 'فشل المزامنة',
+                  description: res.success ? (res.message || 'تم مزامنة الأصناف من السيرفر بنجاح') : (res.message || 'خطأ غير معروف'),
+                });
               }}
               className="bg-[#1e3a8a] hover:bg-[#1e408f] text-white font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
               title="يسحب فقط الأصناف الجدد أو اللي اتعدلوا منذ آخر مزامنة (بما في ذلك أسعار العروض)"
@@ -1333,11 +1335,11 @@ function onEdit(e) {
               type="button"
               onClick={async () => {
                 const res = await syncCustomerItemSalesIncrementally();
-                alert(
-                  res.success
-                    ? res.message || 'تم مزامنة مبيعات الأصناف من السيرفر بنجاح'
-                    : 'فشل المزامنة: ' + (res.message || 'خطأ غير معروف')
-                );
+                showToast({
+                  type: res.success ? 'success' : 'error',
+                  title: res.success ? 'تمت المزامنة' : 'فشل المزامنة',
+                  description: res.success ? (res.message || 'تم مزامنة مبيعات الأصناف من السيرفر بنجاح') : (res.message || 'خطأ غير معروف'),
+                });
               }}
               className="bg-[#1e3a8a] hover:bg-[#1e408f] text-white font-bold px-4 py-2.5 rounded-xl text-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50"
               title="يسحب فقط سجلات مبيعات الأصناف الجدد أو اللي اتعدلوا منذ آخر مزامنة"
