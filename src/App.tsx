@@ -27,7 +27,9 @@ import { DreamDeliveryDashboard } from './components/DreamDeliveryDashboard';
 import { LoginPage } from './components/LoginPage';
 import { UpdateRequiredGate } from './components/UpdateRequiredGate';
 import { Navbar } from './components/Navbar';
+import { DesktopSidebar } from './components/layout/DesktopSidebar';
 import { AppProvider, useApp } from './context/AppContext';
+import { useCart } from './context/cartContext';
 import { ThemeProvider, useTheme } from './context/themeContext';
 import { getUserAllowedTabs, getCustomPermissions, UserPermissionOverride } from './services/permissionService';
 import { EncouragementProvider } from './components/EncouragementSystem';
@@ -177,9 +179,10 @@ const MainLayout: React.FC = () => {
     }
   });
   const {
-    cart, invoices, isOffline, currentUser, isAuthenticated, getCartSummary, editPendingOrder,
+    invoices, isOffline, currentUser, isAuthenticated, editPendingOrder,
     pendingInvoicesCount, flushPendingInvoices, offlineQueueCount, flushOfflineQueue,
   } = useApp();
+  const { cart, getCartSummary } = useCart();
 
   const [activeTab, setActiveTabState] = useState<string>(() => readSavedActiveTab(currentUser?.id));
   const [, startTabTransition] = React.useTransition();
@@ -424,26 +427,25 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div data-role={currentUser.role} className={`tantawy-shell ${isSidebarCollapsed ? 'sidebar-collapsed' : ''} min-h-[100dvh] bg-[var(--app-bg)] flex flex-col text-[var(--app-text)] font-sans antialiased selection:bg-[var(--app-warn)] selection:text-slate-950`} dir="rtl">
+    <div data-role={currentUser.role} className={`tantawy-shell ${isSidebarCollapsed ? 'sidebar-collapsed' : ''} min-h-[100dvh] bg-[var(--app-bg)] grid grid-cols-1 lg:grid-cols-[258px_minmax(0,1fr)] gap-0 min-w-0 overflow-hidden text-[var(--app-text)] font-sans antialiased selection:bg-[var(--app-warn)] selection:text-slate-950`} dir="rtl">
       {/* Splash Screen - shown on first app load */}
-      <SplashScreen
-        isOpen={splashOpen}
-        onComplete={() => {
-          setSplashOpen(false);
-          try {
-            localStorage.setItem("tantawy_splash_seen", "true");
-          } catch {}
-        }}
-      />
+      <div className="shell-overlay lg:col-span-2">
+        <SplashScreen
+          isOpen={splashOpen}
+          onComplete={() => {
+            setSplashOpen(false);
+            try {
+              localStorage.setItem("tantawy_splash_seen", "true");
+            } catch {}
+          }}
+        />
+      </div>
       
       {/* شريط حالة الاتصال والمزامنة — أوفلاين أو فيه فواتير معلّقة في انتظار الرفع */}
       {(isOffline || pendingTotal > 0) && (
-        <div
-          className={`text-white text-xs py-1.5 px-3 sm:px-4 font-bold flex items-center justify-center gap-2 shadow-inner flex-wrap text-center ${
+        <div className={`shell-status lg:col-span-2 text-white text-xs py-1.5 px-3 sm:px-4 font-bold flex items-center justify-center gap-2 shadow-inner flex-wrap text-center ${
             isOffline ? 'bg-[var(--app-warn)]' : 'bg-[var(--app-ok)]'
-          }`}
-          role="status"
-        >
+          }`} role="status">
           {isOffline ? <WifiOff className="w-3.5 h-3.5 shrink-0" /> : <Wifi className="w-3.5 h-3.5 shrink-0" />}
           {isOffline && (
             <span>وضع عدم الاتصال — البيانات محفوظة محليًا وترتفع تلقائيًا عند عودة الشبكة</span>
@@ -505,18 +507,30 @@ const MainLayout: React.FC = () => {
       />
 
       {/* Main Responsive Navbar — هوية واحدة ثابتة لكل الصفحات */}
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        onOpenCart={() => setIsOrderModalOpen(true)}
-        isSidebarCollapsed={isSidebarCollapsed}
-        onToggleSidebar={handleToggleSidebar}
-        onGlobalNavigate={handleGlobalNavigate}
-      />
+      <div className="shell-top lg:col-span-2">
+        <Navbar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          onOpenCart={() => setIsOrderModalOpen(true)}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebar={handleToggleSidebar}
+          onGlobalNavigate={handleGlobalNavigate}
+        />
+      </div>
+
+      {/* شريط sidebar الأيمن (ثابت داخل الجريد على الحافة اليمنى في الـRTL) */}
+      <div className="shell-side lg:col-start-1">
+        <DesktopSidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebar={handleToggleSidebar}
+        />
+      </div>
 
       {/* Content Container - Fluid responsive container with min-w-0 to prevent overflow */}
-      <main className="app-main flex-1 min-w-0">
-        <div className="mx-auto w-full max-w-[1440px] px-3 sm:px-5 md:px-6 py-3 sm:py-5">
+      <main className="shell-main app-main min-w-0 overflow-x-hidden lg:col-start-2">
+        <div className="mx-auto w-full max-w-full px-2 sm:px-2 py-2 sm:py-2">
           <Suspense fallback={<TabLoadingSkeleton />}>
 
           {openTabs.has('home') && allowedTabs.includes('home') && (
@@ -732,7 +746,8 @@ const MainLayout: React.FC = () => {
       </Suspense>
 
       {/* Bottom Footer */}
-      <footer className="border-t border-white/10 bg-[linear-gradient(180deg,_rgba(9,15,24,0.94),_rgba(15,23,42,0.98))] py-4 px-4 text-center text-xs text-[var(--app-muted)] print:hidden mb-16 md:mb-0 shadow-[0_-10px_30px_rgba(2,6,23,0.2)]">
+      <div className="shell-foot lg:col-span-2">
+        <footer className="border-t border-white/10 bg-[linear-gradient(180deg,_rgba(9,15,24,0.94),_rgba(15,23,42,0.98))] py-4 px-4 text-center text-xs text-[var(--app-muted)] print:hidden mb-16 md:mb-0 shadow-[0_-10px_30px_rgba(2,6,23,0.2)]">
         <div className="max-w-[1440px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <span className="font-black text-white">مجموعة الطنطاوي للتجارة والتوزيع (TANTAWY GROUP)</span>
@@ -744,12 +759,13 @@ const MainLayout: React.FC = () => {
           </div>
         </div>
       </footer>
+      </div>
 
       {/* Floating Offline Success Toast Banner */}
       {appToastMsg && (
         <div className="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 z-50 max-w-md w-[92%] bg-slate-900 dark:bg-[var(--app-ok)] text-white border-2 border-[var(--app-ok)] rounded-2xl p-3.5 shadow-2xl flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom duration-300">
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 font-black shadow-xs">
+            <span className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0 font-black shadow-xs">
               ✓
             </span>
             <p className="text-xs font-bold leading-snug">{appToastMsg}</p>

@@ -37,6 +37,8 @@ import './styles/theme-consistency.css';
 import './styles/customer-card.css';
 // عائلة الخط الموحدة — لازم يكون آخر ملف عشان يثبّت var(--app-font) فوق الكل
 import './styles/fonts.css';
+// تخطيط الشاشة (سايدبار + محتوى) — آخر ملف: بيلغي الإزاحات المكررة من الملفات القديمة
+import './styles/layout-fix.css';
 
 import { initMonitoring } from './services/monitoring';
 
