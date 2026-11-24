@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Product } from '../types';
 import { Upload, Image as ImageIcon, RefreshCw, CheckCircle2, X, AlertTriangle } from 'lucide-react';
 import { uploadProductPhoto, normalizeCloudinaryConfig } from '../services/cloudinaryService';
+import { useToast } from './ui/Toast';
 
 interface ProductPhotoUploadProps {
   product: Product;
@@ -19,6 +20,8 @@ export const ProductPhotoUpload: React.FC<ProductPhotoUploadProps> = ({
     cloudinaryConfig,
   } = useApp();
 
+  const { showToast } = useToast();
+
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -30,7 +33,7 @@ export const ProductPhotoUpload: React.FC<ProductPhotoUploadProps> = ({
     const selectedFile = e.target.files?.[0];
     if (!selectedFile) return;
     if (!selectedFile.type.startsWith('image/')) {
-      alert('يرجى اختيار ملف صورة فقط');
+      showToast({ type: 'error', title: 'الملف غير صالح', description: 'يرجى اختيار ملف صورة فقط' });
       return;
     }
     setFile(selectedFile);
@@ -76,7 +79,7 @@ export const ProductPhotoUpload: React.FC<ProductPhotoUploadProps> = ({
       onPhotoUploaded?.(product.id);
     } catch (err) {
       console.error('Upload error:', err);
-      alert('فشل رفع الصورة');
+      showToast({ type: 'error', title: 'فشل رفع الصورة', description: 'حاول مرة أخرى أو تحقق من إعدادات Cloudinary' });
       setUploading(false);
     }
   };
