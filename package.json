@@ -13,7 +13,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "auth:create-users": "node scripts/create-auth-users.mjs",
-    "nace:smoke": "tsx scripts/nace-drex-smoke.ts"
+    "nace:smoke": "tsx scripts/nace-drex-smoke.ts",
+    "agentmail:send": "tsx scripts/agentmail-agent.ts send",
+    "agentmail:webhook": "tsx scripts/agentmail-agent.ts webhook"
   },
   "dependencies": {
     "@fontsource/cairo": "^5.3.0",
@@ -23,6 +25,7 @@
     "@supabase/supabase-js": "^2.112.4",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
+    "agentmail": "^0.5.54",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "firebase": "^13.1.0",
@@ -35,6 +38,7 @@
     "react-dom": "^19.0.1",
     "recharts": "^3.10.1",
     "vite": "^6.2.3",
+    "svix": "^2.11.1",
     "xlsx": "^0.18.5",
     "xlsx-js-style": "^1.2.0"
   },
