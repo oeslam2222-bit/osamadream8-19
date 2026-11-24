@@ -21,6 +21,7 @@ import { OrderBuilderModal } from '../OrderBuilderModal';
 import { ElectronicInvoiceModal } from '../ElectronicInvoiceModal';
 import { NotificationCenter } from '../NotificationCenter';
 import { ToastProvider } from '../ui/Toast';
+import { useToast } from '../ui/Toast';
 import { Customer, Invoice, NotificationItem } from '../../types';
 import { TabLoadingSkeleton } from './TabLoadingSkeleton';
 
@@ -43,6 +44,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   getCartSummary,
   editPendingOrder,
 }) => {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<string>('home');
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [orderInitialCustomer, setOrderInitialCustomer] = useState<Customer | null>(null);
@@ -88,7 +90,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
       setViewingInvoice(null);
       setIsOrderModalOpen(true);
     } else {
-      alert(res.message);
+      showToast({ type: 'error', title: 'تعذّر تعديل الطلب', description: res.message });
     }
   };
 
