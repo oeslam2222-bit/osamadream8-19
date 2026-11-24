@@ -16,6 +16,20 @@ interface ToastContextType {
   toasts: ToastItem[];
 }
 
+const ToastContext = React.createContext<ToastContextType | null>(null);
+
+/**
+ * Hook لاستخدام نظام الإشعارات (Toast) من أي مكوّن جوّه <ToastProvider>.
+ * لو استُخدم برّه الـ provider بيرجّع no-op بدل ما يكسر التطبيق.
+ */
+export const useToast = (): ToastContextType => {
+  const ctx = React.useContext(ToastContext);
+  if (!ctx) {
+    return { showToast: () => {}, toasts: [] };
+  }
+  return ctx;
+};
+
 const TOAST_LIMIT = 5;
 const REMOVE_DELAY = 1000;
 
@@ -66,7 +80,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   return (
-    <>
+    <ToastContext.Provider value={{ showToast, toasts }}>
       {children}
       {/* Toast Container - Top Right */}
       <div className="fixed top-6 right-6 z-[100] flex flex-col gap-2 pointer-events-none">
@@ -95,7 +109,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           </div>
         ))}
       </div>
-    </>
+    </ToastContext.Provider>
   );
 };
 
