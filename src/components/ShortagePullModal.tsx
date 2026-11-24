@@ -351,7 +351,7 @@ export const ShortagePullModal: React.FC<ShortagePullModalProps> = ({
       <div
         role="dialog"
         aria-modal="true"
-        className="relative z-[60] bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-300 w-full max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-2rem)] xl:max-w-6xl max-h-[95vh] flex flex-col overflow-hidden text-slate-900"
+        className="relative z-[60] bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-300 w-full max-w-full sm:max-w-[calc(100vw-2rem)] max-h-[95vh] flex flex-col overflow-hidden text-slate-900"
       >
         {/* Top Header Ribbon */}
         <div className="bg-slate-900 text-white p-3.5 sm:p-4 flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--app-warn)] shrink-0">

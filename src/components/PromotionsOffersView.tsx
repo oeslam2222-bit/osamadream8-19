@@ -549,7 +549,7 @@ export const PromotionsOffersView: React.FC<PromotionsOffersViewProps> = ({
       {/* React Confirmation Dialog */}
       {confirmAction && (
         <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4" dir="rtl">
-          <div className="bg-white rounded-2xl w-full max-w-md p-5 shadow-2xl border border-slate-200 space-y-4">
+          <div className="bg-white rounded-2xl w-full max-w-full sm:max-w-md p-5 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
                 <AlertCircle className="w-5 h-5" />

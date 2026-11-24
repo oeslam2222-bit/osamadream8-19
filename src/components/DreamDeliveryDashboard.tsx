@@ -618,13 +618,13 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
 
               {/* 4 KPI cards per sector */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Sales */}
+                {/* Sales — أزرق ثابت */}
                 <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center justify-between text-[10px] font-black text-slate-500 dark:text-slate-400">
                     <span>مبيعات {MONTHS_AR[latestPeriod.month - 1]} — المحقق</span>
-                    <ShoppingCart size={15} className="text-blue-500" />
+                    <ShoppingCart size={14} className="text-blue-600" />
                   </div>
-                  <div className="mt-1 text-lg font-black text-slate-900 dark:text-white tg-num">
+                  <div className="mt-1 text-xl font-black text-slate-900 dark:text-white tg-num">
                     {fmt(sec.monthSales)} <span className="text-xs font-bold text-slate-500">ج.م</span>
                   </div>
                   <div className="mt-1.5 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
@@ -633,7 +633,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                       style={{ width: `${Math.min(100, Math.max(0, sec.salesPercent))}%` }}
                     />
                   </div>
-                  <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] font-bold">
+                  <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] font-bold">
                     <span className="text-slate-500 dark:text-slate-400">
                       المستهدف: <span className="tg-num">{fmt(sec.monthSalesTarget)}</span>
                     </span>
@@ -643,22 +643,22 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                   </div>
                 </div>
 
-                {/* Collection */}
+                {/* Collection — أخضر ثابت */}
                 <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center justify-between text-[10px] font-black text-slate-500 dark:text-slate-400">
                     <span>تحصيل {MONTHS_AR[latestPeriod.month - 1]} — المحقق</span>
-                    <Wallet size={15} className="text-purple-500" />
+                    <Wallet size={14} className="text-emerald-600" />
                   </div>
-                  <div className="mt-1 text-lg font-black text-slate-900 dark:text-white tg-num">
+                  <div className="mt-1 text-xl font-black text-slate-900 dark:text-white tg-num">
                     {fmt(sec.monthCollection)} <span className="text-xs font-bold text-slate-500">ج.م</span>
                   </div>
                   <div className="mt-1.5 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
                     <div
-                      className="h-full rounded-full bg-purple-500"
+                      className="h-full rounded-full bg-emerald-500"
                       style={{ width: `${Math.min(100, Math.max(0, sec.collectionPercent))}%` }}
                     />
                   </div>
-                  <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] font-bold">
+                  <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] font-bold">
                     <span className="text-slate-500 dark:text-slate-400">
                       المستهدف: <span className="tg-num">{fmt(sec.monthCollectionTarget)}</span>
                     </span>
@@ -668,30 +668,30 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                   </div>
                 </div>
 
-                {/* Debts */}
+                {/* Debts — أحمر (مؤشر سلبي) */}
                 <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center justify-between text-[10px] font-black text-slate-500 dark:text-slate-400">
                     <span>مديونيات العملاء ({sec.title})</span>
-                    <CreditCard size={15} className="text-red-500" />
+                    <CreditCard size={14} className="text-red-600" />
                   </div>
-                  <div className="mt-1 text-lg font-black text-red-600 dark:text-red-400 tg-num">
+                  <div className="mt-1 text-xl font-black text-red-600 dark:text-red-400 tg-num">
                     {fmt(sec.totalDebt)} <span className="text-xs font-bold opacity-80">ج.م</span>
                   </div>
-                  <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  <div className="mt-1 text-[10px] font-bold text-slate-500 dark:text-slate-400">
                     إجمالي الرصيد القائم على عملاء القطاع
                   </div>
                 </div>
 
-                {/* Dues */}
+                {/* Dues — أخضر (ثابت مع التحصيل) */}
                 <div className="rounded-xl border border-slate-200/80 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] p-3">
-                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                  <div className="flex items-center justify-between text-[10px] font-black text-slate-500 dark:text-slate-400">
                     <span>مستحقات العملاء ({sec.title})</span>
-                    <Coins size={15} className="text-emerald-500" />
+                    <Coins size={14} className="text-emerald-600" />
                   </div>
-                  <div className="mt-1 text-lg font-black text-emerald-600 dark:text-emerald-400 tg-num">
+                  <div className="mt-1 text-xl font-black text-emerald-600 dark:text-emerald-400 tg-num">
                     {fmt(sec.totalDues)} <span className="text-xs font-bold opacity-80">ج.م</span>
                   </div>
-                  <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                  <div className="mt-1 text-[10px] font-bold text-slate-500 dark:text-slate-400">
                     إجمالي المستحقات الفعلية لعملاء القطاع
                   </div>
                 </div>
@@ -789,26 +789,30 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
               <p className="text-[10px] font-bold text-slate-400 mt-1 -mb-1">
                 حركة اليوم ضمن شهر {MONTHS_AR[latestPeriod.month - 1]} {latestPeriod.year}
               </p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2.5 border border-slate-200/70 dark:border-[#243756]">
-                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">مبيعات اليوم</div>
-                  <div className="mt-1 text-sm font-black text-blue-600 dark:text-blue-400 tg-num">{fmt(sec.totalSalesToday)} ج.م</div>
-                  <div className="text-[10px] text-slate-400 tg-num">{fmt(sec.ordersTodayCount)} طلبية</div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2 border border-slate-200/70 dark:border-[#243756]">
+                  <div className="text-[10px] font-black text-slate-500 dark:text-slate-400">مبيعات اليوم</div>
+                  <div className="mt-1 text-base font-black text-blue-600 dark:text-blue-400 tg-num">
+                    {fmt(sec.totalSalesToday)} <span className="text-[10px] font-bold opacity-80">ج.م</span>
+                  </div>
+                  <div className="text-[9px] text-slate-400 tg-num">{fmt(sec.ordersTodayCount)} طلبية</div>
                 </div>
-                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2.5 border border-slate-200/70 dark:border-[#243756]">
-                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">تحصيل اليوم</div>
-                  <div className="mt-1 text-sm font-black text-emerald-600 dark:text-emerald-400 tg-num">{fmt(sec.totalCollectedToday)} ج.م</div>
-                  <div className="text-[10px] text-slate-400">تحصيل ميداني</div>
+                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2 border border-slate-200/70 dark:border-[#243756]">
+                  <div className="text-[10px] font-black text-slate-500 dark:text-slate-400">تحصيل اليوم</div>
+                  <div className="mt-1 text-base font-black text-emerald-600 dark:text-emerald-400 tg-num">
+                    {fmt(sec.totalCollectedToday)} <span className="text-[10px] font-bold opacity-80">ج.م</span>
+                  </div>
+                  <div className="text-[9px] text-slate-400">تحصيل ميداني</div>
                 </div>
-                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2.5 border border-slate-200/70 dark:border-[#243756]">
-                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">زيارات اليوم</div>
-                  <div className="mt-1 text-sm font-black text-violet-600 dark:text-violet-400 tg-num">{fmt(sec.visitsTodayCount)}</div>
-                  <div className="text-[10px] text-slate-400">زيارات مسجلة</div>
+                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2 border border-slate-200/70 dark:border-[#243756]">
+                  <div className="text-[10px] font-black text-slate-500 dark:text-slate-400">زيارات اليوم</div>
+                  <div className="mt-1 text-base font-black text-blue-600 dark:text-blue-400 tg-num">{fmt(sec.visitsTodayCount)}</div>
+                  <div className="text-[9px] text-slate-400">زيارات مسجلة</div>
                 </div>
-                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2.5 border border-slate-200/70 dark:border-[#243756]">
-                  <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400">المرتجعات</div>
-                  <div className="mt-1 text-sm font-black text-amber-600 dark:text-amber-400 tg-num">{fmt(sec.returnsCount)}</div>
-                  <div className="text-[10px] text-slate-400">أمر بيع عليه مرتجع</div>
+                <div className="rounded-xl bg-slate-50 dark:bg-[#132542] p-2 border border-slate-200/70 dark:border-[#243756]">
+                  <div className="text-[10px] font-black text-slate-500 dark:text-slate-400">المرتجعات</div>
+                  <div className="mt-1 text-base font-black text-amber-600 dark:text-amber-400 tg-num">{fmt(sec.returnsCount)}</div>
+                  <div className="text-[9px] text-slate-400">أمر بيع عليه مرتجع</div>
                 </div>
               </div>
             </div>
@@ -863,7 +867,7 @@ export const DreamDeliveryDashboard: React.FC<DreamDeliveryDashboardProps> = ({ 
                 </div>
                 <div className="flex items-center justify-between text-slate-600 dark:text-slate-300">
                   <span>متبقي تحصيل {MONTHS_AR[latestPeriod.month - 1]}:</span>
-                  <span className="text-purple-600 dark:text-purple-400">{fmt(sec.collectionRemaining)} ج.م</span>
+                  <span className="text-emerald-600 dark:text-emerald-400">{fmt(sec.collectionRemaining)} ج.م</span>
                 </div>
               </div>
             </div>

@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useCart } from '../context/cartContext';
 import { Customer, Invoice, PaymentMethod, Product } from '../types';
 import { ProductImage } from './ProductImage';
 import { CustomerSearchSelect } from './CustomerSearchSelect';
@@ -302,23 +303,18 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
   initialCustomer,
 }) => {
   const {
-    cart,
     products: rawProducts,
     promotions: rawPromotions,
     customers,
     users,
     getVisibleCustomers,
     getVisibleProducts,
-    updateCartItem,
-    removeFromCart,
-    clearCart,
-    getCartSummary,
     createOrder,
-    addToCart,
     currentUser,
     cloudinaryConfig,
     updateCustomer,
   } = useApp();
+  const { cart, updateCartItem, removeFromCart, clearCart, getCartSummary, addToCart } = useCart();
 
   // عزل القطاع: الموديل كان بياخد قائمة المنتجات الخام مباشرة، فمندوب قطاع
   // كهربا (لو الكاش المحلي فيه صفوف منزلي — جهاز مشترك أو مسار fallback قديم)
@@ -689,23 +685,23 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
             <button
               type="button"
               onClick={() => setCurrentStep(1)}
-              className={`p-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold transition border ${
+              className={`h-10 min-w-0 overflow-hidden p-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold transition border ${
                 currentStep === 1
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                  ? 'bg-blue-700 text-white border-blue-700 shadow-sm'
                   : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
               }`}
             >
               <span className={`w-5 h-5 rounded-full grid place-items-center text-[11px] font-black shrink-0 ${
                 currentStep === 1
-                  ? 'bg-white text-blue-600'
+                  ? 'bg-white text-blue-700'
                   : cart.length > 0 && currentStep > 1
-                  ? 'bg-emerald-500 text-white'
+                  ? 'bg-emerald-700 text-white'
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
               }`}>
                 {cart.length > 0 && currentStep > 1 ? '✓' : '1'}
               </span>
-              <span className="sm:hidden font-black">١. المنتجات</span>
-              <span className="hidden sm:inline font-black">١. اختيار المنتجات</span>
+              <span className="sm:hidden font-black truncate">١. المنتجات</span>
+              <span className="hidden sm:inline font-black truncate">١. اختيار المنتجات</span>
               {cart.length > 0 && (
                 <span className="hidden sm:inline-block text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full font-bold">
                   {cart.length}
@@ -720,23 +716,23 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 if (cart.length > 0) setCurrentStep(2);
                 else setFeedbackError('يرجى إضافة أصناف إلى الفاتورة أولاً.');
               }}
-              className={`p-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold transition border ${
+              className={`h-10 min-w-0 overflow-hidden p-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold transition border ${
                 currentStep === 2
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                  ? 'bg-blue-700 text-white border-blue-700 shadow-sm'
                   : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
               }`}
             >
               <span className={`w-5 h-5 rounded-full grid place-items-center text-[11px] font-black shrink-0 ${
                 currentStep === 2
-                  ? 'bg-white text-blue-600'
+                  ? 'bg-white text-blue-700'
                   : activeCustomer && currentStep > 2
-                  ? 'bg-emerald-500 text-white'
+                  ? 'bg-emerald-700 text-white'
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
               }`}>
                 {activeCustomer && currentStep > 2 ? '✓' : '2'}
               </span>
-              <span className="sm:hidden font-black">٢. العميل</span>
-              <span className="hidden sm:inline font-black">٢. العميل والماليات</span>
+              <span className="sm:hidden font-black truncate">٢. العميل</span>
+              <span className="hidden sm:inline font-black truncate">٢. العميل والماليات</span>
             </button>
 
             {/* Step 3 */}
@@ -753,21 +749,21 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
                 }
                 setCurrentStep(3);
               }}
-              className={`p-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold transition border ${
+              className={`h-10 min-w-0 overflow-hidden p-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold transition border ${
                 currentStep === 3
-                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                  ? 'bg-blue-700 text-white border-blue-700 shadow-sm'
                   : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
               }`}
             >
               <span className={`w-5 h-5 rounded-full grid place-items-center text-[11px] font-black shrink-0 ${
                 currentStep === 3
-                  ? 'bg-white text-blue-600'
+                  ? 'bg-white text-blue-700'
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
               }`}>
                 3
               </span>
-              <span className="sm:hidden font-black">٣. التأكيد</span>
-              <span className="hidden sm:inline font-black">٣. تأكيد وحفظ</span>
+              <span className="sm:hidden font-black truncate">٣. التأكيد</span>
+              <span className="hidden sm:inline font-black truncate">٣. تأكيد وحفظ</span>
             </button>
           </div>
         </div>
@@ -1512,7 +1508,7 @@ export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
       {showCreditOverrideModal && (
         <div className="fixed inset-0 z-60 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in">
           <div className="absolute inset-0" onClick={() => setShowCreditOverrideModal(false)} aria-hidden="true" />
-          <div className="relative z-10 bg-[var(--app-card)] rounded-[var(--app-radius)] border border-[var(--app-border)] shadow-2xl w-full max-w-md p-6 sm:p-8 animate-in mi-fade-in">
+          <div className="relative z-10 bg-[var(--app-card)] rounded-[var(--app-radius)] border border-[var(--app-border)] shadow-2xl w-full max-w-full sm:max-w-md p-6 sm:p-8 animate-in mi-fade-in">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <div className="w-10 h-10 rounded-xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)] flex items-center justify-center shrink-0">

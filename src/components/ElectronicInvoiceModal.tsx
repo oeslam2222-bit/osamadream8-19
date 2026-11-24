@@ -432,7 +432,7 @@ export const ElectronicInvoiceModal: React.FC<ElectronicInvoiceModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in" dir="rtl">
-      <div role="dialog" aria-modal="true" className="modal-full-mobile bg-[var(--einv-paper)] rounded-3xl max-w-5xl w-full max-h-[95vh] md:h-[92dvh] flex flex-col shadow-2xl border border-[var(--einv-line)] overflow-hidden print:max-h-none print:shadow-none print:border-none print:w-full">
+      <div role="dialog" aria-modal="true" className="modal-full-mobile bg-[var(--einv-paper)] rounded-3xl max-w-full sm:max-w-2xl w-full max-h-[95vh] md:h-[92dvh] flex flex-col shadow-2xl border border-[var(--einv-line)] overflow-hidden print:max-h-none print:shadow-none print:border-none print:w-full">
         
         {/* Top Control Bar (Hidden in Print) */}
         <header className="ein-head print:hidden">

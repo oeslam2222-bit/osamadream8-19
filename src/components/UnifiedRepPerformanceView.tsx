@@ -280,7 +280,7 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
       </section>
 
       {/* ---------- مؤشرات عامة ---------- */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <section className="grid grid-cols-2 keep-grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="tg-kpi tg-kpi--blue">
           <div className="tg-kpi__top">
             <span className="tg-kpi__icon"><Users size={20} /></span>
@@ -412,11 +412,11 @@ export const UnifiedRepPerformanceView: React.FC<UnifiedRepPerformanceViewProps>
                       </td>
                       <td className="p-3.5">
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                          rep.sector === 'home' ? 'bg-blue-50 text-blue-800 border border-blue-200' :
-                          rep.sector === 'electrical' ? 'bg-purple-50 text-purple-800 border border-purple-200' :
+                          rep.sector === 'home' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                          rep.sector === 'electrical' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
                           'bg-slate-50 text-slate-600 border border-slate-200'
                         }`}>
-                          {rep.sector === 'home' ? 'منزلي' : rep.sector === 'electrical' ? 'كهربائي' : 'غير محدد'}
+                          {rep.sector === 'home' ? '🏠 منزلي' : rep.sector === 'electrical' ? '⚡ كهربائي' : 'غير محدد'}
                         </span>
                       </td>
                       <td className="p-3.5 text-center">

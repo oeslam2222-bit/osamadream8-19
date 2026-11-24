@@ -179,7 +179,7 @@ export const RoleLimitedHome: React.FC<RoleLimitedHomeProps> = ({ onGoTab }) => 
         </div>
         <div>
           <h2 className="font-black text-[var(--app-text)] text-lg">مهام أمين المخزن</h2>
-          <p className="text-sm text-slate-600 mt-2 max-w-md leading-relaxed">
+          <p className="text-sm text-slate-600 mt-2 max-w-full sm:max-w-md leading-relaxed">
             تختص بمرتجعات العملاء واستلامها وتسعيرها وتسوية الكميات في المخزن.
             كل باقي الشاشات (المبيعات، التارجت، العملاء، التقارير) غير متاحة لك لضمان سرية بيانات المنظومة.
           </p>

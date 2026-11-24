@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useCart } from '../context/cartContext';
 import { ParentProduct, Product } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { extractBaseProductCode } from '../services/productVariantService';
@@ -119,10 +120,9 @@ export const ProductCodeInspectorModal: React.FC<ProductCodeInspectorModalProps>
     branches,
     currentUser,
     selectedBranchFilter,
-    addToCart,
-    cart,
     cloudinaryConfig,
   } = useApp();
+  const { addToCart, cart } = useCart();
 
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);

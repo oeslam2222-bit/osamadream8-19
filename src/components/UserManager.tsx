@@ -715,7 +715,7 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.users;`;
   };
 
   return (
-    <div className="user-manager-page tantawy-screen space-y-6 pb-20 max-w-7xl mx-auto px-2 sm:px-4">
+    <div className="user-manager-page tantawy-screen space-y-6 pb-20 max-w-full mx-auto px-2 sm:px-4">
       
       {/* Team & Permissions Command Header */}
       <section className="relative overflow-hidden rounded-3xl border border-[rgba(201,154,67,.28)] bg-gradient-to-l from-[#0f233d] via-[#162f52] to-[#1a3861] text-white shadow-xl">

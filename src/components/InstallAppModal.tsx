@@ -84,7 +84,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in overflow-y-auto">
       <div
-        className="bg-[#0f2b38] border border-[var(--app-accent)] text-white rounded-3xl max-w-lg w-full shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-200"
+        className="bg-[#0f2b38] border border-[var(--app-accent)] text-white rounded-3xl max-w-full sm:max-w-lg w-full shadow-2xl overflow-hidden my-auto animate-in zoom-in-95 duration-200"
         dir="rtl"
       >
         {/* Header with Luxury Brand Emblem & Status */}
@@ -198,14 +198,14 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
                 
                 <div className="space-y-2.5 text-slate-300 leading-relaxed text-[11px]">
                   <div className="flex items-start gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
-                    <span className="w-5 h-5 rounded-full bg-[#0d9488] text-white font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">1</span>
+                    <span className="w-5 h-5 rounded-full bg-[#0f766e] text-white font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">1</span>
                     <div>
                       <span>اضغط على قائمة <strong>الخيارات (الثلاث نقاط)</strong> <MoreVertical className="w-3.5 h-3.5 inline text-[#60a5fa] mx-0.5" /> بأعلى شاشة متصفح Google Chrome.</span>
                     </div>
                   </div>
 
                   <div className="flex items-start gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
-                    <span className="w-5 h-5 rounded-full bg-[#0d9488] text-white font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">2</span>
+                    <span className="w-5 h-5 rounded-full bg-[#0f766e] text-white font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">2</span>
                     <div>
                       <span>ابحث عن خيار <strong className="text-[#0d9488]">"تثبيت التطبيق" (Install app)</strong> <Download className="w-3.5 h-3.5 inline text-[#0d9488] mx-0.5" />.</span>
                       <p className="text-[10px] text-[#60a5fa] font-semibold mt-0.5">
@@ -215,7 +215,7 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
                   </div>
 
                   <div className="flex items-start gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
-                    <span className="w-5 h-5 rounded-full bg-[#0d9488] text-white font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">3</span>
+                    <span className="w-5 h-5 rounded-full bg-[#0f766e] text-white font-black flex items-center justify-center text-[10px] shrink-0 mt-0.5">3</span>
                     <div>
                       <span>اضغط <strong>تثبيت (Install)</strong> لتأكيد التثبيت.</span>
                       <p className="text-[10px] text-[#0d9488] font-bold mt-0.5">
@@ -236,15 +236,15 @@ export const InstallAppModal: React.FC<InstallAppModalProps> = ({
                 </div>
                 <div className="space-y-2 text-slate-300 leading-relaxed text-[11px]">
                   <div className="flex items-center gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
-                    <span className="w-5 h-5 rounded-full bg-[#0d9488] text-white font-black flex items-center justify-center text-[10px] shrink-0">1</span>
+                    <span className="w-5 h-5 rounded-full bg-[#0f766e] text-white font-black flex items-center justify-center text-[10px] shrink-0">1</span>
                     <span>اضغط على زر <strong>المشاركة (Share)</strong> <Share className="w-3.5 h-3.5 inline text-[#60a5fa] mx-1" /> في أسفل متصفح Safari.</span>
                   </div>
                   <div className="flex items-center gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
-                    <span className="w-5 h-5 rounded-full bg-[#0d9488] text-white font-black flex items-center justify-center text-[10px] shrink-0">2</span>
+                    <span className="w-5 h-5 rounded-full bg-[#0f766e] text-white font-black flex items-center justify-center text-[10px] shrink-0">2</span>
                     <span>مرر لأسفل واختر <strong>"إضافة إلى الصفحة الرئيسية" (Add to Home Screen)</strong> <PlusSquare className="w-3.5 h-3.5 inline text-[#0d9488] mx-1" />.</span>
                   </div>
                   <div className="flex items-center gap-2.5 bg-[#15345c]/40 p-2 rounded-xl border border-[#1b4676]/40">
-                    <span className="w-5 h-5 rounded-full bg-[#0d9488] text-white font-black flex items-center justify-center text-[10px] shrink-0">3</span>
+                    <span className="w-5 h-5 rounded-full bg-[#0f766e] text-white font-black flex items-center justify-center text-[10px] shrink-0">3</span>
                     <span>اضغط على <strong>إضافة (Add)</strong> بالأعلى. ستظهر أيقونة التطبيق الفخمة فوراً بدون علامة متصفح.</span>
                   </div>
                 </div>

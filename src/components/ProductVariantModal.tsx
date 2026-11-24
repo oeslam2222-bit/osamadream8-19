@@ -25,6 +25,7 @@ import {
 import React, { useState, useEffect, useMemo } from 'react';
 import { ParentProduct, ProductVariant } from '../types';
 import { useApp } from '../context/AppContext';
+import { useCart } from '../context/cartContext';
 import { formatCurrency } from '../services/invoiceService';
 import { getHighResVariantImageUrl } from '../services/productVariantService';
 import { getBranchStockForProduct } from '../services/arabicMatchingService';
@@ -47,7 +48,8 @@ export const ProductVariantModal: React.FC<ProductVariantModalProps> = ({
   isConfidentialMode = false,
   onInspectCode,
 }) => {
-  const { addToCart, cart, branches, currentUser } = useApp();
+  const { branches, currentUser } = useApp();
+  const { addToCart, cart } = useCart();
   const isAdminOrDev = currentUser?.role === 'admin' || currentUser?.role === 'developer';
 
   const [activeVariant, setActiveVariant] = useState<ProductVariant | null>(null);

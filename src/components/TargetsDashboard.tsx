@@ -336,7 +336,7 @@ export const TargetsDashboard: React.FC = () => {
         rep,
         ...agg,
         records,
-        avatar: '/assets/rep-avatar.jpg',
+        avatar: '/assets/rep-avatar-v2.jpg',
         branch,
         supervisor,
         sector,
@@ -379,7 +379,7 @@ export const TargetsDashboard: React.FC = () => {
 
     return {
       repName: inPeriod?.rep || openRepName,
-      avatar: '/assets/rep-avatar.jpg',
+      avatar: '/assets/rep-avatar-v2.jpg',
       branch: inPeriod?.branch || user?.branchName || 'غير محدد',
       supervisor: inPeriod?.supervisor || user?.supervisorName || 'بدون مشرف',
       sector: inPeriod?.sector || user?.sector,
@@ -625,14 +625,14 @@ export const TargetsDashboard: React.FC = () => {
       </section>
 
       {/* Chart */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+      <section className="rounded-2xl border border-emerald-300 bg-white/90 p-4 sm:p-5 shadow-sm backdrop-blur-sm">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-base sm:text-lg font-black text-slate-800">رسم بياني: التارجت مقابل المحقق</h2>
+            <h2 className="text-base sm:text-lg font-black text-rose-800">رسم بياني: التارجت مقابل المحقق</h2>
             <p className="text-xs text-slate-500 mt-0.5">مقارنة البيع والتحصيل (مستهدف / محقق)</p>
           </div>
-          <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
-            <Award className="w-5 h-5" />
+          <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center">
+            <TrendingUp className="w-5 h-5" />
           </div>
         </div>
         <div className="h-[320px] sm:h-[380px] w-full" dir="ltr">
@@ -645,18 +645,26 @@ export const TargetsDashboard: React.FC = () => {
               <ComposedChart data={chartData} margin={{ top: 20, right: 20, left: 0, bottom: 0 }} barGap={4}>
                 <defs>
                   <linearGradient id="targetBar" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#93c5fd" />
-                    <stop offset="100%" stopColor="#bfdbfe" />
+                    <stop offset="0%" stopColor="#10b981" />
+                    <stop offset="100%" stopColor="#34d399" />
                   </linearGradient>
                   <linearGradient id="achievedBar" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#2563eb" />
-                    <stop offset="100%" stopColor="#1d4ed8" />
+                    <stop offset="0%" stopColor="#f6ad5r" />
+                    <stop offset="100%" stopColor="#f97316" />
+                  </linearGradient>
+                  <linearGradient id="collectionBar" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#059669" />
+                    <stop offset="100%" stopColor="#10b981" />
+                  </linearGradient>
+                  <linearGradient id="collectionAchievedBar" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0891b2" />
+                    <stop offset="100%" stopColor="#6366f1" />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="4 4" stroke="#e2e8f0" vertical={false} />
-                <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#334155', fontWeight: 700 }} axisLine={{ stroke: '#cbd5e1' }} tickLine={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 12, fill: '#1e293b', fontWeight: 700 }} axisLine={{ stroke: '#e2e8f0' }} tickLine={false} />
                 <YAxis yAxisId="money" tick={{ fontSize: 11, fill: '#64748b' }} tickFormatter={(v) => fmt(Number(v))} width={72} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="rate" orientation="right" domain={[0, 150]} tick={{ fontSize: 11, fill: '#b45309' }} tickFormatter={(v) => `${v}%`} width={46} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="rate" orientation="right" domain={[0, 150]} tick={{ fontSize: 11, fill: '#eab308' }} tickFormatter={(v) => `${v}%`} width={46} axisLine={false} tickLine={false} />
                 <Tooltip
                   formatter={(value: number, name: string) =>
                     name === 'نسبة التحقيق'
@@ -667,13 +675,13 @@ export const TargetsDashboard: React.FC = () => {
                   cursor={{ fill: 'rgba(148,163,184,.1)' }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12, paddingTop: 8 }} />
-                <ReferenceLine yAxisId="rate" y={100} stroke="#f59e0b" strokeDasharray="5 5" strokeOpacity={0.7} label={{ value: '100%', fill: '#b45309', fontSize: 10, position: 'right' }} />
+                <ReferenceLine yAxisId="rate" y={100} stroke="#f59e0b" strokeDasharray="5 5" strokeOpacity={0.7} label={{ value: '100%', fill: '#eab308', fontSize: 10, position: 'right' }} />
                 <Bar yAxisId="money" dataKey="هدف البيع" fill="url(#targetBar)" radius={[5, 5, 0, 0]} maxBarSize={36}>
                   <LabelList dataKey="هدف البيع" position="top" formatter={(v: number) => v > 0 ? fmt(v) : ''} style={{ fontSize: 9, fill: '#64748b' }} />
                 </Bar>
                 <Bar yAxisId="money" dataKey="محقق البيع" fill="url(#achievedBar)" radius={[5, 5, 0, 0]} maxBarSize={36} />
-                <Bar yAxisId="money" dataKey="هدف التحصيل" fill="#86efac" radius={[5, 5, 0, 0]} maxBarSize={36} />
-                <Bar yAxisId="money" dataKey="محقق التحصيل" fill="#16a34a" radius={[5, 5, 0, 0]} maxBarSize={36} />
+                <Bar yAxisId="money" dataKey="هدف التحصيل" fill="url(#collectionBar)" radius={[5, 5, 0, 0]} maxBarSize={36} />
+                <Bar yAxisId="money" dataKey="محقق التحصيل" fill="url(#collectionAchievedBar)" radius={[5, 5, 0, 0]} maxBarSize={36} />
                 <Line yAxisId="rate" type="monotone" dataKey="نسبة التحقيق" stroke="#f59e0b" strokeWidth={3} dot={{ r: 5, fill: '#f59e0b', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 7 }} name="نسبة التحقيق %" />
               </ComposedChart>
             </ResponsiveContainer>
@@ -841,7 +849,7 @@ export const TargetsDashboard: React.FC = () => {
                           const img = e.currentTarget;
                           if (!img.dataset.fallback) {
                             img.dataset.fallback = '1';
-                            img.src = '/assets/rep-avatar.jpg';
+                            img.src = '/assets/rep-avatar-v2.jpg';
                           }
                         }}
                         className="w-11 h-11 rounded-2xl object-cover object-top border-2 border-blue-200 shrink-0 shadow-xs"
@@ -933,7 +941,7 @@ export const TargetsDashboard: React.FC = () => {
                               const img = e.currentTarget;
                               if (!img.dataset.fallback) {
                                 img.dataset.fallback = '1';
-                                img.src = '/assets/rep-avatar.jpg';
+                                img.src = '/assets/rep-avatar-v2.jpg';
                               }
                             }}
                             className="w-8 h-8 rounded-xl object-cover object-top border border-slate-200 shrink-0"
@@ -1003,7 +1011,7 @@ export const TargetsDashboard: React.FC = () => {
                       const img = e.currentTarget;
                       if (!img.dataset.fallback) {
                         img.dataset.fallback = '1';
-                        img.src = '/assets/rep-avatar.jpg';
+                        img.src = '/assets/rep-avatar-v2.jpg';
                       }
                     }}
                     className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover object-top border-2 border-white/40 bg-slate-800 shadow-md shrink-0"

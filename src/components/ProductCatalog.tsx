@@ -41,6 +41,7 @@ import {
 } from 'lucide-react';
 import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { useCart } from '../context/cartContext';
 import { sanitizeStoredImageUrl } from '../context/appContextHelpers';
 import { useTheme } from '../context/themeContext';
 import { ProductImage } from './ProductImage';
@@ -89,9 +90,6 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     promotions: rawPromotions,
     currentUser,
     branches,
-    addToCart,
-    cart,
-    getCartSummary,
     importProductsList,
     wipeAllProductsAndData,
     cloudinaryConfig,
@@ -103,6 +101,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     canManageSectorGate,
     effectiveSectorFilter,
   } = useApp();
+  const { addToCart, cart, getCartSummary } = useCart();
 
   const promotions = useMemo(
     () => filterPromotionsForUser(rawPromotions, currentUser, products),
@@ -444,9 +443,36 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       .slice(0, 12);
   }, [getVisibleProducts, effectiveSectorFilter, isProductElectrical, getProductBranchStock]);
 
+  // فهرس الفلترة الجاهز: toLowerCase و stripPlaceholderText لكل صنف بتتحسب مرة
+  // واحدة عند تغيّر قائمة الأصناف، بدل ما تتكرر على كل صنف مع كل حرف بحث أو
+  // تغيير فلتر. نفس المفتاح المستخدم في باقي الشاشة (id/code/name).
+  const catalogFilterIndex = useMemo(() => {
+    const map = new Map<
+      string,
+      { name: string; code: string; unified: string; barcode: string; dept: string; brand: string }
+    >();
+    getVisibleProducts().forEach((p) => {
+      const rawDept = p.itemGroup || p.department || p.category || '';
+      const rawBrand = p.familyName || p.classification || '';
+      map.set(p.id || p.code || p.name, {
+        name: (p.name || '').toLowerCase(),
+        code: (p.code || '').toLowerCase(),
+        unified: (p.unifiedCode || '').toLowerCase(),
+        barcode: p.barcode || '',
+        dept: stripPlaceholderText(rawDept).trim(),
+        brand: stripPlaceholderText(rawBrand).trim(),
+      });
+    });
+    return map;
+  }, [getVisibleProducts]);
+
+  // Collator واحد مُعاد استخدامه بدل إنشاء واحد لكل مقارنة في ترتيب الأسماء.
+  const nameCollator = useMemo(() => new Intl.Collator('ar'), []);
+
   // Filtered Products
   const filteredProducts = useMemo(() => {
     let result = getVisibleProducts().filter((p) => {
+      const idx = catalogFilterIndex.get(p.id || p.code || p.name);
       // 1. Sector filter — القطاع الفعلي بعد قواعد الأدوار
       if (effectiveSectorFilter === 'none') return false;
       const isElec = isProductElectrical(p);
@@ -464,24 +490,30 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       if (debouncedSearchTerm) {
         const q = debouncedSearchTerm.toLowerCase().trim();
         const cleanQ = q.replace('#', '');
-        const matchesName = (p.name || '').toLowerCase().includes(q);
-        const matchesCode = (p.code || '').toLowerCase().includes(cleanQ);
-        const matchesUnified = Boolean(p.unifiedCode && p.unifiedCode.toLowerCase().includes(cleanQ));
-        const matchesBarcode = Boolean(p.barcode && p.barcode.includes(q));
+        const name = idx ? idx.name : (p.name || '').toLowerCase();
+        const code = idx ? idx.code : (p.code || '').toLowerCase();
+        const unified = idx ? idx.unified : (p.unifiedCode || '').toLowerCase();
+        const barcode = idx ? idx.barcode : p.barcode || '';
+        const matchesName = name.includes(q);
+        const matchesCode = code.includes(cleanQ);
+        const matchesUnified = Boolean(unified && unified.includes(cleanQ));
+        const matchesBarcode = Boolean(barcode && barcode.includes(q));
         if (!matchesName && !matchesCode && !matchesUnified && !matchesBarcode) return false;
       }
 
       // 4. Department / الصنف filter
       if (selectedDept !== 'الكل') {
-        const rawDept = p.itemGroup || p.department || p.category || '';
-        const pDept = stripPlaceholderText(rawDept).trim();
+        const pDept = idx
+          ? idx.dept
+          : stripPlaceholderText(p.itemGroup || p.department || p.category || '').trim();
         if (pDept !== selectedDept) return false;
       }
 
       // 5. Brand / الصنف بالعائلة filter
       if (selectedBrand !== 'الكل') {
-        const rawBrand = p.familyName || p.classification || '';
-        const pBrand = stripPlaceholderText(rawBrand).trim();
+        const pBrand = idx
+          ? idx.brand
+          : stripPlaceholderText(p.familyName || p.classification || '').trim();
         if (pBrand !== selectedBrand) return false;
       }
 
@@ -518,12 +550,14 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
     } else if (sortBy === 'price_desc') {
       result.sort((a, b) => b.cartonPrice - a.cartonPrice);
     } else if (sortBy === 'name_asc') {
-      result.sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+      result.sort((a, b) => nameCollator.compare(a.name, b.name));
     }
 
     return result;
   }, [
     getVisibleProducts,
+    catalogFilterIndex,
+    nameCollator,
     promoByProductId,
     effectiveSectorFilter,
     onlyInStock,
@@ -1391,7 +1425,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* PDF Export Progress Modal */}
       {isExportingPDF && pdfProgress && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-slate-100 space-y-4 text-center">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-full sm:max-w-lg shadow-2xl border border-slate-100 space-y-4 text-center">
             <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
               <FileText className="w-7 h-7" />
             </div>
@@ -1417,7 +1451,7 @@ export const ProductCatalog: React.FC<ProductCatalogProps> = ({
       {/* Toast Notifications */}
       {addedItemToast && (
         <div className="fixed bottom-6 left-6 z-50 bg-[#0f1b2d] text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4">
-          <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center font-bold">
+          <div className="w-8 h-8 rounded-xl bg-emerald-700 text-white flex items-center justify-center font-bold">
             <Check className="w-4 h-4" />
           </div>
           <div>

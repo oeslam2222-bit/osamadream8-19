@@ -766,7 +766,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
       {activeTab === 'customers' && (
         <div>
           {/* كروت الإجمالية */}
-          <section className="kpi-grid grid grid-cols-2 lg:grid-cols-4 gap-2.5 md:gap-4">
+          <section className="kpi-grid keep-grid grid grid-cols-2 lg:grid-cols-4 gap-2.5 md:gap-4">
             <div className="tg-kpi tg-kpi--amber">
               <div className="tg-kpi__top">
                 <span className="tg-kpi__icon"><CreditCard size={20} /></span>
@@ -1092,7 +1092,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
       {activeTab === 'reps' && (
         <div>
           {/* كروت الإجمالية للمندوبين */}
-          <section className="kpi-grid grid grid-cols-2 lg:grid-cols-4 gap-2.5 md:gap-4">
+          <section className="kpi-grid keep-grid grid grid-cols-2 lg:grid-cols-4 gap-2.5 md:gap-4">
             <div className="tg-kpi tg-kpi--amber">
               <div className="tg-kpi__top">
                 <span className="tg-kpi__icon"><CreditCard size={20} /></span>
@@ -1427,7 +1427,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               displayedReps.map((rep) => {
                 const salesPct = pctOf(rep.salesAchieved, rep.salesTarget);
                 const repUser = findRepUser(users, rep.repName);
-                const repAvatar = '/assets/rep-avatar.jpg';
+                const repAvatar = '/assets/rep-avatar-v2.jpg';
                 return (
                   <div
                     key={rep.repKey}
@@ -1444,7 +1444,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
                             const img = e.currentTarget;
                             if (!img.dataset.fallback) {
                               img.dataset.fallback = '1';
-                              img.src = '/assets/rep-avatar.jpg';
+                              img.src = '/assets/rep-avatar-v2.jpg';
                             }
                           }}
                           className="w-12 h-12 rounded-2xl object-cover object-top border-2 border-blue-200 bg-slate-100 shadow-sm shrink-0"
@@ -1561,14 +1561,14 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <img
-                    src="/assets/rep-avatar.jpg"
+                    src="/assets/rep-avatar-v2.jpg"
                     alt={selectedRep.repName}
                     referrerPolicy="no-referrer"
                     onError={(e) => {
                       const img = e.currentTarget;
                       if (!img.dataset.fallback) {
                         img.dataset.fallback = '1';
-                        img.src = '/assets/rep-avatar.jpg';
+                        img.src = '/assets/rep-avatar-v2.jpg';
                       }
                     }}
                     className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover object-top border-2 border-white/40 bg-slate-800 shadow-md shrink-0"

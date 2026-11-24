@@ -313,7 +313,7 @@ export const ReturnsWarehouseView: React.FC = () => {
 
       {receiptDraft ? (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) setReceiptDraft(null); }}>
-          <div className="relative z-[60] bg-white rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
+          <div className="relative z-[60] bg-white rounded-2xl p-6 w-full max-w-full sm:max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
             <h3 className="text-lg font-black mb-4">تسجيل الاستلام — {receiptDraft.visit.customerName}</h3>
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
@@ -365,7 +365,7 @@ export const ReturnsWarehouseView: React.FC = () => {
 
       {settlementDraft ? (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) setSettlementDraft(null); }}>
-          <div className="relative z-[60] bg-white rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
+          <div className="relative z-[60] bg-white rounded-2xl p-6 w-full max-w-full sm:max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
             <h3 className="text-lg font-black mb-1">إغلاق المرتجع — التصفية</h3>
             <p className="text-xs text-slate-500 font-bold mb-4">اكتب نتيجة التسوية ومبلغها النهائي (لو فيه فرق بين المطلوب والمستلم)</p>
             <label className="block">
@@ -392,7 +392,7 @@ export const ReturnsWarehouseView: React.FC = () => {
 
       {showTargets ? (
         <div className="fixed inset-0 bg-slate-950/50 flex items-center justify-center p-4 z-50" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowTargets(false); }}>
-          <div className="relative z-[60] bg-white rounded-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
+          <div className="relative z-[60] bg-white rounded-2xl p-6 w-full max-w-full sm:max-w-lg max-h-[90vh] overflow-y-auto" dir="rtl">
             <h3 className="text-lg font-black mb-1">المدد المستهدفة لكل مرحلة</h3>
             <p className="text-xs text-slate-500 font-bold mb-4">الإدارة فقط هي اللي بتحدد الأرقام — والمشرف والمندوب ومدير الفرع مش بيشوفوا الإعدادات دي</p>
             <div className="space-y-2">

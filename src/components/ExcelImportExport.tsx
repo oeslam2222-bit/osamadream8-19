@@ -111,6 +111,24 @@ export interface ExcelImportExportProps {
   onNavigateToItemSales?: () => void;
 }
 
+/**
+ * مبلغ مع معالجة اتجاه صحيح: الرقم والأرقام السالبة تفضل LTR (السالبة تظهر قبل الرقم)
+ * و«ج.م» تتكتب RTL في مكانها بدل ما تظهر مقلوبة أو السالب في الآخر.
+ */
+const MoneyLtr: React.FC<{ value: number; className?: string }> = ({ value, className }) => {
+  const parts = formatCurrency(value).split(' ');
+  const number = parts[0];
+  const unit = parts.slice(1).join(' ');
+  return (
+    <span className={`inline-flex items-baseline justify-center gap-1 ${className || ''}`}>
+      <span dir="ltr" style={{ unicodeBidi: 'isolate' }} className="tabular-nums">
+        {number}
+      </span>
+      <span>{unit}</span>
+    </span>
+  );
+};
+
 export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigateToItemSales }) => {
   const {
     products,
@@ -1223,7 +1241,7 @@ function onEdit(e) {
             <div className="bg-white/10 backdrop-blur-xs border border-white/15 rounded-2xl p-4 text-center min-w-[130px]">
               <div className="text-[11px] text-slate-200 font-bold">قاعدة العملاء</div>
               <div className="text-2xl font-black text-white font-mono tabular-nums mt-0.5">
-                {metrics.totalCustomers.toLocaleString('ar-EG')}
+                {metrics.totalCustomers.toLocaleString('en-US')}
               </div>
               <div className="text-[11px] text-sky-200 font-semibold mt-1">عميل فريد (0 تكرار)</div>
             </div>
@@ -1250,7 +1268,7 @@ function onEdit(e) {
               <button
                 type="button"
                 onClick={() => handleDataReadModeChange('google_sheets')}
-                className={`px-3.5 py-2 rounded-xl text-xs font-black border transition cursor-pointer ${dataReadMode === 'google_sheets' ? 'bg-emerald-500 text-white border-emerald-300 shadow-sm' : 'bg-white/10 text-slate-100 border-white/20 hover:bg-white/20'}`}
+                className={`px-3.5 py-2 rounded-xl text-xs font-black border transition cursor-pointer ${dataReadMode === 'google_sheets' ? 'bg-emerald-700 text-white border-emerald-300 shadow-sm' : 'bg-white/10 text-slate-100 border-white/20 hover:bg-white/20'}`}
               >
                 Google Sheets مباشر
               </button>
@@ -1553,8 +1571,8 @@ function onEdit(e) {
                         <div className="bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-center min-w-[170px]">
                           <div className="text-[11px] text-slate-600 dark:text-slate-300 font-bold">العملاء الحاليين (القطاعين)</div>
                           <div className="mt-1 space-y-0.5 text-[11px] font-black tabular-nums">
-                            <div className="flex items-center justify-between gap-3"><span className="text-slate-500">منزلي</span><span className="text-slate-900">{homeCustomers.length.toLocaleString('ar-EG')}</span></div>
-                            <div className="flex items-center justify-between gap-3"><span className="text-slate-500">كهرباء</span><span className="text-slate-900">{electricalCustomers.length.toLocaleString('ar-EG')}</span></div>
+                            <div className="flex items-center justify-between gap-3"><span className="text-slate-500">منزلي</span><span className="text-slate-900 tabular-nums">{homeCustomers.length.toLocaleString('en-US')}</span></div>
+                            <div className="flex items-center justify-between gap-3"><span className="text-slate-500">كهرباء</span><span className="text-slate-900 tabular-nums">{electricalCustomers.length.toLocaleString('en-US')}</span></div>
                           </div>
                         </div>
                         <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] px-3.5 py-2 rounded-xl text-center min-w-[220px]">
@@ -1712,25 +1730,30 @@ function onEdit(e) {
                     مبيعات الأصناف وأوامر البيع 2026
                   </span>
                 </div>
-                <p className="text-xs sm:text-[13px] font-medium text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-                  مبيعات الأصناف التفصيلية: Customer account, Invoicing name, Sales order, Date, المندوب, الشهر, Warehouse, Item, Name, Quantity, Amount, Item group, Family Dimension
+                <p
+                  className="text-xs sm:text-[13px] font-medium text-slate-600 dark:text-slate-300 mt-1 leading-relaxed"
+                  title="Customer account · Invoicing name · Sales order · Date · المندوب · الشهر · Warehouse · Item · Name · Quantity · Amount · Item group · Family Dimension"
+                >
+                  مبيعات الأصناف التفصيلية · 12 عمودًا (عميل، مندوب، صنف، كمية، قيمة، شهر)
                 </p>
               </div>
             </div>
 
             {/* Quick Metrics */}
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <div className="bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] px-3.5 py-2 rounded-xl text-center">
+            <div className="grid w-full grid-cols-2 gap-2 sm:w-auto sm:gap-2.5">
+              <div className="bg-[var(--app-ok-tint)] border border-[var(--app-ok-line)] px-3 py-2 rounded-xl text-center">
                 <div className="text-[11px] text-[var(--app-ok-text)] font-bold">مبيعات 2026 المسجلة</div>
-                <div className="text-sm font-black text-[var(--app-ok-text)] font-mono tabular-nums mt-0.5">
-                  {formatCurrency(metrics.totalSales2026)}
-                </div>
+                <MoneyLtr
+                  value={metrics.totalSales2026}
+                  className="text-sm font-black text-[var(--app-ok-text)] font-mono mt-0.5"
+                />
               </div>
-              <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-3.5 py-2 rounded-xl text-center">
+              <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-3 py-2 rounded-xl text-center">
                 <div className="text-[11px] text-[var(--app-navy-text)] font-bold">تحصيلات 2026</div>
-                <div className="text-sm font-black text-[var(--app-navy-text)] font-mono tabular-nums mt-0.5">
-                  {formatCurrency(metrics.totalCollections2026)}
-                </div>
+                <MoneyLtr
+                  value={metrics.totalCollections2026}
+                  className="text-sm font-black text-[var(--app-navy-text)] font-mono mt-0.5"
+                />
               </div>
             </div>
           </div>
@@ -1755,23 +1778,25 @@ function onEdit(e) {
               )}
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2">
-              <div className="relative flex-1">
+            <div className="space-y-2">
+              <div className="relative">
                 <Link2 className="w-4 h-4 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   id="customer-sales-sheet-url"
                   type="text"
+                  dir="ltr"
                   value={sourceUrls.customerSales}
                   onChange={(e) => setSourceUrls((prev) => ({ ...prev, customerSales: e.target.value }))}
                   placeholder="https://docs.google.com/spreadsheets/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms/edit"
-                  className="w-full h-11 pr-10 pl-3 bg-white dark:bg-[#0b1926] border border-slate-300 dark:border-slate-600 rounded-xl text-xs sm:text-[13px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium"
+                  className="w-full h-11 pr-10 pl-3 bg-white dark:bg-[#0b1926] border border-slate-300 dark:border-slate-600 rounded-xl text-[12px] sm:text-[13px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] font-medium text-left"
                 />
               </div>
 
+              <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => handleSaveUrl('customerSales')}
-                className="bg-[var(--app-primary)] hover:bg-[var(--app-primary-hover)] text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shrink-0 cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
+                className="h-10 w-full sm:w-auto px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 cursor-pointer transition active:scale-[0.98] shadow-sm bg-[var(--app-primary)] hover:bg-[var(--app-primary-hover)] text-white disabled:opacity-50"
               >
                 {savedUrlNotice === 'customerSales' ? (
                   <>
@@ -1787,20 +1812,21 @@ function onEdit(e) {
                 type="button"
                 onClick={() => handleSyncCustomerSales()}
                 disabled={syncingKey === 'customerSales' || !sourceUrls.customerSales.trim()}
-                className="bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-200 dark:border-blue-400/40 font-bold px-5 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-sm active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                className="h-10 w-full sm:w-auto px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shrink-0 cursor-pointer transition active:scale-[0.98] bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-500/20 dark:hover:bg-blue-500/30 dark:text-blue-200 dark:border-blue-400/40 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {syncingKey === 'customerSales' ? (
                   <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                     <span>جاري دمج المبيعات...</span>
                   </>
                 ) : (
                   <>
-                    <RefreshCw className="w-4 h-4" />
+                    <RefreshCw className="w-3.5 h-3.5" />
                     <span>مزامنة سحابية وتحديث فوري</span>
                   </>
                 )}
               </button>
+              </div>
             </div>
 
             {/* Notifications */}
@@ -1820,11 +1846,11 @@ function onEdit(e) {
 
           {/* Action Buttons */}
           <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1 text-xs">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex w-full sm:w-auto items-center gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => fileInputSalesRef.current?.click()}
-                className="bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-600 font-bold px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+                className="h-10 w-full sm:w-auto justify-center bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-200 dark:border-slate-600 font-bold px-3.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
               >
                 <Upload className="w-3.5 h-3.5 text-slate-600 dark:text-slate-300" />
                 <span>رفع ملف إكسل لمبيعات العملاء (.xlsx)</span>
@@ -1833,18 +1859,18 @@ function onEdit(e) {
               <button
                 type="button"
                 onClick={downloadCustomerAnalyticsTemplate}
-                className="text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white font-bold px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1.5 cursor-pointer"
+                className="h-10 w-full sm:w-auto justify-center text-slate-700 hover:text-slate-900 dark:text-slate-200 dark:hover:text-white font-bold px-3.5 rounded-xl border border-slate-200 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center gap-1.5 cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5 text-slate-500 dark:text-slate-300" />
                 <span>تحميل قالب مبيعات العملاء والتحليل</span>
               </button>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex w-full sm:w-auto items-center gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => exportCustomerAnalyticsToExcel(customers, 'تقرير_مبيعات_كافة_العملاء_2026')}
-                className="bg-[#0f2b38] hover:bg-[#153847] dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold px-4 py-2 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                className="h-10 w-full sm:w-auto justify-center bg-[#0f2b38] hover:bg-[#153847] dark:bg-slate-700 dark:hover:bg-slate-600 text-white font-bold px-4 rounded-xl transition flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-sky-300" />
                 <span>تصدير إكسل (مبيعات العملاء)</span>
@@ -1887,13 +1913,13 @@ function onEdit(e) {
               <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-3.5 py-2 rounded-xl text-center">
                 <div className="text-[11px] text-[var(--app-navy-text)] font-bold">الأصناف المسجلة</div>
                 <div className="text-sm font-black text-[var(--app-navy-text)] font-mono tabular-nums mt-0.5">
-                  {metrics.totalProducts.toLocaleString('ar-EG')} صنف
+                  {metrics.totalProducts.toLocaleString('en-US')} صنف
                 </div>
               </div>
               <div className="bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-center">
                 <div className="text-[11px] text-slate-600 dark:text-slate-300 font-bold">إجمالي الكراتين المتاحة</div>
                 <div className="text-sm font-black text-slate-900 font-mono tabular-nums mt-0.5">
-                  {metrics.totalCartons.toLocaleString('ar-EG')} كرتونة
+                  {metrics.totalCartons.toLocaleString('en-US')} كرتونة
                 </div>
               </div>
             </div>
@@ -2049,7 +2075,7 @@ function onEdit(e) {
               <div className="bg-[var(--app-navy-tint)] border border-[var(--app-navy-line)] px-3.5 py-2 rounded-xl text-center">
                 <div className="text-[11px] text-[var(--app-navy-text)] font-bold">سجلات الأهداف</div>
                 <div className="text-sm font-black text-[var(--app-navy-text)] font-mono tabular-nums mt-0.5">
-                  {metrics.totalTargets.toLocaleString('ar-EG')} سجل
+                  {metrics.totalTargets.toLocaleString('en-US')} سجل
                 </div>
               </div>
               <div className="bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-center">

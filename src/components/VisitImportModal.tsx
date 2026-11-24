@@ -480,7 +480,7 @@ export const VisitImportModal: React.FC<VisitImportModalProps> = ({ onClose }) =
 
   return (
     <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50">
-      <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-5xl max-h-[92vh] overflow-y-auto shadow-2xl">
+      <div className="bg-white rounded-2xl sm:rounded-3xl w-full max-w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto shadow-2xl">
         <div className="p-5 sm:p-6 bg-slate-900 text-white rounded-t-2xl sm:rounded-t-3xl flex items-start justify-between gap-3 sticky top-0 z-10">
           <div>
             <h3 className="text-lg font-black flex items-center gap-2">

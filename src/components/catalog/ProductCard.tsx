@@ -209,7 +209,7 @@ export const ProductCard = React.memo((props: ProductCardProps) => {
         </div>
         <h3
           onClick={() => onSelectProduct(p)}
-          className="min-h-[38px] cursor-pointer text-sm font-black leading-snug text-slate-900 transition hover:text-[#2563eb] dark:text-white"
+          className="min-h-[38px] line-clamp-2 cursor-pointer text-sm font-black leading-snug text-slate-900 transition hover:text-[#2563eb] dark:text-white"
           title={displayName}
         >
           {displayName || `صنف ${p.code}`}

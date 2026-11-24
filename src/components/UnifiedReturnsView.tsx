@@ -1746,7 +1746,7 @@ export const UnifiedReturnsView: React.FC = () => {
           }}
         >
           <div
-            className="w-full max-w-md rounded-3xl bg-white border border-slate-200 p-5 sm:p-6 shadow-2xl space-y-4"
+            className="w-full max-w-full sm:max-w-md rounded-3xl bg-white border border-slate-200 p-5 sm:p-6 shadow-2xl space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">

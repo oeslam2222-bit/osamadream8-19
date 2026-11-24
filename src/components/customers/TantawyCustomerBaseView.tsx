@@ -608,7 +608,7 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
                     {/* Bottom Action Button: عرض التفاصيل matching screenshot */}
                     <button
                       onClick={() => setSelectedCustomer(cust)}
-                      className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-500 text-white text-xs font-bold flex items-center justify-center gap-2 transition shadow-sm"
+                      className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-blue-600 dark:hover:bg-blue-700 text-white text-xs font-bold flex items-center justify-center gap-2 transition shadow-sm"
                     >
                       <span>عرض التفاصيل</span>
                       <ArrowRight className="w-3.5 h-3.5 rotate-180" />
@@ -1003,14 +1003,14 @@ export const TantawyCustomerBaseView: React.FC<TantawyCustomerBaseViewProps> = (
               <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex gap-2">
                 <button
                   onClick={() => setSelectedCustomer(null)}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition text-center"
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition text-center"
                 >
                   إغلاق
                 </button>
                 {onOpenNewOrderForCustomer && (
                   <button
                     onClick={() => onOpenNewOrderForCustomer(selectedCustomer)}
-                    className="flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition"
+                    className="flex items-center justify-center gap-1.5 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition"
                     title="طلب جديد"
                   >
                     <ShoppingCart className="w-4 h-4" />

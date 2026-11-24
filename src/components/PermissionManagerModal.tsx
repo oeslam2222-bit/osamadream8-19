@@ -190,7 +190,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" dir="rtl" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-[var(--app-card)] rounded-3xl shadow-2xl w-full max-w-6xl h-[92vh] overflow-hidden flex flex-col border border-[var(--app-border)]">
+      <div className="bg-[var(--app-card)] rounded-3xl shadow-2xl w-full max-w-full sm:max-w-2xl h-[92vh] overflow-hidden flex flex-col border border-[var(--app-border)]">
         {/* Header */}
         <div className="px-5 sm:px-6 py-4 border-b border-white/10 flex items-center justify-between bg-gradient-to-l from-[#0f233d] via-[#162f52] to-[#1a3861] text-white">
           <div className="flex items-center gap-3">

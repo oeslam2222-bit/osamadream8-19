@@ -57,13 +57,14 @@ export const ProductImage: React.FC<ProductImageProps> = ({
     if (targetSize) return targetSize;
     if (dataSaverMode) {
       if (sizeVariant === 'thumbnail') return 140;
-      if (sizeVariant === 'card') return 260;
-      return 550; // for modal in data saver
+      if (sizeVariant === 'card') return 240;
+      return 520; // for modal in data saver
     }
-    // High-definition mode for crisp viewing on modern mobile OLED/Retina screens (550px for sharp carton/pack view)
-    if (sizeVariant === 'thumbnail') return 220;
-    if (sizeVariant === 'card') return 550;
-    return 950; // full high-res modal
+    // حجم الكارت في الشبكة معروض داخل إطار ~200-260px، فـ 420px كفاية وواضحة
+    // على الشاشات العالية الدقة مع ~40% بيانات أقل من 550px (تحميل كتالوج/مبيعات أسرع).
+    if (sizeVariant === 'thumbnail') return 200;
+    if (sizeVariant === 'card') return 420;
+    return 800; // full high-res modal
   }, [targetSize, sizeVariant, dataSaverMode]);
 
   // IntersectionObserver for lazy rendering off-screen items

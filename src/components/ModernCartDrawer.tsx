@@ -19,6 +19,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useCart } from '../context/cartContext';
 import { Customer, Invoice } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { ProductImage } from './ProductImage';
@@ -40,12 +41,8 @@ export const ModernCartDrawer: React.FC<ModernCartDrawerProps> = ({
   onSelectCustomer,
   onOrderCompleted
 }) => {
+  const { cart, updateCartItem, removeFromCart, clearCart, getCartSummary } = useCart();
   const {
-    cart,
-    updateCartItem,
-    removeFromCart,
-    clearCart,
-    getCartSummary,
     createOrder,
     currentUser,
     getVisibleCustomers,

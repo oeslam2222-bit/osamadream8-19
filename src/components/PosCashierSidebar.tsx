@@ -24,6 +24,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useCart } from '../context/cartContext';
 import { Customer, Invoice, PaymentMethod } from '../types';
 import { formatCurrency } from '../services/invoiceService';
 import { exportElectronicInvoiceToExcel, downloadInvoiceBoth } from '../services/excelService';
@@ -51,12 +52,8 @@ export const PosCashierSidebar: React.FC<PosCashierSidebarProps> = ({
   onCloseMobileDrawer,
   isMobileDrawer = false,
 }) => {
+  const { cart, updateCartItem, removeFromCart, clearCart, getCartSummary } = useCart();
   const {
-    cart,
-    updateCartItem,
-    removeFromCart,
-    clearCart,
-    getCartSummary,
     createOrder,
     currentUser,
     getVisibleCustomers,

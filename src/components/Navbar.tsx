@@ -37,6 +37,7 @@ import {
   Scale,
   Settings,
   Menu,
+  MoreHorizontal,
   RotateCcw,
   ChevronLeft,
   ChevronRight,
@@ -48,18 +49,31 @@ import {
   Sun,
   UploadCloud
 } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useCart } from '../context/cartContext';
 import { useTheme } from '../context/themeContext';
-import { GlobalSearch } from './GlobalSearch';
 import { formatCurrency } from '../services/invoiceService';
 import { UserRole } from '../types';
-import { InstallAppModal } from './InstallAppModal';
-import { SystemSettingsAndAboutModal } from './SystemSettingsAndAboutModal';
-import { InternalNotificationCenter } from './InternalNotificationCenter';
+
+/* الشاشات دي بتتفتح من أيقونات نادرة الاستخدام، وكانت كلها جوه الحزمة الأولى
+   (~600KB زيادة على أول تحميل). بقت chunks منفصلة بتتنزّل أول مرة تتفتح فقط. */
+const GlobalSearch = lazy(() =>
+  import('./GlobalSearch').then((m) => ({ default: m.GlobalSearch })),
+);
+const InstallAppModal = lazy(() =>
+  import('./InstallAppModal').then((m) => ({ default: m.InstallAppModal })),
+);
+const SystemSettingsAndAboutModal = lazy(() =>
+  import('./SystemSettingsAndAboutModal').then((m) => ({ default: m.SystemSettingsAndAboutModal })),
+);
 /* تم تعطيل رفع الصورة الشخصية — الأفاتار الرسمي ثابت لكل المستخدمين */
-import { DatabaseConnectionModal } from './DatabaseConnectionModal';
-import { SyncStatusCenter } from './SyncStatusCenter';
+const DatabaseConnectionModal = lazy(() =>
+  import('./DatabaseConnectionModal').then((m) => ({ default: m.DatabaseConnectionModal })),
+);
+const SyncStatusCenter = lazy(() =>
+  import('./SyncStatusCenter').then((m) => ({ default: m.SyncStatusCenter })),
+);
 
 interface NavbarProps {
   activeTab: string;
@@ -72,7 +86,7 @@ interface NavbarProps {
   onGlobalNavigate?: (tab: string, query?: string) => void;
 }
 
-const DEFAULT_EXECUTIVE_AVATAR = '/assets/rep-avatar.jpg';
+const DEFAULT_EXECUTIVE_AVATAR = '/assets/rep-avatar-v2.jpg';
 
 export const Navbar: React.FC<NavbarProps> = ({
   activeTab,
@@ -96,7 +110,6 @@ export const Navbar: React.FC<NavbarProps> = ({
     offlineQueueCount,
     deadLetterCount,
     flushPendingInvoices,
-    getCartSummary,
     selectedBranchFilter,
     setSelectedBranchFilter,
     activeSectorFilter,
@@ -113,8 +126,10 @@ export const Navbar: React.FC<NavbarProps> = ({
     supabaseStatus,
     checkDatabaseConnection
   } = useApp();
+  const { getCartSummary } = useCart();
 
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   // Avatar upload disabled: official avatar is fixed for all users.
@@ -190,12 +205,30 @@ export const Navbar: React.FC<NavbarProps> = ({
       u.branchName === currentUser.branchName;
   }).length;
   
-  const userVisibleInvoices = getVisibleInvoices();
-  const pendingOrdersCount = userVisibleInvoices.filter((i) =>
-    i.status === 'قيد مراجعة المشرف' ||
-    i.status === 'معلقة بانتظار اعتماد الفرع' ||
-    i.status === 'قيد المراجعة'
-  ).length;
+  const userVisibleInvoices = useMemo(() => getVisibleInvoices(), [getVisibleInvoices]);
+  const pendingOrdersCount = useMemo(
+    () =>
+      userVisibleInvoices.filter((i) => {
+        const status = i.status || '';
+        const lower = status.toLowerCase();
+        // مطابقة الحالة الرئيسية
+        if (
+          status === 'قيد مراجعة المشرف' ||
+          status === 'معلقة بانتظار اعتماد الفرع' ||
+          status === 'قيد المراجعة'
+        )
+          return true;
+        // مطابقةcase-insensitive fallback
+        if (
+          lower.includes('مراجعة') ||
+          lower.includes('معتم') ||
+          lower.includes('معلقة')
+        )
+          return true;
+        return false;
+      }).length,
+    [userVisibleInvoices]
+  );
 
   const supervisorName = currentUser.supervisorId
     ? users.find((u) => u.id === currentUser.supervisorId)?.name
@@ -263,7 +296,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'home', navId: 'home', label: 'الرئيسية', icon: Home, badge: 0 },
     { id: 'invoices', navId: 'invoices', label: 'الطلبات', icon: Receipt, badge: pendingOrdersCount },
     { id: 'customers', navId: 'all_customers', label: 'العملاء', icon: Users, badge: 0 },
-    { id: 'targets', navId: 'targets', label: 'التقارير', icon: BarChart3, badge: 0 },
+    { id: 'targets', navId: 'targets', label: 'التارجت', icon: BarChart3, badge: 0 },
     { id: 'returns', navId: 'returns', label: 'المرتجعات', icon: RotateCcw, badge: 0 },
     { id: 'catalog', navId: 'catalog', label: 'الكتالوج', icon: Boxes, badge: 0 },
   ];
@@ -273,7 +306,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       (n) => n.id === navId || (navId === 'all_customers' && n.id === 'customers')
     );
 
-  const bottomItems = bottomCandidates.filter((b) => canOpenTab(b.navId)).slice(0, 4);
+  const bottomItems = bottomCandidates.filter((b) => canOpenTab(b.navId)).slice(0, 5);
 
   const sectionBadgeTheme: Record<string, { bg: string; text: string; darkBg: string; darkText: string }> = {
     home: { bg: 'bg-blue-100', text: 'text-[#2563EB]', darkBg: 'dark:bg-blue-950/60', darkText: 'dark:text-blue-300' },
@@ -299,81 +332,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <aside className="ds-sidebar print:hidden" aria-label="القائمة الرئيسية" dir="rtl">
-        {/* Brand Block */}
-        <div className="ds-sidebar__brand">
-          <img src="/icon.svg" alt="طنطاوي جروب" className="ds-sidebar__logo" />
-          <div className="min-w-0 flex-1">
-            <strong>طنطاوي جروب</strong>
-            <span>Dream Tantawy</span>
-          </div>
-        </div>
-
-        {/* User Card in Sidebar */}
-        <div className="ds-sidebar__user">
-          <div className="ds-sidebar__user-avatar" aria-hidden="true">
-            <img
-              src={DEFAULT_EXECUTIVE_AVATAR}
-              alt={displayName}
-              referrerPolicy="no-referrer"
-              className="w-full h-full object-cover rounded-[10px]"
-              onError={(e) => {
-                (e.target as HTMLElement).style.display = 'none';
-              }}
-            />
-            <span className="ds-sidebar__user-avatar-initial">{initial}</span>
-          </div>
-          <div className="ds-sidebar__user-meta">
-            <div className="ds-sidebar__user-name">{displayName}</div>
-            <div className="ds-sidebar__user-role">{roleLabel}</div>
-            <div className="ds-sidebar__user-branch">{currentUser.branchName || 'الفرع الرئيسي'}</div>
-          </div>
-        </div>
-
-        {/* Nav List with colored icon badges, grouped by workflow */}
-        <nav className="ds-sidebar__nav" aria-label="أقسام المنظومة">
-          {groupedNav.map((group) => (
-            <div className="ds-sidebar__group" key={`nav-group-${group.id}`}>
-              <div className="ds-sidebar__group-label">{group.label}</div>
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeTab === item.id || (item.id === 'customers' && activeTab === 'all_customers');
-                const theme = sectionBadgeTheme[item.id] || sectionBadgeTheme.home;
-                return (
-                  <button
-                    key={`sidebar-${item.id}`}
-                    type="button"
-                    onClick={() => setActiveTab(item.id)}
-                    aria-current={isActive ? 'page' : undefined}
-                    className="ds-sidebar__item"
-                  >
-                    <div className={`ds-sidebar__icon-badge ${theme.bg} ${theme.text} ${theme.darkBg} ${theme.darkText}`}>
-                      <Icon className="w-4 h-4 stroke-[2.2]" aria-hidden="true" />
-                    </div>
-                    <span className="ds-sidebar__label">{item.label}</span>
-                    {item.promo && <span className="ds-sidebar__promo">مميز</span>}
-                    {item.badge && item.badge > 0 ? (
-                      <span className="ds-count">{item.badge}</span>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-
-        {/* Footer with connection status */}
-        <div className="ds-sidebar__footer">
-          <div className="ds-sidebar__status">
-            <span className="flex items-center gap-2">
-              <span className="ds-status-dot" />
-              <span>{isOffline ? 'وضع عدم الاتصال' : 'متصل بالخادم'}</span>
-            </span>
-            <span className="text-[10px] font-mono text-slate-400">V9.0</span>
-          </div>
-        </div>
-      </aside>
-      <header className="ds-topbar print:hidden">
+      <header className="ds-topbar print:hidden bg-white dark:bg-[var(--app-bg)]">
         <div className="ds-topbar__main">
           {/* العلامة + عنوان الصفحة */}
           <div className="ds-brand">
@@ -384,36 +343,66 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* بحث ذكي (لابتوب) */}
-          <button
-            type="button"
-            onClick={() => setIsGlobalSearchOpen(true)}
-            className="ds-search ds-vis-ge-lg"
-            aria-label="بحث ذكي"
-          >
-            <span className="ds-search__placeholder">ابحث عن عميل، فاتورة، صنف، مرتجع...</span>
-            <Search aria-hidden="true" />
-          </button>
+          {/* بحث ذكي (حقل مرن مع الأيقونة داخل الحقل) */}
+          <div className="ds-search ds-vis-ge-lg flex-1 min-w-0 relative">
+            <input
+              type="text"
+              placeholder="ابحث عن عميل، فاتورة، صنف، مرتجع..."
+              className="w-full px-3 py-2 pl-9 pr-4 rounded-xl border border-slate-200 dark:border-[#243756] bg-slate-50/70 dark:bg-[#132542] text-slate-900 dark:text-white text-sm font-medium placeholder-slate-500 dark:placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all"
+              onFocus={() => setIsGlobalSearchOpen(true)}
+              onClick={(e) => e.stopPropagation()}
+              readOnly
+              aria-label="بحث ذكي"
+            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 dark:text-slate-400" aria-hidden="true" />
+          </div>
 
           <div className="ds-topbar__spacer" />
 
           <div className="ds-actions">
-            {/* حالة الاتصال */}
+            {/* حالة الاتصال (صغيرة) */}
             <div className={`ds-status ${isOffline ? 'ds-status--off' : ''}`} title={isOffline ? 'أوفلاين' : 'متصل'}>
               {isOffline ? <WifiOff aria-hidden="true" /> : <Wifi aria-hidden="true" />}
               <span className={isOffline ? '' : 'ds-vis-ge-md'}>{isOffline ? 'أوفلاين' : 'متصل'}</span>
             </div>
 
-            {/* مزامنة قاعدة البيانات — يفتح مودال حالة الاتصال والمزامنة */}
+            {/* مزامنة الفواتير المعلقة (بارز فقط لو فيه معلقات، سطح المكتب 1280px+) */}
+            {pendingInvoicesCount > 0 && (
+              <button
+                type="button"
+                onClick={() => flushPendingInvoices()}
+                className="ds-iconbtn ds-iconbtn--primary ds-vis-ge-xl"
+                title="فواتير مسجلة أوفلاين بانتظار المزامنة"
+              >
+                <RefreshCw aria-hidden="true" />
+                <span className="ds-vis-ge-xl">مزامنة ({pendingInvoicesCount})</span>
+                <span className="ds-count ds-count--float ds-vis-lt-md">{pendingInvoicesCount}</span>
+              </button>
+            )}
+
+            {/* مزامنة مركز الحالة (سطح المكتب 1280px+) */}
+            <button
+              type="button"
+              onClick={() => setIsSyncCenterOpen(true)}
+              className="ds-iconbtn ds-vis-ge-xl"
+              title="مركز حالة المزامنة والطابور"
+              aria-label="مركز حالة المزامنة"
+            >
+              <RefreshCw aria-hidden="true" className={pendingInvoicesCount > 0 ? 'text-amber-600' : ''} />
+              <span className="ds-vis-ge-xl">المزامنة</span>
+              {pendingInvoicesCount > 0 && <span className="ds-count">{pendingInvoicesCount}</span>}
+            </button>
+
+            {/* قاعدة البيانات (سطح المكتب 1280px+) */}
             <button
               type="button"
               onClick={() => setIsDbModalOpen(true)}
-              className="ds-iconbtn ds-vis-ge-lg"
+              className="ds-iconbtn ds-vis-ge-xl"
               title="حالة قاعدة البيانات والمزامنة"
               aria-label="حالة قاعدة البيانات والمزامنة"
             >
               <CloudLightning aria-hidden="true" />
-              <span className="ds-vis-ge-md">
+              <span className="ds-vis-ge-xl">
                 {supabaseStatus?.connected === false
                   ? 'غير متصل'
                   : supabaseStatus?.customersCount != null && supabaseStatus.customersCount === 0
@@ -421,51 +410,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                     : 'قاعدة البيانات'}
               </span>
             </button>
-            {/* مركز حالة المزامنة والطابور */}
-            <button
-              type="button"
-              onClick={() => setIsSyncCenterOpen(true)}
-              className="ds-iconbtn"
-              title="مركز حالة المزامنة والطابور"
-              aria-label="مركز حالة المزامنة"
-            >
-              <RefreshCw aria-hidden="true" className={pendingInvoicesCount > 0 ? 'text-amber-600' : ''} />
-              <span className="ds-vis-ge-md">المزامنة</span>
-              {pendingInvoicesCount > 0 && <span className="ds-count">{pendingInvoicesCount}</span>}
-            </button>
 
-            {/* بحث ذكي (موبايل) */}
-            <button
-              type="button"
-              onClick={() => setIsGlobalSearchOpen(true)}
-              className="ds-iconbtn ds-vis-lt-lg"
-              title="بحث ذكي"
-              aria-label="بحث ذكي"
-            >
-              <Search aria-hidden="true" />
-            </button>
-
-            {/* مزامنة الفواتير المعلقة */}
-            {pendingInvoicesCount > 0 && (
-              <button
-                type="button"
-                onClick={() => flushPendingInvoices()}
-                className="ds-iconbtn ds-iconbtn--primary"
-                title="فواتير مسجلة أوفلاين بانتظار المزامنة"
-              >
-                <RefreshCw aria-hidden="true" />
-                <span className="ds-vis-ge-md">مزامنة ({pendingInvoicesCount})</span>
-                <span className="ds-count ds-count--float ds-vis-lt-md">{pendingInvoicesCount}</span>
-              </button>
-            )}
-
-            {/* مبدّل القطاع (أدمن / مطور / دعم فني) — فصل كامل بين المنزلي والكهرباء */}
+            {/* مبدّل القطاع (سطح المكتب 1280px+) */}
             {canManageSectorGate && (
-              <div
-                className="ds-vis-ge-md inline-flex items-center rounded-xl border border-slate-200 dark:border-[#243756] bg-slate-100/90 dark:bg-[#132542] p-0.5 gap-0.5"
-                role="group"
-                aria-label="اختيار القطاع"
-              >
+              <div className="ds-vis-ge-xl inline-flex items-center rounded-xl border border-slate-200 dark:border-[#243756] bg-slate-100/90 dark:bg-[#132542] p-0.5 gap-0.5" role="group" aria-label="اختيار القطاع">
                 <button
                   type="button"
                   onClick={() => setActiveSectorFilter('home')}
@@ -491,7 +439,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
 
-            {/* فلتر الفرع (أدمن / مطور) */}
+            {/* فلتر الفرع (سطح المكتب 1280px+) */}
             {(currentUser.role === 'admin' || currentUser.role === 'developer') && (
               <select
                 aria-label="تصفية الفرع"
@@ -506,29 +454,143 @@ export const Navbar: React.FC<NavbarProps> = ({
               </select>
             )}
 
-            {/* تبديل الوضع الليلي */}
+            {/* تبديل الوضع الليلي (سطح المكتب 1280px+) */}
             <button
               type="button"
               onClick={toggleTheme}
-              className="ds-iconbtn"
+              className="ds-iconbtn ds-vis-ge-xl"
               title={isDark ? 'التبديل إلى الوضع الفاتح' : 'التبديل إلى الوضع الليلي'}
               aria-label={isDark ? 'التبديل إلى الوضع الفاتح' : 'التبديل إلى الوضع الليلي'}
               aria-pressed={isDark}
             >
               {isDark ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
+              <span className="ds-vis-ge-xl">{isDark ? 'الوضع الفاتح' : 'الوضع الليلي'}</span>
             </button>
 
-            {/* الإعدادات */}
+            {/* الإعدادات (سطح المكتب 1280px+) */}
             <button
               id="navbar-settings-and-about-btn"
               type="button"
               onClick={() => setIsSettingsModalOpen(true)}
-              className="ds-iconbtn ds-vis-ge-md"
+              className="ds-iconbtn ds-vis-ge-xl"
               title="الإعدادات، السياسة والخصوصية، السحابة وCloudinary"
               aria-label="الإعدادات"
             >
               <Settings aria-hidden="true" />
               <span className="ds-vis-ge-xl">الإعدادات</span>
+            </button>
+
+            {/* قائمة "المزيد": تظهر أقل من 1280px وتجمع الأزرار الثانوية */}
+            <button
+              type="button"
+              onClick={() => setShowMoreMenu((p) => !p)}
+              className="ds-iconbtn ds-vis-lt-xl"
+              title="المزيد من الإجراءات"
+              aria-label="المزيد من الإجراءات"
+              aria-expanded={showMoreMenu}
+            >
+              <MoreHorizontal size={18} />
+            </button>
+
+            {showMoreMenu && (
+              <div className="absolute right-0 top-full mt-1.5 w-64 rounded-xl border border-slate-200 dark:border-[#26364D] bg-white dark:bg-[#0F1E36] shadow-xl z-50 py-2">
+                {/* مزامنة مركز الحالة */}
+                <button
+                  type="button"
+                  onClick={() => { setIsSyncCenterOpen(true); setShowMoreMenu(false); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#162542] transition-colors"
+                >
+                  <RefreshCw size={16} />
+                  <span>مركز المزامنة</span>
+                </button>
+                <hr className="my-1 border-slate-100 dark:border-[#1E314E]" />
+                {/* حالة قاعدة البيانات */}
+                <button
+                  type="button"
+                  onClick={() => { setIsDbModalOpen(true); setShowMoreMenu(false); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#162542] transition-colors"
+                >
+                  <CloudLightning size={16} />
+                  <span>قاعدة البيانات</span>
+                </button>
+                <hr className="my-1 border-slate-100 dark:border-[#1E314E]" />
+                {/* قطاع (Admin/Dev) */}
+                {canManageSectorGate && (
+                  <>
+                    <div className="px-4 py-1 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">القطاع</div>
+                    <button
+                      type="button"
+                      onClick={() => { setActiveSectorFilter('home'); setShowMoreMenu(false); }}
+                      className={`flex w-full items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                        activeSectorFilter === 'home'
+                          ? 'bg-[#102b4e] text-white shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-white/10'
+                      }`}
+                    >
+                      🏠 منزلي
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setActiveSectorFilter('electrical'); setShowMoreMenu(false); }}
+                      className={`flex w-full items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                        activeSectorFilter === 'electrical'
+                          ? 'bg-amber-600 text-white shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-white/70 dark:hover:bg-white/10'
+                      }`}
+                    >
+                      ⚡ كهرباء
+                    </button>
+                    <hr className="my-1 border-slate-100 dark:border-[#1E314E]" />
+                  </>
+                )}
+                {/* فرع (Admin/Dev) */}
+                {(currentUser.role === 'admin' || currentUser.role === 'developer') && (
+                  <>
+                    <div className="px-4 py-1 text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wider">الفرع</div>
+                    <select
+                      aria-label="تصفية الفرع"
+                      value={selectedBranchFilter}
+                      onChange={(e) => { setSelectedBranchFilter(e.target.value); setShowMoreMenu(false); }}
+                      className="w-full px-3 py-2 rounded-lg text-sm font-bold text-slate-700 dark:text-slate-200 bg-transparent border-0 focus:ring-0 cursor-pointer"
+                    >
+                      <option value="الكل">كل الفروع</option>
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.name}>{b.name}</option>
+                      ))}
+                    </select>
+                    <hr className="my-1 border-slate-100 dark:border-[#1E314E]" />
+                  </>
+                )}
+                {/* الوضع الليلي (سطح المكتب 1280px+ - في القائمة أكثر من ذلك) */}
+                <button
+                  type="button"
+                  onClick={() => { toggleTheme(); setShowMoreMenu(false); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#162542] transition-colors"
+                >
+                  {isDark ? <Sun size={16} /> : <Moon size={16} />}
+                  <span>{isDark ? 'الوضع الفاتح' : 'الوضع الليلي'}</span>
+                </button>
+                {/* الإعدادات (سطح المكتب 1280px+ - في القائمة أكثر من ذلك) */}
+                <button
+                  type="button"
+                  onClick={() => { setIsSettingsModalOpen(true); setShowMoreMenu(false); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-[#162542] transition-colors"
+                >
+                  <Settings size={16} />
+                  <span>الإعدادات والخصوصية</span>
+                </button>
+              </div>
+            )}
+
+            {/* البحث (موبايل) */}
+            <button
+              type="button"
+              onClick={() => setIsGlobalSearchOpen(true)}
+              className="ds-iconbtn ds-vis-lt-lg"
+              title="بحث ذكي"
+              aria-label="بحث ذكي"
+            >
+              <Search aria-hidden="true" />
             </button>
 
             {/* الإشعارات */}
@@ -545,7 +607,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* الطلبية */}
+            {/* الطلبية (أيقونة + رقم فقط علىdesktop، النص في ملف الشخصية) */}
             <button
               id="open-cart-btn"
               type="button"
@@ -554,16 +616,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               aria-label="الطلبية"
             >
               <ShoppingCart aria-hidden="true" />
-              <span className="ds-vis-ge-md">الطلبية</span>
               {cartSummary.itemCount > 0 && <span className="ds-count">{cartSummary.itemCount}</span>}
-              {cartSummary.grandTotal > 0 && (
-                <span className="ds-vis-ge-lg" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  {formatCurrency(cartSummary.grandTotal)}
-                </span>
-              )}
             </button>
 
-            {/* الحساب (لابتوب وتابلت) */}
+            {/* الحساب (لابتوب وتابلت) — الاسمostaqué يعتمد على المساحة */}
             <div className="ds-profile-wrap ds-vis-ge-md">
               <button
                 type="button"
@@ -624,7 +680,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                       {currentUser.role === 'supervisor' && <div className="ds-row"><span>عدد المناديب</span><span>{supervisedRepsCount}</span></div>}
                       <div className="ds-row"><span>حالة الحساب</span><span style={{ color: 'var(--app-success-text)' }}>مفعّل ونشط</span></div>
                     </div>
-                    {/* تغيير الصورة الشخصية معطّل — الأفاتار الرسمي ثابت */}
                     <button
                       type="button"
                       className="ds-btn ds-btn--danger"
@@ -714,28 +769,39 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
 
             {canManageSectorGate && (
-              <div className="px-4 py-2 border-b border-slate-100 dark:border-[#1E314E]">
-                <div className="text-[10px] font-black text-slate-500 dark:text-slate-400 mb-1.5">القطاع المعروض</div>
-                <div className="grid grid-cols-2 gap-1.5 bg-slate-100 dark:bg-[#132542] p-1 rounded-xl">
+              <div className="px-4 py-2.5" style={{ borderBottom: '1px solid rgba(255,255,255,0.10)' }}>
+                <div className="text-[10px] font-black mb-1.5" style={{ color: '#9fbdd8', letterSpacing: '0.2px' }}>
+                  القطاع المعروض
+                </div>
+                <div
+                  className="grid grid-cols-2 keep-grid gap-1 p-1 rounded-xl"
+                  style={{
+                    background: 'rgba(255,255,255,0.08)',
+                    border: '1px solid rgba(255,255,255,0.10)',
+                    gridTemplateColumns: '1fr 1fr',
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => setActiveSectorFilter('home')}
-                    className={`py-2 rounded-lg text-xs font-black transition cursor-pointer ${
+                    className="py-2 rounded-lg text-xs font-black transition cursor-pointer"
+                    style={
                       activeSectorFilter === 'home'
-                        ? 'bg-[#102b4e] text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-300'
-                    }`}
+                        ? { background: '#0f766e', color: '#ffffff', boxShadow: '0 6px 16px rgba(13,148,136,0.35)' }
+                        : { background: 'transparent', color: '#cfe3f2' }
+                    }
                   >
                     🏠 منزلي
                   </button>
                   <button
                     type="button"
                     onClick={() => setActiveSectorFilter('electrical')}
-                    className={`py-2 rounded-lg text-xs font-black transition cursor-pointer ${
+                    className="py-2 rounded-lg text-xs font-black transition cursor-pointer"
+                    style={
                       activeSectorFilter === 'electrical'
-                        ? 'bg-amber-600 text-white shadow-2xs'
-                        : 'text-slate-600 dark:text-slate-300'
-                    }`}
+                        ? { background: '#b45309', color: '#ffffff', boxShadow: '0 6px 16px rgba(217,119,6,0.32)' }
+                        : { background: 'transparent', color: '#cfe3f2' }
+                    }
                   >
                     ⚡ كهرباء
                   </button>
@@ -789,48 +855,66 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
       )}
 
-      {/* PWA Install Modal */}
-      <InstallAppModal
-        isOpen={isInstallModalOpen}
-        onClose={() => setIsInstallModalOpen(false)}
-        installPromptEvent={installPromptEvent}
-      />
+      {/* المودالات بقت lazy — بنركّبها فقط وقت الفتح */}
+      {isInstallModalOpen && (
+        <Suspense fallback={null}>
+          <InstallAppModal
+            isOpen={isInstallModalOpen}
+            onClose={() => setIsInstallModalOpen(false)}
+            installPromptEvent={installPromptEvent}
+          />
+        </Suspense>
+      )}
 
       {/* System Settings, About & Privacy Modal */}
       {isSettingsModalOpen && (
-        <SystemSettingsAndAboutModal
-          isOpen={isSettingsModalOpen}
-          onClose={() => setIsSettingsModalOpen(false)}
-        />
+        <Suspense fallback={null}>
+          <SystemSettingsAndAboutModal
+            isOpen={isSettingsModalOpen}
+            onClose={() => setIsSettingsModalOpen(false)}
+          />
+        </Suspense>
       )}
 
       {/* رفع الصورة الشخصية معطّل — الأفاتار الرسمي ثابت */}
 
       {/* مودال حالة قاعدة البيانات والمزامنة */}
-      <DatabaseConnectionModal
-        isOpen={isDbModalOpen}
-        onClose={() => setIsDbModalOpen(false)}
-      />
-      <SyncStatusCenter
-        isOpen={isSyncCenterOpen}
-        onClose={() => setIsSyncCenterOpen(false)}
-        onOpenPendingSyncPage={() => {
-          setIsSyncCenterOpen(false);
-          setActiveTab('pending_sync');
-        }}
-      />
+      {isDbModalOpen && (
+        <Suspense fallback={null}>
+          <DatabaseConnectionModal
+            isOpen={isDbModalOpen}
+            onClose={() => setIsDbModalOpen(false)}
+          />
+        </Suspense>
+      )}
+      {isSyncCenterOpen && (
+        <Suspense fallback={null}>
+          <SyncStatusCenter
+            isOpen={isSyncCenterOpen}
+            onClose={() => setIsSyncCenterOpen(false)}
+            onOpenPendingSyncPage={() => {
+              setIsSyncCenterOpen(false);
+              setActiveTab('pending_sync');
+            }}
+          />
+        </Suspense>
+      )}
 
       {/* بحث ذكي عام */}
-      <GlobalSearch
-        isOpen={isGlobalSearchOpen}
-        onClose={() => setIsGlobalSearchOpen(false)}
-        allowedTabs={filteredNavItems.map((i) => (i.id === 'customers' ? 'all_customers' : i.id))}
-        onNavigate={(tab, q) => {
-          if (onGlobalNavigate) onGlobalNavigate(tab, q);
-          else setActiveTab(tab);
-          setIsGlobalSearchOpen(false);
-        }}
-      />
+      {isGlobalSearchOpen && (
+        <Suspense fallback={null}>
+          <GlobalSearch
+            isOpen={isGlobalSearchOpen}
+            onClose={() => setIsGlobalSearchOpen(false)}
+            allowedTabs={filteredNavItems.map((i) => (i.id === 'customers' ? 'all_customers' : i.id))}
+            onNavigate={(tab, q) => {
+              if (onGlobalNavigate) onGlobalNavigate(tab, q);
+              else setActiveTab(tab);
+              setIsGlobalSearchOpen(false);
+            }}
+          />
+        </Suspense>
+      )}
     </>
   );
 };

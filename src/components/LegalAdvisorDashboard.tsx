@@ -771,7 +771,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
       {/* Findings Modal */}
       {isFindingsModalOpen && findingsCustomer && (
         <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3" onClick={(e) => { if (e.target === e.currentTarget) setIsFindingsModalOpen(false); }}>
-          <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div className="bg-white rounded-3xl max-w-full sm:max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <div className="flex items-center gap-2.5"><div className="w-10 h-10 rounded-xl bg-[#102b4e] text-[#e8c98c] flex items-center justify-center"><FileCheck size={18}/></div><div><h3 className="font-black text-slate-900 text-sm sm:text-base">تسجيل إفادة/إجراء قانوني</h3><p className="text-[11px] text-slate-500">{findingsCustomer.name}</p></div></div>
               <button onClick={() => setIsFindingsModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1"><X size={18}/></button>
@@ -792,7 +792,7 @@ export const LegalAdvisorDashboard: React.FC = () => {
       {/* Create Notice Modal */}
       {isNoticeModalOpen && selectedCustomerForNotice && (
         <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3" onClick={(e) => { if (e.target === e.currentTarget) setIsNoticeModalOpen(false); }}>
-          <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div className="bg-white rounded-3xl max-w-full sm:max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-200"><div className="flex items-center gap-2.5"><div className="w-10 h-10 rounded-xl bg-[#102b4e] text-[#e8c98c] flex items-center justify-center"><Scale size={18}/></div><div><h3 className="font-black text-slate-900 text-sm sm:text-base">إصدار إنذار/إجراء رسمي</h3><p className="text-[11px] text-slate-500">{selectedCustomerForNotice.name}</p></div></div><button onClick={() => setIsNoticeModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1"><X size={18}/></button></div>
             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between text-xs"><div><span className="text-slate-500 block">إجمالي المديونية</span><span className="font-black text-base text-rose-700 tabular-nums">{fmt(selectedCustomerForNotice.currentBalance ?? selectedCustomerForNotice.balance ?? 0)}</span></div><div className="text-left"><span className="text-slate-500 block">الفرع</span><span className="font-bold text-slate-800">{selectedCustomerForNotice.branchName || 'الفرع الرئيسي'}</span></div></div>
             <div className="space-y-3 text-xs">

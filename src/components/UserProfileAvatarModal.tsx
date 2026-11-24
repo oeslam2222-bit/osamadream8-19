@@ -8,7 +8,7 @@ interface UserProfileAvatarModalProps {
   onClose: () => void;
 }
 
-const DEFAULT_EXECUTIVE_AVATAR = '/assets/rep-avatar.jpg';
+const DEFAULT_EXECUTIVE_AVATAR = '/assets/rep-avatar-v2.jpg';
 
 export const UserProfileAvatarModal: React.FC<UserProfileAvatarModalProps> = ({ isOpen, onClose }) => {
   const { currentUser, updateCurrentUserAvatar, cloudinaryConfig } = useApp();

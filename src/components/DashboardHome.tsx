@@ -13,7 +13,7 @@ import { formatCompactCurrency, formatCurrency } from '../services/invoiceServic
 import { isArabicNameMatch, isBranchMatch, normalizeArabicText } from '../services/arabicMatchingService';
 import { Customer, CustomerVisit, Invoice, TargetRecord } from '../types';
 import { IconBadge } from './ui/IconBadge';
-const DEFAULT_EXECUTIVE_AVATAR = '/assets/rep-avatar.jpg';
+const DEFAULT_EXECUTIVE_AVATAR = '/assets/rep-avatar-v2.jpg';
 import { LiveClock } from './LiveClock';
 import { KPICard } from './KPICard';
 import { MiniGauge } from './ui/PerformanceGauge';
@@ -81,7 +81,8 @@ export const DashboardHome: React.FC<DashboardHomeProps> = ({
   // Customer Filtering
   const visibleCustomers = useMemo(() => getVisibleCustomers(), [getVisibleCustomers, customers]);
 
-  const visits = getVisibleVisits();
+  // الزيارات كانت بتتحسب من جديد في كل رندر (والفلترة جواها O(n)) فبقت memo
+  const visits = useMemo(() => getVisibleVisits(), [getVisibleVisits, currentUser]);
   const visibleInvoices = useMemo(() => getVisibleInvoices(), [getVisibleInvoices, invoices]);
   const visibleProductsList = useMemo(() => (getVisibleProducts ? getVisibleProducts() : products), [getVisibleProducts, products]);
 

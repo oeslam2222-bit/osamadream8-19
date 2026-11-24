@@ -1375,7 +1375,7 @@ export const VisitsDashboard: React.FC = () => {
         >
           <form
             onSubmit={submit}
-            className="relative z-[60] bg-white dark:bg-[#0f172a] rounded-3xl p-5 sm:p-7 w-full max-w-lg max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-200 dark:border-slate-800"
+            className="relative z-[60] bg-white dark:bg-[#0f172a] rounded-3xl p-5 sm:p-7 w-full max-w-full sm:max-w-lg max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-200 dark:border-slate-800"
             dir="rtl"
           >
             <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -1855,7 +1855,7 @@ export const VisitsDashboard: React.FC = () => {
           }}
         >
           <div
-            className="relative z-[60] bg-white dark:bg-[#0f172a] rounded-3xl p-5 sm:p-7 w-full max-w-lg max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-200 dark:border-slate-800"
+            className="relative z-[60] bg-white dark:bg-[#0f172a] rounded-3xl p-5 sm:p-7 w-full max-w-full sm:max-w-lg max-h-[92vh] overflow-y-auto shadow-2xl border border-slate-200 dark:border-slate-800"
             dir="rtl"
           >
             <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100 dark:border-slate-800">

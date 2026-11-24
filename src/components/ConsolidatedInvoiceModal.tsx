@@ -103,7 +103,7 @@ export const ConsolidatedInvoiceModal: React.FC<ConsolidatedInvoiceModalProps> =
       className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in"
       dir="rtl"
     >
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-6xl max-h-[96vh] flex flex-col shadow-2xl overflow-hidden text-white">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-full sm:max-w-lg max-h-[96vh] flex flex-col shadow-2xl overflow-hidden text-white">
         
         {/* ================= MODAL HEADER ================= */}
         <div className="p-3.5 sm:p-5 bg-slate-950 border-b border-slate-800 flex items-center justify-between gap-3 shrink-0">

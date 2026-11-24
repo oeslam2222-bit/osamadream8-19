@@ -297,7 +297,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
     const byId = new Map<string, string>();
     const byName = new Map<string, string>();
     users.forEach((u) => {
-      const av = '/assets/rep-avatar.jpg';
+      const av = '/assets/rep-avatar-v2.jpg';
       if (u.id) byId.set(u.id, av);
       if (u.username) byId.set(u.username, av);
       if (u.name) {
@@ -314,7 +314,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
       if (repId && userAvatarLookup.byId.has(repId)) return userAvatarLookup.byId.get(repId)!;
       const targetName = normalizeArabicText(repName || '');
       if (targetName && userAvatarLookup.byName.has(targetName)) return userAvatarLookup.byName.get(targetName)!;
-      return '/assets/rep-avatar.jpg';
+      return '/assets/rep-avatar-v2.jpg';
     };
 
     repoCustomers.forEach((customer) => {
@@ -673,7 +673,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
       </section>
 
       {/* مؤشرات رئيسية — هوية tg-kpi */}
-      <div className="grid gap-4 grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 rounded-2xl p-4 md:p-6 grid-cols-2 keep-grid sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4">
         <div className="tg-kpi tg-kpi--red">
           <div className="tg-kpi__top">
             <span className="tg-kpi__icon"><Wallet size={20} /></span>
@@ -728,14 +728,14 @@ export const CollectionRecoveryDashboard: React.FC = () => {
         <div className="tg-card !flex-row !items-center !justify-between gap-3 border border-emerald-200 bg-gradient-to-l from-emerald-50 to-white">
           <div className="flex items-center gap-3 min-w-0">
             <img
-              src="/assets/rep-avatar.jpg"
+              src="/assets/rep-avatar-v2.jpg"
               alt={topRep.repName}
               referrerPolicy="no-referrer"
               onError={(e) => {
                 const img = e.currentTarget;
                 if (!img.dataset.fallback) {
                   img.dataset.fallback = '1';
-                  img.src = '/assets/rep-avatar.jpg';
+                  img.src = '/assets/rep-avatar-v2.jpg';
                 }
               }}
               className="h-12 w-12 shrink-0 rounded-2xl object-cover object-top border-2 border-emerald-300 shadow-sm"
@@ -953,9 +953,9 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                         </div>
                       </div>
 
-                      <div className="w-full xl:w-[340px] shrink-0 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 flex flex-col justify-between">
+                      <div className="w-full xl:w-[340px] shrink-0 rounded-2xl border border-emerald-300 bg-emerald-50/20 p-4 sm:p-5 flex flex-col justify-between border-emerald-200 shadow-sm">
                         <div className="grid gap-2.5">
-                          <label className="text-xs font-black text-slate-900">
+                          <label className="text-sm font-black text-rose-800">
                             مبلغ التحصيل
                             <div className="mt-1.5 flex gap-2">
                               <input
@@ -966,7 +966,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                                   ...prev,
                                   [customer.id]: Math.max(0, Number(event.target.value || 0)),
                                 }))}
-                                className="min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base font-black text-slate-950 tabular-nums outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-500/20"
+                                className="min-h-[44px] w-full rounded-xl border border-emerald-300 bg-white px-3 py-2 text-base font-black text-slate-950 tabular-nums outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                               />
                               <button
                                 type="button"
@@ -979,7 +979,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                             </div>
                           </label>
 
-                          <label className="text-xs font-black text-slate-900">
+                          <label className="text-sm font-black text-rose-800">
                             ملاحظة التحصيل
                             <input
                               value={noteValue}
@@ -987,7 +987,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                                 ...prev,
                                 [customer.id]: event.target.value,
                               }))}
-                              className="mt-1.5 min-h-[44px] w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs sm:text-sm font-bold text-slate-950 placeholder:text-slate-500 outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-500/20"
+                              className="mt-1.5 min-h-[44px] w-full rounded-xl border border-emerald-300 bg-white px-3 py-2 text-xs sm:text-sm font-bold text-slate-950 placeholder:text-slate-500 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
                               placeholder="أدخل ملاحظة التحصيل (اختياري)..."
                             />
                           </label>
@@ -998,7 +998,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setLegalTransferCustomer(customer)}
-                              className="min-h-[44px] inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs sm:text-sm font-black text-slate-800 hover:bg-slate-50 transition cursor-pointer"
+                              className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-xs sm:text-sm font-black text-slate-800 hover:bg-slate-50 transition cursor-pointer"
                             >
                               <Scale className="h-4 w-4 text-[#1E3A8A]" />
                               تحويل للشؤون القانونية
@@ -1008,7 +1008,7 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                             type="button"
                             onClick={() => openConfirmModal(customer)}
                             disabled={amountValue <= 0}
-                            className="min-h-[44px] inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-3 py-2.5 text-xs sm:text-sm font-black text-white shadow-xs transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="min-h-[44px] inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 px-3 py-2.5 text-xs sm:text-sm font-black text-white shadow-xs transition cursor-pointer"
                           >
                             <CheckCircle2 className="h-4 w-4" />
                             تسجيل تحصيل
@@ -1145,14 +1145,14 @@ export const CollectionRecoveryDashboard: React.FC = () => {
                     <td className="py-3 pr-4 pl-2">
                       <div className="flex items-center gap-3">
                         <img
-                          src="/assets/rep-avatar.jpg"
+                          src="/assets/rep-avatar-v2.jpg"
                           alt={row.repName}
                           referrerPolicy="no-referrer"
                           onError={(e) => {
                             const img = e.currentTarget;
                             if (!img.dataset.fallback) {
                               img.dataset.fallback = '1';
-                              img.src = '/assets/rep-avatar.jpg';
+                              img.src = '/assets/rep-avatar-v2.jpg';
                             }
                           }}
                           className="h-9 w-9 rounded-xl object-cover object-top border border-slate-200 shrink-0"
@@ -1196,14 +1196,14 @@ export const CollectionRecoveryDashboard: React.FC = () => {
             >
               <div className="flex items-center gap-3">
                 <img
-                  src="/assets/rep-avatar.jpg"
+                  src="/assets/rep-avatar-v2.jpg"
                   alt={rep.repName}
                   referrerPolicy="no-referrer"
                   onError={(e) => {
                     const img = e.currentTarget;
                     if (!img.dataset.fallback) {
                       img.dataset.fallback = '1';
-                      img.src = '/assets/rep-avatar.jpg';
+                      img.src = '/assets/rep-avatar-v2.jpg';
                     }
                   }}
                   className={`h-12 w-12 rounded-2xl object-cover object-top border-2 shadow-sm shrink-0 ${

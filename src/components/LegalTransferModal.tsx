@@ -36,7 +36,7 @@ export const LegalTransferModal: React.FC<LegalTransferModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-[var(--app-line)] space-y-4">
+      <div className="bg-white rounded-3xl max-w-full sm:max-w-lg w-full p-5 sm:p-6 shadow-2xl border border-[var(--app-line)] space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-[var(--app-line)]">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-navy-panel text-amber-400 flex items-center justify-center font-black">

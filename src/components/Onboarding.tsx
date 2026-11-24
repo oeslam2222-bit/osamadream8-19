@@ -102,7 +102,7 @@ export const Onboarding: React.FC<OnboardingProps> = ({
         aria-hidden="true"
       />
 
-      <div className="relative z-10 w-full max-w-lg bg-surface rounded-3xl border border-border-primary shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-300">
+      <div className="relative z-10 w-full max-w-full sm:max-w-lg bg-surface rounded-3xl border border-border-primary shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-300">
         <div className="bg-surface p-6 sm:p-8 border-b border-border-primary">
           <div className="flex items-center justify-between mb-6">
             <div className="w-12 h-12 rounded-2xl bg-blue-soft text-blue-600 flex items-center justify-center font-black shadow-lg">

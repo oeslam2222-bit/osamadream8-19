@@ -60,7 +60,7 @@ export const PublishedDataSourcesPanel: React.FC = () => {
   if (!isAuthorized) {
     return (
       <section className="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 text-center" dir="rtl">
-        <div className="max-w-md mx-auto py-8">
+        <div className="max-w-full sm:max-w-md mx-auto py-8">
           <div className="w-16 h-16 bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] text-[var(--app-risk-text)] rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-inner">
             <Lock className="w-8 h-8" />
           </div>

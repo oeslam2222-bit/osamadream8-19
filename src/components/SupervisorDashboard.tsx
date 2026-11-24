@@ -1414,7 +1414,7 @@ export const SupervisorDashboard: React.FC<SupervisorDashboardProps> = ({
       {/* Reject / Cancel Order Modal */}
       {rejectModalInvoice && (
         <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+          <div className="bg-white rounded-3xl max-w-full sm:max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2 text-[var(--app-risk)]">
                 <XCircle className="w-6 h-6" />

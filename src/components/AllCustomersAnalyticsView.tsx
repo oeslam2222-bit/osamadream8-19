@@ -2479,7 +2479,7 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       {/* CUSTOMER 360-DEGREE DETAIL DRAWER / MODAL */}
       {selectedCustomer && (
         <div className="fixed inset-0 z-60 bg-slate-950/75 backdrop-blur-sm overflow-y-auto p-2 sm:p-4 md:p-6 flex items-center justify-center animate-in fade-in">
-          <div className="bg-white rounded-3xl max-w-5xl xl:max-w-6xl w-full sm:w-[94%] my-2 sm:my-4 shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 max-h-[90vh]">
+          <div className="bg-white rounded-3xl max-w-full sm:max-w-2xl w-full sm:w-[94%] my-2 sm:my-4 shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 max-h-[90vh]">
             {/* Modal Header */}
             <div className="p-4 sm:p-5 bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 text-white rounded-t-3xl flex items-center justify-between sticky top-0 z-20 border-b border-slate-800">
               <div className="flex items-center gap-3 sm:gap-4">
@@ -3382,14 +3382,14 @@ export const AllCustomersAnalyticsView: React.FC<AllCustomersAnalyticsViewProps>
       {/* SUPERVISOR REP PERFORMANCE & TARGET ANALYSIS MODAL */}
       {analyzedRep && (
         <div className="fixed inset-0 z-50 bg-slate-950/75 backdrop-blur-sm overflow-y-auto p-2 sm:p-4 md:p-6 flex items-center justify-center animate-in fade-in" dir="rtl">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-5xl xl:max-w-6xl w-full sm:w-[94%] my-2 sm:my-4 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 max-h-[92vh]">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-full sm:max-w-2xl w-full sm:w-[94%] my-2 sm:my-4 shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150 max-h-[92vh]">
             {/* Header */}
             <div className="p-4 sm:p-5 bg-gradient-to-r from-[#0f2b38] via-[#143d52] to-[#0f2b38] text-white flex items-center justify-between sticky top-0 z-20 border-b border-white/10">
               <div className="flex items-center gap-3 sm:gap-4">
                 {analyzedRep.avatar ? (
                   <img src={analyzedRep.avatar} alt={analyzedRep.name} className="w-12 h-12 rounded-2xl object-cover border-2 border-teal-400 shrink-0 shadow-sm" />
                 ) : (
-                  <div className="w-12 h-12 rounded-2xl bg-teal-500 text-white flex items-center justify-center font-black text-xl shadow-sm shrink-0">
+                  <div className="w-12 h-12 rounded-2xl bg-teal-700 text-white flex items-center justify-center font-black text-xl shadow-sm shrink-0">
                     {analyzedRep.name.charAt(0)}
                   </div>
                 )}

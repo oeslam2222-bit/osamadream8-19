@@ -6,6 +6,7 @@ import {
   Bell, Percent,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useCart } from '../context/cartContext';
 
 interface SidebarProps {
   activeTab: string;
@@ -23,7 +24,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenCart, notificationCount, onOpenNotificationCenter,
   position = "right",
 }) => {
-  const { currentUser, logout, getCartSummary } = useApp();
+  const { currentUser, logout } = useApp();
+  const { getCartSummary } = useCart();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrollPosition, setScrollPosition] = useState(0);
   const cartSummary = getCartSummary();
@@ -75,7 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       {!isMobile && (
-        <aside className={`fixed ${position === 'left' ? 'left-0' : 'right-0'} top-16 bottom-0 z-40 flex flex-col ${isCollapsed ? 'w-16' : 'w-64'} ${position === 'left' ? 'border-r border-slate-200 dark:border-[#26364D]' : 'border-l border-slate-200 dark:border-[#26364D]'} bg-white dark:bg-[#0B1220] shadow-xl transition-all duration-300 flex-shrink-0`} aria-label="القائمة الرئيسية">
+        <aside className={`${position === 'left' ? 'sticky left-0' : 'sticky right-0'} top-16 bottom-0 z-40 flex flex-col ${isCollapsed ? 'w-16' : 'w-64'} ${position === 'left' ? 'border-r border-slate-200 dark:border-[#26364D]' : 'border-l border-slate-200 dark:border-[#26364D]'} bg-white dark:bg-[#0B1220] shadow-xl transition-all duration-300 flex-shrink-0 overflow-x-hidden hidden lg:block`} aria-label="القائمة الرئيسية">
           <div className={`flex items-center gap-2 px-4 py-5 border-b border-slate-200 dark:border-[#26364D] ${isCollapsed ? 'justify-center' : position === 'left' ? 'justify-end' : 'justify-start'}`}>
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-[#0D9488] to-[#2563EB] flex items-center justify-center text-white font-black shadow-lg">T</div>
             {!isCollapsed && (
@@ -91,12 +93,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="px-4 py-4 border-b border-slate-200 dark:border-[#26364D]">
               <div className="flex items-center gap-3">
                 <img
-                  src="/assets/rep-avatar.jpg"
+                  src="/assets/rep-avatar-v2.jpg"
                   alt={currentUser.name}
                   referrerPolicy="no-referrer"
                   className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shadow-xs"
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src = '/assets/rep-avatar.jpg';
+                    (e.target as HTMLImageElement).src = '/assets/rep-avatar-v2.jpg';
                   }}
                 />
                 <div className="min-w-0 flex-1">

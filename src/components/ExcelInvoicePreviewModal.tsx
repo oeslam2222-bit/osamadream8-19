@@ -207,7 +207,7 @@ export const ExcelInvoicePreviewModal: React.FC<ExcelInvoicePreviewModalProps> =
       className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in"
       dir="rtl"
     >
-      <div role="dialog" aria-modal="true" className="modal-full-mobile relative z-[60] bg-[var(--app-card)] rounded-2xl sm:rounded-3xl shadow-2xl border border-[var(--app-border)] w-full max-w-5xl max-h-[96vh] flex flex-col overflow-hidden">
+      <div role="dialog" aria-modal="true" className="modal-full-mobile relative z-[60] bg-[var(--app-card)] rounded-2xl sm:rounded-3xl shadow-2xl border border-[var(--app-border)] w-full max-w-full sm:max-w-lg max-h-[96vh] flex flex-col overflow-hidden">
 
         {/* الشريط العلوي */}
         <div className="bg-slate-900 text-white p-3 sm:p-4 flex items-center justify-between gap-3 border-b-2 border-[var(--app-ok)] shrink-0">
