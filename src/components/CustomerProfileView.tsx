@@ -28,6 +28,7 @@ import { getCustomerPaid } from '../services/customerTableSchema';
 import { resolveBranchName, resolveSectorFromBranch, inferSectorFromText } from '../services/arabicMatchingService';
 import { uploadCustomerPhoto, normalizeCloudinaryConfig } from '../services/cloudinaryService';
 import { ItemSalesProfilePanel } from './itemSales/ItemSalesProfilePanel';
+import { useToast } from './ui/Toast';
 import { referCustomerToLegal } from '../services/legalAffairsService';
 import { LegalTransferModal } from './LegalTransferModal';
 
@@ -61,6 +62,8 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
     cloudinaryConfig,
     customerComments,
   } = useApp();
+
+  const { showToast } = useToast();
 
   const [activeCustomer, setActiveCustomer] = useState<Customer | null>(initialSelectedCustomer || null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -175,7 +178,11 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
     if (!activeCustomer) return;
     const effectiveCloudinary = normalizeCloudinaryConfig(cloudinaryConfig);
     if (!effectiveCloudinary.cloudName) {
-      alert('إعدادات Cloudinary غير مفعّلة. يرجى ضبط cloudName في إعدادات النظام قبل رفع الصور.');
+      showToast({
+        type: 'error',
+        title: 'إعدادات Cloudinary غير مفعّلة',
+        description: 'يرجى ضبط cloudName في إعدادات النظام قبل رفع الصور.',
+      });
       return;
     }
     setUploadingPhoto(true);
@@ -185,10 +192,18 @@ export const CustomerProfileView: React.FC<CustomerProfileViewProps> = ({
       setActiveCustomer(updated);
       const res = await saveCustomersToSupabase([updated]);
       if (!res.success) {
-        alert('تم رفع الصورة على Cloudinary لكن تعذر حفظ الرابط في سجل العميل: ' + (res.error || 'خطأ غير معروف'));
+        showToast({
+          type: 'error',
+          title: 'تعذر حفظ رابط الصورة',
+          description: 'تم رفع الصورة على Cloudinary لكن تعذر حفظ الرابط في سجل العميل: ' + (res.error || 'خطأ غير معروف'),
+        });
       }
     } catch (err: any) {
-      alert('فشل رفع الصورة: ' + (err?.message || 'خطأ غير معروف'));
+      showToast({
+        type: 'error',
+        title: 'فشل رفع الصورة',
+        description: err?.message || 'خطأ غير معروف',
+      });
     } finally {
       setUploadingPhoto(false);
     }
