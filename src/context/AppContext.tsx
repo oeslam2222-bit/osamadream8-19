@@ -81,6 +81,7 @@ import {
   deleteCustomerFromSupabase,
   saveProductsToSupabase,
   deleteProductFromSupabase,
+  deleteProductsFromSupabase,
   fetchCustomerItemSalesIncremental,
   mergeCustomerItemSalesIncremental,
   saveUsersToSupabase,
@@ -6264,6 +6265,39 @@ const saveForecastPlan = useCallback(async (plan: ForecastMonthPlan) => {
         success: false,
         error: saveResult.error || 'تعذر حفظ الكتالوج على السيرفر',
       };
+    }
+
+    // وضع «استبدال كامل»: امسح من السيرفر الأصناف اللي اتشالت من الشيت.
+    // بدون كده الـ upsert بيضيف/يحدّث بس، والأصناف القديمة بتظهر تاني بعد
+    // إعادة التحميل. بنمسح فقط النطاق اللي اتبدل (قطاع واحد أو الكل).
+    if (mode === 'replace') {
+      const incomingIds = new Set(processedIncoming.map((p) => p.id));
+      const incomingSectors = new Set(processedIncoming.map((p) => p.sector).filter(Boolean));
+      const isSingleSector =
+        incomingSectors.size === 1 &&
+        (incomingSectors.has('electrical') || incomingSectors.has('home'));
+      const targetSector = isSingleSector ? Array.from(incomingSectors)[0] : null;
+
+      const orphanIds = products
+        .filter((p) => {
+          if (!p?.id || incomingIds.has(p.id)) return false;
+          if (targetSector) return p.sector === targetSector;
+          return true;
+        })
+        .map((p) => p.id);
+
+      if (orphanIds.length > 0) {
+        try {
+          const delRes = await deleteProductsFromSupabase(orphanIds);
+          if (!delRes.success) {
+            console.warn('Orphan product cleanup notice:', delRes.error);
+          } else {
+            console.info(`Orphan product cleanup: removed ${delRes.removed} stale product(s) from Supabase.`);
+          }
+        } catch (cleanupErr) {
+          console.warn('Orphan product cleanup failed:', cleanupErr);
+        }
+      }
     }
     try {
       await publishNewDataVersion({

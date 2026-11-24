@@ -3710,6 +3710,36 @@ export async function deleteProductFromSupabase(
 }
 
 /**
+ * حذف مجموعة أصناف من جدول products دفعة واحدة.
+ * بيُستخدم بعد الاستيراد بوضع «استبدال كامل» عشان الأصناف اللي اتشالت من
+ * الشيت تتمسح من السيرفر كمان — غير كده بتظهر تاني بعد إعادة التحميل.
+ */
+export async function deleteProductsFromSupabase(
+  productIds: string[]
+): Promise<{ success: boolean; removed: number; error?: string }> {
+  try {
+    if (!productIds || productIds.length === 0) return { success: true, removed: 0 };
+    if (!isSupabaseConfigured) return { success: true, removed: 0 };
+    let removed = 0;
+    for (let i = 0; i < productIds.length; i += 200) {
+      const chunk = productIds.slice(i, i + 200).map((id) => {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+        return isUuid ? id : stringToUuid(id);
+      });
+      const { error } = await supabase.from('products').delete().in('id', chunk);
+      if (error) {
+        console.warn('Supabase product bulk delete notice:', error.message);
+        return { success: false, removed, error: error.message };
+      }
+      removed += chunk.length;
+    }
+    return { success: true, removed };
+  } catch (e: any) {
+    return { success: false, removed: 0, error: e?.message };
+  }
+}
+
+/**
  * هل جدول المنتجات الرسمي الغني هو المصدر المتفق عليه؟
  * بقرأ صف الماني فست بس (صف واحد صغير) — بيستخدم عشان نقرر نستخدم
  * السحب التدريجي (fetchProductsIncremental) ولا لا. قبل أول استيراد
