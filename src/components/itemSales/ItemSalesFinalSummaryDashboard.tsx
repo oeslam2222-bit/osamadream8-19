@@ -11,11 +11,50 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useDeferredValue, useMemo, useState } from 'react';
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import '../../styles/sales-summary.css';
 import { MONTH_NAMES_MAP } from '../../services/customerItemSalesService';
-import { formatCompactAmount, growthToneClass, formatGrowth } from '../../services/customerItemSalesInsights';
+import { growthToneClass, formatGrowth } from '../../services/customerItemSalesInsights';
 import { formatCurrency } from '../../services/invoiceService';
 import { ItemSalesAggDoc, ItemSalesSector } from '../../services/itemSalesAggregateService';
+
+/** أرقام إنجليزي موحّدة في الصفحة كلها */
+const nf = (n: number) => Math.round(n || 0).toLocaleString('en-US');
+const compact = (v: number) => {
+  const a = Math.abs(v || 0);
+  if (a >= 1_000_000) return `${(v / 1_000_000).toFixed(1)} مليون`;
+  if (a >= 1_000) return `${(v / 1_000).toFixed(1)} ألف`;
+  return nf(v);
+};
+const axisShort = (v: number) => (Math.abs(v) >= 1_000_000 ? `${Math.round(v / 1_000_000)}M` : Math.abs(v) >= 1_000 ? `${Math.round(v / 1_000)}K` : String(v));
+
+/**
+ * تطبيع البحث العربي: «أحمد» = «احمد»، «طاولة» = «طاوله»، «مكوى» = «مكوي»،
+ * والأرقام العربية = الإنجليزي، ومن غير تشكيل أو تطويل.
+ */
+const normalizeAr = (s: string) =>
+  (s || '')
+    .toLowerCase()
+    .replace(/[\u064B-\u0652\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/** كل كلمة في البحث لازم تكون موجودة — بأي ترتيب — في الاسم أو الكود أو العائلة */
+const makeMatcher = (query: string) => {
+  const words = normalizeAr(query).split(' ').filter(Boolean);
+  if (!words.length) return null;
+  return (...fields: Array<string | undefined>) => {
+    const hay = normalizeAr(fields.filter(Boolean).join(' '));
+    return words.every((w) => hay.includes(w));
+  };
+};
 
 interface ItemSalesFinalSummaryDashboardProps {
   docs: ItemSalesAggDoc[];
@@ -38,6 +77,10 @@ export const ItemSalesFinalSummaryDashboard: React.FC<ItemSalesFinalSummaryDashb
 }) => {
   const [selectedMonth, setSelectedMonth] = useState<number | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  /** البحث بيتحسب بعد الكتابة مش مع كل حرف — مفيش تهنيج على الموبايل */
+  const deferredQuery = useDeferredValue(searchQuery);
+  const [monthView, setMonthView] = useState<'chart' | 'table'>('chart');
+  const [itemsTab, setItemsTab] = useState<'value' | 'qty'>('value');
 
   const sectorDocs = useMemo(
     () =>
@@ -151,32 +194,24 @@ export const ItemSalesFinalSummaryDashboard: React.FC<ItemSalesFinalSummaryDashb
       fam.itemsCount = famItems.get(key)?.size || 0;
     });
 
-    const q = searchQuery.trim().toLowerCase();
+    const match = makeMatcher(deferredQuery);
     const filterBySearch = <T extends { name: string; code?: string; family?: string }>(list: T[]) =>
-      !q
-        ? list
-        : list.filter(
-            (x) =>
-              x.name.toLowerCase().includes(q) ||
-              (x.code && x.code.toLowerCase().includes(q)) ||
-              (x.family && x.family.toLowerCase().includes(q))
-          );
-
+      !match ? list : list.filter((x) => match(x.name, x.code, x.family));
     const allItems = filterBySearch(Array.from(itemMap.values()));
     const topItemsByValue = [...allItems].sort((a, b) => b.amount - a.amount).slice(0, 15);
     const topItemsByQty = [...allItems].sort((a, b) => b.pieces - a.pieces).slice(0, 15);
     const slowItems = [...allItems].filter((i) => i.amount > 0).sort((a, b) => a.amount - b.amount).slice(0, 8);
     const families = Array.from(familyMap.values())
-      .filter((f) => !q || f.name.toLowerCase().includes(q))
+      .filter((f) => !match || match(f.name))
       .sort((a, b) => b.amount - a.amount);
     const branches = Array.from(branchMap.values())
-      .filter((b) => !q || b.name.toLowerCase().includes(q))
+      .filter((b) => !match || match(b.name))
       .sort((a, b) => b.amount - a.amount);
     const reps = Array.from(repMap.values())
-      .filter((r) => !q || r.name.toLowerCase().includes(q))
+      .filter((r) => !match || match(r.name))
       .sort((a, b) => b.amount - a.amount);
     const topCustomers = Array.from(customerMap.values())
-      .filter((c) => !q || c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q))
+      .filter((c) => !match || match(c.name, c.code))
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 15);
 
@@ -210,66 +245,83 @@ export const ItemSalesFinalSummaryDashboard: React.FC<ItemSalesFinalSummaryDashb
       reps,
       topCustomers,
     };
-  }, [filteredDocs, sectorDocs, selectedMonth, searchQuery]);
+  }, [filteredDocs, sectorDocs, selectedMonth, deferredQuery]);
+
+  const chartData = sectorDocs.map((d) => ({
+    month: d.month,
+    name: MONTH_NAMES_MAP[d.month] || String(d.month),
+    amount: d.totals.a || 0,
+    pieces: d.totals.p || 0,
+    customers: d.totals.cu || 0,
+  }));
+  const toggleMonth = (m?: number) => {
+    if (typeof m !== 'number') return;
+    setSelectedMonth((prev) => (prev === m ? 'all' : m));
+  };
+  const topItems = itemsTab === 'value' ? summary.topItemsByValue : summary.topItemsByQty;
+  const topItemsMax = Math.max(1, ...topItems.map((it) => (itemsTab === 'value' ? it.amount : it.pieces)));
+
+  // دالة مش كومبوننت: عشان القوائم ما تتبنيش من الأول مع كل رسم للصفحة
+  const rankList = (
+    title: string,
+    icon: React.ReactNode,
+    rows: Array<{ name: string; amount: number; pieces: number; itemsCount?: number }>,
+    empty: string,
+  ) => (
+    <section className="ss-card ss-pad">
+      <h3 className="ss-h3">{icon}{title} <span className="ss-muted">({nf(rows.length)})</span></h3>
+      <div className="ss-ranklist">
+        {rows.slice(0, 15).map((r, i) => {
+          const pct = summary.totalAmount > 0 ? (r.amount / summary.totalAmount) * 100 : 0;
+          return (
+            <div key={r.name} className="ss-rank">
+              <span className="ss-rank__i">{i + 1}</span>
+              <div className="ss-rank__body">
+                <div className="ss-rank__row">
+                  <span className="ss-rank__name" title={r.name}>{r.name}</span>
+                  <span className="ss-num">{compact(r.amount)}</span>
+                </div>
+                <div className="ss-track"><div className="ss-fill" style={{ width: `${Math.min(100, pct)}%` }} /></div>
+                <div className="ss-rank__meta">
+                  <span>{pct.toFixed(1)}%{r.itemsCount !== undefined ? ` · ${nf(r.itemsCount)} صنف` : ''}</span>
+                  <span>{nf(r.pieces)} قطعة</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {rows.length === 0 && <div className="ss-empty">{empty}</div>}
+      </div>
+    </section>
+  );
 
   return (
-    <div className="space-y-4">
-      {/* Final-Numbers Notice Bar */}
-      <section className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-4 space-y-3 shadow-[0_2px_10px_rgba(15,43,56,0.04)]">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center justify-center shrink-0">
-              <BarChart3 className="w-4 h-4" />
-            </span>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xs sm:text-sm font-black text-slate-900">
-                  وضع الأرقام النهائية فقط (ملخص فوري بدون تحميل 100 ألف صف)
-                </h2>
-                {fromCache && (
-                  <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200">
-                    من الذاكرة المحلية
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] font-bold text-slate-500">
-                تم تجميع {summary.totalRows.toLocaleString('ar-EG')} حركة في ملخصات خفيفة (~20-80KB) لتفتح الشاشة فوراً حتى على النت الضعيف.
-              </p>
-            </div>
+    <div className="ss-page">
+      {/* ---------- العنوان + الفلاتر ---------- */}
+      <section className="ss-card ss-pad ss-head">
+        <div className="ss-head__top">
+          <div>
+            <h2 className="ss-title">
+              تحليل مبيعات الأصناف
+              {fromCache && <span className="ss-chip ss-chip--info">من الذاكرة المحلية</span>}
+            </h2>
+            <p className="ss-sub">ملخص {nf(summary.totalRows)} حركة بيع — بيفتح فوراً حتى على النت الضعيف</p>
           </div>
-
-          {onLoadCustomerSummary && (
-            <button
-              type="button"
-              onClick={onLoadCustomerSummary}
-              disabled={isFetchingDetailed}
-              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-[11px] font-black transition cursor-pointer disabled:opacity-50"
-            >
-              <CloudDownload className={`w-3.5 h-3.5 ${isFetchingDetailed ? 'animate-bounce' : ''}`} />
-              <span>{isFetchingDetailed ? 'جاري التحميل...' : 'تحميل ملخص العملاء (اختياري)'}</span>
-            </button>
-          )}
         </div>
 
-        {/* Sector + Month + Quick Search */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="ss-filters">
           {canSwitchSector && onSelectSector && (
-            <div className="flex items-center gap-1.5">
+            <div className="ss-seg" role="group" aria-label="القطاع">
               {([
-                { key: 'home' as const, label: '🏠 منزلي' },
-                { key: 'electrical' as const, label: '⚡ كهربائي' },
+                { key: 'home' as const, label: 'منزلي' },
+                { key: 'electrical' as const, label: 'كهربائي' },
               ]).map((s) => (
                 <button
                   key={s.key}
                   type="button"
+                  aria-pressed={sector === s.key}
                   onClick={() => onSelectSector(s.key)}
-                  className={`h-8 px-3 rounded-xl text-[11px] font-black border transition cursor-pointer ${
-                    sector === s.key
-                      ? s.key === 'electrical'
-                        ? 'bg-[var(--app-violet)] text-white border-[var(--app-violet)]'
-                        : 'bg-[var(--app-navy)] text-white border-[var(--app-navy)]'
-                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                  }`}
+                  className={`ss-seg__btn ${sector === s.key ? 'is-active' : ''}`}
                 >
                   {s.label}
                 </button>
@@ -278,301 +330,208 @@ export const ItemSalesFinalSummaryDashboard: React.FC<ItemSalesFinalSummaryDashb
           )}
 
           <select
+            aria-label="الشهر"
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-            className="h-9 px-3 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-black text-slate-800 cursor-pointer"
+            className="ss-input ss-select"
           >
             <option value="all">كل الشهور ({availableMonths.length})</option>
             {availableMonths.map((m) => (
-              <option key={m} value={m}>
-                {MONTH_NAMES_MAP[m] || `شهر ${m}`}
-              </option>
+              <option key={m} value={m}>{MONTH_NAMES_MAP[m] || `شهر ${m}`}</option>
             ))}
           </select>
 
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <div className="ss-search">
+            <Search className="ss-search__icon" aria-hidden="true" />
             <input
-              type="text"
+              type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="بحث في الأصناف أو العائلات أو الفروع..."
-              className="w-full h-9 pr-8 pl-8 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-bold text-slate-900"
+              placeholder="ابحث بالاسم أو الكود أو العائلة أو الفرع أو المندوب"
+              aria-label="بحث"
+              className="ss-input"
             />
             {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
+              <button type="button" aria-label="مسح البحث" onClick={() => setSearchQuery('')} className="ss-search__clear">
+                <X className="w-4 h-4" />
               </button>
             )}
           </div>
         </div>
       </section>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white rounded-2xl border border-slate-200 p-4">
-          <div className="text-[11px] font-bold text-slate-500">إجمالي المبيعات</div>
-          <div className="text-lg sm:text-xl font-black text-slate-900 font-mono mt-1">
-            {formatCurrency(summary.totalAmount)}
-          </div>
-          {summary.growthPctValue !== null && (
-            <span className={`inline-flex items-center gap-1 mt-1.5 px-2 py-0.5 rounded-md border text-[10px] font-black ${growthToneClass(summary.growthPctValue)}`}>
-              {summary.growthPctValue >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-              {formatGrowth(summary.growthPctValue)}
+      {/* ---------- المؤشرات ---------- */}
+      <div className="ss-kpis">
+        <div className="ss-card ss-kpi">
+          <div className="ss-kpi__label">إجمالي المبيعات</div>
+          <div className="ss-kpi__value">{formatCurrency(summary.totalAmount)}</div>
+          {summary.growthPctValue !== null ? (
+            <span className={`ss-growth ${growthToneClass(summary.growthPctValue)}`}>
+              {summary.growthPctValue >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+              {formatGrowth(summary.growthPctValue)} عن الشهر السابق
             </span>
+          ) : (
+            <div className="ss-kpi__meta">{selectedMonth === 'all' ? 'كل الشهور' : MONTH_NAMES_MAP[selectedMonth]}</div>
           )}
         </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-4">
-          <div className="text-[11px] font-bold text-slate-500">إجمالي الكمية</div>
-          <div className="text-lg sm:text-xl font-black text-slate-900 font-mono mt-1">
-            {Math.round(summary.totalPieces).toLocaleString('ar-EG')}
-          </div>
-          <div className="text-[10px] font-bold text-slate-400 mt-1">قطعة / كرتونة</div>
+        <div className="ss-card ss-kpi">
+          <div className="ss-kpi__label">إجمالي الكمية</div>
+          <div className="ss-kpi__value">{nf(summary.totalPieces)}</div>
+          <div className="ss-kpi__meta">قطعة / كرتونة</div>
         </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-4">
-          <div className="text-[11px] font-bold text-slate-500">الأصناف المباعة</div>
-          <div className="text-lg sm:text-xl font-black text-slate-900 font-mono mt-1">
-            {summary.itemsCount.toLocaleString('ar-EG')}
-          </div>
-          <div className="text-[10px] font-bold text-slate-400 mt-1">
-            ضمن {summary.families.length.toLocaleString('ar-EG')} عائلة
-          </div>
+        <div className="ss-card ss-kpi">
+          <div className="ss-kpi__label">الأصناف المباعة</div>
+          <div className="ss-kpi__value">{nf(summary.itemsCount)}</div>
+          <div className="ss-kpi__meta">ضمن {nf(summary.families.length)} عائلة</div>
         </div>
-
-        <div className="bg-white rounded-2xl border border-slate-200 p-4">
-          <div className="text-[11px] font-bold text-slate-500">العملاء النشطين</div>
-          <div className="text-lg sm:text-xl font-black text-slate-900 font-mono mt-1">
-            {summary.maxMonthCustomers.toLocaleString('ar-EG')}
-          </div>
-          <div className="text-[10px] font-bold text-slate-400 mt-1">أعلى عدد عملاء بشهر</div>
+        <div className="ss-card ss-kpi">
+          <div className="ss-kpi__label">العملاء النشطين</div>
+          <div className="ss-kpi__value">{nf(summary.maxMonthCustomers)}</div>
+          <div className="ss-kpi__meta">أعلى عدد عملاء في شهر</div>
         </div>
       </div>
 
-      {/* Months Table */}
-      <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-sm font-black text-slate-900">ملخص الشهور النهائي</h3>
-          <span className="text-[10px] font-bold text-slate-400">اضغط على شهر للتصفية</span>
+      {/* ---------- الشهور: شارت أو جدول ---------- */}
+      <section className="ss-card">
+        <div className="ss-cardhead">
+          <h3 className="ss-h3"><BarChart3 className="w-4 h-4" />المبيعات الشهرية</h3>
+          <div className="ss-seg ss-seg--sm" role="group" aria-label="طريقة العرض">
+            <button type="button" aria-pressed={monthView === 'chart'} className={`ss-seg__btn ${monthView === 'chart' ? 'is-active' : ''}`} onClick={() => setMonthView('chart')}>رسم بياني</button>
+            <button type="button" aria-pressed={monthView === 'table'} className={`ss-seg__btn ${monthView === 'table' ? 'is-active' : ''}`} onClick={() => setMonthView('table')}>جدول</button>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
-            <thead>
-              <tr className="bg-slate-50 text-[10.5px] font-black text-slate-500">
-                <th className="px-3 py-2.5">الشهر</th>
-                <th className="px-3 py-2.5">عدد العملاء</th>
-                <th className="px-3 py-2.5">عدد الأصناف</th>
-                <th className="px-3 py-2.5">إجمالي القطع</th>
-                <th className="px-3 py-2.5">إجمالي المبيعات</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {sectorDocs.map((doc) => {
-                const isSelected = selectedMonth === doc.month;
-                return (
+
+        {monthView === 'chart' ? (
+          <div className="ss-chart">
+            {chartData.length === 0 ? (
+              <div className="ss-empty">لا توجد بيانات شهور</div>
+            ) : (
+              <>
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                    <CartesianGrid vertical={false} className="ss-grid" />
+                    <XAxis dataKey="name" reversed tickLine={false} axisLine={false} tick={{ fontSize: 12 }} interval={0} />
+                    <YAxis orientation="right" tickFormatter={axisShort} tickLine={false} axisLine={false} tick={{ fontSize: 12 }} width={44} />
+                    <Tooltip
+                      cursor={{ className: 'ss-cursor' }}
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const d = payload[0].payload as (typeof chartData)[number];
+                        return (
+                          <div className="ss-tip">
+                            <strong>{d.name}</strong>
+                            <div>المبيعات: <b className="ss-num">{formatCurrency(d.amount)}</b></div>
+                            <div>الكمية: <b className="ss-num">{nf(d.pieces)}</b></div>
+                            <div>العملاء: <b className="ss-num">{nf(d.customers)}</b></div>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Bar dataKey="amount" radius={[6, 6, 0, 0]} maxBarSize={48} onClick={(d: any) => toggleMonth(d?.payload?.month ?? d?.month)}>
+                      {chartData.map((d) => (
+                        <Cell
+                          key={d.month}
+                          className={`ss-bar ${selectedMonth === 'all' ? '' : selectedMonth === d.month ? 'is-active' : 'is-dim'}`}
+                        />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <p className="ss-hint">اضغط على أي شهر عشان تفلتر الصفحة كلها عليه، واضغط تاني للرجوع لكل الشهور.</p>
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="ss-tablewrap">
+            <table className="ss-table">
+              <thead>
+                <tr><th>الشهر</th><th>العملاء</th><th>الأصناف</th><th>القطع</th><th>المبيعات</th></tr>
+              </thead>
+              <tbody>
+                {sectorDocs.map((doc) => (
                   <tr
                     key={`${doc.sector}-${doc.month}`}
-                    onClick={() => setSelectedMonth(isSelected ? 'all' : doc.month)}
-                    className={`cursor-pointer transition ${isSelected ? 'bg-amber-50/70' : 'hover:bg-slate-50'}`}
+                    onClick={() => toggleMonth(doc.month)}
+                    className={selectedMonth === doc.month ? 'is-active' : ''}
                   >
-                    <td className="px-3 py-2.5 font-black text-slate-800">{MONTH_NAMES_MAP[doc.month] || doc.month}</td>
-                    <td className="px-3 py-2.5 font-mono font-bold text-slate-700">{(doc.totals.cu || 0).toLocaleString('ar-EG')}</td>
-                    <td className="px-3 py-2.5 font-mono font-bold text-slate-700">{(doc.items?.length || 0).toLocaleString('ar-EG')}</td>
-                    <td className="px-3 py-2.5 font-mono font-bold text-slate-700">{Math.round(doc.totals.p || 0).toLocaleString('ar-EG')}</td>
-                    <td className="px-3 py-2.5 font-mono font-black text-slate-900">{formatCurrency(doc.totals.a || 0)}</td>
+                    <td className="ss-strong">{MONTH_NAMES_MAP[doc.month] || doc.month}</td>
+                    <td className="ss-num">{nf(doc.totals.cu || 0)}</td>
+                    <td className="ss-num">{nf(doc.items?.length || 0)}</td>
+                    <td className="ss-num">{nf(doc.totals.p || 0)}</td>
+                    <td className="ss-num ss-strong">{formatCurrency(doc.totals.a || 0)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* ---------- الفروع / العائلات / المناديب ---------- */}
+      <div className="ss-grid3">
+        {rankList('الفروع', <Building2 className="w-4 h-4" />, summary.branches, 'لا توجد بيانات فروع')}
+        {rankList('العائلات', <Layers className="w-4 h-4" />, summary.families, 'لا توجد بيانات عائلات')}
+        {rankList('المناديب', <UserRound className="w-4 h-4" />, summary.reps, 'لا توجد بيانات مناديب')}
+      </div>
+
+      {/* ---------- أعلى 15 صنف (جدول واحد بتبويبين) ---------- */}
+      <section className="ss-card">
+        <div className="ss-cardhead">
+          <h3 className="ss-h3"><Package className="w-4 h-4" />أعلى 15 صنف</h3>
+          <div className="ss-seg ss-seg--sm" role="group" aria-label="الترتيب">
+            <button type="button" aria-pressed={itemsTab === 'value'} className={`ss-seg__btn ${itemsTab === 'value' ? 'is-active' : ''}`} onClick={() => setItemsTab('value')}>بالقيمة</button>
+            <button type="button" aria-pressed={itemsTab === 'qty'} className={`ss-seg__btn ${itemsTab === 'qty' ? 'is-active' : ''}`} onClick={() => setItemsTab('qty')}>بالكمية</button>
+          </div>
+        </div>
+        <div className="ss-tablewrap">
+          <table className="ss-table ss-table--items">
+            <thead>
+              <tr><th>#</th><th>الصنف</th><th>العائلة</th><th>الكمية</th><th>المبلغ</th><th className="ss-col-share">النسبة</th></tr>
+            </thead>
+            <tbody>
+              {topItems.map((it, i) => {
+                const v = itemsTab === 'value' ? it.amount : it.pieces;
+                return (
+                  <tr key={it.code + it.name}>
+                    <td className="ss-num ss-muted">{i + 1}</td>
+                    <td>
+                      <div className="ss-strong ss-ellipsis" title={it.name}>{it.name}</div>
+                      <div className="ss-code">{it.code}</div>
+                    </td>
+                    <td className="ss-muted">{it.family}</td>
+                    <td className={`ss-num ${itemsTab === 'qty' ? 'ss-strong' : ''}`}>{nf(it.pieces)}</td>
+                    <td className={`ss-num ${itemsTab === 'value' ? 'ss-strong' : ''}`}>{formatCurrency(it.amount)}</td>
+                    <td className="ss-col-share"><div className="ss-track"><div className="ss-fill" style={{ width: `${(v / topItemsMax) * 100}%` }} /></div></td>
                   </tr>
                 );
               })}
+              {topItems.length === 0 && (
+                <tr><td colSpan={6}><div className="ss-empty">مفيش أصناف مطابقة للبحث</div></td></tr>
+              )}
             </tbody>
           </table>
         </div>
       </section>
 
-      {/* Branches & Reps & Families */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <section className="bg-white rounded-2xl border border-slate-200 p-4">
-          <h3 className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5 mb-3">
-            <Building2 className="w-4 h-4 text-[var(--app-navy-text)]" />
-            ملخص الفروع ({summary.branches.length})
-          </h3>
-          <div className="space-y-2 max-h-72 overflow-y-auto">
-            {summary.branches.map((b) => {
-              const pct = summary.totalAmount > 0 ? (b.amount / summary.totalAmount) * 100 : 0;
-              return (
-                <div key={b.name} className="pb-2 border-b border-slate-100 last:border-0">
-                  <div className="flex justify-between text-[11px] font-black text-slate-800">
-                    <span className="truncate">{b.name}</span>
-                    <span className="font-mono">{formatCompactAmount(b.amount)}</span>
-                  </div>
-                  <div className="mt-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                    <div className="h-full bg-[#102b4e] rounded-full" style={{ width: `${Math.min(100, pct)}%` }} />
-                  </div>
-                  <div className="mt-0.5 flex justify-between text-[9.5px] font-bold text-slate-400">
-                    <span>{pct.toFixed(1)}%</span>
-                    <span>{Math.round(b.pieces).toLocaleString('ar-EG')} قطعة</span>
-                  </div>
-                </div>
-              );
-            })}
-            {summary.branches.length === 0 && <div className="text-xs text-slate-400 text-center py-6">لا توجد بيانات فروع</div>}
-          </div>
-        </section>
-
-        <section className="bg-white rounded-2xl border border-slate-200 p-4">
-          <h3 className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5 mb-3">
-            <Layers className="w-4 h-4 text-emerald-700" />
-            ملخص العائلات ({summary.families.length})
-          </h3>
-          <div className="space-y-2 max-h-72 overflow-y-auto">
-            {summary.families.slice(0, 15).map((f) => {
-              const pct = summary.totalAmount > 0 ? (f.amount / summary.totalAmount) * 100 : 0;
-              return (
-                <div key={f.name} className="pb-2 border-b border-slate-100 last:border-0">
-                  <div className="flex justify-between text-[11px] font-black text-slate-800">
-                    <span className="truncate">{f.name}</span>
-                    <span className="font-mono">{formatCompactAmount(f.amount)}</span>
-                  </div>
-                  <div className="mt-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                    <div className="h-full bg-emerald-600 rounded-full" style={{ width: `${Math.min(100, pct)}%` }} />
-                  </div>
-                  <div className="mt-0.5 flex justify-between text-[9.5px] font-bold text-slate-400">
-                    <span>{pct.toFixed(1)}% · {f.itemsCount} صنف</span>
-                    <span>{Math.round(f.pieces).toLocaleString('ar-EG')} قطعة</span>
-                  </div>
-                </div>
-              );
-            })}
-            {summary.families.length === 0 && <div className="text-xs text-slate-400 text-center py-6">لا توجد بيانات عائلات</div>}
-          </div>
-        </section>
-
-        <section className="bg-white rounded-2xl border border-slate-200 p-4">
-          <h3 className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5 mb-3">
-            <UserRound className="w-4 h-4 text-amber-600" />
-            أداء المناديب ({summary.reps.length})
-          </h3>
-          <div className="space-y-2 max-h-72 overflow-y-auto">
-            {summary.reps.slice(0, 15).map((r) => {
-              const pct = summary.totalAmount > 0 ? (r.amount / summary.totalAmount) * 100 : 0;
-              return (
-                <div key={r.name} className="pb-2 border-b border-slate-100 last:border-0">
-                  <div className="flex justify-between text-[11px] font-black text-slate-800">
-                    <span className="truncate">{r.name}</span>
-                    <span className="font-mono">{formatCompactAmount(r.amount)}</span>
-                  </div>
-                  <div className="mt-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
-                    <div className="h-full bg-amber-500 rounded-full" style={{ width: `${Math.min(100, pct)}%` }} />
-                  </div>
-                  <div className="mt-0.5 flex justify-between text-[9.5px] font-bold text-slate-400">
-                    <span>{pct.toFixed(1)}%</span>
-                    <span>{Math.round(r.pieces).toLocaleString('ar-EG')} قطعة</span>
-                  </div>
-                </div>
-              );
-            })}
-            {summary.reps.length === 0 && <div className="text-xs text-slate-400 text-center py-6">لا توجد بيانات مناديب</div>}
-          </div>
-        </section>
-      </div>
-
-      {/* Top Items by Value & Quantity */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-            <Package className="w-4 h-4 text-[var(--app-navy-text)]" />
-            <h3 className="text-xs sm:text-sm font-black text-slate-900">أعلى 15 صنف بالقيمة</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-[11px]">
-              <thead>
-                <tr className="bg-slate-50 font-black text-slate-500">
-                  <th className="px-3 py-2">الصنف</th>
-                  <th className="px-3 py-2">العائلة</th>
-                  <th className="px-3 py-2">الكمية</th>
-                  <th className="px-3 py-2">المبلغ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {summary.topItemsByValue.map((it) => (
-                  <tr key={it.code + it.name}>
-                    <td className="px-3 py-2 font-black text-slate-800 max-w-[200px] truncate" title={it.name}>
-                      {it.name}
-                      <span className="block text-[9px] text-slate-400 font-mono">{it.code}</span>
-                    </td>
-                    <td className="px-3 py-2 font-bold text-slate-500">{it.family}</td>
-                    <td className="px-3 py-2 font-mono font-bold text-slate-700">{Math.round(it.pieces).toLocaleString('ar-EG')}</td>
-                    <td className="px-3 py-2 font-mono font-black text-slate-900">{formatCurrency(it.amount)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-            <Package className="w-4 h-4 text-emerald-700" />
-            <h3 className="text-xs sm:text-sm font-black text-slate-900">أعلى 15 صنف بالكمية</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-[11px]">
-              <thead>
-                <tr className="bg-slate-50 font-black text-slate-500">
-                  <th className="px-3 py-2">الصنف</th>
-                  <th className="px-3 py-2">العائلة</th>
-                  <th className="px-3 py-2">الكمية</th>
-                  <th className="px-3 py-2">المبلغ</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {summary.topItemsByQty.map((it) => (
-                  <tr key={it.code + it.name}>
-                    <td className="px-3 py-2 font-black text-slate-800 max-w-[200px] truncate" title={it.name}>
-                      {it.name}
-                      <span className="block text-[9px] text-slate-400 font-mono">{it.code}</span>
-                    </td>
-                    <td className="px-3 py-2 font-bold text-slate-500">{it.family}</td>
-                    <td className="px-3 py-2 font-mono font-black text-emerald-700">{Math.round(it.pieces).toLocaleString('ar-EG')}</td>
-                    <td className="px-3 py-2 font-mono font-bold text-slate-700">{formatCurrency(it.amount)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      </div>
-
+      {/* ---------- أعلى العملاء ---------- */}
       {summary.topCustomers.length > 0 && (
-        <section className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-2">
-            <Users className="w-4 h-4 text-[var(--app-navy-text)]" />
-            <h3 className="text-xs sm:text-sm font-black text-slate-900">أعلى العملاء (من الملخص)</h3>
+        <section className="ss-card">
+          <div className="ss-cardhead">
+            <h3 className="ss-h3"><Users className="w-4 h-4" />أعلى العملاء</h3>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-[11px]">
+          <div className="ss-tablewrap">
+            <table className="ss-table">
               <thead>
-                <tr className="bg-slate-50 font-black text-slate-500">
-                  <th className="px-3 py-2">العميل</th>
-                  <th className="px-3 py-2">الأصناف</th>
-                  <th className="px-3 py-2">الكمية</th>
-                  <th className="px-3 py-2">الإجمالي</th>
-                </tr>
+                <tr><th>#</th><th>العميل</th><th>الأصناف</th><th>الكمية</th><th>الإجمالي</th></tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {summary.topCustomers.map((c) => (
+              <tbody>
+                {summary.topCustomers.map((c, i) => (
                   <tr key={c.code}>
-                    <td className="px-3 py-2 font-black text-slate-800">
-                      {c.name}
-                      <span className="block text-[9px] text-slate-400 font-mono">{c.code}</span>
-                    </td>
-                    <td className="px-3 py-2 font-mono font-bold text-slate-600">{c.items.toLocaleString('ar-EG')}</td>
-                    <td className="px-3 py-2 font-mono font-bold text-slate-700">{Math.round(c.pieces).toLocaleString('ar-EG')}</td>
-                    <td className="px-3 py-2 font-mono font-black text-slate-900">{formatCurrency(c.amount)}</td>
+                    <td className="ss-num ss-muted">{i + 1}</td>
+                    <td><div className="ss-strong">{c.name}</div><div className="ss-code">{c.code}</div></td>
+                    <td className="ss-num">{nf(c.items)}</td>
+                    <td className="ss-num">{nf(c.pieces)}</td>
+                    <td className="ss-num ss-strong">{formatCurrency(c.amount)}</td>
                   </tr>
                 ))}
               </tbody>
