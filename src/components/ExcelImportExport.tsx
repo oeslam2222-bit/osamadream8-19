@@ -48,6 +48,7 @@ import {
 } from '../services/supabaseService';
 import {
   buildItemSalesAggregates,
+  publishItemSalesSummaries,
   saveItemSalesAggregates,
 } from '../services/itemSalesAggregateService';
 import {
@@ -404,13 +405,12 @@ export const ExcelImportExport: React.FC<ExcelImportExportProps> = ({ onNavigate
         }));
 
         // الملخص الشهري بيتجمع هنا مرة واحدة — كل الأجهزة بتقرأه بدل الجدول.
-        void saveItemSalesAggregates(
-          buildItemSalesAggregates(finalSales, {
-            maxCustomers: 0,
-            resolveSector: (record) =>
-              (record as any).sector === 'electrical' || activeSectorTab === 'electrical' ? 'electrical' : 'home',
-          })
-        ).catch(() => {});
+        // + تفصيل الفروع والمناديب بالصنف (لفلاتر صفحة مبيعات الأصناف)
+        void publishItemSalesSummaries(finalSales, {
+          maxCustomers: 0,
+          resolveSector: (record) =>
+            (record as any).sector === 'electrical' || activeSectorTab === 'electrical' ? 'electrical' : 'home',
+        }).catch(() => {});
 
         // Extract and deduplicate customer profiles from sales records
         const codeMap = new Map<string, Customer>();

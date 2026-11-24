@@ -190,7 +190,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" dir="rtl" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-[var(--app-card)] rounded-3xl shadow-2xl w-full max-w-full sm:max-w-2xl h-[92vh] overflow-hidden flex flex-col border border-[var(--app-border)]">
+      <div className="bg-[var(--app-card)] rounded-3xl shadow-2xl pm-modal w-full max-w-full sm:max-w-[min(1200px,96vw)] h-[92dvh] overflow-hidden flex flex-col border border-[var(--app-border)]">
         {/* Header */}
         <div className="px-5 sm:px-6 py-4 border-b border-white/10 flex items-center justify-between bg-gradient-to-l from-[#0f233d] via-[#162f52] to-[#1a3861] text-white">
           <div className="flex items-center gap-3">
@@ -203,7 +203,7 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
           <button type="button" onClick={onClose} className="w-10 h-10 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center transition" aria-label="إغلاق"><X size={18} /></button>
         </div>
 
-        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="pm-body flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[340px_minmax(0,1fr)]">
           {/* Left: users */}
           <aside className="border-b lg:border-b-0 lg:border-l border-[var(--app-border)] bg-[var(--app-card-secondary)] flex flex-col min-h-0">
             <div className="p-3 sm:p-4 space-y-2 border-b border-[var(--app-border)]">
@@ -236,11 +236,11 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
             ) : (
               <>
                 <div className="p-4 sm:p-5 border-b border-[var(--app-border)] space-y-3 bg-[var(--app-card)]">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
+                  <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <div className="w-11 h-11 rounded-2xl bg-[#102b4e] text-white flex items-center justify-center font-black">{selectedUser.name.charAt(0)}</div>
-                      <div>
-                        <div className="font-black text-[var(--app-text)]">{selectedUser.name}</div>
+                      <div className="min-w-0">
+                        <div className="font-black text-[var(--app-text)] text-base truncate">{selectedUser.name}</div>
                         <div className="text-[11px] font-bold text-[var(--app-text-muted)]">@{selectedUser.username} · {selectedUser.branchName || 'بدون فرع'}</div>
                       </div>
                     </div>
@@ -296,9 +296,9 @@ export const PermissionManagerModal: React.FC<PermissionManagerModalProps> = ({ 
                   })}
                 </div>
 
-                <div className="px-4 sm:px-5 py-3 border-t border-[var(--app-border)] bg-[var(--app-card)] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="text-[11px] font-bold text-[var(--app-text-muted)] flex items-center gap-2"><Building2 size={14}/> يتم تطبيق الصلاحيات على حساب <b className="text-[var(--app-text)]">{selectedUser.name}</b> فور الحفظ (قد يلزم إعادة فتح الجلسة عند المستخدم).</div>
-                  <div className="flex items-center gap-2">
+                <div className="px-4 sm:px-5 py-3 border-t border-[var(--app-border)] bg-[var(--app-card)] flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="pm-foot-note min-w-0 flex-1 text-xs font-bold text-[var(--app-text-muted)] flex items-center gap-2"><Building2 size={14}/> يتم تطبيق الصلاحيات على حساب <b className="text-[var(--app-text)]">{selectedUser.name}</b> فور الحفظ (قد يلزم إعادة فتح الجلسة عند المستخدم).</div>
+                  <div className="flex items-center gap-2 shrink-0 flex-wrap">
                     <button onClick={handleReset} disabled={isSaving} className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-[var(--app-border)] text-[var(--app-text)] text-sm font-black hover:bg-[var(--app-card-hover)] disabled:opacity-50 bg-[var(--app-card)]"><RotateCcw size={15}/> افتراضي الدور</button>
                     <button onClick={handleSave} disabled={isSaving} className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#102b4e] text-white font-black shadow-lg shadow-blue-900/20 hover:bg-[#16365f] disabled:opacity-50"><Save size={15}/> {isSaving ? 'جارٍ الحفظ...' : 'حفظ الصلاحيات'}</button>
                   </div>

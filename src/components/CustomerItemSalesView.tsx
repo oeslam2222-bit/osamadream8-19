@@ -90,6 +90,8 @@ import { createItemSalesSectorResolver } from '../services/sectorResolver';
 import { DebouncedSearchInput } from './DebouncedSearchInput';
 import {
   buildItemSalesAggregates,
+  publishItemSalesSummaries,
+  buildItemSalesCrossDocs,
   fetchItemSalesAggregates,
   fetchItemSalesForRep,
   getCachedItemSalesAggregates,
@@ -104,6 +106,7 @@ interface CustomerItemSalesViewProps {
 }
 
 const SalesFocusV4 = React.lazy(() => import('./itemSales/SalesFocusV4'));
+const ItemSalesInsights = React.lazy(() => import('./itemSales/ItemSalesInsights'));
 
 type SalesViewMode = 'overview' | 'visuals' | 'focus' | 'customers';
 
@@ -156,11 +159,14 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
   const publishItemSalesAggregates = React.useCallback(
     (rows: CustomerItemSaleRecord[]) => {
       if (!rows || rows.length === 0) return;
-      void saveItemSalesAggregates(buildItemSalesAggregates(rows, { resolveSector: resolveItemSaleSector })).catch(
-        () => {}
-      );
+      // الملخص عام لكل الأجهزة: لازم يتبني من البيانات الكاملة بس. مندوب أو مشرف
+      // بيجيب بيانات نطاقه هو، فلو نشر كان هيكتب ملخص ناقص فوق ملخص الشركة.
+      const role = currentUser?.role;
+      if (role !== 'admin' && role !== 'developer' && role !== 'technical_support') return;
+      // maxCustomers: 0 — مفيش قائمة عملاء في الملخص؛ بيانات العميل مكانها بروفايل العميل.
+      void publishItemSalesSummaries(rows, { resolveSector: resolveItemSaleSector, maxCustomers: 0 }).catch(() => {});
     },
-    [resolveItemSaleSector]
+    [resolveItemSaleSector, currentUser?.role]
   );
 
   /** القطاع الفعّال للعزل: الادمن/المطور/الدعم الفني يبدّل بين المنزلي والكهربائي بدون دمج،
@@ -225,6 +231,9 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
 
   const [salesRecords, setSalesRecords] = useState<CustomerItemSaleRecord[]>([]);
   const [aggDocs, setAggDocs] = useState<ItemSalesAggDoc[]>([]);
+  /** العرض التفصيلي القديم (حركات البيع الخام) — بيتفتح بطلب صريح بس */
+  const [showDetailed, setShowDetailed] = useState(false);
+  const detailedRequestedRef = React.useRef(false);
   const [aggFromCache, setAggFromCache] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isBackgroundSyncing, setIsBackgroundSyncing] = useState(false);
@@ -333,7 +342,12 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         hasRenderedLocal = true;
       }
 
-      if (compactCached && compactCached.records.length > 0) {
+      // الإدارة: لو فيه ملخص خفيف، مانحمّلش الحركات الخام في الذاكرة (سبب التهنيج)
+      // إلا لو المستخدم فتح «حركات البيع التفصيلية» بنفسه.
+      const skipRawForSummary = isSummaryRole && cachedAgg.length > 0 && !detailedRequestedRef.current;
+      if (skipRawForSummary) {
+        // الملخص اتعرض فوق — كفاية
+      } else if (compactCached && compactCached.records.length > 0) {
         setSalesRecords(compactCached.records);
         hasRenderedLocal = true;
       } else if (localBackup.length > 0) {
@@ -388,7 +402,7 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
               ? 'الشبكة ضعيفة — تم عرض الأرقام النهائية من الكاش المحلي دون انتظار.'
               : `تم تحميل الأرقام النهائية المجمّعة (${totalRowsAgg.toLocaleString('ar-EG')} حركة مجمّعة في ملخص خفيف).`
           );
-          if (!compactCached?.records.length) {
+          if (!compactCached?.records.length || !detailedRequestedRef.current) {
             return;
           }
         }
@@ -1224,6 +1238,22 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
     setExpandedCustomerAccounts((previous) => new Set(previous).add(account));
   };
 
+  /**
+   * مصدر صفحة مبيعات الأصناف:
+   *  • الإدارة: الملخص الخفيف من السيرفر (تفصيل الفرع/المندوب بيتنزّل عند الطلب)
+   *  • المندوب/المشرف: ملخص بيتحسب محلياً من بياناتهم هم بس (نطاقهم) — مفيش
+   *    أي بيانات لمناديب تانيين، ومفيش طلبات إضافية للسيرفر.
+   */
+  const insightDocs = React.useMemo<ItemSalesAggDoc[]>(() => {
+    if (aggDocs.length > 0) return aggDocs;
+    if (salesRecords.length === 0) return [];
+    return buildItemSalesAggregates(salesRecords, { resolveSector: resolveItemSaleSector, maxCustomers: 0 });
+  }, [aggDocs, salesRecords, resolveItemSaleSector]);
+  const insightCross = React.useMemo(() => {
+    if (aggDocs.length > 0 || salesRecords.length === 0) return undefined;
+    return buildItemSalesCrossDocs(salesRecords, { resolveSector: resolveItemSaleSector });
+  }, [aggDocs, salesRecords, resolveItemSaleSector]);
+
   if (isLoading) {
     return (
       <div className="tg-card p-10 flex flex-col items-center justify-center gap-3 min-h-[360px]">
@@ -1232,6 +1262,8 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
       </div>
     );
   }
+
+
 
   return (
     <div className="cis-page space-y-4 pb-20" dir="rtl">
@@ -1589,13 +1621,31 @@ export const CustomerItemSalesView: React.FC<CustomerItemSalesViewProps> = ({
         </div>
       )}
 
-      {salesRecords.length === 0 && aggDocs.length > 0 ? (
+      {!showDetailed && insightDocs.length > 0 ? (
+        <React.Suspense fallback={<div className="ss-card ss-pad ss-empty">جاري التحميل…</div>}>
+          <ItemSalesInsights
+            docs={insightDocs}
+            crossDocs={insightCross}
+            sector={itemSalesSector === 'electrical' ? 'electrical' : 'home'}
+            canSwitchSector={canManageSectorGate}
+            onSelectSector={(s) => setActiveSectorFilter(s)}
+            fromCache={aggDocs.length > 0 && aggFromCache}
+            lockedRepName={currentUser?.role === 'sales_rep' ? currentUser.name : undefined}
+            isRefreshing={isLoading || isBackgroundSyncing}
+            onRefresh={() => void loadSalesData({ forceRemote: true })}
+            onOpenDetailed={() => {
+              detailedRequestedRef.current = true;
+              setShowDetailed(true);
+              void loadSalesData({ forceRemote: false });
+            }}
+          />
+        </React.Suspense>
+      ) : salesRecords.length === 0 && aggDocs.length > 0 ? (
         <ItemSalesFinalSummaryDashboard
           docs={aggDocs}
           sector={itemSalesSector === 'electrical' ? 'electrical' : 'home'}
           canSwitchSector={canManageSectorGate}
           onSelectSector={(s) => setActiveSectorFilter(s)}
-          onLoadCustomerSummary={() => void loadSalesData({ forceRemote: true, includeCustomerSummary: true })}
           isFetchingDetailed={isLoading || isBackgroundSyncing}
           fromCache={aggFromCache}
         />

@@ -446,8 +446,15 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     [getVisibleVisits, ctxVisits]
   );
 
+  /**
+   * بروفايل كل عميل (حسابات مالية + صورة + مشرف) تقيل: ~ثانية مع آلاف العملاء.
+   * صفحة المناديب كانت بتحسبه كله وهي مش بتعرضه — قِسنا 1.1 ثانية تجميد عند الفتح.
+   * دلوقتي بيتحسب بس لما يكون مطلوب: تبويب العملاء، أو فتح مندوب/عميل.
+   */
+  const needCustomerProfiles = activeTab === 'customers' || Boolean(openRepId) || Boolean(openCustomerId);
   const customersMap = useMemo(() => {
     const map = new Map<string, CustomerProfile>();
+    if (!needCustomerProfiles) return [] as CustomerProfile[];
     const invoiceByCustomer = new Map<string, { sales: number; collection: number }>();
 
     for (const inv of allInvoices) {
@@ -562,7 +569,7 @@ export const SmartProfilePage: React.FC<SmartProfilePageProps> = ({
     }
 
     return Array.from(map.values()).sort((a, b) => b.balance - a.balance);
-  }, [allCustomers, allInvoices, allVisitsList, userIndex]);
+  }, [allCustomers, allInvoices, allVisitsList, userIndex, needCustomerProfiles]);
 
   const filteredCustomers = useMemo(() => {
     const q = deferredSearchQuery.trim().toLowerCase();

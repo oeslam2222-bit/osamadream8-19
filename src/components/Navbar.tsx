@@ -384,7 +384,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={() => setIsSyncCenterOpen(true)}
-              className="ds-iconbtn ds-vis-ge-xl"
+              className="ds-iconbtn ds-vis-never"
               title="مركز حالة المزامنة والطابور"
               aria-label="مركز حالة المزامنة"
             >
@@ -397,7 +397,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={() => setIsDbModalOpen(true)}
-              className="ds-iconbtn ds-vis-ge-xl"
+              className="ds-iconbtn ds-vis-never"
               title="حالة قاعدة البيانات والمزامنة"
               aria-label="حالة قاعدة البيانات والمزامنة"
             >
@@ -458,7 +458,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={toggleTheme}
-              className="ds-iconbtn ds-vis-ge-xl"
+              className="ds-iconbtn ds-vis-never"
               title={isDark ? 'التبديل إلى الوضع الفاتح' : 'التبديل إلى الوضع الليلي'}
               aria-label={isDark ? 'التبديل إلى الوضع الفاتح' : 'التبديل إلى الوضع الليلي'}
               aria-pressed={isDark}
@@ -472,7 +472,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               id="navbar-settings-and-about-btn"
               type="button"
               onClick={() => setIsSettingsModalOpen(true)}
-              className="ds-iconbtn ds-vis-ge-xl"
+              className="ds-iconbtn ds-vis-never"
               title="الإعدادات، السياسة والخصوصية، السحابة وCloudinary"
               aria-label="الإعدادات"
             >
@@ -484,7 +484,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={() => setShowMoreMenu((p) => !p)}
-              className="ds-iconbtn ds-vis-lt-xl"
+              className="ds-iconbtn"
               title="المزيد من الإجراءات"
               aria-label="المزيد من الإجراءات"
               aria-expanded={showMoreMenu}

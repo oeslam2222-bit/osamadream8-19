@@ -450,7 +450,7 @@ export const OrdersPipelineView: React.FC<{
 
       <div className="tg-card">
         <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:flex sm:flex-wrap sm:items-center">
-          <div className="relative min-w-0 col-start-1 row-start-1 sm:shrink-0 sm:w-[320px]">
+          <div className="orders-search relative min-w-0 col-start-1 row-start-1">
             <Search size={15} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--tg-muted)]"/>
             <OrdersSearchInput onSearch={setSearch}/>
           </div>
