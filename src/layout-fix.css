@@ -240,3 +240,7 @@ html, body { overflow-x: clip !important; }
 @media (min-width: 1024px) and (max-width: 1180px) {
   .pm-modal .pm-body { grid-template-columns: 300px minmax(0, 1fr) !important; }
 }
+
+/* قائمة الحساب (فيها تسجيل الخروج) كانت بتتقص جوه شريط الأعلى لأنه overflow:hidden،
+   فالضغط على "تسجيل الخروج" كان بيقع على الخلفية الشفافة ويقفل القائمة بس. */
+.ds-topbar__main:has(.ds-popover) { overflow: visible !important; }

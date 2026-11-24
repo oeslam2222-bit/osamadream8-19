@@ -1,0 +1,176 @@
+/* ==========================================================
+   شاشة كاشير الفاتورة (OrderBuilderModal)
+   الكلاسات دي كانت مستخدمة في الشاشة ومش متعرّفة في أي ملف CSS،
+   عشان كده الكروت كانت شفافة والأزرار بشكل المتصفح الافتراضي.
+   كل الألوان من متغيرات الثيم (فاتح/غامق).
+   ========================================================== */
+
+#dream-cashier-stepper-modal {
+  --ord-brass: #B45309;
+  --ord-brass-tint: #FFFBEB;
+}
+.dark #dream-cashier-stepper-modal {
+  --ord-brass: #FBBF24;
+  --ord-brass-tint: rgba(251, 191, 36, 0.12);
+}
+
+/* ---------- الإطار والخلفيات ---------- */
+.ord-shell {
+  background: var(--app-card);
+  color: var(--app-text);
+}
+#dream-cashier-stepper-modal .bg-slate-soft {
+  background: var(--app-bg);
+}
+#dream-cashier-stepper-modal .bg-blue-soft {
+  background: var(--app-primary-tint);
+}
+#dream-cashier-stepper-modal .border-slate-border-soft {
+  border-color: var(--app-line);
+}
+
+/* ---------- كارت الصنف ---------- */
+.ord-card {
+  background: var(--app-card);
+  border: 1px solid var(--app-line);
+  border-radius: var(--app-radius-card, 18px);
+  box-shadow: var(--app-shadow-card);
+}
+
+.ord-empty {
+  background: var(--app-card);
+  border: 1px dashed var(--app-line);
+}
+
+/* ---------- عدّاد الكرتونة / القطعة ---------- */
+.ord-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 38px;
+  padding: 3px;
+  background: var(--app-card-secondary);
+  border: 1px solid var(--app-line);
+  border-radius: var(--app-radius-control, 12px);
+}
+.ord-step-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--app-primary-text);
+  background: var(--app-card);
+  border: 1px solid var(--app-line);
+  border-radius: 9px;
+  transition: background-color .15s, border-color .15s;
+}
+.ord-step-btn:hover { background: var(--app-primary-tint); border-color: var(--app-primary-border); }
+.ord-step-btn:active { transform: scale(.94); }
+.ord-step-val {
+  appearance: textfield;
+  -moz-appearance: textfield;
+  width: 46px;
+  height: 30px;
+  padding: 0 2px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--app-text);
+  background: transparent;
+  border: 0;
+  outline: none;
+}
+.ord-step-val::-webkit-outer-spin-button,
+.ord-step-val::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.ord-step-val:focus { background: var(--app-card); border-radius: 8px; box-shadow: 0 0 0 2px var(--app-focus); }
+
+/* ---------- رسائل التنبيه ---------- */
+.ord-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  font-weight: 700;
+  border-radius: var(--app-radius-control, 12px);
+  border: 1px solid transparent;
+}
+.ord-note.risk { background: var(--app-risk-tint); border-color: var(--app-risk-line); color: var(--app-risk-text); }
+.ord-note.ok   { background: var(--app-ok-tint);   border-color: var(--app-ok-line);   color: var(--app-ok-text); }
+
+.ord-panel-risk {
+  background: var(--app-risk-tint);
+  border: 1px solid var(--app-risk-line);
+  color: var(--app-risk-text);
+}
+
+/* ---------- زرار الخطوة التالية / الحفظ ---------- */
+.ord-cta { min-height: 44px; }
+
+/* ---------- لينك "إضافة أصناف أخرى" ---------- */
+#dream-cashier-stepper-modal .app-link {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 12.5px;
+  font-weight: 800;
+  color: var(--app-primary-text);
+  background: var(--app-primary-tint);
+  border: 1px solid var(--app-primary-border);
+  border-radius: 999px;
+  transition: background-color .15s;
+}
+#dream-cashier-stepper-modal .app-link:hover { filter: brightness(.97); }
+
+#dream-cashier-stepper-modal .app-btn-warn-soft {
+  background: var(--app-warn-tint);
+  border: 1px solid var(--app-warn-line);
+  color: var(--app-warn-text);
+  font-weight: 800;
+}
+
+/* ---------- زرار حذف الصنف ---------- */
+#dream-cashier-stepper-modal .chip-btn.danger {
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: var(--app-risk-text);
+  background: var(--app-risk-tint);
+  border: 1px solid var(--app-risk-line);
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+/* ---------- ألوان النصوص ---------- */
+.t-ok    { color: var(--app-ok-text); }
+.t-warn  { color: var(--app-warn-text); }
+.t-risk  { color: var(--app-risk-text); }
+.t-brass { color: var(--ord-brass, #B45309); }
+.app-ink-brass { color: var(--ord-brass, #B45309); font-weight: 900; }
+.tint-navy { background: var(--app-primary-tint); }
+.rotate-180 { transform: rotate(180deg); }
+.dark .t-ok   { color: #34D399; }
+.dark .t-warn { color: #FBBF24; }
+.dark .t-risk { color: #F87171; }
+
+/* ---------- موبايل ---------- */
+@media (max-width: 767px) {
+  .ord-stepper { height: 42px; }
+  .ord-step-btn { width: 34px; height: 34px; flex-basis: 34px; }
+  .ord-step-val { width: 44px; height: 34px; font-size: 16px; }
+  .ord-note { margin: 8px 8px 0; }
+}

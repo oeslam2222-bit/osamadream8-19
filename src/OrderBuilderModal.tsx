@@ -1,0 +1,1592 @@
+import '../styles/order-builder.css';
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowRight,
+  Boxes,
+  Building,
+  Check,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  Flame,
+  Grid,
+  Layers,
+  List,
+  MapPin,
+  Minus,
+  Package,
+  Phone,
+  Plus,
+  Receipt,
+  Search,
+  ShoppingCart,
+  Sparkles,
+  Store,
+  Tag,
+  Trash2,
+  Truck,
+  User,
+  Users,
+  Warehouse,
+  X,
+  Zap,
+} from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useApp } from '../context/AppContext';
+import { useCart } from '../context/cartContext';
+import { Customer, Invoice, PaymentMethod, Product } from '../types';
+import { ProductImage } from './ProductImage';
+import { CustomerSearchSelect } from './CustomerSearchSelect';
+import { formatCurrency } from '../services/invoiceService';
+import { findCustomerMatch, getBranchStockForProduct } from '../services/arabicMatchingService';
+import { getDepartmentMeta } from '../data/departmentMeta';
+import { resolveCustomerDuesValue } from '../services/customerDues';
+import { filterPromotionsForUser, resolveProductPromotion } from '../services/promotionService';
+
+interface OrderBuilderModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onInvoiceCreated: (invoice: Invoice) => void;
+  initialCustomer?: Customer | null;
+}
+
+/**
+ * خانة بحث الكتالوج — معزولة عن باقي المودال عمدًا (أداء موبايل).
+ * كانت الكتابة بتحدّث state المودال الرئيسي مع كل حرف، فالمودال كله
+ * (سلة + كتالوج + حسابات البرومو والمخزن) كان بيرندر من الأول مع كل ضغطة
+ * زرار وده كان بيهنّج الموبايل. دلوقتي الكتابة فورية محليًا، والفلتر
+ * بيوصل للمودال مرة واحدة بعد توقّف الكتابة بـ 250ms.
+ */
+const CatalogSearchInput: React.FC<{ onSearch: (v: string) => void }> = ({ onSearch }) => {
+  const [localValue, setLocalValue] = useState('');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  return (
+    <input
+      type="search"
+      value={localValue}
+      onChange={(e) => {
+        const v = e.target.value;
+        setLocalValue(v);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => onSearch(v), 250);
+      }}
+      placeholder="كود الصنف أو الموحد..."
+      className="w-full rounded-xl px-2.5 py-2 text-xs text-[var(--app-ink)] placeholder-custom"
+    />
+  );
+};
+
+/**
+ * لوحة الكتالوج السريع — معزولة بـ React.memo عمدًا (أداء موبايل):
+ * كانت الإضافة للسلة بتحدّث الـ context، فالمودال كله كان بيرندر من
+ * الأول و24 كارت كتالوج (بحسابات البرومو والمخزن لكل صنف) بيتحسبوا
+ * تاني مع كل ضغطة «+ كرتونة». الفلاتر والبحث حالتهم هنا من جوه،
+ * والكومبوننت بيرندر تاني بس لما المنتجات أو البروموهات أو الفرع يتغيروا فعلًا.
+ */
+const CatalogQuickPicker: React.FC<{
+  products: Product[];
+  promotions: Parameters<typeof resolveProductPromotion>[1];
+  activeBranch: string;
+  onQuickAdd: (product: Product, count: number, orderType: 'carton' | 'piece') => void;
+}> = React.memo(({ products, promotions, activeBranch, onQuickAdd }) => {
+  const [catalogGroup, setCatalogGroup] = useState('all');
+  const [catalogFamily, setCatalogFamily] = useState('all');
+  const [catalogSearch, setCatalogSearch] = useState('');
+
+  // Available Item Groups from products
+  const availableItemGroups = useMemo(() => {
+    const groups = new Set<string>();
+    products.forEach((p) => {
+      const g = p.itemGroup || p.department || p.category;
+      if (g && g.trim()) groups.add(g.trim());
+    });
+    return Array.from(groups);
+  }, [products]);
+
+  // Available Families based on selected Group
+  const availableFamilies = useMemo(() => {
+    const families = new Set<string>();
+    products.forEach((p) => {
+      const g = p.itemGroup || p.department || p.category;
+      if (catalogGroup === 'all' || g === catalogGroup) {
+        const f = p.familyName || p.classification;
+        if (f && f.trim()) families.add(f.trim());
+      }
+    });
+    return Array.from(families);
+  }, [products, catalogGroup]);
+
+  // Filtered Products for quick addition
+  const filteredCatalogProducts = useMemo(() => {
+    let result = products;
+
+    if (catalogGroup !== 'all') {
+      result = result.filter((p) => (p.itemGroup || p.department || p.category) === catalogGroup);
+    }
+    if (catalogFamily !== 'all') {
+      result = result.filter((p) => (p.familyName || p.classification) === catalogFamily);
+    }
+    if (catalogSearch.trim()) {
+      const q = catalogSearch.toLowerCase().trim();
+      result = result.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.code.toLowerCase().includes(q) ||
+          (p.unifiedCode && p.unifiedCode.toLowerCase().includes(q)) ||
+          (p.color && p.color.toLowerCase().includes(q))
+      );
+    }
+    return result.slice(0, 24);
+  }, [products, catalogGroup, catalogFamily, catalogSearch]);
+
+  return (
+    <div className="ord-card p-3.5 space-y-3 animate-in fade-in">
+      <div className="flex items-center justify-between">
+        <div className="font-black text-[var(--app-ink)] text-xs flex items-center gap-1.5">
+          <Search className="w-3.5 h-3.5 t-brass" />
+          <span>إضافة أصناف سريعة من الكتالوج</span>
+        </div>
+        <span className="text-[11px] t-muted">
+          متاح {products.length} صنف
+        </span>
+      </div>
+
+      {/* 3 Core Filters: 1. Item Group, 2. Family, 3. Code/Name Search */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {/* 1. Item Group */}
+        <div>
+          <label className="text-[10px] t-muted font-bold block mb-1">
+            1. المجموعة الرئيسية (Item Group):
+          </label>
+          <select
+            value={catalogGroup}
+            onChange={(e) => {
+              setCatalogGroup(e.target.value);
+              setCatalogFamily('all');
+            }}
+            className="w-full rounded-xl px-2.5 py-2 text-xs text-[var(--app-ink)]"
+          >
+            <option value="all">كافة المجموعات</option>
+            {availableItemGroups.map((g) => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* 2. Family / Category */}
+        <div>
+          <label className="text-[10px] t-muted font-bold block mb-1">
+            2. فئة / عائلة الأصناف:
+          </label>
+          <select
+            value={catalogFamily}
+            onChange={(e) => setCatalogFamily(e.target.value)}
+            className="w-full rounded-xl px-2.5 py-2 text-xs text-[var(--app-ink)]"
+          >
+            <option value="all">كافة العائلات</option>
+            {availableFamilies.map((f) => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* 3. Search by Code / Unified Code / Name */}
+        <div>
+          <label className="text-[10px] t-muted font-bold block mb-1">
+            3. البحث بالكود أو الاسم:
+          </label>
+          <CatalogSearchInput onSearch={setCatalogSearch} />
+        </div>
+      </div>
+
+      {/* Matching Products Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pt-1">
+        {filteredCatalogProducts.map((p) => {
+          const branchStock = getBranchStockForProduct(p, activeBranch);
+          const octoberStock = p.mainWarehouseActual || 0;
+          const pPromo = resolveProductPromotion(p, promotions);
+
+          return (
+            <div
+              key={p.id}
+              className={`p-3 bg-white dark:bg-slate-800/80 border rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-teal-400 transition ${
+                pPromo.hasPromo
+                  ? 'border-amber-300 bg-amber-50/30 dark:border-amber-700/60'
+                  : 'border-slate-200 dark:border-slate-700'
+              }`}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="font-bold text-slate-900 dark:text-white text-xs truncate" title={p.name}>
+                    {p.name}
+                  </div>
+                  {pPromo.hasPromo && (
+                    <span className="tg-special-discount-badge shrink-0">
+                      <Flame className="w-3 h-3" />
+                      خصم خاص -{pPromo.discountPercentage}%
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 text-[11px] mt-1 flex-wrap">
+                  <span className="font-mono text-amber-700 dark:text-amber-400 font-bold whitespace-nowrap">
+                    كود: {p.code}
+                  </span>
+                  {p.unifiedCode && (
+                    <span className="font-mono text-teal-700 dark:text-teal-300 font-black whitespace-nowrap">
+                      #{p.unifiedCode.replace('#', '')}
+                    </span>
+                  )}
+                  {pPromo.hasPromo ? (
+                    <span className="flex items-center gap-1 whitespace-nowrap font-bold">
+                      <span className="line-through text-slate-400 text-[10px]">
+                        {formatCurrency(pPromo.originalCartonPrice)}
+                      </span>
+                      <span className="text-emerald-700 dark:text-emerald-400 font-black">
+                        {formatCurrency(pPromo.promoCartonPrice)}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-slate-600 dark:text-slate-300 font-bold whitespace-nowrap">
+                      ({formatCurrency(
+                        p.piecePrice && p.piecePrice > 0
+                          ? Math.round(p.piecePrice * (p.cartonQuantity || 1) * 100) / 100
+                          : p.cartonPrice
+                      )})
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-slate-500 font-bold mt-1 flex items-center gap-2 whitespace-nowrap">
+                  <span>الفرع: <strong className={branchStock > 0 ? 'text-emerald-600 font-black' : 'text-slate-400'}>{branchStock} ك</strong></span>
+                  <span>•</span>
+                  <span>أكتوبر: <strong className="text-blue-600 font-black">{octoberStock} ك</strong></span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-1.5 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-700/60">
+                <button
+                  type="button"
+                  onClick={() => onQuickAdd(p, 1, 'carton')}
+                  className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-[#0f2b38] hover:bg-[#0D9488] text-white text-[11px] font-black transition cursor-pointer shadow-xs whitespace-nowrap text-center"
+                  title="إضافة 1 كرتونة"
+                >
+                  + كرتونة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onQuickAdd(p, 1, 'piece')}
+                  className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-white text-[11px] font-bold transition cursor-pointer whitespace-nowrap text-center"
+                  title="إضافة 1 قطعة"
+                >
+                  + قطعة
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
+export const OrderBuilderModal: React.FC<OrderBuilderModalProps> = ({
+  isOpen,
+  onClose,
+  onInvoiceCreated,
+  initialCustomer,
+}) => {
+  const {
+    products: rawProducts,
+    promotions: rawPromotions,
+    customers,
+    users,
+    getVisibleCustomers,
+    getVisibleProducts,
+    createOrder,
+    currentUser,
+    cloudinaryConfig,
+    updateCustomer,
+  } = useApp();
+  const { cart, updateCartItem, removeFromCart, clearCart, getCartSummary, addToCart } = useCart();
+
+  // عزل القطاع: الموديل كان بياخد قائمة المنتجات الخام مباشرة، فمندوب قطاع
+  // كهربا (لو الكاش المحلي فيه صفوف منزلي — جهاز مشترك أو مسار fallback قديم)
+  // كان يقدر يتصفح ويضيف أصناف منزلي للطلبية رغم إن الكتالوج نفسه متقيد.
+  // getVisibleProducts هي نفس الفلتر بتاع شاشة الكتالوج (sector + صلاحيات).
+  const products = useMemo(() => {
+    try {
+      return getVisibleProducts();
+    } catch {
+      return rawProducts;
+    }
+  }, [rawProducts, rawPromotions, getVisibleProducts]);
+
+  // 1-step-at-a-time Stepper: Step 1 (Products & Cart) -> Step 2 (Customer & Financials) -> Step 3 (Review & Save)
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(() => {
+    if (initialCustomer && cart.length > 0) return 2;
+    return 1;
+  });
+
+  // Representative Selection
+  const [selectedRepId, setSelectedRepId] = useState<string>(() => currentUser?.id || '');
+  const activeRepUser = useMemo(() => {
+    return users.find((u) => u.id === selectedRepId) || currentUser;
+  }, [users, selectedRepId, currentUser]);
+
+  const activeBranch = useMemo(() => {
+    return activeRepUser?.branchName || currentUser?.branchName || 'الفرع الرئيسي (المخزن المركزي - 6 أكتوبر)';
+  }, [activeRepUser, currentUser]);
+
+  const promotions = useMemo(
+    () => filterPromotionsForUser(rawPromotions, activeRepUser || currentUser, products),
+    [rawPromotions, activeRepUser, currentUser, products]
+  );
+
+  // Customer Management - Bound to "All Customers"
+  const [activeCustomer, setActiveCustomer] = useState<Customer | null>(initialCustomer || null);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+  const [isUnregisteredCustomerOpen, setIsUnregisteredCustomerOpen] = useState(false);
+  const [unregisteredCustomerName, setUnregisteredCustomerName] = useState('');
+  const [unregisteredCustomerPhone, setUnregisteredCustomerPhone] = useState('');
+  const [unregisteredCustomerAddress, setUnregisteredCustomerAddress] = useState('');
+
+  // Financial & Order Options
+  // طريقة الدفع مأخوذة من بيانات العميل المسجل في قاعدة العملاء، أو "نقدي (كاش)" افتراضياً للبيع النقدي المباشر
+  const effectivePaymentMethod = useMemo<PaymentMethod>(() => {
+    if (!activeCustomer) return 'نقدي (كاش)';
+    const pt = (activeCustomer.paymentTerms || '').trim() as PaymentMethod;
+    const valid: PaymentMethod[] = ['نقدي (كاش)', 'آجل (30 يوم)', 'آجل (60 يوم)', 'تحويل بنكي', 'شيك'];
+    return valid.includes(pt) ? pt : 'نقدي (كاش)';
+  }, [activeCustomer]);
+  const [invoiceNotes, setInvoiceNotes] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
+  const [feedbackSuccess, setFeedbackSuccess] = useState<string | null>(null);
+
+  // Credit Override Exception Modal State
+  const [showCreditOverrideModal, setShowCreditOverrideModal] = useState<boolean>(false);
+  const [creditOverrideReason, setCreditOverrideReason] = useState<string>('');
+  const [isSubmittingOverride, setIsSubmittingOverride] = useState<boolean>(false);
+
+  // Quick Catalog Search & Add in Step 1
+  const [isCatalogPickerOpen, setIsCatalogPickerOpen] = useState<boolean>(false);
+  // فلترات الكتالوج والبحث اتنقلت جوه CatalogQuickPicker (معزولة) عشان ما ترندرش المودال كله
+
+  // Sync initialCustomer if prop changes
+  useEffect(() => {
+    if (initialCustomer) {
+      setActiveCustomer(initialCustomer);
+    }
+  }, [initialCustomer]);
+
+  // قائمة العملاء المرئية — memoized مرة واحدة بدل إنشاء مصفوفة جديدة في كل render
+  // (كانت بتتعمل inline داخل CustomerSearchSelect وبتخليه يعيد rendering بلا داعٍ)
+  const visibleCustomers = useMemo(
+    () => (getVisibleCustomers ? getVisibleCustomers() : customers),
+    [getVisibleCustomers, customers]
+  );
+
+  // Filtered master customers for quick customer lookup
+  const filteredCustomers = useMemo(() => {
+    const list = visibleCustomers;
+    if (!customerSearchQuery.trim()) return list.slice(0, 15);
+    const q = customerSearchQuery.toLowerCase().trim();
+    return list
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(q) ||
+          (c.code && c.code.toLowerCase().includes(q)) ||
+          (c.phone && c.phone.includes(q)) ||
+          (c.region && c.region.toLowerCase().includes(q)) ||
+          (c.storeName && c.storeName.toLowerCase().includes(q))
+      )
+      .slice(0, 15);
+  }, [visibleCustomers, customerSearchQuery]);
+
+  // Available Item Groups / Families / Filtered Products — اتنقلوا كلهم جوه CatalogQuickPicker
+
+  // Cart summary calculation
+  const summary = useMemo(() => {
+    return getCartSummary(0);
+  }, [getCartSummary]);
+
+  // Special promo savings summary across cart items
+  const promoSavingsSummary = useMemo(() => {
+    let originalTotal = 0;
+    let discountedItemsCount = 0;
+    cart.forEach((item) => {
+      const info = resolveProductPromotion(item.product, promotions);
+      const factor =
+        item.cartonQuantity && item.cartonQuantity > 0
+          ? item.cartonQuantity
+          : item.product.cartonQuantity || 1;
+      const qty = (item.cartonCount || 0) * factor + (item.pieceCount || 0);
+      const origUnitPiece =
+        info.originalPiecePrice > 0
+          ? info.originalPiecePrice
+          : factor > 0
+            ? info.originalCartonPrice / factor
+            : 0;
+      if (info.hasPromo && origUnitPiece > 0) {
+        discountedItemsCount += 1;
+        originalTotal += Math.round(origUnitPiece * qty * 100) / 100;
+      } else {
+        originalTotal += item.totalPrice;
+      }
+    });
+    const totalSaved = Math.max(0, Math.round((originalTotal - summary.grandTotal) * 100) / 100);
+    return { discountedItemsCount, totalSaved, originalTotal };
+  }, [cart, promotions, summary.grandTotal]);
+
+  if (!isOpen) return null;
+
+  // Quick select a customer or default to Cash
+  const handleSelectCustomer = (cust: Customer) => {
+    const matched = findCustomerMatch(customers, {
+      customerId: cust.id,
+      customerCode: cust.code,
+      customerName: cust.name,
+      customerPhone: cust.phone,
+    });
+    setActiveCustomer(matched || cust);
+    setIsCustomerDropdownOpen(false);
+    setCustomerSearchQuery('');
+  };
+
+  const handleSelectDirectCash = () => {
+    setActiveCustomer({
+      id: `c-cash-${Date.now()}`,
+      code: 'CASH-DIRECT',
+      name: 'عميل نقدي كاش (مباشر)',
+      phone: '',
+      address: 'بيع نقدي مباشر بالفرع',
+      governorate: 'الفرع',
+      branchName: activeBranch,
+      currentBalance: 0,
+      creditLimit: 0,
+      overdueBalance: 0,
+    });
+    setIsCustomerDropdownOpen(false);
+    setIsUnregisteredCustomerOpen(false);
+    setCustomerSearchQuery('');
+  };
+
+  const handleCreateUnregisteredCustomer = () => {
+    const name = unregisteredCustomerName.trim();
+    if (!name) {
+      setFeedbackError('اكتب اسم العميل الجديد أولاً.');
+      return;
+    }
+
+    setActiveCustomer({
+      id: `c-new-order-${Date.now()}`,
+      code: `NEW-${Date.now().toString().slice(-6)}`,
+      name,
+      phone: unregisteredCustomerPhone.trim(),
+      address: unregisteredCustomerAddress.trim(),
+      branchName: activeBranch,
+      currentBalance: 0,
+      creditLimit: 0,
+      overdueBalance: 0,
+    });
+    setIsUnregisteredCustomerOpen(false);
+    setIsCustomerDropdownOpen(false);
+    setCustomerSearchQuery('');
+    setUnregisteredCustomerName('');
+    setUnregisteredCustomerPhone('');
+    setUnregisteredCustomerAddress('');
+    setFeedbackSuccess('تم تجهيز بيانات العميل الجديد للطلبية بنجاح.');
+    setTimeout(() => setFeedbackSuccess(null), 3000);
+  };
+
+  // Quick Add Item from Cashier Catalog
+  const handleQuickAddProduct = (product: Product, count: number, orderType: 'carton' | 'piece' = 'carton') => {
+    const res = addToCart(product, orderType, count, 0);
+    if (!res.success) {
+      setFeedbackError(res.message || 'تعذر إضافة الصنف.');
+      setTimeout(() => setFeedbackError(null), 4000);
+    } else {
+      setFeedbackSuccess(`تمت إضافة ${count} ${orderType === 'carton' ? 'كرتونة' : 'قطعة'} من (${product.name})`);
+      setTimeout(() => setFeedbackSuccess(null), 2000);
+    }
+  };
+
+  // مرجع ثابت للإضافة السريعة — عشان CatalogQuickPicker (memo) ما يعيدش رسم
+  // شبكة الكتالوج مع كل تحديث في السلة أو أي state تاني في المودال.
+  const quickAddRef = useRef(handleQuickAddProduct);
+  quickAddRef.current = handleQuickAddProduct;
+  const quickAddFromCatalog = useCallback(
+    (product: Product, count: number, orderType: 'carton' | 'piece') => quickAddRef.current(product, count, orderType),
+    []
+  );
+
+  // Order Submission & Stock Reservation Handling
+  const handleSubmitOrder = async () => {
+    if (cart.length === 0) {
+      setFeedbackError('سلة الفاتورة فارغة! يرجى إضافة أصناف للطلبية أولاً.');
+      setTimeout(() => setFeedbackError(null), 4000);
+      return;
+    }
+
+    const effectiveCustomer = activeCustomer
+      ? findCustomerMatch(customers, {
+          customerId: activeCustomer.id,
+          customerCode: activeCustomer.code,
+          customerName: activeCustomer.name,
+          customerPhone: activeCustomer.phone,
+        }) || activeCustomer
+      : {
+          id: `c-cash-${Date.now()}`,
+          code: 'CASH-DIRECT',
+          name: 'عميل نقدي كاش (مباشر)',
+          phone: '',
+          address: 'بيع نقدي مباشر',
+          governorate: 'الفرع',
+          branchName: activeBranch,
+          currentBalance: 0,
+        };
+
+    setIsSubmitting(true);
+    setFeedbackError(null);
+
+    const balBefore = Number(effectiveCustomer.currentBalance ?? effectiveCustomer.balance ?? 0);
+    const credLimit = Number(effectiveCustomer.creditLimit ?? 0);
+    const balAfter = balBefore + summary.grandTotal;
+    const isExceeded = credLimit > 0 && balAfter > credLimit;
+    const reqDown = isExceeded ? Math.max(0, balAfter - credLimit) : 0;
+    const overdue = resolveCustomerDuesValue(effectiveCustomer);
+
+    try {
+      const result = createOrder({
+        customerId: effectiveCustomer.id,
+        customerName: effectiveCustomer.name,
+        customerCode: effectiveCustomer.code,
+        customerPhone: effectiveCustomer.phone,
+        customerAddress: effectiveCustomer.address,
+        customerTaxNumber: effectiveCustomer.taxNumber,
+        repName: activeRepUser?.name || currentUser?.name || 'مندوب المبيعات',
+        repId: activeRepUser?.id || currentUser?.id,
+        branchName: effectiveCustomer.branchName || activeBranch,
+        paymentMethod: effectivePaymentMethod,
+        repComment: invoiceNotes || undefined,
+        notes: `فاتورة مبيعات كاشير دريم - تسجيل بواسطة ${currentUser?.name || 'المندوب'}`,
+        customerBalanceBefore: balBefore,
+        customerCreditLimit: credLimit,
+        customerBalanceAfter: balAfter,
+        customerOverdueBalance: overdue,
+        creditLimitExceeded: isExceeded,
+        requiredDownPayment: reqDown,
+        creditOverrideRequested: isCreditExceeded && showCreditOverrideModal,
+        creditOverrideReason: creditOverrideReason.trim() || undefined,
+        creditOverrideRequestedBy: isCreditExceeded && showCreditOverrideModal ? currentUser?.name : undefined,
+        creditOverrideRequestedAt: isCreditExceeded && showCreditOverrideModal ? new Date().toISOString() : undefined,
+      });
+
+      if (!result.success || !result.invoice) {
+        setFeedbackError(result.message || 'تعذر حفظ الطلبية.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Non-blocking initial GPS capture ONLY when customer has no saved/locked location yet
+      if (
+        typeof navigator !== 'undefined' &&
+        'geolocation' in navigator &&
+        effectiveCustomer?.id &&
+        !effectiveCustomer.locationLocked &&
+        (!effectiveCustomer.latitude || !effectiveCustomer.longitude)
+      ) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            if (pos?.coords?.latitude && pos?.coords?.longitude && updateCustomer) {
+              updateCustomer({
+                ...effectiveCustomer,
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+                locationAccuracy: typeof pos.coords.accuracy === 'number' ? Math.round(pos.coords.accuracy) : undefined,
+                locationCapturedAt: new Date().toISOString(),
+                locationCapturedBy: currentUser?.name || 'مندوب المبيعات',
+              });
+            }
+          },
+          () => {},
+          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+        );
+      }
+
+      clearCart();
+      onInvoiceCreated(result.invoice);
+      onClose();
+    } catch (err: any) {
+      console.error('Invoice creation error:', err);
+      setFeedbackError('حدث خطأ غير متوقع أثناء معالجة الفاتورة.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const balBefore = Number(activeCustomer?.currentBalance ?? activeCustomer?.balance ?? 0);
+  const balAfter = balBefore + summary.grandTotal;
+  const overdueBal = resolveCustomerDuesValue(activeCustomer);
+  const creditLimitVal = Number(activeCustomer?.creditLimit ?? 0);
+  const isCreditExceeded = creditLimitVal > 0 && balAfter > creditLimitVal;
+  const remainingCredit = creditLimitVal > 0 ? Math.max(0, creditLimitVal - balAfter) : 0;
+
+  return (
+    <div
+      id="dream-cashier-stepper-modal"
+      className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 overflow-y-auto animate-in fade-in"
+      dir="rtl"
+    >
+      <div className="modal-full-mobile ord-shell border border-[var(--app-line)] rounded-3xl w-full max-w-4xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden">
+        
+        {/* ================= HEADER & STEPPER BAR ================= */}
+        <div className="shrink-0">
+          <div className="bg-[#0f2b38] text-white p-3.5 sm:p-4 border-b border-white/10">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-teal-500/20 text-teal-300 border border-teal-400/30 grid place-items-center shrink-0 shadow-sm">
+                  <Receipt className="w-5 h-5 text-teal-300" />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-black text-white flex items-center gap-2">
+                    <span className="text-white">شاشة كاشير الفاتورة</span>
+                    <span className="bg-teal-500/20 text-teal-300 border border-teal-400/40 text-[10px] px-2 py-0.5 rounded-full font-black">
+                      خطوة {currentStep} من 3
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-300 font-bold mt-0.5">
+                    {activeBranch} • المندوب: <span className="text-teal-300 font-black">{activeRepUser?.name}</span>
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={onClose}
+                className="w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition cursor-pointer"
+                title="إغلاق"
+              >
+                <X className="w-5 h-5 text-white" />
+              </button>
+            </div>
+          </div>
+
+          {/* Stepper Progress Tabs */}
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 px-3 sm:px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
+            {/* Step 1 */}
+            <button
+              type="button"
+              onClick={() => setCurrentStep(1)}
+              className={`h-10 min-w-0 overflow-hidden p-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold transition border ${
+                currentStep === 1
+                  ? 'bg-blue-700 text-white border-blue-700 shadow-sm'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <span className={`w-5 h-5 rounded-full grid place-items-center text-[11px] font-black shrink-0 ${
+                currentStep === 1
+                  ? 'bg-white text-blue-700'
+                  : cart.length > 0 && currentStep > 1
+                  ? 'bg-emerald-700 text-white'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+              }`}>
+                {cart.length > 0 && currentStep > 1 ? '✓' : '1'}
+              </span>
+              <span className="sm:hidden font-black truncate">١. المنتجات</span>
+              <span className="hidden sm:inline font-black truncate">١. اختيار المنتجات</span>
+              {cart.length > 0 && (
+                <span className="hidden sm:inline-block text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full font-bold">
+                  {cart.length}
+                </span>
+              )}
+            </button>
+
+            {/* Step 2 */}
+            <button
+              type="button"
+              onClick={() => {
+                if (cart.length > 0) setCurrentStep(2);
+                else setFeedbackError('يرجى إضافة أصناف إلى الفاتورة أولاً.');
+              }}
+              className={`h-10 min-w-0 overflow-hidden p-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold transition border ${
+                currentStep === 2
+                  ? 'bg-blue-700 text-white border-blue-700 shadow-sm'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <span className={`w-5 h-5 rounded-full grid place-items-center text-[11px] font-black shrink-0 ${
+                currentStep === 2
+                  ? 'bg-white text-blue-700'
+                  : activeCustomer && currentStep > 2
+                  ? 'bg-emerald-700 text-white'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+              }`}>
+                {activeCustomer && currentStep > 2 ? '✓' : '2'}
+              </span>
+              <span className="sm:hidden font-black truncate">٢. العميل</span>
+              <span className="hidden sm:inline font-black truncate">٢. العميل والماليات</span>
+            </button>
+
+            {/* Step 3 */}
+            <button
+              type="button"
+              onClick={() => {
+                if (cart.length === 0) {
+                  setFeedbackError('يرجى إضافة أصناف إلى الفاتورة أولاً.');
+                  return;
+                }
+                if (!activeCustomer) {
+                  setFeedbackError('يرجى اختيار عميل الفاتورة أولاً.');
+                  return;
+                }
+                setCurrentStep(3);
+              }}
+              className={`h-10 min-w-0 overflow-hidden p-2 text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold transition border ${
+                currentStep === 3
+                  ? 'bg-blue-700 text-white border-blue-700 shadow-sm'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <span className={`w-5 h-5 rounded-full grid place-items-center text-[11px] font-black shrink-0 ${
+                currentStep === 3
+                  ? 'bg-white text-blue-700'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+              }`}>
+                3
+              </span>
+              <span className="sm:hidden font-black truncate">٣. التأكيد</span>
+              <span className="hidden sm:inline font-black truncate">٣. تأكيد وحفظ</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ================= NOTIFICATIONS BANNER ================= */}
+        {feedbackError && (
+          <div className="ord-note risk shrink-0">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{feedbackError}</span>
+            </div>
+            <button onClick={() => setFeedbackError(null)} className="p-1 cursor-pointer opacity-75 hover:opacity-100">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+        {feedbackSuccess && (
+          <div className="ord-note ok shrink-0">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{feedbackSuccess}</span>
+            </div>
+            <button onClick={() => setFeedbackSuccess(null)} className="p-1 cursor-pointer opacity-75 hover:opacity-100">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* ================= STEPPER BODY ================= */}
+        <div className="flex-1 overflow-y-auto p-3 sm:p-5 bg-slate-soft space-y-4">
+          
+          {/* ================= STEP 1: اختيار ومراجعة المنتجات ================= */}
+          {currentStep === 1 && (
+            <div className="space-y-4">
+              
+              {/* Cart Summary Header Banner */}
+              <div className="bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-2xl p-3.5 flex items-center justify-between flex-wrap gap-2 text-xs">
+                <div>
+                  <div className="font-black text-[var(--app-text)] text-sm flex items-center gap-2">
+                    <ShoppingCart className="w-4 h-4 text-blue-600" />
+                    <span>أصناف سلة الفاتورة ({cart.length} أصناف)</span>
+                  </div>
+                  <div className="text-[11px] text-[var(--app-text-muted)] font-bold mt-0.5">
+                    الكراتين: <strong className="text-[var(--app-text)]">{summary.totalCartons}</strong> كرتونة • القطع: <strong className="text-[var(--app-text)]">{summary.totalPieces}</strong> قطعة
+                  </div>
+                </div>
+
+                <div className="text-left">
+                  <div className="text-[11px] text-[var(--app-text-muted)] font-bold">إجمالي الأصناف:</div>
+                  <div className="text-base sm:text-lg font-black text-blue-600 font-mono">
+                    {formatCurrency(summary.grandTotal)}
+                  </div>
+                  {promoSavingsSummary.totalSaved > 0 && (
+                    <div className="tg-special-discount-badge mt-1 inline-flex">
+                      <Flame className="w-3 h-3" />
+                      <span>خصم خاص مطبق (توفير {formatCurrency(promoSavingsSummary.totalSaved)})</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Cart Items List */}
+              {cart.length === 0 ? (
+                <div className="ord-empty rounded-[var(--app-radius)] p-8 text-center space-y-3">
+                  <div className="w-14 h-14 rounded-xl tint-navy grid place-items-center mx-auto">
+                    <ShoppingCart className="w-7 h-7 t-navy" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-black text-[var(--app-ink)]">سلة الفاتورة فارغة حالياً</h4>
+                    <p className="text-xs t-muted max-w-sm mx-auto">
+                      اضغط على زر (إضافة أصناف من الكتالوج) أدناه للبحث واختيار المنتجات بالكرتونة أو القطعة.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsCatalogPickerOpen(true)}
+                    className="btn-primary px-4 py-2.5 text-xs cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>تصفح وإضافة الأصناف للطلبية 🛒</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between text-xs t-muted px-1">
+                    <span>قائمة الأصناف المضافة:</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsCatalogPickerOpen((prev) => !prev)}
+                      className="app-link flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>{isCatalogPickerOpen ? 'إخفاء كتالوج الإضافة' : 'إضافة أصناف أخرى'}</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {cart.map((item, idx) => {
+                      const branchStock = getBranchStockForProduct(item.product, activeBranch);
+                      const octoberStock = item.product.mainWarehouseActual || 0;
+                      const itemPromo = resolveProductPromotion(item.product, promotions);
+
+                      return (
+                        <div key={idx} className={`ord-card p-3 sm:p-3.5 space-y-2.5 ${itemPromo.hasPromo ? 'ring-1 ring-amber-400/70' : ''}`}>
+                          {/* Item Header: Image, Title, Codes, Delete */}
+                          <div className="flex items-start justify-between gap-2.5">
+                            <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                              <ProductImage
+                                product={item.product}
+                                cloudinaryConfig={cloudinaryConfig}
+                                targetSize={120}
+                                sizeVariant="thumbnail"
+                                containerClassName="w-12 h-12 rounded-xl bg-blue-soft border border-[var(--app-line)] shrink-0"
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="font-black text-[var(--app-ink)] text-xs sm:text-sm line-clamp-2 leading-snug">
+                                  {item.product.name}
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-wrap text-[10px]">
+                                  {/* Product Code */}
+                                  <span className="app-badge neutral font-mono">
+                                    كود: {item.product.code}
+                                  </span>
+                                  {/* Unified Code */}
+                                  {item.product.unifiedCode && (
+                                    <span className="app-badge neutral font-mono">
+                                      <span>الموحد:</span>
+                                      <span>{item.product.unifiedCode.replace('#', '')}</span>
+                                    </span>
+                                  )}
+                                  {/* Factor */}
+                                  <span className="app-badge neutral text-[10px]">
+                                    الشدة: {item.cartonQuantity} ق
+                                  </span>
+                                  {itemPromo.hasPromo && (
+                                    <span className="tg-special-discount-badge">
+                                      <Flame className="w-3 h-3" />
+                                      <span>خصم خاص -{itemPromo.discountPercentage}%</span>
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Delete Item */}
+                            <button
+                              type="button"
+                              onClick={() => removeFromCart(item.product.id)}
+                              className="chip-btn danger p-2 shrink-0 cursor-pointer"
+                              title="حذف الصنف من الفاتورة"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* Stocks Info & Quantity Modifiers */}
+                          <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-border-soft text-xs">
+                            {/* Stock Display & October Supply Badge */}
+                            <div className="flex items-center gap-2 flex-wrap text-[10.5px]">
+                              {branchStock >= (item.cartonCount || 0) && (item.cartonCount || 0) > 0 ? (
+                                <span className="app-badge ok text-[10px]">
+                                  <Check className="w-3 h-3" />
+                                  <span>متوفر بـ ({activeBranch}): {branchStock} كرتونة</span>
+                                </span>
+                              ) : (item.cartonCount || 0) > branchStock ? (
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="app-badge risk text-[10px]">
+                                    عجز بالفرع ({activeBranch}): متبقي {Math.max(0, branchStock)} ك
+                                  </span>
+                                  {octoberStock > 0 ? (
+                                    <span className="app-badge warn text-[10px]">
+                                      <Truck className="w-3 h-3" />
+                                      <span>متوفر بمخزن 6 أكتوبر ({octoberStock} ك) — 🏷️ طلب توريد من المخزن</span>
+                                    </span>
+                                  ) : (
+                                    <span className="app-badge neutral text-[10px]">
+                                      غير متوفر بأكتوبر
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="t-muted text-[10px] font-bold">
+                                  رصيد {activeBranch}: <strong className="t-navy app-num">{branchStock} ك</strong> • أكتوبر: <strong className="t-warn app-num">{octoberStock} ك</strong>
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Carton & Piece Controls */}
+                            <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap justify-between w-full sm:w-auto">
+                              <div className="flex items-center gap-2">
+                                {/* Cartons Counter */}
+                                <div className="ord-stepper">
+                                  <span className="text-[10px] t-muted font-bold px-1.5 self-center">كرتونة:</span>
+                                  <button
+                                    type="button"
+                                    aria-label="تقليل الكراتين"
+                                    onClick={() => updateCartItem(item.product.id, { cartonCount: Math.max(0, item.cartonCount - 1) })}
+                                    className="ord-step-btn cursor-pointer"
+                                  >
+                                    -
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={item.cartonCount}
+                                    onChange={(e) => updateCartItem(item.product.id, { cartonCount: Math.max(0, parseInt(e.target.value) || 0) })}
+                                    className="ord-step-val"
+                                  />
+                                  <button
+                                    type="button"
+                                    aria-label="زيادة الكراتين"
+                                    onClick={() => updateCartItem(item.product.id, { cartonCount: item.cartonCount + 1 })}
+                                    className="ord-step-btn cursor-pointer"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+
+                                {/* Pieces Counter */}
+                                <div className="ord-stepper">
+                                  <span className="text-[10px] t-muted font-bold px-1.5 self-center">قطعة:</span>
+                                  <button
+                                    type="button"
+                                    aria-label="تقليل القطع"
+                                    onClick={() => updateCartItem(item.product.id, { pieceCount: Math.max(0, item.pieceCount - 1) })}
+                                    className="ord-step-btn cursor-pointer"
+                                  >
+                                    -
+                                  </button>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={item.pieceCount}
+                                    onChange={(e) => updateCartItem(item.product.id, { pieceCount: Math.max(0, parseInt(e.target.value) || 0) })}
+                                    className="ord-step-val"
+                                  />
+                                  <button
+                                    type="button"
+                                    aria-label="زيادة القطع"
+                                    onClick={() => updateCartItem(item.product.id, { pieceCount: item.pieceCount + 1 })}
+                                    className="ord-step-btn cursor-pointer"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Line Total */}
+                              <div className="dream-amt app-ink-brass text-xs sm:text-sm text-left min-w-[70px]">
+                                {formatCurrency(item.totalPrice)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                </div>
+              )}
+
+              {/* Quick Catalog Addition Dropdown / Panel — معزول (memo) عشان ما يترندرش مع كل حرف أو إضافة للسلة */}
+              {(isCatalogPickerOpen || cart.length === 0) && (
+                <CatalogQuickPicker
+                  products={products}
+                  promotions={promotions}
+                  activeBranch={activeBranch}
+                  onQuickAdd={quickAddFromCatalog}
+                />
+              )}
+
+              {/* Step 1 Bottom Action Bar */}
+              <div className="bg-[var(--app-card-secondary)] border border-[var(--app-border)] rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-3 flex-wrap">
+                <div>
+                  <div className="text-[11px] text-[var(--app-text-muted)] font-bold">إجمالي الفاتورة:</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="text-base sm:text-lg font-black text-[var(--app-primary-text)] font-mono">
+                      {formatCurrency(summary.grandTotal)}
+                    </div>
+                    {promoSavingsSummary.totalSaved > 0 && (
+                      <span className="tg-special-discount-badge">
+                        خصم خاص: وفر {formatCurrency(promoSavingsSummary.totalSaved)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={cart.length === 0}
+                  onClick={() => setCurrentStep(2)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-black px-5 py-2.5 rounded-xl text-xs sm:text-sm flex items-center gap-2 shadow-sm transition active:scale-95 disabled:opacity-40 cursor-pointer"
+                >
+                  <span>التالي: اختيار العميل والموقف المالي (2/3)</span>
+                  <ArrowRight className="w-4 h-4 rotate-180" />
+                </button>
+              </div>
+
+            </div>
+          )}
+
+          {/* ================= STEP 2: اختيار العميل والموقف المالي ================= */}
+          {currentStep === 2 && (
+            <div className="space-y-4">
+              
+              {/* Customer Selector Section */}
+              <div className="ord-card p-3.5 sm:p-4 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                  <div className="font-black text-[var(--app-ink)] flex items-center gap-1.5">
+                    <User className="w-4 h-4 t-brass" />
+                    <span>تحديد عميل الفاتورة والموقف المالي</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSelectDirectCash}
+                      className="app-btn-warn-soft px-3 py-1 rounded-[var(--app-btn-radius)] text-xs cursor-pointer"
+                    >
+                      ⚡ بيع نقدي مباشر (كاش)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsUnregisteredCustomerOpen((prev) => !prev)}
+                      className="app-link text-xs cursor-pointer"
+                    >
+                      عميل جديد غير مسجل
+                    </button>
+                  </div>
+                </div>
+
+                {/* Unregistered Customer Drawer */}
+                {isUnregisteredCustomerOpen && (
+                  <div className="panel-navy rounded-[var(--app-btn-radius)] p-3 space-y-2 text-xs animate-in fade-in">
+                    <div className="font-black t-navy">إدخال بيانات عميل جديد للطلبية فقط:</div>
+                    <input
+                      value={unregisteredCustomerName}
+                      onChange={(e) => setUnregisteredCustomerName(e.target.value)}
+                      placeholder="اسم العميل / المحل *"
+                      className="w-full rounded-[var(--app-btn-radius)] px-3 py-2 text-xs text-[var(--app-ink)] placeholder-custom"
+                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        value={unregisteredCustomerPhone}
+                        onChange={(e) => setUnregisteredCustomerPhone(e.target.value)}
+                        placeholder="رقم الهاتف (اختياري)"
+                        className="w-full rounded-[var(--app-btn-radius)] px-3 py-2 text-xs text-[var(--app-ink)] placeholder-custom"
+                      />
+                      <input
+                        value={unregisteredCustomerAddress}
+                        onChange={(e) => setUnregisteredCustomerAddress(e.target.value)}
+                        placeholder="العنوان (اختياري)"
+                        className="w-full rounded-[var(--app-btn-radius)] px-3 py-2 text-xs text-[var(--app-ink)] placeholder-custom"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCreateUnregisteredCustomer}
+                      className="btn-primary w-full py-2 text-xs cursor-pointer"
+                    >
+                      استخدام هذا العميل للطلبية
+                    </button>
+                  </div>
+                )}
+
+                {/* Unified Customer Search */}
+                <CustomerSearchSelect
+                  customers={visibleCustomers}
+                  valueId={activeCustomer?.id || null}
+                  onSelect={(c) => handleSelectCustomer(c)}
+                  onClear={() => setActiveCustomer(null)}
+                  placeholder="ابحث بالاسم، كود العميل، أو الهاتف..."
+                  label="بحث واختيار العميل"
+                />
+              </div>
+
+              {/* Active Selected Customer & Full Financial Position Card */}
+              {activeCustomer ? (
+                <div className="ord-card p-4 space-y-4">
+                  {/* Customer Banner */}
+                  <div className="flex items-start justify-between gap-3 border-b border-slate-border-soft pb-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="app-badge warn font-mono text-[10px]">
+                          كود: {activeCustomer.code || '---'}
+                        </span>
+                        <span className="app-badge neutral text-[10px]">
+                          {activeCustomer.branchName || activeBranch}
+                        </span>
+                        {activeCustomer.tier && (
+                          <span className="app-badge neutral text-[10px]">
+                            فئة {activeCustomer.tier}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-base font-black text-[var(--app-ink)]">{activeCustomer.name}</h3>
+                      <div className="text-xs t-muted flex items-center gap-2 flex-wrap">
+                        <span>المندوب: <strong className="t-navy">{activeCustomer.salesRepName || activeCustomer.repName || activeRepUser?.name}</strong></span>
+                        {activeCustomer.phone && (
+                          <>
+                            <span>•</span>
+                            <a href={`tel:${activeCustomer.phone}`} className="t-ok hover:underline flex items-center gap-1">
+                              <Phone className="w-3 h-3" />
+                              <span>{activeCustomer.phone}</span>
+                            </a>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveCustomer(null)}
+                      className="app-btn-ghost text-xs px-3 py-1.5 shrink-0 cursor-pointer"
+                    >
+                      تغيير العميل 👤
+                    </button>
+                  </div>
+
+                  {/* Credit/Overdue Warning Banner */}
+                  {(isCreditExceeded || overdueBal > 0) && (
+                    <div className={`rounded-xl border px-3 py-2.5 text-xs font-bold flex items-start gap-2 ${
+                      isCreditExceeded ? 'bg-[var(--app-risk-tint)] border-[var(--app-risk-line)] text-[var(--app-risk-text)]' : 'bg-[var(--app-warn-tint)] border-[var(--app-warn-line)] text-[var(--app-warn-text)]'
+                    }`}>
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <div className="space-y-0.5">
+                        {overdueBal > 0 && (
+                          <div>⚠️ العميل لديه مستحقات متأخرة: <strong>{formatCurrency(overdueBal)}</strong> — يُرجى تحصيلها</div>
+                        )}
+                        {isCreditExceeded && (
+                          <div>⚠️ الفاتورة تتجاوز الحد الائتماني! رصيد بعد الفاتورة: <strong>{formatCurrency(balAfter)}</strong> &gt; حد: <strong>{formatCurrency(creditLimitVal)}</strong></div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 4 Financial KPIs Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    {/* KPI 1: Current Debt */}
+                    <div className="ord-card p-3 rounded-[var(--app-btn-radius)]">
+                      <div className="text-[10px] t-muted font-bold">المديونية الحالية:</div>
+                      <div className="dream-amt t-navy text-sm sm:text-base mt-0.5">
+                        {formatCurrency(balBefore)}
+                      </div>
+                    </div>
+
+                    {/* KPI 2: Overdue / Due */}
+                    <div className="ord-card p-3 rounded-[var(--app-btn-radius)]">
+                      <div className="text-[10px] t-risk font-bold">المستحقات والمتأخرات:</div>
+                      <div className={`dream-amt text-sm sm:text-base mt-0.5 ${overdueBal > 0 ? 't-risk' : 't-muted'}`}>
+                        {formatCurrency(overdueBal)}
+                      </div>
+                    </div>
+
+                    {/* KPI 3: Credit Limit (+ المتبقي منه كسطر صغير بدل كارت مستقل مكرر) */}
+                    <div className="ord-card p-3 rounded-[var(--app-btn-radius)]">
+                      <div className="text-[10px] t-muted font-bold">الحد الائتماني:</div>
+                      <div className="dream-amt t-navy text-sm sm:text-base mt-0.5">
+                        {creditLimitVal > 0 ? formatCurrency(creditLimitVal) : 'بدون سقف'}
+                      </div>
+                      <div className={`text-[9px] font-bold mt-0.5 ${isCreditExceeded ? 't-risk' : 't-ok'}`}>
+                        {creditLimitVal > 0 ? `المتبقي: ${formatCurrency(remainingCredit)}` : 'غير محدود'}
+                      </div>
+                    </div>
+
+                    {/* KPI 4: Balance After Invoice */}
+                    <div className="panel-navy p-3 rounded-[var(--app-btn-radius)] border">
+                      <div className="text-[10px] t-navy font-bold">الرصيد بعد الفاتورة:</div>
+                      <div className="dream-amt t-navy text-sm sm:text-base mt-0.5">
+                        {formatCurrency(balAfter)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Method (from customer data - read only) */}
+                  <div className="ord-card p-3 rounded-[var(--app-btn-radius)]">
+                    <div className="text-[10px] t-muted font-bold mb-2">طريقة السداد (من بيانات العميل):</div>
+                    <div className="flex items-center gap-2 border border-[var(--app-line)] rounded-[var(--app-btn-radius)] p-2 bg-[var(--app-card)]">
+                      <span className={`text-xs font-bold ${effectivePaymentMethod === 'نقدي (كاش)' ? 't-ok' : 't-warn'}`}>
+                        {effectivePaymentMethod === 'نقدي (كاش)' ? '💵' : '⏳'}
+                      </span>
+                      <span className="text-xs font-black">{effectivePaymentMethod}</span>
+                      {activeCustomer && !activeCustomer.paymentTerms && (
+                        <span className="text-[10px] text-[var(--app-text-muted)] ml-auto">(غير محدد - كافتراضي كاش)</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Guarantee docs and warning */}
+                  {isCreditExceeded && (
+                    <div className="ord-panel-risk p-3 rounded-[var(--app-btn-radius)] flex items-center gap-2 text-xs">
+                      <AlertTriangle className="w-4 h-4 t-risk shrink-0" />
+                      <span>
+                        تنبيه: هذه الفاتورة تتجاوز الحد الائتماني المعتمد للعميل بمقدار ({formatCurrency(balAfter - creditLimitVal)}). سيتم إرسالها لاعتماد المشرف.
+                      </span>
+                    </div>
+                  )}
+
+                  {activeCustomer.guaranteeDocs && (
+                    <div className="text-[11px] t-muted bg-slate-light p-2.5 rounded-[var(--app-btn-radius)] border border-[var(--app-line)]">
+                      📄 <strong>أوراق الضمان:</strong> {activeCustomer.guaranteeDocs}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="ord-empty rounded-[var(--app-radius)] p-6 text-center text-xs">
+                  يرجى البحث واختيار عميل لعرض موقفه المالي ومتابعة الفاتورة.
+                </div>
+              )}
+
+              {/* Step 2 Bottom Action Bar */}
+              <div className="ord-card p-3 sm:p-4 flex items-center justify-between gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(1)}
+                  className="app-btn-ghost px-4 py-2.5 text-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  <span>→ رجوع للأصناف</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={!activeCustomer}
+                  onClick={() => setCurrentStep(3)}
+                  className="btn-primary ord-cta px-5 text-xs sm:text-sm cursor-pointer"
+                >
+                  <span>التالي: تأكيد وحفظ الفاتورة (3/3)</span>
+                  <ArrowRight className="w-4 h-4 rotate-180" />
+                </button>
+              </div>
+
+            </div>
+          )}
+
+          {/* ================= STEP 3: مراجعة وتأكيد حفظ الفاتورة ================= */}
+          {currentStep === 3 && (
+            <div className="space-y-4">
+              
+              {/* Order & Customer Summary Box */}
+              <div className="ord-card p-4 space-y-3">
+                <div className="flex items-center justify-between border-b border-slate-border-soft pb-2.5">
+                  <div className="space-y-0.5">
+                    <div className="text-[10px] t-muted">عميل الفاتورة:</div>
+                    <div className="font-black text-[var(--app-ink)] text-sm">
+                      {activeCustomer?.name} ({activeCustomer?.code || 'CASH'})
+                    </div>
+                  </div>
+                  <div className="text-left">
+                    <div className="text-[10px] t-muted">الفرع والمندوب:</div>
+                    <div className="font-bold t-warn text-xs">
+                      {activeBranch} • {activeRepUser?.name}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Items Compact Recap */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] t-muted">
+                    <span>أصناف الطلبية ({cart.length} أصناف):</span>
+                    <span className="t-warn font-bold app-num">{summary.totalCartons} كرتونة • {summary.totalPieces} قطعة</span>
+                  </div>
+
+                  {/* Single Unified Invoice & Shortage Notice */}
+                  {cart.some((it) => (it.cartonCount || 0) > getBranchStockForProduct(it.product, activeBranch)) && (
+                    <div className="panel-warn p-2.5 rounded-[var(--app-btn-radius)] border flex items-start gap-2 text-xs">
+                      <Truck className="w-4 h-4 t-warn shrink-0 mt-0.5" />
+                      <div className="text-[11px] leading-relaxed">
+                        <strong className="font-bold block mb-0.5">بيان التوريد والنواقص (فاتورة واحدة موحدة):</strong>
+                        الأصناف غير المتوفرة بـ <strong>{activeBranch}</strong> مسجلة في نفس الفاتورة كـ <span className="font-bold underline">«طلب توريد من مخزن 6 أكتوبر»</span> وسيصل إشعار فوري للمشرف ومدير الفرع بها للاعتماد والسحب.
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="max-h-44 overflow-y-auto divide-y divide-slate-border-soft bg-slate-light rounded-[var(--app-btn-radius)] p-2 border border-[var(--app-line)]">
+                    {cart.map((item, i) => {
+                      const bStock = getBranchStockForProduct(item.product, activeBranch);
+                      const isShortage = (item.cartonCount || 0) > bStock;
+                      const shortageQty = isShortage ? (item.cartonCount || 0) - Math.max(0, bStock) : 0;
+                      const itemPromo = resolveProductPromotion(item.product, promotions);
+
+                      return (
+                        <div key={i} className="py-2 flex items-center justify-between gap-2 text-xs">
+                          <div className="truncate flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <div className="font-bold text-[var(--app-ink)] truncate">{item.product.name}</div>
+                              {itemPromo.hasPromo && (
+                                <span className="tg-special-discount-badge shrink-0">
+                                  خصم خاص -{itemPromo.discountPercentage}%
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-[10px] t-muted font-mono mt-0.5 flex-wrap">
+                              <span>كود: {item.product.code}</span>
+                              {item.product.unifiedCode && (
+                                <span className="t-navy">#{item.product.unifiedCode.replace('#', '')}</span>
+                              )}
+                              {isShortage ? (
+                                <span className="app-badge warn text-[10px] font-sans">
+                                  <span>🏷️ طلب توريد أكتوبر</span>
+                                  <span>({shortageQty} ك)</span>
+                                </span>
+                              ) : (
+                                <span className="app-badge ok text-[10px] font-sans">
+                                  ✓ متوفر بالفرع
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="t-muted text-center app-num px-2 shrink-0">
+                            {item.cartonCount > 0 && <span className="t-warn">{item.cartonCount} ك </span>}
+                            {item.pieceCount > 0 && <span className="t-navy">{item.pieceCount} ق</span>}
+                          </div>
+                          <div className="dream-amt t-navy text-left w-20 shrink-0">
+                            {formatCurrency(item.totalPrice)}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Method & Notes */}
+              <div className="ord-card p-4 space-y-4">
+                {/* Payment Method */}
+                <div>
+                  <label className="text-xs font-bold text-[var(--app-ink)] block mb-1.5">
+                    طريقة السداد:
+                  </label>
+                    <div className="p-2.5 rounded-[var(--app-btn-radius)] text-xs font-bold flex items-center gap-2 border border-[var(--app-line)] bg-[var(--app-card)]">
+                      <span className={`text-xs font-bold ${effectivePaymentMethod === 'نقدي (كاش)' ? 't-ok' : 't-warn'}`}>
+                        {effectivePaymentMethod === 'نقدي (كاش)' ? '💵' : '⏳'}
+                      </span>
+                      <span className="text-xs font-black">{effectivePaymentMethod}</span>
+                    </div>
+                </div>
+
+                {/* Credit Limit Warning in Step 3 */}
+                {activeCustomer && creditLimitVal > 0 && isCreditExceeded && (
+                  <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] rounded-[var(--app-btn-radius)] p-3 text-xs">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <AlertTriangle className="w-4 h-4 t-risk shrink-0" />
+                      <span className="font-black text-[var(--app-risk-text)]">تم تجاوز الحد الائتماني!</span>
+                    </div>
+                    <div className="text-[10px] text-[var(--app-risk-text)] space-y-0.5">
+                      <div>رصيد العميل الحالي: <strong>{formatCurrency(balBefore)}</strong></div>
+                      <div>قيمة الفاتورة: <strong>{formatCurrency(summary.grandTotal)}</strong></div>
+                      <div>الرصيد بعد الفاتورة: <strong className="text-[var(--app-risk-text)]">{formatCurrency(balAfter)}</strong></div>
+                      <div>الحد الائتماني المعتمد: <strong>{formatCurrency(creditLimitVal)}</strong></div>
+                      <div>تجاوز الحد بمقدار: <strong className="font-black text-[var(--app-risk-text)]">{formatCurrency(balAfter - creditLimitVal)}</strong></div>
+                      <div className="text-[10px] opacity-80 mt-1">سيتم إرسال الفاتورة لاعتماد المشرف ومدير الفرع قبل التنفيذ.</div>
+                      <button
+                        type="button"
+                        onClick={() => { setCreditOverrideReason(''); setShowCreditOverrideModal(true); }}
+                        className="mt-2 px-3 py-1.5 rounded-[var(--app-btn-radius)] bg-[var(--app-risk)] text-white font-black text-xs font-bold border border-[var(--app-risk)] hover:bg-red-600 transition active:scale-95 shadow-sm w-full"
+                      >
+                        🚨 طلب استثناء خاص من الإدارة ➔
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Rep Notes */}
+                <div>
+                  <label className="text-xs font-bold text-[var(--app-ink)] block mb-1.5">
+                    ملاحظات الفاتورة للمشرف:
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={invoiceNotes}
+                    onChange={(e) => setInvoiceNotes(e.target.value)}
+                    placeholder="أي تعليمات تسليم، مواعيد، أو ملاحظات إضافية..."
+                    className="w-full bg-blue-soft-light rounded-[var(--app-btn-radius)] p-2.5 text-xs text-[var(--app-ink)] placeholder-custom"
+                  />
+                </div>
+              </div>
+
+              {/* Final Financial Totals Box */}
+              <div className="bg-slate-soft rounded-[var(--app-radius)] border border-[var(--app-line)] p-4 space-y-2 text-xs">
+                {promoSavingsSummary.totalSaved > 0 && (
+                  <div className="flex items-center justify-between pb-1 text-[11px]">
+                    <span className="font-bold text-amber-800 flex items-center gap-1.5">
+                      <Flame className="w-3.5 h-3.5 text-amber-600" />
+                      <span>خصم خاص — عروض دريم طنطاوي ({promoSavingsSummary.discountedItemsCount} صنف):</span>
+                    </span>
+                    <span className="dream-amt text-emerald-700 font-black">
+                      -{formatCurrency(promoSavingsSummary.totalSaved)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-2 border-t border-[var(--app-line)]">
+                  <span className="text-sm font-black text-[var(--app-ink)]">الصافي المطلوب سداده:</span>
+                  <span className="dream-amt app-ink-brass text-xl sm:text-2xl">{formatCurrency(summary.grandTotal)}</span>
+                </div>
+                <div className="flex items-center justify-between pt-1 text-[11px] t-muted">
+                  <span>رصيد العميل بعد إضافة هذه الفاتورة:</span>
+                  <span className="dream-amt t-navy">{formatCurrency(balAfter)}</span>
+                </div>
+                {creditLimitVal > 0 && (
+                  <div className="flex items-center justify-between pt-1 text-[11px]">
+                    <span className={`font-bold ${isCreditExceeded ? 't-risk' : 't-ok'}`}>
+                      المتبقي من الحد الائتماني بعد الفاتورة:
+                    </span>
+                    <span className={`dream-amt ${isCreditExceeded ? 't-risk' : 't-ok'}`}>
+                      {formatCurrency(remainingCredit)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Step 3 Bottom Action Bar */}
+              <div className="ord-card p-3 sm:p-4 flex items-center justify-between gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(2)}
+                  className="app-btn-ghost px-4 py-2.5 text-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <ArrowRight className="w-4 h-4" />
+                  <span>→ رجوع لبيانات العميل</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={isSubmitting || cart.length === 0}
+                  onClick={handleSubmitOrder}
+                  className="btn-primary ord-cta px-6 text-xs sm:text-sm cursor-pointer"
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                  <span>{isSubmitting ? 'جاري حفظ الفاتورة...' : 'تأكيد وحفظ الفاتورة الآن 🛒'}</span>
+                </button>
+              </div>
+
+            </div>
+          )}
+
+        </div>
+
+      </div>
+
+      {/* Credit Override Exception Request Modal */}
+      {showCreditOverrideModal && (
+        <div className="fixed inset-0 z-60 bg-slate-950/90 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in">
+          <div className="absolute inset-0" onClick={() => setShowCreditOverrideModal(false)} aria-hidden="true" />
+          <div className="relative z-10 bg-[var(--app-card)] rounded-[var(--app-radius)] border border-[var(--app-border)] shadow-2xl w-full max-w-full sm:max-w-md p-6 sm:p-8 animate-in mi-fade-in">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-10 h-10 rounded-xl bg-[var(--app-warn-tint)] text-[var(--app-warn-text)] border border-[var(--app-warn-line)] flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-[var(--app-ink)] text-lg">طلب استثناء خاص من الإدارة</h3>
+                  <p className="text-xs text-[var(--app-text-muted)]">تجاوز الحد الائتماني للعميل</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreditOverrideModal(false)}
+                className="text-[var(--app-text-muted)] hover:text-[var(--app-risk-text)] transition"
+                aria-label="إغلاق"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-[var(--app-risk-tint)] border border-[var(--app-risk-line)] rounded-xl p-3 mb-4">
+              <div className="flex items-start gap-2 text-xs text-[var(--app-risk-text)] font-bold space-y-1">
+                <div><AlertCircle className="w-3 h-3 shrink-0 mt-0.5" /></div>
+                <div className="space-y-0.5">
+                  <div>مبلغ التجاوز: <strong className="text-[var(--app-risk-text)]">{formatCurrency(balAfter - creditLimitVal)}</strong></div>
+                  {creditLimitVal > 0 && (
+                    <div>نسبة التجاوز: <strong className="text-[var(--app-risk-text)] font-bold">{(balAfter / creditLimitVal * 100).toFixed(0)}% من الحد الائتماني</strong></div>
+                  )}
+                  <div>الرصيد المتوقع بعد الفاتورة: <strong className="text-[var(--app-risk-text)]">{formatCurrency(balAfter)}</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <label className="block text-[11px] font-bold text-[var(--app-ink)] mb-1">سبب طلب الاستثناء (مطلوب):</label>
+              <textarea
+                rows={4}
+                value={creditOverrideReason}
+                onChange={(e) => setCreditOverrideReason(e.target.value)}
+                placeholder="اذكر سبب طلب الاستثناء الخاص من الإدارة لتجاوز الحد الائتماني..."
+                className="w-full bg-slate-soft border border-[var(--app-line)] rounded-[var(--app-btn-radius)] p-2.5 text-[11px] text-[var(--app-ink)] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--app-accent)] transition"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setShowCreditOverrideModal(false)}
+                className="flex-1 px-4 py-2.5 rounded-[var(--app-btn-radius)] text-xs font-bold text-[var(--app-text)] bg-[var(--app-card-secondary)] border border-[var(--app-border)] hover:bg-[var(--app-card-hover)] transition cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!creditOverrideReason.trim()) {
+                    setFeedbackError('يرجى كتابة سبب طلب الاستثناء.');
+                    return;
+                  }
+                  setShowCreditOverrideModal(false);
+                  setIsSubmittingOverride(true);
+                  setTimeout(() => {
+                    setIsSubmittingOverride(false);
+                    setFeedbackSuccess('تم إرسال طلب الاستثناء الخاص إلى الإدارة للموافقة عليه.');
+                    setCurrentStep(3);
+                  }, 1000);
+                }}
+                disabled={isSubmittingOverride}
+                className="flex-1 px-4 py-2.5 rounded-[var(--app-btn-radius)] text-xs font-bold text-white bg-[var(--app-risk)] hover:bg-[var(--app-risk)] transition active:scale-95 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmittingOverride ? 'جاري الإرسال...' : 'إرسال الطلب للإدارة'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};
